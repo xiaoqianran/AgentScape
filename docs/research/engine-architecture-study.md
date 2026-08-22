@@ -1,3 +1,5 @@
+
+> 竞争/替代架构的 2026-08 复核见 [`alternatives-study.md`](./alternatives-study.md)。
 # 引擎架构研究记录
 
 这份文档记录 AgentScape 1.x 架构收敛前实际阅读过的项目，以及最终保留的原则。相关仓库均在本地拉取并通过 CodeGraph 追踪核心调用路径。
