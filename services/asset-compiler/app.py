@@ -9,12 +9,13 @@ import socket
 from typing import Any
 
 from urdf_proposal import urdf_part_proposal
+from part_geometry import mesh_report, part_meshes
 from urllib.parse import urljoin, urlparse
 
 import numpy as np
 import requests
 import trimesh
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 API_VERSION = "1"
@@ -22,6 +23,8 @@ app = FastAPI(title="AgentScape Asset Compiler", version=API_VERSION)
 MAX_ASSET_BYTES = int(os.getenv("MAX_ASSET_BYTES", 100 * 1024 * 1024))
 MAX_REDIRECTS = 3
 MAX_URDF_BYTES = int(os.getenv('MAX_URDF_BYTES', 5 * 1024 * 1024))
+MAX_PARTS_PER_REQUEST = int(os.getenv('MAX_PARTS_PER_REQUEST', '32'))
+MAX_PART_METADATA_BYTES = int(os.getenv('MAX_PART_METADATA_BYTES', str(256 * 1024)))
 
 
 class UrdfProposalRequest(BaseModel):
@@ -112,6 +115,57 @@ def _coacd_colliders(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
     ]
 
 
+async def _read_upload(upload: UploadFile, max_bytes: int = MAX_ASSET_BYTES) -> bytes:
+    chunks, total = [], 0
+    while True:
+        chunk = await upload.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise ValueError("资产超过 MAX_ASSET_BYTES")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _compile_part_geometry(glb: bytes, metadata: dict[str, Any]) -> dict[str, Any]:
+    parts = metadata.get("parts") or []
+    if not isinstance(parts, list) or not parts:
+        raise ValueError("part-geometry requires metadata.parts[]")
+    if len(parts) > MAX_PARTS_PER_REQUEST:
+        raise ValueError("Part 数量超过 MAX_PARTS_PER_REQUEST")
+    meshes, extraction_errors = part_meshes(glb, parts)
+    density = float(os.getenv("DEFAULT_DENSITY_KG_M3", "500"))
+    results: dict[str, Any] = {}
+    for part in parts:
+        part_id = str(part.get("id") or "")
+        if part_id in extraction_errors:
+            results[part_id] = {"warning": f"Part 几何提取失败: {extraction_errors[part_id]}"}
+            continue
+        mesh = meshes.get(part_id)
+        if mesh is None:
+            results[part_id] = {"warning": "Part 不包含可提取 Mesh"}
+            continue
+        report = mesh_report(mesh, density)
+        try:
+            colliders = _coacd_colliders(mesh)
+        except Exception as exc:
+            results[part_id] = {"warning": f"CoACD 失败: {exc}", "geometry": report}
+            continue
+        if not colliders:
+            results[part_id] = {"warning": "CoACD 未生成有效凸包", "geometry": report}
+            continue
+        physics = {"friction": 0.5}
+        if "mass" in report:
+            physics["mass"] = report["mass"]
+        results[part_id] = {
+            "collision": {"strategy": "coacd-part", "quality": "convex-decomposition", "colliders": colliders},
+            "physics": physics,
+            "geometry": report,
+        }
+    return {"parts": results}
+
+
 @app.get("/health")
 def health():
     return {"ok": True, "service": "agentscape-asset-compiler", "apiVersion": API_VERSION}
@@ -126,7 +180,32 @@ def proposal_from_urdf(req: UrdfProposalRequest):
 
 
 @app.post("/compile")
-def compile_asset(req: CompileRequest):
+async def compile_asset(request: Request):
+    content_type = request.headers.get("content-type", "")
+    if content_type.startswith("multipart/form-data"):
+        try:
+            import json
+            form = await request.form()
+            stage = str(form.get("stage") or "")
+            if stage != "part-geometry":
+                raise HTTPException(400, f"不支持的 multipart stage: {stage}")
+            upload = form.get("asset")
+            if upload is None or not hasattr(upload, 'read'):
+                raise ValueError("part-geometry requires asset upload")
+            metadata_text = str(form.get("metadata") or "{}")
+            if len(metadata_text.encode("utf-8")) > MAX_PART_METADATA_BYTES:
+                raise ValueError("Part metadata 超过 MAX_PART_METADATA_BYTES")
+            metadata = json.loads(metadata_text)
+            return _compile_part_geometry(await _read_upload(upload), metadata)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    try:
+        req = CompileRequest.model_validate(await request.json())
+    except Exception as exc:
+        raise HTTPException(422, str(exc)) from exc
     if req.stage != "enrich":
         raise HTTPException(400, f"不支持的 stage: {req.stage}")
     url = (req.source or {}).get("url")

@@ -493,3 +493,73 @@ ARTICULATED_MASS_UNPARTITIONED
 ```
 
 并把 `wholeAssetMass` 保存在 `compiler.partCollision` provenance 中，等待未来可信的 per-part mass partitioner。不会根据 AABB 体积偷偷猜分配比例。
+
+## Per-Part Heavy Geometry Provider
+
+1.7 在 `PartProposalPass` 之后增加 `PartGeometryEnrichmentPass`。它只针对已经 promotion 的 executable Parts，并把**当前 materialized Document**重新编码成临时 GLB，通过同一个 Compiler Endpoint 的 multipart `part-geometry` stage 上传。这样服务看到的是最终 Part Nodes，而不是原始 source URL。
+
+```text
+RemoteEnrichmentPass
+    │ whole-asset URL / 普通 enrich
+    ▼
+SegmentMaterializePass
+    ▼
+PartColliderPass          coarse browser fallback
+    ▼
+PartProposalPass          promoted Parts
+    ▼
+PartGeometryEnrichmentPass
+    │ multipart: current GLB + [{id,node,parent}]
+    ▼
+FastAPI / trimesh
+    ▼
+按最近 Part ancestor 提取 Part-local Mesh
+    ▼
+CoACD per Part
+    ▼
+convexHull[] + mesh report + 可选 mass
+    ▼
+覆盖对应 Part 的 coarse collider
+    ▼
+ArticulatedCollisionPass
+```
+
+### 为什么使用 multipart
+
+materialization 后的 GLB 只存在于当前 Compiler 内存中，不一定有公网 URL。1.7 不使用 base64，也不要求先把中间产物上传到第三方对象存储；`HttpCompilerProvider` 使用 `FormData` 直接发送 GLB binary，FastAPI 端流式读取并继续受 `MAX_ASSET_BYTES` 限制。现有 JSON `enrich` stage 保持兼容。
+
+### Part-local CoACD
+
+服务使用 trimesh 的真实 GLB node graph。每个 Mesh 向父级查找最近的 requested Part Node，只有该 Part 拥有这份几何；更深的 child Part 会形成新的 ownership 边界。随后把 Mesh world transform 转换到 Part rigid-body local frame，再调用现有 CoACD。
+
+服务拒绝无法安全转为 rigid local frame 的 shear / mirrored negative-scale Part；该 Part 单独返回 warning，浏览器继续保留 AABB fallback，不会让同批其它 Part 失败。
+
+Provider 返回的 convex hull 仍经过 `validatePhysics()` 同一套 Manifest Schema 校验。无效 hull 不会写入 Manifest。成功升级后：
+
+```text
+part.physics.collider.strategy = coacd-part
+part.physics.collider.quality  = convex-decomposition
+part.physics.collider.generated = false
+```
+
+Compiler 报告只记录 hull 数量、mesh quality、extents、faces/vertices 等摘要；完整 convex hull vertices 只保留在最终 `part.physics.colliders`，不会在 `compiler.partGeometry` 再复制一份。
+
+### Per-Part mass
+
+Part mesh 只有在 trimesh 确认 `is_volume`、volume 有效且为正时，服务才按 `DEFAULT_DENSITY_KG_M3` 生成 mass，并标记：
+
+```text
+massMethod = watertight-volume-density
+```
+
+非 watertight Part（例如当前 cabinet Door）不会根据 extents/AABB 体积猜 mass。Whole-asset mass 与 Part mass 的 provenance 继续分开。
+
+### 失败与质量门
+
+per-part heavy provider 是可选升级：
+
+- 请求失败：`PART_GEOMETRY_ENRICHMENT_FAILED`，保留浏览器 AABB。
+- Provider collider 非法：`PART_GEOMETRY_PROVIDER_INVALID`，忽略该结果。
+- 成功升级的 Part 不再产生 `PART_COLLIDER_COARSE`。
+- Root 若仍使用 AABB，`COLLIDER_COARSE` 仍存在，因此资产保持 `provisional`。
+- `ARTICULATION_UNVERIFIED` 仍需独立 Runtime verifier 消除。

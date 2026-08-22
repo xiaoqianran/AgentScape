@@ -33,6 +33,12 @@ export class CompileQualityPass {
     if (context.partCollision?.final?.mass?.status === 'unpartitioned') {
       advisory.push({ code:'ARTICULATED_MASS_UNPARTITIONED', message:'Provider 的 whole-asset mass 尚未可靠分配到 Root/Parts，因此未作为 Root mass 使用。' });
     }
+    if (context.partGeometry?.error) {
+      advisory.push({ code:'PART_GEOMETRY_ENRICHMENT_FAILED', message:'可选 per-part 重型几何 Provider 失败，继续使用浏览器 fallback collider。' });
+    }
+    if (context.partGeometry?.issues?.length) {
+      advisory.push({ code:'PART_GEOMETRY_PROVIDER_INVALID', message:`per-part Provider 返回 ${context.partGeometry.issues.length} 个无效结果，已忽略并保留 fallback。` });
+    }
     if ((context.semantics.confidence ?? 0) < 0.5) {
       advisory.push({ code: 'SEMANTIC_LOW_CONFIDENCE', message: '语义分类置信度较低。' });
     }

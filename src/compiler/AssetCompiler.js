@@ -6,6 +6,7 @@ import { SegmentMaterializePass } from './passes/SegmentMaterializePass.js';
 import { SegmentationEvidencePass } from './passes/SegmentationEvidencePass.js';
 import { PartColliderPass } from './passes/PartColliderPass.js';
 import { PartProposalPass } from './passes/PartProposalPass.js';
+import { PartGeometryEnrichmentPass } from './passes/PartGeometryEnrichmentPass.js';
 import { ArticulatedCollisionPass } from './passes/ArticulatedCollisionPass.js';
 import { OptimizeGLBPass } from './passes/OptimizeGLBPass.js';
 import { StructurePass } from './passes/StructurePass.js';
@@ -38,6 +39,7 @@ export class AssetCompiler {
       new JointFramePass(),
       new PartColliderPass(),
       new PartProposalPass(),
+      new PartGeometryEnrichmentPass({ provider, io:this.io }),
       new ArticulatedCollisionPass(),
       new OptimizeGLBPass({ io: this.io }),
       new ResourceBudgetPass(),
@@ -111,6 +113,7 @@ export class AssetCompiler {
       partProposal: context.partProposal || null,
       partSegmentation: context.partSegmentation || null,
       partCollision: context.partCollision || null,
+      partGeometry: context.partGeometry || null,
       resources: context.resources,
       quality: context.quality
     };

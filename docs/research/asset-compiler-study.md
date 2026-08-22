@@ -131,3 +131,24 @@ Scene Mesh
 2. 一个 rigid body 的 `mass` 是总质量；多个 collider 不能每个重复设置完整质量。
 
 两者都属于“代码能跑但物理语义错误”的问题，因此比继续增加模型推断更优先。
+
+## Per-Part 重型几何边界
+
+1.7 解决了 1.6 留下的关键边界：whole-asset CoACD 不能冒充 per-part CoACD，而 materialized GLB 又没有公网 URL。最终采用 binary multipart provider stage，而不是把中间 GLB base64 塞进 JSON。
+
+服务端仍复用同一套 trimesh + CoACD；新增的只是 Part ownership 与 local-frame 提取。浏览器 fallback 与服务端 heavy collider 共享同一 Manifest schema，避免出现“服务能返回一种 Runtime 不会执行的 collider”。
+
+真实 cabinet E2E 已验证：
+
+```text
+AssetCompiler
+→ materialize Door__part_door
+→ HttpCompilerProvider multipart
+→ FastAPI
+→ trimesh Part-local 12 faces
+→ CoACD 1 hull
+→ PartGeometryEnrichmentPass
+→ manifest.parts.door convexHull
+```
+
+该 Door 非 watertight，因此服务返回 mesh quality 与 friction，但不返回 mass；这正是 provenance/置信边界应有的行为。

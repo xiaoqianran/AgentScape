@@ -10,6 +10,7 @@ AgentScape 自身代码独立实现，并使用 `package.json` 和服务端 `req
 - glTF-Transform — MIT
 - CoACD — MIT，可选服务端依赖
 - yourdfpy — MIT，可选服务端 URDF 解析依赖
+- python-multipart — Apache-2.0，可选服务端 binary/multipart 接收依赖
 
 ## 架构研究
 

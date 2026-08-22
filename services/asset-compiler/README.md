@@ -56,8 +56,20 @@ Content-Type: application/json
 
 该端点只输出机械结构，不生成 action/collider。它适合把 SAPIEN/URDF 生态已有的可信 link/joint 信息送入浏览器 Compiler，再由后续阶段补齐可执行条件。
 
-### CI 与轻量测试
+### 独立服务 CI
 
-URDF 转换逻辑独立在 `urdf_proposal.py`，不依赖 FastAPI/CoACD。仓库的 `Asset Compiler Service Check` workflow 只在服务相关文件变化时安装 `requirements-test.txt`（NumPy + yourdfpy）并运行 stdlib unittest；GitHub Pages 的 Node 构建仍保持纯前端，不被重型 Python 几何依赖阻塞。
+`Asset Compiler Service Check` 只在 `services/asset-compiler/**` 或自身 workflow 变化时运行，安装完整 `requirements.txt` 并测试 URDF 转换与 Part geometry。GitHub Pages 的 Node 构建仍保持纯前端，两条 CI 互不阻塞。
 
-完整本地服务仍使用 `requirements.txt`，可额外验证 `/compile` 的 trimesh + CoACD 链路。
+## Per-Part CoACD
+
+同一个 `/compile` endpoint 还接受 multipart：
+
+```text
+stage = part-geometry
+metadata = {"parts":[{"id":"door","node":"Door__part_door","parent":"$root"}]}
+asset = 当前 materialized GLB binary
+```
+
+服务按 Part Node 层级提取 Part-local Mesh，再逐 Part 运行 CoACD。`MAX_PARTS_PER_REQUEST` 默认 32，metadata 默认限制 256 KiB，上传 GLB 继续受 `MAX_ASSET_BYTES` 限制。单个 Part 的提取或 CoACD 失败不会终止同批其它 Part。
+
+质量/质量估算规则：只有 watertight volume 才返回 Part mass；非 watertight mesh 仅返回 geometry report 与 collider。

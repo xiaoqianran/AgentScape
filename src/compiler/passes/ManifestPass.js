@@ -41,6 +41,7 @@ export class ManifestPass {
         partProposal: context.partProposal || null,
         partSegmentation: context.partSegmentation || null,
         partCollision: context.partCollision || null,
+        partGeometry: context.partGeometry || null,
         meshQuality: context.meshQuality || null,
         resources: context.resources
       },

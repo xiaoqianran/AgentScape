@@ -41,6 +41,7 @@ GLB / 生成资产 / 外部数据
 - Provider-neutral `Part Proposal v1` 与 URDF Adapter：可信机械结构可进入 Compiler，但缺少 collider/action/target 时不会被误提升为 Runtime 能力。
 - `Segmentation Evidence v1`、安全 `SegmentMaterializePass` 与保守 `JointFramePass`：完整 TRIANGLES 分割可转换成稳定 GLB Part Nodes；复杂分割仍保持证据身份，URDF frame 只有在原始 GLB 零位姿可证明一致时才自动编译 Rapier anchors。
 - Part-level Collider Compiler：按最近 executable Part 重新分配 Mesh 碰撞所有权，自动生成可追踪的 local AABB fallback；Root 不再重复包含可动 Part，Provider 的高质量 Part collider 优先保留。
+- Per-Part Heavy Geometry：materialized GLB 可通过 multipart 上传给可选 Compiler 服务，按 Part-local Mesh 运行 trimesh + CoACD，并用通过 Schema 校验的 convex hull 升级 coarse Part collider。
 - 可选 CoACD 后端生成凸分解碰撞体。
 
 ## 核心设计原则

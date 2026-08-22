@@ -5,7 +5,7 @@ const BODY_TYPES = new Set(['fixed', 'dynamic', 'kinematic']);
 const SHAPES = new Set(['box', 'cylinder', 'convexHull']);
 const ARTICULATION_ACTIONS = new Set(['open', 'close']);
 
-function validatePhysics(physics, context) {
+export function validatePhysics(physics, context = {}) {
   if (!physics) return;
   if (physics.body && !BODY_TYPES.has(physics.body)) throw Errors.invalidManifest(`Unsupported physics body: ${physics.body}`, context);
   for (const collider of physics.colliders || []) {

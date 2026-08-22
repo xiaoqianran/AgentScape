@@ -183,3 +183,9 @@ Runtime  = 按 Manifest 创建 Rapier bodies + colliders + joints
 ```
 
 Runtime 不重新做编译期 Mesh 分析，Compiler 也不直接控制运行中的 PhysicsWorld。
+
+## Binary Heavy Provider Stage
+
+Compiler Provider 现在有两种职责不同的传输：JSON `enrich` 用于原始资产 URL 和轻量 metadata；multipart `part-geometry` 用于必须消费“当前编译中间 GLB”的重型几何任务。两者共用同一个 endpoint 和超时/错误边界，不增加第二套服务配置。
+
+这形成一个可继续扩展的稳定边界：未来需要 materialized mesh 的 VHACD、surface extraction、interaction geometry 等任务，可以继续走 binary stage，而不必把中间资产上传到公网 URL。
