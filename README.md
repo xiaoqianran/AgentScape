@@ -92,3 +92,25 @@ npm run build
 ## License
 
 MIT
+
+## Blender / GLB authoring contract
+
+V0.3 loads a real GLB asset from `public/assets/cabinet.glb`. The demo GLB follows the same node contract expected from Blender:
+
+```text
+Cabinet scene
+├── Body
+└── doorHinge          <- pivot/origin placed on the hinge axis
+    └── Door
+```
+
+For a replacement Blender asset:
+
+1. Model moving parts as separate objects.
+2. Put the hinge/pivot origin on the physical rotation axis.
+3. Preserve node names on glTF export (`Body`, `doorHinge`, `Door`).
+4. Export as glTF 2.0 binary (`.glb`).
+5. Register the asset in `src/assets/manifests/index.js`.
+6. Run `npm run assets:validate` before committing.
+
+The manifest owns behavior and physics. The GLB owns visuals and hierarchy. This keeps art assets replaceable without changing Agent tools or world logic.

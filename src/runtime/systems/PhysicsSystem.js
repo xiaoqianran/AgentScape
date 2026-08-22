@@ -1,45 +1,136 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+import * as THREE from 'three';
+import RAPIER from '@dimforge/rapier3d-compat/rapier.es.js';
+
+const vec = (a = [0, 0, 0]) => ({ x: a[0], y: a[1], z: a[2] });
 
 export class PhysicsSystem {
-  constructor() { this.world = null; this.entries = new Map(); }
-  async init() { await RAPIER.init(); this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 }); }
+  constructor() {
+    this.world = null;
+    this.entries = new Map();
+  }
+
+  async init() {
+    await RAPIER.init();
+    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  }
+
   addFloor() {
     const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.1, 0));
     this.world.createCollider(RAPIER.ColliderDesc.cuboid(5, 0.1, 4), body);
   }
-  attach(id, assetId, object) {
-    const p = object.position;
-    let body; let yOffset = 0;
-    if (assetId === 'cup') {
-      body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(p.x, p.y + 0.16, p.z));
-      this.world.createCollider(RAPIER.ColliderDesc.cylinder(0.16, 0.15).setMass(0.3), body); yOffset = -0.16;
-    } else if (assetId === 'table') {
-      body = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(p.x, p.y, p.z));
-      this.world.createCollider(RAPIER.ColliderDesc.cuboid(1.2, 0.08, 0.625).setTranslation(0, 1, 0), body);
-      for (const x of [-1.02, 1.02]) for (const z of [-0.46, 0.46]) this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.07, 0.47, 0.07).setTranslation(x, 0.47, z), body);
-    } else if (assetId === 'cabinet') {
-      body = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(p.x, p.y + 1, p.z));
-      this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.85, 1, 0.36), body); yOffset = -1;
+
+  bodyDesc(type, position) {
+    const desc = type === 'dynamic'
+      ? RAPIER.RigidBodyDesc.dynamic()
+      : type === 'kinematic'
+        ? RAPIER.RigidBodyDesc.kinematicPositionBased()
+        : RAPIER.RigidBodyDesc.fixed();
+    return desc.setTranslation(position.x, position.y, position.z);
+  }
+
+  addColliders(body, colliders = [], mass) {
+    for (const spec of colliders) {
+      let desc;
+      if (spec.shape === 'box') desc = RAPIER.ColliderDesc.cuboid(...spec.halfExtents);
+      else if (spec.shape === 'cylinder') desc = RAPIER.ColliderDesc.cylinder(spec.halfHeight, spec.radius);
+      else continue;
+      if (spec.translation) desc.setTranslation(...spec.translation);
+      if (mass != null) desc.setMass(mass);
+      this.world.createCollider(desc, body);
     }
-    if (body) this.entries.set(id, { body, yOffset });
   }
+
+  attach(id, manifest, object) {
+    const worldPos = new THREE.Vector3();
+    object.getWorldPosition(worldPos);
+    const body = this.world.createRigidBody(this.bodyDesc(manifest.physics?.body || 'fixed', worldPos));
+    this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass);
+
+    const entry = { body, root: object, parts: new Map(), lastPosition: worldPos.clone() };
+
+    for (const [partName, part] of Object.entries(manifest.parts || {})) {
+      if (!part.physics || !part.joint) continue;
+      const node = object.getObjectByName(part.node);
+      if (!node) continue;
+
+      const partWorld = new THREE.Vector3();
+      node.getWorldPosition(partWorld);
+      const child = this.world.createRigidBody(this.bodyDesc(part.physics.body || 'dynamic', partWorld));
+      this.addColliders(child, part.physics.colliders, part.physics.mass);
+
+      let data;
+      if (part.joint.type === 'revolute') {
+        data = RAPIER.JointData.revolute(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis));
+      } else {
+        data = RAPIER.JointData.prismatic(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis));
+      }
+      const joint = this.world.createImpulseJoint(data, body, child, true);
+      if (part.joint.limits) joint.setLimits(part.joint.limits[0], part.joint.limits[1]);
+      entry.parts.set(partName, { body: child, joint, node, spec: part });
+    }
+
+    this.entries.set(id, entry);
+  }
+
   setPosition(id, position) {
-    const entry = this.entries.get(id); if (!entry) return;
-    entry.body.setTranslation({ x: position[0], y: position[1] - entry.yOffset, z: position[2] }, true);
+    const entry = this.entries.get(id);
+    if (!entry) return;
+    const next = new THREE.Vector3(...position);
+    const delta = next.clone().sub(entry.lastPosition);
+    entry.body.setTranslation(vec(position), true);
     entry.body.setLinvel?.({ x: 0, y: 0, z: 0 }, true);
+    for (const { body } of entry.parts.values()) {
+      const p = body.translation();
+      body.setTranslation({ x: p.x + delta.x, y: p.y + delta.y, z: p.z + delta.z }, true);
+      body.setLinvel?.({ x: 0, y: 0, z: 0 }, true);
+      body.wakeUp();
+    }
+    entry.lastPosition.copy(next);
   }
+
   setHeld(id, held) {
-    const body = this.entries.get(id)?.body; if (!body) return;
+    const body = this.entries.get(id)?.body;
+    if (!body) return;
     body.setBodyType(held ? RAPIER.RigidBodyType.KinematicPositionBased : RAPIER.RigidBodyType.Dynamic, true);
   }
-  setHeldTarget(id, target) { this.entries.get(id)?.body?.setNextKinematicTranslation(target); }
+
+  setHeldTarget(id, target) {
+    this.entries.get(id)?.body?.setNextKinematicTranslation(target);
+  }
+
+  setArticulationTarget(id, partName, target) {
+    const part = this.entries.get(id)?.parts.get(partName);
+    if (!part) return false;
+    const motor = part.spec.joint.motor || {};
+    part.joint.configureMotorPosition(target, motor.stiffness ?? 40, motor.damping ?? 8);
+    part.body.wakeUp();
+    return true;
+  }
+
   step(dt, store) {
-    this.world.timestep = dt; this.world.step();
+    this.world.timestep = dt;
+    this.world.step();
+
     for (const [id, entry] of this.entries) {
       const record = store.has(id) ? store.get(id) : null;
-      if (!record || entry.body.isFixed()) continue;
-      const p = entry.body.translation(); const q = entry.body.rotation();
-      record.object.position.set(p.x, p.y + entry.yOffset, p.z); record.object.quaternion.set(q.x, q.y, q.z, q.w);
+      if (!record) continue;
+
+      if (!entry.body.isFixed()) {
+        const p = entry.body.translation();
+        const q = entry.body.rotation();
+        record.object.position.set(p.x, p.y, p.z);
+        record.object.quaternion.set(q.x, q.y, q.z, q.w);
+        entry.lastPosition.set(p.x, p.y, p.z);
+      }
+
+      const rootWorldQ = new THREE.Quaternion();
+      record.object.getWorldQuaternion(rootWorldQ);
+      const inverseRoot = rootWorldQ.clone().invert();
+      for (const { body, node } of entry.parts.values()) {
+        const q = body.rotation();
+        const localQ = inverseRoot.multiply(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+        node.quaternion.copy(localQ);
+      }
     }
   }
 }

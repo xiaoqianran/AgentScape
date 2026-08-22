@@ -35,10 +35,16 @@ export class AssetManager {
       if (!factory) throw Errors.assetNotFound(assetId);
       object = await factory();
     }
+    this.validateNodes(object, manifest);
     object.name ||= assetId;
     object.userData.assetId = assetId;
     object.userData.manifest = manifest;
     return { object, manifest };
+  }
+
+  validateNodes(object, manifest) {
+    const missing = (manifest.requiredNodes || []).filter((name) => !object.getObjectByName(name));
+    if (missing.length) throw Errors.invalidManifest(`Asset ${manifest.id} is missing required GLB nodes: ${missing.join(', ')}`, { id: manifest.id, missing });
   }
 
   async loadGLB(url) {
@@ -66,11 +72,6 @@ export class AssetManager {
       for (const x of [-1.02, 1.02]) for (const z of [-0.46, 0.46]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.94, 0.14), mat); leg.position.set(x, 0.47, z); leg.castShadow = leg.receiveShadow = true; g.add(leg); }
       return g;
     });
-    this.registerFactory('cabinet', async () => {
-      const g = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 2, 0.72), new THREE.MeshStandardMaterial({ color: 0x536176, roughness: 0.6 })); body.position.y = 1; body.castShadow = body.receiveShadow = true; g.add(body);
-      const hinge = new THREE.Group(); hinge.name = 'doorHinge'; hinge.position.set(-0.82, 1, 0.39);
-      const door = new THREE.Mesh(new THREE.BoxGeometry(1.62, 1.9, 0.08), new THREE.MeshStandardMaterial({ color: 0x71839d, roughness: 0.5 })); door.name = 'door'; door.position.x = 0.81; door.castShadow = true; hinge.add(door); g.add(hinge); return g;
-    });
+
   }
 }

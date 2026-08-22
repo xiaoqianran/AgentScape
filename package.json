@@ -1,6 +1,6 @@
 {
   "name": "agentscape",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run test && npm run build"
+    "check": "npm run assets:validate && npm run test && npm run build",
+    "assets:validate": "node tools/validate-assets.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.17.3",

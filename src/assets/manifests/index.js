@@ -1,30 +1,43 @@
 export const assetManifests = {
   cup: {
-    id: 'cup',
-    type: 'cup',
-    source: { kind: 'builtin' },
+    id: 'cup', type: 'cup', source: { kind: 'builtin' },
     actions: ['pickup', 'drop', 'place', 'move'],
-    physics: { body: 'dynamic', mass: 0.3, collider: 'cylinder' }
+    physics: {
+      body: 'dynamic', mass: 0.3,
+      colliders: [{ shape: 'cylinder', halfHeight: 0.16, radius: 0.15, translation: [0, 0.16, 0] }]
+    }
   },
   table: {
-    id: 'table',
-    type: 'table',
-    source: { kind: 'builtin' },
-    actions: ['move'],
-    physics: { body: 'fixed', collider: 'compound' },
+    id: 'table', type: 'table', source: { kind: 'builtin' }, actions: ['move'],
+    physics: {
+      body: 'fixed',
+      colliders: [
+        { shape: 'box', halfExtents: [1.2, 0.08, 0.625], translation: [0, 1, 0] },
+        ...[-1.02, 1.02].flatMap(x => [-0.46, 0.46].map(z => ({ shape: 'box', halfExtents: [0.07, 0.47, 0.07], translation: [x, 0.47, z] })))
+      ]
+    },
     surfaces: [{ id: 'top', localPosition: [0, 1.1, 0], size: [2.2, 1.05] }]
   },
   cabinet: {
-    id: 'cabinet',
-    type: 'cabinet',
-    source: { kind: 'builtin' },
+    id: 'cabinet', type: 'cabinet', source: { kind: 'glb', url: 'assets/cabinet.glb' },
+    requiredNodes: ['Body', 'doorHinge', 'Door'],
     actions: ['open', 'close', 'move'],
-    physics: { body: 'fixed', collider: 'box' },
+    physics: {
+      body: 'fixed',
+      colliders: [{ shape: 'box', halfExtents: [0.85, 1, 0.32], translation: [0, 1, -0.04] }]
+    },
     parts: {
       door: {
-        node: 'doorHinge',
-        actions: ['open', 'close'],
-        joint: { type: 'revolute', axis: [0, 1, 0], limits: [-1.35, 0] }
+        node: 'doorHinge', actions: ['open', 'close'],
+        physics: {
+          body: 'dynamic', mass: 8,
+          colliders: [{ shape: 'box', halfExtents: [0.81, 0.95, 0.04], translation: [0.81, 0, 0] }]
+        },
+        joint: {
+          type: 'revolute', axis: [0, 1, 0], limits: [-1.35, 0],
+          parentAnchor: [-0.82, 1, 0.39], childAnchor: [0, 0, 0],
+          motor: { stiffness: 45, damping: 9 }
+        }
       }
     }
   }
