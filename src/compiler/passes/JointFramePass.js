@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ROOT_PART } from '../../assets/parts.js';
+import { rigidInverse } from '../partGeometry.js';
 
 const EPS_POSITION = 1e-4;
 const EPS_ROTATION = 1e-4;
@@ -70,6 +71,22 @@ export class JointFramePass {
         continue;
       }
 
+      const currentNodes = context.document?.getRoot?.().listNodes?.().filter((node) => node.getName() === part.node) || [];
+      if (currentNodes.length !== 1) {
+        issues.push({ part:part.id, code:'JOINT_FRAME_CURRENT_NODE_UNRESOLVED' });
+        continue;
+      }
+      let currentParent = null;
+      if (parentId !== ROOT_PART) {
+        const parentPart = byId.get(parentId);
+        const currentParents = context.document.getRoot().listNodes().filter((node) => node.getName() === parentPart?.node);
+        if (currentParents.length !== 1) {
+          issues.push({ part:part.id, code:'JOINT_FRAME_CURRENT_PARENT_UNRESOLVED' });
+          continue;
+        }
+        currentParent = currentParents[0];
+      }
+
       const axis = new THREE.Vector3(...(part.joint.axis || []));
       if (axis.lengthSq() < 1e-12) {
         issues.push({ part:part.id, code:'JOINT_FRAME_AXIS_INVALID' });
@@ -82,9 +99,16 @@ export class JointFramePass {
         continue;
       }
 
-      part.joint.parentAnchor = expected.position.toArray();
+      const currentChild = decompose(new THREE.Matrix4().fromArray(currentNodes[0].getWorldMatrix()));
+      const anchor = currentChild.position.clone().applyMatrix4(rigidInverse(currentParent));
+      part.joint.parentAnchor = anchor.toArray();
       part.joint.childAnchor = [0, 0, 0];
-      part.joint.frame = { source:'urdf', compiled:true, positionError:actual.position.distanceTo(expected.position), rotationError:rotationDelta(actual.rotation, expected.rotation) };
+      part.joint.frame = {
+        source:'urdf', compiled:true,
+        positionError:actual.position.distanceTo(expected.position),
+        rotationError:rotationDelta(actual.rotation, expected.rotation),
+        normalizedParentAnchor:true
+      };
     }
 
     return { ...context, partProposal: { ...compiled, jointFrame: { compiled:true, issues } } };

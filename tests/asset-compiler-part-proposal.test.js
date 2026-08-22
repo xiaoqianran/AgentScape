@@ -52,7 +52,7 @@ describe('AssetCompiler Part Proposal E2E', () => {
     });
     expect(result.partProposal.jointFrame.issues).toEqual([]);
     expect(result.partProposal.promoted).toEqual(['door']);
-    expect(result.manifest.parts.door.joint.parentAnchor).toEqual([-.82,1,.39]);
+    expect(result.manifest.parts.door.joint.parentAnchor.map((v)=>Number(v.toFixed(6)))).toEqual([-.82,1,.355]);
     expect(result.manifest.parts.door.joint.childAnchor).toEqual([0,0,0]);
     expect(result.quality.advisory.some((item)=>item.code==='ARTICULATION_UNVERIFIED')).toBe(true);
   });

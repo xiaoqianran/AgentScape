@@ -40,6 +40,7 @@ export class PhysicsSystem {
   }
 
   addColliders(body, colliders = [], mass, friction) {
+    const colliderMass = mass != null && colliders.length ? mass / colliders.length : null;
     for (const spec of colliders) {
       let desc;
       if (spec.shape === 'box') desc = RAPIER.ColliderDesc.cuboid(...spec.halfExtents);
@@ -50,7 +51,7 @@ export class PhysicsSystem {
       }
       else continue;
       if (spec.translation) desc.setTranslation(...spec.translation);
-      if (mass != null) desc.setMass(mass);
+      if (colliderMass != null) desc.setMass(colliderMass);
       if (friction != null) desc.setFriction(friction);
       this.world.createCollider(desc, body);
     }

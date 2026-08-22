@@ -109,3 +109,25 @@ AgentScape 延续这一原则：Segmentation Evidence、Part Proposal、Executab
 - `OptimizeGLBPass` 后续继续使用官方 `dedup/prune/weld` 清理已经失去引用的原 Mesh。
 
 这条实现的关键不是“能拆”，而是保持可证明的不变量：整体 Bounds 不变、原 source transform 不变、attributes/material 不变、全部三角面恰好属于一个 segment。任何无法证明这些条件的资产不自动 materialize。
+
+## Part Collider 与几何所有权
+
+1.6 的重点不是再增加一个碰撞算法，而是先定义 articulated 资产的**碰撞所有权**。Whole-asset CoACD 本身不能直接用于 Root + movable Parts，因为同一门板会同时属于 Root hull 和 Door body。
+
+最终模型：
+
+```text
+Scene Mesh
+   │
+   ├─ 最近 executable Part ancestor → 该 Part rigid body
+   └─ 没有 executable Part ancestor → Root rigid body
+```
+
+浏览器侧复用 glTF-Transform 的 Primitive/Accessor 数据做确定性 local AABB；不重新解析 GLB。真正的 per-part convex decomposition 仍应复用 CoACD，但需要服务端能消费 materialized GLB 或显式 Part mesh artifact 后再接，当前不会把原始 whole-asset URL 的 CoACD 结果冒充 per-part collider。
+
+这一轮还通过真实 Runtime E2E 发现并修正两个坐标/物理语义问题：
+
+1. URDF frame compatibility 使用原始 GLB 检查，但 Rapier anchor 必须来自规范化后的当前 Document。
+2. 一个 rigid body 的 `mass` 是总质量；多个 collider 不能每个重复设置完整质量。
+
+两者都属于“代码能跑但物理语义错误”的问题，因此比继续增加模型推断更优先。

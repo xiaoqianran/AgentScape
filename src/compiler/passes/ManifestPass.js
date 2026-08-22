@@ -40,6 +40,7 @@ export class ManifestPass {
         articulationCandidates: context.articulation.candidates,
         partProposal: context.partProposal || null,
         partSegmentation: context.partSegmentation || null,
+        partCollision: context.partCollision || null,
         meshQuality: context.meshQuality || null,
         resources: context.resources
       },

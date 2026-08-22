@@ -4,7 +4,9 @@ import { GLTFInspectPass } from './passes/GLTFInspectPass.js';
 import { JointFramePass } from './passes/JointFramePass.js';
 import { SegmentMaterializePass } from './passes/SegmentMaterializePass.js';
 import { SegmentationEvidencePass } from './passes/SegmentationEvidencePass.js';
+import { PartColliderPass } from './passes/PartColliderPass.js';
 import { PartProposalPass } from './passes/PartProposalPass.js';
+import { ArticulatedCollisionPass } from './passes/ArticulatedCollisionPass.js';
 import { OptimizeGLBPass } from './passes/OptimizeGLBPass.js';
 import { StructurePass } from './passes/StructurePass.js';
 import { NormalizeTransformPass } from './passes/NormalizeTransformPass.js';
@@ -34,7 +36,9 @@ export class AssetCompiler {
       new SegmentMaterializePass(),
       new SegmentationEvidencePass(),
       new JointFramePass(),
+      new PartColliderPass(),
       new PartProposalPass(),
+      new ArticulatedCollisionPass(),
       new OptimizeGLBPass({ io: this.io }),
       new ResourceBudgetPass(),
       new CompileQualityPass(),
@@ -106,6 +110,7 @@ export class AssetCompiler {
       meshQuality: context.meshQuality || null,
       partProposal: context.partProposal || null,
       partSegmentation: context.partSegmentation || null,
+      partCollision: context.partCollision || null,
       resources: context.resources,
       quality: context.quality
     };

@@ -30,7 +30,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '1.5.0';
+    this.version = '1.6.0';
     this.container = container; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();

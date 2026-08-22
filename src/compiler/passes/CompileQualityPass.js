@@ -27,6 +27,12 @@ export class CompileQualityPass {
     if (context.collision.quality === 'coarse') {
       advisory.push({ code: 'COLLIDER_COARSE', message: '当前仅有 AABB 碰撞代理。' });
     }
+    if (context.partCollision?.final?.generated?.length) {
+      advisory.push({ code:'PART_COLLIDER_COARSE', message:`${context.partCollision.final.generated.length} 个可执行 Part 当前使用 owned-mesh AABB 碰撞体。` });
+    }
+    if (context.partCollision?.final?.mass?.status === 'unpartitioned') {
+      advisory.push({ code:'ARTICULATED_MASS_UNPARTITIONED', message:'Provider 的 whole-asset mass 尚未可靠分配到 Root/Parts，因此未作为 Root mass 使用。' });
+    }
     if ((context.semantics.confidence ?? 0) < 0.5) {
       advisory.push({ code: 'SEMANTIC_LOW_CONFIDENCE', message: '语义分类置信度较低。' });
     }

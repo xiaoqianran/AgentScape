@@ -402,7 +402,7 @@ Materialization 会增加 Primitive/Node 数和潜在 Draw Call，因此它发�
 
 URDF 约定：joint origin 是 Parent Link → Joint Frame；Child Link Frame 在零位姿与 Joint Frame 重合；axis 在 Joint Frame 中表达。Rapier 则要求 `anchor1/anchor2` 分别位于两个 rigid-body local frame。
 
-因此 Compiler 会使用 **规范化前** `GLTFInspectPass` 保存的 `worldMatrix`，比较 GLB 零位姿与 URDF `parentToJointMatrix`：
+因此 Compiler 会使用 **规范化前** `GLTFInspectPass` 保存的 `worldMatrix`，比较 GLB 零位姿与 URDF `parentToJointMatrix`；只有该比较通过后，才从**规范化后的当前 Document**重新计算真正写入 Rapier 的 parent-local anchor。这样 `center-below` 等确定性平移不会让 Runtime joint pivot 停留在旧坐标：
 
 ```text
 原始 GLB child zero pose
@@ -414,7 +414,8 @@ URDF 约定：joint origin 是 Parent Link → Joint Frame；Child Link Frame �
                     │
               全部满足
                     ▼
-parentAnchor = URDF joint position in parent local
+source frame validation = 原始 GLB ↔ URDF
+parentAnchor = 规范化后 GLB joint position in parent rigid local
 childAnchor  = [0, 0, 0]
                     │
                     ▼
@@ -437,3 +438,58 @@ movable parent
 ## Node 名称唯一性
 
 Part Proposal 通过 GLB node name 绑定几何，因此同名节点不再被静默解析。目标名称不存在会得到 `PART_NODE_MISSING`；出现多个同名节点会得到 `PART_NODE_AMBIGUOUS`。Provider 必须先让资产节点身份明确，再进入可执行晋升。
+
+## Part-level Collider Compiler
+
+1.6 开始，已经 materialize / proposal 对齐的 Part 不再依赖整个资产的单一碰撞体。Compiler 使用两阶段碰撞编译：
+
+```text
+Part Proposal
+    │
+    ▼
+PartColliderPass
+    │  为缺 collider 的 Proposal Part 生成 provisional local AABB
+    │  只为满足“是否具备可执行物理条件”的判定
+    ▼
+PartProposalPass
+    │  promotion / parent closure
+    ▼
+ArticulatedCollisionPass
+    │  按真正 promoted 的 executable Parts 重新分配 Mesh 所有权
+    ▼
+Root colliders + Part colliders
+```
+
+几何所有权采用“最近的可执行 Part ancestor”：一个 Mesh 若位于某个 promoted Part Node 子树中，就属于最近的该 Part；没有可执行 Part ancestor 的 Mesh 归 Root。这样可动门板不会同时存在于 Root collider 和 Door collider 中。未晋升的 child 几何会自然回流到最近的可执行祖先或 Root，不会凭 Proposal 名称被从 Root 物理中错误删除。
+
+### Local AABB 坐标
+
+Part collider 必须使用 rigid-body local frame，而不是 world AABB。Compiler 逐 Primitive index 读取真实 POSITION 顶点，把 Mesh world transform 转换到 Part rigid frame 后再求 tight AABB。Part Node 的 world translation/rotation 被 rigid-body pose 吸收，层级中的 scale 则烘入 collider 尺寸与 translation。
+
+因此类似真实 cabinet 中带非单位 scale 的 Door，也不会把 world-space AABB 直接当 local collider。
+
+当前浏览器生成的 Part collider 明确标记：
+
+```text
+strategy = owned-mesh-aabb
+quality  = coarse
+generated = true
+```
+
+如果 Provider 已经给出合法 Part collider（例如未来 per-part CoACD convex hull），Compiler 会保留 Provider 结果，不用 AABB 覆盖。`PART_COLLIDER_COARSE` 会让这类自动 AABB 资产继续保持 `provisional`。
+
+### Root collision ownership
+
+对非 articulated 资产，原 whole-asset AABB / CoACD 行为不变。只有出现真正 executable Parts 后，`ArticulatedCollisionPass` 才重建碰撞所有权；此时旧 whole-asset collider 不再直接用于 Root，因为它包含可动 Part 几何，会造成重复碰撞。
+
+### 质量语义
+
+`physics.mass` 现在定义为一个 rigid body 的**总质量**。如果同一个 body 有多个 collider，Runtime 会把总质量均分到这些 collider，保证 Rapier 的 body 总质量不会随 collider 数量倍增。这个分配只保证总量语义，惯性分布仍属于近似。
+
+如果重型 Provider 给的是 whole-asset mass，而资产后来被拆成 Root + 多个 articulated Parts，Compiler 不会把该总质量全部继续赋给 Root。它会记录：
+
+```text
+ARTICULATED_MASS_UNPARTITIONED
+```
+
+并把 `wholeAssetMass` 保存在 `compiler.partCollision` provenance 中，等待未来可信的 per-part mass partitioner。不会根据 AABB 体积偷偷猜分配比例。

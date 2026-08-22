@@ -170,3 +170,16 @@ Articulate-Anything 的关键启发不是“用模型猜 joint”本身，而是
 URDF/机器人生态中的 joint frame 比“猜一个 pivot”可靠得多，但仍必须转换到 Rapier 的 rigid-body local anchor 表示。1.4 的 JointFramePass 只自动处理坐标可证明一致的安全子集；带任意 frame rotation、非单位 scale、GLB/URDF 零位姿不匹配时拒绝自动转换。
 
 这个设计故意保守：错误 anchor/axis 往往仍能在物理引擎中“动起来”，却会产生错误运动学，因此比显式 `provisional` 更危险。后续若需要支持任意旋转 joint frame，应先验证 Rapier generic/frame API 能正确表达两侧不同 local joint frames，再扩展契约。
+
+## Articulated Collision Ownership
+
+可执行 Part 出现后，碰撞系统不能继续把 whole-asset collider 当 Root collider。1.6 在 Compiler 中建立唯一所有权：先用 Proposal-level collider 让可执行条件可判定，再基于最终 promoted Parts 重新分配 Mesh。Runtime 只消费最终 Manifest，不需要自己猜哪个 Mesh 应归哪个 rigid body。
+
+这保持了职责边界：
+
+```text
+Compiler = 几何所有权 / collider provenance / quality
+Runtime  = 按 Manifest 创建 Rapier bodies + colliders + joints
+```
+
+Runtime 不重新做编译期 Mesh 分析，Compiler 也不直接控制运行中的 PhysicsWorld。
