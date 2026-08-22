@@ -22,6 +22,7 @@ import { createWorldPipeline } from '../pipeline/createWorldPipeline.js';
 import { CompiledAssetStore } from '../assets/storage/CompiledAssetStore.js';
 import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider.js';
 import { disposeObject3D } from './disposeObject3D.js';
+import { ArticulationVerifier } from '../validation/ArticulationVerifier.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -29,7 +30,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '1.1.8';
+    this.version = '1.2.0';
     this.container = container; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
@@ -37,7 +38,7 @@ export class WorldRuntime {
     this.compilerProvider = new HttpCompilerProvider({ endpoint: localStorage.getItem('agentscape.compilerEndpoint') || '' });
     this.assetCompiler = null;
     this.assetGenerator = new HttpAssetGenerator({ endpoint: localStorage.getItem('agentscape.assetGeneratorEndpoint') || '' });
-    this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events }); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.clock = new THREE.Clock(); this.running = false;
+    this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events }); this.articulationVerifier = new ArticulationVerifier({ assets: this.assets }); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.clock = new THREE.Clock(); this.running = false;
   }
   async getAssetCompiler() {
     if (!this.assetCompiler) {
@@ -134,9 +135,13 @@ export class WorldRuntime {
 
   restoreObjectState(id, state = {}) {
     const record = this.store.get(id);
-    record.state = { ...state };
-    if (state.door === 'open') this.interactions.setDoor(id, true);
-    else if (state.door === 'closed') this.interactions.setDoor(id, false);
+    record.state = structuredClone(state);
+    for (const [partName, action] of Object.entries(state.parts || {})) {
+      if (record.manifest.actions.includes(action)) this.interactions.setArticulationAction(id, action, { partName });
+    }
+    // 兼容 1.1.8 以前的 cabinet 状态。
+    if (state.door === 'open') this.interactions.setArticulationAction(id, 'open');
+    else if (state.door === 'closed') this.interactions.setArticulationAction(id, 'close');
   }
 
   remove(id) {

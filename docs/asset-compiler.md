@@ -179,3 +179,78 @@ Draw Call 只遍历 Runtime 真正加载的默认 Scene，不把未使用的其�
 ### 输入大小防线
 
 本地文件在 `File.arrayBuffer()` 前先检查 `file.size`；URL 输入先检查 `Content-Length`，未知长度则流式读取并在超过 100 MiB 时立即取消。Compiler 内部仍保留同一上限作为第二道防线。预算常量只维护在 `src/compiler/resourceBudget.js`。
+
+## 可执行 Part 契约
+
+从 1.2 开始，`open / close` 不再由资产类别或节点名直接推导为 Runtime Action。顶层 articulated action 必须能映射到一个真正可执行的 Part。
+
+```json
+{
+  "parts": {
+    "drawer": {
+      "node": "Drawer",
+      "semantic": "drawer",
+      "actions": ["open", "close"],
+      "targets": { "open": 0.5, "close": 0.0 },
+      "physics": { "body": "dynamic", "colliders": ["..."] },
+      "joint": {
+        "type": "prismatic",
+        "axis": [1, 0, 0],
+        "limits": [0, 0.5]
+      }
+    }
+  }
+}
+```
+
+Schema 会验证：
+
+- Part action 必须唯一。
+- `open / close` 必须同时具备 `physics + collider + joint + explicit target`。
+- target 必须是有限数，并落在 joint limits 内。
+- 顶层 articulated action 必须至少有一个 Part 能真正执行它。
+
+因此“上游模型说它 openable”只是一条 annotation，不会自动变成 Agent 可以调用的 `open`。EmbodiedGen 等 Provider 的原始 affordance 会保留在 provenance 中，只有编译出了可执行 Part/Joint 后才提升为 Runtime Action。
+
+## Articulation Runtime Verifier
+
+`verifyAssetArticulation` 会为资产创建一个隔离的 Rapier World，不污染当前场景：
+
+```text
+Asset Manifest
+    ↓
+AssetManager.instantiate()
+    ↓
+isolated ObjectStore + PhysicsSystem
+    ↓
+逐 Part / 逐 target 执行 motor
+    ↓
+固定步长 Physics step
+    ↓
+验证局部 position / rotation 真实变化且全部有限
+    ↓
+写回 manifest.verification.articulation
+```
+
+Rapier 0.17.3 没有公开当前 revolute/prismatic coordinate 的 JS API，因此当前 verifier 不伪造“精确 joint angle”读数，而是验证我们实际能观测到的执行链：motor 接受目标、limits 已配置、Part 的 Three.js 局部位姿发生与 joint 类型一致的运动、数值保持有限。
+
+### 为什么 jointed body 默认关闭互相接触
+
+真实测试发现，如果父体和子 Part 的 collider 初始重叠且 joint contacts 开启，prismatic drawer 可以被接触约束顶在打开位置，随后无法关闭。AgentScape 创建 articulation joint 后会显式：
+
+```js
+joint.setContactsEnabled(false)
+```
+
+父/子刚体仍然受 joint 约束，但不会用彼此的 collider 产生自碰撞阻塞。外部对象与这些 collider 的碰撞仍然正常参与 Rapier。
+
+### Readiness Promotion
+
+存在可执行 Part/Joint、但未验证时：
+
+```text
+ARTICULATION_UNVERIFIED
+→ provisional
+```
+
+Verifier 通过后会移除该 advisory；如果它是最后一个 advisory，资产可以从 `provisional` 晋升为 `ready`。验证失败则写入 `ARTICULATION_VERIFICATION_FAILED`，不会伪装成 ready。

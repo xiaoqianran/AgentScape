@@ -17,4 +17,11 @@ describe('EmbodiedGenAdapter', () => {
   it('requires a browser-reachable GLB', () => {
     expect(() => new EmbodiedGenAdapter().toManifest({ id: 'x' })).toThrow(/GLB URL/);
   });
+
+  it('keeps uncompiled articulation affordances as provenance instead of fake runtime actions', () => {
+    const manifest = new EmbodiedGenAdapter().toManifest({ id:'cab', movable:false, affordances:['open','close'], glb_url:'https://assets.test/cab.glb' });
+    expect(manifest.actions).toEqual(['move']);
+    expect(manifest.provenance.affordances).toEqual(['open','close']);
+  });
+
 });

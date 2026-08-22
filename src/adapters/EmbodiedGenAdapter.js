@@ -9,11 +9,13 @@ export class EmbodiedGenAdapter {
     const assetId = id || src.id || src.name || `embodied_${crypto.randomUUID()}`;
     const dimensions = asVec3(src.dimensions || src.size, [1, 1, 1]);
     const half = dimensions.map((v) => Math.max(0.01, v / 2));
+    const affordances = (src.affordances || []).map((affordance) => typeof affordance === 'string' ? affordance : affordance?.type || affordance?.name).filter(Boolean);
     const actions = new Set(['move']);
-    for (const affordance of src.affordances || []) {
-      const name = typeof affordance === 'string' ? affordance : affordance?.type || affordance?.name;
-      if (['pickup','open','close','toggle','place'].includes(name)) actions.add(name);
+    if (src.movable !== false && affordances.includes('pickup')) {
+      actions.add('pickup');
+      actions.add('drop');
     }
+    if (src.movable !== false && affordances.includes('place')) actions.add('place');
     const url = glbUrl || src.glb_url || src.glbUrl || src.mesh_url || src.meshUrl;
     if (!url) throw new Error('EmbodiedGen adapter requires a browser-reachable GLB URL');
     return {
@@ -30,7 +32,7 @@ export class EmbodiedGenAdapter {
         friction: Number(src.friction || 0.5),
         colliders: [{ shape: 'box', halfExtents: half, translation: [0, half[1], 0] }]
       },
-      provenance: { provider: 'embodiedgen', original: { id: src.id, name: src.name } }
+      provenance: { provider: 'embodiedgen', original: { id: src.id, name: src.name }, affordances }
     };
   }
 }

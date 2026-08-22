@@ -18,7 +18,7 @@ function runtime() {
     listObjects: () => [],
     spawn: vi.fn(async () => { value += 1; return 'x'; }),
     interactions: {
-      move: vi.fn(), pickup: vi.fn(), drop: vi.fn(), place: vi.fn(), setDoor: vi.fn()
+      move: vi.fn(), pickup: vi.fn(), drop: vi.fn(), place: vi.fn(), setArticulationAction: vi.fn()
     },
     duplicate: vi.fn(), remove: vi.fn(),
     spatial: { getBounds:vi.fn(), findNearby:vi.fn(), raycast:vi.fn(), isColliding:vi.fn(), getSupportSurface:vi.fn(), findFreeSpace:vi.fn() },

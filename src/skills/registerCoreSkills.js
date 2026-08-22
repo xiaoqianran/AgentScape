@@ -18,6 +18,20 @@ export function registerCoreSkills(registry, runtime) {
     runtime.events.emit('asset.compiled', { assetId: result.manifest.id, report: result });
     return result;
   });
+  add('verifyAssetArticulation', { ...meta('在隔离的 Rapier World 中执行资产 Part/Joint 运动验证，并把结果写回 Manifest。', ['asset.write', 'physics.read'], ['assetId'], { assetId: string }), mutates: false }, async (a) => {
+    const report = await runtime.articulationVerifier.verify(a.assetId);
+    const manifest = structuredClone(runtime.assets.getManifest(a.assetId));
+    manifest.verification = { ...(manifest.verification || {}), articulation: report };
+    const quality = manifest.compiler?.quality;
+    if (quality) {
+      quality.advisory = (quality.advisory || []).filter((item) => item.code !== 'ARTICULATION_UNVERIFIED');
+      if (!report.ok) quality.advisory.push({ code: 'ARTICULATION_VERIFICATION_FAILED', message: '可执行 Part/Joint 未通过运行时运动验证。' });
+      quality.status = quality.hard?.length ? 'rejected' : quality.advisory.length ? 'provisional' : 'ready';
+    }
+    runtime.assets.registerManifest(manifest, { replace: true });
+    runtime.events.emit('asset.verified', { assetId: a.assetId, articulation: report });
+    return { ...report, readiness: quality?.status || null };
+  });
   add('inspectCompiledAsset', meta('读取已编译资产的编译报告。', ['asset.read'], ['assetId'], { assetId: string }), (a) => runtime.assets.getManifest(a.assetId).compiler || null);
   add('listAssets', meta('列出资产库。', ['asset.read']), () => runtime.assetLibrary.list());
   add('searchAssets', meta('按名称、类型、标签或别名搜索可复用资产。', ['asset.read'], ['query'], { query: string, limit: { type: 'integer', minimum: 1, maximum: 20 } }), (a) => runtime.assetLibrary.search(a.query, { limit: a.limit ?? 8 }));
@@ -35,8 +49,8 @@ export function registerCoreSkills(registry, runtime) {
   add('pickup', { ...meta('拿起可拾取对象。', ['world.write'], ['id'], { id: string }), mutates: true }, (a) => runtime.interactions.pickup(a.id));
   add('drop', { ...meta('放下当前持有对象。', ['world.write'], [], { id: string }), mutates: true }, (a) => runtime.interactions.drop(a.id));
   add('place', { ...meta('使用空间检测把对象放到支撑面。', ['world.write'], ['id', 'targetId'], { id: string, targetId: string, surfaceId: string, clearance: { type: 'number', minimum: 0 } }), mutates: true }, (a) => runtime.interactions.place(a.id, a.targetId, { surfaceId: a.surfaceId, clearance: a.clearance }));
-  add('open', { ...meta('打开可开合对象。', ['world.write'], ['id'], { id: string }), mutates: true }, (a) => runtime.interactions.setDoor(a.id, true));
-  add('close', { ...meta('关闭可开合对象。', ['world.write'], ['id'], { id: string }), mutates: true }, (a) => runtime.interactions.setDoor(a.id, false));
+  add('open', { ...meta('打开可开合对象；多部件对象可指定 partName。', ['world.write'], ['id'], { id: string, partName: string }), mutates: true }, (a) => runtime.interactions.setArticulationAction(a.id, 'open', { partName: a.partName }));
+  add('close', { ...meta('关闭可开合对象；多部件对象可指定 partName。', ['world.write'], ['id'], { id: string, partName: string }), mutates: true }, (a) => runtime.interactions.setArticulationAction(a.id, 'close', { partName: a.partName }));
   add('duplicateObject', { ...meta('复制对象。', ['world.write'], ['id'], { id: string }), mutates: true }, (a) => runtime.duplicate(a.id));
   add('removeObject', { ...meta('删除对象。', ['world.write'], ['id'], { id: string }), mutates: true }, (a) => runtime.remove(a.id));
 

@@ -144,3 +144,23 @@ SceneGraph 使用 raw `Box3` 推导 `NEAR / ON / INSIDE`，避免三位小数展
 WorldValidator 每次运行只创建一个 Snapshot，并同时提供给 SceneGraph、地面检查和碰撞检查。 SceneGraph 的对象对遍历采用 `i < j`，每一对只计算一次距离，再显式生成双向 `NEAR` 并分别推导两个方向的 `ON / INSIDE`；不会为同一对对象重复做两遍 pair-level 计算。碰撞检查通过 `collisionPairs()` 只遍历 `i < j`，不会分别从 A→B、B→A 重复构建 Bounds。关系一致性也一次读取全部 Edge 并建立 Key Set，不再对每个 `ON` 关系重复扫描整张图。
 
 `findFreeSpace()` 同样先冻结其他对象的 Snapshot；尝试多个候选位置时只重算正在移动对象自己的 Box，因此 Grid 搜索不会为每个候选重新扫描所有静态 Mesh。Snapshot 在函数返回后立即丢弃，不承担跨帧一致性。
+
+## 可执行 Articulation 闭环
+
+重新用 CodeGraph 阅读 Articulate-Anything、EmbodiedGen、ObjaTHOR 和 SceneSmith 后，AgentScape 把 articulated asset 明确拆为四层：
+
+```text
+Part / Link
+    ↓
+Semantic / Affordance annotation
+    ↓
+Joint + explicit action target
+    ↓
+Runtime verification
+```
+
+Articulate-Anything 的关键启发不是“用模型猜 joint”本身，而是候选需要被编译成可执行表示，再进入 simulator/render feedback。EmbodiedGen 同样把 part segmentation、part semantics、grasp generation、grasp evaluation 分阶段执行。AgentScape 因此不把 annotation 和 executable capability 混成一个字段。
+
+当前第一条真实闭环已经完成：Part 的 `actions + targets + physics + joint` 形成可执行契约，InteractionSystem 按 action 查找 Part，PhysicsSystem 同步 revolute 与 prismatic 的旋转和位移，ArticulationVerifier 在隔离 Rapier World 中执行所有 target，再把验证结果写回资产 readiness。
+
+旧 `door` 特例已经从 Runtime API 中删除。旧场景里的 `state.door` 只在 restore 时作为兼容迁移入口保留，不再影响新状态模型；新状态统一存储在 `state.parts[partName]`。

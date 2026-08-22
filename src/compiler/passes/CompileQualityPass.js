@@ -18,8 +18,11 @@ export class CompileQualityPass {
     if ((context.semantics.confidence ?? 0) < 0.5) {
       advisory.push({ code: 'SEMANTIC_LOW_CONFIDENCE', message: '语义分类置信度较低。' });
     }
+    const executableArticulation = Object.values(context.articulation.parts || {}).some((part) => part.joint && Object.keys(part.targets || {}).length);
     if (context.articulation.candidates.length && !context.articulation.parts) {
-      advisory.push({ code: 'ARTICULATION_UNVERIFIED', message: '发现关节候选，但尚未生成并验证可执行关节。' });
+      advisory.push({ code: 'ARTICULATION_CANDIDATE_ONLY', message: '发现关节候选，但尚未生成可执行 Part/Joint。' });
+    } else if (executableArticulation && !context.verification?.articulation?.ok) {
+      advisory.push({ code: 'ARTICULATION_UNVERIFIED', message: '已生成可执行 Part/Joint，但尚未通过运行时运动验证。' });
     }
     if (context.meshQuality?.watertight === false) {
       advisory.push({ code: 'MESH_NOT_WATERTIGHT', message: '服务端几何检查发现 Mesh 非封闭；质量、体积和凸分解结果需要谨慎使用。' });

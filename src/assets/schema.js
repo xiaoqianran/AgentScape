@@ -2,6 +2,7 @@ import { Errors } from '../core/errors.js';
 
 const BODY_TYPES = new Set(['fixed', 'dynamic', 'kinematic']);
 const SHAPES = new Set(['box', 'cylinder', 'convexHull']);
+const ARTICULATION_ACTIONS = new Set(['open', 'close']);
 
 function validatePhysics(physics, context) {
   if (!physics) return;
@@ -25,10 +26,25 @@ export function validateAssetManifest(manifest) {
   if (manifest.source.kind === 'compiled' && !manifest.source.key) throw Errors.invalidManifest('Compiled source requires key', { id: manifest.id });
   validatePhysics(manifest.physics, { id: manifest.id });
   for (const [name, part] of Object.entries(manifest.parts || {})) {
-    if (!part.node) throw Errors.invalidManifest(`Part ${name} requires node`, { id: manifest.id, part: name });
-    if (part.joint && !['revolute', 'prismatic'].includes(part.joint.type)) throw Errors.invalidManifest(`Unsupported joint type: ${part.joint.type}`, { id: manifest.id, part: name });
-    if (part.joint && (!Array.isArray(part.joint.axis) || part.joint.axis.length !== 3)) throw Errors.invalidManifest(`Part ${name} joint requires axis[3]`, { id: manifest.id, part: name });
-    validatePhysics(part.physics, { id: manifest.id, part: name });
+    const context = { id: manifest.id, part: name };
+    if (!part.node) throw Errors.invalidManifest(`Part ${name} requires node`, context);
+    if (part.actions && (!Array.isArray(part.actions) || new Set(part.actions).size !== part.actions.length)) throw Errors.invalidManifest(`Part ${name} actions must be a unique array`, context);
+    if (part.joint && !['revolute', 'prismatic'].includes(part.joint.type)) throw Errors.invalidManifest(`Unsupported joint type: ${part.joint.type}`, context);
+    if (part.joint && (!Array.isArray(part.joint.axis) || part.joint.axis.length !== 3 || !part.joint.axis.every(Number.isFinite))) throw Errors.invalidManifest(`Part ${name} joint requires finite axis[3]`, context);
+    if (part.joint?.limits && (part.joint.limits.length !== 2 || !part.joint.limits.every(Number.isFinite) || part.joint.limits[0] >= part.joint.limits[1])) throw Errors.invalidManifest(`Part ${name} joint requires ascending finite limits[2]`, context);
+    for (const [action, target] of Object.entries(part.targets || {})) {
+      if (!part.actions?.includes(action)) throw Errors.invalidManifest(`Part ${name} target ${action} requires matching action`, context);
+      if (!Number.isFinite(target)) throw Errors.invalidManifest(`Part ${name} target ${action} must be finite`, context);
+      if (!part.joint?.limits || target < part.joint.limits[0] || target > part.joint.limits[1]) throw Errors.invalidManifest(`Part ${name} target ${action} must be within joint limits`, context);
+    }
+    for (const action of part.actions || []) {
+      if (ARTICULATION_ACTIONS.has(action) && (!part.joint || !part.physics?.colliders?.length || !Number.isFinite(part.targets?.[action]))) throw Errors.invalidManifest(`Part ${name} action ${action} requires physics, joint and explicit target`, context);
+    }
+    validatePhysics(part.physics, context);
+  }
+  for (const action of manifest.actions.filter((action) => ARTICULATION_ACTIONS.has(action))) {
+    const executable = Object.values(manifest.parts || {}).some((part) => part.actions?.includes(action) && Number.isFinite(part.targets?.[action]));
+    if (!executable) throw Errors.invalidManifest(`Top-level action ${action} requires an executable part target`, { id: manifest.id, action });
   }
   return manifest;
 }

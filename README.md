@@ -37,6 +37,7 @@ GLB / 生成资产 / 外部数据
 - World Validator 与受保护的自动修复。
 - Asset Library、资产生成 Gateway、EmbodiedGen Adapter。
 - Agent-Ready Asset Compiler：glTF 检查、保守坐标规范化、几何分析、浏览器资源预算、语义/关节候选、碰撞代理、优化、持久化与 `ready / provisional / rejected` 编译质量门。
+- 可执行 Part / Joint 契约与隔离 Rapier Articulation Verifier，可把通过运动验证的资产从 `provisional` 晋升到 `ready`。
 - 可选 CoACD 后端生成凸分解碰撞体。
 
 ## 核心设计原则

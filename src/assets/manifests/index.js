@@ -41,7 +41,7 @@ export const assetManifests = {
     },
     parts: {
       door: {
-        node: 'doorHinge', actions: ['open', 'close'],
+        node: 'doorHinge', semantic: 'door', actions: ['open', 'close'], targets: { open: -1.35, close: 0 },
         physics: {
           body: 'dynamic', mass: 8,
           colliders: [{ shape: 'box', halfExtents: [0.81, 0.95, 0.04], translation: [0.81, 0, 0] }]

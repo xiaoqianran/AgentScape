@@ -8,7 +8,7 @@ const manifest = {
   physics: { body: 'fixed', colliders: [{ shape: 'box', halfExtents: [.85, 1, .32], translation: [0, 1, -.04] }] },
   parts: {
     door: {
-      node: 'doorHinge', actions: ['open', 'close'],
+      node: 'doorHinge', actions: ['open', 'close'], targets: { open:-1.35, close:0 },
       physics: { body: 'dynamic', mass: 8, colliders: [{ shape: 'box', halfExtents: [.81, .95, .04], translation: [.81, 0, 0] }] },
       joint: { type: 'revolute', axis: [0, 1, 0], limits: [-1.35, 0], parentAnchor: [-.82, 1, .39], childAnchor: [0, 0, 0], motor: { stiffness: 45, damping: 9 } }
     }

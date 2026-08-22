@@ -13,6 +13,13 @@ describe('asset manifest validation', () => {
     expect(() => validateAssetManifest({ id:'x', type:'x', source:{kind:'builtin'}, actions:[], physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[1,0,1]}]} })).toThrow();
     expect(() => validateAssetManifest({ id:'x', type:'x', source:{kind:'builtin'}, actions:[], physics:{body:'fixed',colliders:[{shape:'convexHull',vertices:[0,0,0,1,0,0,0,1,0,0,0,Infinity]}]} })).toThrow();
   });
+
+  it('requires articulated top-level actions to map to explicit executable part targets', () => {
+    expect(() => validateAssetManifest({ id:'cab', type:'cabinet', source:{kind:'builtin'}, actions:['open'] })).toThrow(/executable part target/);
+    const manifest = { id:'cab', type:'cabinet', source:{kind:'builtin'}, actions:['open','close'], parts:{ panel:{ node:'Panel', actions:['open','close'], targets:{open:-1,close:0}, physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.1,.1,.1]}]}, joint:{type:'revolute',axis:[0,1,0],limits:[-1,0]} } } };
+    expect(() => validateAssetManifest(manifest)).not.toThrow();
+  });
+
   it('rejects invalid joint type', () => {
     expect(() => validateAssetManifest({ id: 'cabinet', type: 'cabinet', source: { kind: 'builtin' }, actions: [], parts: { door: { node: 'Door', joint: { type: 'magic' } } } })).toThrow(/joint type/);
   });

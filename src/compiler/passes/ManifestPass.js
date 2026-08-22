@@ -6,8 +6,9 @@ export class ManifestPass {
     const physics = context.physics || {};
     const parts = context.articulation.parts || undefined;
     const actions = new Set(context.semantics.actions || ['move']);
-    if (parts && Object.values(parts).some((part) => part.actions?.includes('open'))) actions.add('open');
-    if (parts && Object.values(parts).some((part) => part.actions?.includes('close'))) actions.add('close');
+    for (const part of Object.values(parts || {})) {
+      for (const action of part.actions || []) if (Number.isFinite(part.targets?.[action])) actions.add(action);
+    }
 
     const manifest = {
       id,

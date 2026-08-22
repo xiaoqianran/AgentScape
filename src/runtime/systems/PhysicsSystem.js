@@ -11,6 +11,9 @@ export class PhysicsSystem {
     this.inverseRootRotation = new THREE.Quaternion();
     this.partWorldRotation = new THREE.Quaternion();
     this.partLocalRotation = new THREE.Quaternion();
+    this.rootWorldPosition = new THREE.Vector3();
+    this.partWorldPosition = new THREE.Vector3();
+    this.partLocalPosition = new THREE.Vector3();
   }
 
   async init() {
@@ -74,8 +77,9 @@ export class PhysicsSystem {
           ? RAPIER.JointData.revolute(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis))
           : RAPIER.JointData.prismatic(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis));
         const joint = this.world.createImpulseJoint(data, body, child, true);
+        joint.setContactsEnabled(false);
         if (part.joint.limits) joint.setLimits(part.joint.limits[0], part.joint.limits[1]);
-        entry.parts.set(partName, { body: child, joint, node, spec: part, lastLocalRotation: node.quaternion.clone() });
+        entry.parts.set(partName, { body: child, joint, node, spec: part, lastLocalRotation: node.quaternion.clone(), lastLocalPosition: node.position.clone() });
       }
 
       this.entries.set(id, entry);
@@ -210,15 +214,21 @@ export class PhysicsSystem {
         entry.lastRotation.set(q.x, q.y, q.z, q.w);
       }
 
+      record.object.getWorldPosition(this.rootWorldPosition);
       record.object.getWorldQuaternion(this.rootRotation);
       this.inverseRootRotation.copy(this.rootRotation).invert();
       for (const part of entry.parts.values()) {
         const q = part.body.rotation();
+        const p = part.body.translation();
         this.partWorldRotation.set(q.x, q.y, q.z, q.w);
         this.partLocalRotation.copy(this.inverseRootRotation).multiply(this.partWorldRotation);
-        if (1 - Math.abs(part.lastLocalRotation.dot(this.partLocalRotation)) > 1e-10) changed = true;
+        this.partWorldPosition.set(p.x, p.y, p.z);
+        this.partLocalPosition.copy(this.partWorldPosition).sub(this.rootWorldPosition).applyQuaternion(this.inverseRootRotation);
+        if (1 - Math.abs(part.lastLocalRotation.dot(this.partLocalRotation)) > 1e-10 || part.lastLocalPosition.distanceToSquared(this.partLocalPosition) > 1e-10) changed = true;
         part.node.quaternion.copy(this.partLocalRotation);
+        part.node.position.copy(this.partLocalPosition);
         part.lastLocalRotation.copy(this.partLocalRotation);
+        part.lastLocalPosition.copy(this.partLocalPosition);
       }
     }
     return changed;

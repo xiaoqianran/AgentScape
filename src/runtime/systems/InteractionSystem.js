@@ -55,14 +55,22 @@ export class InteractionSystem {
     return { id, targetId, position: p.toArray().map((v) => Number(v.toFixed(3))) };
   }
 
-  setDoor(id, open) {
-    const record = this.assertSupports(id, open ? 'open' : 'close');
-    const part = record.manifest.parts?.door;
-    if (!part) throw Errors.actionUnsupported(id, 'door');
-    const target = open ? part.joint.limits[0] : part.joint.limits[1];
-    if (!this.physics.setArticulationTarget(id, 'door', target)) throw Errors.actionUnsupported(id, 'door');
-    record.state.door = open ? 'open' : 'closed';
-    this.events.emit('interaction', { action: open ? 'open' : 'close', id });
+  findPartForAction(record, action, partName = null) {
+    const parts = Object.entries(record.manifest.parts || {}).filter(([name, part]) =>
+      (!partName || name === partName) && part.actions?.includes(action) && Number.isFinite(part.targets?.[action])
+    );
+    if (parts.length !== 1) throw Errors.actionUnsupported(record.id, partName ? `${action}:${partName}` : action);
+    return parts[0];
+  }
+
+  setArticulationAction(id, action, { partName = null } = {}) {
+    const record = this.assertSupports(id, action);
+    const [name, part] = this.findPartForAction(record, action, partName);
+    if (!this.physics.setArticulationTarget(id, name, part.targets[action])) throw Errors.actionUnsupported(id, action);
+    record.state.parts ||= {};
+    record.state.parts[name] = action;
+    this.events.emit('interaction', { action, id, part: name, target: part.targets[action] });
+    return { id, part: name, action, target: part.targets[action] };
   }
 
   update(_dt, camera) {

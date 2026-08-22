@@ -18,7 +18,7 @@ describe('CompileQualityPass', () => {
   it('marks coarse or uncertain assets provisional', async () => {
     const result = await run({ collision: { quality:'coarse' }, semantics:{ confidence:0.2 }, articulation:{ candidates:[{node:'Door'}] } });
     expect(result.quality.status).toBe('provisional');
-    expect(result.quality.advisory.map((x) => x.code)).toEqual(expect.arrayContaining(['COLLIDER_COARSE','SEMANTIC_LOW_CONFIDENCE','ARTICULATION_UNVERIFIED']));
+    expect(result.quality.advisory.map((x) => x.code)).toEqual(expect.arrayContaining(['COLLIDER_COARSE','SEMANTIC_LOW_CONFIDENCE','ARTICULATION_CANDIDATE_ONLY']));
   });
 
   it('marks optional enrichment failure as provisional while retaining the compile result', async () => {
@@ -36,5 +36,13 @@ describe('CompileQualityPass', () => {
   it('rejects hard geometry findings', async () => {
     const result = await run({ geometry:{ warnings:[{ code:'GEOMETRY_EMPTY', severity:'hard' }] } });
     expect(result.quality.status).toBe('rejected');
+  });
+
+  it('keeps executable articulation provisional until runtime verification succeeds', async () => {
+    const part = { node:'Door', actions:['open','close'], targets:{open:-1,close:0}, physics:{colliders:[{}]}, joint:{type:'revolute'} };
+    const unverified = await run({ articulation:{ candidates:[], parts:{door:part} } });
+    expect(unverified.quality.advisory.some((x) => x.code === 'ARTICULATION_UNVERIFIED')).toBe(true);
+    const verified = await run({ articulation:{ candidates:[], parts:{door:part} }, verification:{articulation:{ok:true}} });
+    expect(verified.quality.advisory.some((x) => x.code === 'ARTICULATION_UNVERIFIED')).toBe(false);
   });
 });
