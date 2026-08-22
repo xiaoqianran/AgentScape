@@ -72,3 +72,9 @@ kbd { margin-left: 4px; opacity: .45; font: inherit; }
 
 .relation-info { display:grid; gap:3px; margin-top:8px; padding-top:8px; border-top:1px solid #202b40; color:#8fa4c5; font:10px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .log-row.graph { color:#78a6ff; }
+
+.engine-actions { display:flex; gap:6px; margin-top:8px; }
+.engine-actions button { border:1px solid #2b3851; color:#dbe7ff; background:#121a2b; border-radius:6px; cursor:pointer; padding:5px 8px; font-size:9px; }
+.engine-actions button:hover { background:#1a2740; border-color:#45608b; }
+.engine-report { margin-top:7px; color:#7f91ad; font:9px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.engine-report strong { color:#8bd5ae; }

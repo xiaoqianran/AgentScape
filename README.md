@@ -4,7 +4,7 @@
 
 AgentScape is an experimental Web3D runtime where an AI agent can inspect and manipulate an interactive 3D scene through a small, explicit tool API.
 
-## V0.10
+## V1.0
 
 The current version intentionally stays focused:
 
@@ -250,3 +250,19 @@ Relations are **derived from authoritative geometry**, not manually maintained a
 `scene.json` includes the currently derived relations for inspection/export, but import recomputes them from restored geometry so stale relations cannot override the world.
 
 V0.10 also fixes support-surface transforms for moved Blender/GLB assets and placement now respects assets whose origin is at the bottom instead of assuming every model origin is at its geometric center.
+
+## Agent-native engine core
+
+AgentScape 1.0 replaces the original direct tool switch with a registry-driven engine core:
+
+- versioned `SkillRegistry`
+- capability permissions and profiles
+- integrity-linked execution trace
+- atomic multi-skill batches with rollback
+- staged world-building pipeline
+- deterministic world validator
+- guarded auto-repair
+- EmbodiedGen-style asset adapter
+- existing Three.js/Rapier/GLB editor, scene graph, persistence and undo/redo remain underneath the same boundary
+
+The architecture is based on a CodeGraph-assisted study of EmbodiedGen, SceneSmith, Gizmo, Limina and Auto-Threejs. See [`docs/research/engine-architecture-study.md`](docs/research/engine-architecture-study.md) and [`THIRD_PARTY.md`](THIRD_PARTY.md).

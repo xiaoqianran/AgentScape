@@ -1,0 +1,56 @@
+import { describe, expect, it, vi } from 'vitest';
+import { SkillRegistry } from '../src/skills/SkillRegistry.js';
+import { PolicyEngine } from '../src/policy/PolicyEngine.js';
+import { TraceRecorder } from '../src/observability/TraceRecorder.js';
+import { registerCoreSkills } from '../src/skills/registerCoreSkills.js';
+
+function runtime() {
+  let value = 0;
+  const r = {
+    events: { emit: vi.fn() },
+    policy: new PolicyEngine(),
+    trace: new TraceRecorder(),
+    snapshot: vi.fn(() => ({ value })),
+    restore: vi.fn(async (scene) => { value = scene.value; }),
+    mutate: vi.fn(async (_label, fn) => fn()),
+    assetLibrary: { list:()=>[], search:()=>[], resolve:()=>({}), generate:()=>({}), summary:(x)=>x },
+    assets: { registerManifest: vi.fn(), has:()=>true },
+    listObjects: () => [],
+    spawn: vi.fn(async () => { value += 1; return 'x'; }),
+    interactions: {
+      move: vi.fn(), pickup: vi.fn(), drop: vi.fn(), place: vi.fn(), setDoor: vi.fn()
+    },
+    duplicate: vi.fn(), remove: vi.fn(),
+    spatial: { getBounds:vi.fn(), findNearby:vi.fn(), raycast:vi.fn(), isColliding:vi.fn(), getSupportSurface:vi.fn(), findFreeSpace:vi.fn() },
+    sceneGraph: { list:vi.fn(()=>[]), describe:vi.fn(), update:vi.fn() },
+    validator: { run:vi.fn(()=>({ ok:true, counts:{hard:0,advisory:0}, hard:[], advisory:[], coverage:{objects:0,relations:0} })) },
+    repair: { repair:vi.fn() },
+    worldPipeline: { run:vi.fn() }
+  };
+  r.getValue = () => value;
+  return r;
+}
+
+describe('core skills', () => {
+  it('atomically rolls back a batch when a nested skill fails', async () => {
+    const r = runtime();
+    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r);
+    r.skills = registry;
+    const result = await registry.invoke('executeBatch', { calls: [
+      { name:'spawnAsset', args:{ assetId:'chair', position:[0,0,0] } },
+      { name:'open', args:{} }
+    ] }, { profile:'builder', actor:'test' });
+    expect(result.success).toBe(true);
+    expect(result.result.committed).toBe(false);
+    expect(result.result.rolledBack).toBe(true);
+    expect(r.restore).toHaveBeenCalled();
+    expect(r.getValue()).toBe(0);
+  });
+
+  it('viewer can validate but cannot repair', async () => {
+    const r = runtime();
+    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r);
+    expect((await registry.invoke('validateWorld', {}, { profile:'viewer' })).success).toBe(true);
+    expect((await registry.invoke('repairWorld', {}, { profile:'viewer' })).error.code).toBe('forbidden');
+  });
+});

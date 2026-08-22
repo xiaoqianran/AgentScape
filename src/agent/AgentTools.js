@@ -1,55 +1,26 @@
-import { Errors } from '../core/errors.js';
 import { TOOL_CATALOG } from './toolCatalog.js';
 
-const MUTATING_TOOLS = new Set([
-  'spawnAsset', 'moveObject', 'pickup', 'drop', 'place', 'open', 'close',
-  'duplicateObject', 'removeObject'
-]);
-
 export class AgentTools {
-  constructor(runtime) { this.runtime = runtime; }
+  constructor(runtime, { profile = 'builder', actor = 'agent' } = {}) {
+    this.runtime = runtime;
+    this.profile = profile;
+    this.actor = actor;
+  }
+
   schema() { return Object.entries(TOOL_CATALOG).map(([name, def]) => `${name}(${def.required.join(', ')})`); }
-  validate(name, args) {
+
+  validate(name, args = {}) {
     const def = TOOL_CATALOG[name];
-    if (!def) throw Errors.invalidToolCall(name, { reason: 'unknown tool' });
-    const missing = def.required.filter(k => args?.[k] == null);
-    if (missing.length) throw Errors.invalidToolCall(name, { missing });
+    if (!def) throw Object.assign(new Error(`Invalid tool call: ${name}`), { code: 'INVALID_TOOL_CALL' });
+    const missing = def.required.filter((key) => args[key] == null);
+    if (missing.length) throw Object.assign(new Error(`Invalid tool call: ${name}; missing ${missing.join(', ')}`), { code: 'INVALID_TOOL_CALL' });
   }
 
   async call(name, args = {}) {
     this.validate(name, args);
     this.runtime.events.emit('tool.called', { name, args });
-    const execute = () => this.execute(name, args);
-    if (MUTATING_TOOLS.has(name) && this.runtime.mutate) {
-      return this.runtime.mutate(`agent:${name}`, execute, { source: 'agent', tool: name, args });
-    }
-    return execute();
-  }
-
-  async execute(name, args) {
-    switch (name) {
-      case 'listRelations': return this.runtime.sceneGraph.list({ subject: args.subject, predicate: args.predicate, object: args.object });
-      case 'describeObjectRelations': return this.runtime.sceneGraph.describe(args.id);
-      case 'listAssets': return this.runtime.assetLibrary.list();
-      case 'searchAssets': return this.runtime.assetLibrary.search(args.query, { limit: args.limit ?? 8 });
-      case 'resolveAsset': return this.runtime.assetLibrary.resolve(args.query, { generate: args.generate ?? false });
-      case 'generateAsset': return this.runtime.assetLibrary.generate(args.prompt);
-      case 'listObjects': return this.runtime.listObjects();
-      case 'spawnAsset': return this.runtime.spawn(args.assetId, { position: args.position, id: args.instanceId });
-      case 'moveObject': return this.runtime.interactions.move(args.id, args.position);
-      case 'pickup': return this.runtime.interactions.pickup(args.id);
-      case 'drop': return this.runtime.interactions.drop(args.id);
-      case 'place': return this.runtime.interactions.place(args.id, args.targetId, { surfaceId: args.surfaceId, clearance: args.clearance });
-      case 'open': return this.runtime.interactions.setDoor(args.id, true);
-      case 'close': return this.runtime.interactions.setDoor(args.id, false);
-      case 'duplicateObject': return this.runtime.duplicate(args.id);
-      case 'removeObject': return this.runtime.remove(args.id);
-      case 'getBounds': return this.runtime.spatial.getBounds(args.id);
-      case 'findNearby': return this.runtime.spatial.findNearby(args.id, args.radius ?? 2);
-      case 'raycast': return this.runtime.spatial.raycast(args.origin, args.direction, args.maxDistance ?? 100);
-      case 'isColliding': return this.runtime.spatial.isColliding(args.id, { ignore: args.ignore ?? [], margin: args.margin ?? 0.01 });
-      case 'findSupportSurface': { const s = this.runtime.spatial.getSupportSurface(args.targetId, args.surfaceId); return s ? { ...s, center: s.center.toArray().map(v => Number(v.toFixed(3))) } : null; }
-      case 'findFreeSpace': { const p = this.runtime.spatial.findFreeSpace(args.id, args.targetId, { surfaceId: args.surfaceId, clearance: args.clearance }); return p?.toArray().map(v => Number(v.toFixed(3))) ?? null; }
-    }
+    const response = await this.runtime.skills.invoke(name, args, { profile: this.profile, actor: this.actor });
+    if (!response.success) throw Object.assign(new Error(response.error.message), { code: response.error.code });
+    return response.result;
   }
 }

@@ -28,7 +28,7 @@ export class PhysicsSystem {
     return desc.setTranslation(position.x, position.y, position.z);
   }
 
-  addColliders(body, colliders = [], mass) {
+  addColliders(body, colliders = [], mass, friction) {
     for (const spec of colliders) {
       let desc;
       if (spec.shape === 'box') desc = RAPIER.ColliderDesc.cuboid(...spec.halfExtents);
@@ -36,6 +36,7 @@ export class PhysicsSystem {
       else continue;
       if (spec.translation) desc.setTranslation(...spec.translation);
       if (mass != null) desc.setMass(mass);
+      if (friction != null) desc.setFriction(friction);
       this.world.createCollider(desc, body);
     }
   }
@@ -44,7 +45,7 @@ export class PhysicsSystem {
     const worldPos = new THREE.Vector3();
     object.getWorldPosition(worldPos);
     const body = this.world.createRigidBody(this.bodyDesc(manifest.physics?.body || 'fixed', worldPos));
-    this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass);
+    this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass, manifest.physics?.friction);
 
     const entry = { body, root: object, parts: new Map(), lastPosition: worldPos.clone() };
 
@@ -56,7 +57,7 @@ export class PhysicsSystem {
       const partWorld = new THREE.Vector3();
       node.getWorldPosition(partWorld);
       const child = this.world.createRigidBody(this.bodyDesc(part.physics.body || 'dynamic', partWorld));
-      this.addColliders(child, part.physics.colliders, part.physics.mass);
+      this.addColliders(child, part.physics.colliders, part.physics.mass, part.physics.friction);
 
       let data;
       if (part.joint.type === 'revolute') {

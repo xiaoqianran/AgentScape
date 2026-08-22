@@ -1,4 +1,32 @@
 export const TOOL_CATALOG = {
+  validateWorld: {
+    description: 'Run deterministic world validation for geometry, overlaps, support and semantic relation consistency.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false }, required: []
+  },
+  repairWorld: {
+    description: 'Repair deterministic hard validation findings and reject repairs that increase hard failures.',
+    parameters: { type: 'object', properties: { report: { type: 'object' }, maxRepairs: { type: 'integer' } }, additionalProperties: false }, required: []
+  },
+  executeBatch: {
+    description: 'Execute multiple tool calls atomically. If any call fails, restore the world snapshot.',
+    parameters: { type: 'object', properties: { calls: { type: 'array', items: { type: 'object' } } }, additionalProperties: false }, required: ['calls']
+  },
+  runWorldPipeline: {
+    description: 'Run the staged resolve-assets → instantiate → relations → validate → repair → finalize world pipeline.',
+    parameters: { type: 'object', properties: { plan: { type: 'object' }, stages: { type: 'array', items: { type: 'string' } } }, additionalProperties: false }, required: ['plan']
+  },
+  importEmbodiedGenAsset: {
+    description: 'Normalize and register a browser-reachable EmbodiedGen-style asset payload.',
+    parameters: { type: 'object', properties: { payload: { type: 'object' }, id: { type: 'string' }, glbUrl: { type: 'string' } }, additionalProperties: false }, required: ['payload']
+  },
+  getTrace: {
+    description: 'Read recent auditable engine trace events.',
+    parameters: { type: 'object', properties: { type: { type: 'string' }, actor: { type: 'string' }, sinceSeq: { type: 'integer' }, limit: { type: 'integer' } }, additionalProperties: false }, required: []
+  },
+  verifyTrace: {
+    description: 'Verify the engine trace integrity chain.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false }, required: []
+  },
   listRelations: {
     description: 'List semantic spatial relations in the current scene graph, such as ON, NEAR, INSIDE, SUPPORTS and CONTAINS.',
     parameters: { type: 'object', properties: { subject: { type: 'string' }, predicate: { type: 'string' }, object: { type: 'string' } }, additionalProperties: false },

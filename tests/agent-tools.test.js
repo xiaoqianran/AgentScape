@@ -1,14 +1,41 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AgentTools } from '../src/agent/AgentTools.js';
 
-const runtime = () => ({ sceneGraph: { list: vi.fn(() => []), describe: vi.fn(() => ({ outgoing: [], incoming: [] })) }, events: { emit: vi.fn() }, listObjects: vi.fn(() => []), spawn: vi.fn(), duplicate: vi.fn(), remove: vi.fn(), assetLibrary: { list: vi.fn(() => []), search: vi.fn(() => []), resolve: vi.fn(() => ({ status: 'missing' })), generate: vi.fn(() => ({ status: 'generator_not_configured' })) }, spatial: { getBounds: vi.fn(() => ({size:[1,1,1]})), findNearby: vi.fn(() => []), raycast: vi.fn(() => []), isColliding: vi.fn(() => []), getSupportSurface: vi.fn(() => null), findFreeSpace: vi.fn(() => null) }, interactions: { move: vi.fn(), pickup: vi.fn(), drop: vi.fn(), place: vi.fn(), setDoor: vi.fn() } });
+const runtime = () => ({
+  events: { emit: vi.fn() },
+  skills: { invoke: vi.fn(async (name, args, context) => ({ success: true, result: { name, args, context } })) }
+});
 
-describe('AgentTools', () => {
-  it('rejects unknown tools', async () => { const tools = new AgentTools(runtime()); await expect(tools.call('destroyWorld', {})).rejects.toMatchObject({ code: 'INVALID_TOOL_CALL' }); });
-  it('rejects missing required args', async () => { const tools = new AgentTools(runtime()); await expect(tools.call('moveObject', { id: 'a' })).rejects.toMatchObject({ code: 'INVALID_TOOL_CALL' }); });
-  it('keeps the agent behind an explicit tool boundary', async () => { const r = runtime(); const tools = new AgentTools(r); await tools.call('open', { id: 'cabinet_01' }); expect(r.interactions.setDoor).toHaveBeenCalledWith('cabinet_01', true); });
-  it('exposes semantic scene relations through the same boundary', async () => { const r = runtime(); const tools = new AgentTools(r); await tools.call('listRelations', { predicate: 'ON' }); await tools.call('describeObjectRelations', { id: 'cup_01' }); expect(r.sceneGraph.list).toHaveBeenCalledWith({ subject: undefined, predicate: 'ON', object: undefined }); expect(r.sceneGraph.describe).toHaveBeenCalledWith('cup_01'); });
-  it('exposes asset discovery through the same boundary', async () => { const r = runtime(); const tools = new AgentTools(r); await tools.call('searchAssets', { query: 'chair', limit: 3 }); await tools.call('resolveAsset', { query: 'lamp', generate: false }); expect(r.assetLibrary.search).toHaveBeenCalledWith('chair', { limit: 3 }); expect(r.assetLibrary.resolve).toHaveBeenCalledWith('lamp', { generate: false }); });
-  it('exposes spatial queries through the same boundary', async () => { const r = runtime(); const tools = new AgentTools(r); await tools.call('getBounds', { id: 'cup_01' }); await tools.call('findNearby', { id: 'cup_01', radius: 3 }); expect(r.spatial.getBounds).toHaveBeenCalledWith('cup_01'); expect(r.spatial.findNearby).toHaveBeenCalledWith('cup_01', 3); });
-  it('exposes editor lifecycle operations through the same boundary', async () => { const r = runtime(); const tools = new AgentTools(r); await tools.call('duplicateObject', { id: 'cup_01' }); await tools.call('removeObject', { id: 'cup_01' }); expect(r.duplicate).toHaveBeenCalledWith('cup_01'); expect(r.remove).toHaveBeenCalledWith('cup_01'); });
+describe('AgentTools registry facade', () => {
+  it('rejects unknown tools before registry dispatch', async () => {
+    const tools = new AgentTools(runtime());
+    await expect(tools.call('destroyWorld', {})).rejects.toMatchObject({ code: 'INVALID_TOOL_CALL' });
+  });
+
+  it('rejects missing required args', async () => {
+    const tools = new AgentTools(runtime());
+    await expect(tools.call('moveObject', { id: 'a' })).rejects.toMatchObject({ code: 'INVALID_TOOL_CALL' });
+  });
+
+  it('routes world actions through the skill registry with an actor/profile', async () => {
+    const r = runtime();
+    const tools = new AgentTools(r, { profile: 'builder', actor: 'llm-agent' });
+    await tools.call('open', { id: 'cabinet_01' });
+    expect(r.skills.invoke).toHaveBeenCalledWith('open', { id: 'cabinet_01' }, { profile: 'builder', actor: 'llm-agent' });
+  });
+
+  it('routes semantic, asset and engine tools through the same boundary', async () => {
+    const r = runtime(); const tools = new AgentTools(r);
+    await tools.call('listRelations', { predicate: 'ON' });
+    await tools.call('searchAssets', { query: 'chair' });
+    await tools.call('validateWorld', {});
+    expect(r.skills.invoke.mock.calls.map((c) => c[0])).toEqual(['listRelations', 'searchAssets', 'validateWorld']);
+  });
+
+  it('surfaces structured registry failures as domain errors', async () => {
+    const r = runtime();
+    r.skills.invoke.mockResolvedValueOnce({ success: false, error: { code: 'forbidden', message: 'Missing permissions' } });
+    const tools = new AgentTools(r, { profile: 'viewer' });
+    await expect(tools.call('open', { id: 'cabinet_01' })).rejects.toMatchObject({ code: 'forbidden' });
+  });
 });

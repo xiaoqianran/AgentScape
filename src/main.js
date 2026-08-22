@@ -15,7 +15,7 @@ async function main() {
     <main class="shell">
       <header class="brandbar">
         <div><strong>AgentScape</strong><span>Build interactive 3D worlds for agents.</span></div>
-        <div class="status"><i></i> V0.7 Asset Runtime</div>
+        <div class="status"><i></i> V1.0 Agent-Native Runtime</div>
       </header>
       <section class="workspace">
         <div id="viewport" class="viewport">
@@ -60,6 +60,15 @@ async function main() {
               <summary>LLM Gateway</summary>
               <label>Endpoint<input id="gateway-endpoint" type="url" placeholder="https://your-server.example/agent" /></label>
               <small>只保存 Gateway URL，不在浏览器保存模型 API Key。留空时使用本地 planner。</small>
+            </details>
+            <details class="gateway-settings engine-settings" open>
+              <summary>Engine / Validation</summary>
+              <div class="engine-actions">
+                <button id="validate-world">Validate</button>
+                <button id="repair-world">Repair</button>
+                <button id="verify-trace">Verify Trace</button>
+              </div>
+              <div id="engine-report" class="engine-report">Engine ready.</div>
             </details>
             <details class="gateway-settings asset-settings">
               <summary>Asset Library / Generator</summary>
@@ -167,6 +176,27 @@ async function main() {
       actions.appendChild(button);
     }
   }
+
+  const engineReport = document.querySelector('#engine-report');
+  let lastValidation = null;
+  const renderValidation = (report) => {
+    engineReport.innerHTML = `<strong>${report.ok ? 'PASS' : 'FAIL'}</strong> · hard ${report.counts.hard} · advisory ${report.counts.advisory} · ${report.coverage.objects} objects · ${report.coverage.relations} relations`;
+  };
+  document.querySelector('#validate-world').addEventListener('click', async () => {
+    try { lastValidation = await tools.call('validateWorld', {}); renderValidation(lastValidation); log(`validate · hard ${lastValidation.counts.hard} advisory ${lastValidation.counts.advisory}`, lastValidation.ok ? 'result' : 'error'); }
+    catch (error) { log(`validate error: ${error.message}`, 'error'); }
+  });
+  document.querySelector('#repair-world').addEventListener('click', async () => {
+    try {
+      const result = await tools.call('repairWorld', { report: lastValidation || undefined });
+      lastValidation = await tools.call('validateWorld', {}); renderValidation(lastValidation);
+      log(`repair · ${result.accepted ? 'accepted' : 'rejected'} · ${result.applied?.length || 0} changes`, result.accepted ? 'result' : 'error');
+    } catch (error) { log(`repair error: ${error.message}`, 'error'); }
+  });
+  document.querySelector('#verify-trace').addEventListener('click', async () => {
+    try { const result = await tools.call('verifyTrace', {}); engineReport.textContent = `Trace ${result.ok ? 'PASS' : 'FAIL'} · ${result.entries ?? 0} events · ${result.lastHash || 'no hash'}`; }
+    catch (error) { log(`trace error: ${error.message}`, 'error'); }
+  });
 
   const assetGeneratorInput = document.querySelector('#asset-generator-endpoint');
   assetGeneratorInput.value = world.assetGenerator.endpoint || '';

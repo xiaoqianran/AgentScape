@@ -12,6 +12,13 @@ import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
 import { SceneSerializer } from '../persistence/SceneSerializer.js';
 import { CommandHistory } from '../history/CommandHistory.js';
 import { SceneGraph } from './graph/SceneGraph.js';
+import { PolicyEngine } from '../policy/PolicyEngine.js';
+import { TraceRecorder } from '../observability/TraceRecorder.js';
+import { SkillRegistry } from '../skills/SkillRegistry.js';
+import { registerCoreSkills } from '../skills/registerCoreSkills.js';
+import { WorldValidator } from '../validation/WorldValidator.js';
+import { RepairEngine } from '../validation/RepairEngine.js';
+import { createWorldPipeline } from '../pipeline/createWorldPipeline.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -19,8 +26,10 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '0.10.0';
-    this.container = container; this.events = new EventBus(); this.assets = new AssetManager();
+    this.version = '1.0.0';
+    this.container = container; this.events = new EventBus();
+    this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
+    this.assets = new AssetManager();
     this.assetGenerator = new HttpAssetGenerator({ endpoint: localStorage.getItem('agentscape.assetGeneratorEndpoint') || '' });
     this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events }); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.clock = new THREE.Clock(); this.running = false;
   }
@@ -34,7 +43,10 @@ export class WorldRuntime {
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
     this.interactions = new InteractionSystem({ store: this.store, physics: this.physics, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
-    this.addEnvironment(); this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.events.emit('runtime.ready'); return this;
+    this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);
+    this.skills = registerCoreSkills(new SkillRegistry({ policy: this.policy, trace: this.trace, runtime: this }), this);
+    this.worldPipeline = createWorldPipeline(this);
+    this.addEnvironment(); this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;
   }
   addEnvironment() {
     this.scene.add(new THREE.HemisphereLight(0xd9e8ff, 0x252c3b, 2.2)); const key = new THREE.DirectionalLight(0xffffff, 3.5); key.position.set(4, 7, 3); key.castShadow = true; this.scene.add(key);
