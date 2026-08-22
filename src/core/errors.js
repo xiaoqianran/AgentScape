@@ -1,0 +1,16 @@
+export class AgentScapeError extends Error {
+  constructor(code, message, details = {}) {
+    super(message);
+    this.name = 'AgentScapeError';
+    this.code = code;
+    this.details = details;
+  }
+}
+
+export const Errors = {
+  assetNotFound: (id) => new AgentScapeError('ASSET_NOT_FOUND', `Unknown asset: ${id}`, { id }),
+  objectNotFound: (id) => new AgentScapeError('OBJECT_NOT_FOUND', `Object not found: ${id}`, { id }),
+  actionUnsupported: (id, action) => new AgentScapeError('ACTION_UNSUPPORTED', `${id} does not support ${action}`, { id, action }),
+  invalidManifest: (message, details) => new AgentScapeError('INVALID_MANIFEST', message, details),
+  invalidToolCall: (name, details) => new AgentScapeError('INVALID_TOOL_CALL', `Invalid tool call: ${name}`, details)
+};

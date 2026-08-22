@@ -23,32 +23,49 @@ The first version intentionally stays small:
 User / LLM
     |
     v
-AgentTools
-    |
-    +-- listObjects
-    +-- spawnAsset
-    +-- moveObject
-    +-- pickup / drop / place
-    +-- open / close
+AgentTools                 <- stable capability boundary
     |
     v
-World Runtime
+WorldRuntime               <- orchestration only
     |
-    +-- Three.js        rendering
-    +-- Rapier          physics
-    +-- three-mesh-bvh  spatial queries
-    +-- AssetRegistry   GLB / generated assets
+    +-- AssetManager       <- builtin / GLB / future generated assets
+    +-- ObjectStore        <- runtime object lifecycle
+    +-- InteractionSystem  <- move / pickup / place / open / close
+    +-- PhysicsSystem      <- Rapier integration
+    +-- EventBus           <- observability and loose coupling
+    |
+    +-- Three.js           rendering
+    +-- three-mesh-bvh     spatial queries
 ```
 
-The key idea is that a mesh is not an interactive object by itself. AgentScape adds behavior metadata describing what an asset *can do*.
+Assets are described by validated manifests instead of hard-coding behavior into the renderer:
 
-```json
+```js
 {
-  "type": "cup",
-  "actions": ["pickup", "drop", "place"],
-  "physics": { "body": "dynamic", "mass": 0.3 }
+  id: 'cabinet',
+  type: 'cabinet',
+  source: { kind: 'glb', url: '/assets/cabinet.glb' },
+  actions: ['open', 'close', 'move'],
+  parts: {
+    door: {
+      node: 'Door_Hinge',
+      joint: { type: 'revolute', axis: [0, 1, 0], limits: [-1.35, 0] }
+    }
+  }
 }
 ```
+
+This separation is deliberate: replacing the demo planner with an LLM, replacing a builtin primitive with a Blender GLB, or adding an asset generator should not require rewriting the world runtime.
+
+### Stability gates
+
+Every push to `main` must pass:
+
+```bash
+npm run check
+```
+
+That executes the unit test suite and a production build before GitHub Pages deployment.
 
 ## Run
 

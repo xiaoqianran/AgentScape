@@ -1,5 +1,5 @@
 import './style.css';
-import { World } from './runtime/World.js';
+import { WorldRuntime } from './runtime/WorldRuntime.js';
 import { AgentTools } from './agent/AgentTools.js';
 import { DemoAgent } from './agent/DemoAgent.js';
 
@@ -47,8 +47,10 @@ async function main() {
     logEl.prepend(row);
   }
 
-  const world = new World(document.querySelector('#viewport'), (msg) => log(`tool: ${msg}`, 'tool'));
+  const world = new WorldRuntime(document.querySelector('#viewport'));
   await world.init();
+  world.events.on('tool.called', (event) => log(`tool: ${event.name} ${JSON.stringify(event.args)}`, 'tool'));
+  world.events.on('interaction', (event) => log(`action: ${event.action} ${event.id}`, 'tool'));
   const tools = new AgentTools(world);
   const agent = new DemoAgent(tools, log);
   document.querySelector('#tools').textContent = tools.schema().join('\n');
