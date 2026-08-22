@@ -11,6 +11,7 @@ import { AssetLibrary } from '../assets/library/AssetLibrary.js';
 import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
 import { SceneSerializer } from '../persistence/SceneSerializer.js';
 import { CommandHistory } from '../history/CommandHistory.js';
+import { SceneGraph } from './graph/SceneGraph.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -18,7 +19,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '0.9.0';
+    this.version = '0.10.0';
     this.container = container; this.events = new EventBus(); this.assets = new AssetManager();
     this.assetGenerator = new HttpAssetGenerator({ endpoint: localStorage.getItem('agentscape.assetGeneratorEndpoint') || '' });
     this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events }); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.clock = new THREE.Clock(); this.running = false;
@@ -30,6 +31,7 @@ export class WorldRuntime {
     this.renderer = new THREE.WebGLRenderer({ antialias: true }); this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); this.renderer.shadowMap.enabled = true; this.container.appendChild(this.renderer.domElement);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement); this.controls.target.set(0, 0.9, 0); this.controls.enableDamping = true;
     this.spatial = new SpatialSystem({ store: this.store, scene: this.scene });
+    this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
     this.interactions = new InteractionSystem({ store: this.store, physics: this.physics, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
     this.addEnvironment(); this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.events.emit('runtime.ready'); return this;
@@ -54,6 +56,7 @@ export class WorldRuntime {
     this.history.begin(label, before);
     try {
       const result = await operation();
+      this.sceneGraph?.update();
       this.history.commit(this.snapshot(), meta);
       return result;
     } catch (error) {
@@ -67,7 +70,7 @@ export class WorldRuntime {
   }
 
   commitMutation(meta = {}) {
-    if (!this.history?.suspended) this.history.commit(this.snapshot(), meta);
+    if (!this.history?.suspended) { this.sceneGraph?.update(); this.history.commit(this.snapshot(), meta); }
   }
 
   clearObjects() {
@@ -94,6 +97,7 @@ export class WorldRuntime {
       if (node.isMesh) node.geometry?.disposeBoundsTree?.();
     });
     this.store.delete(id);
+    this.sceneGraph?.removeObject(id); this.sceneGraph?.update();
     this.events.emit('object.removed', { id, assetId: record.assetId });
     return true;
   }

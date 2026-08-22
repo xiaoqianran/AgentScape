@@ -49,6 +49,7 @@ async function main() {
                 <div><dt>Rotation</dt><dd id="rotation"></dd></div>
               </dl>
               <div id="spatial-info" class="spatial-info"></div>
+              <div id="relation-info" class="relation-info"></div>
               <div id="actions" class="action-list"></div>
             </div>
           </section>
@@ -113,6 +114,7 @@ async function main() {
   world.events.on('history.changed', updateHistoryButtons);
   world.events.on('history.recorded', ({ label }) => log(`history: ${label}`, 'history'));
   world.events.on('history.applied', ({ direction, label }) => log(`${direction}: ${label}`, 'history'));
+  world.events.on('sceneGraph.updated', ({ edges }) => log(`scene graph · ${edges} relations`, 'graph'));
   world.events.on('scene.autosaved', ({ objects }) => log(`autosaved · ${objects} objects`, 'autosave'));
   updateHistoryButtons();
 
@@ -145,6 +147,13 @@ async function main() {
     const nearby = world.spatial.findNearby(id, 2);
     const spatial = document.querySelector('#spatial-info');
     spatial.textContent = `size ${bounds.size.join(' × ')} · nearby ${nearby.length}`;
+    world.sceneGraph.update();
+    const relations = world.sceneGraph.describe(id);
+    const relationInfo = document.querySelector('#relation-info');
+    relationInfo.innerHTML = '';
+    const visible = relations.outgoing.filter(r => ['ON','NEAR','INSIDE'].includes(r.predicate)).slice(0, 6);
+    for (const rel of visible) { const row = document.createElement('div'); row.textContent = `${rel.predicate} → ${rel.object}`; relationInfo.appendChild(row); }
+    if (!visible.length) relationInfo.textContent = 'No semantic relations';
     const actions = document.querySelector('#actions');
     actions.innerHTML = '';
     for (const action of info.actions) {

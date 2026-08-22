@@ -74,6 +74,7 @@ export class SpatialSystem {
 
   getSupportSurface(targetId, surfaceId) {
     const record = this.store.get(targetId);
+    record.object.updateWorldMatrix(true, true);
     const surface = surfaceId
       ? record.manifest.surfaces?.find((s) => s.id === surfaceId)
       : record.manifest.surfaces?.[0];
@@ -106,6 +107,11 @@ export class SpatialSystem {
     const halfZ = size.z / 2 + clearance;
     const usableX = Math.max(0, surface.size[0] / 2 - halfX);
     const usableZ = Math.max(0, surface.size[1] / 2 - halfZ);
+    const center = new THREE.Vector3();
+    bounds.getCenter(center);
+    const originToCenterX = originalPosition.x - center.x;
+    const originToCenterZ = originalPosition.z - center.z;
+    const originToBottomY = originalPosition.y - bounds.min.y;
     const candidates = [];
 
     for (let ix = 0; ix < grid; ix++) {
@@ -113,9 +119,9 @@ export class SpatialSystem {
         const nx = grid === 1 ? 0 : (ix / (grid - 1)) * 2 - 1;
         const nz = grid === 1 ? 0 : (iz / (grid - 1)) * 2 - 1;
         candidates.push(new THREE.Vector3(
-          surface.center.x + nx * usableX,
-          surface.center.y + size.y / 2 + clearance,
-          surface.center.z + nz * usableZ
+          surface.center.x + nx * usableX + originToCenterX,
+          surface.center.y + clearance + originToBottomY,
+          surface.center.z + nz * usableZ + originToCenterZ
         ));
       }
     }

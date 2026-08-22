@@ -42,6 +42,7 @@ describe('SpatialSystem', () => {
     const spatial = new SpatialSystem({ store });
     const point = spatial.findFreeSpace('cup', 'table', { clearance: 0.02, grid: 5 });
     expect(point).not.toBeNull();
+    expect(point.y).toBeCloseTo(1.37, 2);
     cup.position.copy(point);
     expect(spatial.isColliding('cup', { ignore:['table'] })).not.toContain('blocker');
   });

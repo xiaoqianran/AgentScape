@@ -36,6 +36,7 @@ export class SceneSerializer {
       },
       assets: manifests,
       objects,
+      relations: runtime.sceneGraph?.list?.() || [],
       camera: {
         position: runtime.camera.position.toArray(),
         target: runtime.controls.target.toArray()
@@ -49,6 +50,7 @@ export class SceneSerializer {
     if (scene.schemaVersion !== SCENE_VERSION) throw new Error(`Unsupported scene version: ${scene.schemaVersion}`);
     if (!Array.isArray(scene.objects)) throw new Error('Scene objects must be an array');
     if (!Array.isArray(scene.assets)) throw new Error('Scene assets must be an array');
+    if (scene.relations != null && !Array.isArray(scene.relations)) throw new Error('Scene relations must be an array');
     for (const object of scene.objects) {
       if (!object.id || !object.assetId) throw new Error('Scene object requires id and assetId');
       if (object.transform?.position?.length !== 3) throw new Error(`${object.id}: invalid position`);
@@ -81,6 +83,7 @@ export class SceneSerializer {
     if (scene.camera?.position?.length === 3) runtime.camera.position.fromArray(scene.camera.position);
     if (scene.camera?.target?.length === 3) runtime.controls.target.fromArray(scene.camera.target);
     runtime.controls.update();
+    runtime.sceneGraph?.update();
     runtime.events.emit('scene.restored', { objects: scene.objects.length });
     return scene;
   }

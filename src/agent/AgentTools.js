@@ -28,6 +28,8 @@ export class AgentTools {
 
   async execute(name, args) {
     switch (name) {
+      case 'listRelations': return this.runtime.sceneGraph.list({ subject: args.subject, predicate: args.predicate, object: args.object });
+      case 'describeObjectRelations': return this.runtime.sceneGraph.describe(args.id);
       case 'listAssets': return this.runtime.assetLibrary.list();
       case 'searchAssets': return this.runtime.assetLibrary.search(args.query, { limit: args.limit ?? 8 });
       case 'resolveAsset': return this.runtime.assetLibrary.resolve(args.query, { generate: args.generate ?? false });

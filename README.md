@@ -4,7 +4,7 @@
 
 AgentScape is an experimental Web3D runtime where an AI agent can inspect and manipulate an interactive 3D scene through a small, explicit tool API.
 
-## V0.9
+## V0.10
 
 The current version intentionally stays focused:
 
@@ -227,3 +227,26 @@ V0.9 makes world mutations reversible and auditable. Agent tool mutations and Hu
 - autosave is restored automatically on startup when available
 
 History restoration reuses the same versioned scene serializer as manual Save/Load, so Undo/Redo does not maintain a second, divergent world representation.
+
+## Semantic scene graph
+
+V0.10 adds a derived semantic world model on top of geometry. `SceneGraph` turns spatial facts into relations that are easier for an agent to reason about:
+
+```text
+cup_01      ON        table_01
+table_01    SUPPORTS  cup_01
+cup_01      NEAR      cabinet_01
+item_01     INSIDE    cabinet_01
+cabinet_01  CONTAINS  item_01
+```
+
+New agent tools:
+
+- `listRelations({ subject?, predicate?, object? })`
+- `describeObjectRelations(id)`
+
+Relations are **derived from authoritative geometry**, not manually maintained as a second world state. The graph rebuild caches bounds and support surfaces once per update, keeping relation inference quadratic in object count rather than repeatedly recalculating geometry in nested loops.
+
+`scene.json` includes the currently derived relations for inspection/export, but import recomputes them from restored geometry so stale relations cannot override the world.
+
+V0.10 also fixes support-surface transforms for moved Blender/GLB assets and placement now respects assets whose origin is at the bottom instead of assuming every model origin is at its geometric center.

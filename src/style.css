@@ -69,3 +69,6 @@ kbd { margin-left: 4px; opacity: .45; font: inherit; }
 .editor-toolbar button:disabled { opacity: .35; cursor: default; }
 .log-row.history { color: #c7a8f5; }
 .log-row.autosave { color: #6f8e7d; }
+
+.relation-info { display:grid; gap:3px; margin-top:8px; padding-top:8px; border-top:1px solid #202b40; color:#8fa4c5; font:10px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.log-row.graph { color:#78a6ff; }

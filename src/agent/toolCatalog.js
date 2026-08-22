@@ -1,4 +1,14 @@
 export const TOOL_CATALOG = {
+  listRelations: {
+    description: 'List semantic spatial relations in the current scene graph, such as ON, NEAR, INSIDE, SUPPORTS and CONTAINS.',
+    parameters: { type: 'object', properties: { subject: { type: 'string' }, predicate: { type: 'string' }, object: { type: 'string' } }, additionalProperties: false },
+    required: []
+  },
+  describeObjectRelations: {
+    description: 'Describe all incoming and outgoing semantic spatial relations for one object.',
+    parameters: { type: 'object', properties: { id: { type: 'string' } }, additionalProperties: false },
+    required: ['id']
+  },
   listAssets: {
     description: 'List assets available in the AgentScape asset library.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
