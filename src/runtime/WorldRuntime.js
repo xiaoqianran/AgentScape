@@ -6,6 +6,7 @@ import { AssetManager } from './AssetManager.js';
 import { ObjectStore } from './ObjectStore.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
+import { SpatialSystem } from './systems/SpatialSystem.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -21,7 +22,8 @@ export class WorldRuntime {
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.05, 100); this.camera.position.set(5.2, 4.2, 6.2);
     this.renderer = new THREE.WebGLRenderer({ antialias: true }); this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); this.renderer.shadowMap.enabled = true; this.container.appendChild(this.renderer.domElement);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement); this.controls.target.set(0, 0.9, 0); this.controls.enableDamping = true;
-    this.interactions = new InteractionSystem({ store: this.store, physics: this.physics, events: this.events });
+    this.spatial = new SpatialSystem({ store: this.store, scene: this.scene });
+    this.interactions = new InteractionSystem({ store: this.store, physics: this.physics, spatial: this.spatial, events: this.events });
     this.addEnvironment(); this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.events.emit('runtime.ready'); return this;
   }
   addEnvironment() {

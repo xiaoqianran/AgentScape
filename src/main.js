@@ -34,6 +34,7 @@ async function main() {
                 <div><dt>Position</dt><dd id="position"></dd></div>
                 <div><dt>Rotation</dt><dd id="rotation"></dd></div>
               </dl>
+              <div id="spatial-info" class="spatial-info"></div>
               <div id="actions" class="action-list"></div>
             </div>
           </section>
@@ -92,6 +93,10 @@ async function main() {
     document.querySelector('#asset-id').textContent = info.asset;
     document.querySelector('#position').textContent = info.position.join(', ');
     document.querySelector('#rotation').textContent = `${info.rotation.join(', ')}°`;
+    const bounds = world.spatial.getBounds(id);
+    const nearby = world.spatial.findNearby(id, 2);
+    const spatial = document.querySelector('#spatial-info');
+    spatial.textContent = `size ${bounds.size.join(' × ')} · nearby ${nearby.length}`;
     const actions = document.querySelector('#actions');
     actions.innerHTML = '';
     for (const action of info.actions) {

@@ -4,7 +4,7 @@
 
 AgentScape is an experimental Web3D runtime where an AI agent can inspect and manipulate an interactive 3D scene through a small, explicit tool API.
 
-## V0.4
+## V0.5
 
 The current version intentionally stays focused:
 
@@ -127,3 +127,16 @@ The manifest owns behavior and physics. The GLB owns visuals and hierarchy. This
 - Inspector action buttons call the same `AgentTools` used by an AI agent.
 
 The editor never edits an independent copy of the scene. Human and agent operations mutate the same `WorldRuntime`, so future undo/redo, persistence, multiplayer, and LLM planning can be built around one authoritative world state.
+
+## Spatial intelligence
+
+V0.5 adds a dedicated `SpatialSystem` used by both the editor and agents:
+
+- `getBounds(id)`
+- `findNearby(id, radius)`
+- `raycast(origin, direction)`
+- `isColliding(id)`
+- `findSupportSurface(targetId)`
+- `findFreeSpace(id, targetId)`
+
+`place(id, targetId)` no longer uses a hard-coded offset. It queries the target support surface, measures the object bounds, searches candidate positions, rejects collisions, then hands the chosen pose to the physics system.

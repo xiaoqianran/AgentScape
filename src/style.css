@@ -45,3 +45,5 @@ kbd { margin-left: 4px; opacity: .45; font: inherit; }
 .command input { min-width: 0; border: 1px solid #29364f; color: #eef3ff; background: #0c1220; border-radius: 8px; outline: 0; padding: 9px 10px; font-size: 12px; }
 .command input:focus { border-color: #5378b7; }.command button { padding: 0 13px; font-size: 12px; }
 @media (max-width: 820px) { .workspace { grid-template-columns: 1fr; grid-template-rows: 60% 40%; }.panel { border-left: 0; border-top: 1px solid #20283a; grid-template-columns: 45% 55%; grid-template-rows: 1fr; }.inspector { border-bottom: 0; border-right: 1px solid #20283a; padding: 12px; }.agent-console { padding: 12px; }.brandbar span, .intro { display: none; }.shell { grid-template-rows: 50px 1fr; }.editor-toolbar { top: 8px; }.log { margin: 8px 0; } }
+
+.spatial-info { margin-top: 10px; color: #6f82a2; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }

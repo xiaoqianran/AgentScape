@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { Errors } from '../../core/errors.js';
 
 export class InteractionSystem {
-  constructor({ store, physics, events }) {
+  constructor({ store, physics, spatial, events }) {
     this.store = store;
     this.physics = physics;
+    this.spatial = spatial;
     this.events = events;
     this.heldId = null;
   }
@@ -40,17 +41,18 @@ export class InteractionSystem {
     this.events.emit('interaction', { action: 'drop', id });
   }
 
-  place(id, targetId) {
+  place(id, targetId, options = {}) {
     this.assertSupports(id, 'place');
     const target = this.store.get(targetId);
-    const surface = target.manifest.surfaces?.[0];
-    if (!surface) throw Errors.actionUnsupported(targetId, 'receive');
-    const p = new THREE.Vector3(...surface.localPosition).add(target.object.position);
+    if (!target.manifest.surfaces?.length) throw Errors.actionUnsupported(targetId, 'receive');
+    const p = this.spatial.findFreeSpace(id, targetId, options);
+    if (!p) throw new Error(`No collision-free placement found on ${targetId}`);
     this.pickup(id);
     this.store.get(id).object.position.copy(p);
     this.physics.setPosition(id, p.toArray());
     this.drop(id);
-    this.events.emit('interaction', { action: 'place', id, targetId });
+    this.events.emit('interaction', { action: 'place', id, targetId, position: p.toArray() });
+    return { id, targetId, position: p.toArray().map((v) => Number(v.toFixed(3))) };
   }
 
   setDoor(id, open) {
