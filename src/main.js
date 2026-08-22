@@ -13,7 +13,7 @@ async function main() {
     <main class="shell">
       <header class="brandbar">
         <div><strong>AgentScape</strong><span>Build interactive 3D worlds for agents.</span></div>
-        <div class="status"><i></i> V0.4 Editor Runtime</div>
+        <div class="status"><i></i> V0.7 Asset Runtime</div>
       </header>
       <section class="workspace">
         <div id="viewport" class="viewport">
@@ -48,6 +48,13 @@ async function main() {
               <summary>LLM Gateway</summary>
               <label>Endpoint<input id="gateway-endpoint" type="url" placeholder="https://your-server.example/agent" /></label>
               <small>只保存 Gateway URL，不在浏览器保存模型 API Key。留空时使用本地 planner。</small>
+            </details>
+            <details class="gateway-settings asset-settings">
+              <summary>Asset Library / Generator</summary>
+              <div class="asset-search"><input id="asset-query" placeholder="搜索 chair / 椅子 / cup" /><button id="asset-search-button">Search</button></div>
+              <div id="asset-results" class="asset-results"></div>
+              <label>Generator Endpoint<input id="asset-generator-endpoint" type="url" placeholder="https://your-server.example/generate-3d" /></label>
+              <small>搜索不到时 Agent 才应调用生成器。生成器返回 GLB URL + manifest。</small>
             </details>
             <div class="chips">
               <button data-prompt="打开柜子">打开柜子</button>
@@ -119,6 +126,36 @@ async function main() {
       actions.appendChild(button);
     }
   }
+
+  const assetGeneratorInput = document.querySelector('#asset-generator-endpoint');
+  assetGeneratorInput.value = world.assetGenerator.endpoint || '';
+  assetGeneratorInput.addEventListener('change', () => {
+    world.assetGenerator.setEndpoint(assetGeneratorInput.value);
+    if (world.assetGenerator.endpoint) localStorage.setItem('agentscape.assetGeneratorEndpoint', world.assetGenerator.endpoint);
+    else localStorage.removeItem('agentscape.assetGeneratorEndpoint');
+    log(world.assetGenerator.isConfigured() ? `asset generator: ${world.assetGenerator.endpoint}` : 'asset generator disabled', 'result');
+  });
+
+  const assetQuery = document.querySelector('#asset-query');
+  const assetResults = document.querySelector('#asset-results');
+  const renderAssetResults = (assets) => {
+    assetResults.innerHTML = '';
+    for (const asset of assets) {
+      const row = document.createElement('div'); row.className = 'asset-result';
+      const meta = document.createElement('div'); meta.innerHTML = `<strong>${asset.label}</strong><small>${asset.id} · ${asset.source}</small>`;
+      const spawn = document.createElement('button'); spawn.textContent = 'Spawn';
+      spawn.addEventListener('click', async () => {
+        try { const id = await tools.call('spawnAsset', { assetId: asset.id, position: [1.5, 0, 1.2] }); log(`spawned ${id}`, 'result'); }
+        catch (error) { log(`error: ${error.message}`, 'error'); }
+      });
+      row.append(meta, spawn); assetResults.appendChild(row);
+    }
+    if (!assets.length) assetResults.textContent = 'No reusable asset found.';
+  };
+  const searchAssets = () => renderAssetResults(world.assetLibrary.search(assetQuery.value, { limit: 6 }));
+  document.querySelector('#asset-search-button').addEventListener('click', searchAssets);
+  assetQuery.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); searchAssets(); } });
+  renderAssetResults(world.assetLibrary.list().slice(0, 4));
 
   const gatewayInput = document.querySelector('#gateway-endpoint');
   const modeBadge = document.querySelector('#agent-mode');

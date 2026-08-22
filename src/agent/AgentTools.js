@@ -11,6 +11,10 @@ export class AgentTools {
   async call(name, args = {}) {
     this.validate(name, args); this.runtime.events.emit('tool.called', { name, args });
     switch (name) {
+      case 'listAssets': return this.runtime.assetLibrary.list();
+      case 'searchAssets': return this.runtime.assetLibrary.search(args.query, { limit: args.limit ?? 8 });
+      case 'resolveAsset': return this.runtime.assetLibrary.resolve(args.query, { generate: args.generate ?? false });
+      case 'generateAsset': return this.runtime.assetLibrary.generate(args.prompt);
       case 'listObjects': return this.runtime.listObjects();
       case 'spawnAsset': return this.runtime.spawn(args.assetId, { position: args.position, id: args.instanceId });
       case 'moveObject': return this.runtime.interactions.move(args.id, args.position);

@@ -7,6 +7,8 @@ import { ObjectStore } from './ObjectStore.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
 import { SpatialSystem } from './systems/SpatialSystem.js';
+import { AssetLibrary } from '../assets/library/AssetLibrary.js';
+import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -14,7 +16,9 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.container = container; this.events = new EventBus(); this.assets = new AssetManager(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.clock = new THREE.Clock(); this.running = false;
+    this.container = container; this.events = new EventBus(); this.assets = new AssetManager();
+    this.assetGenerator = new HttpAssetGenerator({ endpoint: localStorage.getItem('agentscape.assetGeneratorEndpoint') || '' });
+    this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events }); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.clock = new THREE.Clock(); this.running = false;
   }
   async init() {
     await this.physics.init();

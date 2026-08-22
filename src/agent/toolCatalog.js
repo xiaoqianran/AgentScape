@@ -1,4 +1,24 @@
 export const TOOL_CATALOG = {
+  listAssets: {
+    description: 'List assets available in the AgentScape asset library.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    required: []
+  },
+  searchAssets: {
+    description: 'Search the reusable asset library by natural-language name, type, alias or tag. Search before generating a new asset.',
+    parameters: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 20 } }, additionalProperties: false },
+    required: ['query']
+  },
+  resolveAsset: {
+    description: 'Resolve an asset request. Returns library matches first and may request generation only when generate=true and nothing matches.',
+    parameters: { type: 'object', properties: { query: { type: 'string' }, generate: { type: 'boolean' } }, additionalProperties: false },
+    required: ['query']
+  },
+  generateAsset: {
+    description: 'Generate and register a missing 3D asset using the configured Asset Generator gateway. Use only after searchAssets finds no suitable asset.',
+    parameters: { type: 'object', properties: { prompt: { type: 'string' } }, additionalProperties: false },
+    required: ['prompt']
+  },
   listObjects: {
     description: 'List all objects currently in the 3D world with ids, assets, positions and supported actions.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },

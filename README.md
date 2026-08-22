@@ -4,7 +4,7 @@
 
 AgentScape is an experimental Web3D runtime where an AI agent can inspect and manipulate an interactive 3D scene through a small, explicit tool API.
 
-## V0.6
+## V0.7
 
 The current version intentionally stays focused:
 
@@ -168,3 +168,31 @@ The loop is capped at 8 planning steps and feeds tool errors back to the model a
 Because GitHub Pages is a static frontend, AgentScape deliberately does **not** collect or persist model provider API keys. Configure a server-side Gateway URL in the Agent Console. The browser stores only that URL. See [`docs/llm-gateway.md`](docs/llm-gateway.md) for the provider-neutral request/response contract.
 
 Without a Gateway URL, AgentScape automatically uses a deterministic local fallback planner so the public demo remains usable.
+
+## Asset library and generation
+
+V0.7 adds a reusable asset-resolution layer between the agent and the world:
+
+```text
+Agent needs "chair"
+       ↓
+searchAssets("chair")
+       ↓
+   found? ── yes ──→ spawnAsset("chair")
+       │
+       no
+       ↓
+generateAsset("chair")
+       ↓
+Asset Generator Gateway
+       ↓
+GLB URL + validated manifest
+       ↓
+runtime registration
+       ↓
+spawnAsset(...)
+```
+
+The built-in library now supports metadata such as labels, tags and aliases, including multilingual search terms. `chair`, `椅子`, and `mug` can resolve reusable assets without involving a model.
+
+The public Pages demo includes an Asset Library browser and a configurable Asset Generator endpoint. API/model credentials stay on the generator server; AgentScape only stores the endpoint URL. See [`docs/asset-generator.md`](docs/asset-generator.md).

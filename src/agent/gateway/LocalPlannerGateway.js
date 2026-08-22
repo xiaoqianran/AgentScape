@@ -9,6 +9,7 @@ export class LocalPlannerGateway {
 
     const calls = [];
     if (q.includes('列出') || q.includes('对象') || q.includes('list')) calls.push({ name: 'listObjects', args: {} });
+    if (q.includes('椅子') || q.includes('chair')) { calls.push({ name: 'searchAssets', args: { query: 'chair' } }); calls.push({ name: 'spawnAsset', args: { assetId: 'chair', position: [1.8, 0, 0] } }); }
     if (q.includes('打开') || q.includes('open')) calls.push({ name: 'open', args: { id: 'cabinet_01' } });
     if (q.includes('关闭') || q.includes('close')) calls.push({ name: 'close', args: { id: 'cabinet_01' } });
     if (q.includes('拿') || q.includes('pickup') || q.includes('pick up')) calls.push({ name: 'pickup', args: { id: 'cup_01' } });

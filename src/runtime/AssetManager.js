@@ -60,6 +60,14 @@ export class AssetManager {
   }
 
   registerBuiltins() {
+    this.registerFactory('chair', async () => {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color: 0x71806a, roughness: 0.75 });
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.1, 0.76), mat); seat.position.y = 0.72; seat.castShadow = seat.receiveShadow = true; g.add(seat);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.9, 0.1), mat); back.position.set(0, 1.16, -0.33); back.castShadow = back.receiveShadow = true; g.add(back);
+      for (const x of [-0.3, 0.3]) for (const z of [-0.3, 0.3]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.68, 0.08), mat); leg.position.set(x, 0.34, z); leg.castShadow = leg.receiveShadow = true; g.add(leg); }
+      return g;
+    });
     this.registerFactory('cup', async () => {
       const g = new THREE.Group();
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.32, 28), new THREE.MeshStandardMaterial({ color: 0xe9edf5, roughness: 0.35 }));
