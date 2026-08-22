@@ -7,6 +7,7 @@ import { SemanticHeuristicPass } from './passes/SemanticHeuristicPass.js';
 import { ArticulationCandidatePass } from './passes/ArticulationCandidatePass.js';
 import { ColliderFallbackPass } from './passes/ColliderFallbackPass.js';
 import { RemoteEnrichmentPass } from './passes/RemoteEnrichmentPass.js';
+import { CompileQualityPass } from './passes/CompileQualityPass.js';
 import { ManifestPass } from './passes/ManifestPass.js';
 
 export class AssetCompiler {
@@ -21,6 +22,7 @@ export class AssetCompiler {
       new ColliderFallbackPass(),
       new RemoteEnrichmentPass({ provider }),
       new OptimizeGLBPass({ io: this.io }),
+      new CompileQualityPass(),
       new ManifestPass()
     ];
   }
@@ -42,9 +44,15 @@ export class AssetCompiler {
       context = await pass.run(context);
       this.events?.emit('assetCompiler.pass.completed', { pass: pass.constructor.name, elapsedMs: Math.round(performance.now()-started) });
     }
-    const storageKey = context.manifest.source.key;
-    await this.store.put(storageKey, context.optimizedBytes, { sourceName: name, manifestId: context.manifest.id });
     validateAssetManifest(context.manifest);
+    if (context.quality.status === 'rejected') {
+      const error = new Error('Asset compilation rejected by quality gate');
+      error.code = 'ASSET_COMPILE_REJECTED';
+      error.details = context.quality;
+      throw error;
+    }
+    const storageKey = context.manifest.source.key;
+    await this.store.put(storageKey, context.optimizedBytes, { sourceName: name, manifestId: context.manifest.id, quality: context.quality.status });
     return {
       manifest: context.manifest,
       inspection: context.inspection,
@@ -52,7 +60,8 @@ export class AssetCompiler {
       optimization: context.optimization,
       articulation: context.articulation,
       collision: context.collision,
-      enrichment: context.enrichment
+      enrichment: context.enrichment,
+      quality: context.quality
     };
   }
 }

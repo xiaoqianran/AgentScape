@@ -9,6 +9,10 @@ describe('asset manifest validation', () => {
     expect(() => validateAssetManifest({ id: 'cup', type: 'cup', source: { kind: 'builtin' }, actions: ['pickup', 'pickup'] })).toThrow(/unique/);
   });
   it('accepts compiled sources and convex hull colliders', () => { expect(() => validateAssetManifest({ id:'x', type:'object', source:{kind:'compiled',key:'x'}, actions:['move'], physics:{body:'fixed',colliders:[{shape:'convexHull',vertices:[0,0,0,1,0,0,0,1,0,0,0,1]}]} })).not.toThrow(); });
+  it('rejects non-finite or non-positive collider dimensions', () => {
+    expect(() => validateAssetManifest({ id:'x', type:'x', source:{kind:'builtin'}, actions:[], physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[1,0,1]}]} })).toThrow();
+    expect(() => validateAssetManifest({ id:'x', type:'x', source:{kind:'builtin'}, actions:[], physics:{body:'fixed',colliders:[{shape:'convexHull',vertices:[0,0,0,1,0,0,0,1,0,0,0,Infinity]}]} })).toThrow();
+  });
   it('rejects invalid joint type', () => {
     expect(() => validateAssetManifest({ id: 'cabinet', type: 'cabinet', source: { kind: 'builtin' }, actions: [], parts: { door: { node: 'Door', joint: { type: 'magic' } } } })).toThrow(/joint type/);
   });

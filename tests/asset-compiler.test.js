@@ -17,6 +17,8 @@ describe('AssetCompiler', () => {
     const result = await compiler.compile({ bytes, sourceName:'cabinet.glb', assetId:'compiled_cabinet' });
     expect(result.manifest.id).toBe('compiled_cabinet');
     expect(result.manifest.type).toBe('cabinet');
+    expect(result.manifest.actions).toEqual(['move']);
+    expect(result.quality.status).toBe('provisional');
     expect(result.manifest.source.kind).toBe('compiled');
     expect(result.inspection.stats.meshes).toBeGreaterThan(0);
     expect(result.geometry.bounds.size.every((v) => v > 0)).toBe(true);

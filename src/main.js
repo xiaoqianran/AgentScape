@@ -217,7 +217,7 @@ async function main() {
   });
   const renderCompileResult = (result) => {
     const m = result.manifest, i = result.inspection.stats;
-    compilerReport.innerHTML = `<strong>${m.id}</strong> · ${m.type} · ${i.nodes} nodes · ${i.meshes} meshes · ${i.renderVertices} vertices · collider ${m.compiler.collisionStrategy} · semantic ${(m.compiler.semanticConfidence * 100).toFixed(0)}%`;
+    compilerReport.innerHTML = `<strong>${m.id}</strong> · ${result.quality.status} · ${m.type} · ${i.nodes} nodes · ${i.meshes} meshes · collider ${m.compiler.collisionStrategy} · semantic ${(m.compiler.semanticConfidence * 100).toFixed(0)}%`;
   };
   const compileAndRegister = async (input) => {
     try {

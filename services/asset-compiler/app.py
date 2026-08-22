@@ -1,12 +1,12 @@
-"""Optional heavy AgentScape asset compiler backend.
-
-Uses trimesh + CoACD for convex decomposition. It deliberately lives outside
-GitHub Pages/browser runtime and follows the provider-neutral compiler contract.
-"""
+"""AgentScape 可选重型资产编译服务。"""
 from __future__ import annotations
+
 import io
+import ipaddress
 import os
+import socket
 from typing import Any
+from urllib.parse import urljoin, urlparse
 
 import numpy as np
 import requests
@@ -14,7 +14,10 @@ import trimesh
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-app = FastAPI(title="AgentScape Asset Compiler", version="1.1.0")
+app = FastAPI(title="AgentScape Asset Compiler", version="1.1.1")
+MAX_ASSET_BYTES = int(os.getenv("MAX_ASSET_BYTES", 100 * 1024 * 1024))
+MAX_REDIRECTS = 3
+
 
 class CompileRequest(BaseModel):
     stage: str
@@ -25,12 +28,42 @@ class CompileRequest(BaseModel):
     articulationCandidates: list[dict[str, Any]] | None = None
 
 
+def _assert_public_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("只允许公开的 http/https URL")
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    for info in socket.getaddrinfo(parsed.hostname, port, type=socket.SOCK_STREAM):
+        address = ipaddress.ip_address(info[4][0])
+        if not address.is_global:
+            raise ValueError("拒绝访问私有、回环、链路本地或其他非公网地址")
+
+
 def _download(url: str) -> bytes:
-    response = requests.get(url, timeout=60)
-    response.raise_for_status()
-    if len(response.content) > int(os.getenv("MAX_ASSET_BYTES", 100 * 1024 * 1024)):
-        raise ValueError("asset exceeds MAX_ASSET_BYTES")
-    return response.content
+    current = url
+    for _ in range(MAX_REDIRECTS + 1):
+        _assert_public_url(current)
+        with requests.get(current, timeout=(5, 60), stream=True, allow_redirects=False) as response:
+            if 300 <= response.status_code < 400:
+                location = response.headers.get("location")
+                if not location:
+                    raise ValueError("重定向响应缺少 Location")
+                current = urljoin(current, location)
+                continue
+            response.raise_for_status()
+            declared = int(response.headers.get("content-length", "0") or 0)
+            if declared > MAX_ASSET_BYTES:
+                raise ValueError("资产超过 MAX_ASSET_BYTES")
+            chunks, total = [], 0
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > MAX_ASSET_BYTES:
+                    raise ValueError("资产超过 MAX_ASSET_BYTES")
+                chunks.append(chunk)
+            return b"".join(chunks)
+    raise ValueError("重定向次数过多")
 
 
 def _scene_mesh(glb: bytes) -> trimesh.Trimesh:
@@ -44,7 +77,7 @@ def _scene_mesh(glb: bytes) -> trimesh.Trimesh:
         geom.apply_transform(transform)
         meshes.append(geom)
     if not meshes:
-        raise ValueError("GLB contains no mesh geometry")
+        raise ValueError("GLB 不包含 Mesh 几何")
     return trimesh.util.concatenate(meshes)
 
 
@@ -52,7 +85,7 @@ def _coacd_colliders(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
     try:
         import coacd
     except ImportError as exc:
-        raise RuntimeError("coacd package is not installed") from exc
+        raise RuntimeError("未安装 coacd") from exc
     coacd_mesh = coacd.Mesh(np.asarray(mesh.vertices, dtype=np.float64), np.asarray(mesh.faces, dtype=np.int32))
     hulls = coacd.run_coacd(
         coacd_mesh,
@@ -62,30 +95,30 @@ def _coacd_colliders(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
         merge=True,
         seed=0,
     )
-    result = []
-    for vertices, _faces in hulls:
-        result.append({
-            "shape": "convexHull",
-            "vertices": np.asarray(vertices, dtype=float).reshape(-1).round(6).tolist(),
-        })
-    return result
+    return [
+        {"shape": "convexHull", "vertices": np.asarray(vertices, dtype=float).reshape(-1).round(6).tolist()}
+        for vertices, _faces in hulls
+        if len(vertices) >= 4
+    ]
 
 
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "agentscape-asset-compiler", "version": "1.1.0"}
+    return {"ok": True, "service": "agentscape-asset-compiler", "version": "1.1.1"}
 
 
 @app.post("/compile")
 def compile_asset(req: CompileRequest):
     if req.stage != "enrich":
-        raise HTTPException(400, f"unsupported stage: {req.stage}")
+        raise HTTPException(400, f"不支持的 stage: {req.stage}")
     url = (req.source or {}).get("url")
     if not url:
-        return {"collision": None, "warnings": ["source.url missing; heavy geometry pass skipped"]}
+        return {"collision": None, "warnings": ["缺少 source.url，跳过重型几何 Pass"]}
     try:
         mesh = _scene_mesh(_download(url))
         colliders = _coacd_colliders(mesh)
+        if not colliders:
+            raise ValueError("CoACD 未生成有效凸包")
     except Exception as exc:
         raise HTTPException(422, str(exc)) from exc
 
