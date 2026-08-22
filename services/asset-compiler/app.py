@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import io
+
 import ipaddress
 import os
 import socket
 from typing import Any
+
+from urdf_proposal import urdf_part_proposal
 from urllib.parse import urljoin, urlparse
 
 import numpy as np
@@ -72,70 +75,6 @@ def _download(url: str, max_bytes: int = MAX_ASSET_BYTES) -> bytes:
     raise ValueError("重定向次数过多")
 
 
-def _urdf_part_proposal(urdf_bytes: bytes) -> dict[str, Any]:
-    from yourdfpy import URDF
-
-    model = URDF.load(
-        io.BytesIO(urdf_bytes),
-        build_scene_graph=False,
-        build_collision_scene_graph=False,
-        load_meshes=False,
-        load_collision_meshes=False,
-    )
-    joints = list(model.robot.joints)
-    by_child = {joint.child: joint for joint in joints}
-    movable = {"revolute", "prismatic", "continuous"}
-
-    def movable_parent(link_name: str) -> str:
-        current = link_name
-        while current in by_child:
-            joint = by_child[current]
-            if joint.type in movable:
-                return joint.child
-            current = joint.parent
-        return "$root"
-
-    parts = []
-    for joint in joints:
-        if joint.type == "fixed":
-            continue
-        axis = np.asarray(joint.axis if joint.axis is not None else [1, 0, 0], dtype=float)
-        norm = float(np.linalg.norm(axis))
-        if norm > 1e-12:
-            axis = axis / norm
-        limits = None
-        if joint.limit and joint.limit.lower is not None and joint.limit.upper is not None:
-            lower, upper = float(joint.limit.lower), float(joint.limit.upper)
-            if np.isfinite(lower) and np.isfinite(upper) and lower < upper:
-                limits = [lower, upper]
-        origin = np.asarray(joint.origin if joint.origin is not None else np.eye(4), dtype=float)
-        proposal_joint = {
-            "type": joint.type,
-            "axis": axis.round(9).tolist(),
-            "urdf": {
-                "name": joint.name,
-                "parentLink": joint.parent,
-                "childLink": joint.child,
-                "originMatrix": origin.round(9).tolist(),
-            },
-        }
-        if limits is not None:
-            proposal_joint["limits"] = limits
-        parts.append({
-            "id": joint.child,
-            "node": joint.child,
-            "parent": movable_parent(joint.parent),
-            "joint": proposal_joint,
-            "confidence": 1.0,
-        })
-
-    return {
-        "version": 1,
-        "source": "urdf/yourdfpy",
-        "confidence": 1.0,
-        "parts": parts,
-    }
-
 
 def _scene_mesh(glb: bytes) -> trimesh.Trimesh:
     scene = trimesh.load(io.BytesIO(glb), file_type="glb", force="scene")
@@ -181,7 +120,7 @@ def health():
 @app.post("/proposal/urdf")
 def proposal_from_urdf(req: UrdfProposalRequest):
     try:
-        return {"partProposal": _urdf_part_proposal(_download(req.url, MAX_URDF_BYTES))}
+        return {"partProposal": urdf_part_proposal(_download(req.url, MAX_URDF_BYTES))}
     except Exception as exc:
         raise HTTPException(422, str(exc)) from exc
 

@@ -16,6 +16,7 @@ export class RemoteEnrichmentPass {
         semantics: response?.semantics ? { ...context.semantics, ...response.semantics, source: 'provider' } : context.semantics,
         articulation: context.articulation,
         partProposal: response?.partProposal || context.partProposal || null,
+        partSegmentation: response?.partSegmentation || context.partSegmentation || null,
         collision: response?.collision || context.collision,
         physics: response?.physics || context.physics,
         meshQuality: response?.geometry || context.meshQuality || null,

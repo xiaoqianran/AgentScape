@@ -9,7 +9,7 @@ export function registerCoreSkills(registry, runtime) {
   const add = (name, options, handler) => registry.register({ name, ...options, handler });
 
   add('compileAsset', {
-    ...meta('把 GLB 编译为可运行的 Agent 资产。', ['asset.write'], [], { url:string, sourceName:string, assetId:string, label:string, partProposal:{type:'object'} }),
+    ...meta('把 GLB 编译为可运行的 Agent 资产。', ['asset.write'], [], { url:string, sourceName:string, assetId:string, label:string, partProposal:{type:'object'}, partSegmentation:{type:'object'} }),
     validate: (input) => input?.url || input?.bytes ? { ok: true } : { ok: false, message: 'url or bytes required' }
   }, async (input) => {
     const compiler = await runtime.getAssetCompiler();

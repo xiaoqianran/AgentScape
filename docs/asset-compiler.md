@@ -325,3 +325,68 @@ child body ...
 ```
 
 Three.js 回写也不再假定所有 Part 都直接挂在 Root，而是根据 `node.parent` 的真实世界变换，把 Rapier 世界位姿转换回正确的局部 position/quaternion。
+
+## Segmentation Evidence v1
+
+1.4 开始，face-level Part 分割与 Runtime Part 明确分层。P3-SAM、Hunyuan3D-Part 或其他分割 Provider 可以返回紧凑的 `partSegmentation` 证据：
+
+```json
+{
+  "version": 1,
+  "source": "p3sam/external",
+  "faceCount": 12000,
+  "segments": [
+    { "id": "0", "faceCount": 3400, "confidence": 0.91, "semantic": "door" }
+  ],
+  "artifact": {
+    "kind": "face-labels",
+    "url": "https://provider.example/result/labels.npy"
+  }
+}
+```
+
+浏览器只保留摘要、coverage、可选 bounds/semantic 与 artifact 引用，不把完整 `face_ids` 数组写进 Manifest/Trace。`face segment` 不等于 GLB Node，因此不会直接进入 `manifest.parts`。如果只有分割证据、还没有与当前 GLB Node 对齐的 Part Proposal，质量门会给出 `PART_SEGMENTATION_UNMATERIALIZED`，资产保持 `provisional`。
+
+这使外部重型分割模型可以自由替换，同时避免把“某些三角形属于同一视觉区域”误解成“Runtime 已经有独立 rigid body / joint / action”。
+
+## URDF Joint Frame → Rapier Anchor
+
+`JointFramePass` 会在 `PartProposalPass` 前尝试把可信 URDF joint frame 编译为显式 Rapier anchors，但只处理可证明安全的子集。
+
+URDF 约定：joint origin 是 Parent Link → Joint Frame；Child Link Frame 在零位姿与 Joint Frame 重合；axis 在 Joint Frame 中表达。Rapier 则要求 `anchor1/anchor2` 分别位于两个 rigid-body local frame。
+
+因此 Compiler 会使用 **规范化前** `GLTFInspectPass` 保存的 `worldMatrix`，比较 GLB 零位姿与 URDF `parentToJointMatrix`：
+
+```text
+原始 GLB child zero pose
+        │
+        ├── 与 URDF parent→joint translation 一致？
+        ├── rotation 一致？
+        ├── scale 为 1？
+        └── joint-frame rotation 不改变 axis 数值方向？
+                    │
+              全部满足
+                    ▼
+parentAnchor = URDF joint position in parent local
+childAnchor  = [0, 0, 0]
+                    │
+                    ▼
+            进入 PartProposalPass
+```
+
+如果任一条件不满足，会记录 `JOINT_FRAME_*` issue，并保持缺少 anchor 的 report-only 状态；不会为了提高晋升率而猜坐标。多级 Part 会先把 parent Part 的原始 world transform 求逆，再比较 child relative transform。
+
+URDF Adapter 现在还会把 fixed-link chain 的变换累积为 `parentToJointMatrix`。因此：
+
+```text
+movable parent
+  └─ fixed offset
+       └─ fixed mount
+            └─ movable child
+```
+
+可以正确折叠为一个 parent→child joint frame，而不是只保存最后一个 `<joint origin>`。
+
+## Node 名称唯一性
+
+Part Proposal 通过 GLB node name 绑定几何，因此同名节点不再被静默解析。目标名称不存在会得到 `PART_NODE_MISSING`；出现多个同名节点会得到 `PART_NODE_AMBIGUOUS`。Provider 必须先让资产节点身份明确，再进入可执行晋升。

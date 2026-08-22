@@ -1,0 +1,36 @@
+name: Asset Compiler Service Check
+
+on:
+  push:
+    paths:
+      - 'services/asset-compiler/**'
+      - '.github/workflows/service-check.yml'
+  pull_request:
+    paths:
+      - 'services/asset-compiler/**'
+      - '.github/workflows/service-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  urdf-proposal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: services/asset-compiler/requirements-test.txt
+
+      - name: Install lightweight test dependencies
+        run: pip install -r services/asset-compiler/requirements-test.txt
+
+      - name: Test URDF proposal conversion
+        working-directory: services/asset-compiler
+        run: python -m unittest -v test_app.py

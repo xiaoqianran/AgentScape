@@ -164,3 +164,9 @@ Articulate-Anything 的关键启发不是“用模型猜 joint”本身，而是
 当前第一条真实闭环已经完成：Part 的 `actions + targets + physics + joint` 形成可执行契约，InteractionSystem 按 action 查找 Part，PhysicsSystem 同步 revolute 与 prismatic 的旋转和位移，ArticulationVerifier 在隔离 Rapier World 中执行所有 target，再把验证结果写回资产 readiness。
 
 旧 `door` 特例已经从 Runtime API 中删除。旧场景里的 `state.door` 只在 restore 时作为兼容迁移入口保留，不再影响新状态模型；新状态统一存储在 `state.parts[partName]`。
+
+## Joint Frame 编译边界
+
+URDF/机器人生态中的 joint frame 比“猜一个 pivot”可靠得多，但仍必须转换到 Rapier 的 rigid-body local anchor 表示。1.4 的 JointFramePass 只自动处理坐标可证明一致的安全子集；带任意 frame rotation、非单位 scale、GLB/URDF 零位姿不匹配时拒绝自动转换。
+
+这个设计故意保守：错误 anchor/axis 往往仍能在物理引擎中“动起来”，却会产生错误运动学，因此比显式 `provisional` 更危险。后续若需要支持任意旋转 joint frame，应先验证 Rapier generic/frame API 能正确表达两侧不同 local joint frames，再扩展契约。

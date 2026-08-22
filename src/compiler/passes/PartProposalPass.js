@@ -28,11 +28,14 @@ export class PartProposalPass {
 
     const issues = [];
     const parts = {};
-    const knownNodes = new Set(context.inspection.nodes.map((node) => node.name).filter(Boolean));
+    const nodeCounts = new Map();
+    for (const node of context.inspection.nodes) if (node.name) nodeCounts.set(node.name, (nodeCounts.get(node.name) || 0) + 1);
     for (const raw of proposal.parts) {
       const id = String(raw.id || '').trim();
       if (!id || parts[id]) { issues.push({ code:'PART_ID_INVALID', part:id || null, message:'Part id must be unique and non-empty.' }); continue; }
-      if (!knownNodes.has(raw.node)) { issues.push({ code:'PART_NODE_MISSING', part:id, node:raw.node, message:`GLB node not found: ${raw.node}` }); continue; }
+      const matches = nodeCounts.get(raw.node) || 0;
+      if (matches === 0) { issues.push({ code:'PART_NODE_MISSING', part:id, node:raw.node, message:`GLB node not found: ${raw.node}` }); continue; }
+      if (matches > 1) { issues.push({ code:'PART_NODE_AMBIGUOUS', part:id, node:raw.node, message:`GLB node name is not unique: ${raw.node}` }); continue; }
       parts[id] = {
         node: raw.node,
         parent: raw.parent || ROOT_PART,

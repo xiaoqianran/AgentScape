@@ -55,3 +55,9 @@ Content-Type: application/json
 返回 `partProposal`。URDF 由 `yourdfpy` 解析，最大默认大小由 `MAX_URDF_BYTES` 控制（默认 5 MiB）；URL 使用与 GLB 下载相同的公网地址、重定向和 SSRF 检查。
 
 该端点只输出机械结构，不生成 action/collider。它适合把 SAPIEN/URDF 生态已有的可信 link/joint 信息送入浏览器 Compiler，再由后续阶段补齐可执行条件。
+
+### CI 与轻量测试
+
+URDF 转换逻辑独立在 `urdf_proposal.py`，不依赖 FastAPI/CoACD。仓库的 `Asset Compiler Service Check` workflow 只在服务相关文件变化时安装 `requirements-test.txt`（NumPy + yourdfpy）并运行 stdlib unittest；GitHub Pages 的 Node 构建仍保持纯前端，不被重型 Python 几何依赖阻塞。
+
+完整本地服务仍使用 `requirements.txt`，可额外验证 `/compile` 的 trimesh + CoACD 链路。

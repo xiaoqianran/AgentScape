@@ -1,6 +1,8 @@
 import { WebIO } from '@gltf-transform/core';
 import { validateAssetManifest } from '../assets/schema.js';
 import { GLTFInspectPass } from './passes/GLTFInspectPass.js';
+import { JointFramePass } from './passes/JointFramePass.js';
+import { SegmentationEvidencePass } from './passes/SegmentationEvidencePass.js';
 import { PartProposalPass } from './passes/PartProposalPass.js';
 import { OptimizeGLBPass } from './passes/OptimizeGLBPass.js';
 import { StructurePass } from './passes/StructurePass.js';
@@ -28,6 +30,8 @@ export class AssetCompiler {
       new ArticulationCandidatePass(),
       new ColliderFallbackPass(),
       new RemoteEnrichmentPass({ provider }),
+      new SegmentationEvidencePass(),
+      new JointFramePass(),
       new PartProposalPass(),
       new OptimizeGLBPass({ io: this.io }),
       new ResourceBudgetPass(),
@@ -62,7 +66,7 @@ export class AssetCompiler {
     return bytes;
   }
 
-  async compile({ url, bytes, sourceName, assetId, label, partProposal = null } = {}) {
+  async compile({ url, bytes, sourceName, assetId, label, partProposal = null, partSegmentation = null } = {}) {
     if (!bytes && !url) throw new Error('AssetCompiler requires url or bytes');
     const inputBytes = bytes instanceof Uint8Array ? bytes : bytes ? new Uint8Array(bytes) : await this.fetchBytes(url);
     if (inputBytes.byteLength > RESOURCE_BUDGET.maxInputBytes) {
@@ -71,7 +75,7 @@ export class AssetCompiler {
       throw error;
     }
     const name = sourceName || (url ? new URL(url, globalThis.location?.href || 'http://localhost').pathname.split('/').pop() : 'asset.glb');
-    let context = { bytes:inputBytes, sourceUrl:url || null, sourceName:name, assetId, label, partProposal, compilerVersion:this.version };
+    let context = { bytes:inputBytes, sourceUrl:url || null, sourceName:name, assetId, label, partProposal, partSegmentation, compilerVersion:this.version };
     for (const pass of this.passes) {
       const started = performance.now();
       this.events?.emit('assetCompiler.pass.started', { pass: pass.constructor.name, sourceName: name });
@@ -99,6 +103,7 @@ export class AssetCompiler {
       enrichment: context.enrichment,
       meshQuality: context.meshQuality || null,
       partProposal: context.partProposal || null,
+      partSegmentation: context.partSegmentation || null,
       resources: context.resources,
       quality: context.quality
     };

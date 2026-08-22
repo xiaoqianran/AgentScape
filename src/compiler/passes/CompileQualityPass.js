@@ -12,6 +12,11 @@ export class CompileQualityPass {
     if (context.enrichment?.error) {
       advisory.push({ code: 'ENRICHMENT_FAILED', message: `重型 Provider 失败，已保留本地 fallback：${context.enrichment.error}` });
     }
+    if (context.partSegmentation?.issues?.length) {
+      advisory.push({ code:'PART_SEGMENTATION_INVALID', message:`Part segmentation evidence 存在 ${context.partSegmentation.issues.length} 个格式或覆盖错误。` });
+    } else if (context.partSegmentation && Object.keys(context.articulation.parts || {}).length === 0) {
+      advisory.push({ code:'PART_SEGMENTATION_UNMATERIALIZED', message:'已有 face-level Part 分割证据，但尚未转换成与 GLB Node 对齐的可执行 Part。' });
+    }
     if (context.partProposal?.issues?.length) {
       advisory.push({ code:'PART_PROPOSAL_INVALID', message:`Part Proposal 存在 ${context.partProposal.issues.length} 个结构错误，未提升为可执行 Part。` });
     } else if (context.partProposal?.unpromoted?.length) {

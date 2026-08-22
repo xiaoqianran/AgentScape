@@ -60,4 +60,17 @@ describe('PartProposalPass', () => {
     expect(result.articulation.parts).toBeUndefined();
   });
 
+
+  it('rejects ambiguous GLB node names instead of binding a proposal arbitrarily', async () => {
+    const proposal={version:1,parts:[{id:'door',node:'Door',actions:['open'],targets:{open:-1},physics,joint}]};
+    const result=await new PartProposalPass().run({
+      inspection:{nodes:[{name:'Door'},{name:'Door'}]},
+      articulation:{candidates:[]},
+      partProposal:proposal
+    });
+    expect(result.partProposal.accepted).toBe(false);
+    expect(result.partProposal.issues[0].code).toBe('PART_NODE_AMBIGUOUS');
+    expect(result.articulation.parts).toBeUndefined();
+  });
+
 });

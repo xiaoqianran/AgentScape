@@ -13,6 +13,8 @@ export class GLTFInspectPass {
       translation: node.getTranslation(),
       rotation: node.getRotation(),
       scale: node.getScale(),
+      worldMatrix: [...node.getWorldMatrix()],
+      parent: node.getParentNode()?.getName() || null,
       mesh: node.getMesh()?.getName() || null
     }));
     const meshes = report.meshes.properties;

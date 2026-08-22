@@ -45,4 +45,11 @@ describe('CompileQualityPass', () => {
     const verified = await run({ articulation:{ candidates:[], parts:{door:part} }, verification:{articulation:{ok:true}} });
     expect(verified.quality.advisory.some((x) => x.code === 'ARTICULATION_UNVERIFIED')).toBe(false);
   });
+
+  it('keeps face-level segmentation provisional until it is materialized into executable parts', async () => {
+    const result=await run({partSegmentation:{version:1,source:'external',segments:[{id:'a'}],issues:[]}});
+    expect(result.quality.status).toBe('provisional');
+    expect(result.quality.advisory.some((x)=>x.code==='PART_SEGMENTATION_UNMATERIALIZED')).toBe(true);
+  });
+
 });

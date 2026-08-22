@@ -60,3 +60,41 @@ Critic
 ### 最终收敛
 
 AgentScape 不绑定某一个分割模型或数据集，而定义一个 provider-neutral `Part Proposal v1`。可信机械数据、VLM 推断、分割模型和人工标注都可以输出 Proposal；Runtime Manifest 只接收经过结构检查并满足可执行条件的 Part。
+
+## Face-level Part Segmentation 研究
+
+重新用 CodeGraph 阅读 EmbodiedGen 与 Hunyuan3D-Part 后确认：EmbodiedGen 当前 `PartSegmenter` 实际只支持 P3-SAM。P3-SAM 输出的核心是每个三角面的 `face_ids`，并导出带颜色的 segmentation mesh；后续 PartSemanticsAnnotator 再基于 RGB 多视图 + mask 多视图给这些 segment 增加语义/抓取/功能描述。
+
+这与 AgentScape 的 Node-based executable Part 不是同一种数据：
+
+```text
+P3-SAM
+mesh face → segment id
+
+AgentScape Runtime
+GLB node → rigid body → joint → action target
+```
+
+因此不能把 P3-SAM segment id 直接塞进 `manifest.parts`。1.4 引入 `Segmentation Evidence v1`，仅保存 face-level 证据摘要；真正的“segment materialization”必须由后续 Provider 把分割区域重建成稳定 GLB Node，再输出 `Part Proposal v1`。
+
+### Hunyuan3D-Part 许可边界
+
+Hunyuan3D-Part/P3-SAM 使用 Tencent Hunyuan 3D-Part Community License，而不是 MIT/Apache。许可证包含地域、用途、分发等额外条件，因此 AgentScape 不把其源码、权重或模型作为默认依赖。它只作为可选外部 Provider 示例；使用者必须自行确认适用许可证。AgentScape 默认仓库只定义开放 HTTP/JSON 契约。
+
+### EmbodiedGen 的可复用思想
+
+EmbodiedGen 值得保留的不是对某个模型的硬绑定，而是阶段边界：
+
+```text
+Part Segmentation
+      ↓
+Segmentation Quality Check / Repair
+      ↓
+Part Semantics Annotation
+      ↓
+Semantics Checker / Bounded Repair
+      ↓
+Grasp Generation / Evaluation
+```
+
+AgentScape 延续这一原则：Segmentation Evidence、Part Proposal、Executable Part、Runtime Verification 分层保存，不把上游推断直接当已验证能力。
