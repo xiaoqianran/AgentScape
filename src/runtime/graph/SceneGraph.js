@@ -52,55 +52,53 @@ export class SceneGraph {
   }
 
   // update() means callers need a current graph. It may rebuild even inside a batch.
-  update() {
-    if (this.dirty) this.rebuild();
+  update(snapshot = null) {
+    if (this.dirty) this.rebuild(snapshot);
   }
 
-  rebuild() {
+  rebuild(snapshot = null) {
     const previous = JSON.stringify([...this.edges.values()]);
     this.clear();
     const records = this.store.list();
-    const bounds = new Map();
+    const spatialSnapshot = snapshot || this.spatial.snapshot();
     const surfaces = new Map();
 
     for (const [id, record] of records) {
-      bounds.set(id, this.spatial.getBounds(id));
       surfaces.set(id, (record.manifest.surfaces || [])
-        .map((surface) => this.spatial.getSupportSurface(id, surface.id))
+        .map((surface) => this.spatial.getSupportSurface(id, surface.id, spatialSnapshot))
         .filter(Boolean));
     }
 
+    const deriveDirected = (subjectId, subject, targetId, target) => {
+      for (const support of surfaces.get(targetId)) {
+        const withinX = subject.box.min.x >= support.center.x - support.size[0] / 2 - 0.05 && subject.box.max.x <= support.center.x + support.size[0] / 2 + 0.05;
+        const withinZ = subject.box.min.z >= support.center.z - support.size[1] / 2 - 0.05 && subject.box.max.z <= support.center.z + support.size[1] / 2 + 0.05;
+        const gap = Math.abs(subject.box.min.y - support.center.y);
+        if (withinX && withinZ && gap <= 0.12) {
+          this.set(subjectId, 'ON', targetId, { surfaceId: support.id, gap: Number(gap.toFixed(3)) });
+          this.set(targetId, 'SUPPORTS', subjectId, { surfaceId: support.id });
+        }
+      }
+      if (target.box.containsBox(subject.box)) {
+        this.set(subjectId, 'INSIDE', targetId);
+        this.set(targetId, 'CONTAINS', subjectId);
+      }
+    };
+
     for (let i = 0; i < records.length; i++) {
       const [id] = records[i];
-      const a = bounds.get(id);
-      for (let j = 0; j < records.length; j++) {
-        if (i === j) continue;
+      const a = spatialSnapshot.get(id);
+      for (let j = i + 1; j < records.length; j++) {
         const [otherId] = records[j];
-        const b = bounds.get(otherId);
-        const distance = Math.hypot(
-          a.center[0] - b.center[0],
-          a.center[1] - b.center[1],
-          a.center[2] - b.center[2]
-        );
-        if (distance <= 2) this.set(id, 'NEAR', otherId, { distance: Number(distance.toFixed(3)) });
-
-        for (const support of surfaces.get(otherId)) {
-          const withinX = a.min[0] >= support.center.x - support.size[0] / 2 - 0.05 && a.max[0] <= support.center.x + support.size[0] / 2 + 0.05;
-          const withinZ = a.min[2] >= support.center.z - support.size[1] / 2 - 0.05 && a.max[2] <= support.center.z + support.size[1] / 2 + 0.05;
-          const verticalGap = Math.abs(a.min[1] - support.center.y);
-          if (withinX && withinZ && verticalGap <= 0.12) {
-            this.set(id, 'ON', otherId, { surfaceId: support.id, gap: Number(verticalGap.toFixed(3)) });
-            this.set(otherId, 'SUPPORTS', id, { surfaceId: support.id });
-          }
+        const b = spatialSnapshot.get(otherId);
+        const distance = a.center.distanceTo(b.center);
+        if (distance <= 2) {
+          const meta = { distance: Number(distance.toFixed(3)) };
+          this.set(id, 'NEAR', otherId, meta);
+          this.set(otherId, 'NEAR', id, meta);
         }
-
-        const inside = a.min[0] >= b.min[0] && a.max[0] <= b.max[0] &&
-          a.min[1] >= b.min[1] && a.max[1] <= b.max[1] &&
-          a.min[2] >= b.min[2] && a.max[2] <= b.max[2];
-        if (inside) {
-          this.set(id, 'INSIDE', otherId);
-          this.set(otherId, 'CONTAINS', id);
-        }
+        deriveDirected(id, a, otherId, b);
+        deriveDirected(otherId, b, id, a);
       }
     }
 

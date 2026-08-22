@@ -123,3 +123,24 @@ sceneGraph.update()
 Restore、Undo/Redo、Pipeline 和原子 batch 会合并重复变化，批量边界通常只重建一次。物理帧循环只在检测到刚体或关节姿态变化时 `invalidate()`，不会每帧重建。
 
 场景导入在 destructive clear 前先做 Manifest 冲突和未知资产引用 preflight，避免明显无效的 Scene 把当前世界先清空。
+
+## Spatial Snapshot：短生命周期几何事实
+
+空间 Bounds 不做长期全局缓存。对象可能被编辑器、Rapier、关节或恢复流程随时改变，长期缓存会引入复杂的失效协议。当前采用一次查询事务内的 `SpatialSystem.snapshot()`：
+
+```text
+Validator / SceneGraph rebuild / Placement search
+                ↓
+      SpatialSystem.snapshot()
+                ↓
+每个对象只构建一次 Box3
+                ↓
+raw Box3 / center / size  ──→ 内部几何判断
+rounded bounds            ──→ Agent / UI / JSON 输出
+```
+
+SceneGraph 使用 raw `Box3` 推导 `NEAR / ON / INSIDE`，避免三位小数展示精度影响几何判断。`getBounds()` 对外仍返回稳定的三位小数数组。
+
+WorldValidator 每次运行只创建一个 Snapshot，并同时提供给 SceneGraph、地面检查和碰撞检查。 SceneGraph 的对象对遍历采用 `i < j`，每一对只计算一次距离，再显式生成双向 `NEAR` 并分别推导两个方向的 `ON / INSIDE`；不会为同一对对象重复做两遍 pair-level 计算。碰撞检查通过 `collisionPairs()` 只遍历 `i < j`，不会分别从 A→B、B→A 重复构建 Bounds。关系一致性也一次读取全部 Edge 并建立 Key Set，不再对每个 `ON` 关系重复扫描整张图。
+
+`findFreeSpace()` 同样先冻结其他对象的 Snapshot；尝试多个候选位置时只重算正在移动对象自己的 Box，因此 Grid 搜索不会为每个候选重新扫描所有静态 Mesh。Snapshot 在函数返回后立即丢弃，不承担跨帧一致性。

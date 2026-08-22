@@ -2,6 +2,31 @@ import * as THREE from 'three';
 
 const roundVec = (v) => v.toArray().map((n) => Number(n.toFixed(3)));
 
+const objectBox = (object) => new THREE.Box3().setFromObject(object);
+
+const snapshotEntry = (id, object) => {
+  const box = objectBox(object);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
+  return {
+    box,
+    center,
+    size,
+    bounds: { id, min: roundVec(box.min), max: roundVec(box.max), center: roundVec(center), size: roundVec(size) }
+  };
+};
+
+const intersectsWithMargin = (a, b, margin) => {
+  const aminX = a.min.x + margin, aminY = a.min.y + margin, aminZ = a.min.z + margin;
+  const amaxX = a.max.x - margin, amaxY = a.max.y - margin, amaxZ = a.max.z - margin;
+  const bminX = b.min.x + margin, bminY = b.min.y + margin, bminZ = b.min.z + margin;
+  const bmaxX = b.max.x - margin, bmaxY = b.max.y - margin, bmaxZ = b.max.z - margin;
+  if (aminX > amaxX || aminY > amaxY || aminZ > amaxZ || bminX > bmaxX || bminY > bmaxY || bminZ > bmaxZ) return false;
+  return aminX <= bmaxX && amaxX >= bminX && aminY <= bmaxY && amaxY >= bminY && aminZ <= bmaxZ && amaxZ >= bminZ;
+};
+
 export class SpatialSystem {
   constructor({ store, scene }) {
     this.store = store;
@@ -9,21 +34,14 @@ export class SpatialSystem {
     this.raycaster = new THREE.Raycaster();
   }
 
-  getBounds(id) {
-    const record = this.store.get(id);
-    record.object.updateWorldMatrix(true, true);
-    const box = new THREE.Box3().setFromObject(record.object);
-    const size = new THREE.Vector3();
-    const center = new THREE.Vector3();
-    box.getSize(size);
-    box.getCenter(center);
-    return {
-      id,
-      min: roundVec(box.min),
-      max: roundVec(box.max),
-      center: roundVec(center),
-      size: roundVec(size)
-    };
+  snapshot() {
+    const snapshot = new Map();
+    for (const [id, record] of this.store.entries()) snapshot.set(id, snapshotEntry(id, record.object));
+    return snapshot;
+  }
+
+  getBounds(id, snapshot = null) {
+    return snapshot?.get(id)?.bounds || snapshotEntry(id, this.store.get(id).object).bounds;
   }
 
   findNearby(id, radius = 2) {
@@ -59,22 +77,32 @@ export class SpatialSystem {
     }).filter((hit) => hit.id);
   }
 
-  isColliding(id, { ignore = [], margin = 0.01 } = {}) {
-    const a = new THREE.Box3().setFromObject(this.store.get(id).object).expandByScalar(-margin);
-    if (a.isEmpty()) return [];
+  isColliding(id, { ignore = [], margin = 0.01, snapshot = null } = {}) {
+    const a = snapshot?.get(id)?.box || objectBox(this.store.get(id).object);
     const ignored = new Set([id, ...ignore]);
     const collisions = [];
     for (const [otherId, record] of this.store.entries()) {
       if (ignored.has(otherId)) continue;
-      const b = new THREE.Box3().setFromObject(record.object).expandByScalar(-margin);
-      if (!b.isEmpty() && a.intersectsBox(b)) collisions.push(otherId);
+      const b = snapshot?.get(otherId)?.box || objectBox(record.object);
+      if (intersectsWithMargin(a, b, margin)) collisions.push(otherId);
     }
     return collisions;
   }
 
-  getSupportSurface(targetId, surfaceId) {
+  collisionPairs({ margin = 0.01, snapshot = this.snapshot() } = {}) {
+    const ids = [...snapshot.keys()];
+    const pairs = [];
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        if (intersectsWithMargin(snapshot.get(ids[i]).box, snapshot.get(ids[j]).box, margin)) pairs.push([ids[i], ids[j]]);
+      }
+    }
+    return pairs;
+  }
+
+  getSupportSurface(targetId, surfaceId, snapshot = null) {
     const record = this.store.get(targetId);
-    record.object.updateWorldMatrix(true, true);
+    if (!snapshot?.has(targetId)) record.object.updateWorldMatrix(true, true);
     const surface = surfaceId
       ? record.manifest.surfaces?.find((s) => s.id === surfaceId)
       : record.manifest.surfaces?.[0];
@@ -95,20 +123,19 @@ export class SpatialSystem {
 
   findFreeSpace(objectId, targetId, { surfaceId, clearance = 0.03, grid = 5 } = {}) {
     const objectRecord = this.store.get(objectId);
-    const targetRecord = this.store.get(targetId);
-    const surface = this.getSupportSurface(targetId, surfaceId);
+    const spatialSnapshot = this.snapshot();
+    const surface = this.getSupportSurface(targetId, surfaceId, spatialSnapshot);
     if (!surface) return null;
 
     const originalPosition = objectRecord.object.position.clone();
-    const bounds = new THREE.Box3().setFromObject(objectRecord.object);
-    const size = new THREE.Vector3();
-    bounds.getSize(size);
+    const entry = spatialSnapshot.get(objectId);
+    const bounds = entry.box;
+    const size = entry.size;
     const halfX = size.x / 2 + clearance;
     const halfZ = size.z / 2 + clearance;
     const usableX = Math.max(0, surface.size[0] / 2 - halfX);
     const usableZ = Math.max(0, surface.size[1] / 2 - halfZ);
-    const center = new THREE.Vector3();
-    bounds.getCenter(center);
+    const center = entry.center;
     const originToCenterX = originalPosition.x - center.x;
     const originToCenterZ = originalPosition.z - center.z;
     const originToBottomY = originalPosition.y - bounds.min.y;
@@ -129,8 +156,8 @@ export class SpatialSystem {
     candidates.sort((a, b) => a.distanceToSquared(surface.center) - b.distanceToSquared(surface.center));
     for (const candidate of candidates) {
       objectRecord.object.position.copy(candidate);
-      objectRecord.object.updateWorldMatrix(true, true);
-      const collisions = this.isColliding(objectId, { ignore: [targetId], margin: clearance / 2 });
+      spatialSnapshot.set(objectId, snapshotEntry(objectId, objectRecord.object));
+      const collisions = this.isColliding(objectId, { ignore: [targetId], margin: clearance / 2, snapshot: spatialSnapshot });
       if (!collisions.length) {
         objectRecord.object.position.copy(originalPosition);
         objectRecord.object.updateWorldMatrix(true, true);

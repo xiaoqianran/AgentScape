@@ -2,20 +2,15 @@ export class WorldValidator {
   constructor(runtime) { this.runtime = runtime; }
 
   run() {
-    this.runtime.sceneGraph.update();
+    const snapshot = this.runtime.spatial.snapshot();
+    this.runtime.sceneGraph.update(snapshot);
     const hard = [];
     const advisory = [];
     const objects = this.runtime.listObjects();
 
     for (const object of objects) {
-      const bounds = this.runtime.spatial.getBounds(object.id);
+      const bounds = snapshot.get(object.id).bounds;
       if (bounds.min[1] < -0.08) hard.push({ code: 'G_BELOW_GROUND', object: object.id, message: 'Object penetrates below ground', measure: bounds.min[1] });
-
-      const collisions = this.runtime.spatial.isColliding(object.id, { margin: 0.015 });
-      for (const other of collisions) {
-        if (object.id < other) hard.push({ code: 'P_OVERLAP', object: object.id, other, message: 'Object bounding volumes overlap' });
-      }
-
       if (bounds.min[1] > 0.12) {
         const relations = this.runtime.sceneGraph.list({ subject: object.id });
         const supported = relations.some((r) => r.predicate === 'ON' || r.predicate === 'INSIDE');
@@ -23,9 +18,16 @@ export class WorldValidator {
       }
     }
 
-    for (const edge of this.runtime.sceneGraph.list({ predicate: 'ON' })) {
-      const support = this.runtime.sceneGraph.list({ subject: edge.object, predicate: 'SUPPORTS', object: edge.subject });
-      if (!support.length) hard.push({ code: 'R_ASYMMETRIC', object: edge.subject, other: edge.object, message: 'ON relation missing inverse SUPPORTS relation' });
+    for (const [object, other] of this.runtime.spatial.collisionPairs({ margin: 0.015, snapshot })) {
+      hard.push({ code: 'P_OVERLAP', object, other, message: 'Object bounding volumes overlap' });
+    }
+
+    const relations = this.runtime.sceneGraph.list();
+    const relationKeys = new Set(relations.map((edge) => `${edge.subject}|${edge.predicate}|${edge.object}`));
+    for (const edge of relations) {
+      if (edge.predicate === 'ON' && !relationKeys.has(`${edge.object}|SUPPORTS|${edge.subject}`)) {
+        hard.push({ code: 'R_ASYMMETRIC', object: edge.subject, other: edge.object, message: 'ON relation missing inverse SUPPORTS relation' });
+      }
     }
 
     return {
@@ -34,7 +36,7 @@ export class WorldValidator {
       counts: { hard: hard.length, advisory: advisory.length },
       hard,
       advisory,
-      coverage: { objects: objects.length, relations: this.runtime.sceneGraph.list().length }
+      coverage: { objects: objects.length, relations: relations.length }
     };
   }
 }

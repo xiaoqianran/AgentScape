@@ -29,7 +29,7 @@ GLB / 生成资产 / 外部数据
 - Three.js Web3D 运行时与 Rapier 物理，具备明确的对象资源生命周期与失败回滚。
 - GLB 加载、节点校验、关节和物理电机。
 - 可视化编辑：选择、移动、旋转、复制、删除。
-- 空间查询：Bounds、Raycast、Nearby、碰撞、支撑面、空位搜索。
+- 空间查询：Bounds、Raycast、Nearby、碰撞、支撑面、空位搜索；批量校验与关系推理共享短生命周期 Spatial Snapshot。
 - 语义 Scene Graph：`ON / SUPPORTS / NEAR / INSIDE / CONTAINS`，采用 dirty + 按需刷新，批量变更合并重建。
 - Skill Registry：能力定义、参数 Schema、权限、执行和审计使用同一事实源。
 - Tool-calling Agent：支持多轮 plan → act → observe。

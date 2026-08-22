@@ -20,6 +20,7 @@ describe('SceneGraph', () => {
     store.add('table', { id:'table', assetId:'table', object:table, manifest:{ actions:[], surfaces:[{ id:'top', localPosition:[0,.1,0], size:[2,1] }] } });
     store.add('cup', { id:'cup', assetId:'cup', object:cup, manifest:{ actions:[] } });
     const spatial = new SpatialSystem({ store });
+    spatial.snapshot ||= () => { const real = new SpatialSystem({ store }); return real.snapshot(); };
     const graph = new SceneGraph({ store, spatial });
     graph.update();
     expect(graph.list({ subject:'cup', predicate:'ON', object:'table' })).toHaveLength(1);
@@ -55,10 +56,8 @@ describe('SceneGraph', () => {
     const store = new ObjectStore();
     const object = mesh([1,1,1], [0,0,0], 'a');
     store.add('a', { id:'a', assetId:'a', object, manifest:{ actions:[] } });
-    const spatial = {
-      getBounds: vi.fn(() => ({ min:[-.5,-.5,-.5], max:[.5,.5,.5], center:[0,0,0], size:[1,1,1] })),
-      getSupportSurface: vi.fn(() => null)
-    };
+    const spatial = new SpatialSystem({ store });
+    const snapshot = vi.spyOn(spatial, 'snapshot');
     const graph = new SceneGraph({ store, spatial });
 
     await graph.batch(async () => {
@@ -70,7 +69,7 @@ describe('SceneGraph', () => {
       });
     });
 
-    expect(spatial.getBounds).toHaveBeenCalledTimes(1);
+    expect(snapshot).toHaveBeenCalledTimes(1);
     expect(graph.batchDepth).toBe(0);
     expect(graph.dirty).toBe(false);
   });
@@ -80,18 +79,16 @@ describe('SceneGraph', () => {
     const store = new ObjectStore();
     const object = mesh([1,1,1], [0,0,0], 'a');
     store.add('a', { id:'a', assetId:'a', object, manifest:{ actions:[] } });
-    const spatial = {
-      getBounds: vi.fn(() => ({ min:[-.5,-.5,-.5], max:[.5,.5,.5], center:[0,0,0], size:[1,1,1] })),
-      getSupportSurface: vi.fn(() => null)
-    };
+    const spatial = new SpatialSystem({ store });
+    const snapshot = vi.spyOn(spatial, 'snapshot');
     const graph = new SceneGraph({ store, spatial });
     await graph.batch(async () => {
       graph.changed();
       graph.update();
-      expect(spatial.getBounds).toHaveBeenCalledTimes(1);
+      expect(snapshot).toHaveBeenCalledTimes(1);
       graph.changed();
     });
-    expect(spatial.getBounds).toHaveBeenCalledTimes(2);
+    expect(snapshot).toHaveBeenCalledTimes(2);
   });
 
 });
