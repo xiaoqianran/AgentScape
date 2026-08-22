@@ -15,7 +15,6 @@ export class GLTFInspectPass {
       scale: node.getScale(),
       mesh: node.getMesh()?.getName() || null
     }));
-    const scene = report.scenes.properties[0] || null;
     const meshes = report.meshes.properties;
     const stats = {
       scenes: report.scenes.properties.length,
@@ -28,6 +27,6 @@ export class GLTFInspectPass {
       meshPrimitives: meshes.reduce((n, x) => n + (x.meshPrimitives || 0), 0),
       inputBytes: context.bytes.byteLength
     };
-    return { ...context, document, inspection: { report, nodes, scene, stats } };
+    return { ...context, document, inspection: { report, nodes, stats } };
   }
 }

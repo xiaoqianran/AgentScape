@@ -2,6 +2,8 @@ import { WebIO } from '@gltf-transform/core';
 import { validateAssetManifest } from '../assets/schema.js';
 import { GLTFInspectPass } from './passes/GLTFInspectPass.js';
 import { OptimizeGLBPass } from './passes/OptimizeGLBPass.js';
+import { StructurePass } from './passes/StructurePass.js';
+import { NormalizeTransformPass } from './passes/NormalizeTransformPass.js';
 import { GeometryPass } from './passes/GeometryPass.js';
 import { SemanticHeuristicPass } from './passes/SemanticHeuristicPass.js';
 import { ArticulationCandidatePass } from './passes/ArticulationCandidatePass.js';
@@ -11,11 +13,13 @@ import { CompileQualityPass } from './passes/CompileQualityPass.js';
 import { ManifestPass } from './passes/ManifestPass.js';
 
 export class AssetCompiler {
-  constructor({ store, provider = null, events = null, version = '1.1.0' } = {}) {
+  constructor({ store, provider = null, events = null, version = 'dev' } = {}) {
     this.store = store; this.provider = provider; this.events = events; this.version = version;
     this.io = new WebIO();
     this.passes = [
       new GLTFInspectPass({ io: this.io }),
+      new StructurePass(),
+      new NormalizeTransformPass(),
       new GeometryPass(),
       new SemanticHeuristicPass(),
       new ArticulationCandidatePass(),
@@ -56,6 +60,8 @@ export class AssetCompiler {
     return {
       manifest: context.manifest,
       inspection: context.inspection,
+      structure: context.structure,
+      normalization: context.normalization,
       geometry: context.geometry,
       optimization: context.optimization,
       articulation: context.articulation,
