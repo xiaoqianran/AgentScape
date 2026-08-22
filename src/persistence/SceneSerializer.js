@@ -23,7 +23,7 @@ export class SceneSerializer {
 
     const manifests = [...usedAssets]
       .map((assetId) => runtime.assets.getManifest(assetId))
-      .filter((manifest) => manifest.source?.kind === 'glb')
+      .filter((manifest) => ['glb', 'compiled'].includes(manifest.source?.kind))
       .map(clone);
 
     return {

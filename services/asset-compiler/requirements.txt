@@ -1,0 +1,6 @@
+fastapi>=0.116,<1
+uvicorn[standard]>=0.35,<1
+requests>=2.32,<3
+numpy>=2,<3
+trimesh>=4.7,<5
+coacd>=1.0,<2

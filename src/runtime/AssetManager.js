@@ -5,7 +5,8 @@ import { validateAssetManifest } from '../assets/schema.js';
 import { Errors } from '../core/errors.js';
 
 export class AssetManager {
-  constructor({ manifests = assetManifests } = {}) {
+  constructor({ manifests = assetManifests, compiledStore = null } = {}) {
+    this.compiledStore = compiledStore;
     this.loader = new GLTFLoader();
     this.manifests = new Map();
     this.factories = new Map();
@@ -30,6 +31,7 @@ export class AssetManager {
     const manifest = this.getManifest(assetId);
     let object;
     if (manifest.source?.kind === 'glb') object = await this.loadGLB(manifest.source.url);
+    else if (manifest.source?.kind === 'compiled') object = await this.loadCompiled(manifest.source);
     else {
       const factory = this.factories.get(assetId);
       if (!factory) throw Errors.assetNotFound(assetId);
@@ -45,6 +47,17 @@ export class AssetManager {
   validateNodes(object, manifest) {
     const missing = (manifest.requiredNodes || []).filter((name) => !object.getObjectByName(name));
     if (missing.length) throw Errors.invalidManifest(`Asset ${manifest.id} is missing required GLB nodes: ${missing.join(', ')}`, { id: manifest.id, missing });
+  }
+
+  async loadCompiled(source) {
+    const stored = await this.compiledStore?.get(source.key);
+    if (!stored?.bytes) {
+      if (source.fallbackUrl) return this.loadGLB(source.fallbackUrl);
+      throw new Error(`Compiled asset binary missing: ${source.key}`);
+    }
+    const blob = new Blob([stored.bytes], { type: 'model/gltf-binary' });
+    const url = URL.createObjectURL(blob);
+    try { return await this.loadGLB(url); } finally { URL.revokeObjectURL(url); }
   }
 
   async loadGLB(url) {

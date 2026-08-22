@@ -78,3 +78,7 @@ kbd { margin-left: 4px; opacity: .45; font: inherit; }
 .engine-actions button:hover { background:#1a2740; border-color:#45608b; }
 .engine-report { margin-top:7px; color:#7f91ad; font:9px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .engine-report strong { color:#8bd5ae; }
+
+.compiler-file-row { display:grid; grid-template-columns:1fr auto; gap:6px; margin-top:7px; }
+.compiler-file-row input { min-width:0; color:#7f8ca4; font-size:9px; }
+.compiler-file-row button { border:1px solid #2b3851; color:#dbe7ff; background:#121a2b; border-radius:6px; cursor:pointer; font-size:10px; padding:0 9px; }

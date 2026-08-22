@@ -1,7 +1,7 @@
 import { Errors } from '../core/errors.js';
 
 const BODY_TYPES = new Set(['fixed', 'dynamic', 'kinematic']);
-const SHAPES = new Set(['box', 'cylinder']);
+const SHAPES = new Set(['box', 'cylinder', 'convexHull']);
 
 function validatePhysics(physics, context) {
   if (!physics) return;
@@ -10,6 +10,7 @@ function validatePhysics(physics, context) {
     if (!SHAPES.has(collider.shape)) throw Errors.invalidManifest(`Unsupported collider shape: ${collider.shape}`, context);
     if (collider.shape === 'box' && collider.halfExtents?.length !== 3) throw Errors.invalidManifest('Box collider requires halfExtents[3]', context);
     if (collider.shape === 'cylinder' && (collider.halfHeight == null || collider.radius == null)) throw Errors.invalidManifest('Cylinder collider requires halfHeight and radius', context);
+    if (collider.shape === 'convexHull' && (!Array.isArray(collider.vertices) || collider.vertices.length < 12 || collider.vertices.length % 3 !== 0)) throw Errors.invalidManifest('Convex hull collider requires flat vertices[] with at least 4 points', context);
   }
 }
 
@@ -19,8 +20,9 @@ export function validateAssetManifest(manifest) {
   if (!manifest.type || typeof manifest.type !== 'string') throw Errors.invalidManifest('Manifest requires string type', { id: manifest.id });
   if (!Array.isArray(manifest.actions)) throw Errors.invalidManifest('Manifest actions must be an array', { id: manifest.id });
   if (new Set(manifest.actions).size !== manifest.actions.length) throw Errors.invalidManifest('Manifest actions must be unique', { id: manifest.id });
-  if (!['builtin', 'glb'].includes(manifest.source?.kind)) throw Errors.invalidManifest('Manifest source.kind must be builtin or glb', { id: manifest.id });
+  if (!['builtin', 'glb', 'compiled'].includes(manifest.source?.kind)) throw Errors.invalidManifest('Manifest source.kind must be builtin, glb or compiled', { id: manifest.id });
   if (manifest.source.kind === 'glb' && !manifest.source.url) throw Errors.invalidManifest('GLB source requires url', { id: manifest.id });
+  if (manifest.source.kind === 'compiled' && !manifest.source.key) throw Errors.invalidManifest('Compiled source requires key', { id: manifest.id });
   validatePhysics(manifest.physics, { id: manifest.id });
   for (const [name, part] of Object.entries(manifest.parts || {})) {
     if (!part.node) throw Errors.invalidManifest(`Part ${name} requires node`, { id: manifest.id, part: name });

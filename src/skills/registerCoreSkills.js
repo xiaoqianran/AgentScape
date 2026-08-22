@@ -8,6 +8,14 @@ const required = (...keys) => (input) => {
 export function registerCoreSkills(registry, runtime) {
   const add = (name, options, handler) => registry.register({ name, ...options, handler: (input, ctx) => handler(input, ctx) });
 
+  add('compileAsset', { description: 'Compile a GLB into an Agent-Ready asset: inspect, optimize, infer coarse semantics/articulation candidates, build collision fallback, persist binary and register manifest.', permissions: ['asset.write'], validate: (a) => (!a?.url && !a?.bytes) ? { ok:false, message:'url or bytes required' } : { ok:true } }, async (a) => {
+    const compiler = await runtime.getAssetCompiler();
+    const result = await compiler.compile(a);
+    runtime.assets.registerManifest(result.manifest);
+    runtime.events.emit('asset.compiled', { assetId: result.manifest.id, report: result });
+    return result;
+  });
+  add('inspectCompiledAsset', { description: 'Read the compiler metadata for a registered compiled asset.', permissions: ['asset.read'], validate: required('assetId') }, (a) => runtime.assets.getManifest(a.assetId).compiler || null);
   add('listAssets', { description: 'List registered assets.', permissions: ['asset.read'] }, () => runtime.assetLibrary.list());
   add('searchAssets', { description: 'Search reusable assets.', permissions: ['asset.read'], validate: required('query') }, (a) => runtime.assetLibrary.search(a.query, { limit: a.limit ?? 8 }));
   add('resolveAsset', { description: 'Resolve an asset from the library or generator.', permissions: ['asset.read'], validate: required('query') }, (a) => runtime.assetLibrary.resolve(a.query, { generate: a.generate ?? false }));

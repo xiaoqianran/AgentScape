@@ -266,3 +266,9 @@ AgentScape 1.0 replaces the original direct tool switch with a registry-driven e
 - existing Three.js/Rapier/GLB editor, scene graph, persistence and undo/redo remain underneath the same boundary
 
 The architecture is based on a CodeGraph-assisted study of EmbodiedGen, SceneSmith, Gizmo, Limina and Auto-Threejs. See [`docs/research/engine-architecture-study.md`](docs/research/engine-architecture-study.md) and [`THIRD_PARTY.md`](THIRD_PARTY.md).
+
+## Agent-Ready Asset Compiler
+
+AgentScape 1.1 adds a real pass-based GLB compiler rather than treating every model as an already-valid interactive asset. It uses glTF-Transform directly for inspection/optimization, persists compiled GLB bytes in IndexedDB, and can upgrade collision generation through the optional CoACD backend.
+
+See [`docs/asset-compiler.md`](docs/asset-compiler.md) and [`docs/research/asset-compiler-study.md`](docs/research/asset-compiler-study.md).

@@ -33,6 +33,7 @@ export class PhysicsSystem {
       let desc;
       if (spec.shape === 'box') desc = RAPIER.ColliderDesc.cuboid(...spec.halfExtents);
       else if (spec.shape === 'cylinder') desc = RAPIER.ColliderDesc.cylinder(spec.halfHeight, spec.radius);
+      else if (spec.shape === 'convexHull') desc = RAPIER.ColliderDesc.convexHull(new Float32Array(spec.vertices));
       else continue;
       if (spec.translation) desc.setTranslation(...spec.translation);
       if (mass != null) desc.setMass(mass);

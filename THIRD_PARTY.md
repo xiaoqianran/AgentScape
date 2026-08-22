@@ -9,3 +9,10 @@ AgentScape is implemented from its own source code and uses its declared npm dep
 - wrc356/Auto-Threejs — no license file observed during the review (architectural study only; no source copied into AgentScape)
 
 See `docs/research/engine-architecture-study.md` for the design mapping.
+
+Additional asset compiler references/dependencies:
+
+- allenai/objathor — Apache-2.0 (architecture study)
+- SarahWeiii/CoACD — MIT (optional compiler service dependency)
+- donmccurdy/glTF-Transform — MIT (direct npm dependency)
+- vlongle/articulate-anything — no license file observed during review (architecture study only; no source copied)

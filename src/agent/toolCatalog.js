@@ -1,4 +1,12 @@
 export const TOOL_CATALOG = {
+  compileAsset: {
+    description: 'Compile a GLB URL into an optimized Agent-Ready asset and register it.',
+    parameters: { type: 'object', properties: { url: { type: 'string' }, sourceName: { type: 'string' }, assetId: { type: 'string' }, label: { type: 'string' } }, additionalProperties: false }, required: ['url']
+  },
+  inspectCompiledAsset: {
+    description: 'Inspect compiler metadata for a registered compiled asset.',
+    parameters: { type: 'object', properties: { assetId: { type: 'string' } }, additionalProperties: false }, required: ['assetId']
+  },
   validateWorld: {
     description: 'Run deterministic world validation for geometry, overlaps, support and semantic relation consistency.',
     parameters: { type: 'object', properties: {}, additionalProperties: false }, required: []

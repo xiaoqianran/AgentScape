@@ -19,6 +19,8 @@ import { registerCoreSkills } from '../skills/registerCoreSkills.js';
 import { WorldValidator } from '../validation/WorldValidator.js';
 import { RepairEngine } from '../validation/RepairEngine.js';
 import { createWorldPipeline } from '../pipeline/createWorldPipeline.js';
+import { CompiledAssetStore } from '../assets/storage/CompiledAssetStore.js';
+import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -26,13 +28,24 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '1.0.0';
+    this.version = '1.1.0';
     this.container = container; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
-    this.assets = new AssetManager();
+    this.compiledAssetStore = new CompiledAssetStore();
+    this.assets = new AssetManager({ compiledStore: this.compiledAssetStore });
+    this.compilerProvider = new HttpCompilerProvider({ endpoint: localStorage.getItem('agentscape.compilerEndpoint') || '' });
+    this.assetCompiler = null;
     this.assetGenerator = new HttpAssetGenerator({ endpoint: localStorage.getItem('agentscape.assetGeneratorEndpoint') || '' });
     this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events }); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.clock = new THREE.Clock(); this.running = false;
   }
+  async getAssetCompiler() {
+    if (!this.assetCompiler) {
+      const { AssetCompiler } = await import('../compiler/AssetCompiler.js');
+      this.assetCompiler = new AssetCompiler({ store: this.compiledAssetStore, provider: this.compilerProvider, events: this.events, version: '1.1.0' });
+    }
+    return this.assetCompiler;
+  }
+
   async init() {
     await this.physics.init();
     this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(0x0b1020); this.scene.fog = new THREE.Fog(0x0b1020, 12, 28);

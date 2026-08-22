@@ -70,6 +70,14 @@ async function main() {
               </div>
               <div id="engine-report" class="engine-report">Engine ready.</div>
             </details>
+            <details class="gateway-settings compiler-settings" open>
+              <summary>Agent-Ready Asset Compiler</summary>
+              <div class="asset-search"><input id="compiler-url" type="url" placeholder="https://.../model.glb" /><button id="compile-url-button">Compile URL</button></div>
+              <div class="compiler-file-row"><input id="compiler-file" type="file" accept=".glb,model/gltf-binary" /><button id="compile-file-button">Compile File</button></div>
+              <label>Compiler Endpoint<input id="compiler-endpoint" type="url" placeholder="https://your-server.example/compile" /></label>
+              <small>本地 pass: glTF inspect/optimize、bounds、语义/关节候选、fallback collider。配置后端后可升级为 CoACD/视觉语义/关节推断。</small>
+              <div id="compiler-report" class="engine-report">No asset compiled yet.</div>
+            </details>
             <details class="gateway-settings asset-settings">
               <summary>Asset Library / Generator</summary>
               <div class="asset-search"><input id="asset-query" placeholder="搜索 chair / 椅子 / cup" /><button id="asset-search-button">Search</button></div>
@@ -196,6 +204,42 @@ async function main() {
   document.querySelector('#verify-trace').addEventListener('click', async () => {
     try { const result = await tools.call('verifyTrace', {}); engineReport.textContent = `Trace ${result.ok ? 'PASS' : 'FAIL'} · ${result.entries ?? 0} events · ${result.lastHash || 'no hash'}`; }
     catch (error) { log(`trace error: ${error.message}`, 'error'); }
+  });
+
+  const compilerEndpointInput = document.querySelector('#compiler-endpoint');
+  const compilerReport = document.querySelector('#compiler-report');
+  compilerEndpointInput.value = world.compilerProvider.endpoint || '';
+  compilerEndpointInput.addEventListener('change', () => {
+    world.compilerProvider.setEndpoint(compilerEndpointInput.value);
+    if (world.compilerProvider.endpoint) localStorage.setItem('agentscape.compilerEndpoint', world.compilerProvider.endpoint);
+    else localStorage.removeItem('agentscape.compilerEndpoint');
+    log(world.compilerProvider.isConfigured() ? `compiler provider: ${world.compilerProvider.endpoint}` : 'compiler provider disabled; using local passes', 'result');
+  });
+  const renderCompileResult = (result) => {
+    const m = result.manifest, i = result.inspection.stats;
+    compilerReport.innerHTML = `<strong>${m.id}</strong> · ${m.type} · ${i.nodes} nodes · ${i.meshes} meshes · ${i.renderVertices} vertices · collider ${m.compiler.collisionStrategy} · semantic ${(m.compiler.semanticConfidence * 100).toFixed(0)}%`;
+  };
+  const compileAndRegister = async (input) => {
+    try {
+      compilerReport.textContent = 'Compiling…';
+      const response = await world.skills.invoke('compileAsset', input, { profile:'builder', actor:'human' });
+      if (!response.success) throw new Error(response.error.message);
+      renderCompileResult(response.result);
+      log(`compiled asset: ${response.result.manifest.id}`, 'result');
+      renderAssetResults(world.assetLibrary.list().slice(0, 8));
+    } catch (error) {
+      compilerReport.textContent = `Compile failed: ${error.message}`;
+      log(`compile error: ${error.message}`, 'error');
+    }
+  };
+  document.querySelector('#compile-url-button').addEventListener('click', () => {
+    const url = document.querySelector('#compiler-url').value.trim();
+    if (url) compileAndRegister({ url });
+  });
+  document.querySelector('#compile-file-button').addEventListener('click', async () => {
+    const file = document.querySelector('#compiler-file').files?.[0];
+    if (!file) return;
+    compileAndRegister({ bytes: new Uint8Array(await file.arrayBuffer()), sourceName: file.name });
   });
 
   const assetGeneratorInput = document.querySelector('#asset-generator-endpoint');
