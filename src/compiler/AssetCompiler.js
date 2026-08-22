@@ -2,6 +2,7 @@ import { WebIO } from '@gltf-transform/core';
 import { validateAssetManifest } from '../assets/schema.js';
 import { GLTFInspectPass } from './passes/GLTFInspectPass.js';
 import { JointFramePass } from './passes/JointFramePass.js';
+import { SegmentMaterializePass } from './passes/SegmentMaterializePass.js';
 import { SegmentationEvidencePass } from './passes/SegmentationEvidencePass.js';
 import { PartProposalPass } from './passes/PartProposalPass.js';
 import { OptimizeGLBPass } from './passes/OptimizeGLBPass.js';
@@ -30,6 +31,7 @@ export class AssetCompiler {
       new ArticulationCandidatePass(),
       new ColliderFallbackPass(),
       new RemoteEnrichmentPass({ provider }),
+      new SegmentMaterializePass(),
       new SegmentationEvidencePass(),
       new JointFramePass(),
       new PartProposalPass(),

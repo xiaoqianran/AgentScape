@@ -1,3 +1,4 @@
+import { Document } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
 import { PartProposalPass } from '../src/compiler/passes/PartProposalPass.js';
 
@@ -45,20 +46,7 @@ describe('PartProposalPass', () => {
     ]));
   });
 
-  it('rejects a declared parent that disagrees with the GLB node hierarchy', async () => {
-    const fakeRoot={listNodes:()=>[door,handle]};
-    const scene={getParent:()=>null};
-    const door={getName:()=> 'Door',getParent:()=>scene};
-    const handle={getName:()=> 'Handle',getParent:()=>scene};
-    const proposal={version:1,parts:[
-      {id:'door',node:'Door',actions:['open'],targets:{open:-1},physics,joint},
-      {id:'handle',node:'Handle',parent:'door',actions:['open'],targets:{open:-1},physics,joint}
-    ]};
-    const result=await new PartProposalPass().run({ ...context(proposal), document:{getRoot:()=>fakeRoot} });
-    expect(result.partProposal.accepted).toBe(false);
-    expect(result.partProposal.issues.some((issue)=>issue.code==='PART_NODE_HIERARCHY_MISMATCH')).toBe(true);
-    expect(result.articulation.parts).toBeUndefined();
-  });
+
 
 
   it('rejects ambiguous GLB node names instead of binding a proposal arbitrarily', async () => {
@@ -71,6 +59,34 @@ describe('PartProposalPass', () => {
     expect(result.partProposal.accepted).toBe(false);
     expect(result.partProposal.issues[0].code).toBe('PART_NODE_AMBIGUOUS');
     expect(result.articulation.parts).toBeUndefined();
+  });
+
+
+  it('accepts a declared parent that matches the real glTF node hierarchy', async () => {
+    const document=new Document();
+    const door=document.createNode('Door');
+    const handle=document.createNode('Handle');
+    door.addChild(handle); document.createScene('Scene').addChild(door);
+    const proposal={version:1,parts:[
+      {id:'door',node:'Door'},
+      {id:'handle',node:'Handle',parent:'door'}
+    ]};
+    const result=await new PartProposalPass().run({ inspection:{nodes:[]}, articulation:{candidates:[]}, partProposal:proposal, document });
+    expect(result.partProposal.accepted).toBe(true);
+  });
+
+  it('rejects a declared parent that disagrees with the real glTF node hierarchy', async () => {
+    const document=new Document();
+    const scene=document.createScene('Scene');
+    scene.addChild(document.createNode('Door'));
+    scene.addChild(document.createNode('Handle'));
+    const proposal={version:1,parts:[
+      {id:'door',node:'Door'},
+      {id:'handle',node:'Handle',parent:'door'}
+    ]};
+    const result=await new PartProposalPass().run({ inspection:{nodes:[]}, articulation:{candidates:[]}, partProposal:proposal, document });
+    expect(result.partProposal.accepted).toBe(false);
+    expect(result.partProposal.issues.some((issue)=>issue.code==='PART_NODE_HIERARCHY_MISMATCH')).toBe(true);
   });
 
 });

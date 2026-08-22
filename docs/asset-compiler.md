@@ -345,7 +345,54 @@ Three.js 回写也不再假定所有 Part 都直接挂在 Root，而是根据 `n
 }
 ```
 
-浏览器只保留摘要、coverage、可选 bounds/semantic 与 artifact 引用，不把完整 `face_ids` 数组写进 Manifest/Trace。`face segment` 不等于 GLB Node，因此不会直接进入 `manifest.parts`。如果只有分割证据、还没有与当前 GLB Node 对齐的 Part Proposal，质量门会给出 `PART_SEGMENTATION_UNMATERIALIZED`，资产保持 `provisional`。
+浏览器最终只保留摘要、coverage、可选 bounds/semantic 与 artifact 引用，不把完整 `face_ids` 数组写进 Manifest/Trace。`face segment` 不等于 GLB Node，因此仅有证据时不会直接进入 `manifest.parts`；如果没有 materialization，质量门会给出 `PART_SEGMENTATION_UNMATERIALIZED`，资产保持 `provisional`。
+
+### 安全的浏览器内 Materialization
+
+1.5 新增 `SegmentMaterializePass`。它允许 Provider 在编译期间临时提供完整 face labels：
+
+```json
+{
+  "partSegmentation": {
+    "version": 1,
+    "source": "external-segmenter",
+    "faceCount": 3,
+    "segments": [
+      { "id": "door", "faceCount": 2, "confidence": 0.87 },
+      { "id": "body", "faceCount": 1, "confidence": 0.91 }
+    ],
+    "materialization": {
+      "sourceNode": "CabinetMesh",
+      "primitives": [
+        { "primitive": 0, "faceLabels": ["door", "door", "body"] }
+      ]
+    }
+  }
+}
+```
+
+`faceLabels` 只存在于 Pass 输入期间；成功或失败后都会被替换成紧凑的 materialization 报告，不进入最终 Manifest。当前只支持可确定性保持 glTF 语义的安全子集：
+
+- 唯一 `sourceNode`。
+- 所有 Primitive 必须是 `TRIANGLES`。
+- 每个 Primitive 必须 100% 提供 face label，且 `evidence.faceCount` 与真实 source mesh 完全一致。
+- 不自动处理 Skin、Morph Target、Node/Mesh/Primitive Extension。
+- segment id 必须唯一，并生成稳定节点名 `<sourceNode>__part_<segmentId>`。
+- 已有 Part Proposal 若声明 parent，只允许指向同一次 materialization 的 segment 或 `$root`；生成的 GLB node hierarchy 会同步该关系。
+
+实现不复制 POSITION/NORMAL/UV 等 vertex accessor，也不复制 Material。每个 segment 仅创建新的 index accessor，并复用原 Primitive 的 attributes / material；原 source Node 保留自己的变换和动画，只把 Mesh 下沉到 identity child nodes。这样零位姿与整体 Bounds 保持不变，同时最大限度减少资源复制。
+
+```text
+Source Node (原 transform / animation 保留)
+      │
+      ├── Source__part_door  ── new indices ──┐
+      │                                       ├─ shared POSITION/NORMAL/UV/Material
+      └── Source__part_body  ── new indices ──┘
+```
+
+Materialization 会增加 Primitive/Node 数和潜在 Draw Call，因此它发生在 `ResourceBudgetPass` 之前，最终预算以拆分后的优化 GLB 为准。真实 cabinet 回归中 Draw Call 从 2 增加到 3，预算门能够直接观察到这个成本。
+
+成功 materialization 只意味着“face segment 已变成稳定 GLB Node”，**不等于可执行 Part**。生成的 Part Proposal 若没有 joint/collider/action/target，仍然进入 `unpromoted[]` 并保持 `provisional`。
 
 这使外部重型分割模型可以自由替换，同时避免把“某些三角形属于同一视觉区域”误解成“Runtime 已经有独立 rigid body / joint / action”。
 

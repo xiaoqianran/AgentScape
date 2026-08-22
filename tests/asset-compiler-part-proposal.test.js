@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
+import { getBounds, WebIO } from '@gltf-transform/core';
 import { AssetCompiler } from '../src/compiler/AssetCompiler.js';
 import { validateAssetManifest } from '../src/assets/schema.js';
 
@@ -68,6 +69,42 @@ describe('AssetCompiler Part Proposal E2E', () => {
     expect(result.manifest.parts).toBeUndefined();
     expect(result.quality.status).toBe('provisional');
     expect(result.quality.advisory.some((item)=>item.code==='PART_SEGMENTATION_UNMATERIALIZED')).toBe(true);
+  });
+
+
+  it('materializes real cabinet face labels into stable GLB child nodes without inventing runtime actions', async () => {
+    const bytes=new Uint8Array(await readFile('public/assets/cabinet.glb'));
+    const store=new MemoryStore();
+    const compiler=new AssetCompiler({store,version:'test'});
+    const result=await compiler.compile({
+      bytes,sourceName:'cabinet.glb',assetId:'cabinet_materialized',
+      partSegmentation:{
+        version:1,source:'test-face-labels',faceCount:12,
+        segments:[{id:'segment_a',faceCount:6},{id:'segment_b',faceCount:6}],
+        materialization:{sourceNode:'Door',primitives:[{primitive:0,faceLabels:[...Array(6).fill('segment_a'),...Array(6).fill('segment_b')]}]}
+      }
+    });
+    expect(result.partSegmentation.materialization.status).toBe('materialized');
+    expect(result.partProposal.promoted).toEqual([]);
+    expect(result.manifest.parts).toBeUndefined();
+    expect(result.manifest.actions).toEqual(['move']);
+    expect(result.quality.advisory.some((item)=>item.code==='PART_SEGMENTATION_UNMATERIALIZED')).toBe(false);
+    expect(result.quality.advisory.some((item)=>item.code==='PART_PROPOSAL_PARTIAL')).toBe(true);
+    expect(result.resources.metrics.drawCalls).toBe(3);
+
+    const stored=store.map.get(result.manifest.source.key);
+    const output=await new WebIO().readBinary(stored.bytes);
+    const names=output.getRoot().listNodes().map((node)=>node.getName());
+    expect(names).toEqual(expect.arrayContaining(['Door','Door__part_segment_a','Door__part_segment_b']));
+    const scene=output.getRoot().getDefaultScene();
+    const bounds=getBounds(scene);
+    expect(bounds.min.map((v)=>Number(v.toFixed(6)))).toEqual(result.geometry.bounds.min.map((v)=>Number(v.toFixed(6))));
+    expect(bounds.max.map((v)=>Number(v.toFixed(6)))).toEqual(result.geometry.bounds.max.map((v)=>Number(v.toFixed(6))));
+    const door=output.getRoot().listNodes().find((node)=>node.getName()==='Door');
+    expect(door.getMesh()).toBeNull();
+    expect(door.listChildren().map((node)=>node.getName()).sort()).toEqual(['Door__part_segment_a','Door__part_segment_b']);
+    const totalIndices=door.listChildren().reduce((sum,node)=>sum+node.getMesh().listPrimitives().reduce((n,p)=>n+(p.getIndices()?.getCount()||0),0),0);
+    expect(totalIndices).toBe(36);
   });
 
 });

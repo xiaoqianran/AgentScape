@@ -28,8 +28,10 @@ export class PartProposalPass {
 
     const issues = [];
     const parts = {};
+    const currentNodes = context.document?.getRoot?.().listNodes?.() || [];
+    const nodeNames = currentNodes.length ? currentNodes.map((node) => node.getName()) : context.inspection.nodes.map((node) => node.name);
     const nodeCounts = new Map();
-    for (const node of context.inspection.nodes) if (node.name) nodeCounts.set(node.name, (nodeCounts.get(node.name) || 0) + 1);
+    for (const name of nodeNames) if (name) nodeCounts.set(name, (nodeCounts.get(name) || 0) + 1);
     for (const raw of proposal.parts) {
       const id = String(raw.id || '').trim();
       if (!id || parts[id]) { issues.push({ code:'PART_ID_INVALID', part:id || null, message:'Part id must be unique and non-empty.' }); continue; }
@@ -55,7 +57,7 @@ export class PartProposalPass {
     if (!issues.length && context.document) {
       const nodes = new Map(context.document.getRoot().listNodes().map((node) => [node.getName(), node]));
       const isAncestor = (ancestor, node) => {
-        for (let current = node?.getParent?.(); current; current = current.getParent?.()) if (current === ancestor) return true;
+        for (let current = node?.getParentNode?.(); current; current = current.getParentNode?.()) if (current === ancestor) return true;
         return false;
       };
       for (const [id, part] of ordered) {

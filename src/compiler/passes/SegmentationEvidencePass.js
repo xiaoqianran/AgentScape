@@ -35,6 +35,7 @@ export class SegmentationEvidencePass {
         ...(segment.bounds ? { bounds:structuredClone(segment.bounds) } : {})
       })),
       ...(evidence.artifact ? { artifact:structuredClone(evidence.artifact) } : {}),
+      ...(evidence.materialization ? { materialization:structuredClone(evidence.materialization) } : {}),
       issues
     };
     return { ...context, partSegmentation:summary };

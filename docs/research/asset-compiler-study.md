@@ -75,7 +75,7 @@ AgentScape Runtime
 GLB node → rigid body → joint → action target
 ```
 
-因此不能把 P3-SAM segment id 直接塞进 `manifest.parts`。1.4 引入 `Segmentation Evidence v1`，仅保存 face-level 证据摘要；真正的“segment materialization”必须由后续 Provider 把分割区域重建成稳定 GLB Node，再输出 `Part Proposal v1`。
+因此不能把 P3-SAM segment id 直接塞进 `manifest.parts`。1.4 引入 `Segmentation Evidence v1` 保存 face-level 证据；1.5 在 CodeGraph 重读 glTF-Transform 后增加一个保守的浏览器内 materializer，只处理完整 TRIANGLES 分区，并通过“共享 vertex accessor + 新建 segment indices”的方式生成稳定 GLB Node。复杂的 Skin/Morph/Extension 情况仍必须由外部 Provider materialize。
 
 ### Hunyuan3D-Part 许可边界
 
@@ -98,3 +98,14 @@ Grasp Generation / Evaluation
 ```
 
 AgentScape 延续这一原则：Segmentation Evidence、Part Proposal、Executable Part、Runtime Verification 分层保存，不把上游推断直接当已验证能力。
+
+### glTF-Transform Materialization 结论
+
+重新检查 glTF-Transform 4.x 后，没有发现一个现成的“按 face label 拆 mesh 成 nodes”的高层 Transform；但 Core API 已经提供足够稳定的 Primitive/Accessor/Node 组合能力。AgentScape 因此没有实现第二套 glTF parser，而只做最小索引重组：
+
+- `Document.createAccessor/createPrimitive/createMesh/createNode`。
+- `Primitive.setIndices/setAttribute/setMaterial`。
+- 多个新 Primitive 继续引用原 attribute accessor 和 Material。
+- `OptimizeGLBPass` 后续继续使用官方 `dedup/prune/weld` 清理已经失去引用的原 Mesh。
+
+这条实现的关键不是“能拆”，而是保持可证明的不变量：整体 Bounds 不变、原 source transform 不变、attributes/material 不变、全部三角面恰好属于一个 segment。任何无法证明这些条件的资产不自动 materialize。
