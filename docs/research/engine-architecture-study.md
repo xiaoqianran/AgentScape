@@ -191,3 +191,19 @@ Runtime 不重新做编译期 Mesh 分析，Compiler 也不直接控制运行中
 Compiler Provider 现在有两种职责不同的传输：JSON `enrich` 用于原始资产 URL 和轻量 metadata；multipart `part-geometry` 用于必须消费“当前编译中间 GLB”的重型几何任务。两者共用同一个 endpoint 和超时/错误边界，不增加第二套服务配置。
 
 这形成一个可继续扩展的稳定边界：未来需要 materialized mesh 的 VHACD、surface extraction、interaction geometry 等任务，可以继续走 binary stage，而不必把中间资产上传到公网 URL。
+
+## Motion Sweep：从运动事实到轨迹事实
+
+1.8 延续 OmniGibson / Habitat / EmbodiedGen 的共同经验，但没有增加新的验证层级类：直接扩 `ArticulationVerifier`。Rapier joint contacts 关闭时 narrow-phase contact 不会计算，因此父子 motion verification 改用独立 shape query；初始 penetration 作为唯一 zero-pose baseline，后续只把新增/加深 penetration 视为 collision regression。
+
+这样 Runtime solver 与 verifier observation 分离：
+
+```text
+PhysicsSystem joint contacts
+→ 负责稳定执行
+
+Rapier shape query
+→ 负责验证观察
+```
+
+验证失败按 PRE_CONDITION / EXECUTION / POST_CONDITION / RETURN 分段，直接写回同一 `verification.articulation`，没有新增第二份 readiness 状态。

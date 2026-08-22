@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.7.0** 当前状态。
+本文描述 **1.8.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -29,7 +29,7 @@
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 85% | 多级 Part + Rapier action 已通 |
-| Runtime Verification | 55% | 当前主要验证“能动”，还缺 trajectory truth |
+| Runtime Verification | 75% | 1.8 已有阶段化 Motion Sweep；仍可继续补外部环境/多对象任务级验证 |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -87,9 +87,9 @@ ArticulationVerifier
 
 ---
 
-## 3. 当前 P0：Motion Sweep Validator
+## 3. 1.8 已完成：Motion Sweep Validator
 
-当前 verifier 主要回答：
+当前 verifier 已经从：
 
 ```text
 target accepted?
@@ -97,7 +97,7 @@ finite?
 moved?
 ```
 
-下一阶段必须回答：
+升级到：
 
 ```text
 PRE_CONDITION
@@ -107,55 +107,26 @@ EXECUTION
      │
      ├─ progress
      ├─ stall
-     ├─ collision/contact anomaly
+     ├─ penetration regression
      ├─ finite
      └─ joint limit
      │
      ▼
 POST_CONDITION
      │
-     ├─ target reached
-     └─ state valid
+     └─ target reached
      │
      ▼
 RETURN / REVERSIBILITY
 ```
 
-为什么优先级最高：
+已覆盖 prismatic、revolute、初始 overlap baseline、新碰撞、同 pair penetration 加深、motor stall、越界 target、open→close return，以及真实 `cabinet.glb` Compiler→Runtime E2E。
 
-```text
-“门动了”
-≠
-“门可以安全 open”
-```
-
-OmniGibson、Habitat、EmbodiedGen、AI2-THOR 的成熟实现都说明 action failure 需要阶段化语义。
-
-### 实现原则
-
-不增加新的 `MotionValidatorManager`。
-
-优先扩：
-
-```text
-ArticulationVerifier
-+
-AgentScapeError.details / report
-```
-
-让失败机器可读：
-
-```text
-PRE_CONDITION
-EXECUTION_COLLISION
-EXECUTION_STALL
-POST_CONDITION
-RETURN_FAILED
-```
+没有新增 `MotionValidatorManager`，仍然由 `ArticulationVerifier` 作为唯一 verification truth。
 
 ---
 
-## 4. P1：Navigation Truth
+## 4. 当前 P0：Navigation Truth
 
 当前已有：
 
@@ -419,15 +390,15 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.7.0 文档快照对应的仓库验证基线：
+1.8.0 文档快照对应的仓库验证基线：
 
 ```text
-58 Test Files PASS
-153 Tests PASS
+60 Test Files PASS
+161 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Python service tests PASS
-真实 cabinet Runtime open→close E2E PASS
+真实 cabinet Compiler→Runtime Motion Sweep open→close E2E PASS
 真实 JSON enrich / multipart per-Part CoACD E2E PASS
 ```
 

@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.7.0** 的真实架构，不描述未来设想。
+本文描述 **1.8.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -397,16 +397,24 @@ target
 
 ### Verified
 
-Runtime 真的创建 Rapier body/joint，并运行 verifier：
+Runtime 真的创建 Rapier body/joint，并运行 Motion Sweep Verifier：
 
 ```text
-motor accepted
-finite
-moved
-...
+PRE_CONDITION
+  target / limits / motor
+       ↓
+EXECUTION
+  finite / progress / stall
+  limit / penetration regression
+       ↓
+POST_CONDITION
+  target reached
+       ↓
+RETURN
+  zero-target reversible
 ```
 
-才有资格讨论 readiness 晋升。
+只有完整轨迹通过，才有资格讨论 readiness 晋升。
 
 ---
 
@@ -535,29 +543,6 @@ animation keyframe budget
 → Runtime open/close
 ```
 
-但当前 verifier 还主要确认：
+1.8 已把 verifier 从“能不能动”升级为完整 Motion Sweep：target、progress、stall、limit、penetration regression、post-condition 与 return path 都进入机器可读报告。
 
-```text
-能不能动
-```
-
-下一阶段要确认：
-
-```text
-运动全过程是否可信
-```
-
-包括：
-
-```text
-collision
-stall
-limit
-progress
-return path
-post-condition
-```
-
-另外 `SpatialSystem.findFreeSpace()` 仍不等于 navigation/reachability。
-
-这两个缺口详见 [`status-and-roadmap.md`](./status-and-roadmap.md)。
+当前主要剩余空间真值缺口是：`SpatialSystem.findFreeSpace()` 仍不等于 navigation/reachability。详见 [`status-and-roadmap.md`](./status-and-roadmap.md)。

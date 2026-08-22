@@ -214,7 +214,7 @@ Schema 会验证：
 
 ## Articulation Runtime Verifier
 
-`verifyAssetArticulation` 会为资产创建一个隔离的 Rapier World，不污染当前场景：
+1.8 起，`verifyAssetArticulation` 不再只检查“motor 接受 + moved + finite”，而是在隔离 Rapier World 中执行完整 Motion Sweep。它仍然不污染当前场景：
 
 ```text
 Asset Manifest
@@ -223,16 +223,78 @@ AssetManager.instantiate()
     ↓
 isolated ObjectStore + PhysicsSystem
     ↓
-逐 Part / 逐 target 执行 motor
+记录初始零位姿 + penetration baseline
     ↓
-固定步长 Physics step
-    ↓
-验证局部 position / rotation 真实变化且全部有限
+逐 Part / 逐 target
+    │
+    ├─ PRE_CONDITION
+    │    target finite / within limits / motor accepted
+    │
+    ├─ EXECUTION
+    │    fixed-step trajectory
+    │    finite / progress / stall / limit / penetration regression
+    │
+    ├─ POST_CONDITION
+    │    target reached
+    │
+    └─ RETURN
+         若存在 0 target，检查回到初始零位姿
     ↓
 写回 manifest.verification.articulation
 ```
 
-Rapier 0.17.3 没有公开当前 revolute/prismatic coordinate 的 JS API，因此当前 verifier 不伪造“精确 joint angle”读数，而是验证我们实际能观测到的执行链：motor 接受目标、limits 已配置、Part 的 Three.js 局部位姿发生与 joint 类型一致的运动、数值保持有限。
+### Joint coordinate 的观测模型
+
+当前 Rapier JS 仍没有公开 revolute/prismatic 的实时 joint coordinate getter，因此 AgentScape 不把推导值冒充 Rapier 内部状态。Verifier 使用最终 Three.js Part 的**局部位姿相对编译资产初始零位姿**计算可观测 coordinate：
+
+- prismatic：局部 position delta 在 joint axis 上的投影。
+- revolute：相对 quaternion 沿 joint axis 的 signed angle。
+
+报告会明确写 `coordinateReference = initial-zero-pose`。这个 coordinate 只用于 target error、progress、stall、limit 与 return verification。
+
+### Penetration baseline，而不是“有 overlap 就失败”
+
+jointed asset 的 coarse collider 在闭合零位姿可能已经有轻微合法重叠。如果把任意 overlap 都判失败，drawer / door 会大量误拒。
+
+Verifier 在第一步物理推进前显式刷新 Rapier scene query，并记录一次初始 penetration baseline。之后每一步使用 Rapier `intersectionsWithShape()` + `contactCollider()` 得到真实 shape penetration depth：
+
+```text
+trajectory penetration
+       -
+zero-pose baseline penetration
+       > collisionTolerance
+       ↓
+EXECUTION / COLLISION_REGRESSION
+```
+
+所以同一 collider pair 即使零位姿已经相交，只要运动后没有“撞得更深”就不会误判；新的碰撞 pair 或显著更深的同 pair penetration 都会被捕获。
+
+Collision pair 在 report 中使用稳定的：
+
+```text
+door[0] -> $root[0]
+```
+
+而不是 Rapier 内部 handle。
+
+### 阶段化失败
+
+当前机器可读失败包括：
+
+```text
+PRE_CONDITION / TARGET_NON_FINITE
+PRE_CONDITION / TARGET_OUT_OF_LIMITS
+PRE_CONDITION / TARGET_REJECTED
+PRE_CONDITION / MISSING_NODE
+EXECUTION     / NON_FINITE_TRANSFORM
+EXECUTION     / COLLISION_REGRESSION
+EXECUTION     / LIMIT_VIOLATION
+EXECUTION     / STALL
+POST_CONDITION / TARGET_NOT_REACHED
+RETURN         / RETURN_FAILED
+```
+
+这让 Agent 能区分“参数本身不合法”“物理执行中撞了/卡了”“运动结束但目标没达到”“能开但关不回来”，而不是只得到一个 `ok:false`。
 
 ### 为什么 jointed body 默认关闭互相接触
 
@@ -562,4 +624,4 @@ per-part heavy provider 是可选升级：
 - Provider collider 非法：`PART_GEOMETRY_PROVIDER_INVALID`，忽略该结果。
 - 成功升级的 Part 不再产生 `PART_COLLIDER_COARSE`。
 - Root 若仍使用 AABB，`COLLIDER_COARSE` 仍存在，因此资产保持 `provisional`。
-- `ARTICULATION_UNVERIFIED` 仍需独立 Runtime verifier 消除。
+- `ARTICULATION_UNVERIFIED` 仍需独立 Runtime Motion Sweep Verifier 消除；只有完整轨迹通过才移除。

@@ -60,7 +60,10 @@ Part Collision Ownership + Runtime E2E     1.6
 Per-Part Heavy Geometry / CoACD            1.7
    │
    ▼
-Motion Sweep / Navigation                  下一阶段
+Motion Sweep Verification                  1.8
+   │
+   ▼
+Navigation Truth                           下一阶段
 ```
 
 ---
@@ -1276,3 +1279,67 @@ Verifier
 真正不变的主线其实只有一句：
 
 > **让 Agent 的空间能力从“描述”逐步变成“Runtime 可以执行并验证的事实”。**
+
+---
+
+## 28. 1.8：Motion Sweep 从“能动”升级成“轨迹可信”
+
+1.7 的 `ArticulationVerifier` 已经能在隔离 Rapier World 中确认 target 被接受、数值 finite、Part 真正发生运动，但它仍然可能放过：
+
+```text
+动作中撞进 Root
+motor 卡死但曾轻微移动
+最后没有真正到 target
+能打开但关不回初始 pose
+```
+
+重新研究 OmniGibson、Habitat、EmbodiedGen、AI2-THOR 后，1.8 没有增加新 Manager，而是直接扩现有 verifier：
+
+```text
+PRE_CONDITION
+→ EXECUTION
+→ POST_CONDITION
+→ RETURN
+```
+
+关键实现不是自己写碰撞算法。Rapier joint 为了允许闭合重叠会 `setContactsEnabled(false)`，所以 solver contact 不能作为父子 sweep 观察。源码实验确认 `intersectionsWithShape()` 仍能独立看到几何 overlap，`contactCollider()` 还能返回负的 penetration distance。于是 verifier 使用：
+
+```text
+zero-pose penetration baseline
+       ↓
+每个 physics step
+       ↓
+shape penetration
+       ↓
+只报告比 baseline 显著更深的 regression
+```
+
+这同时解决了“闭合时 coarse collider 已轻微重叠”和“同一 collider pair 运动中越撞越深”两个问题。
+
+真实 `cabinet.glb` E2E：
+
+```text
+compile
+→ AssetManager
+→ Rapier
+→ open -1.2
+→ 240 steps
+→ target reached
+→ no collision regression
+→ close 0
+→ 240 steps
+→ return to initial pose
+→ PASS
+```
+
+新的失败不再只是 `ok:false`，而会标记：
+
+```text
+PRE_CONDITION / TARGET_OUT_OF_LIMITS
+EXECUTION / COLLISION_REGRESSION
+EXECUTION / STALL
+POST_CONDITION / TARGET_NOT_REACHED
+RETURN / RETURN_FAILED
+```
+
+因此验证结果现在可以直接成为 Agent repair 的 observation，而不是只给 Human 看日志。

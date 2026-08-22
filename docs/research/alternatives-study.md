@@ -3,6 +3,8 @@
 > 目的：定期检查哪些开源项目可能替代 AgentScape 的某一层，并只吸收已经被成熟实现证明的结构。不是功能清单，也不是按 Star 排名。
 >
 > 本轮源码复核时间：2026-08-23。结论来自本地浅克隆 + CodeGraph 调用图/源码复核；仓库状态会继续变化。
+>
+> **1.8 落地说明：** 本文当时列为 P0 的 Motion Sweep Validator 已在 1.8 实现；文中的“下一阶段”描述保留研究时上下文，当前 P0 已移动到 Navigation Truth。
 
 ## 结论先行
 
@@ -210,7 +212,7 @@ POST_CONDITION
 
 同时必须区分：OmniGibson 的 symbolic semantic primitives 明确可以通过“直接设置 post-condition”工作，并不等于低层物理执行。因此 AgentScape 不应该因为高层状态 API 成熟，就降低“Runtime 真执行”的门槛。
 
-AgentScape 当前真实缺口：`SkillRegistry` 只有 `invalid_input / forbidden / handler_error` 等通用错误，`ArticulationVerifier` 也主要报告 accepted/finite/moved。下一阶段 Motion Validator 很适合采用**阶段化失败语义**，但无需新建 ErrorManager；直接扩现有 verifier report / `AgentScapeError.details` 即可。
+本轮审计当时的真实缺口是：`SkillRegistry` 只有 `invalid_input / forbidden / handler_error` 等通用错误，`ArticulationVerifier` 也主要报告 accepted/finite/moved。1.8 已按这里的结论直接扩现有 verifier report，以阶段化失败语义补齐 Motion Sweep，没有新建 ErrorManager。
 
 ## 11. AI2-THOR：高层动作返回契约的成熟基准
 
@@ -235,13 +237,13 @@ Habitat-Sim 的 PathFinder/navmesh、semantic scene、Rigid/Articulated Object M
 - Navigation 是独立于“附近 / AABB free space”的能力。
 - Task layer 不应和 simulator core 混在一起。
 
-## 13. EmbodiedGen：下一阶段 Motion/Grasp Verifier 的直接参考
+## 13. EmbodiedGen：Motion/Grasp Verifier 的直接参考
 
 **许可证：Apache-2.0**。
 
 其 grasp evaluation 有清楚的动态过程：固定 simulation frequency，close、hold/lift/sweep，并检查 translation/rotation slip threshold。它证明“终点看起来对”不足以说明操作可靠。
 
-AgentScape 下一阶段应沿同一思想做 articulated motion sweep：记录整个 trajectory 的碰撞、稳定性和回程，而不是只检查最后 `moved=true`。
+这条结论已在 1.8 落地：ArticulationVerifier 记录 trajectory 的 penetration regression、stall、target post-condition 与回程，而不是只检查最后 `moved=true`。
 
 不应移植其 Blender/SAPIEN/CUDA 重栈；它继续作为上游 heavy provider / reference pipeline。
 
@@ -290,7 +292,7 @@ Agent-readable world state + failure reason
 
 CodeGraph 回看 AgentScape 后，当前真正有证据的优先级是：
 
-### P0：Motion Sweep Validator
+### 当时 P0：Motion Sweep Validator（1.8 已落地）
 
 来自 OmniGibson、Habitat、EmbodiedGen、AI2-THOR 的共同证据最强。
 

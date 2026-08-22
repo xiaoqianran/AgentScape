@@ -54,7 +54,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - 现在大概做到什么程度？
 - 哪些模块已经比较成熟？
 - 哪些仍是明显短板？
-- 为什么下一阶段优先 Motion Sweep Validator，而不是继续堆 Editor 功能？
+- 为什么 Motion Sweep 已经成为 1.8 的验证基线，以及为什么下一阶段优先 Navigation Truth？
 
 ## 2. 当前协议与实现文档
 

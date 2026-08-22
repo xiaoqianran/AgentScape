@@ -37,7 +37,7 @@ GLB / 生成资产 / 外部数据
 - World Validator 与受保护的自动修复。
 - Asset Library、资产生成 Gateway、EmbodiedGen Adapter。
 - Agent-Ready Asset Compiler：glTF 检查、保守坐标规范化、几何分析、浏览器资源预算、语义/关节候选、碰撞代理、优化、持久化与 `ready / provisional / rejected` 编译质量门。
-- 可执行 Part / Joint 契约与隔离 Rapier Articulation Verifier，可把通过运动验证的资产从 `provisional` 晋升到 `ready`。
+- 可执行 Part / Joint 契约与隔离 Rapier Motion Sweep Verifier：按 target 执行完整轨迹，检查碰撞穿透回归、停滞、limits、post-condition 与 open→close 可逆性，只有通过才可从 `provisional` 晋升。
 - Provider-neutral `Part Proposal v1` 与 URDF Adapter：可信机械结构可进入 Compiler，但缺少 collider/action/target 时不会被误提升为 Runtime 能力。
 - `Segmentation Evidence v1`、安全 `SegmentMaterializePass` 与保守 `JointFramePass`：完整 TRIANGLES 分割可转换成稳定 GLB Part Nodes；复杂分割仍保持证据身份，URDF frame 只有在原始 GLB 零位姿可证明一致时才自动编译 Rapier anchors。
 - Part-level Collider Compiler：按最近 executable Part 重新分配 Mesh 碰撞所有权，自动生成可追踪的 local AABB fallback；Root 不再重复包含可动 Part，Provider 的高质量 Part collider 优先保留。

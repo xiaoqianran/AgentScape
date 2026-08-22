@@ -197,6 +197,36 @@ export class PhysicsSystem {
     return true;
   }
 
+  articulationPenetrations(id, partName, { refresh = false } = {}) {
+    if (refresh) this.world.updateSceneQueries();
+    const entry = this.entries.get(id);
+    const part = entry?.parts.get(partName);
+    if (!entry || !part) return [];
+    const owners = new Map([[entry.body.handle, '$root']]);
+    for (const [name, value] of entry.parts) owners.set(value.body.handle, name);
+    const hits = new Map();
+
+    for (let i = 0; i < part.body.numColliders(); i++) {
+      const source = part.body.collider(i);
+      this.world.intersectionsWithShape(source.translation(), source.rotation(), source.shape, (other) => {
+        const otherBody = other.parent();
+        if (!otherBody || otherBody.handle === part.body.handle) return true;
+        const contact = source.contactCollider(other, 0);
+        if (!contact || contact.distance >= 0) return true;
+        const targetPart = owners.get(otherBody.handle) || '$external';
+        let targetIndex = -1;
+        for (let j = 0; j < otherBody.numColliders(); j++) if (otherBody.collider(j).handle === other.handle) { targetIndex = j; break; }
+        const key = `${partName}[${i}]->${targetPart}[${targetIndex}]`;
+        const depth = -contact.distance;
+        const previous = hits.get(key);
+        if (!previous || depth > previous.depth) {
+          hits.set(key, { key, depth, sourcePart:partName, sourceCollider:i, targetPart, targetCollider:targetIndex });
+        }
+        return true;
+      });
+    }
+    return [...hits.values()];
+  }
 
   dispose() {
     this.entries.clear();

@@ -18,14 +18,14 @@ export function registerCoreSkills(registry, runtime) {
     runtime.events.emit('asset.compiled', { assetId: result.manifest.id, report: result });
     return result;
   });
-  add('verifyAssetArticulation', { ...meta('在隔离的 Rapier World 中执行资产 Part/Joint 运动验证，并把结果写回 Manifest。', ['asset.write', 'physics.read'], ['assetId'], { assetId: string }), mutates: false }, async (a) => {
+  add('verifyAssetArticulation', { ...meta('在隔离的 Rapier World 中执行 Part/Joint 运动轨迹验证（目标、碰撞、停滞、回程），并把结果写回 Manifest。', ['asset.write', 'physics.read'], ['assetId'], { assetId: string }), mutates: false }, async (a) => {
     const report = await runtime.articulationVerifier.verify(a.assetId);
     const manifest = structuredClone(runtime.assets.getManifest(a.assetId));
     manifest.verification = { ...(manifest.verification || {}), articulation: report };
     const quality = manifest.compiler?.quality;
     if (quality) {
       quality.advisory = (quality.advisory || []).filter((item) => item.code !== 'ARTICULATION_UNVERIFIED');
-      if (!report.ok) quality.advisory.push({ code: 'ARTICULATION_VERIFICATION_FAILED', message: '可执行 Part/Joint 未通过运行时运动验证。' });
+      if (!report.ok) quality.advisory.push({ code: 'ARTICULATION_VERIFICATION_FAILED', message: '可执行 Part/Joint 未通过运行时运动轨迹验证。' });
       quality.status = quality.hard?.length ? 'rejected' : quality.advisory.length ? 'provisional' : 'ready';
     }
     runtime.assets.registerManifest(manifest, { replace: true });
