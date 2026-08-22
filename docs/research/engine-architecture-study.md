@@ -207,3 +207,11 @@ Rapier shape query
 ```
 
 验证失败按 PRE_CONDITION / EXECUTION / POST_CONDITION / RETURN 分段，直接写回同一 `verification.articulation`，没有新增第二份 readiness 状态。
+
+## Static Navigation Truth：Recast/Detour
+
+1.9 对比 `three-pathfinding` 与 `recast-navigation-js` 后，选择后者作为 build + query 的统一导航边界。前者很适合查询已有 navmesh，但不负责构建；AgentScape 当前需要从 Runtime 静态几何直接得到 navigation truth，因此 Recast + Detour 更匹配。
+
+实现没有把 WASM 塞进 `SpatialSystem`，而是增加职责已经充分独立的 `NavigationSystem`：管理 lazy library init、NavMesh/Query ownership、dirty/rebuild 与 query。它仍是 derived state，不写 Scene JSON。
+
+为了不让 dynamic physics 造成每帧 rebuild，1.9 只使用 environment + fixed root geometry，并排除 executable Part subtree。这个约束直接在 API 输出中标为 `scope=static`，而不是隐藏缺口。

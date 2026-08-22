@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.8.0** 的真实架构，不描述未来设想。
+本文描述 **1.9.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -98,13 +98,15 @@ Agent Tool Catalog 又认为 door 可以 open
                        │WorldRuntime│
                        └─────┬──────┘
                              │
-       ┌─────────────────────┼──────────────────────┐
-       ▼                     ▼                      ▼
-  AssetManager          SpatialSystem          PhysicsSystem
-       │                     │                      │
-       └─────────────────────┼──────────────────────┘
-                             ▼
-                         Three.js
+       ┌────────────────┬────┼───────────────┬───────────────┐
+       ▼                ▼    ▼               ▼               ▼
+  AssetManager     SpatialSystem      NavigationSystem   PhysicsSystem
+                                        │
+                                  Recast / Detour
+       │                │               │               │
+       └────────────────┴───────────────┼───────────────┘
+                                        ▼
+                                    Three.js
 ```
 
 Agent 不应该直接：
@@ -543,6 +545,34 @@ animation keyframe budget
 → Runtime open/close
 ```
 
-1.8 已把 verifier 从“能不能动”升级为完整 Motion Sweep：target、progress、stall、limit、penetration regression、post-condition 与 return path 都进入机器可读报告。
+1.8 已把 verifier 从“能不能动”升级为完整 Motion Sweep。1.9 又补上 `findFreeSpace ≠ reachable` 的静态空间真值：`NavigationSystem` 用 lazy Recast 构建静态 NavMesh，Detour 提供 `canReach / findPath / path cost`。
 
-当前主要剩余空间真值缺口是：`SpatialSystem.findFreeSpace()` 仍不等于 navigation/reachability。详见 [`status-and-roadmap.md`](./status-and-roadmap.md)。
+当前导航仍明确是 `scope=static`：dynamic object 与 executable Part 子树不进入 NavMesh。动态门/移动障碍需要后续 TileCache/obstacle ownership，详见 [`navigation.md`](./navigation.md) 与 [`status-and-roadmap.md`](./status-and-roadmap.md)。
+
+---
+
+## 13. Static Navigation Truth
+
+1.9 把 navigation 从“未来 Spatial helper”提升成独立但仍然派生的 Runtime truth：
+
+```text
+Environment floor + fixed world geometry
+              │
+              ├─ dynamic objects excluded
+              └─ executable Part subtree excluded
+              ▼
+         NavigationSystem
+              │
+        lazy Recast build
+              ▼
+          Detour query
+        ┌─────┴─────┐
+        ▼           ▼
+    canReach     findPath
+```
+
+NavMesh 不写入 SceneSerializer，因为它可以从当前 World 重建；这和 SceneGraph 的 derived-state 原则一致。区别在于 NavMesh 构建更重，所以只有 fixed geometry 变化才 dirty，并且 rebuild 只在下一次 query 发生。
+
+第一版只承诺 `scope=static`。dynamic object 与 articulated Part 不属于这个 NavMesh；这避免 Physics 每帧移动导致 Recast rebuild，也避免把 Door 某一瞬间的 pose baked 成静态真相。
+
+详细契约见 [`navigation.md`](./navigation.md)。

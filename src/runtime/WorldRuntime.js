@@ -7,6 +7,7 @@ import { ObjectStore } from './ObjectStore.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
 import { SpatialSystem } from './systems/SpatialSystem.js';
+import { NavigationSystem } from './systems/NavigationSystem.js';
 import { AssetLibrary } from '../assets/library/AssetLibrary.js';
 import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
 import { SceneSerializer } from '../persistence/SceneSerializer.js';
@@ -30,7 +31,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '1.8.0';
+    this.version = '1.9.0';
     this.container = container; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
@@ -38,7 +39,7 @@ export class WorldRuntime {
     this.compilerProvider = new HttpCompilerProvider({ endpoint: localStorage.getItem('agentscape.compilerEndpoint') || '' });
     this.assetCompiler = null;
     this.assetGenerator = new HttpAssetGenerator({ endpoint: localStorage.getItem('agentscape.assetGeneratorEndpoint') || '' });
-    this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events }); this.articulationVerifier = new ArticulationVerifier({ assets: this.assets }); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.clock = new THREE.Clock(); this.running = false;
+    this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events }); this.articulationVerifier = new ArticulationVerifier({ assets: this.assets }); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
   }
   async getAssetCompiler() {
     if (!this.assetCompiler) {
@@ -59,9 +60,11 @@ export class WorldRuntime {
     this.interactions = new InteractionSystem({ store: this.store, physics: this.physics, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
     this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);
+    this.addEnvironment();
+    this.navigation = new NavigationSystem({ store: this.store, environmentRoots: [this.environmentFloor], events: this.events });
     this.skills = registerCoreSkills(new SkillRegistry({ policy: this.policy, trace: this.trace, runtime: this }), this);
     this.worldPipeline = createWorldPipeline(this);
-    this.addEnvironment(); this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;
+    this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;
   }
   addEnvironment() {
     this.scene.add(new THREE.HemisphereLight(0xd9e8ff, 0x252c3b, 2.2)); const key = new THREE.DirectionalLight(0xffffff, 3.5); key.position.set(4, 7, 3); key.castShadow = true; this.scene.add(key);
@@ -78,6 +81,7 @@ export class WorldRuntime {
       this.store.add(id, { id, assetId, object, manifest, state: {} });
       stored = true;
       this.physics.attach(id, manifest, object);
+      this.navigation?.invalidateIfStatic(this.store.get(id), 'object.spawned');
       this.sceneGraph?.changed();
       this.events.emit('object.spawned', { id, assetId, position });
       return id;
@@ -118,7 +122,11 @@ export class WorldRuntime {
   }
 
   commitMutation(meta = {}) {
-    if (!this.history?.suspended) { this.sceneGraph?.changed(); this.history.commit(this.snapshot(), meta); }
+    if (!this.history?.suspended) {
+      this.sceneGraph?.changed();
+      if (meta.id && this.store.has(meta.id)) this.navigation?.invalidateIfStatic(this.store.get(meta.id), 'editor.transform');
+      this.history.commit(this.snapshot(), meta);
+    }
   }
 
   async clearObjects() {
@@ -146,6 +154,7 @@ export class WorldRuntime {
 
   remove(id) {
     const record = this.store.get(id);
+    this.navigation?.invalidateIfStatic(record, 'object.removed');
     this.physics.remove(id);
     this.scene.remove(record.object);
     disposeObject3D(record.object);
@@ -195,6 +204,8 @@ export class WorldRuntime {
     this.sceneGraph.reset();
     disposeObject3D(this.scene);
     this.controls?.dispose();
+    this.navigation?.dispose();
+    this.navigation = null;
     this.physics.dispose();
     this.renderer?.dispose();
     this.renderer?.domElement?.remove();

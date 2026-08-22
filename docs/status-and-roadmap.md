@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.8.0** 当前状态。
+本文描述 **1.9.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -23,7 +23,7 @@
 | Web Runtime | 85% | Three / Rapier / lifecycle / persistence 已稳定 |
 | Human Editor | 75% | 可用，但不是当前差异化主线 |
 | Skill / Policy / Trace | 80% | 单一能力边界已经形成 |
-| Spatial API | 75% | placement 很强，navigation 仍缺 |
+| Spatial API | 82% | placement + static Recast/Detour reachability 已有，dynamic obstacle 仍缺 |
 | Scene Persistence / History | 85% | schema / autosave / undo-redo 基本成熟 |
 | Asset Compiler 基础 | 90% | inspect / normalize / budget / quality 很完整 |
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
@@ -34,7 +34,7 @@
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
 | Grasp / Manipulation Geometry | 15% | 尚未成为主干能力 |
-| Navigation / Reachability | 30% | 当前 findFreeSpace 不等于可达 |
+| Navigation / Reachability | 55% | 1.9 已有 static canReach/findPath；TileCache/dynamic obstacle 尚未接入 |
 | 大型 World Runtime | 30% | streaming / large nav / dynamic world 仍早期 |
 | Multi-Agent | 10% | 不是当前优先级 |
 | 完整生成式 World Pipeline | 30% | provider 边界在，task-driven generation 仍需发展 |
@@ -126,55 +126,63 @@ RETURN / REVERSIBILITY
 
 ---
 
-## 4. 当前 P0：Navigation Truth
+## 4. 1.9 已完成：Static Navigation Truth
 
-当前已有：
+1.9 已把：
 
 ```text
-findNearby
-raycast
-bounds
 findFreeSpace
-support relation
 ```
 
-但缺：
+与：
 
 ```text
-findPath
-canReach
-navmesh island
-path cost
-dynamic obstacle
+canReach / findPath
 ```
 
-最重要的语义边界：
+分成两种真实能力。当前 `NavigationSystem` 使用 lazy Recast/Detour，支持端点吸附、静态连通性、路径 waypoint 与 path cost；真实 cabinet GLB 已进入 E2E。
+
+当前边界明确：
 
 ```text
-free space
-≠
-reachable space
+scope = static
+
+dynamic object          excluded
+executable Part subtree excluded
+TileCache                not enabled
 ```
 
-### 实现原则
-
-先研究成熟 Web/WASM Recast/Detour。
-
-不要自己写 navmesh。
-
-Navigation 应成为 Spatial truth，而不是 Agent-only helper：
-
-```text
-SpatialSystem / dedicated proven navigation boundary
-      ↓
-Skill thin adapter
-```
-
-只有当职责真的独立并证明值得时，才增加新系统类。
+所以关闭的动态门目前不会阻断 NavMesh。详细契约见 [`navigation.md`](./navigation.md)。
 
 ---
 
-## 5. P2：完整 Joint Frame
+## 5. 当前 P0：Dynamic Obstacle Truth
+
+下一步不是重写 pathfinding，而是沿 Recast/Detour 已有 TileCache 解决动态障碍：
+
+```text
+static NavMesh
+    +
+Runtime obstacle ownership
+    +
+TileCache box/cylinder obstacles
+    ↓
+query reflects current world state
+```
+
+在实现前必须先定义：
+
+1. 哪些 dynamic object 自动成为 navigation obstacle。
+2. articulated Part 如何映射 obstacle。
+3. open/close motor 尚未 settle 时何时更新 obstacle。
+4. Physics 高频移动怎样节流 TileCache 更新。
+5. obstacle 状态是否属于 durable scene，还是继续由 Runtime facts 派生。
+
+不先解决这些 ownership/时序问题，就不把 TileCache 接进默认 Runtime。
+
+---
+
+## 6. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -210,7 +218,7 @@ Schema claim second
 
 ---
 
-## 6. P3：Compact Agent Observation
+## 7. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -238,7 +246,7 @@ world size
 
 ---
 
-## 7. 自动语义：宁可慢一点，也不虚构能力
+## 8. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -276,7 +284,7 @@ high coverage + fake capability
 
 ---
 
-## 8. 目前不应该成为优先级的方向
+## 9. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -293,7 +301,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 9. 产品差异化应该是什么
+## 10. 产品差异化应该是什么
 
 不应该是：
 
@@ -325,7 +333,7 @@ Agent World
 
 ---
 
-## 10. 未来完成态
+## 11. 未来完成态
 
 可以把 100% 理解为：
 
@@ -390,11 +398,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.8.0 文档快照对应的仓库验证基线：
+1.9.0 文档快照对应的仓库验证基线：
 
 ```text
-60 Test Files PASS
-161 Tests PASS
+63 Test Files PASS
+170 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Python service tests PASS

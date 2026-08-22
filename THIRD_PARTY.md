@@ -8,6 +8,7 @@ AgentScape 自身代码独立实现，并使用 `package.json` 和服务端 `req
 - Rapier (`@dimforge/rapier3d-compat`)
 - three-mesh-bvh
 - glTF-Transform — MIT
+- `@recast-navigation/core` / `@recast-navigation/generators` — MIT；其 WASM 包含 Recast/Detour 原始实现并保留 Mikko Mononen 的 zlib 风格许可声明
 - CoACD — MIT，可选服务端依赖
 - yourdfpy — MIT，可选服务端 URDF 解析依赖
 - python-multipart — Apache-2.0，可选服务端 binary/multipart 接收依赖

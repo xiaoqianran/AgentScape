@@ -1,6 +1,6 @@
 {
   "name": "agentscape",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,6 +16,8 @@
     "@dimforge/rapier3d-compat": "^0.17.3",
     "@gltf-transform/core": "^4.4.2",
     "@gltf-transform/functions": "^4.4.2",
+    "@recast-navigation/core": "^0.43.1",
+    "@recast-navigation/generators": "^0.43.1",
     "three": "^0.179.1",
     "three-mesh-bvh": "^0.9.1"
   },

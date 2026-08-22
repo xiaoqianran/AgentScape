@@ -4,7 +4,7 @@
 >
 > 本轮源码复核时间：2026-08-23。结论来自本地浅克隆 + CodeGraph 调用图/源码复核；仓库状态会继续变化。
 >
-> **1.8 落地说明：** 本文当时列为 P0 的 Motion Sweep Validator 已在 1.8 实现；文中的“下一阶段”描述保留研究时上下文，当前 P0 已移动到 Navigation Truth。
+> **1.9 落地说明：** Motion Sweep 已在 1.8 实现；本文随后列出的 Navigation Truth 已在 1.9 以 Recast/Detour static NavMesh 落地。动态障碍/TileCache 仍是下一阶段。
 
 ## 结论先行
 
@@ -316,9 +316,7 @@ POST_CONDITION
 
 ### P1：Navigation Truth
 
-AgentScape 当前只有 `findNearby / raycast / AABB collision / findFreeSpace`，没有 path/reachability。Habitat 和 Grudge 都说明这是世界引擎的重要差距。
-
-实现前先研究成熟 Web Recast/Detour 库；不要自己写 navmesh。Navmesh 应是 Spatial capability，Agent Skill 只是薄 adapter。
+本轮审计时 AgentScape 只有 `findNearby / raycast / AABB collision / findFreeSpace`。1.9 已按这里的结论研究并接入 `recast-navigation-js`：独立 `NavigationSystem` 持有 lazy Recast/Detour 派生状态，Agent Skill 只是薄 adapter；没有自己写 navmesh。动态障碍仍未进入 static scope。
 
 ### P2：完整 Joint Frame（条件式）
 

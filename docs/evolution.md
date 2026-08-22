@@ -63,7 +63,10 @@ Per-Part Heavy Geometry / CoACD            1.7
 Motion Sweep Verification                  1.8
    │
    ▼
-Navigation Truth                           下一阶段
+Static Navigation Truth                    1.9
+   │
+   ▼
+Dynamic Obstacles / TileCache              下一阶段
 ```
 
 ---
@@ -1343,3 +1346,59 @@ RETURN / RETURN_FAILED
 ```
 
 因此验证结果现在可以直接成为 Agent repair 的 observation，而不是只给 Human 看日志。
+
+---
+
+## 29. 1.9：从“有空位”到“静态可达”
+
+长期以来 `SpatialSystem.findFreeSpace()` 只能回答局部几何问题：
+
+```text
+这个位置能不能放东西？
+```
+
+它不能回答：
+
+```text
+Agent 从 A 能不能走到 B？
+```
+
+重新研究 Habitat-Sim、Grudge 的 navmesh 使用方式，并进一步对比 `three-pathfinding` 与 `recast-navigation-js` 后，选择 Recast/Detour WebAssembly 作为导航真值算法。没有自己实现 A* / NavMesh builder。
+
+第一版没有追 Crowd/TileCache，而是只建立最小静态闭环：
+
+```text
+fixed world meshes
+      ↓
+world-unit agent config
+      ↓
+Recast voxel config
+      ↓
+lazy Solo NavMesh
+      ↓
+Detour NavMeshQuery
+      ↓
+canReach / findPath / path cost
+      ↓
+SkillRegistry
+```
+
+为了保持“静态”的真实语义：dynamic object 不参与 NavMesh，fixed Root 内的 executable Part 子树也排除。因此开合门不会触发 Recast rebuild；动态门障碍留给后续 TileCache。
+
+真实 `cabinet.glb` E2E 证明：
+
+```text
+floor + Cabinet Body → Recast input
+Door Part             → excluded
+path across cabinet   → Detour 绕行
+```
+
+这一步第一次让 AgentScape 可以明确区分：
+
+```text
+free space
+reachable static space
+dynamic obstacle truth（尚未实现）
+```
+
+而不是用一个 `findFreeSpace` 同时假装回答三种问题。
