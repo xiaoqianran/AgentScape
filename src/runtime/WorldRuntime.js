@@ -41,7 +41,7 @@ export class WorldRuntime {
   async getAssetCompiler() {
     if (!this.assetCompiler) {
       const { AssetCompiler } = await import('../compiler/AssetCompiler.js');
-      this.assetCompiler = new AssetCompiler({ store: this.compiledAssetStore, provider: this.compilerProvider, events: this.events, version: '1.1.0' });
+      this.assetCompiler = new AssetCompiler({ store: this.compiledAssetStore, provider: this.compilerProvider, events: this.events, version: this.version });
     }
     return this.assetCompiler;
   }
