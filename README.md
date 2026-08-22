@@ -4,16 +4,18 @@
 
 AgentScape is an experimental Web3D runtime where an AI agent can inspect and manipulate an interactive 3D scene through a small, explicit tool API.
 
-## V1
+## V0.4
 
-The first version intentionally stays small:
+The current version intentionally stays focused:
 
 - Three.js rendering runtime
 - Rapier rigid-body physics for floor, furniture and movable props
 - three-mesh-bvh accelerated spatial queries
 - asset behavior metadata (`GLB + behavior` model)
 - agent tool interface: spawn / move / pickup / drop / place / open / close
-- interactive demo scene with a table, physics-enabled cup and behavior-driven cabinet door
+- interactive demo scene with a table, physics-enabled cup and articulated GLB cabinet
+- visual editor: click selection, move/rotate gizmos, inspector, duplicate and delete
+- Human Editor and AI Agent share the same runtime command boundary
 - local deterministic demo planner, designed to be replaced by any tool-calling LLM
 - `GLTFLoader`-based path ready for real `.glb` assets
 
@@ -114,3 +116,14 @@ For a replacement Blender asset:
 6. Run `npm run assets:validate` before committing.
 
 The manifest owns behavior and physics. The GLB owns visuals and hierarchy. This keeps art assets replaceable without changing Agent tools or world logic.
+
+## Editor controls
+
+- Click an object to select it.
+- `W` switches to translate mode.
+- `E` switches to rotate mode.
+- `Delete` removes the selected object.
+- The top toolbar can duplicate an object.
+- Inspector action buttons call the same `AgentTools` used by an AI agent.
+
+The editor never edits an independent copy of the scene. Human and agent operations mutate the same `WorldRuntime`, so future undo/redo, persistence, multiplayer, and LLM planning can be built around one authoritative world state.

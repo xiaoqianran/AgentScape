@@ -32,6 +32,42 @@ export class WorldRuntime {
   async spawn(assetId, { position = [0, 0, 0], id = `${assetId}_${crypto.randomUUID()}` } = {}) {
     const { object, manifest } = await this.assets.instantiate(assetId); object.position.fromArray(position); object.userData.instanceId = id; this.scene.add(object); this.store.add(id, { id, assetId, object, manifest, state: {} }); this.physics.attach(id, manifest, object); this.events.emit('object.spawned', { id, assetId, position }); return id;
   }
+  remove(id) {
+    const record = this.store.get(id);
+    this.physics.remove(id);
+    this.scene.remove(record.object);
+    record.object.traverse((node) => {
+      if (node.isMesh) node.geometry?.disposeBoundsTree?.();
+    });
+    this.store.delete(id);
+    this.events.emit('object.removed', { id, assetId: record.assetId });
+    return true;
+  }
+
+  async duplicate(id) {
+    const record = this.store.get(id);
+    const p = record.object.position;
+    const duplicateId = `${record.assetId}_${crypto.randomUUID()}`;
+    await this.spawn(record.assetId, { position: [p.x + 0.6, p.y, p.z + 0.6], id: duplicateId });
+    const copy = this.store.get(duplicateId).object;
+    copy.quaternion.copy(record.object.quaternion);
+    this.physics.syncTransform(duplicateId, copy);
+    this.events.emit('object.duplicated', { sourceId: id, id: duplicateId });
+    return duplicateId;
+  }
+
+  getObjectInfo(id) {
+    const r = this.store.get(id);
+    return {
+      id,
+      asset: r.assetId,
+      type: r.manifest.type,
+      position: r.object.position.toArray().map(v => Number(v.toFixed(3))),
+      rotation: r.object.rotation.toArray().slice(0, 3).map(v => Number(THREE.MathUtils.radToDeg(v).toFixed(1))),
+      actions: [...r.manifest.actions]
+    };
+  }
+
   listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
   update() { const dt = Math.min(this.clock.getDelta(), 1 / 30); this.physics.step(dt, this.store); this.interactions.update(dt, this.camera); this.controls.update(); }
   animate = () => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(); this.renderer.render(this.scene, this.camera); };

@@ -8,7 +8,9 @@ export const TOOL_DEFINITIONS = {
   drop: { required: [] },
   place: { required: ['id', 'targetId'] },
   open: { required: ['id'] },
-  close: { required: ['id'] }
+  close: { required: ['id'] },
+  duplicateObject: { required: ['id'] },
+  removeObject: { required: ['id'] }
 };
 
 export class AgentTools {
@@ -29,6 +31,8 @@ export class AgentTools {
       case 'place': return this.runtime.interactions.place(args.id, args.targetId);
       case 'open': return this.runtime.interactions.setDoor(args.id, true);
       case 'close': return this.runtime.interactions.setDoor(args.id, false);
+      case 'duplicateObject': return this.runtime.duplicate(args.id);
+      case 'removeObject': return this.runtime.remove(args.id);
     }
   }
 }

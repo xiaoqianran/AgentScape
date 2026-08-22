@@ -88,6 +88,59 @@ export class PhysicsSystem {
     entry.lastPosition.copy(next);
   }
 
+  beginTransform(id) {
+    const entry = this.entries.get(id);
+    if (!entry) return;
+    entry.originalType = entry.body.bodyType();
+    entry.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+    for (const part of entry.parts.values()) {
+      part.originalType = part.body.bodyType();
+      part.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+    }
+  }
+
+  syncTransform(id, object) {
+    const entry = this.entries.get(id);
+    if (!entry) return;
+    object.updateMatrixWorld(true);
+    const p = new THREE.Vector3();
+    const q = new THREE.Quaternion();
+    object.getWorldPosition(p);
+    object.getWorldQuaternion(q);
+    entry.body.setTranslation({ x: p.x, y: p.y, z: p.z }, true);
+    entry.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+    entry.lastPosition.copy(p);
+    for (const part of entry.parts.values()) {
+      const pp = new THREE.Vector3();
+      const pq = new THREE.Quaternion();
+      part.node.getWorldPosition(pp);
+      part.node.getWorldQuaternion(pq);
+      part.body.setTranslation({ x: pp.x, y: pp.y, z: pp.z }, true);
+      part.body.setRotation({ x: pq.x, y: pq.y, z: pq.z, w: pq.w }, true);
+    }
+  }
+
+  endTransform(id) {
+    const entry = this.entries.get(id);
+    if (!entry) return;
+    if (entry.originalType != null) entry.body.setBodyType(entry.originalType, true);
+    delete entry.originalType;
+    for (const part of entry.parts.values()) {
+      if (part.originalType != null) part.body.setBodyType(part.originalType, true);
+      delete part.originalType;
+      part.body.wakeUp();
+    }
+  }
+
+  remove(id) {
+    const entry = this.entries.get(id);
+    if (!entry) return false;
+    for (const part of entry.parts.values()) this.world.removeRigidBody(part.body);
+    this.world.removeRigidBody(entry.body);
+    this.entries.delete(id);
+    return true;
+  }
+
   setHeld(id, held) {
     const body = this.entries.get(id)?.body;
     if (!body) return;
