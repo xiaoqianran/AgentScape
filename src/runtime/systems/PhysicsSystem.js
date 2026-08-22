@@ -46,35 +46,42 @@ export class PhysicsSystem {
   }
 
   attach(id, manifest, object) {
-    const worldPos = new THREE.Vector3();
-    object.getWorldPosition(worldPos);
-    const body = this.world.createRigidBody(this.bodyDesc(manifest.physics?.body || 'fixed', worldPos));
-    this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass, manifest.physics?.friction);
+    const createdBodies = [];
+    try {
+      const worldPos = new THREE.Vector3();
+      object.getWorldPosition(worldPos);
+      const body = this.world.createRigidBody(this.bodyDesc(manifest.physics?.body || 'fixed', worldPos));
+      createdBodies.push(body);
+      this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass, manifest.physics?.friction);
 
-    const entry = { body, root: object, parts: new Map(), lastPosition: worldPos.clone() };
+      const entry = { body, root: object, parts: new Map(), lastPosition: worldPos.clone() };
+      for (const [partName, part] of Object.entries(manifest.parts || {})) {
+        if (!part.physics || !part.joint) continue;
+        const node = object.getObjectByName(part.node);
+        if (!node) continue;
 
-    for (const [partName, part] of Object.entries(manifest.parts || {})) {
-      if (!part.physics || !part.joint) continue;
-      const node = object.getObjectByName(part.node);
-      if (!node) continue;
+        const partWorld = new THREE.Vector3();
+        node.getWorldPosition(partWorld);
+        const child = this.world.createRigidBody(this.bodyDesc(part.physics.body || 'dynamic', partWorld));
+        createdBodies.push(child);
+        this.addColliders(child, part.physics.colliders, part.physics.mass, part.physics.friction);
 
-      const partWorld = new THREE.Vector3();
-      node.getWorldPosition(partWorld);
-      const child = this.world.createRigidBody(this.bodyDesc(part.physics.body || 'dynamic', partWorld));
-      this.addColliders(child, part.physics.colliders, part.physics.mass, part.physics.friction);
-
-      let data;
-      if (part.joint.type === 'revolute') {
-        data = RAPIER.JointData.revolute(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis));
-      } else {
-        data = RAPIER.JointData.prismatic(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis));
+        const data = part.joint.type === 'revolute'
+          ? RAPIER.JointData.revolute(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis))
+          : RAPIER.JointData.prismatic(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis));
+        const joint = this.world.createImpulseJoint(data, body, child, true);
+        if (part.joint.limits) joint.setLimits(part.joint.limits[0], part.joint.limits[1]);
+        entry.parts.set(partName, { body: child, joint, node, spec: part });
       }
-      const joint = this.world.createImpulseJoint(data, body, child, true);
-      if (part.joint.limits) joint.setLimits(part.joint.limits[0], part.joint.limits[1]);
-      entry.parts.set(partName, { body: child, joint, node, spec: part });
-    }
 
-    this.entries.set(id, entry);
+      this.entries.set(id, entry);
+      return entry;
+    } catch (error) {
+      for (const body of createdBodies.reverse()) {
+        try { this.world.removeRigidBody(body); } catch {}
+      }
+      throw error;
+    }
   }
 
   setPosition(id, position) {
@@ -163,6 +170,13 @@ export class PhysicsSystem {
     part.joint.configureMotorPosition(target, motor.stiffness ?? 40, motor.damping ?? 8);
     part.body.wakeUp();
     return true;
+  }
+
+
+  dispose() {
+    this.entries.clear();
+    this.world?.free?.();
+    this.world = null;
   }
 
   step(dt, store) {

@@ -26,7 +26,7 @@ GLB / 生成资产 / 外部数据
 
 ## 当前能力
 
-- Three.js Web3D 运行时与 Rapier 物理。
+- Three.js Web3D 运行时与 Rapier 物理，具备明确的对象资源生命周期与失败回滚。
 - GLB 加载、节点校验、关节和物理电机。
 - 可视化编辑：选择、移动、旋转、复制、删除。
 - 空间查询：Bounds、Raycast、Nearby、碰撞、支撑面、空位搜索。

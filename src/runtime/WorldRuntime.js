@@ -21,6 +21,7 @@ import { RepairEngine } from '../validation/RepairEngine.js';
 import { createWorldPipeline } from '../pipeline/createWorldPipeline.js';
 import { CompiledAssetStore } from '../assets/storage/CompiledAssetStore.js';
 import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider.js';
+import { disposeObject3D } from './disposeObject3D.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -28,7 +29,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '1.1.5';
+    this.version = '1.1.6';
     this.container = container; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
@@ -67,7 +68,25 @@ export class WorldRuntime {
     const grid = new THREE.GridHelper(10, 20, 0x526077, 0x30394d); grid.position.y = 0.003; this.scene.add(grid); this.physics.addFloor();
   }
   async spawn(assetId, { position = [0, 0, 0], id = `${assetId}_${crypto.randomUUID()}` } = {}) {
-    const { object, manifest } = await this.assets.instantiate(assetId); object.position.fromArray(position); object.userData.instanceId = id; this.scene.add(object); this.store.add(id, { id, assetId, object, manifest, state: {} }); this.physics.attach(id, manifest, object); this.sceneGraph?.update(); this.events.emit('object.spawned', { id, assetId, position }); return id;
+    const { object, manifest } = await this.assets.instantiate(assetId);
+    object.position.fromArray(position);
+    object.userData.instanceId = id;
+    let stored = false;
+    try {
+      this.scene.add(object);
+      this.store.add(id, { id, assetId, object, manifest, state: {} });
+      stored = true;
+      this.physics.attach(id, manifest, object);
+      this.sceneGraph?.update();
+      this.events.emit('object.spawned', { id, assetId, position });
+      return id;
+    } catch (error) {
+      this.physics.remove(id);
+      if (stored) this.store.delete(id);
+      this.scene.remove(object);
+      disposeObject3D(object);
+      throw error;
+    }
   }
   snapshot() {
     const scene = this.serialize({ name: 'History Snapshot' });
@@ -118,9 +137,7 @@ export class WorldRuntime {
     const record = this.store.get(id);
     this.physics.remove(id);
     this.scene.remove(record.object);
-    record.object.traverse((node) => {
-      if (node.isMesh) node.geometry?.disposeBoundsTree?.();
-    });
+    disposeObject3D(record.object);
     this.store.delete(id);
     this.sceneGraph?.removeObject(id); this.sceneGraph?.update();
     this.events.emit('object.removed', { id, assetId: record.assetId });
@@ -155,5 +172,15 @@ export class WorldRuntime {
   update() { const dt = Math.min(this.clock.getDelta(), 1 / 30); this.physics.step(dt, this.store); this.interactions.update(dt, this.camera); this.controls.update(); }
   animate = () => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(); this.renderer.render(this.scene, this.camera); };
   resize() { const w = this.container.clientWidth, h = this.container.clientHeight; if (!w || !h) return; this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h, false); }
-  dispose() { this.running = false; window.removeEventListener('resize', this._resize); this.events.clear(); this.renderer?.dispose(); }
+  dispose() {
+    this.running = false;
+    window.removeEventListener('resize', this._resize);
+    this.clearObjects();
+    disposeObject3D(this.scene);
+    this.controls?.dispose();
+    this.physics.dispose();
+    this.renderer?.dispose();
+    this.renderer?.domElement?.remove();
+    this.events.clear();
+  }
 }

@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { assetManifests } from '../assets/manifests/index.js';
 import { validateAssetManifest } from '../assets/schema.js';
 import { Errors } from '../core/errors.js';
+import { disposeObject3D } from './disposeObject3D.js';
 
 const canonical = (value) => {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
@@ -56,11 +57,16 @@ export class AssetManager {
       if (!factory) throw Errors.assetNotFound(assetId);
       object = await factory();
     }
-    this.validateNodes(object, manifest);
-    object.name ||= assetId;
-    object.userData.assetId = assetId;
-    object.userData.manifest = manifest;
-    return { object, manifest };
+    try {
+      this.validateNodes(object, manifest);
+      object.name ||= assetId;
+      object.userData.assetId = assetId;
+      object.userData.manifest = manifest;
+      return { object, manifest };
+    } catch (error) {
+      disposeObject3D(object);
+      throw error;
+    }
   }
 
   validateNodes(object, manifest) {
