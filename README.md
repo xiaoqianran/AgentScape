@@ -4,7 +4,7 @@
 
 AgentScape is an experimental Web3D runtime where an AI agent can inspect and manipulate an interactive 3D scene through a small, explicit tool API.
 
-## V0.5
+## V0.6
 
 The current version intentionally stays focused:
 
@@ -23,6 +23,9 @@ The current version intentionally stays focused:
 
 ```text
 User / LLM
+    |
+    v
+ToolCallingAgent           <- iterative plan / act / observe loop
     |
     v
 AgentTools                 <- stable capability boundary
@@ -140,3 +143,28 @@ V0.5 adds a dedicated `SpatialSystem` used by both the editor and agents:
 - `findFreeSpace(id, targetId)`
 
 `place(id, targetId)` no longer uses a hard-coded offset. It queries the target support surface, measures the object bounds, searches candidate positions, rejects collisions, then hands the chosen pose to the physics system.
+
+## Tool-calling agent
+
+V0.6 replaces the keyword-only demo agent with a real iterative agent loop:
+
+```text
+User goal
+   ↓
+LLM Gateway
+   ↓
+Tool calls
+   ↓
+AgentTools
+   ↓
+WorldRuntime
+   ↓
+Tool results
+   └────────→ LLM Gateway (repeat)
+```
+
+The loop is capped at 8 planning steps and feeds tool errors back to the model as structured results, so a planner can recover instead of crashing the scene.
+
+Because GitHub Pages is a static frontend, AgentScape deliberately does **not** collect or persist model provider API keys. Configure a server-side Gateway URL in the Agent Console. The browser stores only that URL. See [`docs/llm-gateway.md`](docs/llm-gateway.md) for the provider-neutral request/response contract.
+
+Without a Gateway URL, AgentScape automatically uses a deterministic local fallback planner so the public demo remains usable.

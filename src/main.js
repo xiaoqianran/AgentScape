@@ -1,7 +1,10 @@
 import './style.css';
 import { WorldRuntime } from './runtime/WorldRuntime.js';
 import { AgentTools } from './agent/AgentTools.js';
-import { DemoAgent } from './agent/DemoAgent.js';
+import { ToolCallingAgent } from './agent/ToolCallingAgent.js';
+import { HttpLLMGateway } from './agent/gateway/HttpLLMGateway.js';
+import { LocalPlannerGateway } from './agent/gateway/LocalPlannerGateway.js';
+import { bootstrapWorld } from './agent/bootstrapWorld.js';
 import { EditorController } from './editor/EditorController.js';
 
 async function main() {
@@ -39,8 +42,13 @@ async function main() {
             </div>
           </section>
           <section class="agent-console">
-            <div class="eyebrow">AGENT CONSOLE</div>
-            <p class="intro">Human Editor 与 Agent 共用同一个 World Runtime。你拖动物体和 Agent 调用工具最终修改的是同一份世界状态。</p>
+            <div class="console-heading"><div class="eyebrow">AGENT CONSOLE</div><span id="agent-mode" class="agent-mode">LOCAL</span></div>
+            <p class="intro">Tool-calling Agent 与 Human Editor 共用同一个 World Runtime。配置你的 LLM Gateway 后即可执行自然语言多步规划。</p>
+            <details class="gateway-settings">
+              <summary>LLM Gateway</summary>
+              <label>Endpoint<input id="gateway-endpoint" type="url" placeholder="https://your-server.example/agent" /></label>
+              <small>只保存 Gateway URL，不在浏览器保存模型 API Key。留空时使用本地 planner。</small>
+            </details>
             <div class="chips">
               <button data-prompt="打开柜子">打开柜子</button>
               <button data-prompt="关闭柜子">关闭柜子</button>
@@ -69,7 +77,8 @@ async function main() {
   const world = new WorldRuntime(document.querySelector('#viewport'));
   await world.init();
   const tools = new AgentTools(world);
-  const agent = new DemoAgent(tools, log);
+  const gateway = new HttpLLMGateway({ endpoint: localStorage.getItem('agentscape.gatewayEndpoint') || '' });
+  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway: new LocalPlannerGateway(), log });
   const editor = new EditorController(world);
 
   world.events.on('tool.called', (event) => log(`tool: ${event.name} ${JSON.stringify(event.args)}`, 'tool'));
@@ -79,7 +88,7 @@ async function main() {
   world.events.on('object.removed', ({ id }) => log(`removed: ${id}`, 'tool'));
   world.events.on('object.duplicated', ({ sourceId, id }) => log(`duplicate: ${sourceId} → ${id}`, 'tool'));
 
-  await agent.bootstrap();
+  await bootstrapWorld(tools);
   log('scene ready: table_01 · cabinet_01 · cup_01', 'result');
 
   function renderInspector(id) {
@@ -110,6 +119,22 @@ async function main() {
       actions.appendChild(button);
     }
   }
+
+  const gatewayInput = document.querySelector('#gateway-endpoint');
+  const modeBadge = document.querySelector('#agent-mode');
+  gatewayInput.value = gateway.endpoint || '';
+  const updateAgentMode = () => {
+    modeBadge.textContent = gateway.isConfigured() ? 'LLM' : 'LOCAL';
+    modeBadge.classList.toggle('live', gateway.isConfigured());
+  };
+  updateAgentMode();
+  gatewayInput.addEventListener('change', () => {
+    gateway.setEndpoint(gatewayInput.value);
+    if (gateway.endpoint) localStorage.setItem('agentscape.gatewayEndpoint', gateway.endpoint);
+    else localStorage.removeItem('agentscape.gatewayEndpoint');
+    updateAgentMode();
+    log(gateway.isConfigured() ? `LLM gateway: ${gateway.endpoint}` : 'LLM gateway disabled; using local planner', 'result');
+  });
 
   async function execute(prompt) {
     try { await agent.run(prompt); }

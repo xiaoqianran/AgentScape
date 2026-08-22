@@ -1,29 +1,11 @@
 import { Errors } from '../core/errors.js';
 
-export const TOOL_DEFINITIONS = {
-  listObjects: { required: [] },
-  spawnAsset: { required: ['assetId', 'position'] },
-  moveObject: { required: ['id', 'position'] },
-  pickup: { required: ['id'] },
-  drop: { required: [] },
-  place: { required: ['id', 'targetId'] },
-  open: { required: ['id'] },
-  close: { required: ['id'] },
-  duplicateObject: { required: ['id'] },
-  removeObject: { required: ['id'] },
-  getBounds: { required: ['id'] },
-  findNearby: { required: ['id'] },
-  raycast: { required: ['origin', 'direction'] },
-  isColliding: { required: ['id'] },
-  findSupportSurface: { required: ['targetId'] },
-  findFreeSpace: { required: ['id', 'targetId'] }
-};
-
+import { TOOL_CATALOG } from './toolCatalog.js';
 export class AgentTools {
   constructor(runtime) { this.runtime = runtime; }
-  schema() { return Object.entries(TOOL_DEFINITIONS).map(([name, def]) => `${name}(${def.required.join(', ')})`); }
+  schema() { return Object.entries(TOOL_CATALOG).map(([name, def]) => `${name}(${def.required.join(', ')})`); }
   validate(name, args) {
-    const def = TOOL_DEFINITIONS[name]; if (!def) throw Errors.invalidToolCall(name, { reason: 'unknown tool' });
+    const def = TOOL_CATALOG[name]; if (!def) throw Errors.invalidToolCall(name, { reason: 'unknown tool' });
     const missing = def.required.filter(k => args?.[k] == null); if (missing.length) throw Errors.invalidToolCall(name, { missing });
   }
   async call(name, args = {}) {
