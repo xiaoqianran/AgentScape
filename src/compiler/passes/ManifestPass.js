@@ -38,6 +38,7 @@ export class ManifestPass {
         structure: context.structure,
         normalization: context.normalization,
         articulationCandidates: context.articulation.candidates,
+        partProposal: context.partProposal || null,
         meshQuality: context.meshQuality || null,
         resources: context.resources
       },

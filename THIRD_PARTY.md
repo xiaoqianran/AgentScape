@@ -9,6 +9,7 @@ AgentScape 自身代码独立实现，并使用 `package.json` 和服务端 `req
 - three-mesh-bvh
 - glTF-Transform — MIT
 - CoACD — MIT，可选服务端依赖
+- yourdfpy — MIT，可选服务端 URDF 解析依赖
 
 ## 架构研究
 
@@ -21,3 +22,9 @@ AgentScape 自身代码独立实现，并使用 `package.json` 和服务端 `req
 - vlongle/articulate-anything — 研究时未发现许可证，仅研究思想，没有复制源码
 
 详细映射见 `docs/research/`。
+
+## 新增架构研究
+
+- SAPIEN — Apache-2.0
+- ManiSkill — Apache-2.0
+- GAPartNet — CC BY-NC 4.0，仅研究，不作为默认依赖或资产源

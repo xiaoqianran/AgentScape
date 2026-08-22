@@ -12,6 +12,11 @@ export class CompileQualityPass {
     if (context.enrichment?.error) {
       advisory.push({ code: 'ENRICHMENT_FAILED', message: `重型 Provider 失败，已保留本地 fallback：${context.enrichment.error}` });
     }
+    if (context.partProposal?.issues?.length) {
+      advisory.push({ code:'PART_PROPOSAL_INVALID', message:`Part Proposal 存在 ${context.partProposal.issues.length} 个结构错误，未提升为可执行 Part。` });
+    } else if (context.partProposal?.unpromoted?.length) {
+      advisory.push({ code:'PART_PROPOSAL_PARTIAL', message:`Part Proposal 中有 ${context.partProposal.unpromoted.length} 个 Part 缺少可执行条件。` });
+    }
     if (context.collision.quality === 'coarse') {
       advisory.push({ code: 'COLLIDER_COARSE', message: '当前仅有 AABB 碰撞代理。' });
     }

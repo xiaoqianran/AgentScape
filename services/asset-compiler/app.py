@@ -18,6 +18,11 @@ API_VERSION = "1"
 app = FastAPI(title="AgentScape Asset Compiler", version=API_VERSION)
 MAX_ASSET_BYTES = int(os.getenv("MAX_ASSET_BYTES", 100 * 1024 * 1024))
 MAX_REDIRECTS = 3
+MAX_URDF_BYTES = int(os.getenv('MAX_URDF_BYTES', 5 * 1024 * 1024))
+
+
+class UrdfProposalRequest(BaseModel):
+    url: str
 
 
 class CompileRequest(BaseModel):
@@ -40,7 +45,7 @@ def _assert_public_url(url: str) -> None:
             raise ValueError("拒绝访问私有、回环、链路本地或其他非公网地址")
 
 
-def _download(url: str) -> bytes:
+def _download(url: str, max_bytes: int = MAX_ASSET_BYTES) -> bytes:
     current = url
     for _ in range(MAX_REDIRECTS + 1):
         _assert_public_url(current)
@@ -53,18 +58,83 @@ def _download(url: str) -> bytes:
                 continue
             response.raise_for_status()
             declared = int(response.headers.get("content-length", "0") or 0)
-            if declared > MAX_ASSET_BYTES:
+            if declared > max_bytes:
                 raise ValueError("资产超过 MAX_ASSET_BYTES")
             chunks, total = [], 0
             for chunk in response.iter_content(chunk_size=1024 * 1024):
                 if not chunk:
                     continue
                 total += len(chunk)
-                if total > MAX_ASSET_BYTES:
+                if total > max_bytes:
                     raise ValueError("资产超过 MAX_ASSET_BYTES")
                 chunks.append(chunk)
             return b"".join(chunks)
     raise ValueError("重定向次数过多")
+
+
+def _urdf_part_proposal(urdf_bytes: bytes) -> dict[str, Any]:
+    from yourdfpy import URDF
+
+    model = URDF.load(
+        io.BytesIO(urdf_bytes),
+        build_scene_graph=False,
+        build_collision_scene_graph=False,
+        load_meshes=False,
+        load_collision_meshes=False,
+    )
+    joints = list(model.robot.joints)
+    by_child = {joint.child: joint for joint in joints}
+    movable = {"revolute", "prismatic", "continuous"}
+
+    def movable_parent(link_name: str) -> str:
+        current = link_name
+        while current in by_child:
+            joint = by_child[current]
+            if joint.type in movable:
+                return joint.child
+            current = joint.parent
+        return "$root"
+
+    parts = []
+    for joint in joints:
+        if joint.type == "fixed":
+            continue
+        axis = np.asarray(joint.axis if joint.axis is not None else [1, 0, 0], dtype=float)
+        norm = float(np.linalg.norm(axis))
+        if norm > 1e-12:
+            axis = axis / norm
+        limits = None
+        if joint.limit and joint.limit.lower is not None and joint.limit.upper is not None:
+            lower, upper = float(joint.limit.lower), float(joint.limit.upper)
+            if np.isfinite(lower) and np.isfinite(upper) and lower < upper:
+                limits = [lower, upper]
+        origin = np.asarray(joint.origin if joint.origin is not None else np.eye(4), dtype=float)
+        proposal_joint = {
+            "type": joint.type,
+            "axis": axis.round(9).tolist(),
+            "urdf": {
+                "name": joint.name,
+                "parentLink": joint.parent,
+                "childLink": joint.child,
+                "originMatrix": origin.round(9).tolist(),
+            },
+        }
+        if limits is not None:
+            proposal_joint["limits"] = limits
+        parts.append({
+            "id": joint.child,
+            "node": joint.child,
+            "parent": movable_parent(joint.parent),
+            "joint": proposal_joint,
+            "confidence": 1.0,
+        })
+
+    return {
+        "version": 1,
+        "source": "urdf/yourdfpy",
+        "confidence": 1.0,
+        "parts": parts,
+    }
 
 
 def _scene_mesh(glb: bytes) -> trimesh.Trimesh:
@@ -106,6 +176,14 @@ def _coacd_colliders(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
 @app.get("/health")
 def health():
     return {"ok": True, "service": "agentscape-asset-compiler", "apiVersion": API_VERSION}
+
+
+@app.post("/proposal/urdf")
+def proposal_from_urdf(req: UrdfProposalRequest):
+    try:
+        return {"partProposal": _urdf_part_proposal(_download(req.url, MAX_URDF_BYTES))}
+    except Exception as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.post("/compile")

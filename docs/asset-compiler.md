@@ -254,3 +254,74 @@ ARTICULATION_UNVERIFIED
 ```
 
 Verifier 通过后会移除该 advisory；如果它是最后一个 advisory，资产可以从 `provisional` 晋升为 `ready`。验证失败则写入 `ARTICULATION_VERIFICATION_FAILED`，不会伪装成 ready。
+
+## Part Proposal v1
+
+1.3 开始，Parts/Joint 的来源与 Runtime Manifest 解耦。外部模型、URDF/SAPIEN 数据、人工标注或未来的 Part Segmenter 都先输出统一的 `Part Proposal v1`，Compiler 再判断哪些 Part 可以提升为可执行 Runtime Part。
+
+```json
+{
+  "version": 1,
+  "source": "provider-name",
+  "confidence": 0.9,
+  "parts": [
+    {
+      "id": "door",
+      "node": "Door",
+      "parent": "$root",
+      "semantic": "door",
+      "joint": {
+        "type": "revolute",
+        "axis": [0, 1, 0],
+        "limits": [-1.2, 0]
+      }
+    }
+  ]
+}
+```
+
+Proposal 与 executable Part 是两个概念。`PartProposalPass` 会验证：
+
+- Proposal 版本和 `parts[]` 结构。
+- `id` 唯一。
+- `node` 必须真实存在于当前 GLB。
+- `parent` 必须存在或为 `$root`。
+- Part 层级不得成环。
+- 声明的 Part parent 必须与真实 GLB 节点祖先关系一致；Physics parent 与视觉 hierarchy 不允许分叉。
+
+只有同时具备可支持的 joint、有效 axis/limits、collider、actions 和每个 action 的明确 target，才会提升到 `manifest.parts`。结构有效但条件不完整的 Part 会记录在 `unpromoted[]`，不会成为 Agent Action。
+
+如果可执行 child 的 parent 没有可执行刚体，child 也不会被提升；这样避免产生“Manifest 有 parent 名称，但 Rapier 中没有 parent body”的伪层级。
+
+## URDF → Part Proposal
+
+可选 Compiler 服务新增 `/proposal/urdf`。服务直接复用 MIT 许可的 `yourdfpy`，以 `load_meshes=False`、`build_scene_graph=False` 方式只解析 URDF 机械结构，不重新实现 XML/URDF parser。
+
+它提取：
+
+- parent / child link
+- joint type
+- normalized axis
+- limits
+- URDF joint origin matrix
+- fixed-link chain 折叠后的最近可动 parent
+
+它**不会**从 link/joint 名称猜 `open / close`，也不会生成 collider、mass 或 action target。因此纯 URDF Proposal 默认是 report-only；后续 Provider 或人工步骤补齐物理与动作契约后，Compiler 才能提升。
+
+Rapier 的 revolute/prismatic axis 与 anchors 都要求在刚体局部空间表达；URDF joint origin 可能带旋转，因此当前 Adapter 保留完整 `originMatrix`，不会未经验证就把 URDF joint frame 猜成 AgentScape 的 `parentAnchor / childAnchor`。
+
+## 多级 Part / Link
+
+`manifest.parts[*].parent` 现在是 Runtime 契约的一部分。PhysicsSystem 会按拓扑顺序创建刚体与 joint：
+
+```text
+$root body
+   ↓
+door body
+   ↓
+handle/slider body
+   ↓
+child body ...
+```
+
+Three.js 回写也不再假定所有 Part 都直接挂在 Root，而是根据 `node.parent` 的真实世界变换，把 Rapier 世界位姿转换回正确的局部 position/quaternion。

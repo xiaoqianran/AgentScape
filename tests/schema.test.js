@@ -16,8 +16,16 @@ describe('asset manifest validation', () => {
 
   it('requires articulated top-level actions to map to explicit executable part targets', () => {
     expect(() => validateAssetManifest({ id:'cab', type:'cabinet', source:{kind:'builtin'}, actions:['open'] })).toThrow(/executable part target/);
-    const manifest = { id:'cab', type:'cabinet', source:{kind:'builtin'}, actions:['open','close'], parts:{ panel:{ node:'Panel', actions:['open','close'], targets:{open:-1,close:0}, physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.1,.1,.1]}]}, joint:{type:'revolute',axis:[0,1,0],limits:[-1,0]} } } };
+    const manifest = { id:'cab', type:'cabinet', source:{kind:'builtin'}, actions:['open','close'], parts:{ panel:{ node:'Panel', actions:['open','close'], targets:{open:-1,close:0}, physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.1,.1,.1]}]}, joint:{type:'revolute',axis:[0,1,0],limits:[-1,0],parentAnchor:[0,0,0],childAnchor:[0,0,0]} } } };
     expect(() => validateAssetManifest(manifest)).not.toThrow();
+  });
+
+
+  it('requires explicit local anchors and a non-zero joint axis', () => {
+    const base={id:'x',type:'x',source:{kind:'builtin'},actions:[],parts:{p:{node:'P',physics:{body:'dynamic'},joint:{type:'revolute',axis:[0,0,0],limits:[-1,1]}}}};
+    expect(() => validateAssetManifest(base)).toThrow(/non-zero finite axis/);
+    const missingAnchor=structuredClone(base); missingAnchor.parts.p.joint.axis=[0,1,0];
+    expect(() => validateAssetManifest(missingAnchor)).toThrow(/parentAnchor/);
   });
 
   it('rejects invalid joint type', () => {

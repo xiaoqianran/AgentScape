@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat/rapier.es.js';
+import { orderParts, ROOT_PART } from '../../assets/parts.js';
 
 const vec = (a = [0, 0, 0]) => ({ x: a[0], y: a[1], z: a[2] });
 
@@ -14,6 +15,9 @@ export class PhysicsSystem {
     this.rootWorldPosition = new THREE.Vector3();
     this.partWorldPosition = new THREE.Vector3();
     this.partLocalPosition = new THREE.Vector3();
+    this.parentWorldPosition = new THREE.Vector3();
+    this.parentWorldRotation = new THREE.Quaternion();
+    this.inverseParentWorldRotation = new THREE.Quaternion();
   }
 
   async init() {
@@ -56,30 +60,41 @@ export class PhysicsSystem {
     const createdBodies = [];
     try {
       const worldPos = new THREE.Vector3();
+      const worldRot = new THREE.Quaternion();
       object.getWorldPosition(worldPos);
+      object.getWorldQuaternion(worldRot);
       const body = this.world.createRigidBody(this.bodyDesc(manifest.physics?.body || 'fixed', worldPos));
+      body.setRotation({ x:worldRot.x, y:worldRot.y, z:worldRot.z, w:worldRot.w }, true);
       createdBodies.push(body);
       this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass, manifest.physics?.friction);
 
-      const entry = { body, root: object, parts: new Map(), lastPosition: worldPos.clone(), lastRotation: object.quaternion.clone() };
-      for (const [partName, part] of Object.entries(manifest.parts || {})) {
+      const entry = { body, root: object, parts: new Map(), lastPosition: worldPos.clone(), lastRotation: worldRot.clone() };
+      const bodies = new Map([[ROOT_PART, body]]);
+      for (const [partName, part] of orderParts(manifest.parts || {})) {
         if (!part.physics || !part.joint) continue;
         const node = object.getObjectByName(part.node);
         if (!node) continue;
+        const parentName = part.parent || ROOT_PART;
+        const parentBody = bodies.get(parentName);
+        if (!parentBody) throw new Error(`Part parent body not available: ${partName} -> ${parentName}`);
 
         const partWorld = new THREE.Vector3();
+        const partRotation = new THREE.Quaternion();
         node.getWorldPosition(partWorld);
+        node.getWorldQuaternion(partRotation);
         const child = this.world.createRigidBody(this.bodyDesc(part.physics.body || 'dynamic', partWorld));
+        child.setRotation({ x:partRotation.x, y:partRotation.y, z:partRotation.z, w:partRotation.w }, true);
         createdBodies.push(child);
         this.addColliders(child, part.physics.colliders, part.physics.mass, part.physics.friction);
 
         const data = part.joint.type === 'revolute'
           ? RAPIER.JointData.revolute(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis))
           : RAPIER.JointData.prismatic(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis));
-        const joint = this.world.createImpulseJoint(data, body, child, true);
+        const joint = this.world.createImpulseJoint(data, parentBody, child, true);
         joint.setContactsEnabled(false);
         if (part.joint.limits) joint.setLimits(part.joint.limits[0], part.joint.limits[1]);
-        entry.parts.set(partName, { body: child, joint, node, spec: part, lastLocalRotation: node.quaternion.clone(), lastLocalPosition: node.position.clone() });
+        bodies.set(partName, child);
+        entry.parts.set(partName, { body: child, joint, node, spec: part, parentName, lastLocalRotation: node.quaternion.clone(), lastLocalPosition: node.position.clone() });
       }
 
       this.entries.set(id, entry);
@@ -214,19 +229,27 @@ export class PhysicsSystem {
         entry.lastRotation.set(q.x, q.y, q.z, q.w);
       }
 
-      record.object.getWorldPosition(this.rootWorldPosition);
-      record.object.getWorldQuaternion(this.rootRotation);
-      this.inverseRootRotation.copy(this.rootRotation).invert();
       for (const part of entry.parts.values()) {
         const q = part.body.rotation();
         const p = part.body.translation();
         this.partWorldRotation.set(q.x, q.y, q.z, q.w);
-        this.partLocalRotation.copy(this.inverseRootRotation).multiply(this.partWorldRotation);
         this.partWorldPosition.set(p.x, p.y, p.z);
-        this.partLocalPosition.copy(this.partWorldPosition).sub(this.rootWorldPosition).applyQuaternion(this.inverseRootRotation);
+        const parentNode = part.node.parent;
+        if (parentNode) {
+          parentNode.updateWorldMatrix(true, false);
+          parentNode.getWorldPosition(this.parentWorldPosition);
+          parentNode.getWorldQuaternion(this.parentWorldRotation);
+          this.inverseParentWorldRotation.copy(this.parentWorldRotation).invert();
+          this.partLocalRotation.copy(this.inverseParentWorldRotation).multiply(this.partWorldRotation);
+          this.partLocalPosition.copy(this.partWorldPosition).sub(this.parentWorldPosition).applyQuaternion(this.inverseParentWorldRotation);
+        } else {
+          this.partLocalRotation.copy(this.partWorldRotation);
+          this.partLocalPosition.copy(this.partWorldPosition);
+        }
         if (1 - Math.abs(part.lastLocalRotation.dot(this.partLocalRotation)) > 1e-10 || part.lastLocalPosition.distanceToSquared(this.partLocalPosition) > 1e-10) changed = true;
         part.node.quaternion.copy(this.partLocalRotation);
         part.node.position.copy(this.partLocalPosition);
+        part.node.updateMatrixWorld(false);
         part.lastLocalRotation.copy(this.partLocalRotation);
         part.lastLocalPosition.copy(this.partLocalPosition);
       }
