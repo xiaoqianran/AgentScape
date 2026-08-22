@@ -15,7 +15,7 @@ async function main() {
     <main class="shell">
       <header class="brandbar">
         <div><strong>AgentScape</strong><span>Build interactive 3D worlds for agents.</span></div>
-        <div class="status"><i></i> V1.0 Agent-Native Runtime</div>
+        <div class="status"><i></i> Agent-Native Runtime</div>
       </header>
       <section class="workspace">
         <div id="viewport" class="viewport">

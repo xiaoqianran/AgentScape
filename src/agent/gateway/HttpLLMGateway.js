@@ -1,32 +1,8 @@
-export class HttpLLMGateway {
-  constructor({ endpoint, fetchImpl = fetch, timeoutMs = 30000 } = {}) {
-    this.endpoint = endpoint;
-    this.fetchImpl = fetchImpl;
-    this.timeoutMs = timeoutMs;
-  }
+import { JsonGateway } from '../../core/JsonGateway.js';
 
-  setEndpoint(endpoint) { this.endpoint = String(endpoint || '').trim(); }
-
-  isConfigured() { return Boolean(this.endpoint); }
-
-  async complete(request) {
-    if (!this.endpoint) throw new Error('LLM gateway endpoint is not configured');
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      const response = await this.fetchImpl(this.endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(request),
-        signal: controller.signal
-      });
-      if (!response.ok) throw new Error(`LLM gateway HTTP ${response.status}`);
-      const payload = await response.json();
-      return normalizeGatewayResponse(payload);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
+export class HttpLLMGateway extends JsonGateway {
+  constructor(options = {}) { super({ timeoutMs: 30000, label: 'LLM gateway', ...options }); }
+  async complete(request) { return normalizeGatewayResponse(await this.post(request)); }
 }
 
 export function normalizeGatewayResponse(payload = {}) {

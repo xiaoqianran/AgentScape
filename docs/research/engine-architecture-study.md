@@ -1,38 +1,38 @@
-# AgentScape engine architecture study
+# 引擎架构研究记录
 
-This document records the architecture review that led to the AgentScape 1.0 engine core. The referenced repositories were cloned locally and indexed with CodeGraph; the implementation in AgentScape is a clean-room JavaScript design unless noted otherwise.
+这份文档记录 AgentScape 1.x 架构收敛前实际阅读过的项目，以及最终保留的原则。相关仓库均在本地拉取并通过 CodeGraph 追踪核心调用路径。
 
-## Repositories studied
+## 研究对象
 
-| Project | License | What AgentScape learns from it |
+| 项目 | 许可证 | 主要借鉴 |
 | --- | --- | --- |
-| HorizonRobotics/EmbodiedGen | Apache-2.0 | simulation-ready asset pipeline, collision/physics preparation, provider/backend separation, exported assets |
-| nepfaff/scenesmith | MIT | staged world-generation agents, asset manager/router, retrieval-vs-generation backends, collision generation as a service |
-| generalholography/gizmo | Apache-2.0 | editor commands, atomic command batches, shared headless/editor engine boundary, schema registries |
-| syndicalt/limina | AGPL-3.0 | skill registry concepts, permission boundary, causal trace/replay design; **ideas only, no code copied** |
-| wrc356/Auto-Threejs | no license file found | compile/verify/check/repair-guard concepts; **ideas only, no code copied** |
+| HorizonRobotics/EmbodiedGen | Apache-2.0 | simulation-ready 资产流水线、生成后端解耦 |
+| nepfaff/scenesmith | MIT | 分阶段场景构建、资产检索与生成分离 |
+| generalholography/gizmo | Apache-2.0 | Editor/Headless 共用命令边界、原子批处理 |
+| syndicalt/limina | AGPL-3.0 | Skill、权限、Trace/Replay 思想；只学习思想 |
+| wrc356/Auto-Threejs | 未发现许可证 | compile/verify/repair guard 思想；不复制源码 |
 
-## 1. Capability boundary: Skill Registry
+## 收敛后的原则
 
-A mature agent engine should not expose arbitrary Three.js mutations. Every capability is a named skill with metadata, validation, permissions, execution and trace emission.
+### 1. Skill 是唯一能力边界
+
+LLM、编辑器和未来 MCP 不直接操作 Three.js。能力由 SkillRegistry 注册，名称、描述、输入 Schema、权限和 Handler 在同一个定义里维护。
 
 ```text
-LLM / Human / future MCP
-          |
-          v
-     SkillRegistry
-       /   |    \
- validate policy execute
-          |
-          v
-     WorldRuntime
+Human / LLM / MCP
+       ↓
+  SkillRegistry
+   ↓   ↓   ↓
+Schema Policy Trace
+       ↓
+  WorldRuntime
 ```
 
-This is the architectural replacement for the early `AgentTools` switch statement. `AgentTools` remains as a compatibility facade, but actual execution happens through `SkillRegistry`.
+早期单独维护的 `toolCatalog.js` 已删除，避免工具 Schema 和实际执行逻辑漂移。
 
-## 2. Policy before mutation
+### 2. 权限在执行前判断
 
-Every skill declares permissions such as:
+权限示例：
 
 - `world.read`
 - `world.write`
@@ -41,103 +41,53 @@ Every skill declares permissions such as:
 - `spatial.read`
 - `physics.read`
 
-Profiles are evaluated before handlers run. This makes the boundary usable later for autonomous agents, human approval gates and MCP clients without teaching the renderer about security.
+PolicyEngine 不参与渲染和物理，它只决定某个 Actor 是否允许执行 Skill。
 
-## 3. Auditable trace
+### 3. Trace 必须有界
 
-Every policy decision, skill result and pipeline stage emits an event into an integrity-linked trace. The current browser implementation uses a deterministic lightweight hash chain for accidental/tamper detection; it is not presented as cryptographic non-repudiation.
+审计不能反过来拖垮运行时。TraceRecorder 会：
 
-The important design rule is causal structure:
+- 限制保留事件数量。
+- 对二进制只记录类型和字节数。
+- 截断超长字符串、数组和深层对象。
+- 保留裁剪窗口前的哈希锚点，使长时间运行后仍能验证链一致性。
 
-```text
-policy.decision
-      |
-      v
-skill.executed / skill.failed
-      |
-      v
-world mutation / pipeline stages
-```
+当前哈希链用于完整性检测，不宣称具备密码学不可抵赖性。
 
-## 4. Transactions and batches
+### 4. 多步修改需要事务
 
-AI edits are frequently multi-step. Treating each primitive as an unrelated undo entry makes recovery fragile. `executeBatch` runs registered skills against one pre-edit world snapshot. If any nested operation fails, the entire batch restores the snapshot.
+`executeBatch` 在执行前保存世界快照。任一内部 Skill 失败，恢复快照；全部成功才作为一个历史操作提交。
 
-```text
-snapshot
-  |
-  +-> call A -- ok
-  +-> call B -- ok
-  +-> call C -- fail
-  |
-restore snapshot
-```
+### 5. 世界构建采用阶段流水线
 
-## 5. Staged world pipeline
-
-SceneSmith demonstrates why world construction should be staged rather than one giant prompt. AgentScape now has a generic `PipelineEngine`; the default world pipeline is:
+默认阶段：
 
 ```text
 resolve_assets
-     ↓
+      ↓
 instantiate
-     ↓
+      ↓
 apply_relations
-     ↓
+      ↓
 validate
-     ↓
+      ↓
 repair
-     ↓
+      ↓
 finalize
 ```
 
-Stages can be run independently, making failures observable and allowing future replacement of each stage by a stronger backend.
+每个阶段独立可替换，不把资产解析、布局和校验塞进一个巨大 Prompt。
 
-## 6. Asset backends, not one generator
+### 6. Validation 与 Repair 分离
 
-SceneSmith and EmbodiedGen both make backend separation explicit. AgentScape follows the same principle:
+Validator 只报告确定性事实；Repair 才修改世界。修复后重新校验，如果硬错误数量增加则恢复之前的世界。
 
-```text
-AssetLibrary
-  ├─ reusable builtin/GLB assets
-  ├─ HTTP Asset Generator
-  └─ external adapters
-       └─ EmbodiedGenAdapter
-```
+### 7. 浏览器 Runtime 不复制机器人模拟器
 
-The runtime never depends on Hunyuan3D/TRELLIS/SAM3D directly. Those systems produce assets; AgentScape consumes normalized manifests.
-
-## 7. Compile / validate / repair loop
-
-Auto-Threejs separates scene compilation/verification/physics checks and rejects repairs that make hard findings worse. AgentScape adopts that **principle**, not its unlicensed code.
-
-Current deterministic checks include:
-
-- below-ground geometry
-- object overlap
-- unsupported/floating advisory
-- inverse semantic relation consistency
-
-The repair engine can lift below-ground objects and attempt bounded overlap separation. A repair is rejected and the world restored if hard findings increase.
-
-Future checks should add articulated joint sweeps, stability/toppling, collider coverage, navigability and task execution tests.
-
-## 8. EmbodiedGen interoperability
-
-`EmbodiedGenAdapter` is deliberately loose at the provider boundary and strict at the AgentScape manifest boundary. It maps browser-reachable GLB, dimensions, mass, friction and affordances into a runtime asset manifest. The adapter does not import EmbodiedGen Python runtime into the browser.
-
-## 9. Why AgentScape stays browser-native
-
-AgentScape should not become a smaller reimplementation of Isaac/MuJoCo/SAPIEN. Its differentiated execution target remains:
+AgentScape 的执行目标保持为：
 
 ```text
-GLB-first assets
-       +
-Three.js/Web browser
-       +
-Rapier physics
-       +
-Agent skills / semantic spatial model
+GLB + Three.js + Rapier + Spatial Skills
 ```
 
-Heavy robotics/generation systems are upstream backends; AgentScape is the interactive spatial-agent runtime and compiler target.
+EmbodiedGen、Isaac、MuJoCo 等更重系统应作为上游资产/仿真后端，而不是被重新实现进浏览器。

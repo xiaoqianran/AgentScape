@@ -1,43 +1,50 @@
-# AgentScape Asset Generator contract
+# Asset Generator Gateway 协议
 
-AgentScape searches reusable assets before generating anything. A generator is only used when no suitable asset exists.
+AgentScape 的原则是**先搜索已有资产，再生成缺失资产**。生成器运行在服务器侧，浏览器不保存模型供应商密钥。
 
-## Request
+## 请求
 
-`POST <asset-generator-endpoint>`
+```http
+POST <asset-generator-endpoint>
+Content-Type: application/json
+```
 
 ```json
 {
-  "prompt": "modern coffee machine"
+  "prompt": "现代咖啡机"
 }
 ```
 
-## Response
+## 响应
 
-The service returns a runtime-registerable AgentScape manifest. The GLB URL must be reachable by the browser and allow CORS from the AgentScape origin.
+服务返回可直接注册的 AgentScape Manifest：
 
 ```json
 {
   "manifest": {
     "id": "coffee_machine_a1b2",
     "type": "coffee_machine",
-    "label": "Modern Coffee Machine",
-    "tags": ["coffee", "appliance", "machine"],
+    "label": "现代咖啡机",
+    "tags": ["coffee", "appliance"],
     "source": {
       "kind": "glb",
-      "url": "https://assets.example.com/coffee_machine_a1b2.glb"
+      "url": "https://assets.example.com/coffee_machine.glb"
     },
     "actions": ["move"],
     "physics": {
       "body": "fixed",
       "colliders": [
-        { "shape": "box", "halfExtents": [0.2, 0.25, 0.2], "translation": [0, 0.25, 0] }
+        {
+          "shape": "box",
+          "halfExtents": [0.2, 0.25, 0.2],
+          "translation": [0, 0.25, 0]
+        }
       ]
     }
   }
 }
 ```
 
-Generated assets are validated, registered in the in-memory `AssetLibrary`, and immediately become available to `searchAssets` and `spawnAsset` without changing the runtime.
+GLB URL 必须能被浏览器访问，并正确配置 CORS。Manifest 会先通过 Schema 校验，再注册进 AssetLibrary。
 
-Future generator backends can wrap Hunyuan3D, TRELLIS, SAM3D, Blender automation, or another 3D generation pipeline while preserving this contract.
+后端可以封装 Hunyuan3D、TRELLIS、Blender 自动化或其他生成系统；AgentScape Runtime 不依赖具体模型。

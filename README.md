@@ -1,274 +1,143 @@
 # AgentScape
 
-**Build interactive 3D worlds for agents.**
+> **为 AI Agent 构建可交互的浏览器 3D 世界。**
 
-AgentScape is an experimental Web3D runtime where an AI agent can inspect and manipulate an interactive 3D scene through a small, explicit tool API.
+AgentScape 是一个以 GLB 为核心、运行在浏览器中的空间 Agent Runtime。它把 Three.js、Rapier、空间语义、Agent Skill、资产编译和世界持久化放在同一条稳定边界后面，使人类编辑器和 AI Agent 操作同一个真实世界状态。
 
-## V1.0
+## 项目目标
 
-The current version intentionally stays focused:
-
-- Three.js rendering runtime
-- Rapier rigid-body physics for floor, furniture and movable props
-- three-mesh-bvh accelerated spatial queries
-- asset behavior metadata (`GLB + behavior` model)
-- agent tool interface: spawn / move / pickup / drop / place / open / close
-- interactive demo scene with a table, physics-enabled cup and articulated GLB cabinet
-- visual editor: click selection, move/rotate gizmos, inspector, duplicate and delete
-- Human Editor and AI Agent share the same runtime command boundary
-- local deterministic demo planner, designed to be replaced by any tool-calling LLM
-- `GLTFLoader`-based path ready for real `.glb` assets
-
-## Architecture
+AgentScape 不训练新的 3D 基础模型，也不重新实现 Isaac Sim、MuJoCo 或 EmbodiedGen。重型生成、语义理解和几何处理作为上游后端；AgentScape 负责把结果编译成浏览器中可理解、可操作、可验证的 Agent Asset。
 
 ```text
-User / LLM
-    |
-    v
-ToolCallingAgent           <- iterative plan / act / observe loop
-    |
-    v
-AgentTools                 <- stable capability boundary
-    |
-    v
-WorldRuntime               <- orchestration only
-    |
-    +-- AssetManager       <- builtin / GLB / future generated assets
-    +-- ObjectStore        <- runtime object lifecycle
-    +-- InteractionSystem  <- move / pickup / place / open / close
-    +-- PhysicsSystem      <- Rapier integration
-    +-- EventBus           <- observability and loose coupling
-    |
-    +-- Three.js           rendering
-    +-- three-mesh-bvh     spatial queries
+GLB / 生成资产 / 外部数据
+          ↓
+ Agent-Ready Asset Compiler
+          ↓
+      Asset Manifest
+          ↓
+ Three.js + Rapier Runtime
+          ↓
+ Spatial / Semantic World
+          ↓
+       SkillRegistry
+          ↓
+ Human / LLM / future MCP
 ```
 
-Assets are described by validated manifests instead of hard-coding behavior into the renderer:
+## 当前能力
 
-```js
-{
-  id: 'cabinet',
-  type: 'cabinet',
-  source: { kind: 'glb', url: '/assets/cabinet.glb' },
-  actions: ['open', 'close', 'move'],
-  parts: {
-    door: {
-      node: 'Door_Hinge',
-      joint: { type: 'revolute', axis: [0, 1, 0], limits: [-1.35, 0] }
-    }
-  }
-}
-```
+- Three.js Web3D 运行时与 Rapier 物理。
+- GLB 加载、节点校验、关节和物理电机。
+- 可视化编辑：选择、移动、旋转、复制、删除。
+- 空间查询：Bounds、Raycast、Nearby、碰撞、支撑面、空位搜索。
+- 语义 Scene Graph：`ON / SUPPORTS / NEAR / INSIDE / CONTAINS`。
+- Skill Registry：能力定义、参数 Schema、权限、执行和审计使用同一事实源。
+- Tool-calling Agent：支持多轮 plan → act → observe。
+- 原子批处理、Undo/Redo、Autosave、场景导入导出。
+- World Validator 与受保护的自动修复。
+- Asset Library、资产生成 Gateway、EmbodiedGen Adapter。
+- Agent-Ready Asset Compiler：glTF 检查、几何分析、语义/关节候选、碰撞代理、优化、持久化。
+- 可选 CoACD 后端生成凸分解碰撞体。
 
-This separation is deliberate: replacing the demo planner with an LLM, replacing a builtin primitive with a Blender GLB, or adding an asset generator should not require rewriting the world runtime.
+## 核心设计原则
 
-### Stability gates
+**单一事实源。** Skill 的名称、描述、参数 Schema、权限和 Handler 只在 Skill Registry 注册一次；LLM 工具定义和 AgentTools 都由 Registry 导出。
 
-Every push to `main` must pass:
+**Runtime 是权威状态。** 编辑器和 Agent 不维护第二份场景模型，都通过同一个 WorldRuntime 修改世界。
 
-```bash
-npm run check
-```
+**资产生成与运行时解耦。** Hunyuan3D、TRELLIS、EmbodiedGen 等可以作为上游后端，但运行时只消费标准化 Manifest 和 GLB。
 
-That executes the unit test suite and a production build before GitHub Pages deployment.
+**先确定性检查，再使用模型。** Bounds、碰撞、支撑、GLB 结构等能用几何方法解决的问题不交给 LLM。
 
-## Run
+**重型能力可替换。** CoACD、VLM 语义和关节推断通过 Provider 接口接入，浏览器始终保留明确的轻量 fallback。
+
+## 快速开始
+
+需要 Node.js 20。
 
 ```bash
 npm install
 npm run dev
 ```
 
-Production build:
+完整检查：
 
 ```bash
-npm run build
+npm run check
 ```
 
-## Next milestone
+它依次执行 GLB 资产校验、Vitest 和生产构建。
 
-1. Import real Blender-exported GLB assets.
-2. Store behavior metadata in glTF `extras` / sidecar JSON.
-3. Upgrade articulated parts to Rapier revolute/prismatic joints.
-4. Add collision-aware placement and support-surface queries.
-5. Add a real LLM adapter using the existing `AgentTools` contract.
-6. Add an asset resolver: search existing assets first, generate missing assets second.
+## Asset Compiler
 
-## License
-
-MIT
-
-## Blender / GLB authoring contract
-
-V0.3 loads a real GLB asset from `public/assets/cabinet.glb`. The demo GLB follows the same node contract expected from Blender:
+页面可直接上传 `.glb` 或提供 GLB URL。Compiler 流水线为：
 
 ```text
-Cabinet scene
-├── Body
-└── doorHinge          <- pivot/origin placed on the hinge axis
-    └── Door
+Inspect
+  ↓
+Geometry
+  ↓
+Semantic heuristic
+  ↓
+Articulation candidates
+  ↓
+Collider fallback / remote enrichment
+  ↓
+Optimize
+  ↓
+Manifest
+  ↓
+IndexedDB
 ```
 
-For a replacement Blender asset:
+详见 [`docs/asset-compiler.md`](docs/asset-compiler.md)。
 
-1. Model moving parts as separate objects.
-2. Put the hinge/pivot origin on the physical rotation axis.
-3. Preserve node names on glTF export (`Body`, `doorHinge`, `Door`).
-4. Export as glTF 2.0 binary (`.glb`).
-5. Register the asset in `src/assets/manifests/index.js`.
-6. Run `npm run assets:validate` before committing.
+## 外部 Gateway
 
-The manifest owns behavior and physics. The GLB owns visuals and hierarchy. This keeps art assets replaceable without changing Agent tools or world logic.
+GitHub Pages 是静态前端，因此模型密钥和重型服务凭据不应存进浏览器。
 
-## Editor controls
+- LLM Gateway：[`docs/llm-gateway.md`](docs/llm-gateway.md)
+- Asset Generator：[`docs/asset-generator.md`](docs/asset-generator.md)
+- 重型 Compiler：[`services/asset-compiler/README.md`](services/asset-compiler/README.md)
 
-- Click an object to select it.
-- `W` switches to translate mode.
-- `E` switches to rotate mode.
-- `Delete` removes the selected object.
-- The top toolbar can duplicate an object.
-- Inspector action buttons call the same `AgentTools` used by an AI agent.
+## Blender / GLB 约定
 
-The editor never edits an independent copy of the scene. Human and agent operations mutate the same `WorldRuntime`, so future undo/redo, persistence, multiplayer, and LLM planning can be built around one authoritative world state.
+对于有关节的资产：
 
-## Spatial intelligence
+- 可动部件应是独立节点。
+- 旋转节点的原点应放在真实转轴上。
+- 节点名称应稳定，避免导出后随机变化。
+- 推荐导出 glTF 2.0 Binary (`.glb`)。
+- 行为和物理由 Manifest 描述，GLB 主要负责视觉和层级。
 
-V0.5 adds a dedicated `SpatialSystem` used by both the editor and agents:
+内置 GLB 可运行：
 
-- `getBounds(id)`
-- `findNearby(id, radius)`
-- `raycast(origin, direction)`
-- `isColliding(id)`
-- `findSupportSurface(targetId)`
-- `findFreeSpace(id, targetId)`
-
-`place(id, targetId)` no longer uses a hard-coded offset. It queries the target support surface, measures the object bounds, searches candidate positions, rejects collisions, then hands the chosen pose to the physics system.
-
-## Tool-calling agent
-
-V0.6 replaces the keyword-only demo agent with a real iterative agent loop:
-
-```text
-User goal
-   ↓
-LLM Gateway
-   ↓
-Tool calls
-   ↓
-AgentTools
-   ↓
-WorldRuntime
-   ↓
-Tool results
-   └────────→ LLM Gateway (repeat)
+```bash
+npm run assets:validate
 ```
 
-The loop is capped at 8 planning steps and feeds tool errors back to the model as structured results, so a planner can recover instead of crashing the scene.
+检查 Manifest 所需节点是否真实存在。
 
-Because GitHub Pages is a static frontend, AgentScape deliberately does **not** collect or persist model provider API keys. Configure a server-side Gateway URL in the Agent Console. The browser stores only that URL. See [`docs/llm-gateway.md`](docs/llm-gateway.md) for the provider-neutral request/response contract.
+## 架构研究
 
-Without a Gateway URL, AgentScape automatically uses a deterministic local fallback planner so the public demo remains usable.
+当前架构是在实际拉取并用 CodeGraph 阅读多个成熟仓库后收敛的，而不是从空白重新发明：
 
-## Asset library and generation
+- EmbodiedGen
+- SceneSmith
+- Gizmo
+- Limina
+- Auto-Threejs
+- ObjaTHOR
+- CoACD
+- glTF-Transform
+- Articulate-Anything
 
-V0.7 adds a reusable asset-resolution layer between the agent and the world:
+研究结论见：
 
-```text
-Agent needs "chair"
-       ↓
-searchAssets("chair")
-       ↓
-   found? ── yes ──→ spawnAsset("chair")
-       │
-       no
-       ↓
-generateAsset("chair")
-       ↓
-Asset Generator Gateway
-       ↓
-GLB URL + validated manifest
-       ↓
-runtime registration
-       ↓
-spawnAsset(...)
-```
+- [`docs/research/engine-architecture-study.md`](docs/research/engine-architecture-study.md)
+- [`docs/research/asset-compiler-study.md`](docs/research/asset-compiler-study.md)
+- [`THIRD_PARTY.md`](THIRD_PARTY.md)
 
-The built-in library now supports metadata such as labels, tags and aliases, including multilingual search terms. `chair`, `椅子`, and `mug` can resolve reusable assets without involving a model.
+## 当前边界
 
-The public Pages demo includes an Asset Library browser and a configurable Asset Generator endpoint. API/model credentials stay on the generator server; AgentScape only stores the endpoint URL. See [`docs/asset-generator.md`](docs/asset-generator.md).
-
-## Scene persistence
-
-V0.8 introduces a versioned world format (`agentscape.scene`, schema version 1). The editor can now save to browser storage, restore a previous world, export a portable JSON file, and import it later.
-
-A scene stores:
-
-- object ids and asset references
-- position, quaternion and scale
-- semantic interaction state such as an open/closed cabinet door
-- GLB manifests used by the scene, including runtime-generated assets
-- camera position and orbit target
-
-Built-in primitive manifests are not duplicated into the scene file; external/generated GLB manifests are embedded so the world can resolve those assets again on import. The format is explicitly versioned to support migrations as AgentScape evolves.
-
-## History, undo/redo and autosave
-
-V0.9 makes world mutations reversible and auditable. Agent tool mutations and Human Editor mutations record versioned scene snapshots through a shared `CommandHistory`.
-
-- Undo / Redo toolbar controls
-- `Ctrl/Cmd + Z` to undo
-- `Shift + Ctrl/Cmd + Z` or `Ctrl/Cmd + Y` to redo
-- transform drags are recorded as one command, not hundreds of intermediate frames
-- Agent tool mutations are labeled `agent:<tool-name>` in history
-- editor mutations are labeled `editor:<operation>`
-- no-op operations are ignored
-- redo history is cleared after a new branch of edits
-- debounced browser autosave after committed history changes
-- autosave is restored automatically on startup when available
-
-History restoration reuses the same versioned scene serializer as manual Save/Load, so Undo/Redo does not maintain a second, divergent world representation.
-
-## Semantic scene graph
-
-V0.10 adds a derived semantic world model on top of geometry. `SceneGraph` turns spatial facts into relations that are easier for an agent to reason about:
-
-```text
-cup_01      ON        table_01
-table_01    SUPPORTS  cup_01
-cup_01      NEAR      cabinet_01
-item_01     INSIDE    cabinet_01
-cabinet_01  CONTAINS  item_01
-```
-
-New agent tools:
-
-- `listRelations({ subject?, predicate?, object? })`
-- `describeObjectRelations(id)`
-
-Relations are **derived from authoritative geometry**, not manually maintained as a second world state. The graph rebuild caches bounds and support surfaces once per update, keeping relation inference quadratic in object count rather than repeatedly recalculating geometry in nested loops.
-
-`scene.json` includes the currently derived relations for inspection/export, but import recomputes them from restored geometry so stale relations cannot override the world.
-
-V0.10 also fixes support-surface transforms for moved Blender/GLB assets and placement now respects assets whose origin is at the bottom instead of assuming every model origin is at its geometric center.
-
-## Agent-native engine core
-
-AgentScape 1.0 replaces the original direct tool switch with a registry-driven engine core:
-
-- versioned `SkillRegistry`
-- capability permissions and profiles
-- integrity-linked execution trace
-- atomic multi-skill batches with rollback
-- staged world-building pipeline
-- deterministic world validator
-- guarded auto-repair
-- EmbodiedGen-style asset adapter
-- existing Three.js/Rapier/GLB editor, scene graph, persistence and undo/redo remain underneath the same boundary
-
-The architecture is based on a CodeGraph-assisted study of EmbodiedGen, SceneSmith, Gizmo, Limina and Auto-Threejs. See [`docs/research/engine-architecture-study.md`](docs/research/engine-architecture-study.md) and [`THIRD_PARTY.md`](THIRD_PARTY.md).
-
-## Agent-Ready Asset Compiler
-
-AgentScape 1.1 adds a real pass-based GLB compiler rather than treating every model as an already-valid interactive asset. It uses glTF-Transform directly for inspection/optimization, persists compiled GLB bytes in IndexedDB, and can upgrade collision generation through the optional CoACD backend.
-
-See [`docs/asset-compiler.md`](docs/asset-compiler.md) and [`docs/research/asset-compiler-study.md`](docs/research/asset-compiler-study.md).
+AgentScape 仍在快速演进。当前不会把启发式语义或节点名关节候选伪装成高置信度 AI 推断；碰撞体没有重型后端时会明确标记为 `aabb-fallback`。这类不确定性必须进入编译报告，而不是被隐藏。

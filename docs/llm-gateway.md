@@ -1,23 +1,28 @@
-# AgentScape LLM Gateway contract
+# LLM Gateway 协议
 
-AgentScape is deployed as a static GitHub Pages app, so provider API keys must not be embedded in the frontend. V0.6 sends tool-calling requests to a user-configured server endpoint.
+GitHub Pages 是静态前端，因此 AgentScape 不直接保存模型 API Key。浏览器只向用户配置的 Gateway 发送 provider-neutral 请求。
 
-## Request
+## 请求
 
-`POST <gateway-endpoint>` with `content-type: application/json`:
+```http
+POST <gateway-endpoint>
+Content-Type: application/json
+```
 
 ```json
 {
   "messages": [
-    { "role": "system", "content": "..." },
-    { "role": "user", "content": "把杯子放到桌上，然后打开柜子" },
-    { "role": "tool", "toolCallId": "call_1", "name": "place", "content": "{...}" }
+    { "role": "user", "content": "把杯子放到桌上，然后打开柜子" }
   ],
   "tools": [
     {
       "name": "place",
-      "description": "Place an object on a target support surface...",
-      "parameters": { "type": "object", "properties": {}, "required": [] }
+      "description": "使用空间检测把对象放到支撑面。",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
     }
   ],
   "context": {
@@ -26,30 +31,29 @@ AgentScape is deployed as a static GitHub Pages app, so provider API keys must n
 }
 ```
 
-## Response
+工具定义由 SkillRegistry 动态导出，不维护第二份 Tool Catalog。
 
-To request tools:
+## 请求工具调用
 
 ```json
 {
   "toolCalls": [
-    { "id": "call_1", "name": "place", "args": { "id": "cup_01", "targetId": "table_01" } },
-    { "id": "call_2", "name": "open", "args": { "id": "cabinet_01" } }
+    {
+      "id": "call_1",
+      "name": "place",
+      "args": { "id": "cup_01", "targetId": "table_01" }
+    }
   ]
 }
 ```
 
-To finish:
+## 完成任务
 
 ```json
 {
   "final": true,
-  "message": "杯子已经放到桌上，柜子已打开。"
+  "message": "杯子已放到桌上。"
 }
 ```
 
-The gateway can use OpenAI, Anthropic, Gemini, a local model, or any other model. It is responsible for translating the provider's native tool-calling format to this small provider-neutral contract.
-
-## Security
-
-Keep model credentials on the gateway server. Configure CORS to allow the AgentScape Pages origin. AgentScape stores only the gateway URL in browser local storage; it does not ask for or persist provider API keys.
+Gateway 可以连接 OpenAI、Anthropic、Gemini 或本地模型，只需把供应商原生 tool-calling 格式转换成上面的轻量协议。

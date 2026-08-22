@@ -11,6 +11,12 @@ function setup() {
 }
 
 describe('SkillRegistry', () => {
+  it('exports LLM tool schema from the same registered skill definition', () => {
+    const { registry } = setup();
+    registry.register({ name:'move', description:'move', required:['id'], properties:{ id:{type:'string'} }, handler:()=>{} });
+    expect(registry.definitions()[0]).toEqual({ name:'move', description:'move', parameters:{ type:'object', properties:{id:{type:'string'}}, required:['id'], additionalProperties:false } });
+  });
+
   it('validates, authorizes, executes and traces a skill', async () => {
     const { registry, trace } = setup();
     registry.register({ name: 'read', permissions: ['world.read'], handler: ({ x }) => x + 1 });

@@ -8,7 +8,7 @@ it('executes tool calls and feeds results back to the planner', async () => {
       .mockResolvedValueOnce({ message: '', toolCalls: [{ id: 'c1', name: 'open', args: { id: 'cabinet_01' } }] })
       .mockResolvedValueOnce({ message: 'done', final: true, toolCalls: [] })
   };
-  const tools = { call: vi.fn(async (name) => name === 'listObjects' ? [] : { ok: true }) };
+  const tools = { definitions: vi.fn(() => []), call: vi.fn(async (name) => name === 'listObjects' ? [] : { ok: true }) };
   const agent = new ToolCallingAgent({ tools, gateway, maxSteps: 4 });
   const result = await agent.run('open it');
   expect(result.message).toBe('done');

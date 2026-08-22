@@ -1,6 +1,8 @@
-# AgentScape heavy asset compiler service
+# AgentScape 重型资产编译服务
 
-Optional server-side compiler for passes that should not run in the browser. The first implemented heavy pass is CoACD convex decomposition.
+这是可选的服务器侧 Compiler，用于不适合在浏览器主线程执行的几何任务。当前实现的重型 Pass 是 CoACD 凸分解。
+
+## 启动
 
 ```bash
 python -m venv .venv
@@ -9,6 +11,28 @@ pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 8080
 ```
 
-Configure the AgentScape **Compiler Endpoint** as `https://host/compile`.
+然后把 AgentScape 页面中的 **Compiler Endpoint** 配置为：
 
-The browser always retains deterministic local fallbacks, so the engine remains usable without this service. With the service enabled, collision generation upgrades from one AABB proxy to multiple convex hulls produced by CoACD.
+```text
+https://your-host/compile
+```
+
+## 工作流程
+
+```text
+公开可访问的 GLB URL
+      ↓
+trimesh 加载并展开 scene transform
+      ↓
+合并几何
+      ↓
+CoACD
+      ↓
+多个 convexHull collider
+      ↓
+质量/摩擦估计
+      ↓
+返回浏览器 Compiler
+```
+
+如果服务未配置，浏览器使用明确标记的 AABB fallback，功能不会被阻塞。

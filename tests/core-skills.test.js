@@ -47,6 +47,16 @@ describe('core skills', () => {
     expect(r.getValue()).toBe(0);
   });
 
+  it('world pipeline cannot bypass asset permissions', async () => {
+    const r = runtime();
+    r.policy = new PolicyEngine({ profiles: { worldOnly: ['world.write'] } });
+    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r);
+    const result = await registry.invoke('runWorldPipeline', { plan:{} }, { profile:'worldOnly' });
+    expect(result.success).toBe(false);
+    expect(result.error.code).toBe('forbidden');
+    expect(r.worldPipeline.run).not.toHaveBeenCalled();
+  });
+
   it('viewer can validate but cannot repair', async () => {
     const r = runtime();
     const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r);

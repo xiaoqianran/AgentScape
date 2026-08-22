@@ -3,18 +3,18 @@ import { AgentTools } from '../src/agent/AgentTools.js';
 
 const runtime = () => ({
   events: { emit: vi.fn() },
-  skills: { invoke: vi.fn(async (name, args, context) => ({ success: true, result: { name, args, context } })) }
+  skills: { definitions: vi.fn(() => [{ name:'open', parameters:{ required:['id'] } }]), invoke: vi.fn(async (name, args, context) => name === 'destroyWorld' ? ({ success:false, error:{ code:'not_found', message:'Unknown skill' } }) : name === 'moveObject' && args.position == null ? ({ success:false, error:{ code:'invalid_input', message:'Missing required fields: position' } }) : ({ success: true, result: { name, args, context } })) }
 });
 
 describe('AgentTools registry facade', () => {
   it('rejects unknown tools before registry dispatch', async () => {
     const tools = new AgentTools(runtime());
-    await expect(tools.call('destroyWorld', {})).rejects.toMatchObject({ code: 'INVALID_TOOL_CALL' });
+    await expect(tools.call('destroyWorld', {})).rejects.toMatchObject({ code: 'not_found' });
   });
 
   it('rejects missing required args', async () => {
     const tools = new AgentTools(runtime());
-    await expect(tools.call('moveObject', { id: 'a' })).rejects.toMatchObject({ code: 'INVALID_TOOL_CALL' });
+    await expect(tools.call('moveObject', { id: 'a' })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 
   it('routes world actions through the skill registry with an actor/profile', async () => {
