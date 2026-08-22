@@ -9,6 +9,8 @@ import { SemanticHeuristicPass } from './passes/SemanticHeuristicPass.js';
 import { ArticulationCandidatePass } from './passes/ArticulationCandidatePass.js';
 import { ColliderFallbackPass } from './passes/ColliderFallbackPass.js';
 import { RemoteEnrichmentPass } from './passes/RemoteEnrichmentPass.js';
+import { ResourceBudgetPass } from './passes/ResourceBudgetPass.js';
+import { RESOURCE_BUDGET } from './resourceBudget.js';
 import { CompileQualityPass } from './passes/CompileQualityPass.js';
 import { ManifestPass } from './passes/ManifestPass.js';
 
@@ -26,6 +28,7 @@ export class AssetCompiler {
       new ColliderFallbackPass(),
       new RemoteEnrichmentPass({ provider }),
       new OptimizeGLBPass({ io: this.io }),
+      new ResourceBudgetPass(),
       new CompileQualityPass(),
       new ManifestPass()
     ];
@@ -34,12 +37,37 @@ export class AssetCompiler {
   async fetchBytes(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch GLB: HTTP ${response.status}`);
-    return new Uint8Array(await response.arrayBuffer());
+    const declared = Number(response.headers.get('content-length') || 0);
+    if (declared > RESOURCE_BUDGET.maxInputBytes) throw Object.assign(new Error(`GLB exceeds input limit: ${declared}`), { code: 'ASSET_INPUT_TOO_LARGE' });
+    if (!response.body) return new Uint8Array(await response.arrayBuffer());
+
+    const reader = response.body.getReader();
+    const chunks = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > RESOURCE_BUDGET.maxInputBytes) {
+        await reader.cancel();
+        throw Object.assign(new Error(`GLB exceeds input limit: ${total}`), { code: 'ASSET_INPUT_TOO_LARGE' });
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return bytes;
   }
 
   async compile({ url, bytes, sourceName, assetId, label } = {}) {
     if (!bytes && !url) throw new Error('AssetCompiler requires url or bytes');
     const inputBytes = bytes instanceof Uint8Array ? bytes : bytes ? new Uint8Array(bytes) : await this.fetchBytes(url);
+    if (inputBytes.byteLength > RESOURCE_BUDGET.maxInputBytes) {
+      const error = new Error(`GLB exceeds input limit: ${inputBytes.byteLength} > ${RESOURCE_BUDGET.maxInputBytes}`);
+      error.code = 'ASSET_INPUT_TOO_LARGE';
+      throw error;
+    }
     const name = sourceName || (url ? new URL(url, globalThis.location?.href || 'http://localhost').pathname.split('/').pop() : 'asset.glb');
     let context = { bytes: inputBytes, sourceUrl: url || null, sourceName: name, assetId, label, compilerVersion: this.version };
     for (const pass of this.passes) {
@@ -68,6 +96,7 @@ export class AssetCompiler {
       collision: context.collision,
       enrichment: context.enrichment,
       meshQuality: context.meshQuality || null,
+      resources: context.resources,
       quality: context.quality
     };
   }

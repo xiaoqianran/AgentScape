@@ -7,6 +7,7 @@ import { LocalPlannerGateway } from './agent/gateway/LocalPlannerGateway.js';
 import { bootstrapWorld } from './agent/bootstrapWorld.js';
 import { LocalSceneStore } from './persistence/LocalSceneStore.js';
 import { AutosaveController } from './persistence/AutosaveController.js';
+import { RESOURCE_BUDGET } from './compiler/resourceBudget.js';
 import { EditorController } from './editor/EditorController.js';
 
 async function main() {
@@ -239,6 +240,10 @@ async function main() {
   document.querySelector('#compile-file-button').addEventListener('click', async () => {
     const file = document.querySelector('#compiler-file').files?.[0];
     if (!file) return;
+    if (file.size > RESOURCE_BUDGET.maxInputBytes) {
+      compilerReport.textContent = `文件过大：${Math.ceil(file.size / 1024 / 1024)} MiB，当前上限 ${Math.ceil(RESOURCE_BUDGET.maxInputBytes / 1024 / 1024)} MiB。`;
+      return;
+    }
     compileAndRegister({ bytes: new Uint8Array(await file.arrayBuffer()), sourceName: file.name });
   });
 

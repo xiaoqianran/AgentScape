@@ -1,7 +1,13 @@
 export class CompileQualityPass {
   async run(context) {
-    const hard = [...context.geometry.warnings.filter((item) => item.severity === 'hard')];
-    const advisory = [...context.geometry.warnings.filter((item) => item.severity !== 'hard')];
+    const hard = [
+      ...context.geometry.warnings.filter((item) => item.severity === 'hard'),
+      ...(context.resources?.hard || [])
+    ];
+    const advisory = [
+      ...context.geometry.warnings.filter((item) => item.severity !== 'hard'),
+      ...(context.resources?.advisory || [])
+    ];
 
     if (context.enrichment?.error) {
       advisory.push({ code: 'ENRICHMENT_FAILED', message: `重型 Provider 失败，已保留本地 fallback：${context.enrichment.error}` });

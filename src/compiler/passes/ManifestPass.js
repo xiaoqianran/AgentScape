@@ -37,7 +37,8 @@ export class ManifestPass {
         structure: context.structure,
         normalization: context.normalization,
         articulationCandidates: context.articulation.candidates,
-        meshQuality: context.meshQuality || null
+        meshQuality: context.meshQuality || null,
+        resources: context.resources
       },
       provenance: { sourceUrl: context.sourceUrl || null, compiler: 'AgentScape' }
     };

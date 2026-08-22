@@ -154,3 +154,28 @@ Remote Provider
 - `volume`
 
 这些结果进入 Manifest 编译报告和 CompileQualityPass。非封闭、绕序不一致或多个不连通组件目前作为 advisory；它们不必然使视觉资产无效，但会影响体积估计、碰撞和物理可信度。
+
+## 浏览器资源预算
+
+Compiler 会在优化后的 Document 上重新调用 glTF-Transform `inspect()`，以最终资产而不是原始输入作为准入依据。当前预算是单资产的保守默认值：
+
+| 指标 | 建议上限 | 硬上限 |
+| --- | ---: | ---: |
+| GLB 输入大小 | — | 100 MiB |
+| 默认 Scene 渲染顶点 | 1,000,000 | 3,000,000 |
+| 默认 Scene 估算 Draw Call | 200 | 800 |
+| 全资产纹理 VRAM 估算 | 256 MiB | 512 MiB |
+| 最大纹理边长 | 4096 px | 8192 px |
+| 动画关键帧总数 | 100,000 | 500,000 |
+
+超过建议上限会进入 `provisional`；超过硬上限会进入 `rejected`。这些数值是 AgentScape 当前浏览器 Runtime 的准入策略，不宣称是通用 WebGL 极限，后续应根据真实设备基准再调整。
+
+Draw Call 只遍历 Runtime 真正加载的默认 Scene，不把未使用的其他 Scene 误算进去；纹理和动画则按整个 GLB 统计，因为 GLTFLoader 解析资产时这些资源仍会产生加载和内存成本。
+
+### 为什么当前不自动减面或压纹理
+
+预算门只负责判断，不负责偷偷修改资产。自动 simplify、纹理缩放或格式转码可能损失视觉、UV、法线、动画或语义细节，而且往往需要用户选择质量目标。当前做法是先稳定报告真实成本；未来若引入优化策略，应作为显式 Compiler Pass，并保留优化前后报告，而不是在准入检查里隐式执行。
+
+### 输入大小防线
+
+本地文件在 `File.arrayBuffer()` 前先检查 `file.size`；URL 输入先检查 `Content-Length`，未知长度则流式读取并在超过 100 MiB 时立即取消。Compiler 内部仍保留同一上限作为第二道防线。预算常量只维护在 `src/compiler/resourceBudget.js`。
