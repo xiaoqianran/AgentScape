@@ -5,6 +5,7 @@ import { ToolCallingAgent } from './agent/ToolCallingAgent.js';
 import { HttpLLMGateway } from './agent/gateway/HttpLLMGateway.js';
 import { LocalPlannerGateway } from './agent/gateway/LocalPlannerGateway.js';
 import { bootstrapWorld } from './agent/bootstrapWorld.js';
+import { LocalSceneStore } from './persistence/LocalSceneStore.js';
 import { EditorController } from './editor/EditorController.js';
 
 async function main() {
@@ -23,6 +24,12 @@ async function main() {
             <span></span>
             <button id="duplicate">Duplicate</button>
             <button id="delete" class="danger">Delete</button>
+            <span></span>
+            <button id="save-scene">Save</button>
+            <button id="load-scene">Load</button>
+            <button id="export-scene">Export</button>
+            <button id="import-scene">Import</button>
+            <input id="import-scene-file" type="file" accept="application/json,.json" hidden />
           </div>
           <div class="hint">点击选择 · 拖拽 Gizmo 编辑 · W 移动 · E 旋转 · Delete 删除</div>
         </div>
@@ -87,6 +94,7 @@ async function main() {
   const gateway = new HttpLLMGateway({ endpoint: localStorage.getItem('agentscape.gatewayEndpoint') || '' });
   const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway: new LocalPlannerGateway(), log });
   const editor = new EditorController(world);
+  const sceneStore = new LocalSceneStore();
 
   world.events.on('tool.called', (event) => log(`tool: ${event.name} ${JSON.stringify(event.args)}`, 'tool'));
   world.events.on('interaction', (event) => log(`action: ${event.action} ${event.id}`, 'tool'));
@@ -190,6 +198,46 @@ async function main() {
     editor.setMode(button.dataset.mode);
     document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b === button));
   }));
+  const downloadJson = (filename, value) => {
+    const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
+  document.querySelector('#save-scene').addEventListener('click', () => {
+    const scene = world.serialize({ name: 'AgentScape World' });
+    sceneStore.save(scene);
+    log(`scene saved locally · ${scene.objects.length} objects`, 'result');
+  });
+  document.querySelector('#load-scene').addEventListener('click', async () => {
+    try {
+      const scene = sceneStore.load();
+      if (!scene) return log('no local scene saved yet', 'error');
+      editor.select(null);
+      await world.restore(scene);
+      log(`scene restored · ${scene.objects.length} objects`, 'result');
+    } catch (error) { log(`restore error: ${error.message}`, 'error'); }
+  });
+  document.querySelector('#export-scene').addEventListener('click', () => {
+    const scene = world.serialize({ name: 'AgentScape World' });
+    downloadJson('agentscape-scene.json', scene);
+    log(`scene exported · schema v${scene.schemaVersion}`, 'result');
+  });
+  const importFile = document.querySelector('#import-scene-file');
+  document.querySelector('#import-scene').addEventListener('click', () => importFile.click());
+  importFile.addEventListener('change', async () => {
+    const file = importFile.files?.[0]; if (!file) return;
+    try {
+      const scene = JSON.parse(await file.text());
+      editor.select(null);
+      await world.restore(scene);
+      sceneStore.save(scene);
+      log(`scene imported · ${scene.objects.length} objects`, 'result');
+    } catch (error) { log(`import error: ${error.message}`, 'error'); }
+    finally { importFile.value = ''; }
+  });
+
   document.querySelector('#duplicate').addEventListener('click', () => editor.duplicateSelected().catch(error => log(`error: ${error.message}`, 'error')));
   document.querySelector('#delete').addEventListener('click', () => editor.deleteSelected());
 

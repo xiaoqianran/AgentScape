@@ -9,6 +9,7 @@ import { InteractionSystem } from './systems/InteractionSystem.js';
 import { SpatialSystem } from './systems/SpatialSystem.js';
 import { AssetLibrary } from '../assets/library/AssetLibrary.js';
 import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
+import { SceneSerializer } from '../persistence/SceneSerializer.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -16,9 +17,10 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
+    this.version = '0.8.0';
     this.container = container; this.events = new EventBus(); this.assets = new AssetManager();
     this.assetGenerator = new HttpAssetGenerator({ endpoint: localStorage.getItem('agentscape.assetGeneratorEndpoint') || '' });
-    this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events }); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.clock = new THREE.Clock(); this.running = false;
+    this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events }); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.clock = new THREE.Clock(); this.running = false;
   }
   async init() {
     await this.physics.init();
@@ -38,6 +40,22 @@ export class WorldRuntime {
   async spawn(assetId, { position = [0, 0, 0], id = `${assetId}_${crypto.randomUUID()}` } = {}) {
     const { object, manifest } = await this.assets.instantiate(assetId); object.position.fromArray(position); object.userData.instanceId = id; this.scene.add(object); this.store.add(id, { id, assetId, object, manifest, state: {} }); this.physics.attach(id, manifest, object); this.events.emit('object.spawned', { id, assetId, position }); return id;
   }
+  clearObjects() {
+    const ids = this.store.list().map(([id]) => id);
+    for (const id of ids) this.remove(id);
+    this.events.emit('scene.cleared', { count: ids.length });
+  }
+
+  serialize(options) { return this.serializer.serialize(this, options); }
+  async restore(scene) { return this.serializer.restore(this, scene); }
+
+  restoreObjectState(id, state = {}) {
+    const record = this.store.get(id);
+    record.state = { ...state };
+    if (state.door === 'open') this.interactions.setDoor(id, true);
+    else if (state.door === 'closed') this.interactions.setDoor(id, false);
+  }
+
   remove(id) {
     const record = this.store.get(id);
     this.physics.remove(id);

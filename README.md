@@ -4,7 +4,7 @@
 
 AgentScape is an experimental Web3D runtime where an AI agent can inspect and manipulate an interactive 3D scene through a small, explicit tool API.
 
-## V0.7
+## V0.8
 
 The current version intentionally stays focused:
 
@@ -196,3 +196,17 @@ spawnAsset(...)
 The built-in library now supports metadata such as labels, tags and aliases, including multilingual search terms. `chair`, `椅子`, and `mug` can resolve reusable assets without involving a model.
 
 The public Pages demo includes an Asset Library browser and a configurable Asset Generator endpoint. API/model credentials stay on the generator server; AgentScape only stores the endpoint URL. See [`docs/asset-generator.md`](docs/asset-generator.md).
+
+## Scene persistence
+
+V0.8 introduces a versioned world format (`agentscape.scene`, schema version 1). The editor can now save to browser storage, restore a previous world, export a portable JSON file, and import it later.
+
+A scene stores:
+
+- object ids and asset references
+- position, quaternion and scale
+- semantic interaction state such as an open/closed cabinet door
+- GLB manifests used by the scene, including runtime-generated assets
+- camera position and orbit target
+
+Built-in primitive manifests are not duplicated into the scene file; external/generated GLB manifests are embedded so the world can resolve those assets again on import. The format is explicitly versioned to support migrations as AgentScape evolves.

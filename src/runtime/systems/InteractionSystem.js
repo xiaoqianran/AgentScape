@@ -61,6 +61,7 @@ export class InteractionSystem {
     if (!part) throw Errors.actionUnsupported(id, 'door');
     const target = open ? part.joint.limits[0] : part.joint.limits[1];
     if (!this.physics.setArticulationTarget(id, 'door', target)) throw Errors.actionUnsupported(id, 'door');
+    record.state.door = open ? 'open' : 'closed';
     this.events.emit('interaction', { action: open ? 'open' : 'close', id });
   }
 
