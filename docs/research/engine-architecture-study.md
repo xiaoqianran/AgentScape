@@ -99,3 +99,27 @@ EmbodiedGen、Isaac、MuJoCo 等更重系统应作为上游资产/仿真后端�
 因此当前策略是先保证生命周期正确，不提前加入 GLB 缓存。只有真实性能数据证明加载缓存必要时，才应同时设计 Skeleton clone、共享纹理/BVH 和引用计数，否则缓存会把简单的所有权问题变成隐蔽的 use-after-dispose 或 GPU 泄漏。
 
 对象删除会去重释放 Geometry、BVH、Material 和 Texture；Runtime 销毁还会释放环境 Geometry/Material、OrbitControls、Rapier World、Renderer 和 DOM Canvas。失败路径同样遵守资源所有权：GLB 节点校验失败、Store/Physics attach 中途失败都必须回滚并释放已经创建的资源。
+
+## Scene Graph 新鲜度与批量更新
+
+Scene Graph 是派生状态，不应在每帧物理更新时做 O(n²) 全量重建。当前采用 dirty + demand refresh：
+
+```text
+世界/物理发生变化
+      ↓
+sceneGraph.invalidate()/changed()
+      ↓
+只标记 dirty
+      ↓
+Agent 查询 / Inspector / Validator / Serializer
+      ↓
+sceneGraph.update()
+      ↓
+若 dirty 才重建
+```
+
+`changed()` 表示“世界发生变化”；单对象直接操作会立即刷新，处于 batch 时只标记 dirty。`update()` 表示“调用者现在需要最新关系”，因此即使在 batch 内也允许立即刷新，避免 Validator 在修复过程中读取旧关系。
+
+Restore、Undo/Redo、Pipeline 和原子 batch 会合并重复变化，批量边界通常只重建一次。物理帧循环只在检测到刚体或关节姿态变化时 `invalidate()`，不会每帧重建。
+
+场景导入在 destructive clear 前先做 Manifest 冲突和未知资产引用 preflight，避免明显无效的 Scene 把当前世界先清空。

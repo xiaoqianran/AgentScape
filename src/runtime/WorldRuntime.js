@@ -29,7 +29,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '1.1.6';
+    this.version = '1.1.7';
     this.container = container; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
@@ -77,7 +77,7 @@ export class WorldRuntime {
       this.store.add(id, { id, assetId, object, manifest, state: {} });
       stored = true;
       this.physics.attach(id, manifest, object);
-      this.sceneGraph?.update();
+      this.sceneGraph?.changed();
       this.events.emit('object.spawned', { id, assetId, position });
       return id;
     } catch (error) {
@@ -99,8 +99,11 @@ export class WorldRuntime {
     const before = this.snapshot();
     this.history.begin(label, before);
     try {
-      const result = await operation();
-      this.sceneGraph?.update();
+      let result;
+      await this.sceneGraph.batch(async () => {
+        result = await operation();
+        this.sceneGraph.changed();
+      });
       this.history.commit(this.snapshot(), meta);
       return result;
     } catch (error) {
@@ -114,12 +117,15 @@ export class WorldRuntime {
   }
 
   commitMutation(meta = {}) {
-    if (!this.history?.suspended) { this.sceneGraph?.update(); this.history.commit(this.snapshot(), meta); }
+    if (!this.history?.suspended) { this.sceneGraph?.changed(); this.history.commit(this.snapshot(), meta); }
   }
 
-  clearObjects() {
+  async clearObjects() {
     const ids = this.store.list().map(([id]) => id);
-    for (const id of ids) this.remove(id);
+    await this.sceneGraph.batch(async () => {
+      for (const id of ids) this.remove(id);
+      this.sceneGraph.changed();
+    });
     this.events.emit('scene.cleared', { count: ids.length });
   }
 
@@ -139,7 +145,7 @@ export class WorldRuntime {
     this.scene.remove(record.object);
     disposeObject3D(record.object);
     this.store.delete(id);
-    this.sceneGraph?.removeObject(id); this.sceneGraph?.update();
+    this.sceneGraph?.removeObject(id); this.sceneGraph?.changed();
     this.events.emit('object.removed', { id, assetId: record.assetId });
     return true;
   }
@@ -169,13 +175,19 @@ export class WorldRuntime {
   }
 
   listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
-  update() { const dt = Math.min(this.clock.getDelta(), 1 / 30); this.physics.step(dt, this.store); this.interactions.update(dt, this.camera); this.controls.update(); }
+  update() { const dt = Math.min(this.clock.getDelta(), 1 / 30); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.camera); this.controls.update(); }
   animate = () => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(); this.renderer.render(this.scene, this.camera); };
   resize() { const w = this.container.clientWidth, h = this.container.clientHeight; if (!w || !h) return; this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h, false); }
   dispose() {
     this.running = false;
     window.removeEventListener('resize', this._resize);
-    this.clearObjects();
+    for (const [id, record] of this.store.list()) {
+      this.physics.remove(id);
+      this.scene.remove(record.object);
+      disposeObject3D(record.object);
+      this.store.delete(id);
+    }
+    this.sceneGraph.reset();
     disposeObject3D(this.scene);
     this.controls?.dispose();
     this.physics.dispose();

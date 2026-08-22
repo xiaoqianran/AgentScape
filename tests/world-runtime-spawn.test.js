@@ -8,12 +8,12 @@ it('updates the semantic scene graph immediately after direct spawn', async () =
     assets:{ instantiate:vi.fn(async () => ({ object, manifest })) },
     scene:{ add:vi.fn() },
     store:{ add:vi.fn() },
-    physics:{ attach:vi.fn() },
-    sceneGraph:{ update:vi.fn() },
+    physics:{ attach:vi.fn(), remove:vi.fn() },
+    sceneGraph:{ changed:vi.fn() },
     events:{ emit:vi.fn() }
   };
   const id = await WorldRuntime.prototype.spawn.call(runtime, 'chair', { id:'chair_01', position:[1,0,0] });
   expect(id).toBe('chair_01');
-  expect(runtime.sceneGraph.update).toHaveBeenCalledOnce();
+  expect(runtime.sceneGraph.changed).toHaveBeenCalledOnce();
   expect(runtime.events.emit).toHaveBeenCalledWith('object.spawned', { id:'chair_01', assetId:'chair', position:[1,0,0] });
 });

@@ -25,7 +25,7 @@ export class RepairEngine {
         else this.runtime.interactions.move(finding.object, p);
       }
     }
-    this.runtime.sceneGraph.update();
+    this.runtime.sceneGraph.changed();
     const after = this.runtime.validator.run();
     if (after.counts.hard > report.counts.hard) {
       await this.runtime.restore(before);

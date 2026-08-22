@@ -38,7 +38,7 @@ export function createWorldPipeline(runtime) {
         runtime.interactions.move(relation.subject, [target.x + relation.distance, target.y, target.z]);
       }
     }
-    runtime.sceneGraph.update();
+    runtime.sceneGraph.changed();
     return state;
   });
 

@@ -5,23 +5,24 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 
 export class SceneSerializer {
   serialize(runtime, { name = 'Untitled World' } = {}) {
+    runtime.sceneGraph?.update?.();
     const usedAssets = new Set();
     const objects = runtime.store.list().map(([id, record]) => {
       usedAssets.add(record.assetId);
-      const o = record.object;
+      const object = record.object;
       return {
         id,
         assetId: record.assetId,
         transform: {
-          position: o.position.toArray(),
-          quaternion: o.quaternion.toArray(),
-          scale: o.scale.toArray()
+          position: object.position.toArray(),
+          quaternion: object.quaternion.toArray(),
+          scale: object.scale.toArray()
         },
         state: clone(record.state || {})
       };
     });
 
-    const manifests = [...usedAssets]
+    const assets = [...usedAssets]
       .map((assetId) => runtime.assets.getManifest(assetId))
       .filter((manifest) => ['glb', 'compiled'].includes(manifest.source?.kind))
       .map(clone);
@@ -34,7 +35,7 @@ export class SceneSerializer {
         savedAt: new Date().toISOString(),
         generator: `AgentScape/${runtime.version || 'unknown'}`
       },
-      assets: manifests,
+      assets,
       objects,
       relations: runtime.sceneGraph?.list?.() || [],
       camera: {
@@ -62,28 +63,31 @@ export class SceneSerializer {
 
   async restore(runtime, input) {
     const scene = this.validate(clone(input));
-    runtime.clearObjects();
 
-    for (const manifest of scene.assets) {
-      runtime.assets.assertCompatibleManifest(manifest);
-    }
-
+    // 先完成所有不会破坏当前世界的检查。
+    for (const manifest of scene.assets) runtime.assets.assertCompatibleManifest(manifest);
     for (const item of scene.objects) {
       if (!runtime.assets.has(item.assetId)) throw new Error(`Scene references unknown asset: ${item.assetId}`);
-      await runtime.spawn(item.assetId, { id: item.id, position: item.transform.position });
-      const record = runtime.store.get(item.id);
-      record.object.quaternion.fromArray(item.transform.quaternion);
-      record.object.scale.fromArray(item.transform.scale);
-      record.state = clone(item.state || {});
-      record.object.updateMatrixWorld(true);
-      runtime.physics.syncTransform(item.id, record.object);
-      runtime.restoreObjectState(item.id, record.state);
     }
+
+    await runtime.sceneGraph.batch(async () => {
+      await runtime.clearObjects();
+      for (const item of scene.objects) {
+        await runtime.spawn(item.assetId, { id: item.id, position: item.transform.position });
+        const record = runtime.store.get(item.id);
+        record.object.quaternion.fromArray(item.transform.quaternion);
+        record.object.scale.fromArray(item.transform.scale);
+        record.state = clone(item.state || {});
+        record.object.updateMatrixWorld(true);
+        runtime.physics.syncTransform(item.id, record.object);
+        runtime.restoreObjectState(item.id, record.state);
+      }
+      runtime.sceneGraph.changed();
+    });
 
     if (scene.camera?.position?.length === 3) runtime.camera.position.fromArray(scene.camera.position);
     if (scene.camera?.target?.length === 3) runtime.controls.target.fromArray(scene.camera.target);
     runtime.controls.update();
-    runtime.sceneGraph?.update();
     runtime.events.emit('scene.restored', { objects: scene.objects.length });
     return scene;
   }

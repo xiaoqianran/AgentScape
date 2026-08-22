@@ -7,6 +7,10 @@ export class PhysicsSystem {
   constructor() {
     this.world = null;
     this.entries = new Map();
+    this.rootRotation = new THREE.Quaternion();
+    this.inverseRootRotation = new THREE.Quaternion();
+    this.partWorldRotation = new THREE.Quaternion();
+    this.partLocalRotation = new THREE.Quaternion();
   }
 
   async init() {
@@ -54,7 +58,7 @@ export class PhysicsSystem {
       createdBodies.push(body);
       this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass, manifest.physics?.friction);
 
-      const entry = { body, root: object, parts: new Map(), lastPosition: worldPos.clone() };
+      const entry = { body, root: object, parts: new Map(), lastPosition: worldPos.clone(), lastRotation: object.quaternion.clone() };
       for (const [partName, part] of Object.entries(manifest.parts || {})) {
         if (!part.physics || !part.joint) continue;
         const node = object.getObjectByName(part.node);
@@ -71,7 +75,7 @@ export class PhysicsSystem {
           : RAPIER.JointData.prismatic(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis));
         const joint = this.world.createImpulseJoint(data, body, child, true);
         if (part.joint.limits) joint.setLimits(part.joint.limits[0], part.joint.limits[1]);
-        entry.parts.set(partName, { body: child, joint, node, spec: part });
+        entry.parts.set(partName, { body: child, joint, node, spec: part, lastLocalRotation: node.quaternion.clone() });
       }
 
       this.entries.set(id, entry);
@@ -122,6 +126,7 @@ export class PhysicsSystem {
     entry.body.setTranslation({ x: p.x, y: p.y, z: p.z }, true);
     entry.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
     entry.lastPosition.copy(p);
+    entry.lastRotation.copy(q);
     for (const part of entry.parts.values()) {
       const pp = new THREE.Vector3();
       const pq = new THREE.Quaternion();
@@ -182,6 +187,7 @@ export class PhysicsSystem {
   step(dt, store) {
     this.world.timestep = dt;
     this.world.step();
+    let changed = false;
 
     for (const [id, entry] of this.entries) {
       const record = store.has(id) ? store.get(id) : null;
@@ -190,19 +196,31 @@ export class PhysicsSystem {
       if (!entry.body.isFixed()) {
         const p = entry.body.translation();
         const q = entry.body.rotation();
+        const dx = p.x - entry.lastPosition.x;
+        const dy = p.y - entry.lastPosition.y;
+        const dz = p.z - entry.lastPosition.z;
+        const rotationDot = Math.abs(
+          entry.lastRotation.x * q.x + entry.lastRotation.y * q.y +
+          entry.lastRotation.z * q.z + entry.lastRotation.w * q.w
+        );
+        if (dx * dx + dy * dy + dz * dz > 1e-10 || 1 - rotationDot > 1e-10) changed = true;
         record.object.position.set(p.x, p.y, p.z);
         record.object.quaternion.set(q.x, q.y, q.z, q.w);
         entry.lastPosition.set(p.x, p.y, p.z);
+        entry.lastRotation.set(q.x, q.y, q.z, q.w);
       }
 
-      const rootWorldQ = new THREE.Quaternion();
-      record.object.getWorldQuaternion(rootWorldQ);
-      const inverseRoot = rootWorldQ.clone().invert();
-      for (const { body, node } of entry.parts.values()) {
-        const q = body.rotation();
-        const localQ = inverseRoot.multiply(new THREE.Quaternion(q.x, q.y, q.z, q.w));
-        node.quaternion.copy(localQ);
+      record.object.getWorldQuaternion(this.rootRotation);
+      this.inverseRootRotation.copy(this.rootRotation).invert();
+      for (const part of entry.parts.values()) {
+        const q = part.body.rotation();
+        this.partWorldRotation.set(q.x, q.y, q.z, q.w);
+        this.partLocalRotation.copy(this.inverseRootRotation).multiply(this.partWorldRotation);
+        if (1 - Math.abs(part.lastLocalRotation.dot(this.partLocalRotation)) > 1e-10) changed = true;
+        part.node.quaternion.copy(this.partLocalRotation);
+        part.lastLocalRotation.copy(this.partLocalRotation);
       }
     }
+    return changed;
   }
 }

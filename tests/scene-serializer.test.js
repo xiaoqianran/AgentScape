@@ -35,4 +35,45 @@ describe('SceneSerializer', () => {
     const serializer = new SceneSerializer();
     expect(() => serializer.validate({ schema: 'agentscape.scene', schemaVersion: 99, objects: [], assets: [] })).toThrow(/version/);
   });
+
+  it('preflights unknown asset references before clearing the current world', async () => {
+    const serializer = new SceneSerializer();
+    const runtime = {
+      assets: {
+        assertCompatibleManifest: vi.fn(),
+        has: vi.fn(() => false)
+      },
+      clearObjects: vi.fn(),
+      sceneGraph: { batch: vi.fn(async (operation) => operation()) }
+    };
+    const scene = {
+      schema: 'agentscape.scene', schemaVersion: 1, assets: [], relations: [],
+      objects: [{ id:'missing_01', assetId:'missing', transform:{ position:[0,0,0], quaternion:[0,0,0,1], scale:[1,1,1] } }]
+    };
+
+    await expect(serializer.restore(runtime, scene)).rejects.toThrow(/unknown asset/i);
+    expect(runtime.clearObjects).not.toHaveBeenCalled();
+    expect(runtime.sceneGraph.batch).not.toHaveBeenCalled();
+  });
+
+  it('preflights manifest conflicts before clearing the current world', async () => {
+    const serializer = new SceneSerializer();
+    const runtime = {
+      assets: {
+        assertCompatibleManifest: vi.fn(() => { throw new Error('Asset id conflict: chair'); }),
+        has: vi.fn(() => true)
+      },
+      clearObjects: vi.fn(),
+      sceneGraph: { batch: vi.fn(async (operation) => operation()) }
+    };
+    const scene = {
+      schema: 'agentscape.scene', schemaVersion: 1,
+      assets: [{ id:'chair', type:'chair', source:{kind:'glb',url:'chair.glb'}, actions:['move'] }], relations: [], objects: []
+    };
+
+    await expect(serializer.restore(runtime, scene)).rejects.toThrow(/conflict/i);
+    expect(runtime.clearObjects).not.toHaveBeenCalled();
+    expect(runtime.sceneGraph.batch).not.toHaveBeenCalled();
+  });
+
 });

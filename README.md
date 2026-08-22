@@ -30,7 +30,7 @@ GLB / 生成资产 / 外部数据
 - GLB 加载、节点校验、关节和物理电机。
 - 可视化编辑：选择、移动、旋转、复制、删除。
 - 空间查询：Bounds、Raycast、Nearby、碰撞、支撑面、空位搜索。
-- 语义 Scene Graph：`ON / SUPPORTS / NEAR / INSIDE / CONTAINS`。
+- 语义 Scene Graph：`ON / SUPPORTS / NEAR / INSIDE / CONTAINS`，采用 dirty + 按需刷新，批量变更合并重建。
 - Skill Registry：能力定义、参数 Schema、权限、执行和审计使用同一事实源。
 - Tool-calling Agent：支持多轮 plan → act → observe。
 - 原子批处理、Undo/Redo、Autosave、场景导入导出。

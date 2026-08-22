@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
 import { SceneGraph } from '../src/runtime/graph/SceneGraph.js';
@@ -50,4 +50,48 @@ describe('SceneGraph', () => {
     store.delete('b'); graph.removeObject('b'); graph.update();
     expect(graph.list().some(e => e.subject === 'b' || e.object === 'b')).toBe(false);
   });
+
+  it('coalesces repeated and nested updates into one rebuild at the batch boundary', async () => {
+    const store = new ObjectStore();
+    const object = mesh([1,1,1], [0,0,0], 'a');
+    store.add('a', { id:'a', assetId:'a', object, manifest:{ actions:[] } });
+    const spatial = {
+      getBounds: vi.fn(() => ({ min:[-.5,-.5,-.5], max:[.5,.5,.5], center:[0,0,0], size:[1,1,1] })),
+      getSupportSurface: vi.fn(() => null)
+    };
+    const graph = new SceneGraph({ store, spatial });
+
+    await graph.batch(async () => {
+      graph.changed();
+      graph.changed();
+      await graph.batch(async () => {
+        graph.changed();
+        graph.changed();
+      });
+    });
+
+    expect(spatial.getBounds).toHaveBeenCalledTimes(1);
+    expect(graph.batchDepth).toBe(0);
+    expect(graph.dirty).toBe(false);
+  });
+
+
+  it('refreshes immediately inside a batch when a reader explicitly requests current relations', async () => {
+    const store = new ObjectStore();
+    const object = mesh([1,1,1], [0,0,0], 'a');
+    store.add('a', { id:'a', assetId:'a', object, manifest:{ actions:[] } });
+    const spatial = {
+      getBounds: vi.fn(() => ({ min:[-.5,-.5,-.5], max:[.5,.5,.5], center:[0,0,0], size:[1,1,1] })),
+      getSupportSurface: vi.fn(() => null)
+    };
+    const graph = new SceneGraph({ store, spatial });
+    await graph.batch(async () => {
+      graph.changed();
+      graph.update();
+      expect(spatial.getBounds).toHaveBeenCalledTimes(1);
+      graph.changed();
+    });
+    expect(spatial.getBounds).toHaveBeenCalledTimes(2);
+  });
+
 });

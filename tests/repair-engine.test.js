@@ -14,7 +14,7 @@ function belowGroundRuntime({ worsen = false } = {}) {
       isColliding: () => []
     },
     interactions: { move: vi.fn((_id, p) => object.position.fromArray(p)) },
-    sceneGraph: { update: vi.fn() },
+    sceneGraph: { changed: vi.fn(), update: vi.fn() },
     validator: {
       run: vi.fn(() => {
         validationCalls += 1;

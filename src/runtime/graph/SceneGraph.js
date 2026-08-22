@@ -4,6 +4,8 @@ export class SceneGraph {
     this.spatial = spatial;
     this.events = events;
     this.edges = new Map();
+    this.batchDepth = 0;
+    this.dirty = true;
   }
 
   key(subject, predicate, object) { return `${subject}|${predicate}|${object}`; }
@@ -16,6 +18,7 @@ export class SceneGraph {
 
   delete(subject, predicate, object) { return this.edges.delete(this.key(subject, predicate, object)); }
   clear() { this.edges.clear(); }
+  reset() { this.edges.clear(); this.dirty = false; this.batchDepth = 0; }
 
   removeObject(id) {
     for (const [key, edge] of this.edges) {
@@ -31,15 +34,35 @@ export class SceneGraph {
     ).map((edge) => ({ ...edge, meta: { ...edge.meta } }));
   }
 
+  invalidate() { this.dirty = true; }
+
+  changed() {
+    this.invalidate();
+    if (this.batchDepth === 0) this.update();
+  }
+
+  async batch(operation) {
+    this.batchDepth += 1;
+    try {
+      return await operation();
+    } finally {
+      this.batchDepth -= 1;
+      if (this.batchDepth === 0) this.update();
+    }
+  }
+
+  // update() means callers need a current graph. It may rebuild even inside a batch.
   update() {
-    const previous = JSON.stringify(this.list());
+    if (this.dirty) this.rebuild();
+  }
+
+  rebuild() {
+    const previous = JSON.stringify([...this.edges.values()]);
     this.clear();
     const records = this.store.list();
     const bounds = new Map();
     const surfaces = new Map();
 
-    // Cache geometry facts once per graph rebuild. Relation derivation below is O(n²),
-    // rather than repeatedly recomputing Box3 data inside nested loops.
     for (const [id, record] of records) {
       bounds.set(id, this.spatial.getBounds(id));
       surfaces.set(id, (record.manifest.surfaces || [])
@@ -50,12 +73,10 @@ export class SceneGraph {
     for (let i = 0; i < records.length; i++) {
       const [id] = records[i];
       const a = bounds.get(id);
-
       for (let j = 0; j < records.length; j++) {
         if (i === j) continue;
         const [otherId] = records[j];
         const b = bounds.get(otherId);
-
         const distance = Math.hypot(
           a.center[0] - b.center[0],
           a.center[1] - b.center[1],
@@ -83,9 +104,9 @@ export class SceneGraph {
       }
     }
 
-    const next = JSON.stringify(this.list());
+    this.dirty = false;
+    const next = JSON.stringify([...this.edges.values()]);
     if (next !== previous) this.events?.emit('sceneGraph.updated', { edges: this.edges.size });
-    return this.list();
   }
 
   describe(id) {
