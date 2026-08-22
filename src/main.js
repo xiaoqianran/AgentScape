@@ -6,6 +6,7 @@ import { HttpLLMGateway } from './agent/gateway/HttpLLMGateway.js';
 import { LocalPlannerGateway } from './agent/gateway/LocalPlannerGateway.js';
 import { bootstrapWorld } from './agent/bootstrapWorld.js';
 import { LocalSceneStore } from './persistence/LocalSceneStore.js';
+import { AutosaveController } from './persistence/AutosaveController.js';
 import { EditorController } from './editor/EditorController.js';
 
 async function main() {
@@ -24,6 +25,9 @@ async function main() {
             <span></span>
             <button id="duplicate">Duplicate</button>
             <button id="delete" class="danger">Delete</button>
+            <span></span>
+            <button id="undo" disabled>Undo <kbd>⌘Z</kbd></button>
+            <button id="redo" disabled>Redo</button>
             <span></span>
             <button id="save-scene">Save</button>
             <button id="load-scene">Load</button>
@@ -95,6 +99,7 @@ async function main() {
   const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway: new LocalPlannerGateway(), log });
   const editor = new EditorController(world);
   const sceneStore = new LocalSceneStore();
+  const autosave = new AutosaveController({ runtime: world, store: sceneStore, delayMs: 600 }).start();
 
   world.events.on('tool.called', (event) => log(`tool: ${event.name} ${JSON.stringify(event.args)}`, 'tool'));
   world.events.on('interaction', (event) => log(`action: ${event.action} ${event.id}`, 'tool'));
@@ -102,9 +107,28 @@ async function main() {
   world.events.on('editor.transform', ({ id }) => renderInspector(id));
   world.events.on('object.removed', ({ id }) => log(`removed: ${id}`, 'tool'));
   world.events.on('object.duplicated', ({ sourceId, id }) => log(`duplicate: ${sourceId} → ${id}`, 'tool'));
+  const undoButton = document.querySelector('#undo');
+  const redoButton = document.querySelector('#redo');
+  const updateHistoryButtons = (status = world.history.status()) => { undoButton.disabled = !status.canUndo; redoButton.disabled = !status.canRedo; };
+  world.events.on('history.changed', updateHistoryButtons);
+  world.events.on('history.recorded', ({ label }) => log(`history: ${label}`, 'history'));
+  world.events.on('history.applied', ({ direction, label }) => log(`${direction}: ${label}`, 'history'));
+  world.events.on('scene.autosaved', ({ objects }) => log(`autosaved · ${objects} objects`, 'autosave'));
+  updateHistoryButtons();
 
-  await bootstrapWorld(tools);
-  log('scene ready: table_01 · cabinet_01 · cup_01', 'result');
+  if (sceneStore.has()) {
+    try {
+      await world.restore(sceneStore.load());
+      log('autosave restored', 'result');
+    } catch (error) {
+      log(`autosave restore failed: ${error.message}`, 'error');
+      await bootstrapWorld(tools);
+    }
+  } else {
+    await bootstrapWorld(tools);
+  }
+  world.history.clear();
+  log(`scene ready · ${world.listObjects().length} objects`, 'result');
 
   function renderInspector(id) {
     const empty = document.querySelector('#empty-selection');
@@ -238,11 +262,21 @@ async function main() {
     finally { importFile.value = ''; }
   });
 
+  undoButton.addEventListener('click', async () => { editor.select(null); await world.history.undo(); });
+  redoButton.addEventListener('click', async () => { editor.select(null); await world.history.redo(); });
+
   document.querySelector('#duplicate').addEventListener('click', () => editor.duplicateSelected().catch(error => log(`error: ${error.message}`, 'error')));
-  document.querySelector('#delete').addEventListener('click', () => editor.deleteSelected());
+  document.querySelector('#delete').addEventListener('click', () => editor.deleteSelected()?.catch?.(error => log(`error: ${error.message}`, 'error')));
 
   window.addEventListener('keydown', (event) => {
     if (event.target.matches('input, textarea')) return;
+    const command = event.ctrlKey || event.metaKey;
+    if (command && event.key.toLowerCase() === 'z') {
+      event.preventDefault(); editor.select(null);
+      if (event.shiftKey) world.history.redo(); else world.history.undo();
+      return;
+    }
+    if (command && event.key.toLowerCase() === 'y') { event.preventDefault(); editor.select(null); world.history.redo(); return; }
     if (event.key.toLowerCase() === 'w') editor.setMode('translate');
     if (event.key.toLowerCase() === 'e') editor.setMode('rotate');
     if (event.key === 'Delete' || event.key === 'Backspace') editor.deleteSelected();

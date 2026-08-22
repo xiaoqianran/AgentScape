@@ -66,3 +66,6 @@ kbd { margin-left: 4px; opacity: .45; font: inherit; }
 .asset-result strong { display: block; color: #bdc9dc; font-size: 10px; }
 .asset-result small { display: block; margin-top: 1px; color: #5f6d84; font-size: 9px; }
 .asset-result button { padding: 4px 7px; }
+.editor-toolbar button:disabled { opacity: .35; cursor: default; }
+.log-row.history { color: #c7a8f5; }
+.log-row.autosave { color: #6f8e7d; }

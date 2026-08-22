@@ -4,7 +4,7 @@
 
 AgentScape is an experimental Web3D runtime where an AI agent can inspect and manipulate an interactive 3D scene through a small, explicit tool API.
 
-## V0.8
+## V0.9
 
 The current version intentionally stays focused:
 
@@ -210,3 +210,20 @@ A scene stores:
 - camera position and orbit target
 
 Built-in primitive manifests are not duplicated into the scene file; external/generated GLB manifests are embedded so the world can resolve those assets again on import. The format is explicitly versioned to support migrations as AgentScape evolves.
+
+## History, undo/redo and autosave
+
+V0.9 makes world mutations reversible and auditable. Agent tool mutations and Human Editor mutations record versioned scene snapshots through a shared `CommandHistory`.
+
+- Undo / Redo toolbar controls
+- `Ctrl/Cmd + Z` to undo
+- `Shift + Ctrl/Cmd + Z` or `Ctrl/Cmd + Y` to redo
+- transform drags are recorded as one command, not hundreds of intermediate frames
+- Agent tool mutations are labeled `agent:<tool-name>` in history
+- editor mutations are labeled `editor:<operation>`
+- no-op operations are ignored
+- redo history is cleared after a new branch of edits
+- debounced browser autosave after committed history changes
+- autosave is restored automatically on startup when available
+
+History restoration reuses the same versioned scene serializer as manual Save/Load, so Undo/Redo does not maintain a second, divergent world representation.

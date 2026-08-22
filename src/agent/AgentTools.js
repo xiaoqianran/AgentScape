@@ -1,15 +1,32 @@
 import { Errors } from '../core/errors.js';
-
 import { TOOL_CATALOG } from './toolCatalog.js';
+
+const MUTATING_TOOLS = new Set([
+  'spawnAsset', 'moveObject', 'pickup', 'drop', 'place', 'open', 'close',
+  'duplicateObject', 'removeObject'
+]);
+
 export class AgentTools {
   constructor(runtime) { this.runtime = runtime; }
   schema() { return Object.entries(TOOL_CATALOG).map(([name, def]) => `${name}(${def.required.join(', ')})`); }
   validate(name, args) {
-    const def = TOOL_CATALOG[name]; if (!def) throw Errors.invalidToolCall(name, { reason: 'unknown tool' });
-    const missing = def.required.filter(k => args?.[k] == null); if (missing.length) throw Errors.invalidToolCall(name, { missing });
+    const def = TOOL_CATALOG[name];
+    if (!def) throw Errors.invalidToolCall(name, { reason: 'unknown tool' });
+    const missing = def.required.filter(k => args?.[k] == null);
+    if (missing.length) throw Errors.invalidToolCall(name, { missing });
   }
+
   async call(name, args = {}) {
-    this.validate(name, args); this.runtime.events.emit('tool.called', { name, args });
+    this.validate(name, args);
+    this.runtime.events.emit('tool.called', { name, args });
+    const execute = () => this.execute(name, args);
+    if (MUTATING_TOOLS.has(name) && this.runtime.mutate) {
+      return this.runtime.mutate(`agent:${name}`, execute, { source: 'agent', tool: name, args });
+    }
+    return execute();
+  }
+
+  async execute(name, args) {
     switch (name) {
       case 'listAssets': return this.runtime.assetLibrary.list();
       case 'searchAssets': return this.runtime.assetLibrary.search(args.query, { limit: args.limit ?? 8 });

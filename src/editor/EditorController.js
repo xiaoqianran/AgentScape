@@ -23,8 +23,13 @@ export class EditorController {
     this.transform.addEventListener('dragging-changed', ({ value }) => {
       runtime.controls.enabled = !value;
       if (!this.selectedId) return;
-      if (value) runtime.physics.beginTransform(this.selectedId);
-      else runtime.physics.endTransform(this.selectedId);
+      if (value) {
+        runtime.beginMutation(`editor:${this.transform.getMode()}`);
+        runtime.physics.beginTransform(this.selectedId);
+      } else {
+        runtime.physics.endTransform(this.selectedId);
+        runtime.commitMutation({ source: 'editor', id: this.selectedId, mode: this.transform.getMode() });
+      }
     });
     this.transform.addEventListener('objectChange', () => {
       if (!this.selectedId) return;
@@ -74,7 +79,7 @@ export class EditorController {
 
   async duplicateSelected() {
     if (!this.selectedId) return null;
-    const id = await this.runtime.duplicate(this.selectedId);
+    const id = await this.runtime.mutate('editor:duplicate', () => this.runtime.duplicate(this.selectedId), { source: 'editor', id: this.selectedId });
     this.select(id);
     return id;
   }
@@ -83,7 +88,7 @@ export class EditorController {
     if (!this.selectedId) return false;
     const id = this.selectedId;
     this.select(null);
-    return this.runtime.remove(id);
+    return this.runtime.mutate('editor:delete', () => this.runtime.remove(id), { source: 'editor', id });
   }
 
   dispose() {
