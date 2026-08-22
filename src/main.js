@@ -15,8 +15,8 @@ async function main() {
   app.innerHTML = `
     <main class="shell">
       <header class="brandbar">
-        <div><strong>AgentScape</strong><span>Build interactive 3D worlds for agents.</span></div>
-        <div class="status"><i></i> Agent-Native Runtime</div>
+        <div class="brand-lockup"><strong>AgentScape</strong><span>WORLD 01 · MONUMENT HALL</span></div>
+        <div class="brand-actions"><button id="cinematic-toggle" class="cinematic-toggle">Cinematic</button><div class="status"><i></i> LIVE WORLD</div></div>
       </header>
       <section class="workspace">
         <div id="viewport" class="viewport">
@@ -35,6 +35,12 @@ async function main() {
             <button id="export-scene">Export</button>
             <button id="import-scene">Import</button>
             <input id="import-scene-file" type="file" accept="application/json,.json" hidden />
+          </div>
+          <div class="world-intro">
+            <div class="world-kicker">WORLD 01 // MONUMENT HALL</div>
+            <h2>Space for intelligence.</h2>
+            <p>A monumental 32 × 24 m world where physics, navigation and agent actions share the same reality.</p>
+            <div class="world-facts"><span>RAPIER PHYSICS</span><span>RECAST / DETOUR</span><span>AGENT-READY ASSETS</span></div>
           </div>
           <div class="hint">点击选择 · 拖拽 Gizmo 编辑 · W 移动 · E 旋转 · Delete 删除</div>
         </div>
@@ -117,6 +123,13 @@ async function main() {
   const gateway = new HttpLLMGateway({ endpoint: localStorage.getItem('agentscape.gatewayEndpoint') || '' });
   const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway: new LocalPlannerGateway(), log });
   const editor = new EditorController(world);
+  const shell = document.querySelector('.shell');
+  const cinematicButton = document.querySelector('#cinematic-toggle');
+  cinematicButton.addEventListener('click', () => {
+    const enabled = shell.classList.toggle('cinematic');
+    cinematicButton.textContent = enabled ? 'Editor' : 'Cinematic';
+    requestAnimationFrame(() => world.resize());
+  });
   const sceneStore = new LocalSceneStore();
   const autosave = new AutosaveController({ runtime: world, store: sceneStore, delayMs: 600 }).start();
 

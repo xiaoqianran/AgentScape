@@ -125,6 +125,13 @@ npm run assets:validate
 
 检查 Manifest 所需节点是否真实存在。
 
+
+## World 01 · Monument Hall
+
+1.11 开始，Pages 默认世界不再只是工程测试地面，而是一个约 32 × 24 m 的 Monument Hall curated environment：双侧柱列、后殿门户、中央 Astra Monument、电影级 tone mapping，以及 CC0 HDRI / Marble PBR。建筑体块同时进入 Rapier 与 Recast，视觉和 Agent 世界真值保持一致。
+
+素材来源和准入见 [`docs/asset-sourcing.md`](./docs/asset-sourcing.md)。
+
 ## 文档学习路径
 
 如果希望从项目最初的设计过程一路理解到当前 1.7.0，建议从 [`docs/README.md`](./docs/README.md) 开始。里面按“演进史 → 当前架构 → 工程研究方法 → 决策与踩坑 → 路线图”组织，而协议细节仍保留在各自文档中。

@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.10.0** 的真实架构，不描述未来设想。
+本文描述 **1.11.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -576,3 +576,22 @@ NavMesh 不写入 SceneSerializer，因为它可以从当前 World 重建；这�
 1.9 的 static base 仍然不 bake dynamic object / articulated Part。1.10 用 TileCache 把它们作为**查询时动态覆盖层**：NavigationSystem 不监听 Physics 每帧位置，而是在 `canReach/findPath` 前读取 `PhysicsSystem.navigationObstacles()`，只对变化的 collider 做 remove/add，再 pump TileCache 到 `upToDate`。
 
 这样 dynamic obstacle 不触发全量 Recast rebuild，Static NavMesh 的 `buildVersion` 保持稳定；同时查询看到的是当前 Rapier pose，而不是 Manifest target 或 UI state。详细契约见 [`navigation.md`](./navigation.md)。
+
+---
+
+## 14. Curated Environment Pack
+
+1.11 将 Pages 默认环境从测试地面升级为 `Monument Hall`，但没有把美术结构塞进 `WorldRuntime`。新增的 `src/content/monumentHall.js` 是内容层：
+
+```text
+MonumentHall pack
+├─ Three.js architecture
+├─ fixed Rapier collider descriptors
+├─ Recast environment root
+├─ lighting / material / HDRI
+└─ camera preset
+```
+
+Runtime 只负责挂载这个 pack，并把同一份 collider / geometry 交给 Physics 与 Navigation。Environment 不进入 `ObjectStore`，所以不会被普通 Undo/Redo、Inspector 或 SceneSerializer 当作可编辑对象；但它的墙、柱、纪念台仍是真实的物理/导航障碍。
+
+这种边界让后续 `Ruined Courtyard / Grand Urban Block` 可以作为内容扩展，而不是继续扩大 Runtime 类。

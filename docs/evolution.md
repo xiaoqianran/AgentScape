@@ -1450,3 +1450,13 @@ open target = “希望门去哪里”
 ```
 
 Navigation 只按后者回答。若 Agent 刚发出 open 命令但 motor 还没走完，下一次 query 看到的是中间姿态，而不是提前假设 Door 已到 target。
+
+---
+
+## 31. 1.11：从工程测试场到 Curated World
+
+前 1.10 个版本主要在构建 Runtime truth，Pages 视觉仍停留在 10 × 8m 测试地面。1.11 第一次把“美术内容”当成正式架构层，而不是 CSS 装饰。
+
+Monument Hall 采用 32 × 24m 程序化建筑体块 + 约 2.1MB CC0 HDRI/PBR 素材；双侧柱列、后殿、中央纪念台会同时成为 Recast geometry 与 Rapier fixed collider。真实测试要求 Detour 路径绕开中央纪念台，避免“视觉有障碍、Agent 穿过去”。
+
+Pages 同时加入 Cinematic Mode：它只隐藏编辑 UI、扩大 viewport，不复制 World state。这样展示层可以更像作品，但 Human Editor / Agent 仍共享同一个 Runtime。

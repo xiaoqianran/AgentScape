@@ -59,6 +59,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 ## 2. 当前协议与实现文档
 
 - [`navigation.md`](./navigation.md)：1.10 Current-world Navigation Truth：Recast/Detour、TileCache、Rapier 动态障碍与查询时同步。
+- [`asset-sourcing.md`](./asset-sourcing.md)：Curated scene packs 的素材来源、许可、风格与 Web 资源准入。
 - [`asset-compiler.md`](./asset-compiler.md)：Agent-Ready Asset Compiler 的完整契约。
 - [`asset-generator.md`](./asset-generator.md)：可选 Asset Generator Gateway。
 - [`llm-gateway.md`](./llm-gateway.md)：LLM Tool Calling Gateway。

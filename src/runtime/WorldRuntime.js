@@ -24,6 +24,7 @@ import { CompiledAssetStore } from '../assets/storage/CompiledAssetStore.js';
 import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider.js';
 import { disposeObject3D } from './disposeObject3D.js';
 import { ArticulationVerifier } from '../validation/ArticulationVerifier.js';
+import { createMonumentHall } from '../content/monumentHall.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -31,7 +32,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '1.10.0';
+    this.version = '1.11.0';
     this.container = container; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
@@ -51,25 +52,35 @@ export class WorldRuntime {
 
   async init() {
     await this.physics.init();
-    this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(0x0b1020); this.scene.fog = new THREE.Fog(0x0b1020, 12, 28);
-    this.camera = new THREE.PerspectiveCamera(48, 1, 0.05, 100); this.camera.position.set(5.2, 4.2, 6.2);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true }); this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); this.renderer.shadowMap.enabled = true; this.container.appendChild(this.renderer.domElement);
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement); this.controls.target.set(0, 0.9, 0); this.controls.enableDamping = true;
+    this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(0x080b10); this.scene.fog = new THREE.Fog(0x080b10, 22, 58);
+    this.camera = new THREE.PerspectiveCamera(45, 1, 0.05, 120);
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.container.appendChild(this.renderer.domElement);
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement); this.controls.enableDamping = true;
     this.spatial = new SpatialSystem({ store: this.store, scene: this.scene });
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
     this.interactions = new InteractionSystem({ store: this.store, physics: this.physics, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
     this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);
     this.addEnvironment();
-    this.navigation = new NavigationSystem({ store: this.store, physics: this.physics, environmentRoots: [this.environmentFloor], events: this.events });
+    this.navigation = new NavigationSystem({ store: this.store, physics: this.physics, environmentRoots: [this.environment.root], events: this.events });
     this.skills = registerCoreSkills(new SkillRegistry({ policy: this.policy, trace: this.trace, runtime: this }), this);
     this.worldPipeline = createWorldPipeline(this);
     this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;
   }
   addEnvironment() {
-    this.scene.add(new THREE.HemisphereLight(0xd9e8ff, 0x252c3b, 2.2)); const key = new THREE.DirectionalLight(0xffffff, 3.5); key.position.set(4, 7, 3); key.castShadow = true; this.scene.add(key);
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.2, 8), new THREE.MeshStandardMaterial({ color: 0x20283a, roughness: 0.92 })); floor.position.y = -0.1; floor.receiveShadow = true; this.scene.add(floor);
-    const grid = new THREE.GridHelper(10, 20, 0x526077, 0x30394d); grid.position.y = 0.003; this.scene.add(grid); this.physics.addFloor();
+    this.environment = createMonumentHall({ scene:this.scene });
+    this.environmentFloor = this.environment.floor;
+    this.scene.add(this.environment.root);
+    this.physics.addEnvironment(this.environment.colliders);
+    this.camera.position.fromArray(this.environment.camera.position);
+    this.controls.target.fromArray(this.environment.camera.target);
+    this.controls.update();
   }
   async spawn(assetId, { position = [0, 0, 0], id = `${assetId}_${crypto.randomUUID()}` } = {}) {
     const { object, manifest } = await this.assets.instantiate(assetId);
@@ -202,6 +213,8 @@ export class WorldRuntime {
       this.store.delete(id);
     }
     this.sceneGraph.reset();
+    this.environment?.dispose();
+    this.environment = null;
     disposeObject3D(this.scene);
     this.controls?.dispose();
     this.navigation?.dispose();

@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.10.0** 当前状态。
+本文描述 **1.11.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 60%
+                           当前 ≈ 63%
 ```
 
-60% 不是“代码写完 60%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+63% 不是“代码写完 63%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -35,9 +35,10 @@
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
 | Grasp / Manipulation Geometry | 15% | 尚未成为主干能力 |
 | Navigation / Reachability | 72% | 1.10 已有 current-world canReach/findPath；尚缺 action-aware reachability 与实际 locomotion executor |
-| 大型 World Runtime | 30% | streaming / large nav / dynamic world 仍早期 |
+| 大型 World Runtime | 38% | 1.11 已有 32×24m curated environment；streaming / 分区加载仍早期 |
 | Multi-Agent | 10% | 不是当前优先级 |
 | 完整生成式 World Pipeline | 30% | provider 边界在，task-driven generation 仍需发展 |
+| Pages / Art Direction | 55% | 1.11 Monument Hall + Cinematic Mode 已落地；仍需第二/第三世界与更成熟的环境加载策略 |
 
 ---
 
@@ -205,7 +206,28 @@ tracked / changed / operations / updates / syncVersion
 
 ---
 
-## 7. P1：完整 Joint Frame
+## 7. 1.11 已完成：Curated Environment Pack
+
+Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
+
+```text
+Three.js architecture
+      │
+      ├─ same pack → Rapier fixed colliders
+      └─ same root → Recast static geometry
+```
+
+真实测试要求 Detour 从大厅前部走到后殿时绕开中央 Monument；Rapier 专项测试要求 Environment collider 真正阻挡 dynamic probe。素材只引入约 2.1MB CC0 HDRI/PBR，并增加 Cinematic Mode；没有引入第二套 Scene state。
+
+下一步内容层优先级不是继续堆模型，而是：
+
+1. `Ruined Courtyard`：自然/遗迹世界，验证第二种 environment pack 是否无需改 Runtime。
+2. `Grand Urban Block`：更大模块化城市，开始验证 streaming / 分区 NavMesh 的真实需求。
+3. Environment Pack lazy loading：当第二个世界进入后再抽象，不在只有一个 pack 时先造 SceneManager。
+
+---
+
+## 8. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -241,7 +263,7 @@ Schema claim second
 
 ---
 
-## 8. P2：Compact Agent Observation
+## 9. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -269,7 +291,7 @@ world size
 
 ---
 
-## 9. 自动语义：宁可慢一点，也不虚构能力
+## 10. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -307,7 +329,7 @@ high coverage + fake capability
 
 ---
 
-## 10. 目前不应该成为优先级的方向
+## 11. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -324,7 +346,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 11. 产品差异化应该是什么
+## 12. 产品差异化应该是什么
 
 不应该是：
 
@@ -356,7 +378,7 @@ Agent World
 
 ---
 
-## 12. 未来完成态
+## 13. 未来完成态
 
 可以把 100% 理解为：
 
@@ -421,13 +443,15 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.10.0 文档快照对应的仓库验证基线：
+1.11.0 文档快照对应的仓库验证基线：
 
 ```text
-66 Test Files PASS
-176 Tests PASS
+68 Test Files PASS
+179 Tests PASS
 GLB asset validation PASS
 Production build PASS
+Monument Hall Environment Recast/Rapier PASS
+Chromium Pages screenshot smoke PASS
 Python service tests PASS
 真实 cabinet Compiler→Runtime Motion Sweep open→close E2E PASS
 真实 JSON enrich / multipart per-Part CoACD E2E PASS

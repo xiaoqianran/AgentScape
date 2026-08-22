@@ -58,9 +58,14 @@ export class PhysicsSystem {
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   }
 
+  addEnvironment(colliders = []) {
+    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    this.addColliders(body, colliders);
+    return body;
+  }
+
   addFloor() {
-    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.1, 0));
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(5, 0.1, 4), body);
+    return this.addEnvironment([{ shape:'box', halfExtents:[5, 0.1, 4], translation:[0, -0.1, 0] }]);
   }
 
   bodyDesc(type, position) {

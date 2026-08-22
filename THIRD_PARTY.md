@@ -34,3 +34,5 @@ AgentScape 自身代码独立实现，并使用 `package.json` 和服务端 `req
 ## 外部可选 Provider（不随 AgentScape 分发）
 
 - Hunyuan3D-Part / P3-SAM — Tencent Hunyuan 3D-Part Community License。仅作为外部 Part Segmentation Provider 研究与协议兼容对象；默认仓库不包含其源码、权重或模型。使用者需自行遵守地域、用途与分发条款。
+
+- Poly Haven `Solitude Interior` HDRI / `Marble 01` PBR — CC0；用于 Monument Hall 的环境光与地面材质，来源见 `docs/asset-sourcing.md`
