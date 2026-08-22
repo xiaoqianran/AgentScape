@@ -4,6 +4,12 @@ import { assetManifests } from '../assets/manifests/index.js';
 import { validateAssetManifest } from '../assets/schema.js';
 import { Errors } from '../core/errors.js';
 
+const canonical = (value) => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+};
+
 export class AssetManager {
   constructor({ manifests = assetManifests, compiledStore = null } = {}) {
     this.compiledStore = compiledStore;
@@ -14,9 +20,22 @@ export class AssetManager {
     this.registerBuiltins();
   }
 
-  registerManifest(manifest) {
+  registerManifest(manifest, { replace = false } = {}) {
     validateAssetManifest(manifest);
+    const existing = this.manifests.get(manifest.id);
+    if (existing && !replace) {
+      if (canonical(existing) === canonical(manifest)) return false;
+      throw Errors.invalidManifest(`Asset id conflict: ${manifest.id}`, { id: manifest.id });
+    }
     this.manifests.set(manifest.id, structuredClone(manifest));
+    return true;
+  }
+
+  assertCompatibleManifest(manifest) {
+    const existing = this.manifests.get(manifest.id);
+    if (!existing) return this.registerManifest(manifest);
+    if (canonical(existing) !== canonical(manifest)) throw Errors.invalidManifest(`Asset id conflict: ${manifest.id}`, { id: manifest.id });
+    return false;
   }
 
   registerFactory(assetId, factory) { this.factories.set(assetId, factory); }

@@ -28,7 +28,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '1.1.3';
+    this.version = '1.1.4';
     this.container = container; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
@@ -67,7 +67,7 @@ export class WorldRuntime {
     const grid = new THREE.GridHelper(10, 20, 0x526077, 0x30394d); grid.position.y = 0.003; this.scene.add(grid); this.physics.addFloor();
   }
   async spawn(assetId, { position = [0, 0, 0], id = `${assetId}_${crypto.randomUUID()}` } = {}) {
-    const { object, manifest } = await this.assets.instantiate(assetId); object.position.fromArray(position); object.userData.instanceId = id; this.scene.add(object); this.store.add(id, { id, assetId, object, manifest, state: {} }); this.physics.attach(id, manifest, object); this.events.emit('object.spawned', { id, assetId, position }); return id;
+    const { object, manifest } = await this.assets.instantiate(assetId); object.position.fromArray(position); object.userData.instanceId = id; this.scene.add(object); this.store.add(id, { id, assetId, object, manifest, state: {} }); this.physics.attach(id, manifest, object); this.sceneGraph?.update(); this.events.emit('object.spawned', { id, assetId, position }); return id;
   }
   snapshot() {
     const scene = this.serialize({ name: 'History Snapshot' });

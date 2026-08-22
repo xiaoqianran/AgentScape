@@ -14,7 +14,8 @@ import trimesh
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-app = FastAPI(title="AgentScape Asset Compiler", version="1.1.1")
+API_VERSION = "1"
+app = FastAPI(title="AgentScape Asset Compiler", version=API_VERSION)
 MAX_ASSET_BYTES = int(os.getenv("MAX_ASSET_BYTES", 100 * 1024 * 1024))
 MAX_REDIRECTS = 3
 
@@ -104,7 +105,7 @@ def _coacd_colliders(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
 
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "agentscape-asset-compiler", "version": "1.1.1"}
+    return {"ok": True, "service": "agentscape-asset-compiler", "apiVersion": API_VERSION}
 
 
 @app.post("/compile")
@@ -126,8 +127,14 @@ def compile_asset(req: CompileRequest):
     volume = float(abs(mesh.volume)) if mesh.is_volume else None
     density = float(os.getenv("DEFAULT_DENSITY_KG_M3", "500"))
     mass = max(0.05, min(200.0, volume * density)) if volume else max(0.1, float(np.prod(extents)) * 100.0)
+    components = len(mesh.split(only_watertight=False))
     return {
         "collision": {"strategy": "coacd", "quality": "convex-decomposition", "colliders": colliders},
         "physics": {"mass": round(mass, 4), "friction": 0.5},
-        "geometry": {"watertight": bool(mesh.is_watertight), "volume": volume},
+        "geometry": {
+            "watertight": bool(mesh.is_watertight),
+            "windingConsistent": bool(mesh.is_winding_consistent),
+            "components": int(components),
+            "volume": volume,
+        },
     }

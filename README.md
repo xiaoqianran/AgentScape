@@ -43,7 +43,9 @@ GLB / 生成资产 / 外部数据
 
 **单一事实源。** Skill 的名称、描述、参数 Schema、权限和 Handler 只在 Skill Registry 注册一次；LLM 工具定义和 AgentTools 都由 Registry 导出。
 
-**Runtime 是权威状态。** 编辑器和 Agent 不维护第二份场景模型，都通过同一个 WorldRuntime 修改世界。
+**Runtime 是权威状态。** 编辑器和 Agent 不维护第二份场景模型，都通过同一个 WorldRuntime 修改世界。对象生成后立即刷新 Scene Graph。
+
+**资产 ID 是稳定身份。** 同一 ID 重复注册相同 Manifest 是幂等操作；同一 ID 对应不同内容会明确报冲突，除非调用方显式要求替换。
 
 **资产生成与运行时解耦。** Hunyuan3D、TRELLIS、EmbodiedGen 等可以作为上游后端，但运行时只消费标准化 Manifest 和 GLB。
 

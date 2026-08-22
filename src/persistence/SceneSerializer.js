@@ -65,7 +65,7 @@ export class SceneSerializer {
     runtime.clearObjects();
 
     for (const manifest of scene.assets) {
-      if (!runtime.assets.has(manifest.id)) runtime.assets.registerManifest(manifest);
+      runtime.assets.assertCompatibleManifest(manifest);
     }
 
     for (const item of scene.objects) {

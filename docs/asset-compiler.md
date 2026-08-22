@@ -127,3 +127,30 @@ Compiler 对坐标变换采用“能证明安全才修改”的原则。glTF 规
 `StructurePass` 会记录 Scene 数量、默认 Scene、Root 数量、最大层级深度、Skin/Animation、负缩放、非均匀缩放和 Root Transform。`NormalizeTransformPass` 当前唯一主动修改是 `center-below`。
 
 这个策略故意保守：错误地自动旋转或 bake 一个有关节资产，损失通常不可逆；保留结构并产生 advisory 则可以由后续 Provider、验证器或人工处理。
+
+## 可选 Provider 的失败语义
+
+重型 Provider 是增强层，不是浏览器基础编译链的单点故障。
+
+```text
+本地确定性 Pass
+      ↓
+AABB fallback / 本地语义
+      ↓
+Remote Provider
+   ├─ 成功 → 用 CoACD / 重型语义等结果升级
+   └─ 失败 → 保留本地结果，并记录 ENRICHMENT_FAILED
+```
+
+因此“配置了 Provider”不等于“Provider 离线时整个资产不可编译”。失败会把质量状态降为 `provisional`，但不会覆盖或丢弃已经得到的确定性结果。未来如果某些任务必须依赖重型结果，应由调用方显式要求 strict policy，而不是让普通编译默认变脆弱。
+
+## 服务端 Mesh 质量
+
+浏览器不重复实现 watertight / winding / connected-component 等拓扑算法。可选重型服务已经使用 trimesh，因此直接复用它的检查结果，并通过 `meshQuality` 回传 Compiler：
+
+- `watertight`
+- `windingConsistent`
+- `components`
+- `volume`
+
+这些结果进入 Manifest 编译报告和 CompileQualityPass。非封闭、绕序不一致或多个不连通组件目前作为 advisory；它们不必然使视觉资产无效，但会影响体积估计、碰撞和物理可信度。

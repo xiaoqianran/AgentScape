@@ -67,6 +67,7 @@ export class AssetCompiler {
       articulation: context.articulation,
       collision: context.collision,
       enrichment: context.enrichment,
+      meshQuality: context.meshQuality || null,
       quality: context.quality
     };
   }
