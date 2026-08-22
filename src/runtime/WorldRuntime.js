@@ -31,7 +31,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container) {
-    this.version = '1.9.0';
+    this.version = '1.10.0';
     this.container = container; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
@@ -61,7 +61,7 @@ export class WorldRuntime {
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
     this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);
     this.addEnvironment();
-    this.navigation = new NavigationSystem({ store: this.store, environmentRoots: [this.environmentFloor], events: this.events });
+    this.navigation = new NavigationSystem({ store: this.store, physics: this.physics, environmentRoots: [this.environmentFloor], events: this.events });
     this.skills = registerCoreSkills(new SkillRegistry({ policy: this.policy, trace: this.trace, runtime: this }), this);
     this.worldPipeline = createWorldPipeline(this);
     this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;

@@ -66,7 +66,10 @@ Motion Sweep Verification                  1.8
 Static Navigation Truth                    1.9
    │
    ▼
-Dynamic Obstacles / TileCache              下一阶段
+Current-world Dynamic Obstacles / TileCache 1.10
+   │
+   ▼
+Action-aware Reachability / Navigation Exec 下一阶段
 ```
 
 ---
@@ -1402,3 +1405,48 @@ dynamic obstacle truth（尚未实现）
 ```
 
 而不是用一个 `findFreeSpace` 同时假装回答三种问题。
+
+---
+
+## 30. 1.10：从静态可达到当前物理世界可达
+
+1.9 已经有 Recast/Detour，但 deliberately 只回答 static world：dynamic object 与 movable Part 不进入 NavMesh。下一步真正的问题不是重写 pathfinding，而是：
+
+```text
+Rapier 里当前正在移动的物体
+        ↓
+如何影响 Detour 查询？
+```
+
+研究 `recast-navigation-js` 官方 TileCache 后确认：临时 obstacle 的正确生命周期是 `add/remove request → tileCache.update(navMesh) → until upToDate`，且官方队列最多 64 个 obstacle requests。于是 1.10 采用 query-time reconcile，而不是 Physics 60Hz 同步：
+
+```text
+findPath / canReach
+      ↓
+PhysicsSystem.navigationObstacles()
+      ↓
+当前 Rapier collider snapshot
+      ↓
+stable collider id diff
+      ↓
+remove old / add new
+      ↓
+TileCache.update until upToDate
+      ↓
+Detour query
+```
+
+动态 obstacle 的 source of truth 是 Rapier collider，不是 Three.js visual bounds。当前 Manifest 支持的 box / cylinder 会尽量映射为原生 TileCache shape；倾斜 collider 与 convex hull 使用**从物理 collider 推导的保守 AABB**。无法安全表达的 shape 进入 `skipped`，查询报告 `coverage=partial`。
+
+为了避免官方 64-request queue 溢出，AgentScape 在 48 个 queued operations 前主动 pump TileCache；真实 70-obstacle 回归已验证。静态 NavMesh 不因此 rebuild：dynamic barrier 移走前后 reachability 从 false→true，但 `buildVersion` 一直保持 1。
+
+Rapier 还有一个容易漏掉的细节：直接 `RigidBody.setTranslation()` 后，Collider world pose 要到 scene query pipeline 刷新后才更新。因此 `navigationObstacles()` 在读取 collider snapshot 前调用一次 `world.updateSceneQueries()`；这个成本只发生在导航查询，不污染 Physics 热路径。
+
+最重要的语义边界：
+
+```text
+open target = “希望门去哪里”
+当前 Rapier collider = “门此刻真的在哪里”
+```
+
+Navigation 只按后者回答。若 Agent 刚发出 open 命令但 motor 还没走完，下一次 query 看到的是中间姿态，而不是提前假设 Door 已到 target。

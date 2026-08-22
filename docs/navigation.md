@@ -1,6 +1,6 @@
-# Static Navigation Truth
+# Current-world Navigation Truth
 
-AgentScape 1.9 引入基于 Recast/Detour 的静态导航真值。
+AgentScape 1.9 引入基于 Recast/Detour 的静态导航真值；1.10 在同一个 NavigationSystem 中加入 TileCache + Rapier dynamic obstacle overlay，使查询反映当前物理世界。
 
 目标不是“画一条路径”，而是补上这个长期语义缺口：
 
@@ -51,13 +51,13 @@ Detour NavMeshQuery
 - Detour 负责 path finding / spatial reasoning。
 - Browser / Node 都可运行。
 - NavMeshQuery 有明确 destroy 生命周期。
-- 后续如果需要动态障碍，可以沿 TileCache 扩展，不需要替换算法。
+- 1.10 已沿 TileCache 扩展动态障碍，无需替换 Recast/Detour 算法。
 
 没有使用 `three-pathfinding` 作为核心，因为它主要查询已有 NavMesh，不负责构建；它适合更轻的“离线已有 navmesh”场景，但当前 AgentScape 需要同一个导航边界同时拥有 build + query truth。
 
 ## 静态几何归属
 
-1.9 的 NavMesh **只表示静态世界**。
+底层 Recast base NavMesh **仍然只表示静态世界**。1.10 不把动态物体 bake 进去，而是在 query 前用 TileCache overlay。
 
 输入：
 
@@ -82,29 +82,104 @@ Cabinet (fixed Root)
 
 这样 Door 当前是打开还是关闭，都不会偷偷改变“静态”导航定义。
 
-代价也必须明确：
-
-> 关闭的动态门、移动箱子、行走 Agent 当前不会作为 Detour 动态障碍。
-
-所以返回结果明确带：
+1.10 在这个 static base 上叠加当前 Rapier collider：
 
 ```text
-scope = "static"
+static Recast NavMesh
+        +
+Rapier dynamic collider snapshot
+        ↓
+TileCache temporary obstacles
+        ↓
+Detour query
 ```
 
-`getNavigationStatus()` 也明确：
+有 PhysicsSystem 时返回：
+
+```text
+scope = "current"
+```
+
+并附带：
 
 ```json
 {
-  "capabilities": {
-    "staticNavMesh": true,
-    "dynamicObstacles": false,
-    "tileCache": false
+  "dynamicObstacles": {
+    "coverage": "complete",
+    "tracked": 3,
+    "changed": 1,
+    "operations": 2,
+    "updates": 4,
+    "syncVersion": 8
   }
 }
 ```
 
-这不是完整动态导航的伪装。
+如果某个 shape 无法安全映射，`coverage = "partial"` 并列出 `skipped`；不会把不完整动态世界冒充完整 truth。
+
+## 动态障碍的唯一事实来源
+
+动态导航不读取 Three.js visual bounds，而从 `PhysicsSystem.navigationObstacles()` 读取当前 Rapier collider。Stable obstacle id：
+
+```text
+<objectId>:<partName>:<colliderIndex>
+```
+
+例如：
+
+```text
+cabinet_1:door:0
+cup_3:$root:0
+```
+
+映射规则：
+
+```text
+Rapier upright Cuboid   → TileCache Box + yaw
+Rapier upright Cylinder → TileCache Cylinder
+tiltted Cuboid/Cylinder → collider-derived conservative AABB Box
+ConvexPolyhedron        → collider vertices → world AABB Box
+其它 shape              → skipped / partial coverage
+```
+
+注意 conservative AABB 仍来自**物理 collider**，不是视觉 Mesh。
+
+## Query-time reconcile，而不是每帧同步
+
+Physics step 不会调用 TileCache。每次 `canReach/findPath` 前才：
+
+```text
+world.updateSceneQueries()
+        ↓
+Rapier collider snapshot
+        ↓
+与已注册 TileCache obstacle 比较
+        ↓
+unchanged → no-op
+changed   → remove old + add new
+removed   → remove
+new       → add
+        ↓
+tileCache.update(navMesh) until upToDate
+```
+
+这样有三个好处：
+
+1. Physics 60Hz 热路径不承担 WASM tile rebuild。
+2. 多次物理抖动在没有导航 query 时不会产生无意义更新。
+3. Navigation 查询仍然得到**查询时刻**的真实物理姿态。
+
+TileCache 官方 obstacle request queue 上限 64。AgentScape 在 48 个 queued operations 前主动 flush，并有 70-obstacle 真实回归。
+
+### 当前 pose，不是 action target
+
+`open`/`close` 当前是 motor target 命令，不会同步等待关节 settle。因此：
+
+```text
+record.state.parts.door = open
+```
+
+表达的是命令/状态意图；Navigation 仍读取 Rapier collider 当前 pose。若 motor 正在运动，path query 看到的是中间姿态。这是有意的 current-world semantics。
 
 ## 世界单位与 Recast voxel
 
@@ -181,7 +256,7 @@ dynamic object move
 articulated Part open/close
 ```
 
-因为这些几何本来就不属于 1.9 static NavMesh。
+因为这些几何不属于 static base；1.10 会在下一次 query 时通过 TileCache reconcile，而不是让 static NavMesh dirty。
 
 并发 query 共用同一个 `buildPromise`，避免两个 Agent 查询同时重复构建 Recast。
 
@@ -209,6 +284,7 @@ NavigationSystem teardown：
 
 ```text
 NavMeshQuery.destroy()
+TileCache.destroy()
 NavMesh.destroy()
 interaction unsubscribe
 ```
@@ -260,6 +336,7 @@ path[]
 cost
 finalDistance
 buildVersion
+dynamicObstacles
 ```
 
 `cost` 当前是 Detour straight path 各段的世界空间长度总和。
@@ -309,40 +386,33 @@ PARTIAL_PATH / NO_PATH
 
 ## 当前明确不做
 
-1.9 没有加入：
+1.10 仍没有加入：
 
 ```text
-TileCache
 Crowd
-动态 box/cylinder obstacle
 off-mesh connection
 导航 agent controller
 自动沿路径移动对象
-NavMesh 二进制持久化
+NavMesh/TileCache 二进制持久化
 ```
 
 原因不是 Recast 不支持，而是这些能力有不同状态所有权。
 
-特别是动态障碍必须回答：
-
-```text
-哪个 Runtime object 是 obstacle？
-Part open/close 何时更新 obstacle？
-physics motion 与 tile cache 更新频率是什么？
-导航查询发生在 motor 尚未 settle 时怎么办？
-```
-
-在这些语义没有定义清楚前，不把 TileCache 提前接进默认 Runtime。
+动态障碍的 ownership/时序在 1.10 已收敛为 Rapier collider + query-time reconcile。剩余问题已经转为更高层：Door 等可交互障碍如何参与条件式 planning，以及谁负责真正沿路径执行 locomotion。
 
 ## 验证基线
 
-1.9 有真实 Recast/Detour 测试覆盖：
+1.10 的 Recast/Detour/TileCache 验证覆盖：
 
 ```text
 固定墙迫使 Detour 绕行
 完整静态隔断 → unreachable
-dynamic wall 不进入静态 NavMesh
-fixed transform → dirty
+dynamic wall 不进入静态 base NavMesh
+dynamic wall 通过 TileCache 改变 current reachability
+Rapier dynamic body 移动后无需 static rebuild
+articulated Door collider pose 随运动更新
+70 obstacles queue batching
+fixed transform → static dirty
 off-navmesh 与 disconnected 分开
 并发 query 只 build 一次
 真实 cabinet.glb：Body 纳入，Door Part 排除

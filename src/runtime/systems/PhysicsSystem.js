@@ -3,6 +3,39 @@ import RAPIER from '@dimforge/rapier3d-compat/rapier.es.js';
 import { orderParts, ROOT_PART } from '../../assets/parts.js';
 
 const vec = (a = [0, 0, 0]) => ({ x: a[0], y: a[1], z: a[2] });
+const array3 = (v) => [v.x, v.y, v.z];
+const upright = (q) => {
+  const upX = 2 * (q.x * q.y - q.z * q.w);
+  const upY = 1 - 2 * (q.x * q.x + q.z * q.z);
+  const upZ = 2 * (q.y * q.z + q.x * q.w);
+  return upY > 0.999 && Math.abs(upX) < 0.02 && Math.abs(upZ) < 0.02;
+};
+const yaw = (q) => Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
+const boxAabbHalfExtents = (half, q) => {
+  const xx = 1 - 2 * (q.y * q.y + q.z * q.z), xy = 2 * (q.x * q.y - q.z * q.w), xz = 2 * (q.x * q.z + q.y * q.w);
+  const yx = 2 * (q.x * q.y + q.z * q.w), yy = 1 - 2 * (q.x * q.x + q.z * q.z), yz = 2 * (q.y * q.z - q.x * q.w);
+  const zx = 2 * (q.x * q.z - q.y * q.w), zy = 2 * (q.y * q.z + q.x * q.w), zz = 1 - 2 * (q.x * q.x + q.y * q.y);
+  return [
+    Math.abs(xx) * half.x + Math.abs(xy) * half.y + Math.abs(xz) * half.z,
+    Math.abs(yx) * half.x + Math.abs(yy) * half.y + Math.abs(yz) * half.z,
+    Math.abs(zx) * half.x + Math.abs(zy) * half.y + Math.abs(zz) * half.z
+  ];
+};
+const cylinderAabbHalfExtents = (radius, halfHeight, q) => {
+  const axis = [2 * (q.x * q.y - q.z * q.w), 1 - 2 * (q.x * q.x + q.z * q.z), 2 * (q.y * q.z + q.x * q.w)];
+  return axis.map((component) => radius * Math.sqrt(Math.max(0, 1 - component * component)) + halfHeight * Math.abs(component));
+};
+const convexAabb = (vertices, position, rotation) => {
+  const q = new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
+  const v = new THREE.Vector3();
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity);
+  const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  for (let i = 0; i < vertices.length; i += 3) {
+    v.set(vertices[i], vertices[i + 1], vertices[i + 2]).applyQuaternion(q).add(position);
+    min.min(v); max.max(v);
+  }
+  return { position:min.clone().add(max).multiplyScalar(0.5).toArray(), halfExtents:max.clone().sub(min).multiplyScalar(0.5).toArray() };
+};
 
 export class PhysicsSystem {
   constructor() {
@@ -69,7 +102,7 @@ export class PhysicsSystem {
       createdBodies.push(body);
       this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass, manifest.physics?.friction);
 
-      const entry = { body, root: object, parts: new Map(), lastPosition: worldPos.clone(), lastRotation: worldRot.clone() };
+      const entry = { body, root: object, rootSpec:manifest.physics || {}, parts: new Map(), lastPosition: worldPos.clone(), lastRotation: worldRot.clone() };
       const bodies = new Map([[ROOT_PART, body]]);
       for (const [partName, part] of orderParts(manifest.parts || {})) {
         if (!part.physics || !part.joint) continue;
@@ -195,6 +228,48 @@ export class PhysicsSystem {
     part.joint.configureMotorPosition(target, motor.stiffness ?? 40, motor.damping ?? 8);
     part.body.wakeUp();
     return true;
+  }
+
+  navigationObstacles() {
+    this.world?.updateSceneQueries();
+    const items = [];
+    const skipped = [];
+    const addBody = (objectId, partName, body, bodyType) => {
+      if (bodyType === 'fixed') return;
+      for (let i = 0; i < body.numColliders(); i++) {
+        const collider = body.collider(i);
+        const shape = collider.shape;
+        const position = collider.translation();
+        const rotation = collider.rotation();
+        const id = `${objectId}:${partName}:${i}`;
+        if (shape.type === RAPIER.ShapeType.Cuboid) {
+          const exact = upright(rotation);
+          items.push({
+            id, objectId, part:partName, collider:i, shape:'box', sourceShape:'box', quality:exact ? 'exact-yaw' : 'conservative-aabb',
+            position:array3(position),
+            halfExtents:exact ? array3(shape.halfExtents) : boxAabbHalfExtents(shape.halfExtents, rotation),
+            angle:exact ? yaw(rotation) : 0
+          });
+        } else if (shape.type === RAPIER.ShapeType.Cylinder) {
+          if (upright(rotation)) {
+            items.push({ id, objectId, part:partName, collider:i, shape:'cylinder', sourceShape:'cylinder', quality:'exact-upright', position:[position.x, position.y - shape.halfHeight, position.z], radius:shape.radius, height:shape.halfHeight * 2 });
+          } else {
+            items.push({ id, objectId, part:partName, collider:i, shape:'box', sourceShape:'cylinder', quality:'conservative-aabb', position:array3(position), halfExtents:cylinderAabbHalfExtents(shape.radius, shape.halfHeight, rotation), angle:0 });
+          }
+        } else if (shape.type === RAPIER.ShapeType.ConvexPolyhedron && shape.vertices?.length) {
+          const box = convexAabb(shape.vertices, new THREE.Vector3(position.x, position.y, position.z), rotation);
+          items.push({ id, objectId, part:partName, collider:i, shape:'box', sourceShape:'convexHull', quality:'conservative-aabb', ...box, angle:0 });
+        } else {
+          skipped.push({ id, objectId, part:partName, collider:i, reason:'unsupported-shape', shapeType:shape.type });
+        }
+      }
+    };
+
+    for (const [id, entry] of this.entries) {
+      addBody(id, '$root', entry.body, entry.rootSpec.body || 'fixed');
+      for (const [partName, part] of entry.parts) addBody(id, partName, part.body, part.spec.physics?.body || 'dynamic');
+    }
+    return { items, skipped };
   }
 
   articulationPenetrations(id, partName, { refresh = false } = {}) {

@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.9.0** 当前状态。
+本文描述 **1.10.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -23,7 +23,7 @@
 | Web Runtime | 85% | Three / Rapier / lifecycle / persistence 已稳定 |
 | Human Editor | 75% | 可用，但不是当前差异化主线 |
 | Skill / Policy / Trace | 80% | 单一能力边界已经形成 |
-| Spatial API | 82% | placement + static Recast/Detour reachability 已有，dynamic obstacle 仍缺 |
+| Spatial API | 88% | placement + Recast/Detour + query-time TileCache 动态障碍已形成当前世界可达性 |
 | Scene Persistence / History | 85% | schema / autosave / undo-redo 基本成熟 |
 | Asset Compiler 基础 | 90% | inspect / normalize / budget / quality 很完整 |
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
@@ -34,7 +34,7 @@
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
 | Grasp / Manipulation Geometry | 15% | 尚未成为主干能力 |
-| Navigation / Reachability | 55% | 1.9 已有 static canReach/findPath；TileCache/dynamic obstacle 尚未接入 |
+| Navigation / Reachability | 72% | 1.10 已有 current-world canReach/findPath；尚缺 action-aware reachability 与实际 locomotion executor |
 | 大型 World Runtime | 30% | streaming / large nav / dynamic world 仍早期 |
 | Multi-Agent | 10% | 不是当前优先级 |
 | 完整生成式 World Pipeline | 30% | provider 边界在，task-driven generation 仍需发展 |
@@ -142,47 +142,70 @@ canReach / findPath
 
 分成两种真实能力。当前 `NavigationSystem` 使用 lazy Recast/Detour，支持端点吸附、静态连通性、路径 waypoint 与 path cost；真实 cabinet GLB 已进入 E2E。
 
-当前边界明确：
-
-```text
-scope = static
-
-dynamic object          excluded
-executable Part subtree excluded
-TileCache                not enabled
-```
-
-所以关闭的动态门目前不会阻断 NavMesh。详细契约见 [`navigation.md`](./navigation.md)。
+1.9 当时的边界是：dynamic object / executable Part 不进入 static base，查询只承诺 `scope=static`。这个边界在 1.10 **没有被删除**，而是保留为 Recast base，再由 TileCache + Rapier collider 形成 current-world overlay；因此不要把 1.9 的 static base 与 1.10 的最终查询 scope 混为一谈。详细契约见 [`navigation.md`](./navigation.md)。
 
 ---
 
-## 5. 当前 P0：Dynamic Obstacle Truth
+## 5. 1.10 已完成：Dynamic Obstacle Truth
 
-下一步不是重写 pathfinding，而是沿 Recast/Detour 已有 TileCache 解决动态障碍：
+1.10 沿 Recast/Detour 官方 TileCache 补齐动态障碍，但没有把 Physics 高频帧直接灌进导航：
 
 ```text
-static NavMesh
-    +
-Runtime obstacle ownership
-    +
-TileCache box/cylinder obstacles
-    ↓
-query reflects current world state
+Static Recast NavMesh
+        +
+query-time Rapier collider snapshot
+        ↓
+TileCache obstacle diff
+        ↓
+current-world Detour query
 ```
 
-在实现前必须先定义：
+当前覆盖：
 
-1. 哪些 dynamic object 自动成为 navigation obstacle。
-2. articulated Part 如何映射 obstacle。
-3. open/close motor 尚未 settle 时何时更新 obstacle。
-4. Physics 高频移动怎样节流 TileCache 更新。
-5. obstacle 状态是否属于 durable scene，还是继续由 Runtime facts 派生。
+```text
+dynamic Root box/cylinder
+articulated Part box/cylinder
+tiltted box/cylinder → physics-derived conservative AABB
+convexHull           → physics-derived conservative AABB
+unsupported shape    → skipped + coverage=partial
+```
 
-不先解决这些 ownership/时序问题，就不把 TileCache 接进默认 Runtime。
+查询报告：
+
+```text
+scope = current
+dynamicObstacles.coverage = complete | partial
+tracked / changed / operations / updates / syncVersion
+```
+
+已验证：dynamic barrier 移动前后可达性改变而 static `buildVersion` 不变；70 个 obstacle 不触发 TileCache 64-request queue overflow；真实 Rapier articulated Door collider pose 会随 open 轨迹更新。
 
 ---
 
-## 6. P1：完整 Joint Frame
+## 6. 当前 P0：Action-aware Reachability / Navigation Execution
+
+现在 Navigation 能回答“**按当前物理状态**能不能到”，但还不会自动推理：
+
+```text
+当前 closed Door 阻路
+        ↓
+如果 open Door
+        ↓
+路径可能出现
+```
+
+也没有一个 embodied agent locomotion executor 真正沿 Detour path 移动。下一步应先研究成熟的 door-aware planning / off-mesh connection / navigation action abstraction，再决定最小能力边界；不直接引入 Crowd 或 PathFollower Manager。
+
+候选问题：
+
+1. `canReach` 是否应能返回“被哪个可交互 obstacle 阻断”。
+2. Door/Drawer 等 action 能否成为条件式 navigation edge。
+3. path execution 应属于 Runtime action 还是外部 embodied controller。
+4. 是否需要 off-mesh connection（stairs/jump/teleport），以及谁验证其可执行性。
+
+---
+
+## 7. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -218,7 +241,7 @@ Schema claim second
 
 ---
 
-## 7. P2：Compact Agent Observation
+## 8. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -246,7 +269,7 @@ world size
 
 ---
 
-## 8. 自动语义：宁可慢一点，也不虚构能力
+## 9. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -284,7 +307,7 @@ high coverage + fake capability
 
 ---
 
-## 9. 目前不应该成为优先级的方向
+## 10. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -301,7 +324,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 10. 产品差异化应该是什么
+## 11. 产品差异化应该是什么
 
 不应该是：
 
@@ -333,7 +356,7 @@ Agent World
 
 ---
 
-## 11. 未来完成态
+## 12. 未来完成态
 
 可以把 100% 理解为：
 
@@ -398,11 +421,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.9.0 文档快照对应的仓库验证基线：
+1.10.0 文档快照对应的仓库验证基线：
 
 ```text
-63 Test Files PASS
-170 Tests PASS
+66 Test Files PASS
+176 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Python service tests PASS

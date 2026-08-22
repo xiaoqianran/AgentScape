@@ -215,3 +215,11 @@ Rapier shape query
 实现没有把 WASM 塞进 `SpatialSystem`，而是增加职责已经充分独立的 `NavigationSystem`：管理 lazy library init、NavMesh/Query ownership、dirty/rebuild 与 query。它仍是 derived state，不写 Scene JSON。
 
 为了不让 dynamic physics 造成每帧 rebuild，1.9 只使用 environment + fixed root geometry，并排除 executable Part subtree。这个约束直接在 API 输出中标为 `scope=static`，而不是隐藏缺口。
+
+## Dynamic Obstacle Truth：TileCache 只在查询边界同步
+
+1.10 继续复用 `recast-navigation-js` 官方 TileCache，而不是自己做动态 carve。官方 API 证明 obstacle add/remove 只是 request，需要 `tileCache.update(navMesh)` 直到 `upToDate`，并且 request queue 上限 64。
+
+AgentScape 没采用每帧 Physics→TileCache：动态 collider 的唯一事实仍在 Rapier；Navigation query 前才读取 snapshot、做 stable-id diff，并批量 pump TileCache。这样运行时没有第二份持续同步的 obstacle state，也不会让 60Hz physics 变成 WASM tile rebuild hot path。
+
+动态 shape 映射也坚持 provenance：upright box/cylinder 可精确映射；tilted shape/convex hull 只用 Rapier collider 自己推导 conservative AABB；unsupported shape 明确 skipped。

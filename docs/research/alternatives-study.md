@@ -4,7 +4,7 @@
 >
 > 本轮源码复核时间：2026-08-23。结论来自本地浅克隆 + CodeGraph 调用图/源码复核；仓库状态会继续变化。
 >
-> **1.9 落地说明：** Motion Sweep 已在 1.8 实现；本文随后列出的 Navigation Truth 已在 1.9 以 Recast/Detour static NavMesh 落地。动态障碍/TileCache 仍是下一阶段。
+> **1.10 落地说明：** Motion Sweep 已在 1.8 实现；Navigation Truth 在 1.9 建立 static Recast/Detour，并在 1.10 接入 query-time TileCache + Rapier dynamic obstacles。当前下一缺口已转为 action-aware reachability / navigation execution。
 
 ## 结论先行
 
