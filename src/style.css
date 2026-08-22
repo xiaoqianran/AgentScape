@@ -1,0 +1,32 @@
+:root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #eef2ff; background: #070b15; }
+* { box-sizing: border-box; }
+html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+button, input { font: inherit; }
+.shell { height: 100%; display: grid; grid-template-rows: 64px 1fr; background: radial-gradient(circle at 20% 0%, #16233a 0, #080c16 38%, #050810 100%); }
+.brandbar { display: flex; align-items: center; justify-content: space-between; padding: 0 22px; border-bottom: 1px solid #20283a; background: rgba(8,12,22,.78); backdrop-filter: blur(14px); }
+.brandbar strong { font-size: 18px; letter-spacing: -.02em; }
+.brandbar span { margin-left: 12px; color: #7f8ba5; font-size: 13px; }
+.status { color: #8ea0bb; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+.status i { width: 8px; height: 8px; border-radius: 50%; background: #61d095; box-shadow: 0 0 14px #61d095; }
+.workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+.viewport { position: relative; min-width: 0; min-height: 0; }
+.viewport canvas { display: block; width: 100%; height: 100%; }
+.hint { position: absolute; left: 18px; bottom: 18px; z-index: 2; padding: 8px 11px; color: #7f8ba5; background: #0b1120cc; border: 1px solid #263148; border-radius: 8px; font-size: 11px; pointer-events: none; }
+.panel { min-height: 0; border-left: 1px solid #20283a; padding: 26px 22px 20px; background: rgba(7,11,20,.86); backdrop-filter: blur(18px); display: flex; flex-direction: column; }
+.eyebrow { color: #78a6ff; font-size: 10px; letter-spacing: .18em; font-weight: 700; }
+h1 { margin: 8px 0 8px; font-size: 26px; letter-spacing: -.04em; }
+.intro { margin: 0 0 18px; color: #8e99ae; font-size: 13px; line-height: 1.6; }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chips button, .command button { border: 1px solid #2b3851; color: #dbe7ff; background: #121a2b; border-radius: 8px; cursor: pointer; }
+.chips button { padding: 7px 9px; font-size: 12px; }
+.chips button:hover, .command button:hover { background: #1a2740; border-color: #45608b; }
+.log { flex: 1; min-height: 120px; overflow: auto; margin: 18px 0 12px; padding: 12px; border: 1px solid #202b40; border-radius: 10px; background: #070b14; }
+.log-row { border-bottom: 1px solid #161d2c; padding: 7px 0; color: #8c9ab4; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+.log-row.tool { color: #b4c9ed; }.log-row.goal { color: #f1f5ff; }.log-row.result { color: #77d9a6; }.log-row.error { color: #ff9a9a; }.log-row.hint { color: #e4bf78; }
+.command { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.command input { min-width: 0; border: 1px solid #29364f; color: #eef3ff; background: #0c1220; border-radius: 9px; outline: 0; padding: 10px 11px; }
+.command input:focus { border-color: #5378b7; }
+.command button { padding: 0 14px; }
+details { margin-top: 12px; color: #77839a; font-size: 11px; }
+summary { cursor: pointer; } pre { white-space: pre-wrap; line-height: 1.6; }
+@media (max-width: 820px) { .workspace { grid-template-columns: 1fr; grid-template-rows: 58% 42%; }.panel { border-left: 0; border-top: 1px solid #20283a; padding: 16px; }.brandbar span { display: none; }.intro { display: none; }.log { margin: 10px 0; }.shell { grid-template-rows: 52px 1fr; } }
