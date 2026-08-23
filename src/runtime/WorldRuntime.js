@@ -8,6 +8,7 @@ import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
 import { SpatialSystem } from './systems/SpatialSystem.js';
 import { NavigationSystem } from './systems/NavigationSystem.js';
+import { LocomotionSystem } from './systems/LocomotionSystem.js';
 import { AssetLibrary } from '../assets/library/AssetLibrary.js';
 import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
 import { SceneSerializer } from '../persistence/SceneSerializer.js';
@@ -31,8 +32,8 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container, { environmentFactory } = {}) {
-    this.version = '1.14.0';
-    this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus();
+    this.version = '1.15.0';
+    this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
     this.assets = new AssetManager({ compiledStore: this.compiledAssetStore });
@@ -68,6 +69,7 @@ export class WorldRuntime {
     this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);
     this.addEnvironment();
     this.navigation = new NavigationSystem({ store: this.store, physics: this.physics, environmentRoots: [this.environment.root], events: this.events });
+    this.locomotion = new LocomotionSystem({ store:this.store, physics:this.physics, navigation:this.navigation, events:this.events });
     this.skills = registerCoreSkills(new SkillRegistry({ policy: this.policy, trace: this.trace, runtime: this }), this);
     this.worldPipeline = createWorldPipeline(this);
     this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;
@@ -119,8 +121,19 @@ export class WorldRuntime {
 
   async mutate(label, operation, meta = {}) {
     if (this.history?.suspended) return operation();
+    if (this.mutationOwner) {
+      const error = new Error(`World mutation already in progress: ${this.mutationOwner}`);
+      error.code = 'WORLD_MUTATION_BUSY';
+      throw error;
+    }
+    this.mutationOwner = label;
     const before = this.snapshot();
-    this.history.begin(label, before);
+    if (!this.history.begin(label, before)) {
+      this.mutationOwner = null;
+      const error = new Error('World history transaction unavailable');
+      error.code = 'WORLD_MUTATION_BUSY';
+      throw error;
+    }
     try {
       let result;
       await this.sceneGraph.batch(async () => {
@@ -132,18 +145,26 @@ export class WorldRuntime {
     } catch (error) {
       this.history.cancel();
       throw error;
+    } finally {
+      this.mutationOwner = null;
     }
   }
 
   beginMutation(label) {
-    if (!this.history?.suspended) this.history.begin(label, this.snapshot());
+    if (this.history?.suspended || this.mutationOwner) return false;
+    if (!this.history.begin(label, this.snapshot())) return false;
+    this.mutationOwner = 'editor';
+    return true;
   }
 
   commitMutation(meta = {}) {
-    if (!this.history?.suspended) {
+    if (this.history?.suspended || (this.mutationOwner && this.mutationOwner !== 'editor')) return false;
+    try {
       this.sceneGraph?.changed();
       if (meta.id && this.store.has(meta.id)) this.navigation?.invalidateIfStatic(this.store.get(meta.id), 'editor.transform');
-      this.history.commit(this.snapshot(), meta);
+      return this.history.commit(this.snapshot(), meta);
+    } finally {
+      if (this.mutationOwner === 'editor') this.mutationOwner = null;
     }
   }
 
@@ -162,6 +183,7 @@ export class WorldRuntime {
   restoreObjectState(id, state = {}) {
     const record = this.store.get(id);
     record.state = structuredClone(state);
+    if (record.state.navigation?.status === 'moving') record.state.navigation.status = 'interrupted';
     for (const [partName, action] of Object.entries(state.parts || {})) {
       if (record.manifest.actions.includes(action)) this.interactions.setArticulationAction(id, action, { partName });
     }
@@ -172,6 +194,7 @@ export class WorldRuntime {
 
   remove(id) {
     const record = this.store.get(id);
+    this.locomotion?.cancel(id, 'OBJECT_REMOVED');
     this.navigation?.invalidateIfStatic(record, 'object.removed');
     this.physics.remove(id);
     this.scene.remove(record.object);
@@ -207,7 +230,7 @@ export class WorldRuntime {
   }
 
   listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
-  update() { const dt = Math.min(this.clock.getDelta(), 1 / 30); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.camera); this.controls.update(); }
+  update() { const dt = Math.min(this.clock.getDelta(), 1 / 30); this.locomotion?.update(dt); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.camera); this.controls.update(); }
   animate = () => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(); this.renderer.render(this.scene, this.camera); };
   resize() { const w = this.container.clientWidth, h = this.container.clientHeight; if (!w || !h) return; this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h, false); }
   dispose() {
@@ -220,6 +243,8 @@ export class WorldRuntime {
       this.store.delete(id);
     }
     this.sceneGraph.reset();
+    this.locomotion?.cancelAll();
+    this.locomotion = null;
     this.environment?.dispose();
     this.environment = null;
     disposeObject3D(this.scene);

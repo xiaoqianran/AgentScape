@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.14.0** 的真实架构，不描述未来设想。
+本文描述 **1.15.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -660,3 +660,31 @@ provisional recommendation
 ```
 
 自动编译资产必须有 runtime articulation verification 才能成为 recommendation；未验证资产只能作为 blocker evidence。执行 `open` 后必须再次 `findPath` 获取 current Rapier/TileCache truth。详见 [`action-aware-navigation.md`](./action-aware-navigation.md)。
+
+---
+
+## 18. Embodied Locomotion：Detour 规划，Rapier 执行
+
+1.15 新增普通 builtin `agent` asset 与 `LocomotionSystem`。Agent pose 不单独存储：kinematic Rapier body 是位置事实，Three/ObjectStore 每个 physics step 从它同步。
+
+```text
+navigateTo
+   ↓
+NavigationSystem.findPath
+   ↓
+Detour waypoints
+   ↓
+LocomotionSystem
+   ↓
+PhysicsSystem.moveCharacter
+   ↓
+Rapier KinematicCharacterController
+   ↓
+World.step
+   ↓
+Three / ObjectStore
+```
+
+`navigateTo` 会等待 arrived/blocked 后才让 SkillRegistry 的 `runtime.mutate()` commit，整个跨帧行走只有一个 History command。为了避免长 mutation 与其它写操作争用同一个 CommandHistory pending slot，WorldRuntime 增加单一 `mutationOwner`；并发写明确返回 `WORLD_MUTATION_BUSY`。
+
+当前不接 Detour Crowd：单 Agent 的真实瓶颈是 physical move-and-slide，而不是群体 avoidance。详见 [`locomotion.md`](./locomotion.md)。

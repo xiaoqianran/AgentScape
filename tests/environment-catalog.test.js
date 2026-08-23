@@ -7,7 +7,7 @@ describe('Environment catalog',()=>{
     expect(new Set(ENVIRONMENTS.map((item)=>item.id)).size).toBe(ENVIRONMENTS.length);
     for(const item of ENVIRONMENTS){
       expect(typeof item.load).toBe('function');
-      expect(item.bootstrap).toMatchObject({table:expect.any(Array),cabinet:expect.any(Array),cup:expect.any(Array)});
+      expect(item.bootstrap).toMatchObject({agent:expect.any(Array),table:expect.any(Array),cabinet:expect.any(Array),cup:expect.any(Array)});
     }
   });
 

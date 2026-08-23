@@ -48,6 +48,7 @@ export class PhysicsSystem {
     this.rootWorldPosition = new THREE.Vector3();
     this.partWorldPosition = new THREE.Vector3();
     this.partLocalPosition = new THREE.Vector3();
+    this.characterController = null;
     this.parentWorldPosition = new THREE.Vector3();
     this.parentWorldRotation = new THREE.Quaternion();
     this.inverseParentWorldRotation = new THREE.Quaternion();
@@ -56,6 +57,12 @@ export class PhysicsSystem {
   async init() {
     await RAPIER.init();
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    this.characterController = this.world.createCharacterController(0.02);
+    this.characterController.enableAutostep(0.3, 0.2, false);
+    this.characterController.enableSnapToGround(0.3);
+    this.characterController.setMaxSlopeClimbAngle(Math.PI / 4);
+    this.characterController.setMinSlopeSlideAngle(Math.PI / 6);
+    this.characterController.setApplyImpulsesToDynamicBodies(false);
   }
 
   addEnvironment(colliders = []) {
@@ -83,6 +90,7 @@ export class PhysicsSystem {
       let desc;
       if (spec.shape === 'box') desc = RAPIER.ColliderDesc.cuboid(...spec.halfExtents);
       else if (spec.shape === 'cylinder') desc = RAPIER.ColliderDesc.cylinder(spec.halfHeight, spec.radius);
+      else if (spec.shape === 'capsule') desc = RAPIER.ColliderDesc.capsule(spec.halfHeight, spec.radius);
       else if (spec.shape === 'convexHull') {
         desc = RAPIER.ColliderDesc.convexHull(new Float32Array(spec.vertices));
         if (!desc) throw new Error('Rapier rejected a degenerate convex hull collider');
@@ -227,6 +235,40 @@ export class PhysicsSystem {
     this.entries.get(id)?.body?.setNextKinematicTranslation(target);
   }
 
+  getPosition(id) {
+    const p = this.entries.get(id)?.body?.translation();
+    return p ? [p.x, p.y, p.z] : null;
+  }
+
+  faceCharacter(id, direction) {
+    const entry = this.entries.get(id);
+    if (!entry?.body?.isKinematic?.()) return false;
+    const length = Math.hypot(direction[0], direction[2]);
+    if (length < 1e-8) return false;
+    const yaw = Math.atan2(-direction[0], -direction[2]);
+    entry.body.setNextKinematicRotation({ x:0, y:Math.sin(yaw / 2), z:0, w:Math.cos(yaw / 2) });
+    return true;
+  }
+
+  moveCharacter(id, desiredTranslation) {
+    const entry = this.entries.get(id);
+    if (!entry?.body?.isKinematic?.() || entry.body.numColliders() !== 1 || !this.characterController) {
+      return { success:false, code:'CHARACTER_BODY_UNAVAILABLE', movement:[0,0,0], grounded:false, collisions:[] };
+    }
+    const collider = entry.body.collider(0);
+    this.characterController.computeColliderMovement(collider, vec(desiredTranslation));
+    const movement = this.characterController.computedMovement();
+    const current = entry.body.translation();
+    entry.body.setNextKinematicTranslation({ x:current.x + movement.x, y:current.y + movement.y, z:current.z + movement.z });
+    const collisions = [];
+    for (let i = 0; i < this.characterController.numComputedCollisions(); i++) {
+      const hit = this.characterController.computedCollision(i);
+      if (!hit?.collider) continue;
+      collisions.push({ colliderHandle:hit.collider.handle, toi:hit.toi, normal:[hit.normal1.x, hit.normal1.y, hit.normal1.z] });
+    }
+    return { success:true, movement:[movement.x,movement.y,movement.z], grounded:this.characterController.computedGrounded(), collisions };
+  }
+
   setArticulationTarget(id, partName, target) {
     const part = this.entries.get(id)?.parts.get(partName);
     if (!part) return false;
@@ -240,8 +282,8 @@ export class PhysicsSystem {
     this.world?.updateSceneQueries();
     const items = [];
     const skipped = [];
-    const addBody = (objectId, partName, body, bodyType) => {
-      if (bodyType === 'fixed') return;
+    const addBody = (objectId, partName, body, bodyType, navigationObstacle = true) => {
+      if (bodyType === 'fixed' || navigationObstacle === false) return;
       for (let i = 0; i < body.numColliders(); i++) {
         const collider = body.collider(i);
         const shape = collider.shape;
@@ -272,7 +314,7 @@ export class PhysicsSystem {
     };
 
     for (const [id, entry] of this.entries) {
-      addBody(id, '$root', entry.body, entry.rootSpec.body || 'fixed');
+      addBody(id, '$root', entry.body, entry.rootSpec.body || 'fixed', entry.rootSpec.navigationObstacle);
       for (const [partName, part] of entry.parts) addBody(id, partName, part.body, part.spec.physics?.body || 'dynamic');
     }
     return { items, skipped };
@@ -311,6 +353,8 @@ export class PhysicsSystem {
 
   dispose() {
     this.entries.clear();
+    if (this.world && this.characterController) this.world.removeCharacterController(this.characterController);
+    this.characterController = null;
     this.world?.free?.();
     this.world = null;
   }

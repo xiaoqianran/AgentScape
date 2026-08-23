@@ -98,6 +98,19 @@ export class AssetManager {
   }
 
   registerBuiltins() {
+    this.registerFactory('agent', async () => {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.32, 1.06, 8, 16),
+        new THREE.MeshStandardMaterial({ color:0x567fbd, roughness:0.28, metalness:0.48 })
+      );
+      body.position.y = 0.85; body.castShadow = body.receiveShadow = true; g.add(body);
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.12, 0.06), new THREE.MeshBasicMaterial({ color:0xa9d5ff, toneMapped:false }));
+      visor.position.set(0, 1.12, -0.29); g.add(visor);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 32), new THREE.MeshBasicMaterial({ color:0x7db4ff, toneMapped:false }));
+      ring.position.y = 0.08; ring.rotation.x = Math.PI / 2; g.add(ring);
+      return g;
+    });
     this.registerFactory('chair', async () => {
       const g = new THREE.Group();
       const mat = new THREE.MeshStandardMaterial({ color: 0x71806a, roughness: 0.75 });

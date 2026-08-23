@@ -6,7 +6,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 
 ## 1. 学习主线
 
-### [`evolution.md`](./evolution.md) — 从第一个 Runtime 到 1.7.0
+### [`evolution.md`](./evolution.md) — 从第一个 Runtime 到当前版本
 
 回答：
 
@@ -54,12 +54,13 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - 现在大概做到什么程度？
 - 哪些模块已经比较成熟？
 - 哪些仍是明显短板？
-- 为什么 Motion Sweep 已经成为 1.8 的验证基线，以及为什么下一阶段优先 Navigation Truth？
+- 为什么 Motion Sweep、Navigation Truth、Action-aware Diagnosis 与 Embodied Locomotion 按这个顺序演进？
 
 ## 2. 当前协议与实现文档
 
 - [`navigation.md`](./navigation.md)：1.10 Current-world Navigation Truth：Recast/Detour、TileCache、Rapier 动态障碍与查询时同步。
 - [`action-aware-navigation.md`](./action-aware-navigation.md)：1.14 单动作反事实诊断：blocker provenance、verified action eligibility 与动作后重规划。
+- [`locomotion.md`](./locomotion.md)：1.15 Embodied Locomotion：Agent Body、Rapier CharacterController、跨帧 History 与 blocked 执行语义。
 - [`asset-sourcing.md`](./asset-sourcing.md)：Curated scene packs 的素材来源、许可、风格与 Web 资源准入。
 - [`worlds.md`](./worlds.md)：WORLD 01/02、Environment Catalog、世界切换、存档隔离与场景真值。
 - [`asset-compiler.md`](./asset-compiler.md)：Agent-Ready Asset Compiler 的完整契约。

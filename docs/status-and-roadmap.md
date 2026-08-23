@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.14.0** 当前状态。
+本文描述 **1.15.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 72%
+                           当前 ≈ 75%
 ```
 
-72% 不是“代码写完 72%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+75% 不是“代码写完 75%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -20,7 +20,7 @@
 
 | 模块 | 当前估计 | 说明 |
 |---|---:|---|
-| Web Runtime | 85% | Three / Rapier / lifecycle / persistence 已稳定 |
+| Web Runtime | 90% | Three / Rapier / lifecycle / persistence + kinematic Agent Body 已形成稳定运行时 |
 | Human Editor | 75% | 可用，但不是当前差异化主线 |
 | Skill / Policy / Trace | 80% | 单一能力边界已经形成 |
 | Spatial API | 88% | placement + Recast/Detour + query-time TileCache 动态障碍已形成当前世界可达性 |
@@ -34,7 +34,7 @@
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
 | Grasp / Manipulation Geometry | 15% | 尚未成为主干能力 |
-| Navigation / Reachability | 82% | 1.14 已有 single-action counterfactual blocker diagnosis；多动作 TAMP 与 locomotion executor 仍缺 |
+| Navigation / Reachability | 90% | 1.15 已有 Detour path + Rapier physical locomotion；自动动态 replan / off-mesh / multi-agent avoidance 仍缺 |
 | 大型 World Runtime | 58% | 1.13 已有 96×72m 城市基线；19 Recast meshes / 38 renderables / 330–489ms build，当前暂无 streaming 证据 |
 | Multi-Agent | 10% | 不是当前优先级 |
 | 完整生成式 World Pipeline | 30% | provider 边界在，task-driven generation 仍需发展 |
@@ -191,25 +191,44 @@ tracked / changed / operations / updates / syncVersion
 
 ---
 
-## 7. 当前 P0：Navigation Execution / Embodied Locomotion
+## 7. 1.15 已完成：Embodied Locomotion
 
 现在已有：
 
 ```text
-current path truth
-+
-single-action blocker diagnosis
-+
-open/close interaction
-+
-physics replanning
+builtin Agent Body
+      ↓
+Detour current path
+      ↓
+LocomotionSystem waypoint state
+      ↓
+Rapier CharacterController
+      ↓
+physical stairs / walls
+      ↓
+arrived | blocked
 ```
 
-但还没有一个 embodied agent controller 真正沿 Detour path 行走。下一步首先要定义 locomotion ownership：是 Runtime 的标准 Agent Body，还是外部 controller；在这个边界明确前不直接引入 Crowd / PathFollower Manager。
+真实 Ruined Courtyard E2E 已从 `[0,0,12]` 走上 `[12,1.2,4.8]` 高台；physical-only wall E2E 会返回 `PHYSICS_BLOCKED`，不会 teleport。跨帧 `navigateTo` 仍只有一个 History transaction，并发 world-write 使用 `WORLD_MUTATION_BUSY` 拒绝。
 
 ---
 
-## 8. 1.11–1.12 已完成：Curated Multi-World Layer
+## 8. 当前 P0：Interaction-range Task Execution
+
+Agent 已经会走，但 `open / pickup / place` 当前还没有统一的“必须先到交互距离”约束。下一步更有价值的是把：
+
+```text
+find target
+→ navigate to interaction pose
+→ verify range / line-of-sight
+→ execute open/pickup/place
+```
+
+做成可信闭环，而不是马上进入 Multi-Agent Crowd。
+
+---
+
+## 9. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -234,7 +253,7 @@ Three.js architecture
 
 ---
 
-## 9. P1：完整 Joint Frame
+## 10. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -270,7 +289,7 @@ Schema claim second
 
 ---
 
-## 10. P2：Compact Agent Observation
+## 11. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -298,7 +317,7 @@ world size
 
 ---
 
-## 11. 自动语义：宁可慢一点，也不虚构能力
+## 12. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -336,7 +355,7 @@ high coverage + fake capability
 
 ---
 
-## 12. 目前不应该成为优先级的方向
+## 13. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -353,7 +372,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 13. 产品差异化应该是什么
+## 14. 产品差异化应该是什么
 
 不应该是：
 
@@ -385,7 +404,7 @@ Agent World
 
 ---
 
-## 14. 未来完成态
+## 15. 未来完成态
 
 可以把 100% 理解为：
 
@@ -450,17 +469,21 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.14.0 文档快照对应的仓库验证基线：
+1.15.0 文档快照对应的仓库验证基线：
 
 ```text
-73 Test Files PASS
-197 Tests PASS
+79 Test Files PASS
+205 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
 Ruined Courtyard split-level Recast PASS
 Grand Urban Block 96×72m Recast benchmark PASS
 Action-aware Navigation E2E PASS
+Embodied Locomotion Ruined Courtyard E2E PASS
+Physical-only blocker locomotion E2E PASS
+Kinematic CharacterController capsule/wall/yaw PASS
+Long mutation ownership/history lock PASS
 Counterfactual restore recovery PASS
 Live verification metadata sync PASS
 World-pack dynamic import chunks PASS

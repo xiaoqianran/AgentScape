@@ -9,6 +9,7 @@ export class EditorController {
     this.pointer = new THREE.Vector2();
     this.box = new THREE.BoxHelper(undefined, 0x7aa2ff);
     this.box.visible = false;
+    this.dragBlocked = false;
     this.runtime.scene.add(this.box);
 
     this.transform = new TransformControls(runtime.camera, runtime.renderer.domElement);
@@ -24,15 +25,22 @@ export class EditorController {
       runtime.controls.enabled = !value;
       if (!this.selectedId) return;
       if (value) {
-        runtime.beginMutation(`editor:${this.transform.getMode()}`);
+        this.dragBlocked = !runtime.beginMutation(`editor:${this.transform.getMode()}`);
+        if (this.dragBlocked) {
+          this.transform.reset();
+          runtime.controls.enabled = true;
+          return;
+        }
         runtime.physics.beginTransform(this.selectedId);
+      } else if (this.dragBlocked) {
+        this.dragBlocked = false;
       } else {
         runtime.physics.endTransform(this.selectedId);
         runtime.commitMutation({ source: 'editor', id: this.selectedId, mode: this.transform.getMode() });
       }
     });
     this.transform.addEventListener('objectChange', () => {
-      if (!this.selectedId) return;
+      if (!this.selectedId || this.dragBlocked) return;
       runtime.physics.syncTransform(this.selectedId, runtime.store.get(this.selectedId).object);
       runtime.events.emit('editor.transform', { id: this.selectedId, mode: this.transform.getMode() });
       this.box.update();

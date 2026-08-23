@@ -2,17 +2,19 @@ import { Errors } from '../core/errors.js';
 import { orderParts, ROOT_PART } from './parts.js';
 
 const BODY_TYPES = new Set(['fixed', 'dynamic', 'kinematic']);
-const SHAPES = new Set(['box', 'cylinder', 'convexHull']);
+const SHAPES = new Set(['box', 'cylinder', 'capsule', 'convexHull']);
 const ARTICULATION_ACTIONS = new Set(['open', 'close']);
 
 export function validatePhysics(physics, context = {}) {
   if (!physics) return;
   if (physics.body && !BODY_TYPES.has(physics.body)) throw Errors.invalidManifest(`Unsupported physics body: ${physics.body}`, context);
+  if (physics.navigationObstacle != null && typeof physics.navigationObstacle !== 'boolean') throw Errors.invalidManifest('physics.navigationObstacle must be boolean', context);
   for (const collider of physics.colliders || []) {
     if (!SHAPES.has(collider.shape)) throw Errors.invalidManifest(`Unsupported collider shape: ${collider.shape}`, context);
     if (collider.translation && (collider.translation.length !== 3 || !collider.translation.every(Number.isFinite))) throw Errors.invalidManifest('Collider translation requires finite [3]', context);
     if (collider.shape === 'box' && (collider.halfExtents?.length !== 3 || !collider.halfExtents.every((v) => Number.isFinite(v) && v > 0))) throw Errors.invalidManifest('Box collider requires positive finite halfExtents[3]', context);
     if (collider.shape === 'cylinder' && (!Number.isFinite(collider.halfHeight) || collider.halfHeight <= 0 || !Number.isFinite(collider.radius) || collider.radius <= 0)) throw Errors.invalidManifest('Cylinder collider requires positive finite halfHeight and radius', context);
+    if (collider.shape === 'capsule' && (!Number.isFinite(collider.halfHeight) || collider.halfHeight <= 0 || !Number.isFinite(collider.radius) || collider.radius <= 0)) throw Errors.invalidManifest('Capsule collider requires positive finite halfHeight and radius', context);
     if (collider.shape === 'convexHull' && (!Array.isArray(collider.vertices) || collider.vertices.length < 12 || collider.vertices.length % 3 !== 0 || !collider.vertices.every(Number.isFinite))) throw Errors.invalidManifest('Convex hull collider requires finite flat vertices[] with at least 4 points', context);
   }
 }

@@ -148,6 +148,9 @@ async function main() {
 
   world.events.on('tool.called', (event) => log(`tool: ${event.name} ${JSON.stringify(event.args)}`, 'tool'));
   world.events.on('interaction', (event) => log(`action: ${event.action} ${event.id}`, 'tool'));
+  world.events.on('locomotion.started', ({ id, waypoints, pathCost }) => log(`walk: ${id} · ${waypoints} waypoints · ${pathCost ?? '?'}m`, 'tool'));
+  world.events.on('locomotion.arrived', ({ id, elapsed }) => log(`arrived: ${id} · ${elapsed}s`, 'result'));
+  world.events.on('locomotion.blocked', ({ id, reason }) => log(`blocked: ${id} · ${reason}`, 'error'));
   world.events.on('editor.selection', ({ id }) => renderInspector(id));
   world.events.on('editor.transform', ({ id }) => renderInspector(id));
   world.events.on('object.removed', ({ id }) => log(`removed: ${id}`, 'tool'));
@@ -166,6 +169,11 @@ async function main() {
     try {
       await world.restore(sceneStore.load());
       log('autosave restored', 'result');
+      const hasAgent = world.store.list().some(([, record]) => record.manifest.type === 'agent');
+      if (!hasAgent && environmentDefinition.bootstrap.agent) {
+        await tools.call('spawnAsset', { assetId:'agent', position:environmentDefinition.bootstrap.agent, instanceId:'agent_01' });
+        log('legacy autosave upgraded · agent_01 added', 'result');
+      }
     } catch (error) {
       log(`autosave restore failed: ${error.message}`, 'error');
       await bootstrapWorld(tools, environmentDefinition.bootstrap);

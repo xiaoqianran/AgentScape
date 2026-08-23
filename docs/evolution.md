@@ -1492,3 +1492,13 @@ Pages 同时加入 Cinematic Mode：它只隐藏编辑 UI、扩大 viewport，�
 没有新增第二 Planner World，也没有把 open target 当成 final pose。诊断只临时 suppress 一个 dynamic obstacle，Detour query 后立即恢复，因此输出强制标 `provisional`。真实 Rapier Door E2E 证明：recommend open → motor 运动 → current collider 改变 → findPath 变 reachable，同时 static buildVersion 不变。
 
 这一轮还发现并修复了 spawn-before-verify 的 live manifest metadata stale：verify 后只把 verification/quality 同步到已存在实例，不热替换 physics/joint 结构。
+
+---
+
+## 35. 1.15：Agent 第一次真正沿路径走进世界
+
+1.14 已经能判断“门挡路 → 建议 open → replan”，但 Agent 自己仍没有身体。1.15 增加普通 builtin Agent asset：1.70m capsule、kinematic Rapier body、`navigate` action。
+
+没有用 `moveObject` 把 Agent 按 waypoint teleport，也没有让 Detour Crowd 成为第二个 position authority。Detour 只给 global path；Rapier CharacterController 每帧执行 move-and-slide/autostep/snap-to-ground。真实 Ruined Courtyard E2E 证明 Agent 能沿 6 个 0.2m 台阶走上 1.2m 高台；另一个故意让 NavMesh 漏掉物理墙的测试证明 Agent 会停在墙前并返回 `PHYSICS_BLOCKED`。
+
+跨帧 locomotion 还暴露了历史事务的并发假设：原来的 `WorldRuntime.mutate()` 允许第二 mutation 在第一个 async mutation 未完成时进入。1.15 用一个 `mutationOwner` 明确串行化 world-write，不新增 Queue/Manager。

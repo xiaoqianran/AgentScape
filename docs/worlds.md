@@ -516,3 +516,15 @@ Three.js / glTF 社区的成熟经验是：KTX2/Basis 的主要收益来自 GPU 
 ```
 
 不因为“未来可能有大世界”先增加一套压缩/LOD 管线。
+
+## 默认 Embodied Agent
+
+1.15 起三个 curated world 的 bootstrap metadata 都包含 `agent` 起点：
+
+```text
+Monument Hall      [0, 0, 9]
+Ruined Courtyard   [0, 0, 12]
+Grand Urban Block  [0, 0, -30]
+```
+
+`bootstrapWorld()` 会先 spawn `agent_01`，再生成 table/cabinet/cup。旧 Pages autosave 恢复成功但没有任何 `type=agent` 对象时，Pages 内容层会补 `agent_01`；用户导入 Scene JSON 不执行这项迁移。
