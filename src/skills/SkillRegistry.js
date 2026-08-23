@@ -36,6 +36,12 @@ function classifyResult(result) {
       if (FAILED_STATUSES.has(status) || status.endsWith('-failed')) return { state:'failed', verified:false, status, reason:result.reason || null };
       if (UNVERIFIED_STATUSES.has(status) || status.endsWith('-unverified')) return { state:'unverified', verified:false, status, reason:result.reason || null };
       if (REQUESTED_STATUSES.has(status) || status.endsWith('-requested')) return { state:'requested', verified:false, status, reason:result.reason || null };
+      if (status === 'asset-ready') return { state:'verified', verified:true, status };
+      if (status === 'asset-provisional') return { state:'unverified', verified:false, status, reason:'ASSET_PROVISIONAL' };
+      if (status === 'asset-rejected') return { state:'failed', verified:false, status, reason:'ASSET_REJECTED' };
+      if (status === 'world-ready') return { state:'verified', verified:true, status };
+      if (status === 'world-provisional') return { state:'unverified', verified:false, status, reason:'WORLD_PROVISIONAL' };
+      if (status === 'world-rejected') return { state:'failed', verified:false, status, reason:result.reason || 'WORLD_REJECTED' };
       if (status === 'empty') return { state:'noop', verified:false, status, reason:'NO_ACTIVE_OBJECT' };
       if (status === 'recovery-stale') return { state:'noop', verified:false, status, reason:result.reason || 'RECOVERY_STALE' };
     }

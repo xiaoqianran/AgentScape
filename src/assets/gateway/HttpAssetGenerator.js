@@ -5,7 +5,7 @@ export class HttpAssetGenerator extends JsonGateway {
 
   async generate(request) {
     const payload = await this.post(request);
-    if (!payload?.manifest) throw new Error('Asset Generator response requires manifest');
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Asset Generator response requires a JSON object');
     return payload;
   }
 }

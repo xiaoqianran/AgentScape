@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.31.0** 的真实架构，不描述未来设想。
+本文描述 **1.32.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -1031,3 +1031,29 @@ verification   = later original action retry post-condition
 ## 34. Third-object World Counterfactual
 
 1.31 复用 `colliderProvenance` 和 Rapier `intersectionsWithShape` 增加 `articulationWorldCounterfactual`。它比较 blocker current / target / action-envelope hypothetical poses 对 live world colliders 的命中集合，以 `introduced collision = hypothetical hits - current hits` 作为 hard veto。Self、Agent 和 original failed Part pair 被排除，但 original object 的其它 Parts/root 仍参与。Known third-object/environment collision 不允许被 pairwise Physics rank 或 Three fallback resurrect。完整 contract 见 [`third-object-counterfactual.md`](./third-object-counterfactual.md)。
+
+---
+
+## 35. Generated World Admission：Generator 不拥有 Runtime Truth
+
+1.32 没有新增 WorldManager。`normalizeWorldSpec` 先规范化 intent；`AssetLibrary` 复用 `EmbodiedGenAdapter` 将 raw provider payload 转成 Manifest，并通过统一 `assetAdmission` 判断 ready/provisional/rejected；`createWorldPipeline` 继续复用现有 AssetManager、ObjectStore、WorldValidator、RepairEngine 与 SceneSerializer。
+
+```text
+WorldSpec
+  ↓
+AssetLibrary.resolve / generate
+  ↓
+EmbodiedGenAdapter (when provider=embodiedgen)
+  ↓
+AssetManager manifest truth
+  ↓
+asset_admission
+  ↓
+instantiate / relations
+  ↓
+WorldValidator / RepairEngine
+  ↓
+worldAdmission
+```
+
+Agent skill 永远运行完整 canonical pipeline；内部 stage selection 不暴露给 LLM。Asset admission rejected 时不产生 partial spawn；final world rejected 时 skill 恢复调用前 scene。`world-ready / world-provisional / world-rejected` 与 `asset-ready / asset-provisional / asset-rejected` 已进入 Skill outcome semantics。完整 contract 见 [`generated-world-admission.md`](./generated-world-admission.md)。

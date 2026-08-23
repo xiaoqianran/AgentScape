@@ -14,7 +14,10 @@ function runtime() {
     restore: vi.fn(async (scene) => { value = scene.value; }),
     mutate: vi.fn(async (_label, fn) => fn()),
     assetLibrary: { list:()=>[], search:()=>[], resolve:()=>({}), generate:()=>({}), summary:(x)=>x },
-    assets: { registerManifest: vi.fn(), has:()=>true },
+    assets: {
+      registerManifest:vi.fn(),has:()=>true,
+      getManifest:vi.fn((id)=>({id,type:'object',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[]}}))
+    },
     listObjects: () => [],
     spawn: vi.fn(async () => { value += 1; return 'x'; }),
     interactions: {
@@ -55,6 +58,24 @@ describe('core skills', () => {
     expect(r.getValue()).toBe(0);
   });
 
+  it('surfaces provisional/rejected asset admission on low-level spawn without pretending verification', async () => {
+    const r=runtime();
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+
+    r.assets.getManifest=vi.fn(()=>({id:'eg',type:'object',source:{kind:'glb',url:'https://assets.test/eg.glb'},actions:['move'],physics:{body:'dynamic',colliders:[]},provenance:{admission:{status:'provisional',reasons:['UNVERIFIED_PROVIDER_SEMANTICS']}}}));
+    const provisional=await registry.invoke('spawnAsset',{assetId:'eg',position:[0,0,0],instanceId:'eg_01'},{profile:'builder',actor:'test'});
+    expect(provisional).toMatchObject({success:true,result:{status:'asset-provisional',id:'x',assetId:'eg',admission:{status:'provisional'}}});
+    expect(registry.executionPolicy('spawnAsset',provisional.result).outcome).toMatchObject({state:'unverified',verified:false,reason:'ASSET_PROVISIONAL'});
+
+    r.spawn.mockClear();
+    r.assets.getManifest=vi.fn(()=>({id:'bad',type:'object',source:{kind:'glb',url:'https://assets.test/bad.glb'},actions:['move'],physics:{body:'fixed',colliders:[]},compiler:{quality:{status:'rejected'}}}));
+    const rejected=await registry.invoke('spawnAsset',{assetId:'bad',position:[0,0,0]},{profile:'builder',actor:'test'});
+    expect(rejected).toMatchObject({success:true,result:{status:'asset-rejected',assetId:'bad',admission:{status:'rejected'}}});
+    expect(r.spawn).not.toHaveBeenCalled();
+    expect(registry.executionPolicy('spawnAsset',rejected.result).outcome).toMatchObject({state:'failed',verified:false,reason:'ASSET_REJECTED'});
+  });
+
+
   it('world pipeline cannot bypass asset permissions', async () => {
     const r = runtime();
     r.policy = new PolicyEngine({ profiles: { worldOnly: ['world.write'] } });
@@ -64,6 +85,40 @@ describe('core skills', () => {
     expect(result.error.code).toBe('forbidden');
     expect(r.worldPipeline.run).not.toHaveBeenCalled();
   });
+
+  it('does not expose pipeline stage selection to the agent tool', async () => {
+    const r=runtime();
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const def=registry.definitions().find((item)=>item.name==='runWorldPipeline');
+    expect(def.parameters.properties).toEqual({plan:{type:'object'}});
+    r.worldPipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}));
+    await registry.invoke('runWorldPipeline',{plan:{},stages:['instantiate']},{profile:'builder',actor:'test'});
+    expect(r.worldPipeline.run).toHaveBeenCalledWith({});
+  });
+
+
+  it('classifies world pipeline admission and restores a rejected generated world', async () => {
+    const r=runtime();
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+
+    r.worldPipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}));
+    const ready=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
+    expect(ready).toMatchObject({success:true,result:{status:'world-ready',admission:{status:'ready'}}});
+    expect(registry.executionPolicy('runWorldPipeline',ready.result).outcome).toMatchObject({state:'verified',verified:true,status:'world-ready'});
+
+    r.worldPipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'provisional',reasons:['ASSET_PROVISIONAL']}}},timeline:[]}));
+    const provisional=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
+    expect(provisional).toMatchObject({success:true,result:{status:'world-provisional',admission:{status:'provisional'}}});
+    expect(registry.executionPolicy('runWorldPipeline',provisional.result).outcome).toMatchObject({state:'unverified',verified:false,status:'world-provisional',reason:'WORLD_PROVISIONAL'});
+
+    r.restore.mockClear();
+    r.worldPipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'rejected',reasons:['ASSET_UNRESOLVED']}}},timeline:[]}));
+    const rejected=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
+    expect(rejected).toMatchObject({success:true,result:{status:'world-rejected',reason:'ASSET_UNRESOLVED',rolledBack:true,admission:{status:'rejected'}}});
+    expect(r.restore).toHaveBeenCalledOnce();
+    expect(registry.executionPolicy('runWorldPipeline',rejected.result).outcome).toMatchObject({state:'failed',verified:false,reason:'ASSET_UNRESOLVED'});
+  });
+
 
   it('viewer can validate but cannot repair', async () => {
     const r = runtime();

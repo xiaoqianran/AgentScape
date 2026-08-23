@@ -48,3 +48,8 @@ Content-Type: application/json
 GLB URL 必须能被浏览器访问，并正确配置 CORS。Manifest 会先通过 Schema 校验，再注册进 AssetLibrary。
 
 后端可以封装 Hunyuan3D、TRELLIS、Blender 自动化或其他生成系统；AgentScape Runtime 不依赖具体模型。
+
+
+## 1.32：Raw Provider Payload Admission
+
+`HttpAssetGenerator` 现在允许返回普通 JSON object，而不强制只能 `{manifest}`。`AssetLibrary` 负责 admission：已有 Manifest 先做 schema + trust classification；`provider=embodiedgen` 的 raw payload 交给 `EmbodiedGenAdapter`。未知 raw provider 明确拒绝，不猜 Manifest。没有 Compiler-ready evidence 的 generator Manifest 默认 `provisional / UNVERIFIED_GENERATOR_MANIFEST`。多对象生成世界应走 [`generated-world-admission.md`](./generated-world-admission.md) 描述的 WorldSpec canonical pipeline。

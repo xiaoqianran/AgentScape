@@ -1,13 +1,16 @@
 import { validateAssetManifest } from '../schema.js';
+import { EmbodiedGenAdapter } from '../../adapters/EmbodiedGenAdapter.js';
+import { assetAdmission } from '../admission.js';
 
 const normalize = (value = '') => String(value).trim().toLowerCase();
 const tokens = (value = '') => normalize(value).split(/[^a-z0-9\u4e00-\u9fff]+/).filter(Boolean);
 
 export class AssetLibrary {
-  constructor({ assetManager, generator = null, events = null } = {}) {
+  constructor({ assetManager, generator = null, events = null, embodiedGenAdapter = new EmbodiedGenAdapter() } = {}) {
     this.assetManager = assetManager;
     this.generator = generator;
     this.events = events;
+    this.embodiedGenAdapter = embodiedGenAdapter;
   }
 
   list() {
@@ -51,6 +54,7 @@ export class AssetLibrary {
     if (!options.generate) return { status: 'missing', query, assets: [] };
     const generated = await this.generate(query, options);
     if (generated.status === 'generator_not_configured') return { status: generated.status, query, assets: [], hint: generated.hint };
+    if (generated.status === 'rejected') return { status:'rejected', query, assets:[], admission:generated.admission, assetId:generated.id };
     return { status: 'generated', query, assets: [generated] };
   }
 
@@ -63,9 +67,23 @@ export class AssetLibrary {
       };
     }
     const result = await this.generator.generate({ prompt, ...options });
-    const manifest = validateAssetManifest(result.manifest);
+    let manifest;
+    if (result?.manifest) {
+      manifest = validateAssetManifest(structuredClone(result.manifest));
+      manifest.provenance={
+        ...(manifest.provenance || {}),
+        admission:assetAdmission(manifest,{generated:true})
+      };
+    } else if (options.provider === 'embodiedgen' || result?.provider === 'embodiedgen') {
+      const payload = result?.payload || result;
+      manifest = validateAssetManifest(this.embodiedGenAdapter.toManifest(payload, { id:options.id, glbUrl:result?.glbUrl }));
+    } else {
+      throw new Error('Asset Generator response requires manifest or a recognized provider payload');
+    }
+    const admission=assetAdmission(manifest,{generated:true});
+    if (admission.status==='rejected') return { status:'rejected', id:manifest.id, admission };
     this.assetManager.registerManifest(manifest);
-    this.events?.emit('asset.registered', { assetId: manifest.id, generated: true });
-    return this.summary(manifest);
+    this.events?.emit('asset.registered', { assetId: manifest.id, generated: true, provider:manifest.provenance?.provider || null, admission:admission.status });
+    return { ...this.summary(manifest), admission };
   }
 }

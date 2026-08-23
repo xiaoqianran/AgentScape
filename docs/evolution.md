@@ -1650,3 +1650,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 ## 52. 1.31：Recovery Action 第一次检查整个当前 World 的新增碰撞
 
 1.30 已能验证 original Part↔blocker Part 的 pairwise counterfactual 收敛，但 selected blocker action 仍可能绕开 original 后撞向第三对象或 Environment。1.31 增加 non-mutating Rapier world query，并比较 current baseline 与 target/action envelope 的新增 collider hits。Known world collision成为 hard veto；unique/multi-action 都覆盖，execution-time 重新生成 proposal，因此 world变化会使旧 recovery stale。
+
+---
+
+## 53. 1.32：EmbodiedGen Adapter 第一次进入 Generated World 主链
+
+以前仓库同时有 Asset Generator、EmbodiedGenAdapter 和 WorldPipeline，但默认 HTTP Generator 要求后端直接提供 Manifest，Adapter 主要还是手工桥。1.32 让 raw EmbodiedGen payload 真正进入 `AssetLibrary.generate` 主链，并把 Generator Manifest 的 trust 明确化：schema-valid 不等于 ready；没有 Compiler-ready evidence 的外部生成资产默认 provisional。
+
+同时新增 deterministic `WorldSpec` normalizer 和 `asset_admission` stage。Agent 不再能选择 pipeline stages，因此无法跳过 validate/finalize。Mixed resolved+missing asset plan 在任何 spawn 前 fail closed；最终 rejected world 会 restore 调用前 scene。这样“生成资产”和“生成一个可被 Agent 认定完成的世界”第一次成为两个不同的 executable contract。

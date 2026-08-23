@@ -32,7 +32,14 @@ export class EmbodiedGenAdapter {
         friction: Number(src.friction || 0.5),
         colliders: [{ shape: 'box', halfExtents: half, translation: [0, half[1], 0] }]
       },
-      provenance: { provider: 'embodiedgen', original: { id: src.id, name: src.name }, affordances }
+      provenance: {
+        provider: 'embodiedgen',
+        adapter: 'EmbodiedGenAdapter',
+        original: { id: src.id, name: src.name },
+        affordances,
+        semantics: { source:'provider-affordances', verified:false },
+        admission: { status:'provisional', reasons:['FALLBACK_BOX_COLLIDER','UNVERIFIED_PROVIDER_SEMANTICS'] }
+      }
     };
   }
 }

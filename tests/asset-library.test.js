@@ -34,7 +34,58 @@ describe('AssetLibrary', () => {
     };
     const assets = library(generator);
     const result = await assets.resolve('rare plant', { generate: true });
-    expect(result.status).toBe('generated');
+    expect(result).toMatchObject({status:'generated',assets:[{id:'plant_generated',admission:{status:'provisional',reasons:['UNVERIFIED_GENERATOR_MANIFEST']}}]});
     expect(assets.search('plant')[0].id).toBe('plant_generated');
   });
+
+  it('adapts a raw EmbodiedGen provider payload into a validated provisional runtime manifest', async () => {
+    const generator = {
+      isConfigured: () => true,
+      generate: vi.fn(async () => ({
+        provider:'embodiedgen',
+        asset:{ id:'eg-bench', name:'Generated Bench', category:'workbench', dimensions:[2,1,.8], movable:false, glb_url:'https://assets.test/bench.glb', affordances:['support'] }
+      }))
+    };
+    const assets = library(generator);
+    const result = await assets.resolve('generated workbench', { generate:true, provider:'embodiedgen' });
+    expect(result).toMatchObject({status:'generated',assets:[{
+      id:'eg-bench',type:'workbench',source:'glb',
+      admission:{status:'provisional',reasons:['FALLBACK_BOX_COLLIDER','UNVERIFIED_PROVIDER_SEMANTICS']}
+    }]});
+    const manifest=assets.assetManager.getManifest('eg-bench');
+    expect(manifest).toMatchObject({
+      source:{kind:'glb',url:'https://assets.test/bench.glb'},
+      provenance:{provider:'embodiedgen',adapter:'EmbodiedGenAdapter',semantics:{source:'provider-affordances',verified:false},admission:{status:'provisional'}}
+    });
+    expect(manifest.actions).toEqual(['move']);
+  });
+
+  it('refuses an unrecognized raw generator payload instead of fabricating a manifest', async () => {
+    const generator={isConfigured:()=>true,generate:vi.fn(async()=>({provider:'unknown',asset:{id:'x'}}))};
+    await expect(library(generator).generate('x',{provider:'unknown'})).rejects.toThrow(/manifest or a recognized provider payload/);
+  });
+
+
+  it('does not register a compiler-rejected generated manifest', async () => {
+    const generator={isConfigured:()=>true,generate:vi.fn(async()=>({manifest:{
+      id:'bad_generated',type:'object',source:{kind:'glb',url:'https://assets.test/bad.glb'},actions:['move'],physics:{body:'fixed',colliders:[]},
+      compiler:{quality:{status:'rejected'}}
+    }}))};
+    const assets=library(generator);
+    const result=await assets.resolve('bad generated',{generate:true});
+    expect(result).toMatchObject({status:'rejected',assets:[],assetId:'bad_generated',admission:{status:'rejected',reasons:['COMPILER_REJECTED']}});
+    expect(assets.assetManager.has('bad_generated')).toBe(false);
+  });
+
+  it('allows a compiler-ready generated manifest to retain ready admission', async () => {
+    const generator={isConfigured:()=>true,generate:vi.fn(async()=>({manifest:{
+      id:'ready_generated',type:'object',source:{kind:'glb',url:'https://assets.test/ready.glb'},actions:['move'],physics:{body:'fixed',colliders:[]},
+      compiler:{quality:{status:'ready'}}
+    }}))};
+    const assets=library(generator);
+    const result=await assets.resolve('ready generated',{generate:true});
+    expect(result).toMatchObject({status:'generated',assets:[{id:'ready_generated',admission:{status:'ready',reasons:[]}}]});
+    expect(assets.assetManager.has('ready_generated')).toBe(true);
+  });
+
 });

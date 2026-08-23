@@ -1,4 +1,5 @@
 import { EmbodiedGenAdapter } from '../adapters/EmbodiedGenAdapter.js';
+import { assetAdmission } from '../assets/admission.js';
 import { buildRecoveryProposals } from '../agent/buildRecoveryProposals.js';
 
 const string = { type: 'string' };
@@ -53,16 +54,26 @@ export function registerCoreSkills(registry, runtime) {
   add('inspectCompiledAsset', meta('读取已编译资产的编译报告。', ['asset.read'], ['assetId'], { assetId: string }), (a) => runtime.assets.getManifest(a.assetId).compiler || null);
   add('listAssets', meta('列出资产库。', ['asset.read']), () => runtime.assetLibrary.list());
   add('searchAssets', meta('按名称、类型、标签或别名搜索可复用资产。', ['asset.read'], ['query'], { query: string, limit: { type: 'integer', minimum: 1, maximum: 20 } }), (a) => runtime.assetLibrary.search(a.query, { limit: a.limit ?? 8 }));
-  add('generateAsset', meta('使用已配置的生成后端创建并注册缺失资产；调用前应先搜索。', ['asset.write'], ['prompt'], { prompt: string }), (a) => runtime.assetLibrary.generate(a.prompt));
-  add('importEmbodiedGenAsset', meta('把 EmbodiedGen 风格资产规范化并注册到浏览器运行时。', ['asset.write'], ['payload'], { payload: { type: 'object' }, id: string, glbUrl: string }), (a) => {
+  add('generateAsset', meta('使用已配置的生成后端创建并注册缺失资产；调用前应先搜索。生成结果可能是 asset-provisional，不能因此假定世界已验证。', ['asset.write'], ['prompt'], { prompt: string }), async (a) => {
+    const result=await runtime.assetLibrary.generate(a.prompt);
+    const status=result.admission?.status || 'provisional';
+    return { ...result, status:`asset-${status}` };
+  });
+  add('importEmbodiedGenAsset', meta('把 EmbodiedGen 风格资产规范化并注册到浏览器运行时；Adapter fallback 资产是 provisional，不等于 Compiler verified。', ['asset.write'], ['payload'], { payload: { type: 'object' }, id: string, glbUrl: string }), (a) => {
     const manifest = new EmbodiedGenAdapter().toManifest(a.payload, { id: a.id, glbUrl: a.glbUrl });
     runtime.assets.registerManifest(manifest);
-    runtime.events.emit('asset.registered', { assetId: manifest.id, provider: 'embodiedgen' });
-    return runtime.assetLibrary.summary(manifest);
+    const admission=assetAdmission(manifest);
+    runtime.events.emit('asset.registered', { assetId: manifest.id, provider: 'embodiedgen', admission:admission.status });
+    return { ...runtime.assetLibrary.summary(manifest), admission, status:`asset-${admission.status}` };
   });
 
   add('listObjects', meta('列出当前世界中的对象及其位置和能力。', ['world.read']), () => runtime.listObjects());
-  add('spawnAsset', { ...meta('实例化一个已注册资产。', ['world.write'], ['assetId', 'position'], { assetId: string, position: vec3, instanceId: string }), mutates: true }, (a) => runtime.spawn(a.assetId, { position: a.position, id: a.instanceId }));
+  add('spawnAsset', { ...meta('实例化一个已注册资产。若资产 admission 不是 ready，仍可作为编辑态实例化，但返回 asset-provisional，不能当作 verified world mutation。', ['world.write'], ['assetId', 'position'], { assetId: string, position: vec3, instanceId: string }), mutates: true }, async (a) => {
+    const admission=assetAdmission(runtime.assets.getManifest(a.assetId));
+    if (admission.status==='rejected') return {status:'asset-rejected',assetId:a.assetId,admission};
+    const id=await runtime.spawn(a.assetId,{position:a.position,id:a.instanceId});
+    return admission.status==='ready' ? id : {status:'asset-provisional',id,assetId:a.assetId,admission};
+  });
   add('moveObject', { ...meta('移动对象到世界坐标。', ['world.write'], ['id', 'position'], { id: string, position: vec3 }), mutates: true }, (a) => runtime.interactions.move(a.id, a.position));
   add('pickup', { ...meta('低层 Human/scene pickup 原语：对象跟随 Human Camera；具身 Agent 不应调用它，应使用 approachAndPickup。', ['world.write'], ['id'], { id: string }), batchable:false, mutates: true }, (a) => runtime.interactions.pickup(a.id));
   add('drop', { ...meta('低层 Human/scene drop 原语；具身 Agent 应使用 dropHeld。', ['world.write'], [], { id: string }), batchable:false, mutates: true }, (a) => runtime.interactions.drop(a.id));
@@ -191,6 +202,16 @@ export function registerCoreSkills(registry, runtime) {
     return { committed:true, rolledBack:false, results };
   });
 
-  add('runWorldPipeline', { ...meta('执行资产解析、实例化、关系应用、校验、修复和最终序列化流水线。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: { type: 'object' }, stages: { type: 'array', items: string } }), mutates: true }, (a) => runtime.worldPipeline.run(a.plan, { stages: a.stages }));
+  add('runWorldPipeline', { ...meta('规范化 WorldSpec，解析/生成资产，经 admission 后实例化、应用关系、校验、修复并最终序列化。Agent 调用始终执行完整 canonical pipeline，不能跳过 validation/finalize。world-ready 才视为 verified；world-provisional 保留但不冒充验证；world-rejected 会恢复调用前 scene。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: { type: 'object' } }), mutates: true }, async (a) => {
+    const before=runtime.snapshot();
+    const pipeline=await runtime.worldPipeline.run(a.plan);
+    const admission=pipeline.state?.reports?.worldAdmission;
+    if (!admission) return pipeline;
+    if (admission.status==='rejected') {
+      await runtime.restore(before);
+      return {status:'world-rejected',reason:admission.reasons?.[0] || 'WORLD_REJECTED',rolledBack:true,admission,pipeline};
+    }
+    return {status:`world-${admission.status}`,admission,pipeline};
+  });
   return registry;
 }

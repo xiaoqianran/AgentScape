@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.31.0** 当前状态。
+本文描述 **1.32.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 98%
+                           当前 ≈ 91%
 ```
 
-98% 不是“代码写完 98%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+91% 不是“代码写完 91%”。1.32 之后目标已从“普通 GLB→可信 Agent World”扩展到“Prompt→Generated World→Admission→Repair→Agent Runtime”：基础 Runtime / Asset→Executable 纵向链已经成熟，但 Prompt→WorldSpec Planner、deterministic composition 与 bounded regenerate 仍是明确缺口。
 
 ---
 
@@ -37,7 +37,7 @@
 | Navigation / Reachability | 90% | 1.15 已有 Detour path + Rapier physical locomotion；自动动态 replan / off-mesh / multi-agent avoidance 仍缺 |
 | 大型 World Runtime | 58% | 1.13 已有 96×72m 城市基线；19 Recast meshes / 38 renderables / 330–489ms build，当前暂无 streaming 证据 |
 | Multi-Agent | 10% | 不是当前优先级 |
-| 完整生成式 World Pipeline | 30% | provider 边界在，task-driven generation 仍需发展 |
+| 完整生成式 World Pipeline | 52% | 1.32 已有 WorldSpec、raw EmbodiedGen admission、canonical validation/repair/world admission；下一步缺 Prompt→WorldSpec Planner 与 deterministic composer |
 | Pages / Art Direction | 78% | Monument Hall + Ruined Courtyard + Grand Urban Block；world pack JS 已按当前选择 lazy load |
 
 ---
@@ -368,13 +368,40 @@ Execution wrapper 继续 rebuild proposal，因此 proposal-time safe、执行�
 
 ---
 
-## 24. 当前 P0：Dynamic Third-body / Environment Counterfactual Fidelity
+## 24. 1.32 已完成：Generated World Admission
 
-1.31 将其它 world collider 视为 query-time static background。下一阶段优先研究 dynamic third-body motion envelope / environment moving parts 的保守 coverage，而不是增加 recovery search tree。
+1.32 把原本分散的 Generator / `EmbodiedGenAdapter` / WorldPipeline 真正接成 canonical generated-world chain。`WorldSpec` 在 mutation 前确定 provider、generate intent、instance id、position 与 ON/NEAR relations；`AssetLibrary` 可以消费 raw `provider=embodiedgen` payload，经 Adapter→Schema→AssetManager 注册。Adapter fallback collider / provider semantics 明确 `provisional`，外部 Generator 即使返回 schema-valid Manifest，没有 Compiler-ready evidence 也默认 `UNVERIFIED_GENERATOR_MANIFEST`。Compiler rejected manifest 不注册。
+
+Pipeline 新增 `normalize_spec / asset_admission`；任何 unresolved/rejected asset 会在 instantiate 前 fail closed，因此 mixed plan 不会留下半个世界。Agent tool 不再暴露 stage selection，不能跳过 validation/finalize。最终 `world-ready / world-provisional / world-rejected` 进入 Skill outcome；rejected world restore 调用前 scene。低层 generate/import/spawn 也暴露 asset-level admission，provisional spawn 不再被当成 verified mutation。
 
 ---
 
-## 25. 1.11–1.12 已完成：Curated Multi-World Layer
+## 25. 当前 P0：Prompt → WorldSpec Planner / Deterministic World Composer
+
+现在 Runtime 已经能安全消费一个 WorldSpec，但还没有把自然语言直接变成可信 world specification。下一阶段：
+
+```text
+User Prompt
+→ WorldSpec Planner（proposal，不拥有 truth）
+→ search/reuse first
+→ missing assets 标记 provider/generate
+→ deterministic placement/composition
+→ 1.32 canonical admission pipeline
+→ validation findings
+→ bounded repair / regenerate proposal
+```
+
+重点不是让 LLM 直接写 Three.js，而是让它只生成受 Schema 约束的 WorldSpec；布局、碰撞、支撑、导航与最终 readiness 继续由 Runtime 判定。
+
+---
+
+## 26. P1：Dynamic Third-body / Environment Counterfactual Fidelity
+
+1.31 将其它 world collider 视为 query-time static background。后续继续研究 dynamic third-body motion envelope / environment moving parts 的保守 coverage，但当前主线优先转向 generated-world orchestration。
+
+---
+
+## 27. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -399,7 +426,7 @@ Three.js architecture
 
 ---
 
-## 26. P1：完整 Joint Frame
+## 28. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -435,7 +462,7 @@ Schema claim second
 
 ---
 
-## 27. P2：Compact Agent Observation
+## 29. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -463,7 +490,7 @@ world size
 
 ---
 
-## 28. 自动语义：宁可慢一点，也不虚构能力
+## 30. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -501,7 +528,7 @@ high coverage + fake capability
 
 ---
 
-## 29. 目前不应该成为优先级的方向
+## 31. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -518,7 +545,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 30. 产品差异化应该是什么
+## 32. 产品差异化应该是什么
 
 不应该是：
 
@@ -550,7 +577,7 @@ Agent World
 
 ---
 
-## 31. 未来完成态
+## 33. 未来完成态
 
 可以把 100% 理解为：
 
@@ -615,11 +642,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.31.0 文档快照对应的仓库验证基线：
+1.32.0 文档快照对应的仓库验证基线：
 
 ```text
-105 Test Files PASS
-347 Tests PASS
+108 Test Files PASS
+362 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -782,6 +809,17 @@ Nemotron world-counterfactual strict probe PASS
 Muse world-counterfactual strict probe PASS
 1.26 articulated live regression PASS
 Chromium 1.31 production smoke PASS
+WorldSpec deterministic normalization PASS
+Raw EmbodiedGen → AssetLibrary → Manifest admission PASS
+Unrecognized raw provider refusal PASS
+Generated Manifest trust classification PASS
+Compiler-rejected generated asset non-registration PASS
+Mixed unresolved WorldSpec zero-spawn fail-closed PASS
+Generated EmbodiedGen world provisional admission PASS
+Agent pipeline-stage bypass prevention PASS
+World ready/provisional/rejected Skill outcome PASS
+Rejected generated world snapshot restore PASS
+Low-level provisional/rejected spawn outcome guard PASS
 1.26 unique-action articulated recovery regression PASS
 ```
 

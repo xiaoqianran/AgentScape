@@ -8,3 +8,11 @@ it('uses a provider-neutral HTTP generator contract', async () => {
   expect(result.manifest.id).toBe('x');
   expect(fetchImpl).toHaveBeenCalledOnce();
 });
+
+
+it('accepts a raw provider payload for adapter-based admission', async () => {
+  const raw={provider:'embodiedgen',asset:{id:'raw-1'}};
+  const fetchImpl=vi.fn(async()=>({ok:true,json:async()=>raw}));
+  const generator=new HttpAssetGenerator({endpoint:'https://generator.test',fetchImpl});
+  await expect(generator.generate({prompt:'a bench',provider:'embodiedgen'})).resolves.toEqual(raw);
+});
