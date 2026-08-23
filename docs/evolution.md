@@ -1644,3 +1644,9 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 ## 51. 1.30：Physics Prediction 第一次对自己的采样密度做收敛检查
 
 1.29 有 adaptive sampling，但还默认 adaptive N 足够。1.30 对 selected action 再用 denser sample counts 复查；如果 target-clear 或 clearance-gain 翻转，Physics-first rank 被撤销并 fallback。与此同时 nested Door→Slider 对拍发现 free child joint 在 parent motion 下会真实滑动，因此测试不再把“无 request”误当“coordinate=0”，而先真实 hold child。Parent 已移动后 child hypothetical local frame 与 real motor 对拍通过；world pose 差异则明确归因于 child motor 对 dynamic parent 的真实反作用，而不是硬说 query 预测了动力学耦合。
+
+---
+
+## 52. 1.31：Recovery Action 第一次检查整个当前 World 的新增碰撞
+
+1.30 已能验证 original Part↔blocker Part 的 pairwise counterfactual 收敛，但 selected blocker action 仍可能绕开 original 后撞向第三对象或 Environment。1.31 增加 non-mutating Rapier world query，并比较 current baseline 与 target/action envelope 的新增 collider hits。Known world collision成为 hard veto；unique/multi-action 都覆盖，execution-time 重新生成 proposal，因此 world变化会使旧 recovery stale。

@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.30.0** 的真实架构，不描述未来设想。
+本文描述 **1.31.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -1025,3 +1025,9 @@ verification   = later original action retry post-condition
 ## 33. Convergence / Nested-frame：Physics Evidence 也必须自检
 
 1.30 新增 `articulationPairCounterfactualConvergence`：selected Physics rank-1 action 用更密的 independent original/blocker sample counts 重跑一次 shape-pair query，并比较 `targetSweepClear` 与 `conflictReduction>0` 的定性结论。翻转则 `PHYSICS_COUNTERFACTUAL_UNSTABLE`，proposal 降级 Three fallback。Nested child query 明确 `frameAssumption=parent-pose-at-query`；pair query 明确 `parent-poses-static-during-hypothesis`。真实 Door→Slider fixture 在 parent 已运动后用 local-to-parent pose 对拍 child motor，避免把 dynamic parent reaction 错当成 hypothetical frame error。详见 [`counterfactual-convergence.md`](./counterfactual-convergence.md)。
+
+---
+
+## 34. Third-object World Counterfactual
+
+1.31 复用 `colliderProvenance` 和 Rapier `intersectionsWithShape` 增加 `articulationWorldCounterfactual`。它比较 blocker current / target / action-envelope hypothetical poses 对 live world colliders 的命中集合，以 `introduced collision = hypothetical hits - current hits` 作为 hard veto。Self、Agent 和 original failed Part pair 被排除，但 original object 的其它 Parts/root 仍参与。Known third-object/environment collision 不允许被 pairwise Physics rank 或 Three fallback resurrect。完整 contract 见 [`third-object-counterfactual.md`](./third-object-counterfactual.md)。

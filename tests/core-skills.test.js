@@ -198,6 +198,41 @@ describe('core skills', () => {
   });
 
 
+  it('stales an articulated recovery when execution-time world counterfactual detects a new third-object collision',async()=>{
+    const r=runtime();
+    const candidate={kind:'object',objectId:'cabinet_B',partName:'door',colliderIndex:0};
+    const manifests={
+      cabinet_A:{actions:['open','close'],parts:{door:{node:'Door',actions:['open','close'],targets:{open:-1,close:0},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}},
+      cabinet_B:{actions:['open','close'],parts:{door:{node:'Door',actions:['open','close'],targets:{open:-1,close:0},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}}
+    };
+    r.store={has:vi.fn((id)=>id in manifests),get:vi.fn((id)=>({id,manifest:manifests[id],state:{parts:{door:id==='cabinet_B'?'open':'close'}}}))};
+    r.physics={
+      articulationContacts:vi.fn(()=>[{external:true,target:candidate,contactCount:1,activeContactCount:1,minDistance:-.001,totalImpulse:1}]),
+      articulationWorldCounterfactual:vi.fn(()=>({
+        checked:true,geometry:'rapier-world-shape-query',causal:false,
+        targetIntroducesNoCollision:false,actionIntroducesNoCollision:false,
+        targetPose:{introducedBlockers:[{key:'object:third_01:$root:0',kind:'object',objectId:'third_01',partName:'$root',colliderIndex:0}]},
+        actionEnvelope:{introducedBlockers:[{key:'object:third_01:$root:0',kind:'object',objectId:'third_01',partName:'$root',colliderIndex:0}]}
+      }))
+    };
+    r.interactions.articulationStatus=vi.fn((id)=>id==='cabinet_A'?{
+      id,parts:[{partName:'door',status:'action-failed',verifiedAction:'close',requestedAction:null,last:{status:'action-failed',reason:'STALL',action:'open',attribution:{status:'contact-evidence',blockerCandidates:[candidate]}}}]
+    }:{id,parts:[{partName:'door',status:'verified-state',verifiedAction:'open',requestedAction:null,live:{coordinate:-1,target:-1,error:0,tolerance:.08}}]});
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const result=await registry.invoke('recoverArticulatedBlocker',{
+      actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'
+    },{profile:'builder',actor:'agent_01'});
+    expect(result).toMatchObject({success:true,result:{
+      status:'recovery-stale',reason:'THIRD_OBJECT_COUNTERFACTUAL_BLOCKED',
+      actorId:'agent_01',targetId:'cabinet_A',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close',retryOriginal:true
+    }});
+    expect(r.physics.articulationWorldCounterfactual).toHaveBeenCalledWith('cabinet_B','door',0,{
+      excludeObjectIds:['agent_01'],excludeParts:[{objectId:'cabinet_A',partName:'door'}]
+    });
+    expect(r.interactions.approachAndInteract).not.toHaveBeenCalled();
+  });
+
+
   it('stales an articulated recovery when execution-time counterfactual ranking selects a different action',async()=>{
     const r=runtime();
     const candidate={kind:'object',objectId:'cabinet_B',partName:'door',colliderIndex:0};

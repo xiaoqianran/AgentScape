@@ -120,6 +120,7 @@ describe('verified articulated blocker recovery',()=>{
         recovery:'articulated-blocker',candidateType:'articulated-part',eligible:true,blockerAction:'close',
         blockerState:expect.objectContaining({partName:'door',verifiedAction:'open',requestedAction:null}),
         preflight:expect.objectContaining({actionSweep:{checked:true,clear:true,partName:'door'}}),
+        worldCounterfactual:expect.objectContaining({checked:true,geometry:'rapier-world-shape-query',targetIntroducesNoCollision:true,actionIntroducesNoCollision:true}),
         verification:expect.objectContaining({required:'retry-original-post-condition'})
       })]
     });

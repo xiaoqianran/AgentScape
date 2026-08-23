@@ -649,3 +649,7 @@ Probe 将 `cabinet_B/door` 设为 verified `ajar`，同时给 open/close 两个 
 ## 29. 1.30 Convergence Strict Probe
 
 `recovery-counterfactual` payload 新增 `actionRanking.convergence.status=stable`，base 为 adaptive、dense 为 fixed-pair 且 sample counts 必须增加。Agent 只能消费 Runtime 最终 selected action；如果 Runtime 因 unstable convergence 降级 fallback，模型不得自行恢复旧 Physics rank。Nemotron/Muse 当前 strict probe 均通过。
+
+## 30. 1.31 World-counterfactual Strict Probe
+
+`recovery-counterfactual` strict payload 现在除了 Physics v2 + convergence stable，还携带 `worldCounterfactual.geometry=rapier-world-shape-query`，并要求 `targetIntroducesNoCollision/actionIntroducesNoCollision=true`。模型不得因为 pairwise rank-1 而忽略 world veto。

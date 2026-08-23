@@ -4,7 +4,7 @@ import { buildRecoveryProposals } from '../src/agent/buildRecoveryProposals.js';
 const blockerCandidate={kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0};
 const environmentCandidate={kind:'environment',environmentId:'monument-hall',colliderIndex:4};
 
-function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,articulatedAllow=allow,cleanupAllow=allow,carryError=null,planCosts={},recoveryHeld=null,cleanupPlan=null,articulatedStatus=null,articulatedActions=['open','close'],actionGeometry={},physicsCounterfactual=null,physicsConvergence=null}={}){
+function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,articulatedAllow=allow,cleanupAllow=allow,carryError=null,planCosts={},recoveryHeld=null,cleanupPlan=null,articulatedStatus=null,articulatedActions=['open','close'],actionGeometry={},physicsCounterfactual=null,physicsConvergence=null,worldCounterfactual=null}={}){
   const records=new Map([
     ['agent_01',{id:'agent_01',assetId:'agent',manifest:{actions:['navigate']},state:{}}],
     ['cabinet_01',{id:'cabinet_01',assetId:'cabinet',manifest:{actions:['open','close'],parts:{door:{node:'Door',actions:['open','close'],targets:{open:-1,close:0},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}},state:{parts:{door:'close'}}}],
@@ -20,7 +20,8 @@ function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=t
     physics:{
       articulationContacts:vi.fn(()=>current.map((item)=>item?.target ? item : ({external:true,target:item,contactCount:1,activeContactCount:1,minDistance:-.001,totalImpulse:1}))),
       ...(physicsCounterfactual ? {articulationPairCounterfactual:vi.fn(physicsCounterfactual)} : {}),
-      ...(physicsConvergence ? {articulationPairCounterfactualConvergence:vi.fn(physicsConvergence)} : {})
+      ...(physicsConvergence ? {articulationPairCounterfactualConvergence:vi.fn(physicsConvergence)} : {}),
+      ...(worldCounterfactual ? {articulationWorldCounterfactual:vi.fn(worldCounterfactual)} : {})
     },
     interactions:{
       articulationStatus:vi.fn((id)=>id==='articulated_01'
@@ -146,6 +147,36 @@ describe('verified recovery proposals',()=>{
     expect(runtime.interactions.findInteractionPose).toHaveBeenCalledWith('agent_01','articulated_01',{action:'open',partName:'door'});
     expect(runtime.interactions.findPickupPlan).not.toHaveBeenCalled();
   });
+
+  it('rejects a unique articulated recovery when its hypothetical action introduces a third-object collision',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const worldCounterfactual=vi.fn(()=>({
+      checked:true,geometry:'rapier-world-shape-query',causal:false,
+      targetIntroducesNoCollision:false,actionIntroducesNoCollision:false,
+      targetPose:{introducedBlockers:[{key:'object:third_01:$root:0',kind:'object',objectId:'third_01',partName:'$root',colliderIndex:0}]},
+      actionEnvelope:{introducedBlockers:[{key:'object:third_01:$root:0',kind:'object',objectId:'third_01',partName:'$root',colliderIndex:0}]}
+    }));
+    const {runtime,registry}=setup({candidates:[articulated],current:[articulated],worldCounterfactual});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result).toMatchObject({status:'recovery-unavailable',proposals:[{
+      eligible:false,reason:'THIRD_OBJECT_COUNTERFACTUAL_BLOCKED',blockerAction:'open',
+      worldCounterfactual:{checked:true,geometry:'rapier-world-shape-query',targetIntroducesNoCollision:false}
+    }]});
+    expect(runtime.interactions.findInteractionPose).toHaveBeenCalledOnce();
+    expect(worldCounterfactual).toHaveBeenCalledWith('articulated_01','door',-1,{
+      excludeObjectIds:['agent_01'],excludeParts:[{objectId:'cabinet_01',partName:'door'}]
+    });
+  });
+
+  it('surfaces safe world evidence on a unique articulated recovery proposal',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const safe={checked:true,geometry:'rapier-world-shape-query',causal:false,targetIntroducesNoCollision:true,actionIntroducesNoCollision:true,targetPose:{introducedBlockers:[]},actionEnvelope:{introducedBlockers:[]}};
+    const {runtime,registry}=setup({candidates:[articulated],current:[articulated],worldCounterfactual:()=>safe});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.recommended).toMatchObject({tool:'recoverArticulatedBlocker',args:{blockerAction:'open'}});
+    expect(result.proposals[0]).toMatchObject({eligible:true,blockerAction:'open',worldCounterfactual:{checked:true,geometry:'rapier-world-shape-query',targetIntroducesNoCollision:true,actionIntroducesNoCollision:true}});
+  });
+
 
   it('rejects an articulated blocker whose current Part state is not verified',async()=>{
     const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
@@ -323,6 +354,67 @@ describe('verified recovery proposals',()=>{
       }]
     });
     expect(runtime.physics.articulationPairCounterfactualConvergence).toHaveBeenCalledOnce();
+  });
+
+  it('never lets Physics or Three ranking resurrect an action that introduces a third-object world collision',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const actionGeometry={
+      'cabinet_01:open:sweep':{min:[0,0,0],max:[2,2,2]},
+      'articulated_01:ajar:target':{min:[.5,.2,.5],max:[1.5,1.8,1.5]},
+      'articulated_01:open:target':{min:[3,.2,.4],max:[4,1.8,1.4]},
+      'articulated_01:open:sweep':{min:[.8,.1,.2],max:[4,1.9,1.6]},
+      'articulated_01:close:target':{min:[3.2,.2,.4],max:[4.2,1.8,1.4]},
+      'articulated_01:close:sweep':{min:[.8,.1,.2],max:[4.2,1.9,1.6]}
+    };
+    const physicsCounterfactual=(_a,_ap,_at,_b,_bp,target)=>{
+      const close=target===0;
+      return {checked:true,geometry:'rapier-shape-pairs',causal:false,samples:{original:9,blocker:9,mode:'adaptive'},
+        current:{conflictSamples:8,pairIntersections:8},target:close?{conflictSamples:0,pairIntersections:0}:{conflictSamples:2,pairIntersections:2},
+        action:close?{conflictSamplePairs:8,pairIntersections:8}:{conflictSamplePairs:12,pairIntersections:12},targetSweepClear:close,conflictReduction:close?8:6};
+    };
+    const worldCounterfactual=(_id,_part,target,options)=>{
+      const close=target===0;
+      expect(options).toEqual({excludeObjectIds:['agent_01'],excludeParts:[{objectId:'cabinet_01',partName:'door'}]});
+      return {checked:true,geometry:'rapier-world-shape-query',causal:false,
+        targetIntroducesNoCollision:!close,actionIntroducesNoCollision:!close,
+        targetPose:{introducedBlockers:close?[{key:'object:third_01:$root:0',kind:'object',objectId:'third_01',partName:'$root',colliderIndex:0}]:[]},
+        actionEnvelope:{introducedBlockers:close?[{key:'object:third_01:$root:0',kind:'object',objectId:'third_01',partName:'$root',colliderIndex:0}]:[]}};
+    };
+    const {runtime,registry}=setup({
+      candidates:[articulated],current:[articulated],articulatedActions:['open','close','ajar'],actionGeometry,physicsCounterfactual,worldCounterfactual,
+      articulatedStatus:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'ajar'},
+      planCosts:{'articulated_01:door:open':5,'articulated_01:door:close':1}
+    });
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result).toMatchObject({
+      status:'recovery-proposed',recommended:{args:{blockerAction:'open'}},
+      proposals:[{blockerAction:'open'}]
+    });
+    const ranking=result.proposals[0].actionRanking;
+    const open=ranking.actions.find((item)=>item.action==='open');
+    const close=ranking.actions.find((item)=>item.action==='close');
+    expect(open).toMatchObject({executable:true,recoveryEligible:true,rank:1,worldCounterfactual:{checked:true,targetIntroducesNoCollision:true,actionIntroducesNoCollision:true}});
+    expect(close).toMatchObject({executable:true,recoveryEligible:false,worldReason:'THIRD_OBJECT_COUNTERFACTUAL_BLOCKED',worldCounterfactual:{checked:true,targetIntroducesNoCollision:false}});
+    expect(close.rank).toBeUndefined();
+  });
+
+  it('rejects articulated recovery when every alternate action introduces a third-object or environment collision',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const physicsCounterfactual=()=>({checked:true,geometry:'rapier-shape-pairs',causal:false,samples:{original:9,blocker:9,mode:'adaptive'},current:{conflictSamples:8,pairIntersections:8},target:{conflictSamples:0,pairIntersections:0},action:{conflictSamplePairs:8,pairIntersections:8},targetSweepClear:true,conflictReduction:8});
+    const worldCounterfactual=(_id,_part,target)=>({checked:true,geometry:'rapier-world-shape-query',causal:false,targetIntroducesNoCollision:false,actionIntroducesNoCollision:false,
+      targetPose:{introducedBlockers:[target===0?{key:'environment:wall:0',kind:'environment',environmentId:'wall',colliderIndex:0}:{key:'object:third_01:$root:0',kind:'object',objectId:'third_01',partName:'$root',colliderIndex:0}]},actionEnvelope:{introducedBlockers:[]}});
+    const {runtime,registry}=setup({
+      candidates:[articulated],current:[articulated],articulatedActions:['open','close','ajar'],physicsCounterfactual,worldCounterfactual,
+      articulatedStatus:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'ajar'}
+    });
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result).toMatchObject({status:'recovery-unavailable',recommended:null,proposals:[{
+      eligible:false,reason:'THIRD_OBJECT_COUNTERFACTUAL_BLOCKED',
+      worldCounterfactual:{geometry:'rapier-world-shape-query',causal:false,actions:[
+        expect.objectContaining({action:'open',recoveryEligible:false,worldReason:'THIRD_OBJECT_COUNTERFACTUAL_BLOCKED'}),
+        expect.objectContaining({action:'close',recoveryEligible:false,worldReason:'THIRD_OBJECT_COUNTERFACTUAL_BLOCKED'})
+      ]}
+    }]});
   });
 
   it('prefers Rapier shape-pair evidence when it conflicts with Three AABB action ranking',async()=>{

@@ -247,4 +247,43 @@ describe('Rapier articulated counterfactual geometry',()=>{
     physics.dispose();
   });
 
+
+  it('detects third-object and environment collisions introduced by a hypothetical articulated action without moving the live body',async()=>{
+    const physics=new PhysicsSystem(); await physics.init();
+    const store=new ObjectStore();
+    const manifest={
+      id:'world-query-slider',type:'drawer',source:{kind:'builtin'},actions:['open','close'],physics:{body:'fixed',colliders:[]},
+      parts:{slide:{node:'Slide',actions:['open','close'],targets:{open:.6,close:0},physics:{body:'dynamic',mass:1,colliders:[{shape:'box',halfExtents:[.1,.1,.1]}]},joint:{type:'prismatic',axis:[1,0,0],limits:[0,.6],parentAnchor:[0,0,0],childAnchor:[0,0,0],motor:{stiffness:55,damping:9}}}}
+    };
+    const root=new THREE.Group(); const slide=new THREE.Group(); slide.name='Slide'; root.add(slide); root.updateMatrixWorld(true);
+    store.add('slider',{id:'slider',assetId:'world-query-slider',object:root,manifest,state:{parts:{slide:'close'}}});
+    physics.attach('slider',manifest,root);
+    // Original object is deliberately in the sweep but must be excluded by the caller's pairwise owner.
+    const original=new THREE.Group(); original.position.set(.25,0,0); original.updateMatrixWorld(true);
+    const originalManifest={id:'original',type:'block',source:{kind:'builtin'},actions:[],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.08,.08,.08]}]}};
+    store.add('original',{id:'original',assetId:'block',object:original,manifest:originalManifest,state:{}}); physics.attach('original',originalManifest,original);
+    const third=new THREE.Group(); third.position.set(.5,0,0); third.updateMatrixWorld(true);
+    const thirdManifest={id:'third',type:'block',source:{kind:'builtin'},actions:[],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.08,.08,.08]}]}};
+    store.add('third',{id:'third',assetId:'block',object:third,manifest:thirdManifest,state:{}}); physics.attach('third',thirdManifest,third);
+    physics.addEnvironment([{shape:'box',halfExtents:[.04,.12,.12],translation:[.62,0,0]}],{id:'test-wall'});
+    for(let i=0;i<10;i++) physics.step(1/60,store);
+
+    const before=physics.articulationState('slider','slide');
+    const evidence=physics.articulationWorldCounterfactual('slider','slide',.6,{excludeParts:[{objectId:'original',partName:'$root'}],samples:13});
+    expect(evidence).toMatchObject({
+      checked:true,geometry:'rapier-world-shape-query',causal:false,
+      frameAssumption:'other-world-colliders-static-during-hypothesis',
+      excludedObjectIds:['slider'],excludedParts:['original:$root'],samples:{count:13,mode:'fixed'},
+      targetIntroducesNoCollision:false,actionIntroducesNoCollision:false
+    });
+    const targetKeys=evidence.targetPose.introducedBlockers.map((item)=>item.key);
+    const actionKeys=evidence.actionEnvelope.introducedBlockers.map((item)=>item.key);
+    expect(actionKeys.some((key)=>key.startsWith('object:third:'))).toBe(true);
+    expect(actionKeys.some((key)=>key.startsWith('environment:test-wall:'))).toBe(true);
+    expect(actionKeys.some((key)=>key.startsWith('object:original:'))).toBe(false);
+    expect(targetKeys.some((key)=>key.startsWith('environment:test-wall:'))).toBe(true);
+    expect(physics.articulationState('slider','slide').coordinate).toBeCloseTo(before.coordinate,8);
+    physics.dispose();
+  });
+
 });

@@ -147,7 +147,23 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
       });
     }
     if (!pose) return denied(candidate,'NO_INTERACTION_POSE',{currentContact,blockerState:blockerStatus,blockerAction});
-    actionCandidates=[{action:blockerAction,pose,counterfactual:null}];
+    let worldCounterfactual=null;
+    if (typeof runtime.physics?.articulationWorldCounterfactual==='function') {
+      try {
+        worldCounterfactual=runtime.physics.articulationWorldCounterfactual(candidate.objectId,blockerPartName,part.targets[blockerAction],{
+          excludeObjectIds:[actorId],excludeParts:[{objectId:targetId,partName:failedPart.partName}]
+        });
+      } catch (error) {
+        worldCounterfactual={checked:false,reason:error.code || 'WORLD_COUNTERFACTUAL_ERROR'};
+      }
+      if (!worldCounterfactual?.checked) return denied(candidate,'WORLD_COUNTERFACTUAL_COVERAGE_UNAVAILABLE',{
+        currentContact,blockerState:blockerStatus,blockerAction,worldCounterfactual:worldCounterfactual || {checked:false,reason:'WORLD_COUNTERFACTUAL_UNAVAILABLE'}
+      });
+      if (worldCounterfactual.targetIntroducesNoCollision!==true || worldCounterfactual.actionIntroducesNoCollision!==true) {
+        return denied(candidate,'THIRD_OBJECT_COUNTERFACTUAL_BLOCKED',{currentContact,blockerState:blockerStatus,blockerAction,worldCounterfactual});
+      }
+    }
+    actionCandidates=[{action:blockerAction,pose,counterfactual:null,...(worldCounterfactual?{worldCounterfactual}:{})}];
   } else {
     const originalAction=last.action || 'open';
     const originalRecord=runtime.store.get(targetId);
@@ -157,6 +173,7 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
     const visualAvailable=Boolean(originalSweep?.checked && currentPose?.checked);
     const currentOverlap=visualAvailable ? boundsOverlap(originalSweep.bounds,currentPose.bounds) : {available:false,intersects:false,volume:null};
     const physicsCapable=Number.isFinite(originalTarget) && typeof runtime.physics?.articulationPairCounterfactual==='function';
+    const worldCounterfactualCapable=typeof runtime.physics?.articulationWorldCounterfactual==='function';
     if (!physicsCapable && (!visualAvailable || !currentOverlap.available || !currentOverlap.intersects || !(currentOverlap.volume>0))) {
       return denied(candidate,visualAvailable?'COUNTERFACTUAL_EVIDENCE_INSUFFICIENT':'COUNTERFACTUAL_EVIDENCE_UNAVAILABLE',{
         currentContact,blockerState:blockerStatus,alternateActions:[...actions],
@@ -207,10 +224,40 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
           physicsCounterfactual={checked:false,reason:error.code || 'PHYSICS_COUNTERFACTUAL_ERROR'};
         }
       }
-      actionCandidates.push({action,executable:true,pose,visualCounterfactual,physicsCounterfactual});
+      let worldCounterfactual={checked:false,reason:'WORLD_COUNTERFACTUAL_UNAVAILABLE'};
+      if (worldCounterfactualCapable) {
+        try {
+          worldCounterfactual=runtime.physics.articulationWorldCounterfactual(candidate.objectId,blockerPartName,part.targets[action],{
+            excludeObjectIds:[actorId],excludeParts:[{objectId:targetId,partName:failedPart.partName}]
+          }) || worldCounterfactual;
+        } catch (error) {
+          worldCounterfactual={checked:false,reason:error.code || 'WORLD_COUNTERFACTUAL_ERROR'};
+        }
+      }
+      const recoveryEligible=!worldCounterfactualCapable || (
+        worldCounterfactual.checked
+        && worldCounterfactual.targetIntroducesNoCollision===true
+        && worldCounterfactual.actionIntroducesNoCollision===true
+      );
+      const worldReason=!worldCounterfactualCapable ? null
+        : !worldCounterfactual.checked ? (worldCounterfactual.reason || 'WORLD_COUNTERFACTUAL_UNAVAILABLE')
+        : recoveryEligible ? null : 'THIRD_OBJECT_COUNTERFACTUAL_BLOCKED';
+      actionCandidates.push({action,executable:true,recoveryEligible,pose,visualCounterfactual,physicsCounterfactual,worldCounterfactual,...(worldReason?{worldReason}:{})});
     }
 
-    const executable=actionCandidates.filter((item)=>item.executable);
+    const interactionExecutable=actionCandidates.filter((item)=>item.executable);
+    const executable=interactionExecutable.filter((item)=>item.recoveryEligible!==false);
+    if (worldCounterfactualCapable && interactionExecutable.length && !executable.length) {
+      const hasKnownCollision=interactionExecutable.some((item)=>item.worldCounterfactual?.checked && (
+        item.worldCounterfactual.targetIntroducesNoCollision===false || item.worldCounterfactual.actionIntroducesNoCollision===false
+      ));
+      return denied(candidate,hasKnownCollision?'THIRD_OBJECT_COUNTERFACTUAL_BLOCKED':'WORLD_COUNTERFACTUAL_COVERAGE_UNAVAILABLE',{
+        currentContact,blockerState:blockerStatus,alternateActions:[...actions],
+        worldCounterfactual:{causal:false,geometry:'rapier-world-shape-query',actions:interactionExecutable.map((item)=>({
+          action:item.action,executable:true,recoveryEligible:item.recoveryEligible,worldReason:item.worldReason || null,evidence:structuredClone(item.worldCounterfactual)
+        }))}
+      });
+    }
     const physicsCurrent=executable.map((item)=>item.physicsCounterfactual?.current).filter(Boolean);
     const physicsBaselineConsistent=physicsCurrent.length===executable.length && physicsCurrent.every((value)=>
       value.conflictSamples===physicsCurrent[0]?.conflictSamples && value.pairIntersections===physicsCurrent[0]?.pairIntersections
@@ -309,6 +356,7 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
     },
     blockerAction,
     ...(selected.actionRanking?{actionRanking:selected.actionRanking}:{}),
+    ...(selected.worldCounterfactual?{worldCounterfactual:structuredClone(selected.worldCounterfactual)}:{}),
     policy:{allow:true,profile:authorization.profile,missing:[]},
     preflight:{pose:structuredClone(selected.pose),actionSweep:{checked:true,clear:true,partName:blockerPartName}},
     rankingEvidence:{causal:false,recoveryRouteCost:Number.isFinite(selected.pose.routeCost)?selected.pose.routeCost:null},

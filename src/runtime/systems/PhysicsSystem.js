@@ -627,6 +627,74 @@ export class PhysicsSystem {
     };
   }
 
+  articulationWorldCounterfactual(id, partName, target, { excludeObjectIds = [], excludeParts = [], samples = null } = {}) {
+    const state=this.articulationState(id,partName,{target});
+    if (!state || !Number.isFinite(target)) return {checked:false,reason:'JOINT_COORDINATE_UNAVAILABLE',id,partName};
+    const fixedSamples=Number.isFinite(samples) ? Math.max(2,Math.min(33,Math.trunc(samples))) : null;
+    const sampling=fixedSamples ? {checked:true,count:fixedSamples,mode:'fixed'} : this.articulationCounterfactualSampleCount(id,partName,state.coordinate,target);
+    if (!sampling.checked) return {checked:false,reason:sampling.reason,source:'sampling',id,partName};
+    const excluded=new Set([id,...excludeObjectIds]);
+    const excludedParts=new Set(excludeParts.map((item)=>`${item.objectId}:${item.partName || ROOT_PART}`));
+    const keyOf=(provenance,collider)=>{
+      if (provenance?.kind==='environment') return `environment:${provenance.environmentId || '$environment'}:${provenance.colliderIndex ?? collider.handle}`;
+      if (provenance?.kind==='object') return `object:${provenance.objectId}:${provenance.partName || ROOT_PART}:${provenance.colliderIndex ?? collider.handle}`;
+      return `unknown:${collider.handle}`;
+    };
+    const describe=(provenance,collider,key)=>provenance?.kind==='environment'
+      ? {key,kind:'environment',environmentId:provenance.environmentId || '$environment',colliderIndex:provenance.colliderIndex ?? null}
+      : provenance?.kind==='object'
+        ? {key,kind:'object',objectId:provenance.objectId,partName:provenance.partName || ROOT_PART,colliderIndex:provenance.colliderIndex ?? null}
+        : {key,kind:'unknown',colliderHandle:collider.handle};
+    const poseHits=(pose)=>{
+      const hits=new Map();
+      for(const source of pose.colliders) {
+        this.world.intersectionsWithShape(vec(source.position.toArray()),source.rotation,source.shape,(other)=>{
+          const provenance=this.provenanceOfCollider(other);
+          if (provenance?.kind==='object' && (excluded.has(provenance.objectId) || excludedParts.has(`${provenance.objectId}:${provenance.partName || ROOT_PART}`))) return true;
+          const key=keyOf(provenance,other);
+          if (!hits.has(key)) hits.set(key,describe(provenance,other,key));
+          return true;
+        });
+      }
+      return hits;
+    };
+    this.world.updateSceneQueries();
+    const poses=[];
+    for(let i=0;i<sampling.count;i++) {
+      const alpha=i/(sampling.count-1);
+      const coordinate=state.coordinate+(target-state.coordinate)*alpha;
+      const pose=this.articulationColliderPoses(id,partName,coordinate);
+      if (!pose.checked) return {checked:false,reason:pose.reason,source:'trajectory',id,partName};
+      poses.push(pose);
+    }
+    const currentHits=poseHits(poses[0]);
+    const targetHits=poseHits(poses.at(-1));
+    const actionHits=new Map();
+    const sampleConflicts=[];
+    for(let sampleIndex=0;sampleIndex<poses.length;sampleIndex++) {
+      const hits=poseHits(poses[sampleIndex]);
+      if (hits.size) sampleConflicts.push({sampleIndex,coordinate:poses[sampleIndex].coordinate,blockers:[...hits.keys()]});
+      for(const [key,value] of hits) if (!actionHits.has(key)) actionHits.set(key,value);
+    }
+    const introduced=(hits)=>[...hits.entries()].filter(([key])=>!currentHits.has(key)).map(([,value])=>value);
+    const current=[...currentHits.values()];
+    const targetAll=[...targetHits.values()];
+    const actionAll=[...actionHits.values()];
+    const introducedTarget=introduced(targetHits);
+    const introducedAction=introduced(actionHits);
+    return {
+      checked:true,geometry:'rapier-world-shape-query',causal:false,
+      frameAssumption:'other-world-colliders-static-during-hypothesis',
+      id,partName,currentCoordinate:state.coordinate,target,
+      excludedObjectIds:[...excluded].sort(),excludedParts:[...excludedParts].sort(),
+      samples:{count:sampling.count,mode:fixedSamples?'fixed':'adaptive'},sampling,
+      current:{blockers:current},targetPose:{blockers:targetAll,introducedBlockers:introducedTarget},
+      actionEnvelope:{blockers:actionAll,introducedBlockers:introducedAction,sampleConflicts},
+      targetIntroducesNoCollision:introducedTarget.length===0,
+      actionIntroducesNoCollision:introducedAction.length===0
+    };
+  }
+
   articulationPairCounterfactualConvergence(originalId, originalPartName, originalTarget, blockerId, blockerPartName, blockerTarget, { multiplier = 2 } = {}) {
     const base=this.articulationPairCounterfactual(originalId,originalPartName,originalTarget,blockerId,blockerPartName,blockerTarget);
     if (!base.checked) return {checked:false,reason:base.reason || 'BASE_COUNTERFACTUAL_UNAVAILABLE',base};
