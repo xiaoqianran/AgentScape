@@ -303,6 +303,40 @@ export class PhysicsSystem {
     return { position:position.toArray(), rotation:worldRotation.toArray() };
   }
 
+  bodyPoseClear(id, targetPosition, targetRotation = null, { excludeIds = [] } = {}) {
+    const entry = this.entries.get(id);
+    if (!entry || entry.parts.size) return { clear:false, code:'CARRY_BODY_UNSUPPORTED' };
+    const bodyRotationRaw = entry.body.rotation();
+    const bodyRotation = new THREE.Quaternion(bodyRotationRaw.x,bodyRotationRaw.y,bodyRotationRaw.z,bodyRotationRaw.w);
+    const nextRotation = targetRotation ? new THREE.Quaternion(...targetRotation) : bodyRotation.clone();
+    const targetBody = new THREE.Vector3(...targetPosition);
+    const excluded = new Set([id, ...excludeIds]);
+    const filter = (collider) => {
+      const parent = collider.parent();
+      const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
+      return !owner || !excluded.has(owner.id);
+    };
+
+    this.world.updateSceneQueries();
+    for (let i=0;i<entry.body.numColliders();i++) {
+      const collider = entry.body.collider(i);
+      const spec = entry.rootSpec.colliders?.[i] || {};
+      if (!['cylinder','capsule'].includes(spec.shape)) return { clear:false, code:'CARRY_COLLIDER_UNSUPPORTED', collider:i, shape:spec.shape || null };
+      const local = new THREE.Vector3(...(spec.translation || [0,0,0]));
+      const targetCenter = local.applyQuaternion(nextRotation).add(targetBody);
+      let overlap = null;
+      this.world.intersectionsWithShape(targetCenter, nextRotation, collider.shape, (other) => {
+        const parent = other.parent();
+        const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
+        if (owner && excluded.has(owner.id)) return true;
+        overlap = owner?.id || '$environment';
+        return false;
+      }, undefined, undefined, collider, entry.body, filter);
+      if (overlap) return { clear:false, code:'CARRY_TARGET_BLOCKED', collider:i, blockedBy:[overlap] };
+    }
+    return { clear:true };
+  }
+
   bodyMotionClear(id, targetPosition, targetRotation = null, { excludeIds = [] } = {}) {
     const entry = this.entries.get(id);
     if (!entry || entry.parts.size) return { clear:false, code:'CARRY_BODY_UNSUPPORTED' };
@@ -340,17 +374,8 @@ export class PhysicsSystem {
           return { clear:false, code:'CARRY_SWEEP_BLOCKED', collider:i, blockedBy:[...blockedBy], toi:hit.time_of_impact };
         }
       }
-      let overlap = null;
-      this.world.intersectionsWithShape(targetCenter, nextRotation, collider.shape, (other) => {
-        const parent = other.parent();
-        const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
-        if (owner && excluded.has(owner.id)) return true;
-        overlap = owner?.id || '$environment';
-        return false;
-      }, undefined, undefined, collider, entry.body, filter);
-      if (overlap) return { clear:false, code:'CARRY_TARGET_BLOCKED', collider:i, blockedBy:[overlap] };
     }
-    return { clear:true };
+    return this.bodyPoseClear(id,targetPosition,targetRotation,{excludeIds});
   }
 
   cancelCharacterMovement(id) {

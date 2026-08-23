@@ -96,6 +96,17 @@ const scenarios = {
     ],
     expected:['approachAndInteract','suggestRecoveryActions','recoverPickupBlocker']
   }
+,
+  'recovery-cleanup': {
+    goal:'Open cabinet_01 with verified recovery across two blockers. First call approachAndInteract; it will STALL with obstacle_01 and obstacle_02. Use suggestRecoveryActions and recover only its rank-1 obstacle_02. Immediately retry the original open; it will still STALL on obstacle_01 while obstacle_02 is held. Call suggestRecoveryActions again. Because hands are full with a prior recovery blocker, follow cleanupRecommended using cleanupRecoveryBlocker (suggestRecoveryCleanup is optional diagnosis). recovery-cleaned only means housekeeping succeeded, not cabinet success. Fresh-replan, call suggestRecoveryActions again, recover obstacle_01, then retry the original approachAndInteract. Only final action-completed + targetReached + settled means success. Never use dropHeld, moveObject, navigateTo, direct approachAndPickup/approachAndPlace, or low-level open/pickup/place.',
+    world:[
+      { id:'agent_01', asset:'agent', position:[0,0,4], actions:['navigate'] },
+      { id:'cabinet_01', asset:'cabinet', position:[0,0,0], actions:['open','close','move'] },
+      { id:'obstacle_01', asset:'recovery-blocker', position:[-1.2,0,1.2], actions:['pickup','drop','move'] },
+      { id:'obstacle_02', asset:'recovery-blocker', position:[-.5,0,1.1], actions:['pickup','drop','move'] }
+    ],
+    expected:['approachAndInteract','suggestRecoveryActions','recoverPickupBlocker','cleanupRecoveryBlocker']
+  }
 };
 const scenario = scenarios[mode];
 if (!scenario) throw new Error(`Unknown probe mode: ${mode}`);
@@ -121,6 +132,7 @@ try {
   let placeHeld = mode === 'place';
   let sequenceDoorOpen=false, sequenceHeld=false, sequencePlaced=false, sequenceAttemptedOpen=false, recoveryApplied=false;
   let multiAttemptedOpen=false,multiRecoveredBlocker=null,multiDoorOpen=false;
+  let cleanupOpenAttempts=0,cleanupHeld=null,cleanupFirstDone=false,cleanupFirstCleaned=false,cleanupSecondDone=false,cleanupDoorOpen=false;
   const sequenceEvents=[];
   const tools = {
     definitions:() => registry.definitions(),
@@ -129,7 +141,78 @@ try {
     call:async(name, args = {}) => {
       if (name === 'listObjects') return scenario.world;
       toolCalls.push({ name, args });
-      if (mode === 'recovery-multi') {
+      if (mode === 'recovery-cleanup') {
+        const first={kind:'object',objectId:'obstacle_01',partName:'$root',colliderIndex:0};
+        const second={kind:'object',objectId:'obstacle_02',partName:'$root',colliderIndex:0};
+        const contactsFor=(candidates)=>candidates.map((target,index)=>({
+          source:{kind:'object',objectId:'cabinet_01',partName:'door',colliderIndex:0},target,external:true,
+          contactCount:index?1:3,activeContactCount:index?1:3,minDistance:index?-.002:-.012,totalImpulse:index?2:30,normal:index?[0,0,1]:[1,0,0]
+        }));
+        const failedCandidates=()=>cleanupOpenAttempts<=1?[first,second]:[first];
+        const failedReport=()=>({status:'contact-evidence',evidence:'current-contact-at-failure',blockerCandidates:failedCandidates(),contactEvidence:contactsFor(failedCandidates())});
+        const proposal=(blocker,rank,routeCost)=>({
+          blocker,candidateType:'object-root',eligible:true,status:'provisional',recovery:'pickup-blocker',evidence:'current-contact-at-failure',rank,
+          currentContact:{pairCount:1,contactCount:1,activeContactCount:1,minDistance:-.002,totalImpulse:2,colliderIndices:[0]},
+          policy:{allow:true,profile:'builder',missing:[]},preflight:{pose:{status:'approach-pose',position:[0,0,1],routeCost},transfer:{clear:true}},rankingEvidence:{causal:false,pickupRouteCost:routeCost},
+          tool:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:blocker.objectId},
+          verification:{required:'retry-original-post-condition',tool:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'},success:{status:'action-completed',targetReached:true,settled:true}}
+        });
+        const cleanupPlan={status:'cleanup-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',action:'open',blockerId:'obstacle_02',pose:{status:'approach-pose',position:[2,0,2],routeCost:1},release:[2,.05,2],support:{environment:true,point:[2,0,2]},actionSweep:{checked:true,partName:'door'},preflight:{sweepClear:true,endpointClear:true,releaseDistance:.8}};
+        if (name === 'getCarryStatus') return cleanupHeld?{status:'held',actorId:'agent_01',targetId:cleanupHeld,attachment:'kinematic-anchor',graspVerified:false}:{status:'empty',actorId:'agent_01'};
+        if (name === 'getArticulationStatus') return {
+          id:'cabinet_01',parts:[{partName:'door',status:cleanupDoorOpen?'action-completed':(cleanupOpenAttempts?'action-failed':'verified-state'),verifiedAction:cleanupDoorOpen?'open':'close',requestedAction:null,
+            last:cleanupOpenAttempts&&!cleanupDoorOpen?{status:'action-failed',reason:'STALL',targetReached:false,settled:false,attribution:failedReport()}:undefined,
+            live:{coordinate:cleanupDoorOpen?-1.31:(cleanupOpenAttempts?-.42:0),target:cleanupDoorOpen?-1.35:0,error:cleanupDoorOpen?.04:(cleanupOpenAttempts?.93:0),tolerance:.08,coordinateReference:'rest-zero-pose'}}]
+        };
+        if (name === 'approachAndInteract') {
+          if (args.actorId!=='agent_01'||args.targetId!=='cabinet_01'||args.action!=='open') throw Object.assign(new Error('Cleanup recovery open arguments invalid'),{code:'PROBE_BAD_ARGUMENTS'});
+          cleanupOpenAttempts++;
+          if (cleanupSecondDone) {
+            cleanupDoorOpen=true;
+            return {status:'action-completed',partName:'door',actorId:'agent_01',targetId:'cabinet_01',action:'open',targetReached:true,settled:true,statePromoted:true,coordinate:-1.31,error:.04,tolerance:.08,coordinateReference:'rest-zero-pose'};
+          }
+          if (cleanupOpenAttempts===1 || cleanupFirstDone) return {status:'action-failed',reason:'STALL',partName:'door',actorId:'agent_01',targetId:'cabinet_01',action:'open',targetReached:false,settled:false,stateFinalized:true,coordinate:-.42,error:.93,tolerance:.08,coordinateReference:'rest-zero-pose',attribution:failedReport()};
+          throw Object.assign(new Error('Cleanup recovery original retry occurred out of order'),{code:'PROBE_RECOVERY_ORDER'});
+        }
+        if (name === 'suggestRecoveryActions') {
+          if (!cleanupOpenAttempts || cleanupDoorOpen) throw Object.assign(new Error('Cleanup recovery suggestion outside failed state'),{code:'PROBE_RECOVERY_ORDER'});
+          if (!cleanupFirstDone) {
+            const p2=proposal(second,1,2),p1=proposal(first,2,5);
+            return {status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-pickup-route-cost-v1',causal:false,criteria:['eligible','pickupRouteCostAsc','stableBlockerKeyAsc']},recommended:{rank:1,blocker:second,tool:'recoverPickupBlocker',args:p2.args},proposals:[p2,p1]};
+          }
+          if (!cleanupFirstCleaned) {
+            const blocked={...proposal(first,undefined,undefined),eligible:false,status:'ineligible',reason:'HANDS_FULL'}; delete blocked.rank; delete blocked.rankingEvidence;
+            return {status:'recovery-cleanup-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-pickup-route-cost-v1',causal:false,criteria:['eligible','pickupRouteCostAsc','stableBlockerKeyAsc']},recommended:null,cleanupRecommended:{status:'provisional',reason:'HANDS_FULL_WITH_RECOVERY_BLOCKER',blockerId:'obstacle_02',tool:'cleanupRecoveryBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',action:'open',blockerId:'obstacle_02'},plan:cleanupPlan,verification:{required:'replan-recovery-after-cleanup',cleanupStatus:'recovery-cleaned'}},proposals:[blocked]};
+          }
+          if (!cleanupSecondDone) {
+            const p1=proposal(first,1,3);
+            return {status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-pickup-route-cost-v1',causal:false,criteria:['eligible','pickupRouteCostAsc','stableBlockerKeyAsc']},recommended:{rank:1,blocker:first,tool:'recoverPickupBlocker',args:p1.args},proposals:[p1]};
+          }
+          throw Object.assign(new Error('Cleanup recovery suggestion requested after all blockers recovered'),{code:'PROBE_RECOVERY_ORDER'});
+        }
+        if (name === 'suggestRecoveryCleanup') {
+          if (cleanupHeld!=='obstacle_02'||!cleanupFirstDone||cleanupFirstCleaned) throw Object.assign(new Error('Cleanup plan requested outside held-recovery state'),{code:'PROBE_RECOVERY_ORDER'});
+          return cleanupPlan;
+        }
+        if (name === 'recoverPickupBlocker') {
+          if (!cleanupFirstDone) {
+            if (args.blockerId!=='obstacle_02') throw Object.assign(new Error(`Expected first ranked blocker obstacle_02, got ${args.blockerId}`),{code:'PROBE_RECOVERY_RANKING'});
+            cleanupFirstDone=true; cleanupHeld='obstacle_02';
+          } else if (cleanupFirstCleaned&&!cleanupSecondDone) {
+            if (args.blockerId!=='obstacle_01') throw Object.assign(new Error(`Expected second blocker obstacle_01 after cleanup, got ${args.blockerId}`),{code:'PROBE_RECOVERY_RANKING'});
+            cleanupSecondDone=true; cleanupHeld='obstacle_01';
+          } else throw Object.assign(new Error('Cleanup recovery pickup order invalid'),{code:'PROBE_RECOVERY_ORDER'});
+          return {status:'held',actorId:'agent_01',targetId:args.blockerId,attachment:'kinematic-anchor',graspVerified:false,transfer:{clear:true},recovery:{kind:'pickup-blocker',blockerId:args.blockerId,evidence:'current-contact-at-failure'},retryOriginal:true,verification:{required:'retry-original-post-condition',tool:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'},success:{status:'action-completed',targetReached:true,settled:true}}};
+        }
+        if (name === 'cleanupRecoveryBlocker') {
+          if (args.blockerId!=='obstacle_02'||cleanupHeld!=='obstacle_02'||cleanupFirstCleaned||!cleanupFirstDone||cleanupOpenAttempts<2) throw Object.assign(new Error('Cleanup mutation order or arguments invalid'),{code:'PROBE_RECOVERY_ORDER'});
+          cleanupFirstCleaned=true; cleanupHeld=null;
+          return {status:'recovery-cleaned',actorId:'agent_01',targetId:'cabinet_01',blockerId:'obstacle_02',partName:'door',action:'open',released:true,settled:true,sweepClear:true,contactClear:true,stillHeld:false,release:[2,.05,2],recovery:{blockerId:'obstacle_02',targetId:'cabinet_01',partName:'door',action:'open'}};
+        }
+        if (['open','pickup','place','moveObject','navigateTo','approachAndPickup','approachAndPlace','dropHeld'].includes(name)) throw Object.assign(new Error(`Cleanup recovery probe rejects bypass ${name}`),{code:'PROBE_RECOVERY_LOW_LEVEL_REJECTED'});
+        throw Object.assign(new Error(`Probe does not allow ${name} in recovery-cleanup mode`),{code:'PROBE_TOOL_NOT_ALLOWED'});
+      }
+  if (mode === 'recovery-multi') {
         const candidates=[
           {kind:'object',objectId:'obstacle_01',partName:'$root',colliderIndex:0},
           {kind:'object',objectId:'obstacle_02',partName:'$root',colliderIndex:0}
@@ -336,7 +419,7 @@ try {
   };
   const gateway = new HttpLLMGateway({ endpoint:`http://127.0.0.1:${port}/agent`, timeoutMs:90000 });
   const trace = process.env.AGENTSCAPE_TEST_LLM_TRACE === '1';
-  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway:null, maxSteps:(mode.startsWith('sequence')||mode==='recovery'||mode==='recovery-multi')?12:8, log:trace ? (message,type)=>console.error(`[${type}] ${message}`) : ()=>{} });
+  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway:null, maxSteps:(mode.startsWith('sequence')||mode==='recovery'||mode==='recovery-multi'||mode==='recovery-cleanup')?16:8, log:trace ? (message,type)=>console.error(`[${type}] ${message}`) : ()=>{} });
   const result = await agent.run(scenario.goal);
   const expectedTools=Array.isArray(scenario.expected)?scenario.expected:[scenario.expected];
   for (const expected of expectedTools) if (!toolCalls.some((call)=>call.name===expected)) {
@@ -364,6 +447,19 @@ try {
     if (result.taskStatus!=='incomplete') throw new Error(`Attribution taskStatus is ${result.taskStatus}, expected incomplete`);
     if (!/obstacle_03/i.test(result.message || '')) throw new Error(`Attribution final did not name obstacle_03: ${result.message}`);
     if (!/(contact|接触|candidate|候选)/i.test(result.message || '')) throw new Error(`Attribution final did not frame obstacle_03 as contact evidence: ${result.message}`);
+  }
+  if (mode === 'recovery-cleanup') {
+    const mutations=toolCalls.filter((call)=>['approachAndInteract','recoverPickupBlocker','cleanupRecoveryBlocker','approachAndPickup','approachAndPlace','moveObject','dropHeld','open','pickup','place'].includes(call.name));
+    const names=mutations.map((call)=>call.name);
+    const expected=['approachAndInteract','recoverPickupBlocker','approachAndInteract','cleanupRecoveryBlocker','recoverPickupBlocker','approachAndInteract'];
+    if (JSON.stringify(names)!==JSON.stringify(expected)) throw new Error(`Unexpected cleanup recovery mutation order: ${names.join(' -> ')}`);
+    if (mutations[1]?.args?.blockerId!=='obstacle_02'||mutations[3]?.args?.blockerId!=='obstacle_02'||mutations[4]?.args?.blockerId!=='obstacle_01') throw new Error('Cleanup recovery used wrong blocker order');
+    if (!cleanupFirstDone||!cleanupFirstCleaned||!cleanupSecondDone||!cleanupDoorOpen) throw new Error(`Cleanup recovery world state incomplete: first=${cleanupFirstDone} cleaned=${cleanupFirstCleaned} second=${cleanupSecondDone} open=${cleanupDoorOpen}`);
+    if (result.taskStatus!=='completed'||result.unresolvedMutations.length) throw new Error(`Cleanup recovery task did not complete: status=${result.taskStatus} unresolved=${result.unresolvedMutations.length}`);
+    if (toolCalls.some((call)=>['open','pickup','place','moveObject','navigateTo','approachAndPickup','approachAndPlace','dropHeld'].includes(call.name))) throw new Error('Cleanup recovery used a forbidden bypass');
+    const executed=result.execution.filter((entry)=>entry.executed&&entry.mutates);
+    const cleanupEntry=executed.find((entry)=>entry.tool==='cleanupRecoveryBlocker');
+    if (!cleanupEntry||cleanupEntry.auxiliary!==true||cleanupEntry.outcome.state!=='verified') throw new Error('Cleanup mutation was not a verified auxiliary execution');
   }
   if (mode === 'recovery-multi') {
     const mutations=toolCalls.filter((call)=>['approachAndInteract','recoverPickupBlocker','approachAndPickup','moveObject','open','pickup','place'].includes(call.name));

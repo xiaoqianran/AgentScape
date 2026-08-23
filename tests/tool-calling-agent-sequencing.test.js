@@ -295,3 +295,29 @@ it('allows the same auxiliary recovery again after the original mutation is retr
   expect(result.execution.filter((entry)=>entry.tool==='recoverPickupBlocker'&&entry.executed)).toHaveLength(2);
   expect(result.execution.some((entry)=>entry.reason==='RECOVERY_ALREADY_APPLIED')).toBe(false);
 });
+
+
+
+it('skips duplicate verified cleanup within the same original failure evidence epoch',async()=>{
+  let round=0,cleanupCalls=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'c1',name:'cleanupRecoveryBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:'blocker_01',action:'open'}}]};
+    if(round===3) return {message:'',toolCalls:[{id:'c2',name:'cleanupRecoveryBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',blockerId:'blocker_01',action:'open'}}]};
+    return {message:'cleanup done but open still unresolved',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    approachAndInteract:async()=>({status:'action-failed',reason:'STALL',partName:'door'}),
+    cleanupRecoveryBlocker:async()=>{cleanupCalls++;return {status:'recovery-cleaned',released:true,settled:true,sweepClear:true,contactClear:true};}
+  },{
+    cleanupRecoveryBlocker:{mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false}
+  });
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:6}).run('open and cleanup if needed');
+  expect(cleanupCalls).toBe(1);
+  expect(result.taskStatus).toBe('incomplete');
+  expect(result.unresolvedMutations).toHaveLength(1);
+  expect(result.execution.find((entry)=>entry.reason==='RECOVERY_ALREADY_APPLIED')).toMatchObject({
+    tool:'cleanupRecoveryBlocker',executed:false,auxiliary:true,outcome:{state:'skipped'}
+  });
+});

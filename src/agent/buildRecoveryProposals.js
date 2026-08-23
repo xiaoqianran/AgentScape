@@ -128,8 +128,32 @@ export async function buildRecoveryProposals(runtime,registry,{
   }
   const ranked=rankProposals(proposals);
   const eligible=ranked.filter((proposal)=>proposal.eligible);
+  let cleanupRecommended=null;
+  const heldRecovery=runtime.interactions.recoveryHeldStatus?.(actorId) || null;
+  if (!eligible.length && heldRecovery?.targetId===targetId && ranked.some((proposal)=>proposal.reason==='HANDS_FULL')) {
+    const cleanupAuthorization=registry.authorization('cleanupRecoveryBlocker',{profile});
+    if (!cleanupAuthorization.allow) {
+      cleanupRecommended={
+        status:'denied',reason:'POLICY_DENIED',blockerId:heldRecovery.blockerId,
+        policy:{allow:false,profile:cleanupAuthorization.profile,missing:[...cleanupAuthorization.missing]}
+      };
+    } else {
+      const cleanupPlan=await runtime.interactions.findRecoveryCleanupPlan(actorId,targetId,{
+        partName:failedPart.partName,action:last.action || heldRecovery.action,blockerId:heldRecovery.blockerId
+      });
+      cleanupRecommended=cleanupPlan.status==='cleanup-proposed' ? {
+        status:'provisional',reason:'HANDS_FULL_WITH_RECOVERY_BLOCKER',
+        blockerId:heldRecovery.blockerId,
+        policy:{allow:true,profile:cleanupAuthorization.profile,missing:[]},
+        tool:'cleanupRecoveryBlocker',
+        args:{actorId,targetId,partName:failedPart.partName,action:last.action || heldRecovery.action,blockerId:heldRecovery.blockerId},
+        plan:cleanupPlan,
+        verification:{required:'replan-recovery-after-cleanup',cleanupStatus:'recovery-cleaned'}
+      } : {status:'unavailable',reason:cleanupPlan.reason || 'NO_SAFE_CLEANUP_SPACE',blockerId:heldRecovery.blockerId,plan:cleanupPlan};
+    }
+  }
   return {
-    status:eligible.length ? 'recovery-proposed' : 'recovery-unavailable',
+    status:eligible.length ? 'recovery-proposed' : (cleanupRecommended?.status==='provisional' ? 'recovery-cleanup-proposed' : 'recovery-unavailable'),
     actorId,targetId,partName:failedPart.partName,originalAction:last.action || null,
     evidence:'current-contact-at-failure',
     ranking:{
@@ -139,6 +163,7 @@ export async function buildRecoveryProposals(runtime,registry,{
     recommended:eligible[0] ? {
       rank:1,blocker:structuredClone(eligible[0].blocker),tool:eligible[0].tool,args:structuredClone(eligible[0].args)
     } : null,
+    ...(cleanupRecommended ? {cleanupRecommended} : {}),
     proposals:ranked
   };
 }

@@ -104,4 +104,16 @@ describe('SkillRegistry', () => {
     expect(registry.authorization('write',{profile:'viewer'})).toMatchObject({allow:false,profile:'viewer',missing:['world.write'],required:['world.write']});
   });
 
+
+  it('verifies recovery cleanup only when release, settle, sweep and contact post-conditions all hold',()=>{
+    const {registry}=setup();
+    registry.register({name:'cleanup',mutates:true,auxiliary:true,handler:()=>{}});
+    expect(registry.executionPolicy('cleanup',{status:'recovery-cleaned',released:true,settled:true,sweepClear:true,contactClear:true})).toMatchObject({
+      auxiliary:true,tracksUnresolved:false,outcome:{state:'verified',verified:true,status:'recovery-cleaned'}
+    });
+    expect(registry.executionPolicy('cleanup',{status:'recovery-cleaned',released:true,settled:true,sweepClear:false,contactClear:true})).toMatchObject({
+      outcome:{state:'unverified',verified:false,status:'recovery-cleaned',reason:'POST_CONDITION_NOT_VERIFIED'}
+    });
+  });
+
 });

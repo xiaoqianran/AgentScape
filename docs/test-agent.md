@@ -613,3 +613,11 @@ npm run agent:probe -- recovery-multi
 ```
 
 Probe 同时返回 `obstacle_01 / obstacle_02` 两个 current-contact candidates，并故意让 obstacle_01 的 contact impulse 更大，但 pickup routeCost 为 5；obstacle_02 routeCost 为 2。`suggestRecoveryActions` 的 `ranking.causal=false` 且 recommended 为 obstacle_02。Nemotron/Muse 当前样本都只执行 rank-1 `recoverPickupBlocker(obstacle_02)`，随后立即 retry original open 并获得 `action-completed + targetReached + settled`。禁止先处理第二个 candidate 或把 ranking 解释成 causal proof。
+
+## 25. 1.25 Verified Recovery Cleanup Probe
+
+```bash
+npm run agent:probe -- recovery-cleanup
+```
+
+严格双 blocker 场景要求：第一次 open STALL → rank-1 `obstacle_02` recovery → original retry 仍 STALL on `obstacle_01` while hands full → `suggestRecoveryActions.cleanupRecommended` → `cleanupRecoveryBlocker(obstacle_02)` 得到 `recovery-cleaned` → fresh `suggestRecoveryActions` → recover `obstacle_01` → final original open verified。禁止 `dropHeld / moveObject / navigateTo / direct approachAndPickup / approachAndPlace / low-level open/pickup/place`。Nemotron/Muse 当前样本都在 10 planning rounds 内完成；sequence trace 要求 cleanup 后 original unresolved 仍为 1，只有 final original action-completed 后才为 0。

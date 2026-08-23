@@ -535,3 +535,9 @@ held recovery blocker
 ```
 
 仍然不能把 cleanup 成功冒充原始任务成功。
+
+---
+
+## 26. 1.25：Rank-1 Recovery 后的 Hands-full 已闭环
+
+1.24 一次 evidence epoch 只执行一个 ranked recovery。若 original retry 后新的 evidence 仍需要另一个 pickup blocker，而 rank-1 blocker 仍在 Hold Anchor，1.25 不连续 pickup；`suggestRecoveryActions` 会识别 `HANDS_FULL + recoveryHeld provenance` 并给 `cleanupRecommended`。Verified cleanup 后 fresh replan，再重新计算候选/rank。详见 [`recovery-cleanup.md`](./recovery-cleanup.md)。

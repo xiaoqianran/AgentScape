@@ -170,6 +170,8 @@ describe('core skills', () => {
     const r=runtime(); const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
     expect(registry.executionPolicy('suggestRecoveryActions')).toMatchObject({mutates:false,barrier:false,auxiliary:false});
     expect(registry.executionPolicy('recoverPickupBlocker')).toMatchObject({mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false});
+    expect(registry.executionPolicy('suggestRecoveryCleanup')).toMatchObject({mutates:false,barrier:false,auxiliary:false});
+    expect(registry.executionPolicy('cleanupRecoveryBlocker')).toMatchObject({mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false});
   });
 
 });

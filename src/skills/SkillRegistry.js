@@ -5,7 +5,7 @@ const objectSchema = (skill) => ({
   additionalProperties: false
 });
 
-const VERIFIED_STATUSES = new Set(['action-completed', 'arrived', 'held', 'placed', 'dropped']);
+const VERIFIED_STATUSES = new Set(['action-completed', 'arrived', 'held', 'placed', 'dropped', 'recovery-cleaned']);
 const BLOCKED_STATUSES = new Set(['blocked', 'unreachable', 'interaction-blocked', 'pickup-blocked', 'place-blocked']);
 const FAILED_STATUSES = new Set(['action-failed', 'place-failed']);
 const UNVERIFIED_STATUSES = new Set(['action-unverified', 'place-unverified', 'cancelled']);
@@ -25,7 +25,9 @@ function classifyResult(result) {
           ? result.targetReached === true && result.settled === true
           : status === 'placed'
             ? result.supportVerified === true && result.settled === true
-            : true;
+            : status === 'recovery-cleaned'
+              ? result.released === true && result.settled === true && result.sweepClear === true && result.contactClear === true
+              : true;
         return contractVerified
           ? { state:'verified', verified:true, status }
           : { state:'unverified', verified:false, status, reason:'POST_CONDITION_NOT_VERIFIED' };

@@ -4,7 +4,7 @@ import { buildRecoveryProposals } from '../src/agent/buildRecoveryProposals.js';
 const blockerCandidate={kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0};
 const environmentCandidate={kind:'environment',environmentId:'monument-hall',colliderIndex:4};
 
-function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,carryError=null,planCosts={}}={}){
+function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,cleanupAllow=allow,carryError=null,planCosts={},recoveryHeld=null,cleanupPlan=null}={}){
   const records=new Map([
     ['agent_01',{id:'agent_01',assetId:'agent',manifest:{actions:['navigate']},state:{}}],
     ['cabinet_01',{id:'cabinet_01',assetId:'cabinet',manifest:{actions:['open','close']},state:{}}],
@@ -20,10 +20,15 @@ function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=t
         partName:'door',status:'action-failed',last:{status:'action-failed',reason:'STALL',action:'open',attribution:{status:'contact-evidence',blockerCandidates:candidates}}
       }]})),
       assertAgentCarryable:vi.fn(()=>{if(carryError) throw Object.assign(new Error(carryError),{code:'CARRY_UNAVAILABLE',details:{reason:carryError}});}),
-      findPickupPlan:vi.fn(async(_actor,id)=>({pose:{status:'approach-pose',position:[1,0,1],routeCost:planCosts[id] ?? 1},transfer:{clear:true}}))
+      findPickupPlan:vi.fn(async(_actor,id)=>({pose:{status:'approach-pose',position:[1,0,1],routeCost:planCosts[id] ?? 1},transfer:{clear:true}})),
+      recoveryHeldStatus:vi.fn(()=>recoveryHeld),
+      findRecoveryCleanupPlan:vi.fn(async()=>cleanupPlan || {status:'cleanup-unavailable',reason:'NO_SAFE_CLEANUP_SPACE'})
     }
   };
-  const registry={authorization:vi.fn(()=>({allow,profile:'builder',missing:allow?[]:['world.write'],required:['world.write','spatial.read','physics.read']}))};
+  const registry={authorization:vi.fn((name)=>{
+    const granted=name==='cleanupRecoveryBlocker'?cleanupAllow:allow;
+    return {allow:granted,profile:'builder',missing:granted?[]:['world.write'],required:['world.write','spatial.read','physics.read']};
+  })};
   return {runtime,registry};
 }
 
@@ -116,6 +121,48 @@ describe('verified recovery proposals',()=>{
       proposals:[{candidateType:'articulated-part',eligible:false,status:'ineligible',reason:'ARTICULATED_PART_RECOVERY_UNSUPPORTED'}]
     });
     expect(runtime.interactions.findPickupPlan).not.toHaveBeenCalled();
+  });
+
+
+  it('offers cleanup when the next blocker is HANDS_FULL only because the Agent still holds a prior recovery blocker',async()=>{
+    const held={blockerId:'blocker_02',targetId:'cabinet_01',partName:'door',action:'open'};
+    const cleanup={status:'cleanup-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',action:'open',blockerId:'blocker_02',pose:{status:'approach-pose',position:[2,0,2],routeCost:1},release:[2,0.05,2],preflight:{sweepClear:true,endpointClear:true}};
+    const {runtime,registry}=setup({carryError:'HANDS_FULL',recoveryHeld:held,cleanupPlan:cleanup});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result).toMatchObject({
+      status:'recovery-cleanup-proposed',recommended:null,
+      cleanupRecommended:{
+        status:'provisional',reason:'HANDS_FULL_WITH_RECOVERY_BLOCKER',blockerId:'blocker_02',tool:'cleanupRecoveryBlocker',
+        args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',action:'open',blockerId:'blocker_02'},
+        verification:{required:'replan-recovery-after-cleanup',cleanupStatus:'recovery-cleaned'}
+      }
+    });
+    expect(result.proposals).toHaveLength(1);
+    expect(result.proposals[0]).toMatchObject({blocker:{objectId:'blocker_01'},eligible:false,reason:'HANDS_FULL'});
+    expect(runtime.interactions.findRecoveryCleanupPlan).toHaveBeenCalledWith('agent_01','cabinet_01',{partName:'door',action:'open',blockerId:'blocker_02'});
+  });
+
+  it('does not offer cleanup for an unrelated held object without recovery provenance',async()=>{
+    const {runtime,registry}=setup({carryError:'HANDS_FULL',recoveryHeld:null});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.status).toBe('recovery-unavailable');
+    expect(result).not.toHaveProperty('cleanupRecommended');
+    expect(runtime.interactions.findRecoveryCleanupPlan).not.toHaveBeenCalled();
+  });
+
+
+  it('does not expose an executable cleanup proposal when cleanup Policy is denied',async()=>{
+    const held={blockerId:'blocker_02',targetId:'cabinet_01',partName:'door',action:'open'};
+    const cleanup={status:'cleanup-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',action:'open',blockerId:'blocker_02',pose:{status:'approach-pose',position:[2,0,2],routeCost:1},release:[2,0.05,2],preflight:{sweepClear:true,endpointClear:true}};
+    const {runtime,registry}=setup({carryError:'HANDS_FULL',recoveryHeld:held,cleanupPlan:cleanup,cleanupAllow:false});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.status).toBe('recovery-unavailable');
+    expect(result.cleanupRecommended).toMatchObject({
+      status:'denied',reason:'POLICY_DENIED',blockerId:'blocker_02',
+      policy:{allow:false,profile:'builder',missing:['world.write']}
+    });
+    expect(result.cleanupRecommended).not.toHaveProperty('tool');
+    expect(runtime.interactions.findRecoveryCleanupPlan).not.toHaveBeenCalled();
   });
 
 });

@@ -94,7 +94,17 @@ export function registerCoreSkills(registry, runtime) {
     const proposal=recovery.proposals.find((item)=>item.eligible && item.blocker?.kind==='object' && item.blocker.objectId===a.blockerId);
     if (!proposal) return {status:'recovery-stale',reason:recovery.proposals.find((item)=>item.blocker?.objectId===a.blockerId)?.reason || recovery.reason || 'RECOVERY_NOT_ELIGIBLE',actorId:a.actorId,targetId:a.targetId,blockerId:a.blockerId,retryOriginal:true};
     const pickup=await runtime.interactions.approachAndPickup(a.actorId,a.blockerId);
+    if (pickup.status==='held') runtime.interactions.markRecoveryHeld(a.actorId,{
+      blockerId:a.blockerId,targetId:a.targetId,partName:proposal.verification?.args?.partName || a.partName,
+      action:proposal.verification?.args?.action || recovery.originalAction
+    });
     return {...pickup,recovery:{kind:'pickup-blocker',blockerId:a.blockerId,evidence:proposal.evidence},retryOriginal:true,verification:proposal.verification};
+  });
+  add('suggestRecoveryCleanup', meta('只读为当前通过 recoverPickupBlocker 持有的 blocker 规划安全 cleanup。候选必须由 Rapier 向下射线找到 Environment 支撑、位于原 articulation action sweep 外、Agent 可达且 carried-body endpoint clear。Proposal 不修改世界。', ['world.read','spatial.read','physics.read'], ['actorId','targetId'], {actorId:string,targetId:string,partName:string,blockerId:string,action:{type:'string',enum:['open','close']}}), (a)=>runtime.interactions.findRecoveryCleanupPlan(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action}));
+  add('cleanupRecoveryBlocker', { ...meta('对当前 recovery-held blocker 执行 verified cleanup：真实导航到 cleanup pose，经共享三段 Rapier body-motion transfer 释放为 Dynamic，等待 settle，并验证 blocker 已释放、离开原 action sweep 且不再接触失败 Part。recovery-cleaned 只表示 cleanup 成功，不表示原始任务成功。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId'], {actorId:string,targetId:string,partName:string,blockerId:string,action:{type:'string',enum:['open','close']},speed:{type:'number',exclusiveMinimum:0,maximum:8}}), batchable:false,auxiliary:true,mutates:true }, async(a)=>{
+    const result=await runtime.interactions.cleanupRecoveryBlocker(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action,speed:a.speed});
+    if (result.status==='cleanup-unavailable') return {status:'recovery-cleanup-blocked',reason:result.reason || 'CLEANUP_UNAVAILABLE',actorId:a.actorId,targetId:a.targetId,blockerId:a.blockerId,plan:result};
+    return result;
   });
   add('suggestRecoveryActions', meta('针对最近一次 articulated STALL 只读生成恢复候选。仅对当前仍接触、可由具身 Agent pickup 的动态 Object blocker 给出 provisional proposal；Environment/fixed/不可携带/Policy denied 均明确拒绝。Recovery proposal 不是成功，执行后必须 retry 原始 action 并重新验证 post-condition。', ['world.read','physics.read'], ['actorId','targetId'], { actorId:string,targetId:string,partName:string }), (a,{registry,context}) => buildRecoveryProposals(runtime,registry,{actorId:a.actorId,targetId:a.targetId,partName:a.partName,profile:context.profile || 'builder'}));
   add('approachAndPickup', { ...meta('具身 pickup：Agent 先走到固定 1.5m 交互位并复核 Rapier LOS，再对对象到 hold anchor 做 shape-sweep；成功后记录 heldBy 并以 kinematic anchor 携带。不是 grasp force verification。', ['world.write','spatial.read','physics.read'], ['actorId','targetId'], { actorId:string, targetId:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, (a) => runtime.interactions.approachAndPickup(a.actorId,a.targetId,{speed:a.speed}));

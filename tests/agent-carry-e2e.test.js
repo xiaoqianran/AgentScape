@@ -64,10 +64,9 @@ describe('agent carry ownership',()=>{
     const record=ctx.store.get('cup_01'); record.state.heldBy={kind:'agent',id:'agent_01',anchor:'hold'};
     ctx.interactions.rebuildHeldOwnership();
     const pose=ctx.physics.anchorPose('agent_01',ctx.store.get('agent_01').manifest.embodiment.holdAnchor); ctx.physics.setHeldPose('cup_01',pose.position,pose.rotation);
-    let result=null; const pending=ctx.locomotion.navigate('agent_01',[0,0,-2],{speed:2.5,timeout:10}).then(v=>{result=v});
-    for(let i=0;i<120&&!result&&ctx.locomotion.tasks.size===0;i++) await new Promise(r=>setTimeout(r,0));
-    for(let i=0;i<700&&!result;i++){ ctx.locomotion.update(1/60); ctx.physics.step(1/60,ctx.store); ctx.interactions.update(1/60,new THREE.PerspectiveCamera()); await Promise.resolve(); }
-    await pending;
+    const current=await ctx.navigation.ensureCurrent();
+    expect(current.success).toBe(true);
+    const result=await drive(ctx.locomotion.navigate('agent_01',[0,0,-2],{speed:2.5,timeout:10}),ctx,700);
     expect(result).toMatchObject({status:'blocked',reason:'CARRIED_OBJECT_BLOCKED',carry:{id:'cup_01'}});
     expect(result.position[2]).toBeGreaterThan(.55);
     const cup=ctx.physics.getPosition('cup_01'); expect(cup[2]).toBeGreaterThan(-.05);

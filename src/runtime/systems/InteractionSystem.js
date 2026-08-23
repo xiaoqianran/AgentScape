@@ -14,6 +14,7 @@ export class InteractionSystem {
     this.events = events;
     this.humanHeldId = null;
     this.agentHeld = new Map();
+    this.recoveryHeld = new Map();
     this.settleTasks = new Map();
     this.articulationTasks = new Map();
     this.articulationResults = new Map();
@@ -24,6 +25,17 @@ export class InteractionSystem {
   isHeld(id) { return Boolean(this.store.has(id) && this.store.get(id).state?.heldBy); }
 
   heldByAgent(actorId) { return this.agentHeld.get(actorId) || null; }
+
+  markRecoveryHeld(actorId, { blockerId, targetId, partName, action }) {
+    if (this.heldByAgent(actorId)!==blockerId) return false;
+    this.recoveryHeld.set(actorId,{blockerId,targetId,partName:partName || null,action:action || null});
+    return true;
+  }
+
+  recoveryHeldStatus(actorId) {
+    const value=this.recoveryHeld.get(actorId);
+    return value ? structuredClone(value) : null;
+  }
 
   holdAnchor(actorId) {
     const record = this.store.get(actorId);
@@ -105,7 +117,10 @@ export class InteractionSystem {
     const heldBy = record.state?.heldBy;
     if (!heldBy) return false;
     if (heldBy.kind === 'human' && this.humanHeldId === id) this.humanHeldId = null;
-    if (heldBy.kind === 'agent' && this.agentHeld.get(heldBy.id) === id) this.agentHeld.delete(heldBy.id);
+    if (heldBy.kind === 'agent' && this.agentHeld.get(heldBy.id) === id) {
+      this.agentHeld.delete(heldBy.id);
+      this.recoveryHeld.delete(heldBy.id);
+    }
     delete record.state.heldBy;
     this.physics.setHeld(id, false);
     this.events.emit('interaction', { action:'drop', id, heldBy, ...(reason ? {reason} : {}) });
@@ -115,6 +130,7 @@ export class InteractionSystem {
   rebuildHeldOwnership() {
     this.humanHeldId = null;
     this.agentHeld.clear();
+    this.recoveryHeld.clear();
     for (const [id, record] of this.store.list()) {
       const heldBy = record.state?.heldBy;
       if (!heldBy) continue;
@@ -136,12 +152,16 @@ export class InteractionSystem {
   }
 
   beforeRemove(id) {
+    for (const [actorId,recovery] of [...this.recoveryHeld]) if (actorId===id || recovery.blockerId===id || recovery.targetId===id) this.recoveryHeld.delete(actorId);
     for (const key of [...this.articulationResults.keys()]) if (key.startsWith(`${id}:`)) this.articulationResults.delete(key);
     for (const task of [...this.articulationTasks.values()]) if (task.id === id) {
       this.finishArticulationTask(task,{status:'action-unverified',reason:'OBJECT_REMOVED',targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
     }
-    const settle = this.settleTasks.get(id);
-    if (settle) this.finishPlacementSettle(settle,{status:'place-unverified',reason:'OBJECT_REMOVED',supportVerified:false,settled:false,elapsed:Number(settle.elapsed.toFixed(3))});
+    for (const settle of [...this.settleTasks.values()]) if (settle.objectId===id || settle.targetId===id) {
+      this.finishPlacementSettle(settle,settle.kind==='recovery-cleanup'
+        ? this.recoveryCleanupSettleResult(settle,null,{settled:false,reason:'OBJECT_REMOVED'})
+        : {status:'place-unverified',reason:'OBJECT_REMOVED',supportVerified:false,settled:false,elapsed:Number(settle.elapsed.toFixed(3))});
+    }
     if (this.store.has(id) && this.store.get(id).state?.heldBy) this.releaseHeld(id, 'OBJECT_REMOVED');
     const carried = this.agentHeld.get(id);
     if (carried && this.store.has(carried)) this.releaseHeld(carried, 'OWNER_REMOVED');
@@ -149,7 +169,9 @@ export class InteractionSystem {
 
   cancelPending(reason = 'RUNTIME_DISPOSED') {
     for (const task of [...this.settleTasks.values()]) {
-      this.finishPlacementSettle(task,{status:'place-unverified',reason,supportVerified:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
+      this.finishPlacementSettle(task,task.kind==='recovery-cleanup'
+        ? this.recoveryCleanupSettleResult(task,null,{settled:false,reason})
+        : {status:'place-unverified',reason,supportVerified:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
     }
     for (const task of [...this.articulationTasks.values()]) {
       this.finishArticulationTask(task,{status:'action-unverified',reason,targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
@@ -582,50 +604,118 @@ export class InteractionSystem {
     }
   }
 
-  waitForPlacementSettle(objectId, targetId, surfaceId, { timeout = 4, stableDuration = 0.35, linearSpeed = 0.04, angularSpeed = 0.12 } = {}) {
-    if (this.settleTasks.has(objectId)) throw Errors.placeUnavailable('runtime', targetId, 'SETTLE_ALREADY_ACTIVE', { objectId });
-    return new Promise((resolve) => this.settleTasks.set(objectId, {
-      objectId,targetId,surfaceId,timeout,stableDuration,linearSpeed,angularSpeed,elapsed:0,stable:0,resolve
+  transferHeldToRelease(actorId, heldId, release) {
+    const originalPosition=this.physics.getPosition(heldId);
+    const rotation=this.physics.getRotation(heldId);
+    if (!originalPosition || !rotation) return {clear:false,reason:'HELD_BODY_UNAVAILABLE',transfer:[]};
+    const point=Array.isArray(release) ? release : release.toArray();
+    const size=this.spatial.getBounds(heldId).size;
+    const liftY=Math.max(originalPosition[1],point[1]+size[1]+.08);
+    const transferPoints=[
+      [originalPosition[0],liftY,originalPosition[2]],
+      [point[0],liftY,point[2]],
+      [...point]
+    ];
+    const transfer=[];
+    for (const target of transferPoints) {
+      const check=this.physics.bodyMotionClear(heldId,target,rotation,{excludeIds:[actorId]});
+      transfer.push({point:[...target],...check});
+      if (!check.clear) {
+        this.physics.setHeldPose(heldId,originalPosition,rotation);
+        return {clear:false,reason:'TRANSFER_BLOCKED',originalPosition,rotation,transfer};
+      }
+      this.physics.setHeldPose(heldId,target,rotation);
+    }
+    return {clear:true,originalPosition,rotation,transfer,release:[...point]};
+  }
+
+  waitForObjectSettle(objectId, { kind='place', targetId=null, surfaceId=null, actorId=null, partName=null, action=null, timeout=4, stableDuration=.35, linearSpeed=.04, angularSpeed=.12 } = {}) {
+    if (this.settleTasks.has(objectId)) throw Errors.placeUnavailable(actorId || 'runtime',targetId || objectId,'SETTLE_ALREADY_ACTIVE',{objectId});
+    return new Promise((resolve)=>this.settleTasks.set(objectId,{
+      kind,objectId,targetId,surfaceId,actorId,partName,action,timeout,stableDuration,linearSpeed,angularSpeed,elapsed:0,stable:0,resolve
     }));
+  }
+
+  waitForPlacementSettle(objectId, targetId, surfaceId, { timeout = 4, stableDuration = 0.35, linearSpeed = 0.04, angularSpeed = 0.12 } = {}) {
+    return this.waitForObjectSettle(objectId,{kind:'place',targetId,surfaceId,timeout,stableDuration,linearSpeed,angularSpeed});
+  }
+
+  waitForRecoveryCleanupSettle(actorId, objectId, targetId, partName, action, options = {}) {
+    return this.waitForObjectSettle(objectId,{kind:'recovery-cleanup',actorId,targetId,partName,action,...options});
+  }
+
+
+  placementSettleResult(task,motion,{settled,reason=null}={}) {
+    const support=this.spatial.supportStatus(task.objectId,task.targetId,{surfaceId:task.surfaceId});
+    if (!settled) return {
+      status:'place-unverified',reason:reason || 'SETTLE_TIMEOUT',supportVerified:false,support,settled:false,
+      elapsed:Number(task.elapsed.toFixed(3)),motion
+    };
+    return {
+      status:support.on?'placed':'place-failed',...(support.on?{}:{reason:'SUPPORT_NOT_REACHED'}),
+      supportVerified:support.on,support,settled:true,elapsed:Number(task.elapsed.toFixed(3)),motion
+    };
+  }
+
+  recoveryCleanupSettleResult(task,motion,{settled,reason=null}={}) {
+    const held=this.store.has(task.objectId) ? this.store.get(task.objectId).state?.heldBy : null;
+    const sweep=this.store.has(task.targetId) ? this.actionSweepBounds(task.targetId,task.action,task.partName) : {checked:false,reason:'TARGET_UNAVAILABLE'};
+    const bounds=this.store.has(task.objectId) ? this.spatial.getBounds(task.objectId) : null;
+    const box=bounds ? new THREE.Box3(new THREE.Vector3(...bounds.min),new THREE.Vector3(...bounds.max)) : null;
+    const sweepClear=Boolean(sweep.checked && box && !sweep.box.intersectsBox(box));
+    const contacts=sweep.checked ? (this.physics.articulationContacts?.(task.targetId,sweep.partName) || []) : [];
+    const contactClear=!contacts.some((contact)=>contact.external && contact.target?.kind==='object' && contact.target.objectId===task.objectId);
+    const released=!held && this.heldByAgent(task.actorId)!==task.objectId;
+    const verified=Boolean(settled && released && sweepClear && contactClear);
+    let failureReason=reason;
+    if (!failureReason && !released) failureReason='STILL_HELD';
+    else if (!failureReason && !sweep.checked) failureReason='ACTION_SWEEP_UNAVAILABLE';
+    else if (!failureReason && !sweepClear) failureReason='ACTION_SWEEP_OCCUPIED';
+    else if (!failureReason && !contactClear) failureReason='CONTACT_STILL_ACTIVE';
+    return {
+      status:verified?'recovery-cleaned':(settled?'recovery-cleanup-failed':'recovery-cleanup-unverified'),
+      ...(verified?{}:{reason:failureReason || 'RECOVERY_CLEANUP_UNVERIFIED'}),
+      actorId:task.actorId,targetId:task.targetId,blockerId:task.objectId,partName:sweep.partName || task.partName,action:task.action,
+      released,settled:Boolean(settled),sweepClear,contactClear,
+      actionSweep:sweep.checked?{checked:true,partName:sweep.partName,bounds:sweep.bounds}:{checked:false,reason:sweep.reason,partName:sweep.partName || task.partName},
+      elapsed:Number(task.elapsed.toFixed(3)),motion
+    };
   }
 
   finishPlacementSettle(task, result) {
     if (!this.settleTasks.has(task.objectId)) return;
     this.settleTasks.delete(task.objectId);
-    this.events.emit('interaction', { action:'place', id:task.objectId, targetId:task.targetId, ...result });
+    this.events.emit('interaction',{action:task.kind==='recovery-cleanup'?'recovery-cleanup':'place',id:task.objectId,targetId:task.targetId,...result});
     task.resolve(result);
   }
 
   updatePlacementSettles(dt) {
     for (const task of [...this.settleTasks.values()]) {
-      task.elapsed += dt;
-      const motion = this.physics.bodyMotionState(task.objectId);
-      if (!motion) {
-        this.finishPlacementSettle(task, { status:'place-failed', reason:'BODY_UNAVAILABLE', supportVerified:false, elapsed:Number(task.elapsed.toFixed(3)) });
+      task.elapsed+=dt;
+      const motionState=this.physics.bodyMotionState(task.objectId);
+      if (!motionState) {
+        const motion=null;
+        const result=task.kind==='recovery-cleanup'
+          ? this.recoveryCleanupSettleResult(task,motion,{settled:false,reason:'BODY_UNAVAILABLE'})
+          : {status:'place-failed',reason:'BODY_UNAVAILABLE',supportVerified:false,elapsed:Number(task.elapsed.toFixed(3))};
+        this.finishPlacementSettle(task,result);
         continue;
       }
-      const slow = motion.sleeping || (motion.linearSpeed <= task.linearSpeed && motion.angularSpeed <= task.angularSpeed);
-      task.stable = slow ? task.stable + dt : 0;
-      if (task.stable >= task.stableDuration) {
-        const support = this.spatial.supportStatus(task.objectId, task.targetId, { surfaceId:task.surfaceId });
-        this.finishPlacementSettle(task, {
-          status:support.on ? 'placed' : 'place-failed',
-          ...(support.on ? {} : { reason:'SUPPORT_NOT_REACHED' }),
-          supportVerified:support.on,
-          support,
-          settled:true,
-          elapsed:Number(task.elapsed.toFixed(3)),
-          motion:{ sleeping:motion.sleeping, linearSpeed:Number(motion.linearSpeed.toFixed(4)), angularSpeed:Number(motion.angularSpeed.toFixed(4)) }
-        });
+      const motion={sleeping:motionState.sleeping,linearSpeed:Number(motionState.linearSpeed.toFixed(4)),angularSpeed:Number(motionState.angularSpeed.toFixed(4))};
+      const slow=motionState.sleeping || (motionState.linearSpeed<=task.linearSpeed && motionState.angularSpeed<=task.angularSpeed);
+      task.stable=slow ? task.stable+dt : 0;
+      if (task.stable>=task.stableDuration) {
+        const result=task.kind==='recovery-cleanup'
+          ? this.recoveryCleanupSettleResult(task,motion,{settled:true})
+          : this.placementSettleResult(task,motion,{settled:true});
+        this.finishPlacementSettle(task,result);
         continue;
       }
-      if (task.elapsed >= task.timeout) {
-        const support = this.spatial.supportStatus(task.objectId, task.targetId, { surfaceId:task.surfaceId });
-        this.finishPlacementSettle(task, {
-          status:'place-unverified', reason:'SETTLE_TIMEOUT', supportVerified:false, support, settled:false,
-          elapsed:Number(task.elapsed.toFixed(3)),
-          motion:{ sleeping:motion.sleeping, linearSpeed:Number(motion.linearSpeed.toFixed(4)), angularSpeed:Number(motion.angularSpeed.toFixed(4)) }
-        });
+      if (task.elapsed>=task.timeout) {
+        const result=task.kind==='recovery-cleanup'
+          ? this.recoveryCleanupSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'})
+          : this.placementSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'});
+        this.finishPlacementSettle(task,result);
       }
     }
   }
@@ -663,33 +753,16 @@ export class InteractionSystem {
     if (!reach.interactable) return { status:'place-blocked', reason:reach.inRange ? 'LINE_OF_SIGHT_BLOCKED' : 'OUT_OF_RANGE', actorId,targetId,heldId,locomotion,reach,stillHeld:true };
     const reorientation = this.reorientHeldToward(actorId,heldId,release.toArray());
     if (!reorientation.clear) return { status:'place-blocked', reason:'CARRY_REORIENT_BLOCKED', actorId,targetId,heldId,locomotion,reach,reorientation,stillHeld:true };
-    const originalPosition = this.physics.getPosition(heldId);
-    const rotation = this.physics.getRotation(heldId);
-    const releaseDistance = originalPosition ? new THREE.Vector3(...originalPosition).distanceTo(release) : Infinity;
-    if (releaseDistance > DEFAULT_INTERACTION_DISTANCE) return {
+    const originalPosition=this.physics.getPosition(heldId);
+    const releaseDistance=originalPosition ? new THREE.Vector3(...originalPosition).distanceTo(release) : Infinity;
+    if (releaseDistance>DEFAULT_INTERACTION_DISTANCE) return {
       status:'place-blocked',reason:'RELEASE_OUT_OF_RANGE',actorId,targetId,heldId,
       pose,locomotion,reach,reorientation,
-      heldPosition:[...originalPosition],release:release.toArray(),releaseDistance:Number(releaseDistance.toFixed(3)),stillHeld:true
+      heldPosition:originalPosition?[...originalPosition]:null,release:release.toArray(),releaseDistance:Number(releaseDistance.toFixed(3)),stillHeld:true
     };
-
-    if (!originalPosition || !rotation) return { status:'place-blocked', reason:'HELD_BODY_UNAVAILABLE', actorId,targetId,heldId,stillHeld:true };
-    const size = this.spatial.getBounds(heldId).size;
-    const liftY = Math.max(originalPosition[1],release.y + size[1] + 0.08);
-    const transferPoints = [
-      [originalPosition[0],liftY,originalPosition[2]],
-      [release.x,liftY,release.z],
-      release.toArray()
-    ];
-    const transfer = [];
-    for (const point of transferPoints) {
-      const check = this.physics.bodyMotionClear(heldId,point,rotation,{excludeIds:[actorId]});
-      transfer.push({point:[...point],...check});
-      if (!check.clear) {
-        this.physics.setHeldPose(heldId,originalPosition,rotation);
-        return { status:'place-blocked', reason:'PLACE_TRANSFER_BLOCKED', actorId,targetId,heldId,transfer,stillHeld:true };
-      }
-      this.physics.setHeldPose(heldId,point,rotation);
-    }
+    const moved=this.transferHeldToRelease(actorId,heldId,release);
+    if (!moved.clear) return {status:'place-blocked',reason:moved.reason==='HELD_BODY_UNAVAILABLE'?'HELD_BODY_UNAVAILABLE':'PLACE_TRANSFER_BLOCKED',actorId,targetId,heldId,transfer:moved.transfer,stillHeld:true};
+    const transfer=moved.transfer;
 
     const selectedSurface = this.spatial.getSupportSurface(targetId,surfaceId)?.id || surfaceId;
     this.releaseHeld(heldId,'PLACE_RELEASE');
@@ -698,6 +771,121 @@ export class InteractionSystem {
       ...settled, actorId,targetId,heldId,pose,locomotion,reach,reorientation,
       release:release.toArray().map((value)=>Number(value.toFixed(4))),
       transfer:transfer.map(({point,clear,code,blockedBy,toi})=>({point,clear,...(code?{code}:{}),...(blockedBy?{blockedBy}:{}),...(Number.isFinite(toi)?{toi}: {})})),
+      stillHeld:false
+    };
+  }
+
+  cleanupReleaseCandidates(actorId,targetId,partName,action,heldId,{clearance=.05,sweepMargin=.35}={}) {
+    const sweep=this.actionSweepBounds(targetId,action,partName);
+    if (!sweep.checked) return {sweep,candidates:[]};
+    const bounds=this.spatial.getBounds(heldId);
+    const bodyPosition=this.physics.getPosition(heldId);
+    if (!bodyPosition) return {sweep,candidates:[]};
+    const halfX=bounds.size[0]/2,halfZ=bounds.size[2]/2;
+    const centerOffset=[bounds.center[0]-bodyPosition[0],bounds.center[1]-bodyPosition[1],bounds.center[2]-bodyPosition[2]];
+    const rootToBottom=bodyPosition[1]-bounds.min[1];
+    const center=sweep.box.getCenter(new THREE.Vector3());
+    const left=sweep.box.min.x-sweepMargin-halfX,right=sweep.box.max.x+sweepMargin+halfX;
+    const back=sweep.box.min.z-sweepMargin-halfZ,front=sweep.box.max.z+sweepMargin+halfZ;
+    const centers=[
+      [left,center.z],[right,center.z],[center.x,back],[center.x,front],
+      [left,back],[right,back],[left,front],[right,front]
+    ];
+    const topY=Math.max(sweep.box.max.y,bounds.max[1])+4;
+    const lowY=Math.min(sweep.box.min.y,bounds.min[1])-24;
+    const sweepGuard=sweep.box.clone().expandByScalar(sweepMargin*.5);
+    const candidates=[];
+    for (const [cx,cz] of centers) {
+      const rootX=cx-centerOffset[0], rootZ=cz-centerOffset[2];
+      const hit=this.physics.raycast([rootX,topY,rootZ],[rootX,lowY,rootZ],{excludeIds:[actorId,heldId,targetId]});
+      if (!hit?.environment) continue;
+      const release=[rootX,hit.point[1]+rootToBottom+clearance,rootZ];
+      const min=new THREE.Vector3(bounds.min[0]-bodyPosition[0]+release[0],bounds.min[1]-bodyPosition[1]+release[1],bounds.min[2]-bodyPosition[2]+release[2]);
+      const max=new THREE.Vector3(bounds.max[0]-bodyPosition[0]+release[0],bounds.max[1]-bodyPosition[1]+release[1],bounds.max[2]-bodyPosition[2]+release[2]);
+      const box=new THREE.Box3(min,max);
+      if (sweepGuard.intersectsBox(box)) continue;
+      candidates.push({release,support:{environment:true,point:[...hit.point],distance:hit.distance},box});
+    }
+    return {sweep,candidates};
+  }
+
+  async findRecoveryCleanupPlan(actorId,targetId,{partName=null,action=null,blockerId=null,clearance=.05,sweepMargin=.35}={}) {
+    const provenance=this.recoveryHeldStatus(actorId);
+    const heldId=this.heldByAgent(actorId);
+    if (!provenance || !heldId || provenance.blockerId!==heldId || (blockerId && blockerId!==heldId)) return {status:'cleanup-unavailable',reason:'NO_RECOVERY_HELD_BLOCKER',actorId,targetId,blockerId:blockerId || heldId || null};
+    if (provenance.targetId!==targetId || (partName && provenance.partName && provenance.partName!==partName)) return {status:'cleanup-unavailable',reason:'RECOVERY_CONTEXT_MISMATCH',actorId,targetId,blockerId:heldId};
+    const resolvedAction=action || provenance.action;
+    const resolvedPart=partName || provenance.partName;
+    if (!resolvedAction) return {status:'cleanup-unavailable',reason:'ORIGINAL_ACTION_UNAVAILABLE',actorId,targetId,blockerId:heldId};
+    if (!this.navigation || !this.locomotion) return {status:'cleanup-unavailable',reason:'NAVIGATION_UNAVAILABLE',actorId,targetId,blockerId:heldId};
+    const source=this.cleanupReleaseCandidates(actorId,targetId,resolvedPart,resolvedAction,heldId,{clearance,sweepMargin});
+    if (!source.sweep.checked) return {status:'cleanup-unavailable',reason:'ACTION_SWEEP_UNAVAILABLE',actorId,targetId,blockerId:heldId,sweep:{checked:false,reason:source.sweep.reason,partName:source.sweep.partName}};
+    const actorPosition=this.physics.getPosition(actorId);
+    if (!actorPosition) return {status:'cleanup-unavailable',reason:'ACTOR_PHYSICS_UNAVAILABLE',actorId,targetId,partName:source.sweep.partName,action:resolvedAction,blockerId:heldId};
+    const anchor=this.holdAnchor(actorId);
+    const metrics=this.actorMetrics(actorId);
+    const standOff=Math.max(metrics.radius+.18,this.carryStandOff(actorId,heldId)+.12);
+    const plans=[];
+    for (const candidate of source.candidates) {
+      const release=new THREE.Vector3(...candidate.release);
+      const stancePositions=[[...actorPosition]];
+      for (let i=0;i<8;i++) {
+        const angle=i*Math.PI/4;
+        stancePositions.push([release.x+Math.cos(angle)*standOff,actorPosition[1],release.z+Math.sin(angle)*standOff]);
+      }
+      for (let index=0;index<stancePositions.length;index++) {
+        let position=stancePositions[index],routeCost=0,route=null,status='current-pose';
+        if (index>0) {
+          route=await this.navigation.findPath(actorPosition,position);
+          if (!route.reachable || !route.end?.snapped) continue;
+          position=route.end.snapped; routeCost=route.cost; status='approach-pose';
+        }
+        if (source.sweep.box.intersectsBox(this.actorBoxAt(actorId,position))) continue;
+        const dx=release.x-position[0],dz=release.z-position[2];
+        const yaw=Math.hypot(dx,dz)<1e-8?0:Math.atan2(-dx,-dz);
+        const predicted=this.holdPoseAt(position,yaw,anchor);
+        const releaseDistance=new THREE.Vector3(...predicted.position).distanceTo(release);
+        if (releaseDistance>DEFAULT_INTERACTION_DISTANCE-DEFAULT_WAYPOINT_TOLERANCE) continue;
+        const endpointClear=this.physics.bodyPoseClear(heldId,candidate.release,predicted.rotation,{excludeIds:[actorId]});
+        if (!endpointClear.clear) continue;
+        plans.push({
+          status:'cleanup-proposed',actorId,targetId,partName:source.sweep.partName,action:resolvedAction,blockerId:heldId,
+          pose:{status,position:[...position],routeCost,waypointCount:route?.path?.length || 1},
+          release:candidate.release.map((value)=>Number(value.toFixed(4))),support:candidate.support,
+          actionSweep:{checked:true,partName:source.sweep.partName,bounds:source.sweep.bounds},
+          preflight:{sweepClear:true,endpointClear:true,releaseDistance:Number(releaseDistance.toFixed(4))}
+        });
+      }
+    }
+    plans.sort((a,b)=>(a.pose.routeCost??Infinity)-(b.pose.routeCost??Infinity) || a.preflight.releaseDistance-b.preflight.releaseDistance || a.release.join(',').localeCompare(b.release.join(',')));
+    return plans[0] || {status:'cleanup-unavailable',reason:'NO_SAFE_CLEANUP_SPACE',actorId,targetId,partName:source.sweep.partName,action:resolvedAction,blockerId:heldId};
+  }
+
+  async cleanupRecoveryBlocker(actorId,targetId,{partName=null,action=null,blockerId=null,speed}={}) {
+    let plan=await this.findRecoveryCleanupPlan(actorId,targetId,{partName,action,blockerId});
+    if (plan.status!=='cleanup-proposed') return plan;
+    let locomotion=null;
+    if (plan.pose.status!=='current-pose') {
+      locomotion=await this.locomotion.navigate(actorId,plan.pose.position,{speed});
+      if (locomotion.status!=='arrived') return {status:'recovery-cleanup-blocked',reason:'APPROACH_FAILED',actorId,targetId,blockerId:plan.blockerId,plan,locomotion,stillHeld:true};
+    }
+    plan=await this.findRecoveryCleanupPlan(actorId,targetId,{partName:plan.partName,action:plan.action,blockerId:plan.blockerId});
+    if (plan.status!=='cleanup-proposed' || plan.pose.status!=='current-pose') return {status:'recovery-cleanup-blocked',reason:'CLEANUP_PLAN_CHANGED',actorId,targetId,blockerId:blockerId || this.heldByAgent(actorId),plan,locomotion,stillHeld:true};
+    const release=new THREE.Vector3(...plan.release);
+    const reorientation=this.reorientHeldToward(actorId,plan.blockerId,plan.release);
+    if (!reorientation.clear) return {status:'recovery-cleanup-blocked',reason:'CARRY_REORIENT_BLOCKED',actorId,targetId,blockerId:plan.blockerId,plan,locomotion,reorientation,stillHeld:true};
+    const heldPosition=this.physics.getPosition(plan.blockerId);
+    const releaseDistance=heldPosition ? new THREE.Vector3(...heldPosition).distanceTo(release) : Infinity;
+    if (releaseDistance>DEFAULT_INTERACTION_DISTANCE) return {status:'recovery-cleanup-blocked',reason:'RELEASE_OUT_OF_RANGE',actorId,targetId,blockerId:plan.blockerId,plan,locomotion,reorientation,releaseDistance:Number(releaseDistance.toFixed(3)),stillHeld:true};
+    const moved=this.transferHeldToRelease(actorId,plan.blockerId,release);
+    if (!moved.clear) return {status:'recovery-cleanup-blocked',reason:moved.reason==='HELD_BODY_UNAVAILABLE'?'HELD_BODY_UNAVAILABLE':'CLEANUP_TRANSFER_BLOCKED',actorId,targetId,blockerId:plan.blockerId,plan,locomotion,reorientation,transfer:moved.transfer,stillHeld:true};
+    const provenance=this.recoveryHeldStatus(actorId);
+    this.releaseHeld(plan.blockerId,'RECOVERY_CLEANUP_RELEASE');
+    const settled=await this.waitForRecoveryCleanupSettle(actorId,plan.blockerId,targetId,plan.partName,plan.action);
+    return {
+      ...settled,actorId,targetId,blockerId:plan.blockerId,plan,locomotion,reorientation,
+      recovery:provenance,release:[...plan.release],
+      transfer:moved.transfer.map(({point,clear,code,blockedBy,toi})=>({point,clear,...(code?{code}:{}),...(blockedBy?{blockedBy}:{}),...(Number.isFinite(toi)?{toi}:{})})),
       stillHeld:false
     };
   }

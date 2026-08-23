@@ -34,4 +34,42 @@ describe('placement settle state machine',()=>{
     await expect(pending).resolves.toMatchObject({status:'place-unverified',reason:'RUNTIME_DISPOSED',supportVerified:false,settled:false});
     expect(interactions.settleTasks.size).toBe(0);
   });
+
+  it('cancels a place settle when its support target is removed',async()=>{
+    const store={has:vi.fn(()=>false),get:vi.fn()};
+    const physics={bodyMotionState:vi.fn(()=>({sleeping:false,linearSpeed:1,angularSpeed:1}))};
+    const spatial={supportStatus:vi.fn(()=>({on:false,reason:'TARGET_REMOVED'}))};
+    const interactions=new InteractionSystem({store,physics,spatial,events:{emit:vi.fn()}});
+    const pending=interactions.waitForPlacementSettle('cup','table','top');
+    interactions.beforeRemove('table');
+    await expect(pending).resolves.toMatchObject({status:'place-unverified',reason:'OBJECT_REMOVED',supportVerified:false,settled:false});
+    expect(interactions.settleTasks.size).toBe(0);
+  });
+
+  it('cancels a recovery cleanup settle when its failed-action target is removed',async()=>{
+    const store={has:vi.fn((id)=>id==='blocker'),get:vi.fn(()=>({state:{}}))};
+    const physics={bodyMotionState:vi.fn(()=>({sleeping:false,linearSpeed:1,angularSpeed:1})),articulationContacts:vi.fn(()=>[])};
+    const spatial={getBounds:vi.fn(()=>({min:[0,0,0],max:[.2,.4,.2]}))};
+    const interactions=new InteractionSystem({store,physics,spatial,events:{emit:vi.fn()}});
+    const pending=interactions.waitForRecoveryCleanupSettle('agent_01','blocker','cabinet','door','open');
+    interactions.beforeRemove('cabinet');
+    await expect(pending).resolves.toMatchObject({status:'recovery-cleanup-unverified',reason:'OBJECT_REMOVED',released:true,settled:false});
+    expect(interactions.settleTasks.size).toBe(0);
+  });
+
+
+  it('uses one direct settle-task owner for place and recovery-cleanup kinds',async()=>{
+    const store={has:vi.fn(()=>false),get:vi.fn()};
+    const physics={bodyMotionState:vi.fn(()=>({sleeping:false,linearSpeed:1,angularSpeed:1}))};
+    const spatial={supportStatus:vi.fn(()=>({on:false}))};
+    const interactions=new InteractionSystem({store,physics,spatial,events:{emit:vi.fn()}});
+    const pending=interactions.waitForObjectSettle('blocker',{kind:'recovery-cleanup',actorId:'agent_01',targetId:'cabinet',partName:'door',action:'open'});
+    expect(interactions.settleTasks.get('blocker')).toMatchObject({
+      kind:'recovery-cleanup',objectId:'blocker',actorId:'agent_01',targetId:'cabinet',partName:'door',action:'open'
+    });
+    interactions.cancelPending('TEST_CANCEL');
+    await expect(pending).resolves.toMatchObject({status:'recovery-cleanup-unverified',reason:'TEST_CANCEL',settled:false});
+    expect(interactions.settleTasks.size).toBe(0);
+  });
+
 });

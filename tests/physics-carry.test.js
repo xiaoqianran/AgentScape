@@ -45,4 +45,15 @@ describe('PhysicsSystem carry primitives',()=>{
     expect(state.linearSpeed).toBeGreaterThanOrEqual(0);
     physics.dispose();
   });
+
+  it('checks a carried body target pose without conflating endpoint occupancy with path sweep',async()=>{
+    const {physics}=await setup();
+    physics.addEnvironment([{shape:'box',halfExtents:[.3,.4,.3],translation:[1,.4,1]}]);
+    expect(physics.bodyPoseClear('cup',[0,0,1],[0,0,0,1])).toEqual({clear:true});
+    expect(physics.bodyPoseClear('cup',[1,0,1],[0,0,0,1])).toMatchObject({
+      clear:false,code:'CARRY_TARGET_BLOCKED',blockedBy:['$environment']
+    });
+    physics.dispose();
+  });
+
 });

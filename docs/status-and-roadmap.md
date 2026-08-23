@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.24.0** 当前状态。
+本文描述 **1.25.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 97%
+                           当前 ≈ 98%
 ```
 
-97% 不是“代码写完 97%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+98% 不是“代码写完 98%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -33,7 +33,7 @@
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
-| Grasp / Manipulation Geometry | 45% | hold/pickup/carry/place + 1.23 deterministic pickup plan / blocker pickup recovery 已通；仍无 IK / grasp force / payload limit |
+| Grasp / Manipulation Geometry | 52% | hold/pickup/carry/place + deterministic pickup + 1.25 world-space recovery cleanup 已通；仍无 IK / grasp force / payload limit |
 | Navigation / Reachability | 90% | 1.15 已有 Detour path + Rapier physical locomotion；自动动态 replan / off-mesh / multi-agent avoidance 仍缺 |
 | 大型 World Runtime | 58% | 1.13 已有 96×72m 城市基线；19 Recast meshes / 38 renderables / 330–489ms build，当前暂无 streaming 证据 |
 | Multi-Agent | 10% | 不是当前优先级 |
@@ -312,37 +312,47 @@ Attributed STALL 现在可以进入一条严格受限的 pickup-blocker recovery
 
 ---
 
-## 17. 当前 P0：Recovery Cleanup / Held Blocker Placement
+## 17. 1.25 已完成：Verified Recovery Cleanup / Held Blocker Placement
 
-1.23–1.24 的 pickup recovery 成功后：
+`recoverPickupBlocker` 成功后会记录 transient `recoveryHeld` provenance，但 durable ownership 仍只有 `state.heldBy`，Scene restore 不恢复 recovery intent。新的 `findRecoveryCleanupPlan` 不复用 support-surface `findFreeSpace`：它围绕 original articulation sweep 生成 world-space perimeter candidates，Rapier downward ray 找 Environment 支撑，Detour 验证 Agent stance，并以 `bodyPoseClear` 检查最终 held-body endpoint。真正 `cleanupRecoveryBlocker` 到达后重新规划、reorient held body，并与普通 Place 共用 `transferHeldToRelease` 三段 `bodyMotionClear`；释放 Dynamic 后仍进入同一个 `settleTasks` owner。 Cleanup proposal 同样复用 `SkillRegistry.authorization(cleanupRecoveryBlocker)`；Policy denied 时只返回 denied evidence，不暴露 executable cleanup tool，也不继续做 cleanup geometry search。
 
-```text
-blocker.state.heldBy = agent
-```
-
-这会占用唯一 Hold Anchor。因此当前不能安全做：
-
-```text
-recover blocker A
-→ recover blocker B
-```
-
-下一阶段应先建立 recovery cleanup：
-
-```text
-held recovery blocker
-→ find safe free-space away from original action sweep
-→ Policy / reach / collision checks
-→ verified place/drop cleanup
-→ fresh world observation
-→ retry original action
-```
-
-Cleanup 成功仍不能清 original unresolved；只有 original post-condition verified 才算任务恢复。
+只有 `released + settled + sweepClear + contactClear` 全部成立，SkillRegistry 才把 `recovery-cleaned` 判为 verified。Cleanup 是 auxiliary housekeeping，不会清 original unresolved。`suggestRecoveryActions` 只在新的 blocker 因 `HANDS_FULL` 不可 pickup、且手里确实是上一轮 recovery blocker 时提供 `cleanupRecommended`；普通任务 held object 不会被擅自清理。真实 Rapier/Recast cleanup E2E 已验证 blocker settle 后离开 Door sweep 且 contact clear；Nemotron/Muse `recovery-cleanup` probe 已跑通双 blocker：recover #1 → retry still STALL → cleanup #1 → recover #2 → final original retry verified。CodeGraph 审计还推动 `beforeRemove` 同时取消 `settle.objectId/targetId`，避免 target 删除留下 pending settle。
 
 ---
 
-## 18. 1.11–1.12 已完成：Curated Multi-World Layer
+## 18. 当前 P0：Articulated Blocker Recovery
+
+当前 recovery 已经覆盖：
+
+```text
+Dynamic root Object blocker
+→ pickup recovery
+→ verified cleanup
+```
+
+下一类真正不同的 blocker 是：
+
+```text
+kind = object
+partName != $root
+```
+
+它不能被整体 pickup。下一阶段应建立 typed articulated recovery：
+
+```text
+blocking Part
+→ open/close capability + Policy
+→ action-aware sweep / current joint truth
+→ provisional articulated recovery
+→ explicit approachAndInteract on blocker Part
+→ fresh original retry
+```
+
+仍然禁止把 blocker action 成功当成 original task success。
+
+---
+
+## 19. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -367,7 +377,7 @@ Three.js architecture
 
 ---
 
-## 19. P1：完整 Joint Frame
+## 20. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -403,7 +413,7 @@ Schema claim second
 
 ---
 
-## 20. P2：Compact Agent Observation
+## 21. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -431,7 +441,7 @@ world size
 
 ---
 
-## 21. 自动语义：宁可慢一点，也不虚构能力
+## 22. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -469,7 +479,7 @@ high coverage + fake capability
 
 ---
 
-## 22. 目前不应该成为优先级的方向
+## 23. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -486,7 +496,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 23. 产品差异化应该是什么
+## 24. 产品差异化应该是什么
 
 不应该是：
 
@@ -518,7 +528,7 @@ Agent World
 
 ---
 
-## 24. 未来完成态
+## 25. 未来完成态
 
 可以把 100% 理解为：
 
@@ -583,11 +593,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.24.0 文档快照对应的仓库验证基线：
+1.25.0 文档快照对应的仓库验证基线：
 
 ```text
-101 Test Files PASS
-302 Tests PASS
+103 Test Files PASS
+320 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -681,6 +691,21 @@ Stable ranking tie-break PASS
 Articulated blocker typed-ineligible PASS
 Nemotron multi-candidate recovery probe PASS
 Muse multi-candidate recovery probe PASS
+Recovery-held transient provenance lifecycle PASS
+World-space Environment-supported cleanup planning PASS
+Shared Place / Cleanup three-segment transfer PASS
+Recovery cleanup Dynamic settle PASS
+Recovery cleanup sweep/contact post-condition PASS
+Settle target-removal lifecycle PASS
+HANDS_FULL cleanup recommendation provenance guard PASS
+Nemotron verified recovery-cleanup probe PASS
+Muse verified recovery-cleanup probe PASS
+Recovery cleanup proposal Policy denial PASS
+Recovery-held provenance lifecycle PASS
+Recovery cleanup release-endpoint occupancy PASS
+Recovery cleanup action-sweep failure PASS
+Shared Place / Cleanup settle owner PASS
+Carry E2E deterministic NavMesh preparation PASS
 ```
 
 这些数字不是架构目标，只是帮助读者知道文档描述的能力已经有怎样的验证覆盖。未来测试数量变化时，应以当前 CI 为准。

@@ -1598,3 +1598,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.23 能处理一个可拾取 blocker，但 1.22 contact attribution 本来就可能返回多个 candidates。1.24 没有用 impulse/penetration 编一个“根因分数”，而是先修正 identity：Object 多 collider 仍是同一个 Object/Part blocker，Environment 不同 collider 则保持独立。当前 contact metrics 被聚合为 evidence，多个 eligible pickup recovery 只按 Detour-derived pickup route cost 排序。
 
 真实双模型 `recovery-multi` probe 故意让 obstacle_01 contact impulse 更大、但 routeCost=5；obstacle_02 impulse 更小、routeCost=2。Nemotron/Muse 都选择 rank-1 obstacle_02，执行一个 recovery 后立即 retry 原始 open 并 verified。实现也明确了下一瓶颈：pickup recovery 会占用唯一 Hold Anchor，因此没有 verified cleanup 前不能把“多候选”扩展成连续 pickup recovery tree。
+
+---
+
+## 46. 1.25：拿走 Blocker 之后第一次会安全腾出手
+
+1.24 排出了多个 recovery candidates，但第一个 pickup recovery 会占用唯一 Hold Anchor；继续恢复第二个 blocker 会命中 `HANDS_FULL`。1.25 没有用 `dropHeld` 草率清手，也没有改写 `SpatialSystem.findFreeSpace`，而是新增 world-space cleanup：原 action sweep 外生成固定 candidates，Rapier downward ray 找真实 Environment 支撑，Detour 找 release stance，planner 用 `bodyPoseClear` 检查 endpoint，executor 仍用 Place 共用的三段 `bodyMotionClear` transfer，释放 Dynamic 后进入同一个 settleTasks owner。
+
+真实开发还顺手修掉 settle target removal 的 lifecycle 缺口：support/failed target 被删除时 Place/Cleanup pending Promise 都会立即得到 unverified result。双模型 `recovery-cleanup` probe 已跑通 `first blocker recovery → original retry still STALL → cleanup held blocker → recover second blocker → original retry verified`，且 cleanup 前后 original unresolved 始终保持 1。

@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.24.0** 的真实架构，不描述未来设想。
+本文描述 **1.25.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -901,3 +901,31 @@ original post-condition verified
 1.24 继续复用 `buildRecoveryProposals`，没有新增 Planner/Manager。Object candidate identity 从 collider-level 收敛为 `objectId + partName`，因此同一 Object 接触从 collider #0 切换到 #1 不会误判 stale；Environment 仍用 `environmentId + colliderIndex` 保留具体 fixed geometry。
 
 当前 contacts 会按 semantic candidate 聚合 `pairCount/contactCount/activeContactCount/minDistance/totalImpulse/colliderIndices`。这些只作为 Physics evidence。真正 executable proposals 只按 `pickupRouteCost ASC + stableBlockerKey` 排序，并明确 `ranking.causal=false`；root `recommended` 指向 rank-1 proposal。每个 failure evidence epoch 仍最多执行一个 auxiliary recovery，然后必须 retry original mutation。详见 [`recovery-ranking.md`](./recovery-ranking.md)。
+
+---
+
+## 28. Recovery Cleanup：共享 Transfer / Settle，不复制 Placement Runtime
+
+1.25 在 InteractionSystem 内增加 transient `recoveryHeld` provenance，但 durable ownership 仍只有 `state.heldBy`；Scene reload 会重建 held ownership并清空 recovery intent。Cleanup planner 不复用 support-surface `findFreeSpace`，而是围绕原 `actionSweepBounds` 生成 world-space release candidates，用 Rapier downward ray 找 Environment 支撑、Detour 找 Agent stance，并用 `bodyPoseClear` 验证 endpoint。
+
+```text
+recoverPickupBlocker
+      ↓ held + transient provenance
+new STALL + HANDS_FULL
+      ↓
+suggestRecoveryActions
+      ↓ cleanupRecommended
+findRecoveryCleanupPlan
+      ↓
+cleanupRecoveryBlocker
+      ↓
+transferHeldToRelease   ← approachAndPlace 也复用
+      ↓
+release Dynamic
+      ↓
+settleTasks             ← Place/Cleanup 唯一 settle owner
+      ↓
+released + settled + sweepClear + contactClear
+```
+
+`PhysicsSystem.bodyPoseClear` 从既有 `bodyMotionClear` endpoint overlap 检查中抽出；motion clear 仍在 path cast 后调用同一个 endpoint truth。`recovery-cleaned` 是 auxiliary verified outcome，绝不删除 original unresolved。完整设计见 [`recovery-cleanup.md`](./recovery-cleanup.md)。
