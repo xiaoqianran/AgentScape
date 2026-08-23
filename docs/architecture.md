@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.19.0** 的真实架构，不描述未来设想。
+本文描述 **1.20.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -789,3 +789,29 @@ setArticulationAction
 ```
 
 `state.parts` 现在只表示在明确 mutation owner 内 promote 的 verified action；observer result 只保存在 runtime ephemeral map。失败时高层会把 motor target 重设为当前 coordinate，并清理 active request，避免报告 STALL 后 Part 又偷偷继续运动。详见 [`live-articulation.md`](./live-articulation.md)。
+
+---
+
+## 23. Verified Task Sequencing：Planner 仍是 LLM，执行纪律属于 Runtime
+
+1.20 没有新增 TaskManager。SkillRegistry 的现有 `mutates` 元数据现在同时拥有 sequencing 语义：world mutation 执行后形成 barrier，ToolCallingAgent 为同一 assistant turn 的剩余 calls 回填 `not-executed / REPLAN_REQUIRED_AFTER_WORLD_CHANGE`，然后用 fresh world 进入下一 planning round。
+
+```text
+LLM
+ ↓
+ToolCallingAgent
+ ├─ read calls → continue
+ └─ first mutation
+       ↓
+   SkillRegistry.executionPolicy
+       ↓
+   outcome + barrier
+       ↓
+   Trace agent.sequence
+       ↓
+   fresh replan
+```
+
+`unresolvedMutations` 防止早期 STALL/blocked 被后续某个成功 mutation 洗白；只有同一语义 mutation identity 后续 verified 才清掉。`executeBatch` 使用同一 outcome classifier，并 preflight 拒绝跨 Physics 帧的 unbatchable embodied skills。真实 LocalPlanner→SkillRegistry→Rapier/Recast E2E 已验证 open→pickup→place 成功链与 Door STALL stop。完整设计见 [`verified-task-sequencing.md`](./verified-task-sequencing.md)。
+
+完整多步 E2E 还暴露 Place arrival yaw 问题，因此 place 在 release 前会使用 `reorientHeldToward` 分段原地 yaw，每一步都对 held object 做 Rapier clearance；interaction candidate 也会预检朝向 release 后 HoldAnchor 的 reach。

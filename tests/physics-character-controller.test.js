@@ -48,3 +48,17 @@ it('turns the symmetric kinematic capsule toward the walking direction', async (
   expect(Math.abs(object.quaternion.y)).toBeGreaterThan(.6);
   physics.dispose();
 });
+
+it('sets an explicit kinematic character yaw in both Rapier and the Three root', async () => {
+  const physics=new PhysicsSystem(); await physics.init();
+  const object=new THREE.Group(); object.updateMatrixWorld(true);
+  const store=new ObjectStore(); store.add('agent',{id:'agent',assetId:'agent',object,manifest:agentManifest,state:{}});
+  physics.attach('agent',agentManifest,object);
+  expect(physics.setCharacterYaw('agent',Math.PI/2)).toBe(true);
+  const body=physics.entries.get('agent').body;
+  const q=body.rotation();
+  expect(Math.abs(q.y)).toBeCloseTo(Math.SQRT1_2,5);
+  expect(Math.abs(object.quaternion.y)).toBeCloseTo(Math.SQRT1_2,5);
+  expect(physics.setCharacterYaw('missing',0)).toBe(false);
+  physics.dispose();
+});

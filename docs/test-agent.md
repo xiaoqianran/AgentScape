@@ -563,3 +563,23 @@ error <= tolerance
 ```
 
 Nemotron 与 Muse 都已真实通过 interaction completion probe；具体 planning steps 会随采样波动，不作为能力判断。Nemotron 某些 run 会先尝试不合适的纯 `navigateTo` 再纠正，Muse 常见先 `findInteractionPose` 预览。成功标准始终是最终调用 `approachAndInteract`，并且只在 completion contract 成立后宣布 Door 已打开。新的 `getArticulationStatus` 只用于失败诊断或后续状态查询，成功后不需要冗余调用。详见 [`live-articulation.md`](./live-articulation.md)。
+
+## 20. 1.20 Verified Multi-step Sequence Probes
+
+成功链：
+
+```bash
+npm run agent:probe -- sequence
+```
+
+要求实际执行的 world mutation 顺序严格为 `approachAndInteract → approachAndPickup → approachAndPlace`，允许中间只读查询；最终必须 `taskStatus=completed` 且无 unresolved mutation。当前 Nemotron 与 Muse 都真实通过。
+
+失败链：
+
+```bash
+npm run agent:probe -- sequence-failure
+```
+
+`approachAndInteract` 固定返回 `action-failed / STALL`。Probe 要求后续绝不执行 pickup/place，最终 `taskStatus=incomplete` 且 unresolved open failure 仍存在。Nemotron 当前样本会做 `listRelations` 后停止；Muse 某个样本曾在诊断中过度循环，随后样本通过 `getArticulationStatus` 后正确停止，因此 planning step 数不作为稳定指标。
+
+仓库还有不经过 LLM mock 的 `tests/agent-multistep-e2e.test.js`：它用真实 LocalPlanner、SkillRegistry、Navigation、Locomotion、Rapier 与 InteractionSystem 跑完整 open→pickup→place；另一条真实 Door blocker 场景证明 STALL 后 mutation history 只有 `approachAndInteract`。

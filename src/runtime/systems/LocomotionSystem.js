@@ -1,3 +1,5 @@
+export const DEFAULT_WAYPOINT_TOLERANCE = 0.18;
+
 const finiteVec3 = (value) => Array.isArray(value) && value.length === 3 && value.every(Number.isFinite);
 const round = (value) => Number(value.toFixed(4));
 const roundVec3 = (value) => value.map(round);
@@ -12,7 +14,7 @@ export class LocomotionSystem {
     this.tasks = new Map();
   }
 
-  async navigate(id, end, { speed = 2.2, waypointTolerance = 0.18, timeout = 45 } = {}) {
+  async navigate(id, end, { speed = 2.2, waypointTolerance = DEFAULT_WAYPOINT_TOLERANCE, timeout = 45 } = {}) {
     if (!this.store?.has(id)) throw new Error(`Object not found: ${id}`);
     if (!finiteVec3(end)) throw new Error('navigate end requires finite [3]');
     if (!Number.isFinite(speed) || speed <= 0 || speed > 8) throw new Error('navigate speed must be within (0, 8]');

@@ -3,7 +3,8 @@ import { AgentTools } from '../src/agent/AgentTools.js';
 
 const runtime = () => ({
   events: { emit: vi.fn() },
-  skills: { definitions: vi.fn(() => [{ name:'open', parameters:{ required:['id'] } }]), invoke: vi.fn(async (name, args, context) => name === 'destroyWorld' ? ({ success:false, error:{ code:'not_found', message:'Unknown skill' } }) : name === 'moveObject' && args.position == null ? ({ success:false, error:{ code:'invalid_input', message:'Missing required fields: position' } }) : ({ success: true, result: { name, args, context } })) }
+  trace: { emit: vi.fn() },
+  skills: { executionPolicy:vi.fn((name)=>({mutates:name==='open',barrier:name==='open',outcome:{state:'verified',verified:true}})), definitions: vi.fn(() => [{ name:'open', parameters:{ required:['id'] } }]), invoke: vi.fn(async (name, args, context) => name === 'destroyWorld' ? ({ success:false, error:{ code:'not_found', message:'Unknown skill' } }) : name === 'moveObject' && args.position == null ? ({ success:false, error:{ code:'invalid_input', message:'Missing required fields: position' } }) : ({ success: true, result: { name, args, context } })) }
 });
 
 describe('AgentTools registry facade', () => {
@@ -38,4 +39,13 @@ describe('AgentTools registry facade', () => {
     const tools = new AgentTools(r, { profile: 'viewer' });
     await expect(tools.call('open', { id: 'cabinet_01' })).rejects.toMatchObject({ code: 'forbidden' });
   });
+
+  it('exposes internal skill metadata and records sequence gates through existing observability',()=>{
+    const r=runtime(); const tools=new AgentTools(r,{actor:'agent_01'});
+    expect(tools.executionPolicy('open',{})).toMatchObject({mutates:true,barrier:true,outcome:{state:'verified'}});
+    tools.recordSequence({event:'tool-outcome',tool:'open',outcome:{state:'verified',verified:true}});
+    expect(r.events.emit).toHaveBeenCalledWith('agent.sequence',expect.objectContaining({tool:'open'}));
+    expect(r.trace.emit).toHaveBeenCalledWith('agent.sequence',expect.objectContaining({tool:'open'}),{actor:'agent_01'});
+  });
+
 });

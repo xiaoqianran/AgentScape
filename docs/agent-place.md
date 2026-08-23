@@ -1413,3 +1413,7 @@ pickup
 ```
 
 全部经过 Runtime / Physics / deterministic post-condition 的纵向闭环。
+
+## 41. 1.20：完整任务暴露了 Arrival Yaw 与 Release Reach
+
+单独 Place 测试常让 Agent 已经面向 Table，但真实 `open → pickup → place` 任务中，Agent 到达 interaction pose 后的 yaw 来自最后一个 locomotion waypoint。1.20 因此让 Place candidate 额外验证“如果 Agent 在该候选处朝向 release，预测 HoldAnchor 到 release 是否仍在固定交互距离减 waypoint tolerance 内”。到达后再用 `reorientHeldToward` 分段旋转，每一步都调用 `bodyMotionClear` 检查 held-object 圆弧占用；遇阻恢复原 yaw / held pose 并返回 `CARRY_REORIENT_BLOCKED`。这不是机械臂 IK，只是把 carried-object occupancy truth 延伸到原地转向。详见 [`verified-task-sequencing.md`](./verified-task-sequencing.md)。

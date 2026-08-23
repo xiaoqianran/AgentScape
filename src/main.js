@@ -101,6 +101,7 @@ async function main() {
               <button data-prompt="让 agent_01 走到 cabinet_01 前并关闭柜门">走过去关闭柜门</button>
               <button data-prompt="让 agent_01 走到 cup_01 前并拿起杯子">走过去拿起杯子</button>
               <button data-prompt="让 agent_01 把当前拿着的物体放到 table_01 上">把手中物体放到桌上</button>
+              <button data-prompt="让 agent_01 打开 cabinet_01，确认柜门完成打开后拿起 cup_01，再把杯子放到 table_01 上；每一步失败都不要继续后续动作">完整具身任务</button>
               <button data-prompt="让 agent_01 放下当前拿着的物体">放下手中物体</button>
               <button data-prompt="建立一个咖啡角">建立咖啡角</button>
             </div>
@@ -329,8 +330,11 @@ async function main() {
   });
 
   async function execute(prompt) {
-    try { await agent.run(prompt); }
-    catch (err) { log(`error: ${err.message}`, 'error'); }
+    try {
+      const result = await agent.run(prompt);
+      if (result.taskStatus === 'completed') log('task status: completed · mutation chain verified', 'result');
+      else if (result.taskStatus === 'incomplete') log(`task status: incomplete · ${result.lastMutation?.tool || 'mutation'} → ${result.lastMutation?.outcome?.state || 'unknown'}`, 'error');
+    } catch (err) { log(`error: ${err.message}`, 'error'); }
   }
 
   document.querySelectorAll('[data-prompt]').forEach(btn => btn.addEventListener('click', () => execute(btn.dataset.prompt)));

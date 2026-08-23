@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Errors } from '../../core/errors.js';
+import { DEFAULT_WAYPOINT_TOLERANCE } from './LocomotionSystem.js';
 
 export const DEFAULT_INTERACTION_DISTANCE = 1.5;
 
@@ -37,6 +38,43 @@ export class InteractionSystem {
     const colliders = this.store.get(heldId).manifest.physics?.colliders || [];
     const radius = Math.max(0, ...colliders.map((collider) => Number(collider.radius) || 0));
     return Math.hypot(anchor.translation[0], anchor.translation[2]) + radius;
+  }
+
+  holdPoseAt(actorPosition, yaw, anchor) {
+    const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),yaw);
+    const position = new THREE.Vector3(...actorPosition).add(new THREE.Vector3(...anchor.translation).applyQuaternion(rotation));
+    const localRotation = new THREE.Quaternion(...(anchor.rotation || [0,0,0,1]));
+    return { position:position.toArray(), rotation:rotation.multiply(localRotation).normalize().toArray() };
+  }
+
+  reorientHeldToward(actorId, heldId, point, { maxStep = Math.PI / 12 } = {}) {
+    const actorPosition = this.physics.getPosition(actorId);
+    const actorRotation = this.physics.getRotation(actorId);
+    const heldPosition = this.physics.getPosition(heldId);
+    const heldRotation = this.physics.getRotation(heldId);
+    if (!actorPosition || !actorRotation || !heldPosition || !heldRotation) return { clear:false, reason:'POSE_UNAVAILABLE' };
+    const dx = point[0]-actorPosition[0], dz = point[2]-actorPosition[2];
+    if (Math.hypot(dx,dz) < 1e-8) return { clear:true, steps:0, yaw:null };
+    const current = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(...actorRotation),'YXZ').y;
+    const target = Math.atan2(-dx,-dz);
+    const delta = Math.atan2(Math.sin(target-current),Math.cos(target-current));
+    const steps = Math.max(1,Math.ceil(Math.abs(delta)/maxStep));
+    const anchor = this.holdAnchor(actorId);
+    const checks = [];
+    for(let i=1;i<=steps;i++) {
+      const yaw = current + delta*(i/steps);
+      const pose = this.holdPoseAt(actorPosition,yaw,anchor);
+      const check = this.physics.bodyMotionClear(heldId,pose.position,pose.rotation,{excludeIds:[actorId]});
+      checks.push({yaw,clear:check.clear,...(!check.clear?{code:check.code,blockedBy:check.blockedBy || []}:{})});
+      if(!check.clear) {
+        this.physics.setCharacterYaw(actorId,current);
+        this.physics.setHeldPose(heldId,heldPosition,heldRotation);
+        return { clear:false, reason:'CARRY_REORIENT_BLOCKED', step:i, steps, checks };
+      }
+      this.physics.setCharacterYaw(actorId,yaw);
+      this.physics.setHeldPose(heldId,pose.position,pose.rotation);
+    }
+    return { clear:true, steps, yaw:target, checks };
   }
 
   assertAgentCarryable(actorId, targetId) {
@@ -275,7 +313,7 @@ export class InteractionSystem {
     return this.interactionStatusAt(actorId, targetId, position, options);
   }
 
-  async findInteractionPose(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE, clearance = 0.12, action = null, partName = null, ignoreIds = [], standOff = 0 } = {}) {
+  async findInteractionPose(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE, clearance = 0.12, action = null, partName = null, ignoreIds = [], standOff = 0, candidateFilter = null } = {}) {
     if (!this.navigation) throw Errors.interactionUnavailable(actorId, targetId, 'NAVIGATION_UNAVAILABLE');
     const current = this.physics.getPosition(actorId);
     if (!current) throw Errors.interactionUnavailable(actorId, targetId, 'ACTOR_PHYSICS_UNAVAILABLE');
@@ -283,7 +321,7 @@ export class InteractionSystem {
     if (action && !sweep.checked) throw Errors.interactionUnavailable(actorId, targetId, 'ACTION_SWEEP_UNAVAILABLE', { sweep:{ checked:false, reason:sweep.reason, partName:sweep.partName } });
     const clearOfSweep = (position) => !sweep || !sweep.box.intersectsBox(this.actorBoxAt(actorId, position));
     const now = this.interactionStatusAt(actorId, targetId, current, { maxDistance, ignoreIds });
-    if (now.interactable && clearOfSweep(current)) return { status:'current-pose', position:[...current], routeCost:0, distance:now.distance, lineOfSight:now.lineOfSight, ...(sweep ? { actionSweep:{checked:true,clear:true,partName:sweep.partName} } : {}) };
+    if (now.interactable && clearOfSweep(current) && (!candidateFilter || candidateFilter(current))) return { status:'current-pose', position:[...current], routeCost:0, distance:now.distance, lineOfSight:now.lineOfSight, ...(sweep ? { actionSweep:{checked:true,clear:true,partName:sweep.partName} } : {}) };
 
     const metrics = this.actorMetrics(actorId);
     const bounds = this.spatial.getBounds(targetId);
@@ -307,7 +345,7 @@ export class InteractionSystem {
       if (!route.reachable || !route.end?.snapped) continue;
       const position = route.end.snapped;
       const status = this.interactionStatusAt(actorId, targetId, position, { maxDistance, ignoreIds });
-      if (!status.interactable || !clearOfSweep(position)) continue;
+      if (!status.interactable || !clearOfSweep(position) || (candidateFilter && !candidateFilter(position))) continue;
       valid.push({ status:'approach-pose', position, routeCost:route.cost, distance:status.distance, waypointCount:route.path.length, lineOfSight:status.lineOfSight, ...(sweep ? { actionSweep:{checked:true,clear:true,partName:sweep.partName} } : {}) });
     }
     valid.sort((a, b) => (a.routeCost ?? Infinity) - (b.routeCost ?? Infinity));
@@ -560,7 +598,15 @@ export class InteractionSystem {
 
     let release = this.spatial.findFreeSpace(heldId,targetId,{surfaceId,clearance});
     if (!release) throw Errors.placeUnavailable(actorId,targetId,'NO_FREE_SURFACE_SPACE',{heldId,surfaceId});
-    const pose = await this.findInteractionPose(actorId,targetId,{ignoreIds:[heldId],standOff:this.carryStandOff(actorId,heldId)});
+    const anchor = this.holdAnchor(actorId);
+    const releasePoint = release.toArray();
+    const canReachRelease = (position) => {
+      const dx=releasePoint[0]-position[0], dz=releasePoint[2]-position[2];
+      const yaw=Math.hypot(dx,dz) < 1e-8 ? 0 : Math.atan2(-dx,-dz);
+      const predicted=this.holdPoseAt(position,yaw,anchor);
+      return new THREE.Vector3(...predicted.position).distanceTo(release) <= DEFAULT_INTERACTION_DISTANCE - DEFAULT_WAYPOINT_TOLERANCE;
+    };
+    const pose = await this.findInteractionPose(actorId,targetId,{ignoreIds:[heldId],standOff:this.carryStandOff(actorId,heldId),candidateFilter:canReachRelease});
     if (!pose) throw Errors.placeUnavailable(actorId,targetId,'NO_INTERACTION_POSE',{heldId});
 
     let locomotion = null;
@@ -573,10 +619,16 @@ export class InteractionSystem {
     if (!release) return { status:'place-blocked', reason:'NO_FREE_SURFACE_SPACE_AFTER_APPROACH', actorId,targetId,heldId,locomotion,stillHeld:true };
     const reach = this.interactionStatus(actorId,targetId,{ignoreIds:[heldId]});
     if (!reach.interactable) return { status:'place-blocked', reason:reach.inRange ? 'LINE_OF_SIGHT_BLOCKED' : 'OUT_OF_RANGE', actorId,targetId,heldId,locomotion,reach,stillHeld:true };
+    const reorientation = this.reorientHeldToward(actorId,heldId,release.toArray());
+    if (!reorientation.clear) return { status:'place-blocked', reason:'CARRY_REORIENT_BLOCKED', actorId,targetId,heldId,locomotion,reach,reorientation,stillHeld:true };
     const originalPosition = this.physics.getPosition(heldId);
     const rotation = this.physics.getRotation(heldId);
     const releaseDistance = originalPosition ? new THREE.Vector3(...originalPosition).distanceTo(release) : Infinity;
-    if (releaseDistance > DEFAULT_INTERACTION_DISTANCE) return { status:'place-blocked', reason:'RELEASE_OUT_OF_RANGE', actorId,targetId,heldId,release:release.toArray(),releaseDistance:Number(releaseDistance.toFixed(3)),stillHeld:true };
+    if (releaseDistance > DEFAULT_INTERACTION_DISTANCE) return {
+      status:'place-blocked',reason:'RELEASE_OUT_OF_RANGE',actorId,targetId,heldId,
+      pose,locomotion,reach,reorientation,
+      heldPosition:[...originalPosition],release:release.toArray(),releaseDistance:Number(releaseDistance.toFixed(3)),stillHeld:true
+    };
 
     if (!originalPosition || !rotation) return { status:'place-blocked', reason:'HELD_BODY_UNAVAILABLE', actorId,targetId,heldId,stillHeld:true };
     const size = this.spatial.getBounds(heldId).size;
@@ -601,7 +653,7 @@ export class InteractionSystem {
     this.releaseHeld(heldId,'PLACE_RELEASE');
     const settled = await this.waitForPlacementSettle(heldId,targetId,selectedSurface);
     return {
-      ...settled, actorId,targetId,heldId,pose,locomotion,reach,
+      ...settled, actorId,targetId,heldId,pose,locomotion,reach,reorientation,
       release:release.toArray().map((value)=>Number(value.toFixed(4))),
       transfer:transfer.map(({point,clear,code,blockedBy,toi})=>({point,clear,...(code?{code}:{}),...(blockedBy?{blockedBy}:{}),...(Number.isFinite(toi)?{toi}: {})})),
       stillHeld:false

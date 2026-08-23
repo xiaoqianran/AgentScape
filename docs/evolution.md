@@ -1554,3 +1554,15 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 真实 blocker E2E 证明 Door 在 Agent 已到位后仍可能被外部物体卡住；现在高层直接返回 `action-failed / STALL`。同时审计又发现 request 时立即写 `state.parts=open` 会污染 durable truth，于是拆成 `partTargets=requested` 与 `parts=verified`；background observer 不拥有 durable mutation，只有仍在运行的高层 transaction 才能 promote success。失败则在同一 transaction 内 hold-current 并清 active request。
 
 最后又收紧 `settled`：仅连续位于 target tolerance 内仍不够，stable window 内 coordinate movement 也必须 <= tolerance/4。
+
+---
+
+## 41. 1.20：LLM 的计划第一次被 Runtime Result 打断
+
+1.19 让单个 open/close 有了最终 outcome，但 ToolCallingAgent 仍会把一个 assistant turn 中的多个 toolCalls 全部执行。于是模型完全可能提前排好 `open → pickup → place`，即使 open 随后 STALL。1.20 直接复用 SkillRegistry `mutates` 元数据：第一个 world mutation 执行后强制 barrier，同 turn 后续 tool calls 只回填 `not-executed`，下一轮重新读取 world 再规划。
+
+这一轮还正式区分 `invoke success` 与 `task outcome`。SkillRegistry 对 `verified / blocked / failed / unverified / requested / noop / accepted / error` 做统一分类；`executeBatch` 也用同一个 classifier，structured failure 不再能因为“handler 没 throw”而错误 commit。跨帧具身动作、导航和 request-only articulation 被标记为 unbatchable，在 batch 执行前就拒绝。
+
+为了防止模型跨轮误推进后把最后一个成功当整个任务成功，ToolCallingAgent 增加 runtime-only `unresolvedMutations`：早期 adverse mutation 只有相同语义 identity 的 verified retry 才能清掉。Pages 同时显示 deterministic `taskStatus`。
+
+真实 LocalPlanner→SkillRegistry→Rapier/Recast 三步 E2E 进一步暴露了 Place 朝向问题：到达 Table 后 Agent yaw 可能沿最后 waypoint，HoldAnchor 并不朝 release。最终加入 carry-aware candidate filter 与分段 collision-checked reorientation；Door blocker E2E 则证明 STALL 后 pickup/place 完全不会执行。

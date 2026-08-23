@@ -46,7 +46,7 @@ describe('core skills', () => {
     r.skills = registry;
     const result = await registry.invoke('executeBatch', { calls: [
       { name:'spawnAsset', args:{ assetId:'chair', position:[0,0,0] } },
-      { name:'open', args:{} }
+      { name:'moveObject', args:{ id:'missing-position' } }
     ] }, { profile:'builder', actor:'test' });
     expect(result.success).toBe(true);
     expect(result.result.committed).toBe(false);
@@ -136,6 +136,33 @@ describe('core skills', () => {
     await expect(pending).resolves.toMatchObject({success:true,result:{status:'placed',supportVerified:true}});
     expect(registry.definitions().find((item)=>item.name==='approachAndPlace').parameters.required).toEqual(['actorId','supportId']);
     expect(registry.definitions().find((item)=>item.name==='approachAndPlace').parameters.properties.surfaceId.description).toMatch(/top/);
+  });
+
+
+  it('refuses unbatchable embodied actions before mutating the world', async () => {
+    const r=runtime();
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const result=await registry.invoke('executeBatch',{calls:[
+      {name:'spawnAsset',args:{assetId:'chair',position:[0,0,0]}},
+      {name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}
+    ]},{profile:'builder',actor:'test'});
+    expect(result).toMatchObject({success:true,result:{committed:false,rolledBack:false,reason:'UNBATCHABLE_SKILL',skill:'approachAndInteract',results:[]}});
+    expect(r.spawn).not.toHaveBeenCalled();
+    expect(r.restore).not.toHaveBeenCalled();
+  });
+
+  it('rolls back a batch when a nested skill returns a structured semantic failure without throwing', async () => {
+    const r=runtime();
+    r.interactions.place=vi.fn(()=>({status:'place-failed',reason:'SUPPORT_NOT_REACHED',supportVerified:false,settled:true}));
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const result=await registry.invoke('executeBatch',{calls:[
+      {name:'spawnAsset',args:{assetId:'chair',position:[0,0,0]}},
+      {name:'place',args:{id:'cup_01',targetId:'table_01'}}
+    ]},{profile:'builder',actor:'test'});
+    expect(result).toMatchObject({success:true,result:{committed:false,rolledBack:true,reason:'SEMANTIC_STEP_NOT_VERIFIED'}});
+    expect(result.result.results.at(-1)).toMatchObject({name:'place',success:true,outcome:{state:'failed',verified:false,reason:'SUPPORT_NOT_REACHED'}});
+    expect(r.restore).toHaveBeenCalledOnce();
+    expect(r.getValue()).toBe(0);
   });
 
 });

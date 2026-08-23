@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.19.0** 当前状态。
+本文描述 **1.20.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 87%
+                           当前 ≈ 90%
 ```
 
-87% 不是“代码写完 87%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+90% 不是“代码写完 90%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -22,14 +22,14 @@
 |---|---:|---|
 | Web Runtime | 90% | Three / Rapier / lifecycle / persistence + kinematic Agent Body 已形成稳定运行时 |
 | Human Editor | 75% | 可用，但不是当前差异化主线 |
-| Skill / Policy / Trace | 85% | 单一能力边界稳定；具身 open/pickup/place 都有明确高层 Skill contract |
+| Skill / Policy / Trace | 93% | 高层 Skill contract + 1.20 semantic outcome / mutation barrier / hash-chained agent.sequence 已形成统一执行边界 |
 | Spatial API | 94% | placement + current-world Recast/TileCache + interaction pose/LOS + 1.18 supportStatus 单一支撑真值已形成稳定空间事实层 |
 | Scene Persistence / History | 88% | schema / autosave / undo-redo + heldBy persistence + 跨帧 embodied transaction 已稳定 |
 | Asset Compiler 基础 | 90% | inspect / normalize / budget / quality 很完整 |
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
-| Runtime Verification | 90% | Asset Motion Sweep + live articulation completion + interaction/carry/place post-condition 已形成纵向验证链 |
+| Runtime Verification | 94% | 单步 post-condition + 1.20 真实 open→pickup→place 与 STALL stop E2E，任务级纵向验证已成立 |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -270,34 +270,34 @@ Durable state 同时拆成 `partTargets=requested` 与 `parts=verified`。Observ
 
 ---
 
-## 12. 当前 P0：Verified Multi-step Task Sequencing
+## 12. 1.20 已完成：Verified Multi-step Task Sequencing
 
-现在单步具身动作终于都有结构化终态：
+ToolCallingAgent 现在把 SkillRegistry `mutates=true` 当成确定性 replan barrier：一个 planning response 中第一个 world mutation 执行后，剩余 tool calls 不执行但仍回填协议完整的 `not-executed / REPLAN_REQUIRED_AFTER_WORLD_CHANGE`；下一轮重新读取 world 再规划。
 
-```text
-open/close → completed | failed | unverified
-pickup     → held | blocked
-carry      → arrived | CARRIED_OBJECT_BLOCKED
-place      → placed | failed | unverified
-```
+`SkillRegistry.executionPolicy` 统一分类 `verified / blocked / failed / unverified / requested / noop / accepted / error`，因此 `executeBatch` 也不会再把 structured failure 当成功 commit；跨帧 embodied/navigation/request-only Skill 在 batch preflight 就被拒绝。ToolCallingAgent 维护 runtime-only `unresolvedMutations`，早期 STALL 等 adverse step 不会被后续某个成功 mutation 洗白。Pages 直接显示 deterministic `taskStatus`。
 
-下一阶段不急着再加原语，而是让真实 Agent 在一个任务里严格按 post-condition 串联：
-
-```text
-open cabinet
-→ 只有 action-completed 才 replan
-→ navigate to cup
-→ pickup
-→ carry
-→ place on table
-→ 只有 supportVerified 才完成任务
-```
-
-重点是 sequencing / failure recovery / compact observation，不是 BehaviorTree 大框架。
+真实 LocalPlanner→SkillRegistry→Navigation/Locomotion→Rapier 三步 E2E 已通过 `open → pickup → place`；真实 Door blocker 则只执行 open 并以 STALL/incomplete 终止。完整任务还暴露并修正了 carried-object arrival yaw：Place candidate 预检朝 release 后的 HoldAnchor reach，到达后用分段 Rapier clearance 原地 reorientation。
 
 ---
 
-## 13. 1.11–1.12 已完成：Curated Multi-World Layer
+## 13. 当前 P0：Compact Task Observation / Recovery Context
+
+现在任务执行纪律已经成立，但每轮 LLM context 仍主要是 `listObjects` + 历史 tool messages。下一阶段优先把已经存在的 truth 压成一个短、稳定、provider-neutral task observation：
+
+```text
+agent pose / locomotion
+current held object
+relevant articulation live state
+last mutation outcome
+unresolved mutations
+nearby blockers / relations
+```
+
+目标不是增加 Planner，而是减少模型为了恢复 STALL/blocked 反复调用大量 read tools，同时避免把完整 Scene/Trace 全塞进 prompt。Recovery 仍由 LLM 决定，Runtime 只提供 compact verified evidence。
+
+---
+
+## 14. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -322,7 +322,7 @@ Three.js architecture
 
 ---
 
-## 14. P1：完整 Joint Frame
+## 15. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -358,7 +358,7 @@ Schema claim second
 
 ---
 
-## 15. P2：Compact Agent Observation
+## 16. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -386,7 +386,7 @@ world size
 
 ---
 
-## 16. 自动语义：宁可慢一点，也不虚构能力
+## 17. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -424,7 +424,7 @@ high coverage + fake capability
 
 ---
 
-## 17. 目前不应该成为优先级的方向
+## 18. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -441,7 +441,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 18. 产品差异化应该是什么
+## 19. 产品差异化应该是什么
 
 不应该是：
 
@@ -473,7 +473,7 @@ Agent World
 
 ---
 
-## 19. 未来完成态
+## 20. 未来完成态
 
 可以把 100% 理解为：
 
@@ -538,11 +538,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.19.0 文档快照对应的仓库验证基线：
+1.20.0 文档快照对应的仓库验证基线：
 
 ```text
-91 Test Files PASS
-252 Tests PASS
+94 Test Files PASS
+270 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -560,7 +560,20 @@ TIMEOUT / SUPERSEDED / observer cancellation PASS
 Requested partTargets / verified parts restore compatibility PASS
 Articulation completion event-kind separation PASS
 Nemotron live action-completed interaction probe PASS
+Verified multi-step Runtime E2E PASS
+Real Door STALL sequence stop PASS
+Mutation barrier / protocol-complete not-executed PASS
+Unresolved mutation ledger / verified retry PASS
+Semantic executeBatch rollback PASS
+Unbatchable embodied skill preflight PASS
+Carry reorientation / release-reach guard PASS
+Nemotron verified sequence success probe PASS
+Muse verified sequence success probe PASS
+Nemotron STALL sequence failure probe PASS
+Muse STALL sequence failure probe PASS
 Muse live action-completed interaction probe PASS
+Strict action-completed / placed post-condition classification PASS
+Numeric Physics error metric vs Tool Error classification PASS
 Agent carry / hold-anchor E2E PASS
 Agent-held Place / Release E2E PASS
 Release trajectory blocker ownership PASS

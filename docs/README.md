@@ -65,6 +65,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - [`agent-carry.md`](./agent-carry.md)：1.17 Agent Carry：Hold Anchor、heldBy ownership、pickup transfer shape cast 与携带碰撞。
 - [`agent-place.md`](./agent-place.md)：1.18 Agent-held Place：carry-aware release pose、三段 shape-cast transfer、Dynamic settle 与 support post-condition。
 - [`live-articulation.md`](./live-articulation.md)：1.19 Live Articulation Completion：joint coordinate、STALL/TIMEOUT、requested-vs-verified state 与 motor finalization。
+- [`verified-task-sequencing.md`](./verified-task-sequencing.md)：1.20 Verified Multi-step Task Sequencing：mutation barrier、semantic outcome、unresolved ledger、真实 open→pickup→place E2E。
 - [`asset-sourcing.md`](./asset-sourcing.md)：Curated scene packs 的素材来源、许可、风格与 Web 资源准入。
 - [`worlds.md`](./worlds.md)：WORLD 01/02、Environment Catalog、世界切换、存档隔离与场景真值。
 - [`asset-compiler.md`](./asset-compiler.md)：Agent-Ready Asset Compiler 的完整契约。

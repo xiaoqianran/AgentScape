@@ -457,6 +457,19 @@ export class PhysicsSystem {
     return true;
   }
 
+  setCharacterYaw(id, yaw) {
+    const entry = this.entries.get(id);
+    if (!entry?.body?.isKinematic?.() || !Number.isFinite(yaw)) return false;
+    const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),yaw);
+    const q = {x:rotation.x,y:rotation.y,z:rotation.z,w:rotation.w};
+    entry.body.setRotation(q,true);
+    entry.body.setNextKinematicRotation(q);
+    entry.root.quaternion.copy(rotation);
+    entry.lastRotation.copy(rotation);
+    entry.root.updateMatrixWorld(true);
+    return true;
+  }
+
   moveCharacter(id, desiredTranslation, { ignoreIds = [] } = {}) {
     const entry = this.entries.get(id);
     if (!entry?.body?.isKinematic?.() || entry.body.numColliders() !== 1 || !this.characterController) {
