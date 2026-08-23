@@ -22,7 +22,7 @@ function runtime() {
     },
     duplicate: vi.fn(), remove: vi.fn(),
     spatial: { getBounds:vi.fn(), findNearby:vi.fn(), raycast:vi.fn(), isColliding:vi.fn(), getSupportSurface:vi.fn(), findFreeSpace:vi.fn() },
-    navigation: { canReach:vi.fn(async()=>({reachable:true,cost:3})), findPath:vi.fn(async()=>({reachable:true,path:[[0,0,0],[3,0,0]],cost:3})), status:vi.fn(()=>({state:'ready'})) },
+    navigation: { canReach:vi.fn(async()=>({reachable:true,cost:3})), findPath:vi.fn(async()=>({reachable:true,path:[[0,0,0],[3,0,0]],cost:3})), suggestActions:vi.fn(async()=>({status:'action-candidate'})), status:vi.fn(()=>({state:'ready'})) },
     sceneGraph: { list:vi.fn(()=>[]), describe:vi.fn(), update:vi.fn() },
     validator: { run:vi.fn(()=>({ ok:true, counts:{hard:0,advisory:0}, hard:[], advisory:[], coverage:{objects:0,relations:0} })) },
     repair: { repair:vi.fn() },
@@ -71,9 +71,12 @@ describe('core skills', () => {
     const reach = await registry.invoke('canReach', { start:[0,0,0], end:[3,0,0] }, { profile:'viewer' });
     const path = await registry.invoke('findPath', { start:[0,0,0], end:[3,0,0] }, { profile:'viewer' });
     const status = await registry.invoke('getNavigationStatus', {}, { profile:'viewer' });
+    const suggestion = await registry.invoke('suggestNavigationActions', { start:[0,0,0], end:[3,0,0] }, { profile:'viewer' });
     expect(reach).toMatchObject({success:true,result:{reachable:true,cost:3}});
     expect(path.result.path).toEqual([[0,0,0],[3,0,0]]);
     expect(status.result).toEqual({state:'ready'});
+    expect(suggestion).toMatchObject({success:true,result:{status:'action-candidate'}});
+    expect(r.navigation.suggestActions).toHaveBeenCalledWith([0,0,0],[3,0,0],{maxSnapDistance:undefined,maxCandidates:undefined});
     expect(r.navigation.canReach).toHaveBeenCalledWith([0,0,0],[3,0,0],{maxSnapDistance:undefined});
     expect(registry.definitions().find((item)=>item.name==='findPath').parameters.required).toEqual(['start','end']);
   });

@@ -1482,3 +1482,13 @@ Pages 同时加入 Cinematic Mode：它只隐藏编辑 UI、扩大 viewport，�
 结果：19 个 Recast static meshes，38 renderables，426 instances，约 7.8k geometry triangles；NavMesh 连续 build 约 330–489ms。这个数据不足以证明需要 streaming/KTX2/LOD，所以 1.13 明确选择不增加这些系统。
 
 同时，三个 environment pack 改为动态 import：只加载当前 world 的内容 JS。大世界优化因此先从最便宜、最确定的 code-splitting 与 Instancing 开始，而不是先造复杂运行时。
+
+---
+
+## 34. 1.14：从 current reachability 到可解释的单动作前置条件
+
+1.13 之前 Navigation 只能回答“现在能不能到”。1.14 第一次利用 TileCache obstacle provenance 反问：如果当前某个可开 Part 不再阻路，路径是否出现？
+
+没有新增第二 Planner World，也没有把 open target 当成 final pose。诊断只临时 suppress 一个 dynamic obstacle，Detour query 后立即恢复，因此输出强制标 `provisional`。真实 Rapier Door E2E 证明：recommend open → motor 运动 → current collider 改变 → findPath 变 reachable，同时 static buildVersion 不变。
+
+这一轮还发现并修复了 spawn-before-verify 的 live manifest metadata stale：verify 后只把 verification/quality 同步到已存在实例，不热替换 physics/joint 结构。

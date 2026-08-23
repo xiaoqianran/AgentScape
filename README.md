@@ -29,7 +29,7 @@ GLB / 生成资产 / 外部数据
 - Three.js Web3D 运行时与 Rapier 物理，具备明确的对象资源生命周期与失败回滚。
 - GLB 加载、节点校验、关节和物理电机。
 - 可视化编辑：选择、移动、旋转、复制、删除。
-- 空间查询：Bounds、Raycast、Nearby、碰撞、支撑面、空位搜索；1.9 建立 Recast/Detour NavMesh，1.10 再用 TileCache 从当前 Rapier collider 同步动态障碍，`canReach / findPath / path cost` 现在反映当前物理世界。
+- 空间查询：Bounds、Raycast、Nearby、碰撞、支撑面、空位搜索；1.9 建立 Recast/Detour NavMesh，1.10 再用 TileCache 从当前 Rapier collider 同步动态障碍，`canReach / findPath / path cost` 现在反映当前物理世界。 1.14 增加 `suggestNavigationActions`：当当前路径被可交互 Part 阻断时，用 provisional 单障碍反事实诊断建议 `open → replan`，但绝不把建议当成世界事实。
 - 语义 Scene Graph：`ON / SUPPORTS / NEAR / INSIDE / CONTAINS`，采用 dirty + 按需刷新，批量变更合并重建。
 - Skill Registry：能力定义、参数 Schema、权限、执行和审计使用同一事实源。
 - Tool-calling Agent：支持多轮 plan → act → observe。

@@ -5,6 +5,22 @@ const number = { type: 'number' };
 const vec3 = { type: 'array', items: number, minItems: 3, maxItems: 3 };
 const meta = (description, permissions, required = [], properties = {}) => ({ description, permissions, required, properties });
 
+const syncLiveVerification = (runtime, assetId, manifest) => {
+  for (const record of runtime.store?.values?.() || []) {
+    if (record.assetId !== assetId) continue;
+    record.manifest.verification = structuredClone(manifest.verification || {});
+    if (manifest.compiler?.quality && record.manifest.compiler) {
+      record.manifest.compiler.quality = structuredClone(manifest.compiler.quality);
+    }
+    if (record.object?.userData?.manifest) {
+      record.object.userData.manifest.verification = structuredClone(record.manifest.verification);
+      if (record.manifest.compiler?.quality && record.object.userData.manifest.compiler) {
+        record.object.userData.manifest.compiler.quality = structuredClone(record.manifest.compiler.quality);
+      }
+    }
+  }
+};
+
 export function registerCoreSkills(registry, runtime) {
   const add = (name, options, handler) => registry.register({ name, ...options, handler });
 
@@ -29,6 +45,7 @@ export function registerCoreSkills(registry, runtime) {
       quality.status = quality.hard?.length ? 'rejected' : quality.advisory.length ? 'provisional' : 'ready';
     }
     runtime.assets.registerManifest(manifest, { replace: true });
+    syncLiveVerification(runtime, a.assetId, manifest);
     runtime.events.emit('asset.verified', { assetId: a.assetId, articulation: report });
     return { ...report, readiness: quality?.status || null };
   });
@@ -65,6 +82,7 @@ export function registerCoreSkills(registry, runtime) {
   add('findFreeSpace', meta('在支撑面上寻找无碰撞放置位置。', ['spatial.read'], ['id', 'targetId'], { id: string, targetId: string, surfaceId: string, clearance: { type: 'number', minimum: 0 } }), (a) => runtime.spatial.findFreeSpace(a.id, a.targetId, { surfaceId: a.surfaceId, clearance: a.clearance })?.toArray() ?? null);
   add('canReach', meta('基于 Recast/Detour 与当前 Rapier 动态障碍判断两个世界位置是否可达；与 findFreeSpace 不同，它回答连通性。', ['spatial.read'], ['start', 'end'], { start: vec3, end: vec3, maxSnapDistance: { type: 'number', minimum: 0 } }), (a) => runtime.navigation.canReach(a.start, a.end, { maxSnapDistance: a.maxSnapDistance }));
   add('findPath', meta('基于 Recast/Detour 与当前 Rapier 动态障碍计算路径、路径长度与端点吸附信息。', ['spatial.read'], ['start', 'end'], { start: vec3, end: vec3, maxSnapDistance: { type: 'number', minimum: 0 } }), (a) => runtime.navigation.findPath(a.start, a.end, { maxSnapDistance: a.maxSnapDistance }));
+  add('suggestNavigationActions', meta('当当前路径不可达时，基于动态障碍 provenance 做只读反事实诊断；建议是 provisional，执行真实动作后必须重新 findPath。', ['spatial.read'], ['start', 'end'], { start:vec3, end:vec3, maxSnapDistance:{type:'number',minimum:0}, maxCandidates:{type:'integer',minimum:1,maximum:8} }), (a) => runtime.navigation.suggestActions(a.start, a.end, { maxSnapDistance:a.maxSnapDistance, maxCandidates:a.maxCandidates }));
   add('getNavigationStatus', meta('读取 NavMesh 派生状态、构建版本与 Agent 导航配置。', ['spatial.read']), () => runtime.navigation.status());
   add('listRelations', meta('查询 ON、NEAR、INSIDE 等语义空间关系。', ['spatial.read'], [], { subject: string, predicate: string, object: string }), (a) => { runtime.sceneGraph.update(); return runtime.sceneGraph.list(a); });
   add('describeObjectRelations', meta('查询一个对象的全部语义空间关系。', ['spatial.read'], ['id'], { id: string }), (a) => { runtime.sceneGraph.update(); return runtime.sceneGraph.describe(a.id); });

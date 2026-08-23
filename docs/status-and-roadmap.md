@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.13.0** 当前状态。
+本文描述 **1.14.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 69%
+                           当前 ≈ 72%
 ```
 
-69% 不是“代码写完 69%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+72% 不是“代码写完 72%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -34,7 +34,7 @@
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
 | Grasp / Manipulation Geometry | 15% | 尚未成为主干能力 |
-| Navigation / Reachability | 72% | 1.10 已有 current-world canReach/findPath；尚缺 action-aware reachability 与实际 locomotion executor |
+| Navigation / Reachability | 82% | 1.14 已有 single-action counterfactual blocker diagnosis；多动作 TAMP 与 locomotion executor 仍缺 |
 | 大型 World Runtime | 58% | 1.13 已有 96×72m 城市基线；19 Recast meshes / 38 renderables / 330–489ms build，当前暂无 streaming 证据 |
 | Multi-Agent | 10% | 不是当前优先级 |
 | 完整生成式 World Pipeline | 30% | provider 边界在，task-driven generation 仍需发展 |
@@ -183,30 +183,33 @@ tracked / changed / operations / updates / syncVersion
 
 ---
 
-## 6. 当前 P0：Action-aware Reachability / Navigation Execution
+## 6. 1.14 已完成：Single-action Action-aware Reachability
 
-现在 Navigation 能回答“**按当前物理状态**能不能到”，但还不会自动推理：
+`suggestNavigationActions(start,end)` 现在可以利用 dynamic obstacle provenance 找到可开 Part，并通过临时 TileCache suppression 判断“如果这个单一 obstacle 不再阻挡，路径是否出现”。结果严格标 provisional；compiled articulation 必须 runtime verified 才能成为 recommendation。真实 Rapier Door 已验证 `recommend open → open → physics step → current findPath reachable`。
 
-```text
-当前 closed Door 阻路
-        ↓
-如果 open Door
-        ↓
-路径可能出现
-```
-
-也没有一个 embodied agent locomotion executor 真正沿 Detour path 移动。下一步应先研究成熟的 door-aware planning / off-mesh connection / navigation action abstraction，再决定最小能力边界；不直接引入 Crowd 或 PathFollower Manager。
-
-候选问题：
-
-1. `canReach` 是否应能返回“被哪个可交互 obstacle 阻断”。
-2. Door/Drawer 等 action 能否成为条件式 navigation edge。
-3. path execution 应属于 Runtime action 还是外部 embodied controller。
-4. 是否需要 off-mesh connection（stairs/jump/teleport），以及谁验证其可执行性。
+当前仍不做多动作搜索：两扇门串联、需要先移动箱子再开门、RRT/TAMP 等组合问题不在 1.14 范围。
 
 ---
 
-## 7. 1.11–1.12 已完成：Curated Multi-World Layer
+## 7. 当前 P0：Navigation Execution / Embodied Locomotion
+
+现在已有：
+
+```text
+current path truth
++
+single-action blocker diagnosis
++
+open/close interaction
++
+physics replanning
+```
+
+但还没有一个 embodied agent controller 真正沿 Detour path 行走。下一步首先要定义 locomotion ownership：是 Runtime 的标准 Agent Body，还是外部 controller；在这个边界明确前不直接引入 Crowd / PathFollower Manager。
+
+---
+
+## 8. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -231,7 +234,7 @@ Three.js architecture
 
 ---
 
-## 8. P1：完整 Joint Frame
+## 9. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -267,7 +270,7 @@ Schema claim second
 
 ---
 
-## 9. P2：Compact Agent Observation
+## 10. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -295,7 +298,7 @@ world size
 
 ---
 
-## 10. 自动语义：宁可慢一点，也不虚构能力
+## 11. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -333,7 +336,7 @@ high coverage + fake capability
 
 ---
 
-## 11. 目前不应该成为优先级的方向
+## 12. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -350,7 +353,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 12. 产品差异化应该是什么
+## 13. 产品差异化应该是什么
 
 不应该是：
 
@@ -382,7 +385,7 @@ Agent World
 
 ---
 
-## 13. 未来完成态
+## 14. 未来完成态
 
 可以把 100% 理解为：
 
@@ -447,16 +450,19 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.13.0 文档快照对应的仓库验证基线：
+1.14.0 文档快照对应的仓库验证基线：
 
 ```text
-71 Test Files PASS
-190 Tests PASS
+73 Test Files PASS
+197 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
 Ruined Courtyard split-level Recast PASS
 Grand Urban Block 96×72m Recast benchmark PASS
+Action-aware Navigation E2E PASS
+Counterfactual restore recovery PASS
+Live verification metadata sync PASS
 World-pack dynamic import chunks PASS
 Environment identity restore guard PASS
 Chromium Pages screenshot smoke PASS

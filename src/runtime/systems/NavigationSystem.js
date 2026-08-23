@@ -58,6 +58,35 @@ const sameObstacle = (a, b) => a?.shape === b?.shape && a?.sourceShape === b?.so
     : near(a?.radius || 0, b?.radius || 0, 0.002) && near(a?.height || 0, b?.height || 0, 0.002)
 );
 
+const obstacleDistanceXZ = (position, descriptor) => {
+  const dx = position[0] - descriptor.position[0];
+  const dz = position[2] - descriptor.position[2];
+  if (descriptor.shape === 'cylinder') return Math.max(0, Math.hypot(dx, dz) - descriptor.radius);
+  const angle = -(descriptor.angle || 0);
+  const localX = Math.cos(angle) * dx - Math.sin(angle) * dz;
+  const localZ = Math.sin(angle) * dx + Math.cos(angle) * dz;
+  const outsideX = Math.max(0, Math.abs(localX) - descriptor.halfExtents[0]);
+  const outsideZ = Math.max(0, Math.abs(localZ) - descriptor.halfExtents[2]);
+  return Math.hypot(outsideX, outsideZ);
+};
+
+const articulationEligibility = (record, partName, action) => {
+  const part = record?.manifest?.parts?.[partName];
+  if (!part?.actions?.includes(action) || !Number.isFinite(part.targets?.[action]) || !part.physics || !part.joint) {
+    return { eligible:false, status:'not-executable', reason:'ACTION_NOT_EXECUTABLE' };
+  }
+  if (record.manifest.source?.kind !== 'compiled') {
+    return { eligible:true, status:'declared-executable', evidence:'manifest' };
+  }
+  const verification = record.manifest.verification?.articulation;
+  const partReport = verification?.parts?.find((item) => item.part === partName);
+  const actionReport = partReport?.actions?.find((item) => item.action === action);
+  if (verification?.ok && partReport?.ok && actionReport?.ok) {
+    return { eligible:true, status:'runtime-verified', evidence:'verification.articulation' };
+  }
+  return { eligible:false, status:'unverified', reason:'ARTICULATION_UNVERIFIED' };
+};
+
 export class NavigationSystem {
   constructor({ store, physics = null, environmentRoots = [], config = {}, events = null } = {}) {
     this.store = store;
@@ -106,7 +135,7 @@ export class NavigationSystem {
       buildVersion: this.buildVersion,
       lastInvalidation: this.lastInvalidation,
       config: { ...this.config },
-      capabilities: { staticNavMesh:true, dynamicObstacles:Boolean(this.physics?.navigationObstacles), tileCache:true, obstacleSource:'rapier-colliders', synchronization:'query-time' },
+      capabilities: { staticNavMesh:true, dynamicObstacles:Boolean(this.physics?.navigationObstacles), tileCache:true, obstacleSource:'rapier-colliders', synchronization:'query-time', actionAwareDiagnostics:true, counterfactual:'single-obstacle-suppression' },
       dynamicObstacles:{ tracked:this.obstacles.size, syncVersion:this.obstacleSyncVersion, lastSync:this.lastObstacleSync ? structuredClone(this.lastObstacleSync) : null },
       lastBuild: this.lastBuild ? structuredClone(this.lastBuild) : null
     };
@@ -343,19 +372,11 @@ export class NavigationSystem {
     return { success: true, input, point: result.point, snapDistance };
   }
 
-  async findPath(start, end, { maxSnapDistance = this.config.maxSnapDistance, endTolerance = Math.max(this.config.cellSize * 2, 0.05) } = {}) {
-    const scope = this.physics?.navigationObstacles ? 'current' : 'static';
-    if (!finitePoint(start) || !finitePoint(end) || !Number.isFinite(maxSnapDistance) || maxSnapDistance < 0) {
-      return { reachable:false, scope, reason:'INVALID_INPUT', path:[], cost:null, sameIsland:null };
-    }
-    const current = await this.ensureCurrent();
-    if (!current.success || !this.query) return { reachable:false, scope, reason:current.code, path:[], cost:null, sameIsland:null, build:current.build, dynamicObstacles:current.obstacles || null };
-    const build = current.build;
-
+  queryReadyPath(start, end, { maxSnapDistance, endTolerance, scope, build, dynamicObstacles }) {
     const projectedStart = this.projectPoint(start, maxSnapDistance);
-    if (!projectedStart.success) return this.offMeshResult('START_OFF_NAVMESH', projectedStart, build, scope, current.obstacles);
+    if (!projectedStart.success) return this.offMeshResult('START_OFF_NAVMESH', projectedStart, build, scope, dynamicObstacles);
     const projectedEnd = this.projectPoint(end, maxSnapDistance);
-    if (!projectedEnd.success) return this.offMeshResult('END_OFF_NAVMESH', projectedEnd, build, scope, current.obstacles);
+    if (!projectedEnd.success) return this.offMeshResult('END_OFF_NAVMESH', projectedEnd, build, scope, dynamicObstacles);
 
     const computed = this.query.computePath(projectedStart.point, projectedEnd.point, { halfExtents: this.queryHalfExtents(maxSnapDistance) });
     const rawPath = computed.path || [];
@@ -367,14 +388,138 @@ export class NavigationSystem {
       scope,
       reason,
       sameIsland: reachable ? true : reason === 'PARTIAL_PATH' ? false : null,
-      start: { input: [...start], snapped: roundPoint(projectedStart.point), snapDistance: round(projectedStart.snapDistance) },
-      end: { input: [...end], snapped: roundPoint(projectedEnd.point), snapDistance: round(projectedEnd.snapDistance) },
+      start: { input:[...start], snapped:roundPoint(projectedStart.point), snapDistance:round(projectedStart.snapDistance) },
+      end: { input:[...end], snapped:roundPoint(projectedEnd.point), snapDistance:round(projectedEnd.snapDistance) },
       path: rawPath.map(roundPoint),
       cost: rawPath.length ? round(pathCost(rawPath)) : null,
       finalDistance: Number.isFinite(finalDistance) ? round(finalDistance) : null,
-      buildVersion: this.buildVersion,
-      dynamicObstacles:current.obstacles,
-      ...(computed.error ? { error: computed.error.name } : {})
+      buildVersion:this.buildVersion,
+      dynamicObstacles,
+      ...(computed.error ? { error:computed.error.name } : {})
+    };
+  }
+
+  async findPath(start, end, { maxSnapDistance = this.config.maxSnapDistance, endTolerance = Math.max(this.config.cellSize * 2, 0.05) } = {}) {
+    const scope = this.physics?.navigationObstacles ? 'current' : 'static';
+    if (!finitePoint(start) || !finitePoint(end) || !Number.isFinite(maxSnapDistance) || maxSnapDistance < 0) {
+      return { reachable:false, scope, reason:'INVALID_INPUT', path:[], cost:null, sameIsland:null };
+    }
+    const current = await this.ensureCurrent();
+    if (!current.success || !this.query) return { reachable:false, scope, reason:current.code, path:[], cost:null, sameIsland:null, build:current.build, dynamicObstacles:current.obstacles || null };
+    return this.queryReadyPath(start, end, { maxSnapDistance, endTolerance, scope, build:current.build, dynamicObstacles:current.obstacles });
+  }
+
+  actionableObstacleGroups() {
+    const groups = new Map();
+    for (const [obstacleId, current] of this.obstacles) {
+      const descriptor = current.descriptor;
+      if (!descriptor?.objectId || !descriptor?.part || descriptor.part === '$root' || !this.store?.has?.(descriptor.objectId)) continue;
+      const record = this.store.get(descriptor.objectId);
+      const part = record.manifest.parts?.[descriptor.part];
+      if (!part?.actions?.includes('open') || !Number.isFinite(part.targets?.open)) continue;
+      const key = `${descriptor.objectId}:${descriptor.part}`;
+      if (!groups.has(key)) groups.set(key, { objectId:descriptor.objectId, partName:descriptor.part, record, obstacleIds:[], descriptors:[] });
+      const group = groups.get(key);
+      group.obstacleIds.push(obstacleId);
+      group.descriptors.push(descriptor);
+    }
+    return [...groups.values()];
+  }
+
+  counterfactualWithout(group, start, end, options, build) {
+    const removed = [];
+    let restorationError = null;
+    try {
+      for (const obstacleId of group.obstacleIds) {
+        const current = this.obstacles.get(obstacleId);
+        if (!current) continue;
+        const result = this.tileCache.removeObstacle(current.obstacle);
+        if (!result.success) throw new Error('TILECACHE_COUNTERFACTUAL_REMOVE_FAILED');
+        removed.push({ obstacleId, descriptor:current.descriptor });
+        this.obstacles.delete(obstacleId);
+        this.tileCachePending = true;
+      }
+      const flushed = this.flushTileCache();
+      if (!flushed.success) throw new Error(flushed.code);
+      const result = this.queryReadyPath(start, end, {
+        ...options,
+        scope:'counterfactual',
+        build,
+        dynamicObstacles:{ assumption:'obstacle-suppressed', suppressed:[...group.obstacleIds], provisional:true }
+      });
+      return { ...result, provisional:true, assumption:'obstacle-suppressed' };
+    } finally {
+      for (const { obstacleId, descriptor } of removed) {
+        const added = this.queueObstacle(descriptor);
+        if (!added.success || !added.obstacle) { restorationError = new Error('TILECACHE_COUNTERFACTUAL_RESTORE_FAILED'); continue; }
+        this.obstacles.set(obstacleId, { obstacle:added.obstacle, descriptor });
+        this.tileCachePending = true;
+      }
+      const flushed = this.flushTileCache();
+      if (!flushed.success) restorationError ||= new Error(flushed.code);
+      if (restorationError) throw restorationError;
+    }
+  }
+
+  async suggestActions(start, end, { maxSnapDistance = this.config.maxSnapDistance, maxCandidates = 6 } = {}) {
+    const endTolerance = Math.max(this.config.cellSize * 2, 0.05);
+    const current = await this.findPath(start, end, { maxSnapDistance, endTolerance });
+    if (current.reachable) return { status:'reachable', current, candidates:[], recommendation:null };
+    if (!['PARTIAL_PATH','NO_PATH'].includes(current.reason)) return { status:'unresolved', current, candidates:[], recommendation:null };
+
+    const anchor = current.path.at(-1) || start;
+    const groups = this.actionableObstacleGroups().map((group) => ({
+      ...group,
+      distance:Math.min(...group.descriptors.map((descriptor) => obstacleDistanceXZ(anchor, descriptor)))
+    })).sort((a, b) => a.distance - b.distance).slice(0, Math.max(1, Math.min(8, maxCandidates)));
+
+    const candidates = [];
+    for (const group of groups) {
+      const eligibility = articulationEligibility(group.record, group.partName, 'open');
+      const requested = group.record.state?.parts?.[group.partName] === 'open';
+      let counterfactual;
+      try {
+        counterfactual = this.counterfactualWithout(group, start, end, { maxSnapDistance, endTolerance }, current.build || this.lastBuild);
+      } catch (error) {
+        const recovery = this.reconcileDynamicObstacles();
+        counterfactual = {
+          reachable:false,
+          provisional:true,
+          assumption:'obstacle-suppressed',
+          reason:error.message,
+          recovery:recovery.success ? 'restored-current-world' : recovery.code
+        };
+      }
+      candidates.push({
+        objectId:group.objectId,
+        partName:group.partName,
+        action:'open',
+        obstacleIds:[...group.obstacleIds],
+        distanceToPartialEndpoint:round(group.distance),
+        eligibility,
+        alreadyRequested:requested,
+        counterfactual:{
+          provisional:true,
+          assumption:'obstacle-suppressed',
+          reachable:Boolean(counterfactual.reachable),
+          reason:counterfactual.reason || null,
+          cost:counterfactual.cost ?? null,
+          waypointCount:counterfactual.path?.length ?? 0
+        }
+      });
+    }
+
+    const recommended = candidates.find((candidate) => candidate.eligibility.eligible && !candidate.alreadyRequested && candidate.counterfactual.reachable) || null;
+    const waiting = !recommended && candidates.find((candidate) => candidate.alreadyRequested && candidate.counterfactual.reachable);
+    return {
+      status:recommended ? 'action-candidate' : waiting ? 'waiting-for-world-update' : 'blocked',
+      current,
+      candidates,
+      recommendation:recommended ? {
+        call:{ name:'open', args:{ id:recommended.objectId, partName:recommended.partName } },
+        then:{ name:'findPath', args:{ start:[...start], end:[...end] }, condition:'after-world-state-changes' },
+        provisional:true
+      } : null
     };
   }
 

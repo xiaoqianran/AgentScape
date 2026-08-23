@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.13.0** 的真实架构，不描述未来设想。
+本文描述 **1.14.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -638,3 +638,25 @@ WorldRuntime
 ```
 
 Grand Urban Block 96 × 72m 真实 benchmark 仍只有 19 Recast meshes、38 renderables、426 instanced details，NavMesh build 约 330–489ms。因此当前架构继续保持 single-world lifecycle，不引入 Scene streaming manager。
+
+---
+
+## 17. Action-aware Navigation：反事实不是世界事实
+
+1.14 在 NavigationSystem 内增加单障碍 counterfactual diagnosis。它复用 TileCache 当前 obstacle handle，临时 remove/query/restore，不创建第二个 planning world。
+
+```text
+current findPath blocked
+      ↓
+obstacle provenance → executable Part
+      ↓
+remove one obstacle (temporary)
+      ↓
+Detour query
+      ↓
+restore obstacle
+      ↓
+provisional recommendation
+```
+
+自动编译资产必须有 runtime articulation verification 才能成为 recommendation；未验证资产只能作为 blocker evidence。执行 `open` 后必须再次 `findPath` 获取 current Rapier/TileCache truth。详见 [`action-aware-navigation.md`](./action-aware-navigation.md)。
