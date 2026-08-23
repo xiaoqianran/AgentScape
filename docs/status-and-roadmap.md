@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.11.0** 当前状态。
+本文描述 **1.12.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 63%
+                           当前 ≈ 66%
 ```
 
-63% 不是“代码写完 63%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+66% 不是“代码写完 66%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -35,10 +35,10 @@
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
 | Grasp / Manipulation Geometry | 15% | 尚未成为主干能力 |
 | Navigation / Reachability | 72% | 1.10 已有 current-world canReach/findPath；尚缺 action-aware reachability 与实际 locomotion executor |
-| 大型 World Runtime | 38% | 1.11 已有 32×24m curated environment；streaming / 分区加载仍早期 |
+| 大型 World Runtime | 45% | 1.12 已有 32×24m + 36×30m 两种 curated environment；streaming / 分区加载仍待真实城市级压力 |
 | Multi-Agent | 10% | 不是当前优先级 |
 | 完整生成式 World Pipeline | 30% | provider 边界在，task-driven generation 仍需发展 |
-| Pages / Art Direction | 55% | 1.11 Monument Hall + Cinematic Mode 已落地；仍需第二/第三世界与更成熟的环境加载策略 |
+| Pages / Art Direction | 70% | Monument Hall + Ruined Courtyard + World selector 已落地；第三世界将验证城市级规模 |
 
 ---
 
@@ -206,7 +206,7 @@ tracked / changed / operations / updates / syncVersion
 
 ---
 
-## 7. 1.11 已完成：Curated Environment Pack
+## 7. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -219,11 +219,13 @@ Three.js architecture
 
 真实测试要求 Detour 从大厅前部走到后殿时绕开中央 Monument；Rapier 专项测试要求 Environment collider 真正阻挡 dynamic probe。素材只引入约 2.1MB CC0 HDRI/PBR，并增加 Cinematic Mode；没有引入第二套 Scene state。
 
-下一步内容层优先级不是继续堆模型，而是：
+1.12 已完成第二个 Environment Pack：`Ruined Courtyard`。它证明第二种视觉/空间语言无需复制 Runtime，并新增 split-level Recast、旋转 fixed collider、world-id autosave 与 Scene environment identity。
 
-1. `Ruined Courtyard`：自然/遗迹世界，验证第二种 environment pack 是否无需改 Runtime。
-2. `Grand Urban Block`：更大模块化城市，开始验证 streaming / 分区 NavMesh 的真实需求。
-3. Environment Pack lazy loading：当第二个世界进入后再抽象，不在只有一个 pack 时先造 SceneManager。
+下一步内容层优先级：
+
+1. `Grand Urban Block`：真正把空间推到城市街区尺度，测 draw calls / Recast build / texture budget。
+2. 只有真实测量表明需要时，再实现 region streaming / visibility partition。
+3. 保持每个 world 的素材/许可/资源预算独立。
 
 ---
 
@@ -443,14 +445,16 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.11.0 文档快照对应的仓库验证基线：
+1.12.0 文档快照对应的仓库验证基线：
 
 ```text
-68 Test Files PASS
-179 Tests PASS
+70 Test Files PASS
+186 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
+Ruined Courtyard split-level Recast PASS
+Environment identity restore guard PASS
 Chromium Pages screenshot smoke PASS
 Python service tests PASS
 真实 cabinet Compiler→Runtime Motion Sweep open→close E2E PASS

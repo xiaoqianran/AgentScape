@@ -1460,3 +1460,15 @@ Navigation 只按后者回答。若 Agent 刚发出 open 命令但 motor 还没�
 Monument Hall 采用 32 × 24m 程序化建筑体块 + 约 2.1MB CC0 HDRI/PBR 素材；双侧柱列、后殿、中央纪念台会同时成为 Recast geometry 与 Rapier fixed collider。真实测试要求 Detour 路径绕开中央纪念台，避免“视觉有障碍、Agent 穿过去”。
 
 Pages 同时加入 Cinematic Mode：它只隐藏编辑 UI、扩大 viewport，不复制 World state。这样展示层可以更像作品，但 Human Editor / Agent 仍共享同一个 Runtime。
+
+---
+
+## 32. 1.12：第二世界验证 Environment Pack 不是一次性特例
+
+1.11 只有 Monument Hall 时，还无法证明 Environment Pack 边界不是为一个场景特化。1.12 引入完全不同的 Ruined Courtyard：36 × 30m 室外残构、1.2m / .8m split-level terraces、0.2m 台阶、倒塌柱、拱券和 Instanced grass。
+
+为了让第二世界不侵入 Runtime，WorldRuntime 改为 factory injection，Pages 用 catalog + URL 参数选世界。Scene Serializer 开始记录 environment identity，LocalSceneStore 则按 world-id 分隔 autosave。
+
+真实 Recast 回归要求 Agent 能沿台阶到达两个高台，并绕开中央枯泉；Rapier 也开始支持 Environment collider quaternion rotation，用于倒塌结构。
+
+这一步把 AgentScape 从“一个漂亮 demo world”推进成“同一引擎承载多种空间语言”。

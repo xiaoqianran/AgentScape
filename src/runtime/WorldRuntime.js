@@ -24,16 +24,15 @@ import { CompiledAssetStore } from '../assets/storage/CompiledAssetStore.js';
 import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider.js';
 import { disposeObject3D } from './disposeObject3D.js';
 import { ArticulationVerifier } from '../validation/ArticulationVerifier.js';
-import { createMonumentHall } from '../content/monumentHall.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
-  constructor(container) {
-    this.version = '1.11.0';
-    this.container = container; this.events = new EventBus();
+  constructor(container, { environmentFactory } = {}) {
+    this.version = '1.12.0';
+    this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
     this.assets = new AssetManager({ compiledStore: this.compiledAssetStore });
@@ -52,7 +51,7 @@ export class WorldRuntime {
 
   async init() {
     await this.physics.init();
-    this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(0x080b10); this.scene.fog = new THREE.Fog(0x080b10, 22, 58);
+    this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.05, 120);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -74,8 +73,15 @@ export class WorldRuntime {
     this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;
   }
   addEnvironment() {
-    this.environment = createMonumentHall({ scene:this.scene });
+    if (!this.environmentFactory) throw new Error('WorldRuntime requires an environmentFactory');
+    this.environment = this.environmentFactory({ scene:this.scene });
     this.environmentFloor = this.environment.floor;
+    const rendering = this.environment.rendering || {};
+    const background = rendering.background ?? 0x080b10;
+    this.scene.background = new THREE.Color(background);
+    const fog = rendering.fog || { color:background, near:22, far:58 };
+    this.scene.fog = new THREE.Fog(fog.color, fog.near, fog.far);
+    this.renderer.toneMappingExposure = rendering.exposure ?? 1.1;
     this.scene.add(this.environment.root);
     this.physics.addEnvironment(this.environment.colliders);
     this.camera.position.fromArray(this.environment.camera.position);

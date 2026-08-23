@@ -53,7 +53,50 @@ AgentScape 自己的 Physics / Navigation truth
 
 选择 GL normal map，不使用 DirectX normal map，因为 Three.js 使用 OpenGL tangent-space convention。
 
-## 本轮审计但没有进入 Monument Hall 的平台
+## WORLD 02：Ruined Courtyard
+
+1.12 第二世界使用 Poly Haven CC0 素材，但继续只取 Web 需要的 1K 文件：
+
+### Mossy Cobblestone
+
+- 页面：https://polyhaven.com/a/mossy_cobblestone
+- 许可证：CC0
+- `mossy_cobblestone_diff_1k.jpg` — 约 1.09 MB
+- `mossy_cobblestone_nor_gl_1k.jpg` — 约 0.98 MB
+- 用途：36 × 30m 主庭院地面。
+
+没有下载 roughness；当前材质使用稳定常量 roughness，少一次网络/GPU texture。
+
+### Mossy Sandstone
+
+- 页面：https://polyhaven.com/a/mossy_sandstone
+- 许可证：CC0
+- `mossy_sandstone_diff_1k.jpg` — 约 0.76 MB
+- 用途：残墙、拱券、倒塌石构。
+
+没有下载 normal/roughness，因为墙体当前主要依赖大尺度体块、阴影和 diffuse variation。
+
+### Courtyard HDRI
+
+- 页面：https://polyhaven.com/a/courtyard
+- 许可证：CC0
+- `courtyard_1k.hdr` — 约 1.72 MB
+- 用途：室外自然环境反射 / ambient lighting。
+
+### World 02 资源预算
+
+```text
+Cobblestone diffuse   ~1.09 MB
+Cobblestone normal    ~0.98 MB
+Sandstone diffuse     ~0.76 MB
+Courtyard HDRI        ~1.72 MB
+--------------------------------
+Total                 ~4.55 MB
+```
+
+这些文件只在选择 `ruined-courtyard` 时由对应 pack 请求。
+
+## 本轮审计但没有进入当前 Worlds 的平台
 
 ### Kenney
 

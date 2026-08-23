@@ -126,3 +126,16 @@ kbd { margin-left: 4px; opacity: .45; font: inherit; }
   .workspace { grid-template-columns:1fr; grid-template-rows:62% 38%; }
   .shell.cinematic .workspace { grid-template-rows:1fr; }
 }
+
+.world-select { max-width:210px; border:1px solid #514638; border-radius:999px; padding:7px 28px 7px 11px; color:#d8c3a2; background:#17140f; outline:0; cursor:pointer; font:600 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.04em; }
+.world-select:hover,.world-select:focus { border-color:#8e7656; }
+.shell[data-world="ruined-courtyard"] { --gold:#a8bb7c; background:#0a0f0b; }
+.shell[data-world="ruined-courtyard"] .brandbar { border-color:#30392c; background:linear-gradient(90deg,rgba(8,12,8,.96),rgba(13,18,13,.9)); }
+.shell[data-world="ruined-courtyard"] .brand-lockup span { color:#9cad81; }
+.shell[data-world="ruined-courtyard"] .world-select,
+.shell[data-world="ruined-courtyard"] .cinematic-toggle { border-color:#536246; color:#c5d1aa; background:#151b12; }
+.shell[data-world="ruined-courtyard"] .viewport::before { background:linear-gradient(90deg,rgba(4,8,4,.52) 0%,transparent 36%),linear-gradient(0deg,rgba(4,7,4,.52) 0%,transparent 30%); }
+.shell[data-world="ruined-courtyard"] .world-kicker { color:#afc483; }
+.shell[data-world="ruined-courtyard"] .world-facts span { border-color:#667653; color:#c5d2ad; background:#0d120cbd; }
+.shell[data-world="ruined-courtyard"] .panel { border-color:#2a3328; background:linear-gradient(180deg,rgba(8,13,9,.96),rgba(6,10,7,.94)); }
+@media (max-width:820px) { .world-select { max-width:150px; } }

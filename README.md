@@ -126,11 +126,18 @@ npm run assets:validate
 检查 Manifest 所需节点是否真实存在。
 
 
-## World 01 · Monument Hall
+## Curated Worlds
 
-1.11 开始，Pages 默认世界不再只是工程测试地面，而是一个约 32 × 24 m 的 Monument Hall curated environment：双侧柱列、后殿门户、中央 Astra Monument、电影级 tone mapping，以及 CC0 HDRI / Marble PBR。建筑体块同时进入 Rapier 与 Recast，视觉和 Agent 世界真值保持一致。
+Pages 现在有两个共享同一 Runtime 的 curated world：
 
-素材来源和准入见 [`docs/asset-sourcing.md`](./docs/asset-sourcing.md)。
+```text
+WORLD 01 · Monument Hall     32 × 24m
+WORLD 02 · Ruined Courtyard  36 × 30m
+```
+
+Monument Hall 强调恢弘室内秩序；Ruined Courtyard 强调室外残构、高低差、台阶、倒塌柱与自然侵入。两者的建筑体块都同时进入 Three.js / Rapier / Recast。页面顶部 World selector 通过 `?world=` 重载世界，每个世界拥有独立 autosave。
+
+世界架构见 [`docs/worlds.md`](./docs/worlds.md)，素材来源见 [`docs/asset-sourcing.md`](./docs/asset-sourcing.md)。
 
 ## 文档学习路径
 

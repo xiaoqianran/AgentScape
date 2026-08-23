@@ -25,3 +25,16 @@ it('uses Environment Pack colliders as real fixed Rapier geometry', async () => 
   expect(object.position.x).toBeLessThan(-.15);
   physics.dispose();
 });
+
+it('applies quaternion rotation to Environment Pack colliders', async () => {
+  const physics=new PhysicsSystem();
+  await physics.init();
+  const angle=Math.PI/2;
+  physics.addEnvironment([{shape:'box',halfExtents:[2,1,.1],translation:[0,1,0],rotation:[0,Math.sin(angle/2),0,Math.cos(angle/2)]}]);
+  const rotations=[];
+  physics.world.forEachCollider((collider)=>rotations.push(collider.rotation()));
+  expect(rotations).toHaveLength(1);
+  expect(Math.abs(rotations[0].y)).toBeGreaterThan(.7);
+  expect(Math.abs(rotations[0].w)).toBeGreaterThan(.7);
+  physics.dispose();
+});

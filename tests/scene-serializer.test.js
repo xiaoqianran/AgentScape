@@ -77,3 +77,21 @@ describe('SceneSerializer', () => {
   });
 
 });
+
+it('persists environment identity and rejects cross-world restore before mutation', async () => {
+  const serializer = new SceneSerializer();
+  const source = fakeRuntime();
+  source.environment={id:'ruined-courtyard'};
+  const scene=serializer.serialize(source,{name:'Ruins'});
+  expect(scene.metadata.environment).toBe('ruined-courtyard');
+
+  const runtime={
+    environment:{id:'monument-hall'},
+    assets:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
+    clearObjects:vi.fn(),
+    sceneGraph:{batch:vi.fn(async(operation)=>operation())}
+  };
+  await expect(serializer.restore(runtime,scene)).rejects.toThrow(/environment mismatch/i);
+  expect(runtime.clearObjects).not.toHaveBeenCalled();
+  expect(runtime.sceneGraph.batch).not.toHaveBeenCalled();
+});

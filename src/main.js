@@ -9,14 +9,17 @@ import { LocalSceneStore } from './persistence/LocalSceneStore.js';
 import { AutosaveController } from './persistence/AutosaveController.js';
 import { RESOURCE_BUDGET } from './compiler/resourceBudget.js';
 import { EditorController } from './editor/EditorController.js';
+import { ENVIRONMENTS, resolveEnvironment } from './content/environments.js';
 
 async function main() {
   const app = document.querySelector('#app');
+  const environmentDefinition = resolveEnvironment(new URLSearchParams(location.search).get('world'));
+  const environmentOptions = ENVIRONMENTS.map((item) => `<option value="${item.id}"${item.id === environmentDefinition.id ? ' selected' : ''}>${item.number} · ${item.title}</option>`).join('');
   app.innerHTML = `
-    <main class="shell">
+    <main class="shell" data-world="${environmentDefinition.id}">
       <header class="brandbar">
-        <div class="brand-lockup"><strong>AgentScape</strong><span>WORLD 01 · MONUMENT HALL</span></div>
-        <div class="brand-actions"><button id="cinematic-toggle" class="cinematic-toggle">Cinematic</button><div class="status"><i></i> LIVE WORLD</div></div>
+        <div class="brand-lockup"><strong>AgentScape</strong><span>${environmentDefinition.number} · ${environmentDefinition.title.toUpperCase()}</span></div>
+        <div class="brand-actions"><select id="world-select" class="world-select" aria-label="World">${environmentOptions}</select><button id="cinematic-toggle" class="cinematic-toggle">Cinematic</button><div class="status"><i></i> LIVE WORLD</div></div>
       </header>
       <section class="workspace">
         <div id="viewport" class="viewport">
@@ -37,10 +40,10 @@ async function main() {
             <input id="import-scene-file" type="file" accept="application/json,.json" hidden />
           </div>
           <div class="world-intro">
-            <div class="world-kicker">WORLD 01 // MONUMENT HALL</div>
-            <h2>Space for intelligence.</h2>
-            <p>A monumental 32 × 24 m world where physics, navigation and agent actions share the same reality.</p>
-            <div class="world-facts"><span>RAPIER PHYSICS</span><span>RECAST / DETOUR</span><span>AGENT-READY ASSETS</span></div>
+            <div class="world-kicker">${environmentDefinition.number} // ${environmentDefinition.title.toUpperCase()}</div>
+            <h2>${environmentDefinition.headline}</h2>
+            <p>${environmentDefinition.description}</p>
+            <div class="world-facts">${environmentDefinition.facts.map((fact) => `<span>${fact}</span>`).join('')}</div>
           </div>
           <div class="hint">点击选择 · 拖拽 Gizmo 编辑 · W 移动 · E 旋转 · Delete 删除</div>
         </div>
@@ -117,20 +120,29 @@ async function main() {
     logEl.prepend(row);
   };
 
-  const world = new WorldRuntime(document.querySelector('#viewport'));
+  const world = new WorldRuntime(document.querySelector('#viewport'), { environmentFactory:environmentDefinition.create });
   await world.init();
   const tools = new AgentTools(world);
   const gateway = new HttpLLMGateway({ endpoint: localStorage.getItem('agentscape.gatewayEndpoint') || '' });
   const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway: new LocalPlannerGateway(), log });
   const editor = new EditorController(world);
   const shell = document.querySelector('.shell');
+  document.querySelector('#world-select').addEventListener('change', (event) => {
+    const url = new URL(location.href);
+    url.searchParams.set('world', event.target.value);
+    location.href = url.toString();
+  });
   const cinematicButton = document.querySelector('#cinematic-toggle');
   cinematicButton.addEventListener('click', () => {
     const enabled = shell.classList.toggle('cinematic');
     cinematicButton.textContent = enabled ? 'Editor' : 'Cinematic';
     requestAnimationFrame(() => world.resize());
   });
-  const sceneStore = new LocalSceneStore();
+  const sceneStore = new LocalSceneStore({ key:`agentscape.scene.autosave.${environmentDefinition.id}` });
+  if (environmentDefinition.id === 'monument-hall' && !sceneStore.has()) {
+    const legacy = new LocalSceneStore();
+    if (legacy.has()) sceneStore.save(legacy.load());
+  }
   const autosave = new AutosaveController({ runtime: world, store: sceneStore, delayMs: 600 }).start();
 
   world.events.on('tool.called', (event) => log(`tool: ${event.name} ${JSON.stringify(event.args)}`, 'tool'));
@@ -155,10 +167,10 @@ async function main() {
       log('autosave restored', 'result');
     } catch (error) {
       log(`autosave restore failed: ${error.message}`, 'error');
-      await bootstrapWorld(tools);
+      await bootstrapWorld(tools, environmentDefinition.bootstrap);
     }
   } else {
-    await bootstrapWorld(tools);
+    await bootstrapWorld(tools, environmentDefinition.bootstrap);
   }
   world.history.clear();
   log(`scene ready · ${world.listObjects().length} objects`, 'result');
@@ -346,7 +358,7 @@ async function main() {
   });
   document.querySelector('#export-scene').addEventListener('click', () => {
     const scene = world.serialize({ name: 'AgentScape World' });
-    downloadJson('agentscape-scene.json', scene);
+    downloadJson(`agentscape-${environmentDefinition.id}.json`, scene);
     log(`scene exported · schema v${scene.schemaVersion}`, 'result');
   });
   const importFile = document.querySelector('#import-scene-file');

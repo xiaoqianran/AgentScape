@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.11.0** 的真实架构，不描述未来设想。
+本文描述 **1.12.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -595,3 +595,26 @@ MonumentHall pack
 Runtime 只负责挂载这个 pack，并把同一份 collider / geometry 交给 Physics 与 Navigation。Environment 不进入 `ObjectStore`，所以不会被普通 Undo/Redo、Inspector 或 SceneSerializer 当作可编辑对象；但它的墙、柱、纪念台仍是真实的物理/导航障碍。
 
 这种边界让后续 `Ruined Courtyard / Grand Urban Block` 可以作为内容扩展，而不是继续扩大 Runtime 类。
+
+---
+
+## 15. Environment Catalog：第二世界不增加第二 Runtime
+
+1.12 加入 `Ruined Courtyard` 后，`WorldRuntime` 不再 import 具体 Monument Hall，而接收 `environmentFactory`。世界元数据放在 `src/content/environments.js`。
+
+```text
+Pages ?world=...
+      ↓
+Environment Catalog
+      ↓
+factory
+      ↓
+WorldRuntime
+  ├─ Three root
+  ├─ Rapier colliders
+  └─ Navigation root
+```
+
+世界切换选择 reload，而不是热切换两个 Runtime。Autosave 使用 world-id namespace；Scene metadata 也记录 environment id，跨世界 restore 在 destructive mutation 前拒绝。
+
+详细契约见 [`worlds.md`](./worlds.md)。

@@ -89,6 +89,7 @@ export class PhysicsSystem {
       }
       else continue;
       if (spec.translation) desc.setTranslation(...spec.translation);
+      if (spec.rotation) desc.setRotation({ x:spec.rotation[0], y:spec.rotation[1], z:spec.rotation[2], w:spec.rotation[3] });
       if (colliderMass != null) desc.setMass(colliderMass);
       if (friction != null) desc.setFriction(friction);
       this.world.createCollider(desc, body);

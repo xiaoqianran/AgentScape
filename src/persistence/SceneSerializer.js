@@ -33,7 +33,8 @@ export class SceneSerializer {
       metadata: {
         name,
         savedAt: new Date().toISOString(),
-        generator: `AgentScape/${runtime.version || 'unknown'}`
+        generator: `AgentScape/${runtime.version || 'unknown'}`,
+        environment: runtime.environment?.id || null
       },
       assets,
       objects,
@@ -63,6 +64,11 @@ export class SceneSerializer {
 
   async restore(runtime, input) {
     const scene = this.validate(clone(input));
+    const sceneEnvironment = scene.metadata?.environment;
+    const runtimeEnvironment = runtime.environment?.id;
+    if (sceneEnvironment && runtimeEnvironment && sceneEnvironment !== runtimeEnvironment) {
+      throw new Error(`Scene environment mismatch: ${sceneEnvironment} != ${runtimeEnvironment}`);
+    }
 
     // 先完成所有不会破坏当前世界的检查。
     for (const manifest of scene.assets) runtime.assets.assertCompatibleManifest(manifest);
