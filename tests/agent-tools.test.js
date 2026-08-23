@@ -40,12 +40,33 @@ describe('AgentTools registry facade', () => {
     await expect(tools.call('open', { id: 'cabinet_01' })).rejects.toMatchObject({ code: 'forbidden' });
   });
 
-  it('exposes internal skill metadata and records sequence gates through existing observability',()=>{
+  it('exposes internal execution policy and records sequence gates through existing observability',()=>{
     const r=runtime(); const tools=new AgentTools(r,{actor:'agent_01'});
     expect(tools.executionPolicy('open',{})).toMatchObject({mutates:true,barrier:true,outcome:{state:'verified'}});
     tools.recordSequence({event:'tool-outcome',tool:'open',outcome:{state:'verified',verified:true}});
     expect(r.events.emit).toHaveBeenCalledWith('agent.sequence',expect.objectContaining({tool:'open'}));
     expect(r.trace.emit).toHaveBeenCalledWith('agent.sequence',expect.objectContaining({tool:'open'}),{actor:'agent_01'});
+  });
+
+
+  it('delegates compact task observation without exposing a new mutable world state',()=>{
+    const r=runtime();
+    r.store={
+      has:(id)=>id==='agent_01',
+      get:()=>({assetId:'agent',manifest:{type:'agent',parts:{}},object:{position:{toArray:()=>[1,0,2]}}})
+    };
+    r.physics={getPosition:()=>[1,0,2]};
+    r.locomotion={status:()=>({status:'idle'})};
+    r.interactions={carryStatus:()=>({status:'empty',actorId:'agent_01'})};
+    const tools=new AgentTools(r,{actor:'agent_01'});
+    const observation=tools.taskObservation({lastMutation:null,unresolvedMutations:[]});
+    expect(observation).toMatchObject({
+      schema:'agentscape.task-observation.v1',
+      actor:{id:'agent_01',position:[1,0,2],navigation:{status:'idle'},carry:{status:'empty'}},
+      objects:[{id:'agent_01',asset:'agent',type:'agent',position:[1,0,2]}],
+      unresolvedMutations:[]
+    });
+    expect(r).not.toHaveProperty('taskObservation');
   });
 
 });

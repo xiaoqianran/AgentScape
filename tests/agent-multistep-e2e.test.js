@@ -60,7 +60,7 @@ async function setup({blockedDoor=false}={}){
   runtime.skills=registerCoreSkills(new SkillRegistry({policy,trace,runtime}),runtime);
   const tools=new AgentTools(runtime,{profile:'builder',actor:'agent_01'});
   const agent=new ToolCallingAgent({tools,gateway:null,fallbackGateway:new LocalPlannerGateway(),maxSteps:8});
-  return {runtime,store,physics,spatial,navigation,locomotion,interactions,trace,mutate,agent};
+  return {runtime,store,physics,spatial,navigation,locomotion,interactions,trace,mutate,tools,agent};
 }
 
 async function driveAgent(promise,ctx,max=6000){
@@ -119,4 +119,34 @@ describe('verified multi-step embodied sequencing',()=>{
     expect(outcomes[0]).toMatchObject({tool:'approachAndInteract',outcome:{state:'failed',reason:'STALL'}});
     ctx.navigation.dispose(); ctx.physics.dispose();
   },35000);
+
+  it('feeds a compact real STALL observation into the next planning round',async()=>{
+    const ctx=await setup({blockedDoor:true});
+    const requests=[];
+    const gateway={isConfigured:()=>true,complete:vi.fn(async(request)=>{
+      requests.push(structuredClone(request));
+      if(requests.length===1) return {message:'',toolCalls:[{id:'open',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}]};
+      return {message:'door stalled; stopping',toolCalls:[]};
+    })};
+    const agent=new ToolCallingAgent({tools:ctx.tools,gateway,maxSteps:3});
+    const result=await driveAgent(agent.run('打开柜门；如果失败就停止。'),ctx);
+    expect(result.taskStatus).toBe('incomplete');
+    expect(requests).toHaveLength(2);
+    expect(requests[1].context.world.count).toBe(4);
+    expect(requests[1].context.world.index).toEqual(expect.arrayContaining([
+      {id:'agent_01',asset:'agent'},{id:'cabinet_01',asset:'cabinet'},{id:'cup_01',asset:'cup'},{id:'table_01',asset:'table'}
+    ]));
+    const task=requests[1].context.task;
+    expect(task.schema).toBe('agentscape.task-observation.v1');
+    expect(task.lastMutation).toMatchObject({tool:'approachAndInteract',args:{targetId:'cabinet_01',action:'open'},outcome:{state:'failed',reason:'STALL'}});
+    expect(task.objects.map((item)=>item.id).sort()).toEqual(['agent_01','cabinet_01']);
+    expect(task.actor).toMatchObject({id:'agent_01',carry:{status:'empty'}});
+    expect(task.articulation[0]).toMatchObject({
+      id:'cabinet_01',parts:[{partName:'door',status:'action-failed',verifiedAction:'close',last:{reason:'STALL'},live:{coordinate:expect.any(Number),error:expect.any(Number),tolerance:.08}}]
+    });
+    expect(task.recoveryHints[0]).toMatchObject({action:'report-incomplete-or-retry-after-world-change',status:'provisional',basedOn:'STALL'});
+    expect(task.objects.some((item)=>item.id==='cup_01'||item.id==='table_01')).toBe(false);
+    ctx.navigation.dispose(); ctx.physics.dispose();
+  },35000);
+
 });

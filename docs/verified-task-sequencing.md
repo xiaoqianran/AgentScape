@@ -1718,3 +1718,11 @@ unresolved = N
 ```
 
 如果 planning limit 用尽但没有 unresolved mutation，仍保留原来的异常语义，因为那表示 planner 自身没有正常收敛，而不是一个已经可解释的 world-task failure。
+
+---
+
+## 68. 1.21：Sequencing Ledger 进入 Compact Recovery Context
+
+1.20 的 `lastMutation / unresolvedMutations` 现在直接进入 `agentscape.task-observation.v1`，和 actor/carry/navigation/live articulation/relevant relations 一起成为下一轮 compact evidence。Mutation 后不再重复发送完整 world list，只保留 world count + `id/asset` entity index。
+
+真实 Muse STALL probe 还推动 mutation identity 用 Runtime result 中实际执行的 `partName` 做 canonicalization，并增加 bounded read-only recovery rounds；同一 Door 的 implicit/explicit retry 不会再变成两个 unresolved。详见 [`task-observation.md`](./task-observation.md)。

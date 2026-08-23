@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.20.1** 的真实架构，不描述未来设想。
+本文描述 **1.21.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -815,3 +815,30 @@ ToolCallingAgent
 `unresolvedMutations` 防止早期 STALL/blocked 被后续某个成功 mutation 洗白；只有同一语义 mutation identity 后续 verified 才清掉。`executeBatch` 使用同一 outcome classifier，并 preflight 拒绝跨 Physics 帧的 unbatchable embodied skills。真实 LocalPlanner→SkillRegistry→Rapier/Recast E2E 已验证 open→pickup→place 成功链与 Door STALL stop。完整设计见 [`verified-task-sequencing.md`](./verified-task-sequencing.md)。
 
 完整多步 E2E 还暴露 Place arrival yaw 问题，因此 place 在 release 前会使用 `reorientHeldToward` 分段原地 yaw，每一步都对 held object 做 Rapier clearance；interaction candidate 也会预检朝向 release 后 HoldAnchor 的 reach。
+
+---
+
+## 24. Compact Task Observation：压缩 Truth，不复制 Truth
+
+1.21 新增的 `buildTaskObservation()` 是纯 read-model composer，不是 Runtime state owner。
+
+```text
+Physics / Locomotion / Interaction / SceneGraph
+                 │
+                 ├─ current verified evidence
+                 │
+ToolCallingAgent unresolved ledger
+                 │
+                 ▼
+       buildTaskObservation
+                 │
+                 ▼
+ agentscape.task-observation.v1
+                 │
+                 ▼
+        Gateway context.task
+```
+
+首次 planning 仍发送完整 `listObjects`；发生 mutation 后只发送 `{world:{count,index:[id/asset]}} + compact task`。Relevant object 来自 actor/lastMutation/unresolved args；articulation 复用 `articulationStatus` 并压缩字段。Recovery Hint 永远 `provisional`。
+
+ToolCallingAgent 另外维护 bounded read-only recovery rounds；它不选择 recovery action，只在 unresolved 世界状态长期不变、模型持续做只读诊断时以 `recovery-observation-limit` 结构化结束。Mutation identity 会用实际 Runtime result 补齐 implicit Part，避免同一 Door retry 形成重复 unresolved。详见 [`task-observation.md`](./task-observation.md)。

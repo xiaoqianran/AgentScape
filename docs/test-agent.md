@@ -580,6 +580,12 @@ npm run agent:probe -- sequence
 npm run agent:probe -- sequence-failure
 ```
 
-`approachAndInteract` 固定返回 `action-failed / STALL`。Probe 要求后续绝不执行 pickup/place，最终 `taskStatus=incomplete` 且 unresolved open failure 仍存在。Nemotron 当前样本会做 `listRelations` 后停止；Muse 某个样本曾在诊断中过度循环，随后样本通过 `getArticulationStatus` 后正确停止，因此 planning step 数不作为稳定指标。
+`approachAndInteract` 固定返回 `action-failed / STALL`。Probe 要求后续绝不执行 pickup/place，最终 `taskStatus=incomplete` 且 unresolved open failure 仍存在。Nemotron 当前样本会做 `listRelations` 后停止；Muse 的真实 failure probe 曾暴露 read-only 诊断循环；1.21 已把它变成 deterministic bounded recovery：compact context 内嵌 live articulation evidence，read-only recovery rounds 超过预算后返回 `recovery-observation-limit`。planning step 数仍不作为模型排名指标。
 
 仓库还有不经过 LLM mock 的 `tests/agent-multistep-e2e.test.js`：它用真实 LocalPlanner、SkillRegistry、Navigation、Locomotion、Rapier 与 InteractionSystem 跑完整 open→pickup→place；另一条真实 Door blocker 场景证明 STALL 后 mutation history 只有 `approachAndInteract`。
+
+## 21. 1.21 Compact Task Observation / Recovery Probe
+
+现有 `sequence / sequence-failure` probe 同时覆盖 1.21，因为 ToolCallingAgent 每轮都会向 Gateway 注入 `context.task`。首轮保留完整 world entity index；发生 mutation 后 `context.world` 只保留对象数量与 `id/asset` entity index，相关 actor/object/articulation/unresolved evidence 位于 `agentscape.task-observation.v1`。
+
+真实 Nemotron / Muse success sequence 仍保持 verified `open → pickup → place`。Failure sequence 必须满足：pickup/place 从未执行、`taskStatus=incomplete`、只有一个 semantic open failure 留在 unresolved ledger；模型若持续只读诊断，会以 `recovery-observation-limit` 受控结束，而不是无限读到全局 planning limit。

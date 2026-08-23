@@ -1566,3 +1566,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 为了防止模型跨轮误推进后把最后一个成功当整个任务成功，ToolCallingAgent 增加 runtime-only `unresolvedMutations`：早期 adverse mutation 只有相同语义 identity 的 verified retry 才能清掉。Pages 同时显示 deterministic `taskStatus`。
 
 真实 LocalPlanner→SkillRegistry→Rapier/Recast 三步 E2E 进一步暴露了 Place 朝向问题：到达 Table 后 Agent yaw 可能沿最后 waypoint，HoldAnchor 并不朝 release。最终加入 carry-aware candidate filter 与分段 collision-checked reorientation；Door blocker E2E 则证明 STALL 后 pickup/place 完全不会执行。
+
+---
+
+## 42. 1.21：从完整 World Dump 到 Relevant Task Evidence
+
+1.20 已经能阻止失败步骤被后续成功洗白，但每轮模型仍收到完整 `listObjects` 并容易在 STALL 后重复查询同一事实。1.21 第一次把 Agent planning context 变成“首轮完整 entity discovery，mutation 后 relevant evidence”：actor pose、navigation/carry、相关对象、live articulation、relations、last/unresolved mutation。
+
+真实 Muse failure probe 证明单纯 prompt 不够：它曾在 STALL 后做约十次 read tools，并把隐式 Door retry 与显式 `partName=door` 记成两个 unresolved。最终实现因此增加两个执行层修复：mutation identity 从 Runtime result 归一实际 Part；unresolved 状态下 read-only recovery rounds 默认最多 4，继续只读则以 `recovery-observation-limit` 结束。Recovery Hint 仍只是 provisional，不替模型行动。

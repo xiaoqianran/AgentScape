@@ -1,3 +1,5 @@
+import { buildTaskObservation } from './buildTaskObservation.js';
+
 export class AgentTools {
   constructor(runtime, { profile = 'builder', actor = 'agent' } = {}) {
     this.runtime = runtime;
@@ -7,6 +9,7 @@ export class AgentTools {
 
   definitions() { return this.runtime.skills.definitions(); }
   executionPolicy(name, result) { return this.runtime.skills.executionPolicy(name, result); }
+  taskObservation(state = {}) { return buildTaskObservation(this.runtime,{ actor:this.actor,...state }); }
   recordSequence(payload) {
     this.runtime.events.emit('agent.sequence', payload);
     this.runtime.trace?.emit('agent.sequence', payload, { actor:this.actor });

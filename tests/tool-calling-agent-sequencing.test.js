@@ -127,3 +127,44 @@ it('terminates safely as incomplete at the planning limit when an adverse mutati
   expect(result.unresolvedMutations[0]).toMatchObject({tool:'approachAndInteract',outcome:{state:'failed',reason:'STALL'}});
   expect(tools.recordSequence).toHaveBeenCalledWith(expect.objectContaining({termination:'planning-limit',unresolved:1}));
 });
+
+it('normalizes an implicit articulated Part from the Runtime result so an explicit retry resolves the same mutation identity',async()=>{
+  let round=0,attempt=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o1',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'o2',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    return {message:'recovered',toolCalls:[]};
+  })};
+  const tools=makeTools({approachAndInteract:async()=>++attempt===1
+    ? {status:'action-failed',reason:'STALL',interaction:{part:'door'}}
+    : {status:'action-completed',targetReached:true,settled:true,interaction:{part:'door'}}});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:5}).run('open the cabinet door');
+  expect(result).toMatchObject({taskStatus:'completed',unresolvedMutations:[]});
+  const mutations=result.execution.filter((entry)=>entry.executed&&entry.tool==='approachAndInteract');
+  expect(mutations).toHaveLength(2);
+  const sequenceCalls=tools.recordSequence.mock.calls.map(([payload])=>payload).filter((payload)=>payload.identity);
+  expect(sequenceCalls[0].identity).toBe(sequenceCalls[1].identity);
+  expect(sequenceCalls[0].identity).toContain('"partName":"door"');
+});
+
+it('bounds read-only recovery loops while preserving the unresolved mutation ledger',async()=>{
+  let round=0;
+  const requests=[];
+  const gateway={isConfigured:()=>true,complete:vi.fn(async(request)=>{
+    requests.push(structuredClone(request));
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}]};
+    return {message:'',toolCalls:[{id:`r${round}`,name:'listObjects',args:{}}]};
+  })};
+  const tools=makeTools({approachAndInteract:async()=>({status:'action-failed',reason:'STALL',interaction:{part:'door'}})});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:10,maxRecoveryReadRounds:2}).run('open; diagnose if blocked');
+  expect(result).toMatchObject({taskStatus:'incomplete',termination:'recovery-observation-limit',steps:4});
+  expect(result.unresolvedMutations).toHaveLength(1);
+  expect(result.unresolvedMutations[0]).toMatchObject({tool:'approachAndInteract',outcome:{state:'failed',reason:'STALL'}});
+  expect(requests[1].context.recovery).toEqual({readOnlyRoundsUsed:0,readOnlyRoundsRemaining:2});
+  expect(requests[2].context.recovery).toEqual({readOnlyRoundsUsed:1,readOnlyRoundsRemaining:1});
+  expect(requests[3].context.recovery).toEqual({readOnlyRoundsUsed:2,readOnlyRoundsRemaining:0});
+  expect(tools.recordSequence).toHaveBeenCalledWith(expect.objectContaining({termination:'recovery-observation-limit',recoveryReadRounds:2,unresolved:1}));
+  expect(result.execution.filter((entry)=>entry.reason==='RECOVERY_OBSERVATION_LIMIT')).toHaveLength(1);
+});

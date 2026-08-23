@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.20.1** 当前状态。
+本文描述 **1.21.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 90%
+                           当前 ≈ 92%
 ```
 
-90% 不是“代码写完 90%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+92% 不是“代码写完 92%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -22,14 +22,14 @@
 |---|---:|---|
 | Web Runtime | 90% | Three / Rapier / lifecycle / persistence + kinematic Agent Body 已形成稳定运行时 |
 | Human Editor | 75% | 可用，但不是当前差异化主线 |
-| Skill / Policy / Trace | 93% | 高层 Skill contract + 1.20 semantic outcome / mutation barrier / hash-chained agent.sequence 已形成统一执行边界 |
+| Skill / Policy / Trace | 96% | semantic outcome / mutation barrier / unresolved ledger + 1.21 compact task observation / bounded recovery 已形成统一执行边界 |
 | Spatial API | 94% | placement + current-world Recast/TileCache + interaction pose/LOS + 1.18 supportStatus 单一支撑真值已形成稳定空间事实层 |
 | Scene Persistence / History | 88% | schema / autosave / undo-redo + heldBy persistence + 跨帧 embodied transaction 已稳定 |
 | Asset Compiler 基础 | 90% | inspect / normalize / budget / quality 很完整 |
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
-| Runtime Verification | 94% | 单步 post-condition + 1.20 真实 open→pickup→place 与 STALL stop E2E，任务级纵向验证已成立 |
+| Runtime Verification | 96% | 单步 post-condition + multi-step E2E + real STALL compact recovery context；下一短板是 blocker/contact attribution |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -280,24 +280,44 @@ ToolCallingAgent 现在把 SkillRegistry `mutates=true` 当成确定性 replan b
 
 ---
 
-## 13. 当前 P0：Compact Task Observation / Recovery Context
+## 13. 1.21 已完成：Compact Task Observation / Recovery Context
 
-现在任务执行纪律已经成立，但每轮 LLM context 仍主要是 `listObjects` + 历史 tool messages。下一阶段优先把已经存在的 truth 压成一个短、稳定、provider-neutral task observation：
+`agentscape.task-observation.v1` 现在把 actor pose/navigation/carry、last/unresolved mutation、相关对象、少量 SceneGraph relations 与 live articulation 压成 provider-neutral read model。首轮 planning 仍发送完整对象索引；发生 mutation 后只发送 compact `id/asset` entity index + relevant task evidence，不再重复整个 world list。
 
-```text
-agent pose / locomotion
-current held object
-relevant articulation live state
-last mutation outcome
-unresolved mutations
-nearby blockers / relations
-```
-
-目标不是增加 Planner，而是减少模型为了恢复 STALL/blocked 反复调用大量 read tools，同时避免把完整 Scene/Trace 全塞进 prompt。Recovery 仍由 LLM 决定，Runtime 只提供 compact verified evidence。
+Recovery Hint 明确 `status=provisional`，并且不再推荐重复读取已经嵌入 context 的事实。真实 Muse STALL probe 证明 prompt 本身不足以防止 read-loop，因此 ToolCallingAgent 增加默认 4 个 bounded read-only recovery rounds；继续只读会以 `recovery-observation-limit` 保留 unresolved ledger 结束。真实模型还暴露 implicit Door / explicit `partName=door` retry identity 漂移，现已用 Runtime result 中实际执行 Part 做 canonicalization。
 
 ---
 
-## 14. 1.11–1.12 已完成：Curated Multi-World Layer
+## 14. 当前 P0：Failure Attribution / Contact Provenance
+
+现在 Agent 能稳定知道：
+
+```text
+Door open → STALL
+current joint coordinate / error / verified state
+```
+
+但 Runtime 还不能确定性回答：
+
+```text
+哪个外部 collider / object 导致了这次 STALL？
+```
+
+下一阶段优先把 live articulation failure 与 Rapier contact/intersection provenance 连起来：
+
+```text
+failed Part
+→ current collider contacts / overlaps
+→ owner object / environment provenance
+→ blocker candidates
+→ compact failure attribution
+```
+
+目标仍然不是自动移动 blocker，而是给 recovery planner 更具体、可验证的证据。
+
+---
+
+## 15. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -322,7 +342,7 @@ Three.js architecture
 
 ---
 
-## 15. P1：完整 Joint Frame
+## 16. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -358,7 +378,7 @@ Schema claim second
 
 ---
 
-## 16. P2：Compact Agent Observation
+## 17. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -386,7 +406,7 @@ world size
 
 ---
 
-## 17. 自动语义：宁可慢一点，也不虚构能力
+## 18. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -424,7 +444,7 @@ high coverage + fake capability
 
 ---
 
-## 18. 目前不应该成为优先级的方向
+## 19. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -441,7 +461,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 19. 产品差异化应该是什么
+## 20. 产品差异化应该是什么
 
 不应该是：
 
@@ -473,7 +493,7 @@ Agent World
 
 ---
 
-## 20. 未来完成态
+## 21. 未来完成态
 
 可以把 100% 理解为：
 
@@ -538,11 +558,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.20.1 文档快照对应的仓库验证基线：
+1.21.0 文档快照对应的仓库验证基线：
 
 ```text
-94 Test Files PASS
-271 Tests PASS
+96 Test Files PASS
+278 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -612,3 +632,8 @@ Python service tests PASS
 这些数字不是架构目标，只是帮助读者知道文档描述的能力已经有怎样的验证覆盖。未来测试数量变化时，应以当前 CI 为准。
 
 Planning-limit unresolved task preservation / trace PASS
+Compact Task Observation relevance / entity-index PASS
+Real Rapier STALL compact recovery context PASS
+Implicit / explicit articulated Part identity normalization PASS
+Bounded read-only recovery observation PASS
+Recovery-observation-limit pre-execution stop PASS

@@ -1,5 +1,5 @@
 const SYSTEM_PROMPT = `You are AgentScape, a spatial agent controlling an interactive 3D world.
-Use tools instead of inventing world state. Inspect objects before acting when identities or geometry are uncertain. Use listRelations/describeObjectRelations when semantic spatial relationships are more useful than raw coordinates. For multi-step scene edits use executeBatch only when those edits are genuinely atomic and synchronously rollback-safe; embodied actions, navigation, pickup/drop, and articulation requests are not batchable. After any world-changing tool, AgentScape forces a fresh planning round before another mutation. Therefore never assume several mutation tool calls in one assistant turn will all execute. If a world-changing result is blocked, failed, unverified, request-only, or errors, do not advance to a later dependent subtask: diagnose, recover, retry, or report the task incomplete. After building or editing a world, use validateWorld and repairWorld rather than assuming the result is valid. When an asset is needed, always searchAssets first; generateAsset only if no suitable reusable asset exists.
+Use tools instead of inventing world state. Inspect objects before acting when identities or geometry are uncertain. Use listRelations/describeObjectRelations when semantic spatial relationships are more useful than raw coordinates. For multi-step scene edits use executeBatch only when those edits are genuinely atomic and synchronously rollback-safe; embodied actions, navigation, pickup/drop, and articulation requests are not batchable. After any world-changing tool, AgentScape forces a fresh planning round before another mutation. Therefore never assume several mutation tool calls in one assistant turn will all execute. The compact task observation in request context is current read-only evidence assembled from Runtime truth; recoveryHints are explicitly provisional suggestions, never proof that a recovery will work. Do not call read tools merely to reproduce evidence already present in task context. When a deterministic failed mutation remains unresolved and its recovery hint names no diagnostic tool, normally report the task incomplete unless you can identify a different world-changing recovery. Recovery observation rounds are bounded; use the compact task evidence first and do not spend the budget on redundant reads. If a world-changing result is blocked, failed, unverified, request-only, or errors, do not advance to a later dependent subtask: diagnose, recover, retry, or report the task incomplete. After building or editing a world, use validateWorld and repairWorld rather than assuming the result is valid. When an asset is needed, always searchAssets first; generateAsset only if no suitable reusable asset exists.
 Prefer place/findFreeSpace over guessing coordinates. If findPath is blocked, use suggestNavigationActions for provisional diagnosis; never treat its counterfactual recommendation as world truth. Execute any suggested interaction explicitly, then call findPath again after the world state changes. Move embodied agent objects with navigateTo instead of moveObject; navigateTo returns only after the physical walk arrives or becomes blocked. For embodied open/close tasks, call approachAndInteract directly; it already performs interaction-pose search, navigateTo, distance/physical line-of-sight checks, action-sweep clearance, motor request, and live joint completion observation. Only status=action-completed with targetReached=true and settled=true confirms final success. action-failed means a deterministic failure such as STALL; action-unverified means completion could not be proven such as TIMEOUT. Use getArticulationStatus only for diagnosis or later observation, not as a redundant query after action-completed. For embodied pickup, call approachAndPickup instead of low-level pickup; held means kinematic-anchor ownership and explicitly does not mean grasp force verification. For placing an Agent-held object onto a support surface, call approachAndPlace(actorId, supportId); the held object is inferred automatically, supportId is the receiving object such as table_01, and optional surfaceId is only a surface name such as top. Never pass the held object as supportId or an object id as surfaceId. Only status=placed with supportVerified=true confirms success after Dynamic settle; that result is already the deterministic post-condition, so do not issue redundant relation queries unless diagnosing a failed/unverified place. Use dropHeld only for an unconstrained release. Never claim a world mutation succeeded unless the tool result confirms it.
 Keep the final response concise.`;
 
@@ -11,10 +11,12 @@ const stableValue = (value) => {
   return JSON.stringify(value);
 };
 
-const mutationIdentity = (call) => {
+const mutationIdentity = (call, result = null) => {
   const args = call.args || {};
-  const keys = ['actorId','id','targetId','supportId','action','partName','assetId','instanceId','end'];
+  const keys = ['actorId','id','targetId','supportId','action','assetId','instanceId','end'];
   const scope = Object.fromEntries(keys.filter((key)=>args[key] != null).map((key)=>[key,args[key]]));
+  const partName = args.partName ?? result?.partName ?? result?.interaction?.part ?? result?.actionSweep?.partName;
+  if (partName != null) scope.partName=partName;
   return `${call.name}:${stableValue(scope)}`;
 };
 
@@ -28,12 +30,13 @@ function annotateResult(result, sequence) {
 }
 
 export class ToolCallingAgent {
-  constructor({ tools, gateway, fallbackGateway, log = () => {}, maxSteps = 8 }) {
+  constructor({ tools, gateway, fallbackGateway, log = () => {}, maxSteps = 8, maxRecoveryReadRounds = 4 }) {
     this.tools = tools;
     this.gateway = gateway;
     this.fallbackGateway = fallbackGateway;
     this.log = log;
     this.maxSteps = maxSteps;
+    this.maxRecoveryReadRounds = maxRecoveryReadRounds;
   }
 
   get mode() { return this.gateway?.isConfigured() ? 'llm' : 'local'; }
@@ -50,12 +53,23 @@ export class ToolCallingAgent {
     const execution = [];
     const unresolvedMutations = new Map();
     let lastMutation = null;
+    let recoveryReadRounds = 0;
 
     for (let step = 0; step < this.maxSteps; step++) {
+      const world = await this.tools.call('listObjects');
+      const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
+      const task = this.tools.taskObservation?.({ lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved }) || null;
       const response = await gateway.complete({
         messages,
         tools:this.tools.definitions(),
-        context:{ world:await this.tools.call('listObjects') }
+        context:{
+          world:lastMutation ? { count:world.length, index:world.map(({id,asset})=>({id,asset})) } : world,
+          ...(task ? { task } : {}),
+          ...(unresolved.length ? { recovery:{
+            readOnlyRoundsUsed:recoveryReadRounds,
+            readOnlyRoundsRemaining:Math.max(0,this.maxRecoveryReadRounds-recoveryReadRounds)
+          } } : {})
+        }
       });
       if (!response.toolCalls.length) {
         const final = response.message || '任务完成。';
@@ -69,9 +83,31 @@ export class ToolCallingAgent {
         this.log(final, 'result');
         return { message:final, steps:step + 1, taskStatus, lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved, execution:structuredClone(execution) };
       }
+      const readOnlyRecovery = unresolved.length && recoveryReadRounds >= this.maxRecoveryReadRounds
+        && response.toolCalls.every((call)=>!this.tools.executionPolicy?.(call.name,undefined)?.mutates);
+      if (readOnlyRecovery) {
+        const message=`Task incomplete: recovery observation limit reached with ${unresolved.length} unresolved world mutation(s).`;
+        this.log(`sequence: ${message}`,'error');
+        for (const call of response.toolCalls) execution.push({
+          planningStep:step+1,tool:call.name,args:structuredClone(call.args || {}),executed:false,
+          outcome:{state:'skipped',verified:false},reason:'RECOVERY_OBSERVATION_LIMIT'
+        });
+        this.tools.recordSequence?.({
+          planningStep:step+1,executed:false,termination:'recovery-observation-limit',
+          recoveryReadRounds,unresolved:unresolved.length,
+          lastMutation:lastMutation ? structuredClone(lastMutation) : null
+        });
+        return {
+          message,steps:step+1,taskStatus:'incomplete',termination:'recovery-observation-limit',
+          lastMutation:lastMutation ? structuredClone(lastMutation) : null,
+          unresolvedMutations:unresolved,execution:structuredClone(execution)
+        };
+      }
       messages.push({ role:'assistant', content:response.message || '', toolCalls:response.toolCalls });
 
       let barrier = null;
+      let executedTool = false;
+      let mutationExecuted = false;
       for (const call of response.toolCalls) {
         if (barrier) {
           const skipped = {
@@ -90,6 +126,7 @@ export class ToolCallingAgent {
         }
 
         this.log(`plan: ${call.name} ${JSON.stringify(call.args)}`, 'plan');
+        executedTool = true;
         let result;
         try {
           result = await this.tools.call(call.name, call.args);
@@ -114,15 +151,19 @@ export class ToolCallingAgent {
         this.log(`result: ${call.name} ${JSON.stringify(safeResult)}`, safeResult?.error ? 'error' : 'tool');
 
         if (policy.barrier) {
-          const identity = mutationIdentity(call);
+          mutationExecuted = true;
+          const identity = mutationIdentity(call,safeResult);
           barrier = { tool:call.name, outcome:structuredClone(policy.outcome) };
-          lastMutation = { planningStep:step + 1, tool:call.name, identity, outcome:structuredClone(policy.outcome) };
+          lastMutation = { planningStep:step + 1, tool:call.name, identity, args:structuredClone(call.args || {}), outcome:structuredClone(policy.outcome) };
           if (COMPLETE_OUTCOMES.has(policy.outcome.state)) unresolvedMutations.delete(identity);
           else unresolvedMutations.set(identity,{ planningStep:step + 1, tool:call.name, identity, args:structuredClone(call.args || {}), outcome:structuredClone(policy.outcome) });
           this.tools.recordSequence?.({ ...entry, identity, barrier:true, replanRequired:true, unresolved:unresolvedMutations.size });
           this.log(`sequence: ${call.name} → ${policy.outcome.state} · replan required`, COMPLETE_OUTCOMES.has(policy.outcome.state) ? 'tool' : 'error');
         }
       }
+
+      if (!unresolvedMutations.size || mutationExecuted) recoveryReadRounds=0;
+      else if (executedTool) recoveryReadRounds += 1;
     }
     const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
     if (unresolved.length) {

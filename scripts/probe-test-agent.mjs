@@ -241,6 +241,8 @@ try {
     if (toolCalls.some((call)=>['approachAndPickup','approachAndPlace','pickup','place'].includes(call.name))) throw new Error('Failure sequence advanced past failed open');
     if (result.taskStatus!=='incomplete') throw new Error(`Failure sequence taskStatus is ${result.taskStatus}, expected incomplete`);
     if (!result.unresolvedMutations.some((entry)=>entry.tool==='approachAndInteract'&&entry.outcome.state==='failed')) throw new Error('Failure sequence lost unresolved open failure');
+    if (result.unresolvedMutations.length!==1) throw new Error(`Failure sequence accumulated ${result.unresolvedMutations.length} unresolved mutations; expected one semantic open failure`);
+    if (result.termination && !['recovery-observation-limit','planning-limit'].includes(result.termination)) throw new Error(`Unexpected failure termination: ${result.termination}`);
   }
   console.log(JSON.stringify({ ok:true, mode, model, toolCalls, final:result.message, steps:result.steps, taskStatus:result.taskStatus, execution:result.execution, sequenceEvents }, null, 2));
 } finally {
