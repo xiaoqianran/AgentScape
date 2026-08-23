@@ -605,3 +605,11 @@ npm run agent:probe -- recovery
 ```
 
 严格 probe 要求模型先 `approachAndInteract` 得到 STALL + `obstacle_03` current-contact evidence，再调用 `suggestRecoveryActions`，执行返回的专用 `recoverPickupBlocker`，然后 fresh replan 并 retry 原始 `approachAndInteract`。禁止 `moveObject`、low-level open/pickup/place、manual navigateTo、以及直接 `approachAndPickup` blocker。Nemotron 与 Muse 当前样本都按 `open failed → suggestion → auxiliary recovery verified → original retry verified` 完成；sequence trace 要求 recovery 后 unresolved 仍为 1，只有原 open retry verified 后才变 0。planning step 数仍不作为稳定能力指标。
+
+## 24. 1.24 Multi-candidate Recovery Ranking Probe
+
+```bash
+npm run agent:probe -- recovery-multi
+```
+
+Probe 同时返回 `obstacle_01 / obstacle_02` 两个 current-contact candidates，并故意让 obstacle_01 的 contact impulse 更大，但 pickup routeCost 为 5；obstacle_02 routeCost 为 2。`suggestRecoveryActions` 的 `ranking.causal=false` 且 recommended 为 obstacle_02。Nemotron/Muse 当前样本都只执行 rank-1 `recoverPickupBlocker(obstacle_02)`，随后立即 retry original open 并获得 `action-completed + targetReached + settled`。禁止先处理第二个 candidate 或把 ranking 解释成 causal proof。

@@ -529,7 +529,7 @@ export class InteractionSystem {
       if (!['object','environment'].includes(target.kind)) continue;
       const key=target.kind==='object'
         ? `object:${target.objectId}:${target.partName || '$root'}`
-        : `environment:${target.environmentId}`;
+        : `environment:${target.environmentId}:${target.colliderIndex ?? -1}`;
       if (!blockerMap.has(key)) blockerMap.set(key,structuredClone(target));
     }
     return {

@@ -85,6 +85,17 @@ const scenarios = {
     ],
     expected:['approachAndInteract','suggestRecoveryActions','recoverPickupBlocker']
   }
+,
+  'recovery-multi': {
+    goal:'Open cabinet_01 with agent_01. The first approachAndInteract will STALL with two current-contact blocker candidates. Call suggestRecoveryActions and follow exactly its recommended rank-1 proposal. The ranking is execution-cost evidence only, not causal proof. Execute at most one recovery mutation from this failure evidence epoch, then immediately retry the original approachAndInteract open. Only the retried original action-completed + targetReached + settled means task success. Do not recover the other candidate first, and never use moveObject, navigateTo, direct approachAndPickup, or low-level open/pickup/place.',
+    world:[
+      { id:'agent_01', asset:'agent', position:[0,0,4], actions:['navigate'] },
+      { id:'cabinet_01', asset:'cabinet', position:[0,0,0], actions:['open','close','move'] },
+      { id:'obstacle_01', asset:'recovery-blocker', position:[-1.2,0,1.2], actions:['pickup','drop','move'] },
+      { id:'obstacle_02', asset:'recovery-blocker', position:[-.5,0,1.1], actions:['pickup','drop','move'] }
+    ],
+    expected:['approachAndInteract','suggestRecoveryActions','recoverPickupBlocker']
+  }
 };
 const scenario = scenarios[mode];
 if (!scenario) throw new Error(`Unknown probe mode: ${mode}`);
@@ -109,6 +120,7 @@ try {
   const toolCalls = [];
   let placeHeld = mode === 'place';
   let sequenceDoorOpen=false, sequenceHeld=false, sequencePlaced=false, sequenceAttemptedOpen=false, recoveryApplied=false;
+  let multiAttemptedOpen=false,multiRecoveredBlocker=null,multiDoorOpen=false;
   const sequenceEvents=[];
   const tools = {
     definitions:() => registry.definitions(),
@@ -117,6 +129,52 @@ try {
     call:async(name, args = {}) => {
       if (name === 'listObjects') return scenario.world;
       toolCalls.push({ name, args });
+      if (mode === 'recovery-multi') {
+        const candidates=[
+          {kind:'object',objectId:'obstacle_01',partName:'$root',colliderIndex:0},
+          {kind:'object',objectId:'obstacle_02',partName:'$root',colliderIndex:0}
+        ];
+        const contactEvidence=[
+          {source:{kind:'object',objectId:'cabinet_01',partName:'door',colliderIndex:0},target:candidates[0],external:true,contactCount:4,activeContactCount:4,minDistance:-.02,totalImpulse:100,normal:[1,0,0]},
+          {source:{kind:'object',objectId:'cabinet_01',partName:'door',colliderIndex:0},target:candidates[1],external:true,contactCount:1,activeContactCount:1,minDistance:-.001,totalImpulse:1,normal:[0,0,1]}
+        ];
+        if (name === 'getArticulationStatus') return {
+          id:'cabinet_01',parts:[{partName:'door',status:multiDoorOpen?'action-completed':(multiAttemptedOpen?'action-failed':'verified-state'),verifiedAction:multiDoorOpen?'open':'close',requestedAction:null,
+            last:multiAttemptedOpen&&!multiDoorOpen?{status:'action-failed',reason:'STALL',targetReached:false,settled:false,attribution:{status:'contact-evidence',evidence:'current-contact-at-failure',blockerCandidates:candidates,contactEvidence}}:undefined,
+            live:{coordinate:multiDoorOpen?-1.31:(multiAttemptedOpen?-.42:0),target:multiDoorOpen?-1.35:0,error:multiDoorOpen?.04:(multiAttemptedOpen?.93:0),tolerance:.08,coordinateReference:'rest-zero-pose'}}]
+        };
+        if (name === 'getCarryStatus') return multiRecoveredBlocker
+          ? {status:'held',actorId:'agent_01',targetId:multiRecoveredBlocker,attachment:'kinematic-anchor',graspVerified:false}
+          : {status:'empty',actorId:'agent_01'};
+        if (name === 'approachAndInteract') {
+          if (args.actorId!=='agent_01'||args.targetId!=='cabinet_01'||args.action!=='open') throw Object.assign(new Error('Multi recovery open arguments invalid'),{code:'PROBE_BAD_ARGUMENTS'});
+          multiAttemptedOpen=true;
+          if (!multiRecoveredBlocker) return {status:'action-failed',reason:'STALL',partName:'door',actorId:'agent_01',targetId:'cabinet_01',action:'open',targetReached:false,settled:false,stateFinalized:true,coordinate:-.42,error:.93,tolerance:.08,coordinateReference:'rest-zero-pose',attribution:{status:'contact-evidence',evidence:'current-contact-at-failure',blockerCandidates:candidates,contactEvidence}};
+          if (multiRecoveredBlocker!=='obstacle_02') throw Object.assign(new Error(`Model recovered ${multiRecoveredBlocker}, expected recommended obstacle_02`),{code:'PROBE_RECOVERY_RANKING'});
+          multiDoorOpen=true;
+          return {status:'action-completed',partName:'door',actorId:'agent_01',targetId:'cabinet_01',action:'open',targetReached:true,settled:true,statePromoted:true,coordinate:-1.31,error:.04,tolerance:.08,coordinateReference:'rest-zero-pose'};
+        }
+        if (name === 'suggestRecoveryActions') {
+          if (!multiAttemptedOpen||multiRecoveredBlocker) throw Object.assign(new Error('Multi recovery suggestion requested outside first failed evidence epoch'),{code:'PROBE_RECOVERY_ORDER'});
+          const mk=(blocker,rank,routeCost)=>({
+            blocker,candidateType:'object-root',eligible:true,status:'provisional',recovery:'pickup-blocker',evidence:'current-contact-at-failure',rank,
+            currentContact:blocker.objectId==='obstacle_01'?{pairCount:1,contactCount:4,activeContactCount:4,minDistance:-.02,totalImpulse:100,colliderIndices:[0]}:{pairCount:1,contactCount:1,activeContactCount:1,minDistance:-.001,totalImpulse:1,colliderIndices:[0]},
+            policy:{allow:true,profile:'builder',missing:[]},preflight:{pose:{status:'approach-pose',position:[0,0,1],routeCost},transfer:{clear:true}},rankingEvidence:{causal:false,pickupRouteCost:routeCost},
+            tool:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:blocker.objectId},
+            verification:{required:'retry-original-post-condition',tool:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'},success:{status:'action-completed',targetReached:true,settled:true}}
+          });
+          const proposals=[mk(candidates[1],1,2),mk(candidates[0],2,5)];
+          return {status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-pickup-route-cost-v1',causal:false,criteria:['eligible','pickupRouteCostAsc','stableBlockerKeyAsc']},recommended:{rank:1,blocker:candidates[1],tool:'recoverPickupBlocker',args:proposals[0].args},proposals};
+        }
+        if (name === 'recoverPickupBlocker') {
+          if (multiRecoveredBlocker) throw Object.assign(new Error('Multi recovery attempted more than one recovery before original retry'),{code:'PROBE_RECOVERY_ORDER'});
+          if (args.blockerId!=='obstacle_02') throw Object.assign(new Error(`Model ignored recommended blocker: ${args.blockerId}`),{code:'PROBE_RECOVERY_RANKING'});
+          multiRecoveredBlocker=args.blockerId;
+          return {status:'held',actorId:'agent_01',targetId:args.blockerId,attachment:'kinematic-anchor',graspVerified:false,transfer:{clear:true},recovery:{kind:'pickup-blocker',blockerId:args.blockerId,evidence:'current-contact-at-failure'},retryOriginal:true,verification:{required:'retry-original-post-condition',tool:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'},success:{status:'action-completed',targetReached:true,settled:true}}};
+        }
+        if (['open','pickup','place','moveObject','navigateTo','approachAndPickup','approachAndPlace'].includes(name)) throw Object.assign(new Error(`Multi recovery probe rejects bypass ${name}`),{code:'PROBE_RECOVERY_LOW_LEVEL_REJECTED'});
+        throw Object.assign(new Error(`Probe does not allow ${name} in recovery-multi mode`),{code:'PROBE_TOOL_NOT_ALLOWED'});
+      }
       if (mode === 'sequence' || mode === 'sequence-failure' || mode === 'attribution' || mode === 'recovery') {
         if (name === 'findInteractionPose') return {status:'approach-pose',position:[0,0,args.targetId==='cabinet_01'?1:1.2],routeCost:2,distance:.7,lineOfSight:{hit:{id:args.targetId}}};
         if (name === 'getBounds') {
@@ -278,7 +336,7 @@ try {
   };
   const gateway = new HttpLLMGateway({ endpoint:`http://127.0.0.1:${port}/agent`, timeoutMs:90000 });
   const trace = process.env.AGENTSCAPE_TEST_LLM_TRACE === '1';
-  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway:null, maxSteps:(mode.startsWith('sequence')||mode==='recovery')?12:8, log:trace ? (message,type)=>console.error(`[${type}] ${message}`) : ()=>{} });
+  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway:null, maxSteps:(mode.startsWith('sequence')||mode==='recovery'||mode==='recovery-multi')?12:8, log:trace ? (message,type)=>console.error(`[${type}] ${message}`) : ()=>{} });
   const result = await agent.run(scenario.goal);
   const expectedTools=Array.isArray(scenario.expected)?scenario.expected:[scenario.expected];
   for (const expected of expectedTools) if (!toolCalls.some((call)=>call.name===expected)) {
@@ -306,6 +364,16 @@ try {
     if (result.taskStatus!=='incomplete') throw new Error(`Attribution taskStatus is ${result.taskStatus}, expected incomplete`);
     if (!/obstacle_03/i.test(result.message || '')) throw new Error(`Attribution final did not name obstacle_03: ${result.message}`);
     if (!/(contact|接触|candidate|候选)/i.test(result.message || '')) throw new Error(`Attribution final did not frame obstacle_03 as contact evidence: ${result.message}`);
+  }
+  if (mode === 'recovery-multi') {
+    const mutations=toolCalls.filter((call)=>['approachAndInteract','recoverPickupBlocker','approachAndPickup','moveObject','open','pickup','place'].includes(call.name));
+    if (JSON.stringify(mutations.map((call)=>call.name))!==JSON.stringify(['approachAndInteract','recoverPickupBlocker','approachAndInteract'])) throw new Error(`Unexpected multi recovery mutation order: ${mutations.map((call)=>call.name).join(' -> ')}`);
+    if (mutations[1]?.args?.blockerId!=='obstacle_02') throw new Error(`Multi recovery ignored recommended blocker: ${mutations[1]?.args?.blockerId}`);
+    const suggest=toolCalls.find((call)=>call.name==='suggestRecoveryActions');
+    if (!suggest) throw new Error('Multi recovery never requested ranked proposals');
+    if (!multiDoorOpen||multiRecoveredBlocker!=='obstacle_02') throw new Error(`Multi recovery world state incomplete: recovered=${multiRecoveredBlocker} open=${multiDoorOpen}`);
+    if (result.taskStatus!=='completed'||result.unresolvedMutations.length) throw new Error(`Multi recovery task did not complete: status=${result.taskStatus} unresolved=${result.unresolvedMutations.length}`);
+    if (toolCalls.some((call)=>['open','pickup','place','moveObject','navigateTo','approachAndPickup','approachAndPlace'].includes(call.name))) throw new Error('Multi recovery used a forbidden bypass');
   }
   if (mode === 'recovery') {
     const mutations=toolCalls.filter((call)=>['approachAndInteract','recoverPickupBlocker','approachAndPickup','moveObject','open','pickup','place'].includes(call.name)).map((call)=>call.name);

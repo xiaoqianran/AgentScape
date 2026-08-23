@@ -1181,3 +1181,9 @@ recovery proposal != success
 ## 54. 1.23：Blocker Candidate 开始进入受约束 Recovery
 
 1.23 没有把 `blockerCandidates` 自动映射成 `moveObject`。`suggestRecoveryActions` 会先重新验证 current contact，再通过同一 Skill Policy、已有 carry capability 与 `findPickupPlan` 几何 preflight 决定是否存在 provisional pickup-blocker recovery。Failure-time contact 若已经 stale，proposal 会直接拒绝；Environment 永远 ineligible。Recovery 后仍必须重新验证原始 articulation post-condition。详见 [`verified-recovery.md`](./verified-recovery.md)。
+
+---
+
+## 55. 1.24：Object 与 Environment 使用不同 Candidate Identity
+
+多候选 recovery 暴露了 collider identity 边界：同一 Object 的 contact 从 collider #0 转到 #1 时，semantic blocker 仍应是同一 `objectId + partName`；Environment 没有可执行 object owner，因此不同 `environmentId + colliderIndex` 仍保留为 distinct candidates。1.24 按这一规则重新聚合 current contact evidence，避免 Object recovery 被误判 stale。详见 [`recovery-ranking.md`](./recovery-ranking.md)。

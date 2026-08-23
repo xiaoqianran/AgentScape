@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.23.0** 当前状态。
+本文描述 **1.24.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 96%
+                           当前 ≈ 97%
 ```
 
-96% 不是“代码写完 96%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+97% 不是“代码写完 97%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -29,7 +29,7 @@
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
-| Runtime Verification | 99% | 单步、多步、STALL attribution 与 1.23 real recovery→original retry E2E 已闭环；剩余是 recovery 类型泛化与更强 causal evidence |
+| Runtime Verification | 99% | 单步、多步、STALL attribution、verified recovery 与 1.24 multi-candidate ranking 已闭环；剩余是 cleanup / articulated recovery 与更强 causal evidence |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -304,39 +304,45 @@ Attributed STALL 现在可以进入一条严格受限的 pickup-blocker recovery
 
 ---
 
-## 16. 当前 P0：Recovery Generalization / Multi-candidate Recovery
+## 16. 1.24 已完成：Recovery Generalization / Multi-candidate Ranking
 
-1.23 当前只支持：
+一次 STALL 的多个 candidates 现在会逐个做 typed eligibility，并聚合当前 Physics contact evidence。Object blocker 使用 `objectId + partName` semantic identity，因此当前 contact 从 collider #0 切到 #1 不会误判 stale；Environment 则保持 `environmentId + colliderIndex`，同一 world pack 的不同固定几何可以独立列出。`candidateType` 当前区分 `object-root / articulated-part / environment-collider / unknown`，其中 articulated Part 仍明确 unsupported，不会被当成 root pickup。
 
-```text
-Dynamic root Object
-+ current contact
-+ pickup/drop capability
-+ supported carry geometry
-→ pickup-blocker recovery
-```
-
-下一阶段不建 RecoveryManager，而是继续增加 typed recovery eligibility：
-
-```text
-multiple blocker candidates
-→ deterministic eligibility / ranking evidence
-
-articulated blocker Part
-→ candidate open/close recovery
-
-navigation blocker
-→ action-aware route recovery
-
-Environment / fixed architecture
-→ explicit ineligible
-```
-
-每种 recovery 都必须保持同一 contract：proposal 不是执行，执行不是原任务成功，只有原 post-condition 重新 verified 才能完成 recovery。
+多个 eligible pickup recovery 会按 `eligible-pickup-route-cost-v1` 排序：只比较 pickup route cost，再用 stable blocker key tie-break；`ranking.causal=false`，contact impulse/penetration/activeContactCount 仅作为 `currentContact` evidence 展示。Root result 直接给 `recommended` rank-1。真实 Nemotron/Muse `recovery-multi` probe 故意让 obstacle_01 接触更强但 routeCost 更高，两模型都选择 routeCost 更低的 obstacle_02，只执行一次 recovery 后立即 retry original open 并 verified。
 
 ---
 
-## 17. 1.11–1.12 已完成：Curated Multi-World Layer
+## 17. 当前 P0：Recovery Cleanup / Held Blocker Placement
+
+1.23–1.24 的 pickup recovery 成功后：
+
+```text
+blocker.state.heldBy = agent
+```
+
+这会占用唯一 Hold Anchor。因此当前不能安全做：
+
+```text
+recover blocker A
+→ recover blocker B
+```
+
+下一阶段应先建立 recovery cleanup：
+
+```text
+held recovery blocker
+→ find safe free-space away from original action sweep
+→ Policy / reach / collision checks
+→ verified place/drop cleanup
+→ fresh world observation
+→ retry original action
+```
+
+Cleanup 成功仍不能清 original unresolved；只有 original post-condition verified 才算任务恢复。
+
+---
+
+## 18. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -361,7 +367,7 @@ Three.js architecture
 
 ---
 
-## 18. P1：完整 Joint Frame
+## 19. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -397,7 +403,7 @@ Schema claim second
 
 ---
 
-## 19. P2：Compact Agent Observation
+## 20. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -425,7 +431,7 @@ world size
 
 ---
 
-## 20. 自动语义：宁可慢一点，也不虚构能力
+## 21. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -463,7 +469,7 @@ high coverage + fake capability
 
 ---
 
-## 21. 目前不应该成为优先级的方向
+## 22. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -480,7 +486,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 22. 产品差异化应该是什么
+## 23. 产品差异化应该是什么
 
 不应该是：
 
@@ -512,7 +518,7 @@ Agent World
 
 ---
 
-## 23. 未来完成态
+## 24. 未来完成态
 
 可以把 100% 理解为：
 
@@ -577,11 +583,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.23.0 文档快照对应的仓库验证基线：
+1.24.0 文档快照对应的仓库验证基线：
 
 ```text
-100 Test Files PASS
-298 Tests PASS
+101 Test Files PASS
+302 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -668,6 +674,13 @@ Original post-condition retry verification PASS
 Deterministic pickup-plan / waypoint-margin PASS
 Nemotron verified recovery probe PASS
 Muse verified recovery probe PASS
+Multi-candidate Object / Environment identity PASS
+Current-contact evidence aggregation PASS
+Non-causal pickup-route ranking PASS
+Stable ranking tie-break PASS
+Articulated blocker typed-ineligible PASS
+Nemotron multi-candidate recovery probe PASS
+Muse multi-candidate recovery probe PASS
 ```
 
 这些数字不是架构目标，只是帮助读者知道文档描述的能力已经有怎样的验证覆盖。未来测试数量变化时，应以当前 CI 为准。

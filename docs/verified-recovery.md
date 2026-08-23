@@ -1103,3 +1103,9 @@ recoverPickupBlocker(... blockerId=obstacle_03)
 ```
 
 仍被识别为同一个 semantic recovery；不同 `blockerId` 仍保持不同审计 identity。
+
+---
+
+## 44. 1.24：一次 Failure Epoch 只选择一个 Ranked Recovery
+
+`suggestRecoveryActions` 现在可以同时返回多个 typed candidates，并为 eligible pickup recovery 提供 `rank / recommended / rankingEvidence`。排序只使用 recovery executability 与 pickup route cost，明确 `causal=false`；contact impulse/penetration 继续只是物理证据。一次 original failure evidence epoch 仍最多执行一个 recovery，随后立即 retry original action。详见 [`recovery-ranking.md`](./recovery-ranking.md)。

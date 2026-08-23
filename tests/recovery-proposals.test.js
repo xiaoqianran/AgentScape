@@ -4,21 +4,23 @@ import { buildRecoveryProposals } from '../src/agent/buildRecoveryProposals.js';
 const blockerCandidate={kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0};
 const environmentCandidate={kind:'environment',environmentId:'monument-hall',colliderIndex:4};
 
-function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,carryError=null}={}){
+function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,carryError=null,planCosts={}}={}){
   const records=new Map([
     ['agent_01',{id:'agent_01',assetId:'agent',manifest:{actions:['navigate']},state:{}}],
     ['cabinet_01',{id:'cabinet_01',assetId:'cabinet',manifest:{actions:['open','close']},state:{}}],
-    ['blocker_01',{id:'blocker_01',assetId:'blocker',manifest:{actions:['pickup','drop'],physics:{body:'dynamic'}},state:{}}]
+    ['blocker_01',{id:'blocker_01',assetId:'blocker',manifest:{actions:['pickup','drop'],physics:{body:'dynamic'}},state:{}}],
+    ['blocker_02',{id:'blocker_02',assetId:'blocker',manifest:{actions:['pickup','drop'],physics:{body:'dynamic'}},state:{}}],
+    ['articulated_01',{id:'articulated_01',assetId:'cabinet',manifest:{actions:['open','close'],physics:{body:'fixed'}},state:{}}]
   ]);
   const runtime={
     store:{has:(id)=>records.has(id),get:(id)=>records.get(id)},
-    physics:{articulationContacts:vi.fn(()=>current.map((target)=>({external:true,target})))},
+    physics:{articulationContacts:vi.fn(()=>current.map((item)=>item?.target ? item : ({external:true,target:item,contactCount:1,activeContactCount:1,minDistance:-.001,totalImpulse:1})))},
     interactions:{
       articulationStatus:vi.fn(()=>({id:'cabinet_01',parts:[{
         partName:'door',status:'action-failed',last:{status:'action-failed',reason:'STALL',action:'open',attribution:{status:'contact-evidence',blockerCandidates:candidates}}
       }]})),
       assertAgentCarryable:vi.fn(()=>{if(carryError) throw Object.assign(new Error(carryError),{code:'CARRY_UNAVAILABLE',details:{reason:carryError}});}),
-      findPickupPlan:vi.fn(async()=>({pose:{status:'approach-pose',position:[1,0,1]},transfer:{clear:true}}))
+      findPickupPlan:vi.fn(async(_actor,id)=>({pose:{status:'approach-pose',position:[1,0,1],routeCost:planCosts[id] ?? 1},transfer:{clear:true}}))
     }
   };
   const registry={authorization:vi.fn(()=>({allow,profile:'builder',missing:allow?[]:['world.write'],required:['world.write','spatial.read','physics.read']}))};
@@ -68,4 +70,52 @@ describe('verified recovery proposals',()=>{
     const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
     expect(result.proposals[0]).toMatchObject({eligible:false,status:'ineligible',reason:'TARGET_NOT_DYNAMIC'});
   });
+
+  it('ranks multiple eligible blockers by executable pickup route cost without treating contact force as causality',async()=>{
+    const blocker2={kind:'object',objectId:'blocker_02',partName:'$root',colliderIndex:0};
+    const current=[
+      {external:true,target:{...blockerCandidate,colliderIndex:1},contactCount:3,activeContactCount:3,minDistance:-.02,totalImpulse:100},
+      {external:true,target:blocker2,contactCount:1,activeContactCount:1,minDistance:-.001,totalImpulse:1},
+      {external:true,target:environmentCandidate,contactCount:2,activeContactCount:2,minDistance:-.01,totalImpulse:20}
+    ];
+    const {runtime,registry}=setup({
+      candidates:[blockerCandidate,blocker2,environmentCandidate],current,
+      planCosts:{blocker_01:5,blocker_02:2}
+    });
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.ranking).toEqual({
+      strategy:'eligible-pickup-route-cost-v1',causal:false,
+      criteria:['eligible','pickupRouteCostAsc','stableBlockerKeyAsc']
+    });
+    expect(result.recommended).toMatchObject({rank:1,blocker:{objectId:'blocker_02'},tool:'recoverPickupBlocker',args:{blockerId:'blocker_02'}});
+    expect(result.proposals.slice(0,2).map((proposal)=>[proposal.blocker.objectId,proposal.rank,proposal.rankingEvidence.pickupRouteCost])).toEqual([
+      ['blocker_02',1,2],['blocker_01',2,5]
+    ]);
+    const blocker1=result.proposals.find((proposal)=>proposal.blocker.objectId==='blocker_01');
+    expect(blocker1.currentContact).toMatchObject({
+      pairCount:1,contactCount:3,activeContactCount:3,minDistance:-.02,totalImpulse:100,colliderIndices:[1]
+    });
+    expect(blocker1.blocker.colliderIndex).toBe(0);
+    expect(result.proposals.at(-1)).toMatchObject({candidateType:'environment-collider',eligible:false,reason:'ENVIRONMENT_IMMOVABLE'});
+  });
+
+  it('uses a stable blocker key only as a deterministic tie-break when pickup route costs are equal',async()=>{
+    const blocker2={kind:'object',objectId:'blocker_02',partName:'$root',colliderIndex:0};
+    const {runtime,registry}=setup({candidates:[blocker2,blockerCandidate],current:[blocker2,blockerCandidate],planCosts:{blocker_01:3,blocker_02:3}});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.proposals.filter((proposal)=>proposal.eligible).map((proposal)=>proposal.blocker.objectId)).toEqual(['blocker_01','blocker_02']);
+  });
+
+
+  it('types an articulated Part blocker explicitly instead of treating it as a movable root object',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const {runtime,registry}=setup({candidates:[articulated],current:[articulated]});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result).toMatchObject({
+      status:'recovery-unavailable',recommended:null,
+      proposals:[{candidateType:'articulated-part',eligible:false,status:'ineligible',reason:'ARTICULATED_PART_RECOVERY_UNSUPPORTED'}]
+    });
+    expect(runtime.interactions.findPickupPlan).not.toHaveBeenCalled();
+  });
+
 });

@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.23.0** 的真实架构，不描述未来设想。
+本文描述 **1.24.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -893,3 +893,11 @@ original post-condition verified
 `auxiliary=true` 只控制 ToolCallingAgent 的 unresolved ledger：recovery 自己不会成为新的用户任务债务，但仍然经过 History transaction、Policy、Trace 与 mutation barrier。Recovery success 也绝不会删除原始 unresolved；只有同一原始 mutation identity 后续 verified 才能清除。 同一 original failure evidence epoch 中，已 verified 的同一 auxiliary recovery 还会被 `RECOVERY_ALREADY_APPLIED` gate 阻止重复执行；只有 original mutation 真正 retry 后才开始新的 recovery evidence epoch。
 
 `findPickupPlan` 同时被 recovery proposal 与普通 `approachAndPickup` 共用，候选要求 Detour/LOS/range + predicted hold transfer clear，并预留 Locomotion waypoint tolerance；真正执行后再次按实际 pose 做 transfer recheck。详见 [`verified-recovery.md`](./verified-recovery.md)。
+
+---
+
+## 27. Multi-candidate Recovery：排序执行成本，不排序因果
+
+1.24 继续复用 `buildRecoveryProposals`，没有新增 Planner/Manager。Object candidate identity 从 collider-level 收敛为 `objectId + partName`，因此同一 Object 接触从 collider #0 切换到 #1 不会误判 stale；Environment 仍用 `environmentId + colliderIndex` 保留具体 fixed geometry。
+
+当前 contacts 会按 semantic candidate 聚合 `pairCount/contactCount/activeContactCount/minDistance/totalImpulse/colliderIndices`。这些只作为 Physics evidence。真正 executable proposals 只按 `pickupRouteCost ASC + stableBlockerKey` 排序，并明确 `ranking.causal=false`；root `recommended` 指向 rank-1 proposal。每个 failure evidence epoch 仍最多执行一个 auxiliary recovery，然后必须 retry original mutation。详见 [`recovery-ranking.md`](./recovery-ranking.md)。

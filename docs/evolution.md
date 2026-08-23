@@ -1590,3 +1590,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.22 已经能说“Door STALL 时 obstacle_03 正在接触”，但最危险的下一步是直接让模型 `moveObject`。1.23 刻意只做一条窄恢复：当前仍接触、Policy 允许、满足既有 carry contract 且 pickup transfer preflight clear 的 Dynamic root Object 才能得到 `recoverPickupBlocker` proposal。Environment 明确 `ENVIRONMENT_IMMOVABLE`。
 
 真实 E2E 连续抓出三个反例：轻量 blocker 会在 planning 间隙被 Door impulse 推走，因此 execution 必须重验 current contact；“可携带”不等于 pickup transfer 几何可执行，因此 suggestion/execution 共用 `findPickupPlan`；最后，即使 blocker pickup verified，原始 open unresolved 仍必须保留到 retry open 真正 `action-completed + targetReached + settled`。为此 recovery skill 标记 `auxiliary=true`，仍是 mutation barrier，但不拥有用户任务成功语义。 最终 Nemotron release probe 又出现“同一 blocker recovery 已 verified 却再次请求”的采样反例，因此 ToolCallingAgent 增加 evidence-epoch duplicate gate：同一 original failure 上同一 recovery 只允许真正执行一次；original retry 后才重置。
+
+---
+
+## 45. 1.24：多 Blocker 第一次有了非因果排序
+
+1.23 能处理一个可拾取 blocker，但 1.22 contact attribution 本来就可能返回多个 candidates。1.24 没有用 impulse/penetration 编一个“根因分数”，而是先修正 identity：Object 多 collider 仍是同一个 Object/Part blocker，Environment 不同 collider 则保持独立。当前 contact metrics 被聚合为 evidence，多个 eligible pickup recovery 只按 Detour-derived pickup route cost 排序。
+
+真实双模型 `recovery-multi` probe 故意让 obstacle_01 contact impulse 更大、但 routeCost=5；obstacle_02 impulse 更小、routeCost=2。Nemotron/Muse 都选择 rank-1 obstacle_02，执行一个 recovery 后立即 retry 原始 open 并 verified。实现也明确了下一瓶颈：pickup recovery 会占用唯一 Hold Anchor，因此没有 verified cleanup 前不能把“多候选”扩展成连续 pickup recovery tree。

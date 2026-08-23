@@ -69,6 +69,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - [`task-observation.md`](./task-observation.md)：1.21 Compact Task Observation：relevant-world evidence、provisional recovery hints、bounded recovery context。
 - [`failure-attribution.md`](./failure-attribution.md)：1.22 Failure Attribution：Rapier active contact、collider provenance 与 non-causal blocker candidates。
 - [`verified-recovery.md`](./verified-recovery.md)：1.23 Verified Recovery：Policy/capability preflight、auxiliary blocker pickup 与原任务 retry verification。
+- [`recovery-ranking.md`](./recovery-ranking.md)：1.24 Multi-candidate Recovery：typed eligibility、current-contact aggregation 与 non-causal route-cost ranking。
 - [`asset-sourcing.md`](./asset-sourcing.md)：Curated scene packs 的素材来源、许可、风格与 Web 资源准入。
 - [`worlds.md`](./worlds.md)：WORLD 01/02、Environment Catalog、世界切换、存档隔离与场景真值。
 - [`asset-compiler.md`](./asset-compiler.md)：Agent-Ready Asset Compiler 的完整契约。
