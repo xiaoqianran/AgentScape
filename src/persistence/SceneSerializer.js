@@ -53,11 +53,21 @@ export class SceneSerializer {
     if (!Array.isArray(scene.objects)) throw new Error('Scene objects must be an array');
     if (!Array.isArray(scene.assets)) throw new Error('Scene assets must be an array');
     if (scene.relations != null && !Array.isArray(scene.relations)) throw new Error('Scene relations must be an array');
+    const objectIds = new Set(scene.objects.map((object) => object.id));
+    const heldOwners = new Set();
     for (const object of scene.objects) {
       if (!object.id || !object.assetId) throw new Error('Scene object requires id and assetId');
       if (object.transform?.position?.length !== 3) throw new Error(`${object.id}: invalid position`);
       if (object.transform?.quaternion?.length !== 4) throw new Error(`${object.id}: invalid quaternion`);
       if (object.transform?.scale?.length !== 3) throw new Error(`${object.id}: invalid scale`);
+      const heldBy = object.state?.heldBy;
+      if (heldBy) {
+        if (!['human','agent'].includes(heldBy.kind)) throw new Error(`${object.id}: invalid heldBy.kind`);
+        const ownerKey = heldBy.kind === 'human' ? 'human' : `agent:${heldBy.id}`;
+        if (heldBy.kind === 'agent' && (!heldBy.id || !objectIds.has(heldBy.id))) throw new Error(`${object.id}: heldBy agent is missing`);
+        if (heldOwners.has(ownerKey)) throw new Error(`${ownerKey}: multiple held objects are not supported`);
+        heldOwners.add(ownerKey);
+      }
     }
     return scene;
   }
@@ -88,6 +98,7 @@ export class SceneSerializer {
         runtime.physics.syncTransform(item.id, record.object);
         runtime.restoreObjectState(item.id, record.state);
       }
+      runtime.interactions?.rebuildHeldOwnership?.();
       runtime.sceneGraph.changed();
     });
 

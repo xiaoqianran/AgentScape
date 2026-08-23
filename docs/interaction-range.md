@@ -1169,3 +1169,7 @@ interaction-requested
 ```
 
 而没有假装已经完成机器人手部 Manipulation。
+
+## 31. 1.17：同一 Interaction Pose 基线进入 Pickup
+
+`approachAndPickup` 复用 1.16 的 Detour reachable + fixed 1.5m range + Rapier LOS，但没有 action swept AABB；取而代之的是目标对象当前 pose 到 Agent hold anchor 的 Rapier shape cast。这样 open/close 与 pickup 共享“先走到真正可交互位置”的事实层，而不共享错误的动作几何假设。详见 [`agent-carry.md`](./agent-carry.md)。

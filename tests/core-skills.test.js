@@ -20,7 +20,10 @@ function runtime() {
     interactions: {
       move: vi.fn(), pickup: vi.fn(), drop: vi.fn(), place: vi.fn(), setArticulationAction: vi.fn(),
       findInteractionPose:vi.fn(async()=>({status:'approach-pose',position:[1,0,1]})),
-      approachAndInteract:vi.fn(async()=>({actorId:'agent_01',targetId:'cabinet_01',action:'open'}))
+      approachAndInteract:vi.fn(async()=>({actorId:'agent_01',targetId:'cabinet_01',action:'open'})),
+      approachAndPickup:vi.fn(async()=>({status:'held',actorId:'agent_01',targetId:'cup_01',graspVerified:false})),
+      dropHeld:vi.fn(()=>({status:'dropped',actorId:'agent_01',targetId:'cup_01'})),
+      carryStatus:vi.fn(()=>({status:'held',actorId:'agent_01',targetId:'cup_01',graspVerified:false}))
     },
     duplicate: vi.fn(), remove: vi.fn(),
     spatial: { getBounds:vi.fn(), findNearby:vi.fn(), raycast:vi.fn(), isColliding:vi.fn(), getSupportSurface:vi.fn(), findFreeSpace:vi.fn() },
@@ -97,6 +100,20 @@ describe('core skills', () => {
     expect(definition.parameters.properties.action.enum).toEqual(['open','close']);
     expect(definition.parameters.properties.maxDistance).toBeUndefined();
     expect(registry.definitions().find((item)=>item.name==='findInteractionPose').parameters.properties.maxDistance).toBeUndefined();
+  });
+
+  it('exposes Agent carry ownership without presenting kinematic attachment as grasp verification', async () => {
+    const r=runtime();
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const pickup=await registry.invoke('approachAndPickup',{actorId:'agent_01',targetId:'cup_01'},{profile:'builder',actor:'agent_01'});
+    expect(pickup).toMatchObject({success:true,result:{status:'held',targetId:'cup_01',graspVerified:false}});
+    expect(r.interactions.approachAndPickup).toHaveBeenCalledWith('agent_01','cup_01',{speed:undefined});
+    expect(r.mutate).toHaveBeenCalledWith('skill:approachAndPickup',expect.any(Function),expect.objectContaining({source:'agent_01',skill:'approachAndPickup'}));
+    const status=await registry.invoke('getCarryStatus',{actorId:'agent_01'},{profile:'viewer'});
+    expect(status).toMatchObject({success:true,result:{status:'held',graspVerified:false}});
+    const drop=await registry.invoke('dropHeld',{actorId:'agent_01'},{profile:'builder',actor:'agent_01'});
+    expect(drop).toMatchObject({success:true,result:{status:'dropped',targetId:'cup_01'}});
+    expect(registry.definitions().find((item)=>item.name==='approachAndPickup').parameters.required).toEqual(['actorId','targetId']);
   });
 
 });

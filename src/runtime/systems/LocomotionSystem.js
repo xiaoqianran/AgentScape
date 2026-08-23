@@ -101,10 +101,22 @@ export class LocomotionSystem {
     this.physics.faceCharacter(task.id, [dx, 0, dz]);
     task.verticalVelocity = Math.max(-8, task.verticalVelocity - 9.81 * dt);
     const desired = [dx / distance * horizontalStep, task.verticalVelocity * dt, dz / distance * horizontalStep];
-    const movement = this.physics.moveCharacter(task.id, desired);
+    const carried = this.store.list().filter(([,record]) => record.state?.heldBy?.kind === 'agent' && record.state.heldBy.id === task.id);
+    const movement = this.physics.moveCharacter(task.id, desired, { ignoreIds:carried.map(([id]) => id) });
     if (!movement.success) {
       this.finish(task, 'blocked', { reason:movement.code, position:current });
       return;
+    }
+    for (const [carriedId] of carried) {
+      const anchor = this.store.get(task.id).manifest.embodiment?.holdAnchor;
+      const pose = this.physics.anchorPose(task.id, anchor, { next:true });
+      const clearance = pose && this.physics.bodyMotionClear(carriedId, pose.position, pose.rotation, { excludeIds:[task.id] });
+      if (!pose || !clearance?.clear) {
+        this.physics.cancelCharacterMovement(task.id);
+        this.finish(task, 'blocked', { reason:'CARRIED_OBJECT_BLOCKED', position:current, carry:{id:carriedId, clearance:clearance || null} });
+        return;
+      }
+      this.physics.setHeldTarget(carriedId, pose.position, pose.rotation);
     }
     if (movement.grounded) task.verticalVelocity = -0.5;
 
@@ -140,7 +152,8 @@ export class LocomotionSystem {
       pathCost:task.route.cost,
       waypointCount:task.path.length,
       ...(details.reason ? { reason:details.reason } : {}),
-      ...(details.collisions ? { collisions:details.collisions } : {})
+      ...(details.collisions ? { collisions:details.collisions } : {}),
+      ...(details.carry ? { carry:details.carry } : {})
     };
     this.events?.emit(`locomotion.${status}`, result);
     task.resolve(result);

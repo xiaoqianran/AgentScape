@@ -11,7 +11,86 @@ export class InteractionSystem {
     this.navigation = navigation;
     this.locomotion = locomotion;
     this.events = events;
-    this.heldId = null;
+    this.humanHeldId = null;
+    this.agentHeld = new Map();
+  }
+
+  get heldId() { return this.humanHeldId; }
+
+  isHeld(id) { return Boolean(this.store.has(id) && this.store.get(id).state?.heldBy); }
+
+  heldByAgent(actorId) { return this.agentHeld.get(actorId) || null; }
+
+  holdAnchor(actorId) {
+    const record = this.store.get(actorId);
+    if (record.manifest.type !== 'agent') throw Errors.carryUnavailable(actorId, actorId, 'ACTOR_NOT_AGENT');
+    const anchor = record.manifest.embodiment?.holdAnchor;
+    if (!anchor?.translation) throw Errors.carryUnavailable(actorId, actorId, 'HOLD_ANCHOR_UNAVAILABLE');
+    return anchor;
+  }
+
+  assertAgentCarryable(actorId, targetId) {
+    this.holdAnchor(actorId);
+    const target = this.assertSupports(targetId, 'pickup');
+    if (!target.manifest.actions.includes('drop')) throw Errors.carryUnavailable(actorId, targetId, 'DROP_UNSUPPORTED');
+    if (target.manifest.physics?.body !== 'dynamic') throw Errors.carryUnavailable(actorId, targetId, 'TARGET_NOT_DYNAMIC');
+    if (Object.keys(target.manifest.parts || {}).length) throw Errors.carryUnavailable(actorId, targetId, 'ARTICULATED_TARGET_UNSUPPORTED');
+    const colliders = target.manifest.physics?.colliders || [];
+    if (!colliders.length || colliders.some((collider) => !['cylinder','capsule'].includes(collider.shape))) {
+      throw Errors.carryUnavailable(actorId, targetId, 'CARRY_COLLIDER_UNSUPPORTED');
+    }
+    const anchorRotation = target.id && (this.store.get(actorId).manifest.embodiment?.holdAnchor?.rotation || [0,0,0,1]);
+    if (Math.abs(anchorRotation[0]) > 1e-6 || Math.abs(anchorRotation[2]) > 1e-6) throw Errors.carryUnavailable(actorId,targetId,'HOLD_ANCHOR_ROTATION_UNSUPPORTED');
+    if (colliders.some((collider) => collider.rotation && (Math.abs(collider.rotation[0]) > 1e-6 || Math.abs(collider.rotation[2]) > 1e-6))) {
+      throw Errors.carryUnavailable(actorId,targetId,'CARRY_COLLIDER_ROTATION_UNSUPPORTED');
+    }
+    const existing = target.state?.heldBy;
+    if (existing && !(existing.kind === 'agent' && existing.id === actorId)) throw Errors.carryUnavailable(actorId, targetId, 'OBJECT_ALREADY_HELD', { heldBy:existing });
+    const held = this.heldByAgent(actorId);
+    if (held && held !== targetId) throw Errors.carryUnavailable(actorId, targetId, 'HANDS_FULL', { heldId:held });
+    return target;
+  }
+
+  releaseHeld(id, reason = null) {
+    if (!this.store.has(id)) return false;
+    const record = this.store.get(id);
+    const heldBy = record.state?.heldBy;
+    if (!heldBy) return false;
+    if (heldBy.kind === 'human' && this.humanHeldId === id) this.humanHeldId = null;
+    if (heldBy.kind === 'agent' && this.agentHeld.get(heldBy.id) === id) this.agentHeld.delete(heldBy.id);
+    delete record.state.heldBy;
+    this.physics.setHeld(id, false);
+    this.events.emit('interaction', { action:'drop', id, heldBy, ...(reason ? {reason} : {}) });
+    return true;
+  }
+
+  rebuildHeldOwnership() {
+    this.humanHeldId = null;
+    this.agentHeld.clear();
+    for (const [id, record] of this.store.list()) {
+      const heldBy = record.state?.heldBy;
+      if (!heldBy) continue;
+      if (heldBy.kind === 'human') {
+        if (this.humanHeldId) throw new Error('Scene contains multiple human-held objects');
+        this.humanHeldId = id;
+        this.physics.setHeld(id, true);
+        continue;
+      }
+      if (heldBy.kind !== 'agent' || !heldBy.id || !this.store.has(heldBy.id)) throw new Error(`${id}: invalid heldBy state`);
+      if (this.agentHeld.has(heldBy.id)) throw new Error(`${heldBy.id}: multiple held objects are not supported`);
+      this.assertAgentCarryable(heldBy.id, id);
+      this.agentHeld.set(heldBy.id, id);
+      this.physics.setHeld(id, true);
+      const pose = this.physics.anchorPose(heldBy.id, this.holdAnchor(heldBy.id));
+      if (!pose) throw new Error(`${id}: hold anchor pose unavailable`);
+      this.physics.setHeldPose(id, pose.position, pose.rotation);
+    }
+  }
+
+  beforeRemove(id) {
+    if (this.store.has(id) && this.store.get(id).state?.heldBy) this.releaseHeld(id, 'OBJECT_REMOVED');
+    const carried = this.agentHeld.get(id);
+    if (carried && this.store.has(carried)) this.releaseHeld(carried, 'OWNER_REMOVED');
   }
 
   supports(record, action) { return record.manifest.actions.includes(action); }
@@ -30,19 +109,20 @@ export class InteractionSystem {
   }
 
   pickup(id) {
-    this.assertSupports(id, 'pickup');
-    if (this.heldId && this.heldId !== id) this.drop(this.heldId);
-    this.heldId = id;
+    const record = this.assertSupports(id, 'pickup');
+    if (record.state?.heldBy?.kind === 'agent') throw Errors.carryUnavailable('human', id, 'OBJECT_ALREADY_HELD', { heldBy:record.state.heldBy });
+    if (this.humanHeldId && this.humanHeldId !== id) this.drop(this.humanHeldId);
+    record.state.heldBy = { kind:'human' };
+    this.humanHeldId = id;
     this.physics.setHeld(id, true);
-    this.events.emit('interaction', { action: 'pickup', id });
+    this.events.emit('interaction', { action:'pickup', id, heldBy:{kind:'human'} });
+    return { status:'held', id, heldBy:{kind:'human'} };
   }
 
-  drop(id = this.heldId) {
-    if (!id) return;
+  drop(id = this.humanHeldId) {
+    if (!id) return false;
     this.assertSupports(id, 'drop');
-    this.physics.setHeld(id, false);
-    if (this.heldId === id) this.heldId = null;
-    this.events.emit('interaction', { action: 'drop', id });
+    return this.releaseHeld(id);
   }
 
   place(id, targetId, options = {}) {
@@ -255,6 +335,53 @@ export class InteractionSystem {
     return { status:'interaction-requested', actorId, targetId, action, pose, locomotion, reach, actionSweep:{checked:true,clear:true,partName:finalSweep.partName}, interaction };
   }
 
+  async approachAndPickup(actorId, targetId, { speed, maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
+    const target = this.assertAgentCarryable(actorId, targetId);
+    if (target.state?.heldBy?.kind === 'agent' && target.state.heldBy.id === actorId) {
+      return { status:'held', actorId, targetId, attachment:'kinematic-anchor', graspVerified:false, alreadyHeld:true };
+    }
+    if (!this.locomotion) throw Errors.carryUnavailable(actorId, targetId, 'LOCOMOTION_UNAVAILABLE');
+    const pose = await this.findInteractionPose(actorId, targetId, { maxDistance });
+    if (!pose) throw Errors.carryUnavailable(actorId, targetId, 'NO_INTERACTION_POSE');
+    let locomotion = null;
+    if (pose.status !== 'current-pose') {
+      locomotion = await this.locomotion.navigate(actorId, pose.position, { speed });
+      if (locomotion.status !== 'arrived') throw Errors.carryUnavailable(actorId, targetId, 'APPROACH_FAILED', { locomotion });
+    }
+    const reach = this.interactionStatus(actorId, targetId, { maxDistance });
+    if (!reach.interactable) throw Errors.carryUnavailable(actorId, targetId, reach.inRange ? 'LINE_OF_SIGHT_BLOCKED' : 'OUT_OF_RANGE', { reach });
+    const anchor = this.holdAnchor(actorId);
+    const anchorPose = this.physics.anchorPose(actorId, anchor);
+    if (!anchorPose) throw Errors.carryUnavailable(actorId, targetId, 'HOLD_ANCHOR_UNAVAILABLE');
+    const transfer = this.physics.bodyMotionClear(targetId, anchorPose.position, anchorPose.rotation, { excludeIds:[actorId] });
+    if (!transfer.clear) throw Errors.carryUnavailable(actorId, targetId, 'PICKUP_TRANSFER_BLOCKED', { transfer });
+
+    this.physics.setHeld(targetId, true);
+    target.state.heldBy = { kind:'agent', id:actorId, anchor:'hold' };
+    this.agentHeld.set(actorId, targetId);
+    this.physics.setHeldPose(targetId, anchorPose.position, anchorPose.rotation);
+    this.events.emit('interaction', { action:'pickup', id:targetId, actorId, heldBy:target.state.heldBy });
+    return {
+      status:'held', actorId, targetId, attachment:'kinematic-anchor', graspVerified:false,
+      pose, locomotion, reach, transfer:{clear:true}, anchor:{name:'hold', position:anchorPose.position}
+    };
+  }
+
+  dropHeld(actorId) {
+    const id = this.heldByAgent(actorId);
+    if (!id) return { status:'empty', actorId };
+    this.assertSupports(id, 'drop');
+    this.releaseHeld(id);
+    return { status:'dropped', actorId, targetId:id, position:this.physics.getPosition(id) };
+  }
+
+  carryStatus(actorId) {
+    const id = this.heldByAgent(actorId);
+    if (!id) return { status:'empty', actorId };
+    const record = this.store.get(id);
+    return { status:'held', actorId, targetId:id, heldBy:structuredClone(record.state.heldBy), position:this.physics.getPosition(id), attachment:'kinematic-anchor', graspVerified:false };
+  }
+
   findPartForAction(record, action, partName = null) {
     const parts = Object.entries(record.manifest.parts || {}).filter(([name, part]) =>
       (!partName || name === partName) && part.actions?.includes(action) && Number.isFinite(part.targets?.[action])
@@ -274,8 +401,14 @@ export class InteractionSystem {
   }
 
   update(_dt, camera) {
-    if (!this.heldId) return;
-    const target = new THREE.Vector3(0, 0, -1.6).applyQuaternion(camera.quaternion).add(camera.position);
-    this.physics.setHeldTarget(this.heldId, target);
+    if (this.humanHeldId) {
+      const target = new THREE.Vector3(0,0,-1.6).applyQuaternion(camera.quaternion).add(camera.position);
+      this.physics.setHeldTarget(this.humanHeldId, target);
+    }
+    for (const [actorId, targetId] of this.agentHeld) {
+      if (!this.store.has(actorId) || !this.store.has(targetId)) continue;
+      const pose = this.physics.anchorPose(actorId, this.holdAnchor(actorId));
+      if (pose) this.physics.setHeldTarget(targetId, pose.position, pose.rotation);
+    }
   }
 }

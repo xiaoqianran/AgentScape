@@ -226,13 +226,117 @@ export class PhysicsSystem {
   }
 
   setHeld(id, held) {
-    const body = this.entries.get(id)?.body;
-    if (!body) return;
-    body.setBodyType(held ? RAPIER.RigidBodyType.KinematicPositionBased : RAPIER.RigidBodyType.Dynamic, true);
+    const entry = this.entries.get(id);
+    if (!entry) return false;
+    if (held) {
+      if (entry.heldOriginalType == null) entry.heldOriginalType = entry.body.bodyType();
+      entry.held = true;
+      entry.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+      entry.body.setLinvel?.({x:0,y:0,z:0}, true);
+      entry.body.setAngvel?.({x:0,y:0,z:0}, true);
+    } else {
+      const type = entry.heldOriginalType ?? RAPIER.RigidBodyType.Dynamic;
+      entry.held = false;
+      entry.body.setBodyType(type, true);
+      delete entry.heldOriginalType;
+      entry.body.wakeUp();
+    }
+    return true;
   }
 
-  setHeldTarget(id, target) {
-    this.entries.get(id)?.body?.setNextKinematicTranslation(target);
+  setHeldTarget(id, target, rotation = null) {
+    const body = this.entries.get(id)?.body;
+    if (!body) return false;
+    body.setNextKinematicTranslation(vec(target));
+    if (rotation) body.setNextKinematicRotation({x:rotation[0],y:rotation[1],z:rotation[2],w:rotation[3]});
+    return true;
+  }
+
+  setHeldPose(id, position, rotation = null) {
+    const entry = this.entries.get(id);
+    if (!entry) return false;
+    entry.body.setTranslation(vec(position), true);
+    if (rotation) entry.body.setRotation({x:rotation[0],y:rotation[1],z:rotation[2],w:rotation[3]}, true);
+    entry.root.position.fromArray(position);
+    entry.lastPosition.fromArray(position);
+    if (rotation) {
+      entry.root.quaternion.fromArray(rotation);
+      entry.lastRotation.fromArray(rotation);
+    }
+    entry.root.updateMatrixWorld(true);
+    return true;
+  }
+
+  anchorPose(id, anchor, { next = false } = {}) {
+    const body = this.entries.get(id)?.body;
+    if (!body || !anchor?.translation) return null;
+    const p = next ? body.nextTranslation() : body.translation();
+    const q = next ? body.nextRotation() : body.rotation();
+    const rotation = new THREE.Quaternion(q.x,q.y,q.z,q.w);
+    const local = new THREE.Vector3(...anchor.translation).applyQuaternion(rotation);
+    const position = new THREE.Vector3(p.x,p.y,p.z).add(local);
+    const localRotation = new THREE.Quaternion(...(anchor.rotation || [0,0,0,1]));
+    const worldRotation = rotation.clone().multiply(localRotation).normalize();
+    return { position:position.toArray(), rotation:worldRotation.toArray() };
+  }
+
+  bodyMotionClear(id, targetPosition, targetRotation = null, { excludeIds = [] } = {}) {
+    const entry = this.entries.get(id);
+    if (!entry || entry.parts.size) return { clear:false, code:'CARRY_BODY_UNSUPPORTED' };
+    const bodyRotationRaw = entry.body.rotation();
+    const bodyRotation = new THREE.Quaternion(bodyRotationRaw.x,bodyRotationRaw.y,bodyRotationRaw.z,bodyRotationRaw.w);
+    const nextRotation = targetRotation ? new THREE.Quaternion(...targetRotation) : bodyRotation.clone();
+    const targetBody = new THREE.Vector3(...targetPosition);
+    const blockedBy = new Set();
+    const excluded = new Set([id, ...excludeIds]);
+    const filter = (collider) => {
+      const parent = collider.parent();
+      const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
+      return !owner || !excluded.has(owner.id);
+    };
+
+    this.world.updateSceneQueries();
+    for (let i=0;i<entry.body.numColliders();i++) {
+      const collider = entry.body.collider(i);
+      const spec = entry.rootSpec.colliders?.[i] || {};
+      if (!['cylinder','capsule'].includes(spec.shape)) return { clear:false, code:'CARRY_COLLIDER_UNSUPPORTED', collider:i, shape:spec.shape || null };
+      const local = new THREE.Vector3(...(spec.translation || [0,0,0]));
+      const targetCenter = local.applyQuaternion(nextRotation).add(targetBody);
+      const current = collider.translation();
+      const delta = targetCenter.clone().sub(new THREE.Vector3(current.x,current.y,current.z));
+      const currentRotation = collider.rotation();
+      if (delta.lengthSq() > 1e-12) {
+        const hit = this.world.castShape(
+          current, currentRotation, vec(delta.toArray()), collider.shape,
+          0, 1, false, undefined, undefined, collider, entry.body, filter
+        );
+        if (hit) {
+          const parent = hit.collider.parent();
+          const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
+          blockedBy.add(owner?.id || '$environment');
+          return { clear:false, code:'CARRY_SWEEP_BLOCKED', collider:i, blockedBy:[...blockedBy], toi:hit.time_of_impact };
+        }
+      }
+      let overlap = null;
+      this.world.intersectionsWithShape(targetCenter, nextRotation, collider.shape, (other) => {
+        const parent = other.parent();
+        const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
+        if (owner && excluded.has(owner.id)) return true;
+        overlap = owner?.id || '$environment';
+        return false;
+      }, undefined, undefined, collider, entry.body, filter);
+      if (overlap) return { clear:false, code:'CARRY_TARGET_BLOCKED', collider:i, blockedBy:[overlap] };
+    }
+    return { clear:true };
+  }
+
+  cancelCharacterMovement(id) {
+    const body = this.entries.get(id)?.body;
+    if (!body) return false;
+    const p = body.translation(), q = body.rotation();
+    body.setNextKinematicTranslation(p);
+    body.setNextKinematicRotation(q);
+    return true;
   }
 
   getPosition(id) {
@@ -288,13 +392,18 @@ export class PhysicsSystem {
     return true;
   }
 
-  moveCharacter(id, desiredTranslation) {
+  moveCharacter(id, desiredTranslation, { ignoreIds = [] } = {}) {
     const entry = this.entries.get(id);
     if (!entry?.body?.isKinematic?.() || entry.body.numColliders() !== 1 || !this.characterController) {
       return { success:false, code:'CHARACTER_BODY_UNAVAILABLE', movement:[0,0,0], grounded:false, collisions:[] };
     }
     const collider = entry.body.collider(0);
-    this.characterController.computeColliderMovement(collider, vec(desiredTranslation));
+    const ignored = new Set(ignoreIds);
+    this.characterController.computeColliderMovement(collider, vec(desiredTranslation), undefined, undefined, (other) => {
+      const parent = other.parent();
+      const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
+      return !owner || !ignored.has(owner.id);
+    });
     const movement = this.characterController.computedMovement();
     const current = entry.body.translation();
     entry.body.setNextKinematicTranslation({ x:current.x + movement.x, y:current.y + movement.y, z:current.z + movement.z });
@@ -352,7 +461,7 @@ export class PhysicsSystem {
     };
 
     for (const [id, entry] of this.entries) {
-      addBody(id, '$root', entry.body, entry.rootSpec.body || 'fixed', entry.rootSpec.navigationObstacle);
+      if (!entry.held) addBody(id, '$root', entry.body, entry.rootSpec.body || 'fixed', entry.rootSpec.navigationObstacle);
       for (const [partName, part] of entry.parts) addBody(id, partName, part.body, part.spec.physics?.body || 'dynamic');
     }
     return { items, skipped };

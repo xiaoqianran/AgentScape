@@ -99,6 +99,8 @@ async function main() {
             <div class="chips">
               <button data-prompt="让 agent_01 走到 cabinet_01 前并打开柜门">走过去打开柜门</button>
               <button data-prompt="让 agent_01 走到 cabinet_01 前并关闭柜门">走过去关闭柜门</button>
+              <button data-prompt="让 agent_01 走到 cup_01 前并拿起杯子">走过去拿起杯子</button>
+              <button data-prompt="让 agent_01 放下当前拿着的物体">放下手中物体</button>
               <button data-prompt="建立一个咖啡角">建立咖啡角</button>
             </div>
             <div id="log" class="log"></div>

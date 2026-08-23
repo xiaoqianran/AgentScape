@@ -31,4 +31,12 @@ describe('asset manifest validation', () => {
   it('rejects invalid joint type', () => {
     expect(() => validateAssetManifest({ id: 'cabinet', type: 'cabinet', source: { kind: 'builtin' }, actions: [], parts: { door: { node: 'Door', joint: { type: 'magic' } } } })).toThrow(/joint type/);
   });
+
+  it('validates embodiment hold-anchor coordinates', () => {
+    const valid={id:'agent',type:'agent',source:{kind:'builtin'},actions:['navigate'],embodiment:{holdAnchor:{translation:[0,.95,-.62],rotation:[0,0,0,1]}},physics:{body:'kinematic'}};
+    expect(()=>validateAssetManifest(valid)).not.toThrow();
+    const invalid=structuredClone(valid); invalid.embodiment.holdAnchor.translation=[0,NaN,0];
+    expect(()=>validateAssetManifest(invalid)).toThrow(/holdAnchor\.translation/);
+  });
+
 });

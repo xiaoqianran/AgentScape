@@ -95,3 +95,16 @@ it('persists environment identity and rejects cross-world restore before mutatio
   expect(runtime.clearObjects).not.toHaveBeenCalled();
   expect(runtime.sceneGraph.batch).not.toHaveBeenCalled();
 });
+
+
+
+it('rejects broken or duplicate heldBy ownership before world mutation', () => {
+  const serializer=new SceneSerializer();
+  const base=(id,assetId,state={})=>({id,assetId,state,transform:{position:[0,0,0],quaternion:[0,0,0,1],scale:[1,1,1]}});
+  expect(()=>serializer.validate({schema:'agentscape.scene',schemaVersion:1,assets:[],relations:[],objects:[base('cup','cup',{heldBy:{kind:'agent',id:'missing',anchor:'hold'}})]})).toThrow(/heldBy agent is missing/);
+  expect(()=>serializer.validate({schema:'agentscape.scene',schemaVersion:1,assets:[],relations:[],objects:[
+    base('agent','agent'),
+    base('cup1','cup',{heldBy:{kind:'agent',id:'agent',anchor:'hold'}}),
+    base('cup2','cup',{heldBy:{kind:'agent',id:'agent',anchor:'hold'}})
+  ]})).toThrow(/multiple held objects/);
+});

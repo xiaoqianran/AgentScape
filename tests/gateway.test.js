@@ -29,3 +29,12 @@ it('uses environment-specific coffee-corner positions without hardcoding Runtime
   expect(result.toolCalls[0]).toMatchObject({ name:'moveObject', args:{ id:'table_01', position:[10,1,3] } });
   expect(result.toolCalls[1]).toMatchObject({ name:'moveObject', args:{ id:'cabinet_01', position:[8,1,3] } });
 });
+
+
+it('local fallback uses embodied carry tools for pickup/drop language', async () => {
+  const gateway=new LocalPlannerGateway();
+  const pickup=await gateway.complete({messages:[{role:'user',content:'拿起杯子'}]});
+  expect(pickup.toolCalls[0]).toMatchObject({name:'approachAndPickup',args:{actorId:'agent_01',targetId:'cup_01'}});
+  const drop=await gateway.complete({messages:[{role:'user',content:'放下杯子'}]});
+  expect(drop.toolCalls[0]).toMatchObject({name:'dropHeld',args:{actorId:'agent_01'}});
+});

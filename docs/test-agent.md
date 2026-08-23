@@ -533,3 +533,11 @@ joint settled
 ```bash
 AGENTSCAPE_TEST_LLM_TRACE=1 npm run agent:probe -- interaction
 ```
+
+## 17. 1.17 Agent Carry Probe
+
+```bash
+npm run agent:probe -- pickup
+```
+
+Probe 禁止模型调用低层 Human `pickup`，要求最终使用 `approachAndPickup`。当前 Nemotron 与 Muse 都真实通过，并在 pickup 后调用 `getCarryStatus`。返回 contract 明确 `attachment=kinematic-anchor`、`graspVerified=false`。详见 [`agent-carry.md`](./agent-carry.md)。

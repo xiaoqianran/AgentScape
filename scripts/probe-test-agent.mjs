@@ -27,6 +27,14 @@ const scenarios = {
       { id:'cabinet_01', asset:'cabinet', position:[0,0,0], actions:['open','close','move'] }
     ],
     expected:'approachAndInteract'
+  },
+  pickup: {
+    goal:'Walk agent_01 to cup_01 and pick it up so the Agent carries it. Do not use the low-level Human pickup tool.',
+    world:[
+      { id:'agent_01', asset:'agent', position:[0,0,3], actions:['navigate'] },
+      { id:'cup_01', asset:'cup', position:[0,0,0], actions:['pickup','drop','place','move'] }
+    ],
+    expected:'approachAndPickup'
   }
 };
 const scenario = scenarios[mode];
@@ -80,6 +88,22 @@ try {
           interaction:{id:'cabinet_01',part:'door',action:'open',target:-1.35,requested:true}
         };
       }
+      if (name === 'approachAndPickup' && mode === 'pickup') {
+        if (args.actorId !== 'agent_01' || args.targetId !== 'cup_01') {
+          throw Object.assign(new Error('Embodied pickup probe received wrong arguments'), { code:'PROBE_BAD_ARGUMENTS' });
+        }
+        return {
+          status:'held', actorId:'agent_01', targetId:'cup_01',
+          attachment:'kinematic-anchor', graspVerified:false,
+          locomotion:{status:'arrived',position:[0,0,.8]},
+          reach:{inRange:true,visible:true,interactable:true,distance:.4},
+          transfer:{clear:true}
+        };
+      }
+      if (name === 'getCarryStatus' && mode === 'pickup') return {status:'held',actorId:'agent_01',targetId:'cup_01',attachment:'kinematic-anchor',graspVerified:false};
+      if (name === 'pickup' && mode === 'pickup') {
+        throw Object.assign(new Error('Probe rejects low-level Human pickup; use approachAndPickup'), { code:'REMOTE_PICKUP_REJECTED' });
+      }
       if (name === 'open' && mode === 'interaction') {
         throw Object.assign(new Error('Probe rejects remote low-level open; use approachAndInteract'), { code:'REMOTE_OPEN_REJECTED' });
       }
@@ -95,6 +119,9 @@ try {
   }
   if (mode === 'interaction' && toolCalls.some((call) => call.name === 'open')) {
     throw new Error('Model attempted low-level remote open during embodied interaction probe');
+  }
+  if (mode === 'pickup' && toolCalls.some((call) => call.name === 'pickup')) {
+    throw new Error('Model attempted low-level Human pickup during embodied pickup probe');
   }
   console.log(JSON.stringify({ ok:true, mode, model, toolCalls, final:result.message, steps:result.steps }, null, 2));
 } finally {

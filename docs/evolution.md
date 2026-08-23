@@ -1524,3 +1524,13 @@ Pages 同时加入 Cinematic Mode：它只隐藏编辑 UI、扩大 viewport，�
 Agent-facing Skill 不暴露 interaction distance，避免模型把 1.5m 临时放宽成 forceAction。`approachAndInteract` 整条“找位→行走→复核→motor request”仍只有一个 mutation/history ownership。
 
 本轮没有把 pickup/place 冒充具身能力，因为现有 held target 属于 Human Camera；下一步必须先建立 Agent hold anchor / grasp ownership。
+
+---
+
+## 38. 1.17：从 Human Camera pickup 到 Agent carry ownership
+
+1.16 明确没有把旧 `pickup()` 冒充具身能力，因为 held target 属于 Human Camera。1.17 增加 Agent Manifest hold anchor 与 `state.heldBy`，并把 pickup transfer 本身也当成需要 shape-cast 验证的空间运动。
+
+真实 carry E2E 证明：Agent 能走到 Cup、把它安全吸附到 hold anchor、继续导航并让 Cup 跟随；如果 Cup 会比 Agent capsule 更早撞墙，locomotion 返回 `CARRIED_OBJECT_BLOCKED`，两者都停在安全位置。Held Cup 不再作为独立 TileCache obstacle，drop 后重新恢复 Dynamic obstacle。
+
+这一轮仍没有 `graspVerified=true`：当前只是 kinematic-anchor ownership，没有手指接触/力闭合。下一阶段是 Agent-held place/release truth。

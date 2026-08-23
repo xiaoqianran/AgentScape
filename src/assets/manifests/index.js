@@ -3,6 +3,7 @@ export const assetManifests = {
   agent: {
     id: 'agent', type: 'agent', label: 'Embodied Agent', tags: ['agent', 'character', 'navigator', '智能体'], aliases: ['robot', 'avatar'], source: { kind: 'builtin' },
     actions: ['navigate'],
+    embodiment: { holdAnchor: { translation:[0,0.95,-0.62], rotation:[0,0,0,1] } },
     physics: {
       body: 'kinematic', navigationObstacle: false,
       colliders: [{ shape: 'capsule', halfHeight: 0.53, radius: 0.32, translation: [0, 0.85, 0] }]

@@ -109,6 +109,7 @@ export class AssetManager {
       visor.position.set(0, 1.12, -0.29); g.add(visor);
       const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 32), new THREE.MeshBasicMaterial({ color:0x7db4ff, toneMapped:false }));
       ring.position.y = 0.08; ring.rotation.x = Math.PI / 2; g.add(ring);
+      const hold = new THREE.Group(); hold.name = 'HoldAnchor'; hold.position.set(0,0.95,-0.62); g.add(hold);
       return g;
     });
     this.registerFactory('chair', async () => {

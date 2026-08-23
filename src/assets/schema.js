@@ -5,6 +5,18 @@ const BODY_TYPES = new Set(['fixed', 'dynamic', 'kinematic']);
 const SHAPES = new Set(['box', 'cylinder', 'capsule', 'convexHull']);
 const ARTICULATION_ACTIONS = new Set(['open', 'close']);
 
+function validateEmbodiment(embodiment, context = {}) {
+  if (!embodiment) return;
+  const anchor = embodiment.holdAnchor;
+  if (!anchor) return;
+  if (!Array.isArray(anchor.translation) || anchor.translation.length !== 3 || !anchor.translation.every(Number.isFinite)) {
+    throw Errors.invalidManifest('embodiment.holdAnchor.translation requires finite [3]', context);
+  }
+  if (anchor.rotation != null && (!Array.isArray(anchor.rotation) || anchor.rotation.length !== 4 || !anchor.rotation.every(Number.isFinite))) {
+    throw Errors.invalidManifest('embodiment.holdAnchor.rotation requires finite quaternion[4]', context);
+  }
+}
+
 export function validatePhysics(physics, context = {}) {
   if (!physics) return;
   if (physics.body && !BODY_TYPES.has(physics.body)) throw Errors.invalidManifest(`Unsupported physics body: ${physics.body}`, context);
@@ -29,6 +41,7 @@ export function validateAssetManifest(manifest) {
   if (manifest.source.kind === 'glb' && !manifest.source.url) throw Errors.invalidManifest('GLB source requires url', { id: manifest.id });
   if (manifest.source.kind === 'compiled' && !manifest.source.key) throw Errors.invalidManifest('Compiled source requires key', { id: manifest.id });
   validatePhysics(manifest.physics, { id: manifest.id });
+  validateEmbodiment(manifest.embodiment, { id: manifest.id });
   for (const [name, part] of Object.entries(manifest.parts || {})) {
     const context = { id: manifest.id, part: name };
     if (!part.node) throw Errors.invalidManifest(`Part ${name} requires node`, context);

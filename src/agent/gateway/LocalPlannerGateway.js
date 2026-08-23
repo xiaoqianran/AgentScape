@@ -15,8 +15,9 @@ export class LocalPlannerGateway {
     if (q.includes('椅子') || q.includes('chair')) { calls.push({ name: 'searchAssets', args: { query: 'chair' } }); calls.push({ name: 'spawnAsset', args: { assetId: 'chair', position: [1.8, 0, 0] } }); }
     if (q.includes('打开') || q.includes('open')) calls.push({ name:'approachAndInteract', args:{ actorId:'agent_01', targetId:'cabinet_01', action:'open' } });
     if (q.includes('关闭') || q.includes('close')) calls.push({ name:'approachAndInteract', args:{ actorId:'agent_01', targetId:'cabinet_01', action:'close' } });
-    if (q.includes('拿') || q.includes('pickup') || q.includes('pick up')) calls.push({ name: 'pickup', args: { id: 'cup_01' } });
-    if (q.includes('放') || q.includes('place')) calls.push({ name: 'place', args: { id: 'cup_01', targetId: 'table_01' } });
+    if (q.includes('拿') || q.includes('pickup') || q.includes('pick up')) calls.push({ name:'approachAndPickup', args:{ actorId:'agent_01', targetId:'cup_01' } });
+    if (q.includes('放下') || q.includes('drop')) calls.push({ name:'dropHeld', args:{ actorId:'agent_01' } });
+    else if (q.includes('放') || q.includes('place')) calls.push({ name:'place', args:{ id:'cup_01', targetId:'table_01' } });
     if (q.includes('咖啡角') || q.includes('coffee')) {
       calls.push({ name: 'moveObject', args: { id: 'table_01', position: this.coffeeCorner.table } });
       calls.push({ name: 'moveObject', args: { id: 'cabinet_01', position: this.coffeeCorner.cabinet } });

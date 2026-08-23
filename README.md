@@ -29,7 +29,7 @@ GLB / 生成资产 / 外部数据
 - Three.js Web3D 运行时与 Rapier 物理，具备明确的对象资源生命周期与失败回滚。
 - GLB 加载、节点校验、关节和物理电机。
 - 可视化编辑：选择、移动、旋转、复制、删除。
-- 空间查询：Bounds、Raycast、Nearby、碰撞、支撑面、空位搜索；1.9 建立 Recast/Detour NavMesh，1.10 再用 TileCache 从当前 Rapier collider 同步动态障碍，`canReach / findPath / path cost` 现在反映当前物理世界。 1.14 增加 `suggestNavigationActions`：当当前路径被可交互 Part 阻断时，用 provisional 单障碍反事实诊断建议 `open → replan`，但绝不把建议当成世界事实。 1.15 再加入 builtin `agent_01` + `navigateTo`：Detour 只给 global path，真正每帧位移由 Rapier Kinematic Character Controller 修正，能爬 0.2m 台阶、撞墙停止并以单 History transaction 完成整段行走。 1.16 再加入 `findInteractionPose / approachAndInteract`：Agent 必须先满足 Detour 可达、固定 1.5m 距离、Rapier 物理视线，并避开目标 Part 的动作扫掠区，才能请求具身 open/close。
+- 空间查询：Bounds、Raycast、Nearby、碰撞、支撑面、空位搜索；1.9 建立 Recast/Detour NavMesh，1.10 再用 TileCache 从当前 Rapier collider 同步动态障碍，`canReach / findPath / path cost` 现在反映当前物理世界。 1.14 增加 `suggestNavigationActions`：当当前路径被可交互 Part 阻断时，用 provisional 单障碍反事实诊断建议 `open → replan`，但绝不把建议当成世界事实。 1.15 再加入 builtin `agent_01` + `navigateTo`：Detour 只给 global path，真正每帧位移由 Rapier Kinematic Character Controller 修正，能爬 0.2m 台阶、撞墙停止并以单 History transaction 完成整段行走。 1.16 再加入 `findInteractionPose / approachAndInteract`：Agent 必须先满足 Detour 可达、固定 1.5m 距离、Rapier 物理视线，并避开目标 Part 的动作扫掠区，才能请求具身 open/close。 1.17 再加入 `approachAndPickup / dropHeld / getCarryStatus`：简单 Dynamic 物体可经 shape-sweep 吸附到 Agent hold anchor，`heldBy` 可持久化，携带移动时额外检查 held-object clearance；attachment 明确不等于 grasp verification。
 - 语义 Scene Graph：`ON / SUPPORTS / NEAR / INSIDE / CONTAINS`，采用 dirty + 按需刷新，批量变更合并重建。
 - Skill Registry：能力定义、参数 Schema、权限、执行和审计使用同一事实源。
 - Tool-calling Agent：支持多轮 plan → act → observe。

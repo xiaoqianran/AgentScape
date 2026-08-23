@@ -32,7 +32,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container, { environmentFactory } = {}) {
-    this.version = '1.16.0';
+    this.version = '1.17.0';
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
@@ -195,6 +195,7 @@ export class WorldRuntime {
   remove(id) {
     const record = this.store.get(id);
     this.locomotion?.cancel(id, 'OBJECT_REMOVED');
+    this.interactions?.beforeRemove(id);
     this.navigation?.invalidateIfStatic(record, 'object.removed');
     this.physics.remove(id);
     this.scene.remove(record.object);

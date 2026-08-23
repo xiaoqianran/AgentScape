@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.16.0** 当前状态。
+本文描述 **1.17.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 78%
+                           当前 ≈ 81%
 ```
 
-78% 不是“代码写完 78%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+81% 不是“代码写完 81%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -230,24 +230,34 @@ Detour reachable
 
 ---
 
-## 9. 当前 P0：Agent Hold Anchor / Grasp Ownership
+## 9. 1.17 已完成：Agent Hold Anchor / Carry Ownership
 
-下一步不是把现有 `pickup()` 直接贴到 Agent 上。当前 held object target 仍来自 Human Camera，所以真正具身 pickup/place 需要先定义：
+`approachAndPickup` 现在会先完成 interaction pose / locomotion / range / Rapier LOS，再对对象到 hold anchor 做 shape cast。成功后唯一 durable ownership 写在对象 `state.heldBy`；对象切为 kinematic 并随 Agent anchor 移动。Locomotion 会忽略 holder-self collider，但独立验证 carried object 下一 anchor pose；杯子先撞墙时返回 `CARRIED_OBJECT_BLOCKED`。
 
-```text
-Agent hand / hold anchor
-→ pickup interaction pose
-→ grasp ownership
-→ held-object collider policy
-→ carried-object navigation clearance
-→ place release truth
-```
-
-在这条链成立前，pickup/place 仍是 Human/scene-level Runtime 原语，不宣称为 embodied manipulation。
+`graspVerified` 明确为 false：这是 carry attachment，不是假装机器人夹爪力学已经完成。
 
 ---
 
-## 10. 1.11–1.12 已完成：Curated Multi-World Layer
+## 10. 当前 P0：Agent-held Place / Release Truth
+
+下一步把：
+
+```text
+held object
+→ target support surface
+→ valid Agent release pose
+→ carried-object clearance
+→ release occupancy
+→ detach
+→ Dynamic settle
+→ support relation verification
+```
+
+做成一个真实具身 place transaction。旧 `place()` 仍是 Human/scene-level deterministic placement，不直接包装成 Agent manipulation。
+
+---
+
+## 11. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -272,7 +282,7 @@ Three.js architecture
 
 ---
 
-## 11. P1：完整 Joint Frame
+## 12. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -308,7 +318,7 @@ Schema claim second
 
 ---
 
-## 12. P2：Compact Agent Observation
+## 13. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -336,7 +346,7 @@ world size
 
 ---
 
-## 13. 自动语义：宁可慢一点，也不虚构能力
+## 14. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -374,7 +384,7 @@ high coverage + fake capability
 
 ---
 
-## 14. 目前不应该成为优先级的方向
+## 15. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -391,7 +401,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 15. 产品差异化应该是什么
+## 16. 产品差异化应该是什么
 
 不应该是：
 
@@ -423,7 +433,7 @@ Agent World
 
 ---
 
-## 16. 未来完成态
+## 17. 未来完成态
 
 可以把 100% 理解为：
 
@@ -488,11 +498,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.16.0 文档快照对应的仓库验证基线：
+1.17.0 文档快照对应的仓库验证基线：
 
 ```text
-83 Test Files PASS
-222 Tests PASS
+85 Test Files PASS
+230 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -501,6 +511,12 @@ Grand Urban Block 96×72m Recast benchmark PASS
 Action-aware Navigation E2E PASS
 Embodied Locomotion Ruined Courtyard E2E PASS
 Embodied interaction range / Rapier LOS E2E PASS
+Agent carry / hold-anchor E2E PASS
+Carried-object locomotion clearance PASS
+Direct Physics carry shape-cast / held-target PASS
+Held-object TileCache ownership transition PASS
+Nemotron live approachAndPickup probe PASS
+Muse live approachAndPickup probe PASS
 Articulation action-sweep pose guard PASS
 Arrival-pose action-sweep recheck PASS
 Prismatic / revolute current-coordinate sweep PASS

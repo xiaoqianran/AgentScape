@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.16.0** 的真实架构，不描述未来设想。
+本文描述 **1.17.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -717,3 +717,29 @@ setArticulationAction
 InteractionSystem 只组织已有 truth owners：Navigation 仍拥有 path，Locomotion 仍拥有执行状态，Physics 仍拥有碰撞/LOS/joint motor。
 
 `interaction-requested` 只表示 motor target 已接受，不等于 joint settled。详情见 [`interaction-range.md`](./interaction-range.md)。
+
+---
+
+## 20. Agent Carry：Ownership 在对象 state，位置仍在 Rapier
+
+1.17 为 builtin Agent 增加 Manifest `embodiment.holdAnchor`。被持有对象唯一 durable ownership 是 `state.heldBy`；InteractionSystem 的 `agentHeld` 只是派生索引。
+
+```text
+approachAndPickup
+      ↓
+interaction pose / locomotion
+      ↓
+Rapier shape cast → hold anchor
+      ↓
+state.heldBy = agent_01
+      ↓
+body → kinematic
+      ↓
+Locomotion each frame
+  ├─ Agent KCC ignores own held collider
+  └─ held object next-anchor clearance
+      ↓
+CARRIED_OBJECT_BLOCKED | move
+```
+
+Held object 在 carry 期间不进入 TileCache dynamic obstacle snapshot；其空间占用由 carry clearance 负责，drop 后恢复普通 Dynamic obstacle。详见 [`agent-carry.md`](./agent-carry.md)。
