@@ -119,7 +119,7 @@ const scenarios = {
   }
 ,
   'recovery-counterfactual': {
-    goal:'Open cabinet_A with agent_01. The first approachAndInteract will STALL with cabinet_B/door current-contact evidence. cabinet_B/door is verified ajar, so both open and close are executable alternate actions. Call suggestRecoveryActions and consume its actionRanking; do not choose an action yourself. Follow exactly the selected recoverArticulatedBlocker proposal. The Runtime evidence says close has targetSweepClear=true and rank 1, while open remains overlapping and rank 2. After the selected blocker recovery verifies, fresh-replan and retry the original cabinet_A open. Only the original retry action-completed + targetReached + settled means success. Never directly approachAndInteract cabinet_B, never override blockerAction, and never use low-level open/close, moveObject, navigateTo, pickup/place, or another recovery primitive.',
+    goal:'Open cabinet_A with agent_01. The first approachAndInteract will STALL with cabinet_B/door current-contact evidence. cabinet_B/door is verified ajar, so both open and close are executable alternate actions. Call suggestRecoveryActions and consume its actionRanking; do not choose an action yourself. Follow exactly the selected recoverArticulatedBlocker proposal. The Runtime Physics-first evidence uses articulated-rapier-shape-counterfactual-v2 / basis=rapier-shape-pairs: close has targetSweepClear=true, target conflictSamples=0 and rank 1, while open remains conflicting and rank 2. After the selected blocker recovery verifies, fresh-replan and retry the original cabinet_A open. Only the original retry action-completed + targetReached + settled means success. Never directly approachAndInteract cabinet_B, never override blockerAction, and never use low-level open/close, moveObject, navigateTo, pickup/place, or another recovery primitive.',
     world:[
       { id:'agent_01', asset:'agent', position:[2.5,0,4], actions:['navigate'] },
       { id:'cabinet_A', asset:'cabinet', position:[0,0,0], actions:['open','close','move'] },
@@ -153,7 +153,7 @@ try {
   let sequenceDoorOpen=false, sequenceHeld=false, sequencePlaced=false, sequenceAttemptedOpen=false, recoveryApplied=false;
   let multiAttemptedOpen=false,multiRecoveredBlocker=null,multiDoorOpen=false;
   let cleanupOpenAttempts=0,cleanupHeld=null,cleanupFirstDone=false,cleanupFirstCleaned=false,cleanupSecondDone=false,cleanupDoorOpen=false;
-  let articulatedAttemptedOpen=false,articulatedBlockerClosed=false,articulatedDoorOpen=false;
+  let articulatedAttemptedOpen=false,articulatedBlockerClosed=false,articulatedDoorOpen=false,lastArticulatedSuggestion=null;
   const sequenceEvents=[];
   const tools = {
     definitions:() => registry.definitions(),
@@ -201,13 +201,13 @@ try {
             blockerState:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:counterfactualMode?'ajar':'open',live:{coordinate:counterfactualMode?-.8:-1.35,target:counterfactualMode?-.8:-1.35,error:0,tolerance:.08,coordinateReference:'rest-zero-pose'}},
             blockerAction:'close',
             ...(counterfactualMode?{actionRanking:{
-              strategy:'articulated-target-sweep-counterfactual-v1',causal:false,
-              criteria:['targetSweepClearDesc','overlapReductionDesc','targetOverlapVolumeAsc','actionSweepOverlapVolumeAsc','routeCostAsc'],
-              current:{action:'ajar',overlapVolume:.663647,bounds:{min:[-1.858,.03,.643],max:[-.6,1.97,1.869]}},
+              strategy:'articulated-rapier-shape-counterfactual-v2',basis:'rapier-shape-pairs',causal:false,
+              criteria:['targetSweepClearDesc','conflictReductionDesc','targetConflictSamplesAsc','targetPairIntersectionsAsc','actionConflictSamplePairsAsc','actionPairIntersectionsAsc','routeCostAsc'],
+              current:{action:'ajar',conflictSamples:17,pairIntersections:17},
               originalSweep:{min:[-.879,.03,.346],max:[.205,1.97,1.999]},
               actions:[
-                {action:'open',executable:true,rank:2,pose:{routeCost:1.7},counterfactual:{causal:false,geometry:'three-aabb',currentOverlapVolume:.663647,targetOverlapVolume:.62237,overlapReduction:.041277,targetSweepClear:false,actionSweepOverlapVolume:1.622824}},
-                {action:'close',executable:true,rank:1,pose:{routeCost:2.2},counterfactual:{causal:false,geometry:'three-aabb',currentOverlapVolume:.663647,targetOverlapVolume:0,overlapReduction:.663647,targetSweepClear:true,actionSweepOverlapVolume:.8341}}
+                {action:'open',executable:true,rank:2,pose:{routeCost:1.7},visualCounterfactual:{causal:false,geometry:'three-aabb',currentOverlapVolume:.663647,targetOverlapVolume:.62237,overlapReduction:.041277,targetSweepClear:false,actionSweepOverlapVolume:1.622824},physicsCounterfactual:{checked:true,geometry:'rapier-shape-pairs',causal:false,samples:17,current:{conflictSamples:17,pairIntersections:17},target:{conflictSamples:13,pairIntersections:13},action:{conflictSamplePairs:118,pairIntersections:118},targetSweepClear:false,conflictReduction:4}},
+                {action:'close',executable:true,rank:1,pose:{routeCost:2.2},visualCounterfactual:{causal:false,geometry:'three-aabb',currentOverlapVolume:.663647,targetOverlapVolume:0,overlapReduction:.663647,targetSweepClear:true,actionSweepOverlapVolume:.8341},physicsCounterfactual:{checked:true,geometry:'rapier-shape-pairs',causal:false,samples:17,current:{conflictSamples:17,pairIntersections:17},target:{conflictSamples:0,pairIntersections:0},action:{conflictSamplePairs:52,pairIntersections:52},targetSweepClear:true,conflictReduction:17}}
               ]
             }}:{}),
             policy:{allow:true,profile:'builder',missing:[]},
@@ -216,11 +216,12 @@ try {
             tool:'recoverArticulatedBlocker',args:{actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'},
             verification:{required:'retry-original-post-condition',tool:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_A',action:'open',partName:'door'},success:{status:'action-completed',targetReached:true,settled:true}}
           };
-          return {
+          lastArticulatedSuggestion={
             status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_A',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',
             ranking:{strategy:'eligible-recovery-route-cost-v2',causal:false,criteria:['eligible','recoveryRouteCostAsc','stableBlockerKeyAsc']},
             recommended:{rank:1,blocker,tool:'recoverArticulatedBlocker',args:proposal.args},proposals:[proposal]
           };
+          return lastArticulatedSuggestion;
         }
         if (name === 'recoverArticulatedBlocker') {
           if (!articulatedAttemptedOpen||articulatedBlockerClosed) throw Object.assign(new Error('Articulated recovery mutation order invalid'),{code:'PROBE_RECOVERY_ORDER'});
@@ -551,6 +552,13 @@ try {
     const suggestIndex=toolCalls.findIndex((call)=>call.name==='suggestRecoveryActions');
     const recoveryIndex=toolCalls.findIndex((call)=>call.name==='recoverArticulatedBlocker');
     if (suggestIndex<0||suggestIndex>recoveryIndex) throw new Error('Articulated recovery mutation was not preceded by suggestRecoveryActions');
+    if (counterfactualMode) {
+      const ranking=lastArticulatedSuggestion?.proposals?.[0]?.actionRanking;
+      const open=ranking?.actions?.find((item)=>item.action==='open');
+      const close=ranking?.actions?.find((item)=>item.action==='close');
+      if (ranking?.strategy!=='articulated-rapier-shape-counterfactual-v2'||ranking?.basis!=='rapier-shape-pairs') throw new Error('Counterfactual probe did not serve Physics-first actionRanking');
+      if (!(open?.physicsCounterfactual?.target?.conflictSamples>0)||close?.physicsCounterfactual?.target?.conflictSamples!==0||close?.rank!==1) throw new Error('Counterfactual probe Physics evidence is inconsistent');
+    }
     if (!articulatedBlockerClosed||!articulatedDoorOpen) throw new Error(`Articulated recovery world state incomplete: blockerClosed=${articulatedBlockerClosed} originalOpen=${articulatedDoorOpen}`);
     if (result.taskStatus!=='completed'||result.unresolvedMutations.length) throw new Error(`Articulated recovery task did not resolve original open: status=${result.taskStatus} unresolved=${result.unresolvedMutations.length}`);
     if (toolCalls.some((call)=>['open','close','pickup','place','moveObject','navigateTo','approachAndPickup','approachAndPlace','recoverPickupBlocker'].includes(call.name))) throw new Error('Articulated recovery used a forbidden bypass');

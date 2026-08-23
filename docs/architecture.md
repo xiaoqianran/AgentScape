@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.27.0** 的真实架构，不描述未来设想。
+本文描述 **1.28.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -981,3 +981,25 @@ existing approachAndInteract
 ```
 
 完全 tie 不产生 rank；execution-time selected action 改变则 `COUNTERFACTUAL_SELECTION_CHANGED`。没有新增 state owner、motor owner 或 mutation path。完整 contract 见 [`counterfactual-articulated-recovery.md`](./counterfactual-articulated-recovery.md)。
+
+---
+
+## 31. Physics-backed Counterfactual：不复制 World，只查询 Hypothetical Shape
+
+1.28 在 `PhysicsSystem` 增加两个纯查询边界：`articulationColliderPoses` 从当前 live Part body/collider pose 推导指定 hypothetical joint coordinate 下的 collider world poses；`articulationPairCounterfactual` 对 original failed Part 与 blocker Part 各采样 17 个 joint coordinates，用真实 Rapier `Shape.intersectsShape` 比较 current/target/action sampled geometry。它不创建 shadow world、不配置 motor、不修改 rigid body。
+
+```text
+current Rapier shapes + joint truth
+          ↓
+hypothetical collider poses
+          ↓
+discrete shape-pair evidence
+          ↓
+articulated-rapier-shape-counterfactual-v2
+          ↓
+existing recoverArticulatedBlocker
+          ↓
+execution-time rerank + original retry
+```
+
+只有所有 executable actions 的 Physics coverage 完整、`current.conflictSamples / pairIntersections` baseline 一致且大于零时才采用 v2；否则 `buildRecoveryProposals` 显式降级到 1.27 `three-aabb-fallback` 并记录 reason。Revolute hypothetical pose 当前仅支持 `childAnchor≈0`；非零 anchor 返回 `REVOLUTE_CHILD_ANCHOR_UNSUPPORTED`，不猜 pivot。完整 contract 见 [`physics-counterfactual-geometry.md`](./physics-counterfactual-geometry.md)。

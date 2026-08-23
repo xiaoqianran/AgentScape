@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.27.0** 当前状态。
+本文描述 **1.28.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -29,7 +29,7 @@
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
-| Runtime Verification | 99% | STALL attribution、pickup/cleanup、articulated recovery 与 1.27 multi-action counterfactual choice 已闭环；剩余是 Physics-backed hypothetical geometry 与更强 causal verification |
+| Runtime Verification | 99% | STALL attribution、pickup/cleanup、articulated recovery 与 1.28 Physics-first hypothetical shape evidence 已闭环；剩余是 adaptive sampling、joint-frame coverage 与更强 causal calibration |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -336,33 +336,41 @@ Attributed STALL 现在可以进入一条严格受限的 pickup-blocker recovery
 
 ---
 
-## 20. 当前 P0：Physics-backed Counterfactual Geometry
+## 20. 1.28 已完成：Physics-backed Counterfactual Geometry
 
-1.27 的 counterfactual action choice 仍然是：
+1.28 在不创建 shadow world、不移动 live body、不调用 motor 的前提下，把 1.27 multi-action choice 升级为 Physics-first evidence。`articulationColliderPoses` 复用当前真实 Rapier Part body/collider pose 与 collider shape，推导指定 hypothetical joint coordinate 的 collider world poses；`articulationPairCounterfactual` 对 original failed trajectory 与 blocker current/target/action trajectory 各采样 17 个 coordinate，用 `Shape.intersectsShape` 统计 `conflictSamples / pairIntersections / conflictSamplePairs`。所有 executable actions coverage 完整、current baseline 一致且 current conflicts>0 时，使用 `articulated-rapier-shape-counterfactual-v2 / basis=rapier-shape-pairs`；否则明确 fallback 到 v1 Three AABB。
 
-```text
-Rapier current contact       = failure truth
-Three AABB target/sweep      = provisional hypothetical geometry
-```
-
-下一阶段不应增加搜索树，而应先缩小这个 evidence gap：
-
-```text
-blocker alternate target/sweep
-→ hypothetical Rapier collider transforms
-→ collider-level overlap / shape-cast evidence
-→ 不修改 live world
-→ 不调用 motor 试错
-→ non-causal ranking
-→ execute one action
-→ original retry verification
-```
-
-目标是让 counterfactual 从 visual AABB approximation 更接近 Physics truth，但仍不把 prediction 叫 verified。
+真实 `ajar=-0.8` 两柜 Physics fixture 显示：open target conflictSamples=13，close target=0，而 current baseline 都是17；真实 Agent E2E 因此使用 Physics v2 推荐 close，并在 recovery verified 后 fresh retry A.open verified。另有专项冲突测试故意让 Three 推荐 open、Rapier 推荐 close，最终 Runtime 必须选 close；若两个 alternate 得出的 current Physics baseline 不一致，则 `PHYSICS_COUNTERFACTUAL_BASELINE_INCONSISTENT` 并降级。Revolute non-zero childAnchor 当前明确 unsupported，不使用错误 pivot 近似。Nemotron/Muse Physics-first probe、1.26 articulated、1.25 cleanup live regression 均通过。
 
 ---
 
-## 21. 1.11–1.12 已完成：Curated Multi-World Layer
+## 21. 当前 P0：Counterfactual Calibration / Adaptive Sampling / Joint-frame Generalization
+
+1.28 的 Rapier evidence 仍是离散 geometry prediction：
+
+```text
+17 samples
+Shape.intersectsShape
+Cartesian sampled sweep envelope
+causal = false
+```
+
+下一阶段优先提升 evidence fidelity，而不是加搜索树：
+
+```text
+joint delta + collider extent
+→ adaptive sample density
+→ prediction vs actual recovery outcome calibration
+→ non-zero revolute childAnchor pivot transform
+→ prismatic real fixture
+→ 保持 no-live-mutation query
+```
+
+只有这些 coverage/data 成立后，再考虑更强 continuous / lookahead counterfactual。
+
+---
+
+## 22. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -387,7 +395,7 @@ Three.js architecture
 
 ---
 
-## 22. P1：完整 Joint Frame
+## 23. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -423,7 +431,7 @@ Schema claim second
 
 ---
 
-## 23. P2：Compact Agent Observation
+## 24. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -451,7 +459,7 @@ world size
 
 ---
 
-## 24. 自动语义：宁可慢一点，也不虚构能力
+## 25. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -489,7 +497,7 @@ high coverage + fake capability
 
 ---
 
-## 25. 目前不应该成为优先级的方向
+## 26. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -506,7 +514,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 26. 产品差异化应该是什么
+## 27. 产品差异化应该是什么
 
 不应该是：
 
@@ -538,7 +546,7 @@ Agent World
 
 ---
 
-## 27. 未来完成态
+## 28. 未来完成态
 
 可以把 100% 理解为：
 
@@ -603,11 +611,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.27.0 文档快照对应的仓库验证基线：
+1.28.0 文档快照对应的仓库验证基线：
 
 ```text
-104 Test Files PASS
-332 Tests PASS
+105 Test Files PASS
+336 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -733,6 +741,18 @@ Execution-time COUNTERFACTUAL_SELECTION_CHANGED revalidation PASS
 Real ajar=-0.8 two-cabinet counterfactual E2E PASS
 Nemotron counterfactual articulated recovery probe PASS
 Muse counterfactual articulated recovery probe PASS
+Physics hypothetical collider pose query PASS
+Rapier shape-pair counterfactual no-live-mutation PASS
+Revolute non-zero childAnchor explicit refusal PASS
+Physics-first articulated action ranking PASS
+Physics-over-Three conflicting-evidence priority PASS
+Physics current-baseline consistency guard PASS
+Explicit three-aabb-fallback coverage PASS
+Real ajar=-0.8 Rapier shape-pair Agent E2E PASS
+Nemotron Physics-first counterfactual probe PASS
+Muse Physics-first counterfactual probe PASS
+1.26 articulated recovery live regression PASS
+1.25 cleanup live regression PASS
 1.26 unique-action articulated recovery regression PASS
 ```
 

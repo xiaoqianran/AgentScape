@@ -170,16 +170,16 @@ describe('verified articulated blocker recovery',()=>{
       proposals:[expect.objectContaining({
         blockerAction:'close',
         blockerState:expect.objectContaining({verifiedAction:'ajar',requestedAction:null}),
-        actionRanking:expect.objectContaining({strategy:'articulated-target-sweep-counterfactual-v1',causal:false,current:expect.objectContaining({action:'ajar'})})
+        actionRanking:expect.objectContaining({strategy:'articulated-rapier-shape-counterfactual-v2',basis:'rapier-shape-pairs',causal:false,current:expect.objectContaining({action:'ajar',conflictSamples:17})})
       })]
     });
     const ranking=suggestion.proposals[0].actionRanking;
     const open=ranking.actions.find((item)=>item.action==='open');
     const close=ranking.actions.find((item)=>item.action==='close');
-    expect(ranking.current.overlapVolume).toBeGreaterThan(0);
-    expect(open).toMatchObject({executable:true,rank:2,counterfactual:expect.objectContaining({targetSweepClear:false})});
-    expect(close).toMatchObject({executable:true,rank:1,counterfactual:expect.objectContaining({targetSweepClear:true,targetOverlapVolume:0})});
-    expect(close.counterfactual.overlapReduction).toBeGreaterThan(open.counterfactual.overlapReduction);
+    expect(ranking.current.conflictSamples).toBeGreaterThan(0);
+    expect(open).toMatchObject({executable:true,rank:2,physicsCounterfactual:expect.objectContaining({checked:true,geometry:'rapier-shape-pairs',targetSweepClear:false})});
+    expect(close).toMatchObject({executable:true,rank:1,physicsCounterfactual:expect.objectContaining({checked:true,geometry:'rapier-shape-pairs',targetSweepClear:true,target:expect.objectContaining({conflictSamples:0})})});
+    expect(close.physicsCounterfactual.conflictReduction).toBeGreaterThan(open.physicsCounterfactual.conflictReduction);
 
     const recovered=JSON.parse(requests[3].messages.find((message)=>message.role==='tool'&&message.name==='recoverArticulatedBlocker').content);
     expect(recovered).toMatchObject({status:'action-completed',targetId:'cabinet_B',action:'close',targetReached:true,settled:true,retryOriginal:true});

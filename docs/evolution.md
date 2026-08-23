@@ -1622,3 +1622,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.26 在 articulated blocker 出现多个 alternate actions 时故意拒绝。1.27 没有把这个选择权还给 LLM，而是复用现有 action-sweep geometry：先要求 current Rapier contact 和 verified blocker state，再比较 current blocker target pose、每个 alternate target pose / action sweep 与 original failed sweep 的 Three AABB overlap。只有明确减少 overlap 的 executable actions 才进入 non-causal action ranking；target 完全离开 original sweep 优先，完全打平则仍拒绝。
 
 真实两柜 fixture 将 B.door 真正 settle 在 `ajar=-0.8`，此时 A.open 发生 Rapier STALL。Three AABB evidence 显示 current overlap 约 .664、B.open target overlap 约 .622、B.close target overlap 0，因此 close rank-1；Agent 真实 close B 后 fresh retry A.open verified。Execution wrapper 每次仍重新生成 proposal，如果当前 rank-1 改变则旧 action stale。
+
+---
+
+## 49. 1.28：Counterfactual 第一次直接消费 Rapier Shape
+
+1.27 的 multi-action choice 已经不让 LLM 猜，但 hypothetical geometry 仍来自 Three AABB。1.28 没有复制一套 Physics world，而是直接复用 live Rapier collider shape 与当前 Part body/collider transform，计算 hypothetical joint coordinate 下的 collider poses，再做离散 `Shape.intersectsShape` pair query。真实 `ajar=-0.8` 两柜 fixture 中，open target 在 17 个 original samples 中仍冲突 13 个，close target 为 0；两者 current baseline 都是 17，因此 close 在 Physics evidence 下 rank-1。
+
+为了证明优先级不是偶然，专项测试故意让 Three AABB 推荐 open、Rapier shape-pair 推荐 close，Runtime 必须选择 close。若 Physics coverage 不完整、baseline 不一致或简化 revolute pivot 不支持，则显式 fallback，不把弱 evidence 冒充强 evidence。

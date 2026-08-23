@@ -687,3 +687,9 @@ Rapier collider-level hypothetical pose / sweep evidence
 不把 prediction 叫 verified
 执行后仍重新观察 original post-condition
 ```
+
+---
+
+## 34. 1.28：Three AABB 降级为 Explicit Fallback
+
+1.28 保留本章 v1 作为 coverage fallback，但首选改为 `articulated-rapier-shape-counterfactual-v2 / basis=rapier-shape-pairs`。Physics helper 使用真实 collider shapes 与 hypothetical joint poses做 17-sample shape-pair comparison；只有 coverage 完整、current baseline 一致时采用。否则 actionRanking 明确 `basis=three-aabb-fallback` 并附 `fallbackReason`。详见 [`physics-counterfactual-geometry.md`](./physics-counterfactual-geometry.md)。

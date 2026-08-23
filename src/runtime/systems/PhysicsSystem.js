@@ -456,6 +456,109 @@ export class PhysicsSystem {
     };
   }
 
+  articulationColliderPoses(id, partName, coordinate) {
+    const entry=this.entries.get(id);
+    const part=entry?.parts.get(partName);
+    if (!entry || !part?.node?.parent || !Number.isFinite(coordinate)) return {checked:false,reason:'PART_POSE_UNAVAILABLE',id,partName,coordinate};
+    const state=this.articulationState(id,partName);
+    if (!state) return {checked:false,reason:'JOINT_COORDINATE_UNAVAILABLE',id,partName,coordinate};
+    if (part.spec.joint.type==='revolute' && Math.hypot(...(part.spec.joint.childAnchor || [0,0,0]))>1e-5) {
+      return {checked:false,reason:'REVOLUTE_CHILD_ANCHOR_UNSUPPORTED',id,partName,coordinate};
+    }
+    const parentRotation=new THREE.Quaternion();
+    part.node.parent.updateWorldMatrix(true,false);
+    part.node.parent.getWorldQuaternion(parentRotation);
+    const worldAxis=new THREE.Vector3(...state.localAxis).applyQuaternion(parentRotation).normalize();
+    if (!Number.isFinite(worldAxis.lengthSq()) || worldAxis.lengthSq()<.99) return {checked:false,reason:'JOINT_AXIS_UNAVAILABLE',id,partName,coordinate};
+
+    const rawBodyPosition=part.body.translation();
+    const rawBodyRotation=part.body.rotation();
+    const currentBodyPosition=new THREE.Vector3(rawBodyPosition.x,rawBodyPosition.y,rawBodyPosition.z);
+    const currentBodyRotation=new THREE.Quaternion(rawBodyRotation.x,rawBodyRotation.y,rawBodyRotation.z,rawBodyRotation.w).normalize();
+    const delta=coordinate-state.coordinate;
+    const bodyPosition=currentBodyPosition.clone();
+    const bodyRotation=currentBodyRotation.clone();
+    if (part.spec.joint.type==='prismatic') bodyPosition.addScaledVector(worldAxis,delta);
+    else bodyRotation.premultiply(new THREE.Quaternion().setFromAxisAngle(worldAxis,delta)).normalize();
+
+    const inverseCurrent=currentBodyRotation.clone().invert();
+    const colliders=[];
+    for(let i=0;i<part.body.numColliders();i++) {
+      const collider=part.body.collider(i);
+      const rawColliderPosition=collider.translation();
+      const rawColliderRotation=collider.rotation();
+      const currentColliderPosition=new THREE.Vector3(rawColliderPosition.x,rawColliderPosition.y,rawColliderPosition.z);
+      const currentColliderRotation=new THREE.Quaternion(rawColliderRotation.x,rawColliderRotation.y,rawColliderRotation.z,rawColliderRotation.w).normalize();
+      const localPosition=currentColliderPosition.clone().sub(currentBodyPosition).applyQuaternion(inverseCurrent);
+      const localRotation=inverseCurrent.clone().multiply(currentColliderRotation).normalize();
+      const position=localPosition.clone().applyQuaternion(bodyRotation).add(bodyPosition);
+      const rotation=bodyRotation.clone().multiply(localRotation).normalize();
+      colliders.push({index:i,shape:collider.shape,position,rotation});
+    }
+    return {checked:true,id,partName,jointType:state.jointType,currentCoordinate:state.coordinate,coordinate,colliders};
+  }
+
+  articulationPairCounterfactual(originalId, originalPartName, originalTarget, blockerId, blockerPartName, blockerTarget, { samples = 9 } = {}) {
+    const count=Math.max(2,Math.min(33,Math.trunc(samples) || 9));
+    const originalState=this.articulationState(originalId,originalPartName,{target:originalTarget});
+    const blockerState=this.articulationState(blockerId,blockerPartName,{target:blockerTarget});
+    if (!originalState || !blockerState) return {checked:false,reason:'JOINT_COORDINATE_UNAVAILABLE'};
+    if (!Number.isFinite(originalTarget) || !Number.isFinite(blockerTarget)) return {checked:false,reason:'TARGET_UNAVAILABLE'};
+
+    const trajectory=(id,partName,current,target)=>{
+      const poses=[];
+      for(let i=0;i<count;i++) {
+        const alpha=i/(count-1);
+        const coordinate=current+(target-current)*alpha;
+        const pose=this.articulationColliderPoses(id,partName,coordinate);
+        if (!pose.checked) return pose;
+        poses.push(pose);
+      }
+      return {checked:true,poses};
+    };
+    const original=trajectory(originalId,originalPartName,originalState.coordinate,originalTarget);
+    if (!original.checked) return {checked:false,reason:original.reason,source:'original'};
+    const blocker=trajectory(blockerId,blockerPartName,blockerState.coordinate,blockerTarget);
+    if (!blocker.checked) return {checked:false,reason:blocker.reason,source:'blocker'};
+
+    const pairAt=(a,b)=>{
+      let intersections=0;
+      for(const left of a.colliders) for(const right of b.colliders) {
+        if (left.shape.intersectsShape(vec(left.position.toArray()),left.rotation,right.shape,vec(right.position.toArray()),right.rotation)) intersections+=1;
+      }
+      return intersections;
+    };
+    const againstPose=(originalPoses,blockerPose)=>{
+      let conflictSamples=0,pairIntersections=0;
+      for(const originalPose of originalPoses) {
+        const pairs=pairAt(originalPose,blockerPose);
+        if (pairs) conflictSamples+=1;
+        pairIntersections+=pairs;
+      }
+      return {conflictSamples,pairIntersections};
+    };
+    const trajectoryConflict=(originalPoses,blockerPoses)=>{
+      let conflictSamplePairs=0,pairIntersections=0;
+      for(const originalPose of originalPoses) for(const blockerPose of blockerPoses) {
+        const pairs=pairAt(originalPose,blockerPose);
+        if (pairs) conflictSamplePairs+=1;
+        pairIntersections+=pairs;
+      }
+      return {conflictSamplePairs,pairIntersections};
+    };
+    const current=againstPose(original.poses,blocker.poses[0]);
+    const target=againstPose(original.poses,blocker.poses.at(-1));
+    const action=trajectoryConflict(original.poses,blocker.poses);
+    return {
+      checked:true,geometry:'rapier-shape-pairs',causal:false,samples:count,
+      original:{id:originalId,partName:originalPartName,currentCoordinate:originalState.coordinate,target:originalTarget},
+      blocker:{id:blockerId,partName:blockerPartName,currentCoordinate:blockerState.coordinate,target:blockerTarget},
+      current,target,action,
+      targetSweepClear:target.conflictSamples===0,
+      conflictReduction:Math.max(0,current.conflictSamples-target.conflictSamples)
+    };
+  }
+
   ownerOfBodyHandle(handle) {
     for (const [id, entry] of this.entries) {
       if (entry.body.handle === handle) return { id, part: '$root' };

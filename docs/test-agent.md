@@ -637,3 +637,7 @@ npm run agent:probe -- recovery-counterfactual
 ```
 
 Probe 将 `cabinet_B/door` 设为 verified `ajar`，同时给 open/close 两个 executable alternate actions，并提供 Runtime `actionRanking`：open 仍与 original sweep overlap、rank 2；close `targetSweepClear=true`、rank 1。模型不得自行选择或覆盖 `blockerAction`，必须执行 selected `recoverArticulatedBlocker(close)`，随后 retry original A.open。Nemotron 与 Muse 当前样本均通过；Nemotron 的一次过早 suggestion 被 Runtime probe 正确拒绝后，仍必须先产生真实 STALL 再恢复。
+
+## 27. 1.28 Physics-first Counterfactual Probe
+
+`recovery-counterfactual` 的 strict payload 已升级为 `articulated-rapier-shape-counterfactual-v2 / basis=rapier-shape-pairs`。Probe 自己验证 open target `conflictSamples>0`、close target `conflictSamples=0` 且 close rank-1，再允许模型消费 proposal。Nemotron/Muse 当前样本均只执行 selected close，随后 fresh retry original open verified；1.26 articulated 与 1.25 cleanup live regressions 也通过。
