@@ -1582,3 +1582,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.21 能把 Door STALL 的 joint coordinate/error 压进 compact context，但仍无法回答“失败时谁在碰门”。1.22 没有在 Interaction 层遍历 ObjectStore 猜 owner，而是在 collider 创建时由 PhysicsSystem 登记 provenance；真实 narrow-phase `contactPairsWith/contactPair` 只在 STALL 终态采样。
 
 实现过程中又收紧了 evidence 语义：Rapier prediction-distance pair 不能直接叫 touching，只有 `contactDist<=1e-6` 或存在 solver impulse 的 contact point 才计入 `activeContactCount`。输出叫 `contact-evidence / blockerCandidates`，故意不叫 rootCause。Nemotron 与 Muse 的真实 attribution probe 都能正确指出 `obstacle_03`，并明确它不是唯一已证明根因。
+
+---
+
+## 44. 1.23：恢复动作第一次不能冒充原任务成功
+
+1.22 已经能说“Door STALL 时 obstacle_03 正在接触”，但最危险的下一步是直接让模型 `moveObject`。1.23 刻意只做一条窄恢复：当前仍接触、Policy 允许、满足既有 carry contract 且 pickup transfer preflight clear 的 Dynamic root Object 才能得到 `recoverPickupBlocker` proposal。Environment 明确 `ENVIRONMENT_IMMOVABLE`。
+
+真实 E2E 连续抓出三个反例：轻量 blocker 会在 planning 间隙被 Door impulse 推走，因此 execution 必须重验 current contact；“可携带”不等于 pickup transfer 几何可执行，因此 suggestion/execution 共用 `findPickupPlan`；最后，即使 blocker pickup verified，原始 open unresolved 仍必须保留到 retry open 真正 `action-completed + targetReached + settled`。为此 recovery skill 标记 `auxiliary=true`，仍是 mutation barrier，但不拥有用户任务成功语义。 最终 Nemotron release probe 又出现“同一 blocker recovery 已 verified 却再次请求”的采样反例，因此 ToolCallingAgent 增加 evidence-epoch duplicate gate：同一 original failure 上同一 recovery 只允许真正执行一次；original retry 后才重置。

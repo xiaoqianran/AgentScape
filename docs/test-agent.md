@@ -597,3 +597,11 @@ npm run agent:probe -- attribution
 ```
 
 Probe world 只有 `agent_01 / cabinet_01 / obstacle_03`。模型必须直接使用 `approachAndInteract`；禁止手工 `navigateTo/findInteractionPose` 分解、低层 open、移动 blocker、pickup/place。模拟 STALL result 附 `current-contact-at-failure`，candidate 为 `obstacle_03`。Nemotron 与 Muse 严格版样本都能直接选择高层具身工具，并把 `obstacle_03` 表述为当前物理接触证据而不是唯一已证明根因。
+
+## 23. 1.23 Verified Recovery Probe
+
+```bash
+npm run agent:probe -- recovery
+```
+
+严格 probe 要求模型先 `approachAndInteract` 得到 STALL + `obstacle_03` current-contact evidence，再调用 `suggestRecoveryActions`，执行返回的专用 `recoverPickupBlocker`，然后 fresh replan 并 retry 原始 `approachAndInteract`。禁止 `moveObject`、low-level open/pickup/place、manual navigateTo、以及直接 `approachAndPickup` blocker。Nemotron 与 Muse 当前样本都按 `open failed → suggestion → auxiliary recovery verified → original retry verified` 完成；sequence trace 要求 recovery 后 unresolved 仍为 1，只有原 open retry verified 后才变 0。planning step 数仍不作为稳定能力指标。

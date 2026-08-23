@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.22.0** 当前状态。
+本文描述 **1.23.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 94%
+                           当前 ≈ 96%
 ```
 
-94% 不是“代码写完 94%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+96% 不是“代码写完 96%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -22,18 +22,18 @@
 |---|---:|---|
 | Web Runtime | 90% | Three / Rapier / lifecycle / persistence + kinematic Agent Body 已形成稳定运行时 |
 | Human Editor | 75% | 可用，但不是当前差异化主线 |
-| Skill / Policy / Trace | 96% | semantic outcome / mutation barrier / unresolved ledger + 1.21 compact task observation / bounded recovery 已形成统一执行边界 |
+| Skill / Policy / Trace | 98% | outcome / mutation barrier / unresolved ledger + compact context + 1.23 auxiliary recovery / shared authorization 已形成统一执行边界 |
 | Spatial API | 95% | placement / Recast / interaction pose / support truth 稳定；1.22 又把 live Physics contact provenance 作为按需失败证据暴露 |
 | Scene Persistence / History | 88% | schema / autosave / undo-redo + heldBy persistence + 跨帧 embodied transaction 已稳定 |
 | Asset Compiler 基础 | 90% | inspect / normalize / budget / quality 很完整 |
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
-| Runtime Verification | 98% | 单步 post-condition + multi-step E2E + STALL live completion + 1.22 Rapier current-contact provenance；仍缺真正 recovery verification |
+| Runtime Verification | 99% | 单步、多步、STALL attribution 与 1.23 real recovery→original retry E2E 已闭环；剩余是 recovery 类型泛化与更强 causal evidence |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
-| Grasp / Manipulation Geometry | 38% | 1.17–1.18 已有 hold ownership、pickup/carry/place 与 verified support；仍无 IK / grasp force / rotational sweep |
+| Grasp / Manipulation Geometry | 45% | hold/pickup/carry/place + 1.23 deterministic pickup plan / blocker pickup recovery 已通；仍无 IK / grasp force / payload limit |
 | Navigation / Reachability | 90% | 1.15 已有 Detour path + Rapier physical locomotion；自动动态 replan / off-mesh / multi-agent avoidance 仍缺 |
 | 大型 World Runtime | 58% | 1.13 已有 96×72m 城市基线；19 Recast meshes / 38 renderables / 330–489ms build，当前暂无 streaming 证据 |
 | Multi-Agent | 10% | 不是当前优先级 |
@@ -296,33 +296,47 @@ PhysicsSystem 现在在 collider 创建时登记稳定 provenance：Object colli
 
 ---
 
-## 15. 当前 P0：Verified Recovery Action / Blocker-aware Replan
+## 15. 1.23 已完成：Verified Recovery Action / Blocker-aware Replan
 
-现在 Agent 已经可能拿到：
+Attributed STALL 现在可以进入一条严格受限的 pickup-blocker recovery：`suggestRecoveryActions` 先重验 current contact，再通过 `SkillRegistry.authorization`、现有 carry capability 与 `findPickupPlan` geometry preflight 判断 eligibility。Environment、non-root articulated Part、Policy denied、stale contact、不可 carry 或没有 transfer-clear pose 都不会产生 executable proposal。
 
-```text
-Door open → STALL
-blockerCandidate = obstacle_03
-evidence = current-contact-at-failure
-```
-
-下一步不是自动 `moveObject(obstacle_03)`，而是建立受 Policy/Capability 约束的 recovery contract：
-
-```text
-contact blocker candidate
-→ recovery eligibility
-→ explicit recovery proposal
-→ one legal mutation
-→ fresh world re-observation
-→ retry original action
-→ original post-condition must verify
-```
-
-如果 blocker 是 Environment、不可移动、权限不足或 recovery 后仍失败，就必须保留 unresolved task，而不是把“做了 recovery”当成成功。
+真正 mutation 使用专用 `recoverPickupBlocker`，执行前再次生成 proposal；它是 `mutates=true / barrier=true / batchable=false / auxiliary=true`。Auxiliary 只表示“不把恢复动作本身变成新的用户 unresolved 子目标”，不会绕过 History/Policy/Trace，也不会清除原始 open failure。真实 Rapier/Recast E2E 已验证 Dynamic blocker `STALL → suggestion → pickup recovery held → fresh replan → retry open → action-completed`；另一条 Environment blocker E2E 要求 `ENVIRONMENT_IMMOVABLE`、零 recovery mutation、任务继续 incomplete。Nemotron/Muse recovery probe 同样要求 recovery 后原 unresolved 保持 1，直到原 action verified 才归零。
 
 ---
 
-## 16. 1.11–1.12 已完成：Curated Multi-World Layer
+## 16. 当前 P0：Recovery Generalization / Multi-candidate Recovery
+
+1.23 当前只支持：
+
+```text
+Dynamic root Object
++ current contact
++ pickup/drop capability
++ supported carry geometry
+→ pickup-blocker recovery
+```
+
+下一阶段不建 RecoveryManager，而是继续增加 typed recovery eligibility：
+
+```text
+multiple blocker candidates
+→ deterministic eligibility / ranking evidence
+
+articulated blocker Part
+→ candidate open/close recovery
+
+navigation blocker
+→ action-aware route recovery
+
+Environment / fixed architecture
+→ explicit ineligible
+```
+
+每种 recovery 都必须保持同一 contract：proposal 不是执行，执行不是原任务成功，只有原 post-condition 重新 verified 才能完成 recovery。
+
+---
+
+## 17. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -347,7 +361,7 @@ Three.js architecture
 
 ---
 
-## 17. P1：完整 Joint Frame
+## 18. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -383,7 +397,7 @@ Schema claim second
 
 ---
 
-## 18. P2：Compact Agent Observation
+## 19. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -411,7 +425,7 @@ world size
 
 ---
 
-## 19. 自动语义：宁可慢一点，也不虚构能力
+## 20. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -449,7 +463,7 @@ high coverage + fake capability
 
 ---
 
-## 20. 目前不应该成为优先级的方向
+## 21. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -466,7 +480,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 21. 产品差异化应该是什么
+## 22. 产品差异化应该是什么
 
 不应该是：
 
@@ -498,7 +512,7 @@ Agent World
 
 ---
 
-## 22. 未来完成态
+## 23. 未来完成态
 
 可以把 100% 理解为：
 
@@ -563,11 +577,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.22.0 文档快照对应的仓库验证基线：
+1.23.0 文档快照对应的仓库验证基线：
 
 ```text
-97 Test Files PASS
-281 Tests PASS
+100 Test Files PASS
+298 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -632,10 +646,6 @@ Chromium Pages screenshot smoke PASS
 Python service tests PASS
 真实 cabinet Compiler→Runtime Motion Sweep open→close E2E PASS
 真实 JSON enrich / multipart per-Part CoACD E2E PASS
-```
-
-这些数字不是架构目标，只是帮助读者知道文档描述的能力已经有怎样的验证覆盖。未来测试数量变化时，应以当前 CI 为准。
-
 Planning-limit unresolved task preservation / trace PASS
 Compact Task Observation relevance / entity-index PASS
 Real Rapier STALL compact recovery context PASS
@@ -648,3 +658,16 @@ STALL current-contact failure attribution PASS
 Compact blocker-candidate evidence PASS
 Nemotron strict contact-attribution probe PASS
 Muse strict contact-attribution probe PASS
+Verified Dynamic blocker pickup recovery E2E PASS
+Environment blocker recovery-ineligible E2E PASS
+Recovery current-contact stale revalidation PASS
+Recovery Policy / carry capability / pickup-plan preflight PASS
+Auxiliary recovery unresolved-ledger isolation PASS
+Duplicate auxiliary recovery evidence-epoch gate PASS
+Original post-condition retry verification PASS
+Deterministic pickup-plan / waypoint-margin PASS
+Nemotron verified recovery probe PASS
+Muse verified recovery probe PASS
+```
+
+这些数字不是架构目标，只是帮助读者知道文档描述的能力已经有怎样的验证覆盖。未来测试数量变化时，应以当前 CI 为准。

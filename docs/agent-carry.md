@@ -776,3 +776,9 @@ restore Dynamic Physics
 ## 25. 1.18：Carry 终于有 Verified Place 出口
 
 1.17 的下一阶段已经在 1.18 落地：`approachAndPlace(actorId,supportId)` 会从当前 `heldByAgent` 自动推导 held object，采用 carry-aware interaction stand-off、三段 collision-checked release transfer，并在 detach 后等待 Dynamic settle。只有与 SceneGraph `ON/SUPPORTS` 同源的 `supportStatus` 成立才返回 `placed + supportVerified=true`。详见 [`agent-place.md`](./agent-place.md)。
+
+---
+
+## 1.23：Pickup Plan 成为 Suggestion 与 Execution 的共享几何入口
+
+Recovery E2E 暴露普通 pickup 过去会把最后一段 navigation yaw 偶然带入 hold-anchor transfer。1.23 新增 `findPickupPlan`：interaction candidate 必须在面向目标后的预测 HoldAnchor 下通过 `bodyMotionClear`，并将 1.5m planned range 收紧 `DEFAULT_WAYPOINT_TOLERANCE` 作为 arrival margin。`approachAndPickup` 到达后仍重新面向当前目标，并使用实际 body pose 再做一次 transfer check。该 plan 同时服务普通 pickup 与 blocker recovery proposal。

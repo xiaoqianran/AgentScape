@@ -15,10 +15,10 @@ const classify=(result)=>{
   if(String(status||'').includes('unverified')) return {state:'unverified',verified:false,status,reason:result.reason};
   return {state:'accepted',verified:null};
 };
-const makeTools=(results)=>({
+const makeTools=(results,policyOverrides={})=>({
   definitions:()=>[],
   call:vi.fn(async(name,args)=>name==='listObjects'?[]:results[name](args)),
-  executionPolicy:(name,result)=>({...policies[name],outcome:classify(result)}),
+  executionPolicy:(name,result)=>({...policies[name],...policyOverrides[name],outcome:classify(result)}),
   recordSequence:vi.fn()
 });
 
@@ -167,4 +167,131 @@ it('bounds read-only recovery loops while preserving the unresolved mutation led
   expect(requests[3].context.recovery).toEqual({readOnlyRoundsUsed:2,readOnlyRoundsRemaining:0});
   expect(tools.recordSequence).toHaveBeenCalledWith(expect.objectContaining({termination:'recovery-observation-limit',recoveryReadRounds:2,unresolved:1}));
   expect(result.execution.filter((entry)=>entry.reason==='RECOVERY_OBSERVATION_LIMIT')).toHaveLength(1);
+});
+
+
+
+it('does not let an auxiliary recovery failure become a new unresolved user subgoal, while the original failure remains until retry verifies',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o1',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'r',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:'blocker_01'}}]};
+    if(round===3) return {message:'',toolCalls:[{id:'o2',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    return {message:'verified',toolCalls:[]};
+  })};
+  let openAttempt=0;
+  const tools=makeTools({
+    approachAndInteract:async()=>++openAttempt===1?{status:'action-failed',reason:'STALL',partName:'door'}:{status:'action-completed',targetReached:true,settled:true,partName:'door'},
+    recoverPickupBlocker:async()=>({status:'pickup-blocked',reason:'APPROACH_FAILED'})
+  },{
+    recoverPickupBlocker:{mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false}
+  });
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:6}).run('open with recovery if needed');
+  expect(result).toMatchObject({taskStatus:'completed',unresolvedMutations:[]});
+  expect(result.execution.filter((entry)=>entry.tool==='recoverPickupBlocker')[0]).toMatchObject({auxiliary:true,outcome:{state:'blocked',reason:'APPROACH_FAILED'}});
+});
+
+
+
+it('keeps the original mutation unresolved when an auxiliary recovery verifies but the original action is never retried',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'r',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:'blocker_01'}}]};
+    return {message:'blocker recovered',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    approachAndInteract:async()=>({status:'action-failed',reason:'STALL',partName:'door'}),
+    recoverPickupBlocker:async()=>({status:'held',targetId:'blocker_01',recovery:{kind:'pickup-blocker'},retryOriginal:true})
+  },{
+    recoverPickupBlocker:{mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false}
+  });
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:5}).run('open with recovery');
+  expect(result.taskStatus).toBe('incomplete');
+  expect(result.lastMutation).toMatchObject({tool:'recoverPickupBlocker',outcome:{state:'verified'}});
+  expect(result.unresolvedMutations).toHaveLength(1);
+  expect(result.unresolvedMutations[0]).toMatchObject({tool:'approachAndInteract',outcome:{state:'failed',reason:'STALL'}});
+});
+
+
+
+it('includes blockerId in auxiliary recovery identity for audit separation',async()=>{
+  const calls=[];
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    if(!calls.length) return {message:'',toolCalls:[{id:'r',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:'blocker_02'}}]};
+    return {message:'done',toolCalls:[]};
+  })};
+  const tools=makeTools({recoverPickupBlocker:async()=>{calls.push(1);return {status:'held',targetId:'blocker_02'};}},{
+    recoverPickupBlocker:{mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false}
+  });
+  await new ToolCallingAgent({tools,gateway,maxSteps:3}).run('recover blocker');
+  const event=tools.recordSequence.mock.calls.map(([payload])=>payload).find((payload)=>payload.identity);
+  expect(event.identity).toContain('\"blockerId\":\"blocker_02\"');
+});
+
+it('skips a duplicate verified auxiliary recovery until the original failed mutation is retried',async()=>{
+  let round=0,openAttempt=0,recoveryCalls=0;
+  const requests=[];
+  const gateway={isConfigured:()=>true,complete:vi.fn(async(request)=>{
+    requests.push(structuredClone(request));
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o1',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'r1',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:'blocker_01'}}]};
+    if(round===3) return {message:'',toolCalls:[{id:'r2',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',blockerId:'blocker_01'}}]};
+    if(round===4) return {message:'',toolCalls:[{id:'o2',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    return {message:'verified',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    approachAndInteract:async()=>++openAttempt===1
+      ? {status:'action-failed',reason:'STALL',partName:'door'}
+      : {status:'action-completed',targetReached:true,settled:true,partName:'door'},
+    recoverPickupBlocker:async()=>{recoveryCalls++;return {status:'held',targetId:'blocker_01'};}
+  },{
+    recoverPickupBlocker:{mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false}
+  });
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:7}).run('open with one blocker recovery');
+  expect(result).toMatchObject({taskStatus:'completed',unresolvedMutations:[]});
+  expect(recoveryCalls).toBe(1);
+  expect(tools.call.mock.calls.filter(([name])=>name!=='listObjects').map(([name])=>name)).toEqual([
+    'approachAndInteract','recoverPickupBlocker','approachAndInteract'
+  ]);
+  const duplicate=result.execution.find((entry)=>entry.reason==='RECOVERY_ALREADY_APPLIED');
+  expect(duplicate).toMatchObject({
+    tool:'recoverPickupBlocker',executed:false,auxiliary:true,outcome:{state:'skipped'},
+    recoveryOf:expect.stringContaining('approachAndInteract:')
+  });
+  const duplicateMessage=requests[3].messages.find((message)=>message.role==='tool'&&message.toolCallId==='r2');
+  expect(JSON.parse(duplicateMessage.content)).toMatchObject({
+    status:'not-executed',reason:'RECOVERY_ALREADY_APPLIED',
+    instruction:expect.stringContaining('Retry the original failed mutation')
+  });
+  expect(tools.recordSequence).toHaveBeenCalledWith(expect.objectContaining({
+    tool:'recoverPickupBlocker',executed:false,reason:'RECOVERY_ALREADY_APPLIED',replanRequired:true
+  }));
+});
+
+it('allows the same auxiliary recovery again after the original mutation is retried and produces new failure evidence',async()=>{
+  let round=0,recoveryCalls=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o1',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'r1',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:'blocker_01'}}]};
+    if(round===3) return {message:'',toolCalls:[{id:'o2',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    if(round===4) return {message:'',toolCalls:[{id:'r2',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:'blocker_01'}}]};
+    return {message:'still blocked',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    approachAndInteract:async()=>({status:'action-failed',reason:'STALL',partName:'door'}),
+    recoverPickupBlocker:async()=>{recoveryCalls++;return {status:'held',targetId:'blocker_01'};}
+  },{
+    recoverPickupBlocker:{mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false}
+  });
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:7}).run('retry recovery after new stall evidence');
+  expect(recoveryCalls).toBe(2);
+  expect(result.taskStatus).toBe('incomplete');
+  expect(result.unresolvedMutations).toHaveLength(1);
+  expect(result.execution.filter((entry)=>entry.tool==='recoverPickupBlocker'&&entry.executed)).toHaveLength(2);
+  expect(result.execution.some((entry)=>entry.reason==='RECOVERY_ALREADY_APPLIED')).toBe(false);
 });

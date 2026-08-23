@@ -150,7 +150,7 @@ describe('verified multi-step embodied sequencing',()=>{
         }
       }]
     });
-    expect(task.recoveryHints[0]).toMatchObject({action:'report-incomplete-or-retry-after-world-change',status:'provisional',basedOn:'STALL'});
+    expect(task.recoveryHints[0]).toMatchObject({tool:'suggestRecoveryActions',status:'provisional',basedOn:'current-contact-at-failure',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door'}});
     expect(task.objects.some((item)=>item.id==='cup_01'||item.id==='table_01')).toBe(false);
     ctx.navigation.dispose(); ctx.physics.dispose();
   },35000);

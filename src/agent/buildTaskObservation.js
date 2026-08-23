@@ -66,6 +66,7 @@ export function buildTaskObservation(runtime, {
     objects.push({ id, asset:record.assetId, type:record.manifest?.type, ...(position ? {position:roundVec(position)} : {}) });
   }
 
+  const focusMutation=(lastMutation && !['verified','accepted'].includes(lastMutation.outcome?.state)) ? lastMutation : unresolvedMutations.at(-1);
   const observation = {
     schema:'agentscape.task-observation.v1',
     actor:{ id:actor },
@@ -73,7 +74,7 @@ export function buildTaskObservation(runtime, {
     unresolvedMutations:unresolvedMutations.map((entry)=>structuredClone(entry)),
     objects,
     relations:compactRelations(runtime,ids,maxRelations),
-    recoveryHints:recoveryHints((lastMutation && !['verified','accepted'].includes(lastMutation.outcome?.state)) ? lastMutation : unresolvedMutations.at(-1))
+    recoveryHints:recoveryHints(focusMutation)
   };
 
   if (runtime.store?.has(actor)) {
@@ -115,6 +116,17 @@ export function buildTaskObservation(runtime, {
     } catch {}
   }
   if (articulation.length) observation.articulation=articulation;
+  const focusTargetId=focusMutation?.args?.targetId || focusMutation?.args?.id || null;
+  const focusPartName=focusMutation?.args?.partName || null;
+  const focusReason=focusMutation?.outcome?.reason || focusMutation?.outcome?.status || null;
+  const attributedFailure=focusReason==='STALL' ? articulation.flatMap((entry)=>entry.parts.map((part)=>({id:entry.id,part})))
+    .find(({id,part})=>id===focusTargetId && (!focusPartName || part.partName===focusPartName) && part.last?.reason==='STALL' && part.last?.attribution?.status==='contact-evidence' && part.last.attribution.blockerCandidates?.length) : null;
+  if (attributedFailure) observation.recoveryHints=[{
+    tool:'suggestRecoveryActions',
+    args:{actorId:actor,targetId:attributedFailure.id,partName:attributedFailure.part.partName},
+    purpose:'Evaluate current contact blocker candidates against embodied capability and Policy before any recovery mutation.',
+    status:'provisional',basedOn:'current-contact-at-failure'
+  }];
 
   return observation;
 }

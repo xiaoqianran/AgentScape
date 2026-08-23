@@ -165,4 +165,11 @@ describe('core skills', () => {
     expect(r.getValue()).toBe(0);
   });
 
+
+  it('registers blocker recovery as auxiliary and suggestion as read-only',()=>{
+    const r=runtime(); const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    expect(registry.executionPolicy('suggestRecoveryActions')).toMatchObject({mutates:false,barrier:false,auxiliary:false});
+    expect(registry.executionPolicy('recoverPickupBlocker')).toMatchObject({mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false});
+  });
+
 });

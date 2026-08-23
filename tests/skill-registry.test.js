@@ -82,4 +82,26 @@ describe('SkillRegistry', () => {
     expect(registry.executionPolicy('act',{status:'placed',supportVerified:true,settled:true}).outcome).toMatchObject({state:'verified',verified:true});
   });
 
+
+  it('marks auxiliary recovery mutations as barriers without tracking them as task unresolved identities', () => {
+    const { registry } = setup();
+    registry.register({name:'recover',mutates:true,auxiliary:true,batchable:false,handler:()=>{}});
+    expect(registry.executionPolicy('recover',{status:'pickup-blocked',reason:'APPROACH_FAILED'})).toMatchObject({
+      mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false,
+      outcome:{state:'blocked',verified:false,reason:'APPROACH_FAILED'}
+    });
+    expect(registry.executionPolicy('recover',{status:'recovery-stale',reason:'CONTACT_EVIDENCE_STALE'})).toMatchObject({
+      auxiliary:true,tracksUnresolved:false,outcome:{state:'noop',reason:'CONTACT_EVIDENCE_STALE'}
+    });
+  });
+
+
+  it('exposes one authorization decision for proposal-time Policy checks',()=>{
+    const policy=new PolicyEngine({profiles:{viewer:['world.read'],builder:['world.read','world.write']}});
+    const registry=new SkillRegistry({policy});
+    registry.register({name:'write',permissions:['world.write'],handler:()=>{}});
+    expect(registry.authorization('write',{profile:'builder'})).toMatchObject({allow:true,profile:'builder',missing:[],required:['world.write']});
+    expect(registry.authorization('write',{profile:'viewer'})).toMatchObject({allow:false,profile:'viewer',missing:['world.write'],required:['world.write']});
+  });
+
 });

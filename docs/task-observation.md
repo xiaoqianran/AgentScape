@@ -798,3 +798,9 @@ Door STALL
 ## 33. 1.22：Compact Context 获得 Contact Provenance
 
 当 relevant articulated Part 的最近失败报告包含 attribution，`agentscape.task-observation.v1` 会压缩带入：`status / evidence / blockerCandidates`，以及最多 4 条 current contact evidence（source/target、contactCount、activeContactCount、minDistance、totalImpulse、normal）。它仍是 Physics truth 的只读快照，不产生新持久状态。详见 [`failure-attribution.md`](./failure-attribution.md)。
+
+---
+
+## 34. 1.23：Attributed STALL Hint 指向 Recovery Eligibility
+
+当当前 focus mutation 是 STALL，且 compact articulation evidence 含 current-contact blocker candidates，`recoveryHints` 现在 provisional 指向 `suggestRecoveryActions(actorId,targetId,partName)`。这个 read Skill 会重新检查 contact / Policy / capability / pickup geometry；Hint 本身仍不会执行任何 world mutation。与当前 focus 无关的历史 STALL 不会覆盖 Place 等其它失败的 recovery hint。详见 [`verified-recovery.md`](./verified-recovery.md)。

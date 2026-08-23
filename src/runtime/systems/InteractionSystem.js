@@ -386,35 +386,57 @@ export class InteractionSystem {
     return { ...completion, statePromoted,stateFinalized,actorId,targetId,action,pose,locomotion,reach,actionSweep:{checked:true,clear:true,partName:finalSweep.partName},interaction };
   }
 
-  async approachAndPickup(actorId, targetId, { speed, maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
-    const target = this.assertAgentCarryable(actorId, targetId);
-    if (target.state?.heldBy?.kind === 'agent' && target.state.heldBy.id === actorId) {
-      return { status:'held', actorId, targetId, attachment:'kinematic-anchor', graspVerified:false, alreadyHeld:true };
-    }
-    if (!this.locomotion) throw Errors.carryUnavailable(actorId, targetId, 'LOCOMOTION_UNAVAILABLE');
-    const pose = await this.findInteractionPose(actorId, targetId, { maxDistance });
-    if (!pose) throw Errors.carryUnavailable(actorId, targetId, 'NO_INTERACTION_POSE');
-    let locomotion = null;
-    if (pose.status !== 'current-pose') {
-      locomotion = await this.locomotion.navigate(actorId, pose.position, { speed });
-      if (locomotion.status !== 'arrived') return { status:'pickup-blocked', reason:'APPROACH_FAILED', actorId,targetId,pose,locomotion,held:false };
-    }
-    const reach = this.interactionStatus(actorId, targetId, { maxDistance });
-    if (!reach.interactable) return { status:'pickup-blocked', reason:reach.inRange ? 'LINE_OF_SIGHT_BLOCKED' : 'OUT_OF_RANGE', actorId,targetId,pose,locomotion,reach,held:false };
-    const anchor = this.holdAnchor(actorId);
-    const anchorPose = this.physics.anchorPose(actorId, anchor);
-    if (!anchorPose) return { status:'pickup-blocked', reason:'HOLD_ANCHOR_UNAVAILABLE', actorId,targetId,pose,locomotion,held:false };
-    const transfer = this.physics.bodyMotionClear(targetId, anchorPose.position, anchorPose.rotation, { excludeIds:[actorId] });
-    if (!transfer.clear) return { status:'pickup-blocked', reason:'PICKUP_TRANSFER_BLOCKED', actorId,targetId,pose,locomotion,transfer,held:false };
+  async findPickupPlan(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
+    this.assertAgentCarryable(actorId,targetId);
+    if (!this.locomotion) throw Errors.carryUnavailable(actorId,targetId,'LOCOMOTION_UNAVAILABLE');
+    const targetCenter=this.spatial.getBounds(targetId).center;
+    const anchor=this.holdAnchor(actorId);
+    const transferAt=(position)=>{
+      const dx=targetCenter[0]-position[0], dz=targetCenter[2]-position[2];
+      const yaw=Math.hypot(dx,dz)<1e-8 ? 0 : Math.atan2(-dx,-dz);
+      const anchorPose=this.holdPoseAt(position,yaw,anchor);
+      const transfer=this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
+      return {yaw,anchorPose,transfer};
+    };
+    const plannedMaxDistance=Math.max(.05,maxDistance-DEFAULT_WAYPOINT_TOLERANCE);
+    const pose=await this.findInteractionPose(actorId,targetId,{maxDistance:plannedMaxDistance,candidateFilter:(position)=>transferAt(position).transfer.clear});
+    if (!pose) throw Errors.carryUnavailable(actorId,targetId,'NO_PICKUP_TRANSFER_POSE');
+    const preview=transferAt(pose.position);
+    return {pose,facingYaw:preview.yaw,anchorPose:preview.anchorPose,transfer:preview.transfer,plannedMaxDistance};
+  }
 
-    this.physics.setHeld(targetId, true);
-    target.state.heldBy = { kind:'agent', id:actorId, anchor:'hold' };
-    this.agentHeld.set(actorId, targetId);
-    this.physics.setHeldPose(targetId, anchorPose.position, anchorPose.rotation);
-    this.events.emit('interaction', { action:'pickup', id:targetId, actorId, heldBy:target.state.heldBy });
+  async approachAndPickup(actorId, targetId, { speed, maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
+    const target = this.assertAgentCarryable(actorId,targetId);
+    if (target.state?.heldBy?.kind === 'agent' && target.state.heldBy.id === actorId) {
+      return { status:'held',actorId,targetId,attachment:'kinematic-anchor',graspVerified:false,alreadyHeld:true };
+    }
+    const plan=await this.findPickupPlan(actorId,targetId,{maxDistance});
+    const pose=plan.pose;
+    let locomotion=null;
+    if (pose.status!=='current-pose') {
+      locomotion=await this.locomotion.navigate(actorId,pose.position,{speed});
+      if (locomotion.status!=='arrived') return {status:'pickup-blocked',reason:'APPROACH_FAILED',actorId,targetId,pose,locomotion,held:false};
+    }
+    const reach=this.interactionStatus(actorId,targetId,{maxDistance});
+    if (!reach.interactable) return {status:'pickup-blocked',reason:reach.inRange?'LINE_OF_SIGHT_BLOCKED':'OUT_OF_RANGE',actorId,targetId,pose,locomotion,reach,held:false};
+    const actorPosition=this.physics.getPosition(actorId);
+    const targetCenter=this.spatial.getBounds(targetId).center;
+    const dx=targetCenter[0]-actorPosition[0], dz=targetCenter[2]-actorPosition[2];
+    const facingYaw=Math.hypot(dx,dz)<1e-8 ? plan.facingYaw : Math.atan2(-dx,-dz);
+    this.physics.setCharacterYaw(actorId,facingYaw);
+    const anchorPose=this.physics.anchorPose(actorId,this.holdAnchor(actorId));
+    if (!anchorPose) return {status:'pickup-blocked',reason:'HOLD_ANCHOR_UNAVAILABLE',actorId,targetId,pose,locomotion,held:false};
+    const transfer=this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
+    if (!transfer.clear) return {status:'pickup-blocked',reason:'PICKUP_TRANSFER_BLOCKED',actorId,targetId,pose,locomotion,transfer,held:false};
+
+    this.physics.setHeld(targetId,true);
+    target.state.heldBy={kind:'agent',id:actorId,anchor:'hold'};
+    this.agentHeld.set(actorId,targetId);
+    this.physics.setHeldPose(targetId,anchorPose.position,anchorPose.rotation);
+    this.events.emit('interaction',{action:'pickup',id:targetId,actorId,heldBy:target.state.heldBy});
     return {
-      status:'held', actorId, targetId, attachment:'kinematic-anchor', graspVerified:false,
-      pose, locomotion, reach, transfer:{clear:true}, anchor:{name:'hold', position:anchorPose.position}
+      status:'held',actorId,targetId,attachment:'kinematic-anchor',graspVerified:false,
+      pose,locomotion,reach,transfer:{clear:true},facingYaw,anchor:{name:'hold',position:anchorPose.position}
     };
   }
 

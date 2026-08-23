@@ -85,7 +85,7 @@ describe('compact task observation',()=>{
     });
     expect(observation.articulation[0].parts[0].last).not.toHaveProperty('progress');
     expect(observation.recoveryHints).toEqual([
-      expect.objectContaining({action:'report-incomplete-or-retry-after-world-change',status:'provisional',basedOn:'STALL'})
+      expect.objectContaining({tool:'suggestRecoveryActions',status:'provisional',basedOn:'current-contact-at-failure',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door'}})
     ]);
     expect(JSON.stringify(observation).length).toBeLessThan(3500);
   });

@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.22.0** 的真实架构，不描述未来设想。
+本文描述 **1.23.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -867,3 +867,29 @@ articulationStatus / task-observation
 ```
 
 Candidate 只表示 `current-contact-at-failure`，不是唯一因果结论。Contact 没有被写进 SceneGraph，也没有新增持久 FailureStore。完整设计见 [`failure-attribution.md`](./failure-attribution.md)。
+
+---
+
+## 26. Verified Recovery：辅助 Mutation 不拥有原任务成功语义
+
+1.23 仍然没有 RecoveryManager。Recovery 通过现有 SkillRegistry / Policy / Interaction / ToolCallingAgent 边界组成：
+
+```text
+STALL contact evidence
+        ↓
+suggestRecoveryActions     read-only / provisional
+        ↓
+Policy + carry capability + findPickupPlan
+        ↓
+recoverPickupBlocker       mutation / auxiliary / barrier
+        ↓
+fresh replan
+        ↓
+retry original mutation
+        ↓
+original post-condition verified
+```
+
+`auxiliary=true` 只控制 ToolCallingAgent 的 unresolved ledger：recovery 自己不会成为新的用户任务债务，但仍然经过 History transaction、Policy、Trace 与 mutation barrier。Recovery success 也绝不会删除原始 unresolved；只有同一原始 mutation identity 后续 verified 才能清除。 同一 original failure evidence epoch 中，已 verified 的同一 auxiliary recovery 还会被 `RECOVERY_ALREADY_APPLIED` gate 阻止重复执行；只有 original mutation 真正 retry 后才开始新的 recovery evidence epoch。
+
+`findPickupPlan` 同时被 recovery proposal 与普通 `approachAndPickup` 共用，候选要求 Detour/LOS/range + predicted hold transfer clear，并预留 Locomotion waypoint tolerance；真正执行后再次按实际 pose 做 transfer recheck。详见 [`verified-recovery.md`](./verified-recovery.md)。

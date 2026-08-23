@@ -35,6 +35,7 @@ function classifyResult(result) {
       if (UNVERIFIED_STATUSES.has(status) || status.endsWith('-unverified')) return { state:'unverified', verified:false, status, reason:result.reason || null };
       if (REQUESTED_STATUSES.has(status) || status.endsWith('-requested')) return { state:'requested', verified:false, status, reason:result.reason || null };
       if (status === 'empty') return { state:'noop', verified:false, status, reason:'NO_ACTIVE_OBJECT' };
+      if (status === 'recovery-stale') return { state:'noop', verified:false, status, reason:result.reason || 'RECOVERY_STALE' };
     }
     if (result.requested === true) return { state:'requested', verified:false, reason:'REQUEST_ONLY' };
     if (result.ok === false) return { state:'failed', verified:false, reason:result.reason || 'RESULT_NOT_OK' };
@@ -55,7 +56,7 @@ export class SkillRegistry {
   register(skill) {
     if (!skill?.name || typeof skill.handler !== 'function') throw new Error('Skill requires name and handler');
     if (this.skills.has(skill.name)) throw new Error(`Skill already registered: ${skill.name}`);
-    this.skills.set(skill.name, { version:'1.0.0', permissions:[], required:[], properties:{}, mutates:false, batchable:true, agent:true, ...skill });
+    this.skills.set(skill.name, { version:'1.0.0', permissions:[], required:[], properties:{}, mutates:false, batchable:true, auxiliary:false, agent:true, ...skill });
     return this;
   }
 
@@ -67,6 +68,14 @@ export class SkillRegistry {
       .map((skill) => ({ name:skill.name, description:skill.description, parameters:objectSchema(skill) }));
   }
 
+  authorization(name, context = {}) {
+    const skill=this.skills.get(name);
+    if (!skill) return {allow:false,profile:context.profile || 'builder',missing:[],required:[],reason:'SKILL_NOT_FOUND'};
+    const profile=context.profile || 'builder';
+    const decision=this.policy?.evaluate({profile,required:skill.permissions}) ?? {allow:true,profile,missing:[]};
+    return { ...decision, required:[...skill.permissions] };
+  }
+
   executionPolicy(name, result) {
     const skill = this.skills.get(name);
     const outcome = classifyResult(result);
@@ -74,6 +83,8 @@ export class SkillRegistry {
     return {
       mutates,
       barrier:mutates,
+      auxiliary:Boolean(skill?.auxiliary),
+      tracksUnresolved:!skill?.auxiliary,
       batchable:skill?.batchable !== false,
       batchAcceptable:!BATCH_REJECT_STATES.has(outcome.state),
       outcome
@@ -90,7 +101,7 @@ export class SkillRegistry {
     if (validation?.ok === false) return { success:false, error:{ code:'invalid_input', message:validation.message } };
 
     const actor = context.actor || 'agent';
-    const decision = this.policy?.evaluate({ profile:context.profile || 'builder', required:skill.permissions }) ?? { allow:true, missing:[] };
+    const decision = this.authorization(name,context);
     const policyEvent = this.trace?.emit('policy.decision', { skill:name, allow:decision.allow, missing:decision.missing }, { actor });
     if (!decision.allow) return { success:false, error:{ code:'forbidden', message:`Missing permissions: ${decision.missing.join(', ')}` } };
 
