@@ -31,7 +31,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container, { environmentFactory } = {}) {
-    this.version = '1.12.0';
+    this.version = '1.13.0';
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus();
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
@@ -84,6 +84,7 @@ export class WorldRuntime {
     this.renderer.toneMappingExposure = rendering.exposure ?? 1.1;
     this.scene.add(this.environment.root);
     this.physics.addEnvironment(this.environment.colliders);
+    if (this.environment.camera.far) { this.camera.far = this.environment.camera.far; this.camera.updateProjectionMatrix(); }
     this.camera.position.fromArray(this.environment.camera.position);
     this.controls.target.fromArray(this.environment.camera.target);
     this.controls.update();

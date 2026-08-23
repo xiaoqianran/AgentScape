@@ -38,3 +38,5 @@ AgentScape 自身代码独立实现，并使用 `package.json` 和服务端 `req
 - Poly Haven `Solitude Interior` HDRI / `Marble 01` PBR — CC0；用于 Monument Hall 的环境光与地面材质，来源见 `docs/asset-sourcing.md`
 
 - Poly Haven `Mossy Cobblestone` / `Mossy Sandstone` / `Courtyard` HDRI — CC0；用于 Ruined Courtyard，来源见 `docs/asset-sourcing.md`
+
+- Poly Haven `Clean Asphalt` / `Concrete Pavement` / `Urban Street 01` HDRI — CC0；用于 Grand Urban Block，来源见 `docs/asset-sourcing.md`

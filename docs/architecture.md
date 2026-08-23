@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.12.0** 的真实架构，不描述未来设想。
+本文描述 **1.13.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -618,3 +618,23 @@ WorldRuntime
 世界切换选择 reload，而不是热切换两个 Runtime。Autosave 使用 world-id namespace；Scene metadata 也记录 environment id，跨世界 restore 在 destructive mutation 前拒绝。
 
 详细契约见 [`worlds.md`](./worlds.md)。
+
+---
+
+## 16. Lazy Environment Code + 城市尺度基线
+
+1.13 的第三世界把 Environment Catalog 从静态 import 改成 dynamic `load()`，因此每个 world pack 是独立 production chunk；Runtime contract 不变。
+
+```text
+metadata catalog
+      ↓
+selected world
+      ↓
+dynamic import pack
+      ↓
+factory
+      ↓
+WorldRuntime
+```
+
+Grand Urban Block 96 × 72m 真实 benchmark 仍只有 19 Recast meshes、38 renderables、426 instanced details，NavMesh build 约 330–489ms。因此当前架构继续保持 single-world lifecycle，不引入 Scene streaming manager。

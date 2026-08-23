@@ -128,14 +128,15 @@ npm run assets:validate
 
 ## Curated Worlds
 
-Pages 现在有两个共享同一 Runtime 的 curated world：
+Pages 现在有三个共享同一 Runtime 的 curated world：
 
 ```text
-WORLD 01 · Monument Hall     32 × 24m
-WORLD 02 · Ruined Courtyard  36 × 30m
+WORLD 01 · Monument Hall      32 × 24m
+WORLD 02 · Ruined Courtyard   36 × 30m
+WORLD 03 · Grand Urban Block  96 × 72m
 ```
 
-Monument Hall 强调恢弘室内秩序；Ruined Courtyard 强调室外残构、高低差、台阶、倒塌柱与自然侵入。两者的建筑体块都同时进入 Three.js / Rapier / Recast。页面顶部 World selector 通过 `?world=` 重载世界，每个世界拥有独立 autosave。
+Monument Hall 强调恢弘室内秩序；Ruined Courtyard 强调室外残构与高低差；Grand Urban Block 则把尺度推进到城市街区，并用 Instancing 与真实 Recast benchmark 验证当前还不需要 streaming。三个世界的建筑体块都同时进入 Three.js / Rapier / Recast。页面顶部 World selector 通过 `?world=` 重载世界，每个世界拥有独立 autosave；world pack 本身使用 dynamic import，只加载当前选择的内容代码。
 
 世界架构见 [`docs/worlds.md`](./docs/worlds.md)，素材来源见 [`docs/asset-sourcing.md`](./docs/asset-sourcing.md)。
 

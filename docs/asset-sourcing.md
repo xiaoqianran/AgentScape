@@ -96,6 +96,46 @@ Total                 ~4.55 MB
 
 这些文件只在选择 `ruined-courtyard` 时由对应 pack 请求。
 
+
+## WORLD 03：Grand Urban Block
+
+1.13 城市世界继续使用 Poly Haven CC0 1K Web 资产：
+
+### Clean Asphalt
+
+- 页面：https://polyhaven.com/a/clean_asphalt
+- 许可证：CC0
+- `clean_asphalt_diff_1k.jpg` — 约 0.70 MB
+- `clean_asphalt_nor_gl_1k.jpg` — 约 0.78 MB
+- 用途：96 × 72m 城市地面 / boulevard。
+
+### Concrete Pavement
+
+- 页面：https://polyhaven.com/a/concrete_pavement
+- 许可证：CC0
+- `concrete_pavement_diff_1k.jpg` — 约 0.93 MB
+- 用途：四个 raised city block 与中央 plaza。
+
+### Urban Street 01 HDRI
+
+- 页面：https://polyhaven.com/a/urban_street_01
+- 许可证：CC0
+- `urban_street_01_1k.hdr` — 约 1.84 MB
+- 用途：城市室外环境光与反射。
+
+### World 03 资源预算
+
+```text
+Clean Asphalt diffuse   ~0.70 MB
+Clean Asphalt normal    ~0.78 MB
+Concrete Pavement       ~0.93 MB
+Urban Street HDRI       ~1.84 MB
+--------------------------------
+Total                   ~4.25 MB
+```
+
+建筑立面不额外下载大纹理：使用轻量材质 + 单个 Instanced facade-window layer，避免城市规模一上来就把纹理预算拉高。
+
 ## 本轮审计但没有进入当前 Worlds 的平台
 
 ### Kenney

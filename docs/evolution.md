@@ -1472,3 +1472,13 @@ Pages 同时加入 Cinematic Mode：它只隐藏编辑 UI、扩大 viewport，�
 真实 Recast 回归要求 Agent 能沿台阶到达两个高台，并绕开中央枯泉；Rapier 也开始支持 Environment collider quaternion rotation，用于倒塌结构。
 
 这一步把 AgentScape 从“一个漂亮 demo world”推进成“同一引擎承载多种空间语言”。
+
+---
+
+## 33. 1.13：用城市尺度数据决定“不做 streaming”
+
+第三个 curated world `Grand Urban Block` 把环境扩大到 96 × 72m，并使用 12 栋模块建筑、中央 Civic Beacon、Instanced windows / streetlights / trees。它的任务不是证明 AgentScape 能堆更多模型，而是给“大世界优化”第一次真实基线。
+
+结果：19 个 Recast static meshes，38 renderables，426 instances，约 7.8k geometry triangles；NavMesh 连续 build 约 330–489ms。这个数据不足以证明需要 streaming/KTX2/LOD，所以 1.13 明确选择不增加这些系统。
+
+同时，三个 environment pack 改为动态 import：只加载当前 world 的内容 JS。大世界优化因此先从最便宜、最确定的 code-splitting 与 Instancing 开始，而不是先造复杂运行时。

@@ -139,3 +139,12 @@ kbd { margin-left: 4px; opacity: .45; font: inherit; }
 .shell[data-world="ruined-courtyard"] .world-facts span { border-color:#667653; color:#c5d2ad; background:#0d120cbd; }
 .shell[data-world="ruined-courtyard"] .panel { border-color:#2a3328; background:linear-gradient(180deg,rgba(8,13,9,.96),rgba(6,10,7,.94)); }
 @media (max-width:820px) { .world-select { max-width:150px; } }
+.shell[data-world="grand-urban-block"] { --gold:#8eb6e5; background:#080c12; }
+.shell[data-world="grand-urban-block"] .brandbar { border-color:#273543; background:linear-gradient(90deg,rgba(6,10,15,.97),rgba(12,18,25,.9)); }
+.shell[data-world="grand-urban-block"] .brand-lockup span { color:#88a9c7; }
+.shell[data-world="grand-urban-block"] .world-select,
+.shell[data-world="grand-urban-block"] .cinematic-toggle { border-color:#405d77; color:#b7cde2; background:#101923; }
+.shell[data-world="grand-urban-block"] .viewport::before { background:linear-gradient(90deg,rgba(3,6,10,.5) 0%,transparent 38%),linear-gradient(0deg,rgba(3,6,10,.48) 0%,transparent 31%); }
+.shell[data-world="grand-urban-block"] .world-kicker { color:#8eb6e5; }
+.shell[data-world="grand-urban-block"] .world-facts span { border-color:#4f6f8b; color:#c1d2e3; background:#0b1118c4; }
+.shell[data-world="grand-urban-block"] .panel { border-color:#24323e; background:linear-gradient(180deg,rgba(7,11,16,.97),rgba(6,9,13,.95)); }

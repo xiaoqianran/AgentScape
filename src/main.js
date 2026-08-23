@@ -14,6 +14,7 @@ import { ENVIRONMENTS, resolveEnvironment } from './content/environments.js';
 async function main() {
   const app = document.querySelector('#app');
   const environmentDefinition = resolveEnvironment(new URLSearchParams(location.search).get('world'));
+  const environmentFactory = await environmentDefinition.load();
   const environmentOptions = ENVIRONMENTS.map((item) => `<option value="${item.id}"${item.id === environmentDefinition.id ? ' selected' : ''}>${item.number} · ${item.title}</option>`).join('');
   app.innerHTML = `
     <main class="shell" data-world="${environmentDefinition.id}">
@@ -120,11 +121,11 @@ async function main() {
     logEl.prepend(row);
   };
 
-  const world = new WorldRuntime(document.querySelector('#viewport'), { environmentFactory:environmentDefinition.create });
+  const world = new WorldRuntime(document.querySelector('#viewport'), { environmentFactory });
   await world.init();
   const tools = new AgentTools(world);
   const gateway = new HttpLLMGateway({ endpoint: localStorage.getItem('agentscape.gatewayEndpoint') || '' });
-  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway: new LocalPlannerGateway(), log });
+  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway: new LocalPlannerGateway({ coffeeCorner:environmentDefinition.coffeeCorner }), log });
   const editor = new EditorController(world);
   const shell = document.querySelector('.shell');
   document.querySelector('#world-select').addEventListener('change', (event) => {

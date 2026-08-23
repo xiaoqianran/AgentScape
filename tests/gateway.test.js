@@ -21,3 +21,10 @@ describe('LLM gateways', () => {
     expect(result.toolCalls.map((call) => call.name)).toEqual(expect.arrayContaining(['place', 'open']));
   });
 });
+
+it('uses environment-specific coffee-corner positions without hardcoding Runtime coordinates', async () => {
+  const gateway = new LocalPlannerGateway({ coffeeCorner:{ table:[10,1,3], cabinet:[8,1,3] } });
+  const result = await gateway.complete({ messages:[{ role:'user', content:'建立一个咖啡角' }] });
+  expect(result.toolCalls[0]).toMatchObject({ name:'moveObject', args:{ id:'table_01', position:[10,1,3] } });
+  expect(result.toolCalls[1]).toMatchObject({ name:'moveObject', args:{ id:'cabinet_01', position:[8,1,3] } });
+});

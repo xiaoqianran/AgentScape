@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.12.0** 当前状态。
+本文描述 **1.13.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 66%
+                           当前 ≈ 69%
 ```
 
-66% 不是“代码写完 66%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+69% 不是“代码写完 69%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -35,10 +35,10 @@
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
 | Grasp / Manipulation Geometry | 15% | 尚未成为主干能力 |
 | Navigation / Reachability | 72% | 1.10 已有 current-world canReach/findPath；尚缺 action-aware reachability 与实际 locomotion executor |
-| 大型 World Runtime | 45% | 1.12 已有 32×24m + 36×30m 两种 curated environment；streaming / 分区加载仍待真实城市级压力 |
+| 大型 World Runtime | 58% | 1.13 已有 96×72m 城市基线；19 Recast meshes / 38 renderables / 330–489ms build，当前暂无 streaming 证据 |
 | Multi-Agent | 10% | 不是当前优先级 |
 | 完整生成式 World Pipeline | 30% | provider 边界在，task-driven generation 仍需发展 |
-| Pages / Art Direction | 70% | Monument Hall + Ruined Courtyard + World selector 已落地；第三世界将验证城市级规模 |
+| Pages / Art Direction | 78% | Monument Hall + Ruined Courtyard + Grand Urban Block；world pack JS 已按当前选择 lazy load |
 
 ---
 
@@ -221,11 +221,13 @@ Three.js architecture
 
 1.12 已完成第二个 Environment Pack：`Ruined Courtyard`。它证明第二种视觉/空间语言无需复制 Runtime，并新增 split-level Recast、旋转 fixed collider、world-id autosave 与 Scene environment identity。
 
-下一步内容层优先级：
+1.13 已完成 `Grand Urban Block` 城市级基线：96 × 72m、12 栋模块建筑、426 instanced details，Recast build 约 330–489ms。当前数据不支持提前做 streaming。
 
-1. `Grand Urban Block`：真正把空间推到城市街区尺度，测 draw calls / Recast build / texture budget。
-2. 只有真实测量表明需要时，再实现 region streaming / visibility partition。
-3. 保持每个 world 的素材/许可/资源预算独立。
+下一步内容/规模优先级：
+
+1. 继续做更长时、更多动态物体的 Agent 行为演示，而不是再单纯扩大地面。
+2. 记录真实移动端 GPU / texture upload / draw-call 数据；只有出现瓶颈才选择 KTX2 / LOD。
+3. 如果未来静态 world 超过当前 96 × 72m 基线并出现 Recast 秒级构建，再研究 region streaming / partial rebuild。
 
 ---
 
@@ -445,15 +447,17 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.12.0 文档快照对应的仓库验证基线：
+1.13.0 文档快照对应的仓库验证基线：
 
 ```text
-70 Test Files PASS
-186 Tests PASS
+71 Test Files PASS
+190 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
 Ruined Courtyard split-level Recast PASS
+Grand Urban Block 96×72m Recast benchmark PASS
+World-pack dynamic import chunks PASS
 Environment identity restore guard PASS
 Chromium Pages screenshot smoke PASS
 Python service tests PASS
