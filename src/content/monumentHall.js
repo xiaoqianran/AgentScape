@@ -152,6 +152,7 @@ export function createMonumentHall({ scene, loadAssets = true } = {}) {
     root,
     floor,
     colliders: MONUMENT_HALL_COLLIDERS.map((value) => structuredClone(value)),
+    layout:{bounds:{min:[-15,-11],max:[15,11]},groundY:0,margin:1},
     camera: { position: [11.8, 6.8, 16.5], target: [0, 2.4, -4.4] },
     rendering:{ background:0x080b10, fog:{ color:0x080b10, near:22, far:58 }, exposure:1.15 },
     dispose() {

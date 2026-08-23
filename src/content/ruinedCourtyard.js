@@ -194,6 +194,7 @@ export function createRuinedCourtyard({ scene, loadAssets = true } = {}) {
     root,
     floor,
     colliders:RUINED_COURTYARD_COLLIDERS.map((value) => structuredClone(value)),
+    layout:{bounds:{min:[-17,-14],max:[17,14]},groundY:0,margin:1},
     camera:{ position:[16.8, 8.8, 19.5], target:[0, 1.2, -2.6] },
     rendering:{ background:0x667160, fog:{ color:0x667160, near:24, far:72 }, exposure:1.08 },
     dispose() {

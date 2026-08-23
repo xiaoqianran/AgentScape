@@ -25,4 +25,19 @@ describe('Environment catalog',()=>{
     world.dispose();
   });
 
+
+  it('requires every curated environment pack to expose deterministic composer layout bounds',async()=>{
+    for(const definition of ENVIRONMENTS){
+      const factory=await definition.load();
+      const world=factory({loadAssets:false});
+      expect(world.layout).toMatchObject({
+        bounds:{min:[expect.any(Number),expect.any(Number)],max:[expect.any(Number),expect.any(Number)]},
+        groundY:expect.any(Number),margin:expect.any(Number)
+      });
+      expect(world.layout.bounds.min[0]).toBeLessThan(world.layout.bounds.max[0]);
+      expect(world.layout.bounds.min[1]).toBeLessThan(world.layout.bounds.max[1]);
+      world.dispose();
+    }
+  });
+
 });

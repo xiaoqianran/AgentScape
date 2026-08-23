@@ -353,3 +353,8 @@ Prompt
 ```
 
 Planner 只产生 specification/proposal；Runtime validation 继续拥有最终 truth。
+
+
+## 20. 1.33：WorldSpec 不再要求 LLM 提供坐标
+
+1.33 在 canonical pipeline 中新增 `compose_layout`，WorldSpec 的 `position` 变成真正 optional constraint。缺省位置由 `WorldComposer` + `PhysicsSystem.manifestPoseClear` 确定性选择；Environment Pack 提供 layout bounds，但真实碰撞仍由 Rapier 判断。`NEAR` 缺省 distance 也由 Runtime 根据 collider footprint 推导。详见 [`deterministic-world-composer.md`](./deterministic-world-composer.md)。

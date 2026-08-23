@@ -90,7 +90,7 @@ describe('core skills', () => {
     const r=runtime();
     const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
     const def=registry.definitions().find((item)=>item.name==='runWorldPipeline');
-    expect(def.parameters.properties).toEqual({plan:{type:'object'}});
+    expect(def.parameters.properties.plan).toMatchObject({type:'object',additionalProperties:false,properties:{assets:{type:'array'},relations:{type:'array'},generation:{type:'object'}}});
     r.worldPipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}));
     await registry.invoke('runWorldPipeline',{plan:{},stages:['instantiate']},{profile:'builder',actor:'test'});
     expect(r.worldPipeline.run).toHaveBeenCalledWith({});

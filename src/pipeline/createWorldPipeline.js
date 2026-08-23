@@ -1,6 +1,7 @@
 import { PipelineEngine } from './PipelineEngine.js';
 import { normalizeWorldSpec } from './WorldSpec.js';
 import { assetAdmission } from '../assets/admission.js';
+import { composeNearPlacement, composeWorldLayout } from './WorldComposer.js';
 
 export function createWorldPipeline(runtime) {
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
@@ -50,9 +51,30 @@ export function createWorldPipeline(runtime) {
     return state;
   });
 
+  pipeline.register('compose_layout', async (state) => {
+    if (state.reports.assetAdmission?.status==='rejected') {
+      state.reports.layoutAdmission={status:'rejected',reason:'ASSET_ADMISSION_REJECTED',placements:[],issues:[]};
+      return state;
+    }
+    const report=composeWorldLayout(state.artifacts.assets || [],{
+      getManifest:(assetId)=>runtime.assets.getManifest(assetId),
+      poseClear:(manifest,position)=>runtime.physics.manifestPoseClear(manifest,position),
+      layout:runtime.environment?.layout
+    });
+    state.reports.layoutAdmission=report;
+    if (report.status!=='rejected') {
+      const placements=report.placements || [];
+      state.artifacts.assets=(state.artifacts.assets || []).map((item,index)=>{
+        const placement=placements[index];
+        return placement ? {...item,position:[...placement.position],placement:{mode:placement.mode,coverage:placement.coverage}} : item;
+      });
+    }
+    return state;
+  });
+
   pipeline.register('instantiate', async (state) => {
     const spawned = [];
-    if (state.reports.assetAdmission?.status==='rejected') {
+    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected') {
       state.artifacts.spawned=spawned;
       return state;
     }
@@ -66,12 +88,29 @@ export function createWorldPipeline(runtime) {
   });
 
   pipeline.register('apply_relations', async (state) => {
-    if (state.reports.assetAdmission?.status==='rejected') return state;
+    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected') return state;
+    const applied=[],issues=[];
+    state.reports.relationAdmission={status:'ready',applied,issues};
     for (const relation of state.input.relations || []) {
-      if (relation.predicate === 'ON') runtime.interactions.place(relation.subject, relation.object, { surfaceId: relation.surfaceId });
-      if (relation.predicate === 'NEAR' && relation.distance) {
-        const target = runtime.store.get(relation.object).object.position;
-        runtime.interactions.move(relation.subject, [target.x + relation.distance, target.y, target.z]);
+      if (relation.predicate === 'ON') {
+        const result=runtime.interactions.place(relation.subject,relation.object,{surfaceId:relation.surfaceId});
+        applied.push({...relation,result});
+        continue;
+      }
+      if (relation.predicate === 'NEAR') {
+        const subject=runtime.store.get(relation.subject),target=runtime.store.get(relation.object);
+        const targetPosition=target.object.position.toArray();
+        const result=composeNearPlacement(subject.manifest,target.manifest,targetPosition,{
+          subjectY:subject.object.position.y,distance:relation.distance,
+          poseClear:(manifest,position)=>runtime.physics.manifestPoseClear(manifest,position,{excludeIds:[relation.subject]})
+        });
+        if (!result.checked) {
+          issues.push({...relation,reason:result.reason,details:result});
+          state.reports.relationAdmission={status:'rejected',reason:result.reason,applied,issues};
+          return state;
+        }
+        runtime.interactions.move(relation.subject,result.position);
+        applied.push({...relation,position:result.position,distance:result.distance,mode:result.mode});
       }
     }
     runtime.sceneGraph.changed();
@@ -84,7 +123,7 @@ export function createWorldPipeline(runtime) {
   });
 
   pipeline.register('repair', async (state) => {
-    if (state.reports.assetAdmission?.status==='rejected') {
+    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected' || state.reports.relationAdmission?.status==='rejected') {
       state.reports.validationAfterRepair=state.reports.validation || runtime.validator.run();
       return state;
     }
@@ -98,8 +137,10 @@ export function createWorldPipeline(runtime) {
     runtime.sceneGraph.update();
     const validation=state.reports.validationAfterRepair || state.reports.validation || runtime.validator.run();
     const assetAdmission=state.reports.assetAdmission || { status:'ready', unresolved:[], provisional:[] };
-    const status=validation.counts.hard || assetAdmission.status==='rejected' ? 'rejected'
-      : validation.counts.advisory || assetAdmission.status==='provisional' ? 'provisional'
+    const layoutAdmission=state.reports.layoutAdmission || {status:'ready',placements:[],issues:[]};
+    const relationAdmission=state.reports.relationAdmission || {status:'ready',applied:[],issues:[]};
+    const status=validation.counts.hard || assetAdmission.status==='rejected' || layoutAdmission.status==='rejected' || relationAdmission.status==='rejected' ? 'rejected'
+      : validation.counts.advisory || assetAdmission.status==='provisional' || layoutAdmission.status==='provisional' ? 'provisional'
       : 'ready';
     state.reports.worldAdmission={
       status,
@@ -107,10 +148,15 @@ export function createWorldPipeline(runtime) {
         ...(validation.counts.hard?[`VALIDATION_HARD:${validation.counts.hard}`]:[]),
         ...(validation.counts.advisory?[`VALIDATION_ADVISORY:${validation.counts.advisory}`]:[]),
         ...(assetAdmission.status==='rejected'?['ASSET_UNRESOLVED']:[]),
-        ...(assetAdmission.status==='provisional'?['ASSET_PROVISIONAL']:[])
+        ...(assetAdmission.status==='provisional'?['ASSET_PROVISIONAL']:[]),
+        ...(layoutAdmission.status==='rejected'?[layoutAdmission.reason || 'LAYOUT_REJECTED']:[]),
+        ...(layoutAdmission.status==='provisional'?['LAYOUT_PROVISIONAL']:[]),
+        ...(relationAdmission.status==='rejected'?[relationAdmission.reason || 'RELATION_REJECTED']:[])
       ],
       validation:{ hard:validation.counts.hard, advisory:validation.counts.advisory },
-      assets:structuredClone(assetAdmission)
+      assets:structuredClone(assetAdmission),
+      layout:structuredClone(layoutAdmission),
+      relations:structuredClone(relationAdmission)
     };
     state.artifacts.scene = runtime.serialize({ name: state.input.name || 'Generated World' });
     return state;

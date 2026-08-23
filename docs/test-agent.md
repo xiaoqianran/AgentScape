@@ -653,3 +653,7 @@ Probe 将 `cabinet_B/door` 设为 verified `ajar`，同时给 open/close 两个 
 ## 30. 1.31 World-counterfactual Strict Probe
 
 `recovery-counterfactual` strict payload 现在除了 Physics v2 + convergence stable，还携带 `worldCounterfactual.geometry=rapier-world-shape-query`，并要求 `targetIntroducesNoCollision/actionIntroducesNoCollision=true`。模型不得因为 pairwise rank-1 而忽略 world veto。
+
+## 31. 1.33 Generated-world Planner Probe
+
+新增 `generated-world` strict live probe：模型必须先 search table/chair/cup，再只调用一次 `runWorldPipeline`；WorldSpec 不得携带任何 `position`，不得走 `generateAsset/importEmbodiedGenAsset/spawnAsset` 低层旁路，并必须正确表达 `cup ON table / chair NEAR table`。Runtime mock 只在这些条件满足后返回 `world-ready`。Nemotron 与 Muse 当前均 PASS；前者使用 type-based reuse resolve，后者使用显式 assetId。

@@ -19,6 +19,7 @@ describe('generated world pipeline',()=>{
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:1,relations:0}};
     const runtime={
       events:null,trace:null,assets,assetLibrary,
+      environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(assetId,{position,id})=>{spawned.push({assetId,position,id}); return id || `${assetId}_1`; }),
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},
@@ -41,7 +42,7 @@ describe('generated world pipeline',()=>{
       status:'provisional',reasons:['ASSET_PROVISIONAL'],validation:{hard:0,advisory:0},assets:{status:'provisional'}
     });
     expect(result.state.artifacts.scene).toEqual({schema:'agentscape.scene',name:'Generated Lab',objects:['bench_01']});
-    expect(result.timeline.map((x)=>x.name)).toEqual(['normalize_spec','resolve_assets','asset_admission','instantiate','apply_relations','validate','repair','finalize']);
+    expect(result.timeline.map((x)=>x.name)).toEqual(['normalize_spec','resolve_assets','asset_admission','compose_layout','instantiate','apply_relations','validate','repair','finalize']);
   });
 
   it('marks a world rejected when a required generated asset cannot be resolved',async()=>{
@@ -50,6 +51,7 @@ describe('generated world pipeline',()=>{
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:0,relations:0}};
     const runtime={
       events:null,trace:null,assets,assetLibrary,spawn:vi.fn(),
+      environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({})),store:{get:vi.fn()}
     };
@@ -60,6 +62,61 @@ describe('generated world pipeline',()=>{
     expect(runtime.spawn).not.toHaveBeenCalled();
     expect(result.state.artifacts.spawned).toEqual([]);
     expect(result.state.reports.assetAdmission).toMatchObject({status:'rejected',unresolved:[{id:'missing_01',query:'rare lab machine',status:'generator_not_configured'}]});
-    expect(result.state.reports.worldAdmission).toMatchObject({status:'rejected',reasons:['ASSET_UNRESOLVED']});
+    expect(result.state.reports.worldAdmission).toMatchObject({status:'rejected',reasons:['ASSET_UNRESOLVED','ASSET_ADMISSION_REJECTED']});
   });
+
+  it('auto-composes a missing asset position before spawning and records deterministic layout evidence',async()=>{
+    const assets=new AssetManager();
+    assets.registerManifest({id:'crate',type:'container',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.5,.5,.5],translation:[0,.5,0]}]}});
+    const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:1,relations:0}};
+    const spawned=[];
+    const runtime={
+      events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},
+      environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
+      physics:{manifestPoseClear:vi.fn((_manifest,position)=>Math.abs(position[0])<.1&&Math.abs(position[2])<.1
+        ? {checked:true,clear:false,blockedBy:['environment:center-obstacle']}
+        : {checked:true,clear:true,blockedBy:[]})},
+      spawn:vi.fn(async(assetId,{position,id})=>{spawned.push({assetId,position,id});return id;}),
+      interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
+      validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}
+    };
+    const result=await createWorldPipeline(runtime).run({name:'Auto Layout',assets:[{id:'crate_01',assetId:'crate'}]});
+    expect(result.state.reports.layoutAdmission).toMatchObject({status:'ready',placements:[{id:'crate_01',assetId:'crate',mode:'auto',coverage:'full-root'}]});
+    expect(result.state.reports.layoutAdmission.placements[0].position).not.toEqual([0,.01,0]);
+    expect(runtime.spawn).toHaveBeenCalledWith('crate',{
+      position:result.state.reports.layoutAdmission.placements[0].position,id:'crate_01'
+    });
+    expect(result.state.reports.worldAdmission).toMatchObject({status:'ready',layout:{status:'ready'}});
+  });
+
+
+  it('applies NEAR without an LLM-authored distance using Runtime-derived collider spacing',async()=>{
+    const assets=new AssetManager();
+    const table={id:'near_table',type:'table',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[1,.5,.7],translation:[0,.5,0]}]}};
+    const cabinet={id:'near_cabinet',type:'cabinet',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.6,.8,.5],translation:[0,.8,0]}]}};
+    assets.registerManifest(table); assets.registerManifest(cabinet);
+    const records=new Map();
+    const position=(v)=>({x:v[0],y:v[1],z:v[2],toArray(){return [this.x,this.y,this.z];},fromArray(next){[this.x,this.y,this.z]=next;return this;}});
+    const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:2,relations:1}};
+    const move=vi.fn((id,next)=>records.get(id).object.position.fromArray(next));
+    const runtime={
+      events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},
+      environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
+      physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      spawn:vi.fn(async(assetId,{position:at,id})=>{records.set(id,{id,assetId,manifest:assets.getManifest(assetId),object:{position:position(at)}});return id;}),
+      interactions:{place:vi.fn(),move},sceneGraph:{changed:vi.fn(),update:vi.fn()},
+      validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),
+      store:{get:(id)=>records.get(id)}
+    };
+    const result=await createWorldPipeline(runtime).run({
+      name:'Near Layout',assets:[{id:'table_01',assetId:'near_table'},{id:'cabinet_01',assetId:'near_cabinet'}],
+      relations:[{subject:'cabinet_01',predicate:'NEAR',object:'table_01'}]
+    });
+    const applied=result.state.reports.relationAdmission.applied[0];
+    expect(applied).toMatchObject({subject:'cabinet_01',predicate:'NEAR',object:'table_01',mode:'runtime-derived'});
+    expect(applied.distance).toBeGreaterThan(2);
+    expect(move).toHaveBeenCalledWith('cabinet_01',applied.position);
+    expect(result.state.reports.worldAdmission).toMatchObject({status:'ready',relations:{status:'ready'}});
+  });
+
 });

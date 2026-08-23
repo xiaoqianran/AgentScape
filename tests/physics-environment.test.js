@@ -38,3 +38,18 @@ it('applies quaternion rotation to Environment Pack colliders', async () => {
   expect(Math.abs(rotations[0].w)).toBeGreaterThan(.7);
   physics.dispose();
 });
+
+it('preflights a manifest collider pose against live Environment geometry without attaching an object', async () => {
+  const physics=new PhysicsSystem();
+  await physics.init();
+  physics.addEnvironment([
+    {shape:'box',halfExtents:[4,.1,4],translation:[0,-.1,0]},
+    {shape:'box',halfExtents:[.5,1,.5],translation:[0,1,0]}
+  ],{id:'layout-test'});
+  const manifest={physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.3,.5,.3],translation:[0,.5,0]}]}};
+  const entriesBefore=physics.entries.size;
+  expect(physics.manifestPoseClear(manifest,[0,.01,0])).toMatchObject({checked:true,clear:false,blockedBy:['environment:layout-test']});
+  expect(physics.manifestPoseClear(manifest,[2,.01,2])).toMatchObject({checked:true,clear:true,blockedBy:[]});
+  expect(physics.entries.size).toBe(entriesBefore);
+  physics.dispose();
+});

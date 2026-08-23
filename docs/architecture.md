@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.32.0** 的真实架构，不描述未来设想。
+本文描述 **1.33.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -1057,3 +1057,11 @@ worldAdmission
 ```
 
 Agent skill 永远运行完整 canonical pipeline；内部 stage selection 不暴露给 LLM。Asset admission rejected 时不产生 partial spawn；final world rejected 时 skill 恢复调用前 scene。`world-ready / world-provisional / world-rejected` 与 `asset-ready / asset-provisional / asset-rejected` 已进入 Skill outcome semantics。完整 contract 见 [`generated-world-admission.md`](./generated-world-admission.md)。
+
+---
+
+## 36. Deterministic World Composer：LLM 不拥有坐标 Truth
+
+1.33 在 `asset_admission` 与 `instantiate` 之间加入纯计算 `compose_layout`。`WorldComposer` 从 Manifest root collider 推导 footprint，从 Environment Pack 读取可搜索 bounds，并调用 `PhysicsSystem.manifestPoseClear` 对候选 world pose 做 non-mutating Rapier shape query；同批尚未 spawn 的 assets 用 conservative footprint reservation。WorldSpec 没有 position 时由 Runtime 确定性选位，explicit position 则只验证、不偷偷改写。
+
+`NEAR` 关系也不再要求 LLM 猜 distance：省略时由 subject/target footprint + clearance 推导，按固定 ±X/±Z 顺序做 Rapier preflight。`layoutAdmission / relationAdmission` 会进入最终 `worldAdmission`。`ON` 继续复用现有 `InteractionSystem.place / SpatialSystem.findFreeSpace`，没有第二套 support solver。详见 [`deterministic-world-composer.md`](./deterministic-world-composer.md)。

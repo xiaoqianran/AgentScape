@@ -188,6 +188,7 @@ export function createGrandUrbanBlock({scene,loadAssets=true}={}){
   return {
     id:'grand-urban-block',root,floor,
     colliders:GRAND_URBAN_BLOCK_COLLIDERS.map((value)=>structuredClone(value)),
+    layout:{bounds:{min:[-47,-35],max:[47,35]},groundY:0,margin:1.5},
     camera:{position:[52,36,58],target:[0,4,0],far:190},
     rendering:{background:0x66717d,fog:{color:0x66717d,near:58,far:155},exposure:1.04},
     dispose(){active=false;if(scene?.environment===environmentTexture)scene.environment=null;environmentTexture?.dispose();environmentTexture=null;}

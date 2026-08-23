@@ -1658,3 +1658,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 以前仓库同时有 Asset Generator、EmbodiedGenAdapter 和 WorldPipeline，但默认 HTTP Generator 要求后端直接提供 Manifest，Adapter 主要还是手工桥。1.32 让 raw EmbodiedGen payload 真正进入 `AssetLibrary.generate` 主链，并把 Generator Manifest 的 trust 明确化：schema-valid 不等于 ready；没有 Compiler-ready evidence 的外部生成资产默认 provisional。
 
 同时新增 deterministic `WorldSpec` normalizer 和 `asset_admission` stage。Agent 不再能选择 pipeline stages，因此无法跳过 validate/finalize。Mixed resolved+missing asset plan 在任何 spawn 前 fail closed；最终 rejected world 会 restore 调用前 scene。这样“生成资产”和“生成一个可被 Agent 认定完成的世界”第一次成为两个不同的 executable contract。
+
+---
+
+## 54. 1.33：LLM 第一次不再负责 Generated World 坐标
+
+1.32 已经能安全 admission generated world，但 WorldSpec 仍把 `position` 暴露为普通字段，Agent 很容易自己猜坐标。1.33 把这个责任下沉到 Runtime：WorldSpec schema 明确 position 可省略，`WorldComposer` 用 Manifest collider footprint + Environment bounds + live Rapier pose query 确定性排位。三个 curated Environment Pack 都必须暴露 layout contract。
+
+同一阶段还修掉 `NEAR` 的语义漏洞：以前 distance 省略时 relation schema 合法但 pipeline 实际 no-op；现在 Runtime 根据两对象 footprint 自动推导安全间距，并做方向 preflight。Strict live probe 还暴露并修正了 `id / assetId` 语义歧义。最终 Nemotron 和 Muse 都能从自然语言完成 search-first → WorldSpec(no coordinates) → single canonical pipeline → world-ready。

@@ -15,7 +15,7 @@ describe('WorldSpec',()=>{
       schema:1,name:'AI Lab',description:'',generation:{provider:'embodiedgen',generate:true},
       assets:[
         {id:'bench_01',query:'workbench',type:'workbench',position:[1,0,2],generate:true,provider:'embodiedgen'},
-        {id:'cup_01',assetId:'cup',query:'cup',position:[0,0,0],generate:false,provider:'embodiedgen'}
+        {id:'cup_01',assetId:'cup',query:'cup',generate:false,provider:'embodiedgen'}
       ],
       relations:[{subject:'cup_01',predicate:'ON',object:'bench_01',surfaceId:'top'}]
     });
@@ -29,4 +29,12 @@ describe('WorldSpec',()=>{
   it('rejects unsupported relations instead of inventing semantics',()=>{
     expect(()=>normalizeWorldSpec({relations:[{subject:'a',predicate:'BEHIND',object:'b'}]})).toThrow(/unsupported predicate/);
   });
+
+  it('rejects unknown fields at every WorldSpec layer instead of silently dropping them',()=>{
+    expect(()=>normalizeWorldSpec({type:'world'})).toThrow('WorldSpec unknown field: type');
+    expect(()=>normalizeWorldSpec({generation:{provider:'embodiedgen',unexpected:true}})).toThrow('WorldSpec generation unknown field: unexpected');
+    expect(()=>normalizeWorldSpec({assets:[{id:'x',type:'chair',foo:'bar'}]})).toThrow('WorldSpec asset[0] unknown field: foo');
+    expect(()=>normalizeWorldSpec({relations:[{subject:'a',predicate:'NEAR',object:'b',meters:2}]})).toThrow('WorldSpec relation[0] unknown field: meters');
+  });
+
 });

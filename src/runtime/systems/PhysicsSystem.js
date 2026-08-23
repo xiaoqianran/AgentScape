@@ -303,6 +303,38 @@ export class PhysicsSystem {
     return { position:position.toArray(), rotation:worldRotation.toArray() };
   }
 
+  manifestPoseClear(manifest, targetPosition, { excludeIds = [] } = {}) {
+    const colliders=manifest?.physics?.colliders || [];
+    if (!colliders.length) return {checked:false,clear:false,reason:'ROOT_COLLIDER_UNAVAILABLE'};
+    const excluded=new Set(excludeIds);
+    const blockedBy=new Set();
+    const shapeFor=(spec)=>{
+      if (spec.shape==='box') return new RAPIER.Cuboid(...spec.halfExtents);
+      if (spec.shape==='cylinder') return new RAPIER.Cylinder(spec.halfHeight,spec.radius);
+      if (spec.shape==='capsule') return new RAPIER.Capsule(spec.halfHeight,spec.radius);
+      if (spec.shape==='convexHull') return new RAPIER.ConvexPolyhedron(new Float32Array(spec.vertices));
+      return null;
+    };
+    this.world.updateSceneQueries();
+    for(let i=0;i<colliders.length;i++) {
+      const spec=colliders[i],shape=shapeFor(spec);
+      if (!shape) return {checked:false,clear:false,reason:'ROOT_COLLIDER_UNSUPPORTED',collider:i,shape:spec.shape || null};
+      const local=spec.translation || [0,0,0];
+      const position={x:targetPosition[0]+local[0],y:targetPosition[1]+local[1],z:targetPosition[2]+local[2]};
+      const rotation=spec.rotation ? {x:spec.rotation[0],y:spec.rotation[1],z:spec.rotation[2],w:spec.rotation[3]} : {x:0,y:0,z:0,w:1};
+      this.world.intersectionsWithShape(position,rotation,shape,(other)=>{
+        const provenance=this.provenanceOfCollider(other);
+        if (provenance?.kind==='object' && excluded.has(provenance.objectId)) return true;
+        blockedBy.add(provenance?.kind==='environment' ? `environment:${provenance.environmentId || '$environment'}`
+          : provenance?.kind==='object' ? `object:${provenance.objectId}:${provenance.partName || ROOT_PART}` : '$unknown');
+        return false;
+      });
+      shape.free?.();
+      if (blockedBy.size) return {checked:true,clear:false,blockedBy:[...blockedBy].sort(),coverage:Object.keys(manifest.parts || {}).length?'root-only':'full-root'};
+    }
+    return {checked:true,clear:true,blockedBy:[],coverage:Object.keys(manifest.parts || {}).length?'root-only':'full-root'};
+  }
+
   bodyPoseClear(id, targetPosition, targetRotation = null, { excludeIds = [] } = {}) {
     const entry = this.entries.get(id);
     if (!entry || entry.parts.size) return { clear:false, code:'CARRY_BODY_UNSUPPORTED' };

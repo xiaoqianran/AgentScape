@@ -1,5 +1,6 @@
 import { EmbodiedGenAdapter } from '../adapters/EmbodiedGenAdapter.js';
 import { assetAdmission } from '../assets/admission.js';
+import { WORLD_SPEC_SCHEMA } from '../pipeline/WorldSpec.js';
 import { buildRecoveryProposals } from '../agent/buildRecoveryProposals.js';
 
 const string = { type: 'string' };
@@ -202,7 +203,7 @@ export function registerCoreSkills(registry, runtime) {
     return { committed:true, rolledBack:false, results };
   });
 
-  add('runWorldPipeline', { ...meta('规范化 WorldSpec，解析/生成资产，经 admission 后实例化、应用关系、校验、修复并最终序列化。Agent 调用始终执行完整 canonical pipeline，不能跳过 validation/finalize。world-ready 才视为 verified；world-provisional 保留但不冒充验证；world-rejected 会恢复调用前 scene。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: { type: 'object' } }), mutates: true }, async (a) => {
+  add('runWorldPipeline', { ...meta('规范化 WorldSpec，解析/生成资产，经 admission 后实例化、应用关系、校验、修复并最终序列化。Agent 调用始终执行完整 canonical pipeline，不能跳过 validation/finalize。world-ready 才视为 verified；world-provisional 保留但不冒充验证；world-rejected 会恢复调用前 scene。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: WORLD_SPEC_SCHEMA }), mutates: true }, async (a) => {
     const before=runtime.snapshot();
     const pipeline=await runtime.worldPipeline.run(a.plan);
     const admission=pipeline.state?.reports?.worldAdmission;

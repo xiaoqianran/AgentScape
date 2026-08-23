@@ -2,6 +2,7 @@ import { ToolCallingAgent } from '../src/agent/ToolCallingAgent.js';
 import { HttpLLMGateway } from '../src/agent/gateway/HttpLLMGateway.js';
 import { SkillRegistry } from '../src/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../src/skills/registerCoreSkills.js';
+import { normalizeWorldSpec } from '../src/pipeline/WorldSpec.js';
 import {
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
@@ -66,6 +67,11 @@ const scenarios = {
     expected:'approachAndInteract'
   }
 ,
+  'generated-world': {
+    goal:'Create a small robot work area using reusable existing assets: one table, one chair, and one cup. The cup must be ON the table, and the chair must be NEAR the table. Search for reusable assets first, then call runWorldPipeline exactly once with a strongly structured WorldSpec. Do not provide any asset position coordinates; let AgentScape deterministic composition choose them. Do not call generateAsset, importEmbodiedGenAsset, or spawnAsset directly. Only report the world complete if runWorldPipeline returns world-ready.',
+    world:[],
+    expected:'runWorldPipeline'
+  },
   attribution: {
     goal:'Call approachAndInteract directly so agent_01 walks to cabinet_01 and tries to open its door. Do not call navigateTo or findInteractionPose separately. If it fails with STALL and current-contact-at-failure evidence, stop immediately and report the named blocker candidate as current physical contact evidence. Do not claim it is the uniquely proven root cause. Do not move the blocker and do not use any low-level open/pickup/place tool.',
     world:[
@@ -153,7 +159,7 @@ try {
   let sequenceDoorOpen=false, sequenceHeld=false, sequencePlaced=false, sequenceAttemptedOpen=false, recoveryApplied=false;
   let multiAttemptedOpen=false,multiRecoveredBlocker=null,multiDoorOpen=false;
   let cleanupOpenAttempts=0,cleanupHeld=null,cleanupFirstDone=false,cleanupFirstCleaned=false,cleanupSecondDone=false,cleanupDoorOpen=false;
-  let articulatedAttemptedOpen=false,articulatedBlockerClosed=false,articulatedDoorOpen=false,lastArticulatedSuggestion=null,lastArticulatedCalibration=null;
+  let articulatedAttemptedOpen=false,articulatedBlockerClosed=false,articulatedDoorOpen=false,lastArticulatedSuggestion=null,lastArticulatedCalibration=null,generatedWorldPlan=null;
   const sequenceEvents=[];
   const tools = {
     definitions:() => registry.definitions(),
@@ -162,6 +168,46 @@ try {
     call:async(name, args = {}) => {
       if (name === 'listObjects') return scenario.world;
       toolCalls.push({ name, args });
+      if (mode === 'generated-world') {
+        if (name === 'searchAssets') {
+          const q=String(args.query || '').toLowerCase();
+          const catalog=[
+            {id:'table',type:'table',label:'Table',actions:['move'],source:'builtin'},
+            {id:'chair',type:'chair',label:'Chair',actions:['move'],source:'builtin'},
+            {id:'cup',type:'cup',label:'Cup',actions:['pickup','drop','place','move'],source:'builtin'}
+          ];
+          return catalog.filter((item)=>q.includes(item.type) || item.type.includes(q));
+        }
+        if (name === 'runWorldPipeline') {
+          if (generatedWorldPlan) throw Object.assign(new Error('Generated-world probe allows runWorldPipeline exactly once'),{code:'PROBE_DUPLICATE_WORLD_PIPELINE'});
+          let plan;
+          try { plan=normalizeWorldSpec(args.plan); }
+          catch (error) { throw Object.assign(new Error(`Generated-world probe rejected WorldSpec: ${error.message}`),{code:'PROBE_BAD_WORLD_SPEC'}); }
+          if (!Array.isArray(plan.assets) || plan.assets.length!==3) throw Object.assign(new Error('Generated-world probe requires exactly three WorldSpec assets'),{code:'PROBE_BAD_WORLD_SPEC'});
+          if (plan.assets.some((item)=>Object.prototype.hasOwnProperty.call(item,'position'))) throw Object.assign(new Error('Generated-world probe forbids LLM-authored positions'),{code:'PROBE_LLM_POSITION'});
+          const searched=new Set(toolCalls.filter((call)=>call.name==='searchAssets').map((call)=>String(call.args.query || '').toLowerCase()));
+          if (!['table','chair','cup'].every((type)=>[...searched].some((q)=>q.includes(type)))) throw Object.assign(new Error('Generated-world probe requires search-first for table/chair/cup'),{code:'PROBE_SEARCH_FIRST'});
+          if (plan.assets.some((item)=>item.generate===true)) throw Object.assign(new Error('Generated-world probe must reuse existing assets instead of generating'),{code:'PROBE_REUSE_REQUIRED'});
+          const role=(item)=>item.assetId || item.type || item.query;
+          const byRole=Object.fromEntries(plan.assets.map((item)=>[role(item),item]));
+          if (!['table','chair','cup'].every((type)=>byRole[type]?.id)) throw Object.assign(new Error(`Generated-world probe needs explicit instance ids for reusable table/chair/cup: ${Object.keys(byRole).join(',')}`),{code:'PROBE_INSTANCE_IDS'});
+          const relations=plan.relations || [];
+          const tableId=byRole.table.id,chairId=byRole.chair.id,cupId=byRole.cup.id;
+          const cupOnTable=relations.some((r)=>r.subject===cupId&&r.predicate==='ON'&&r.object===tableId);
+          const chairNearTable=relations.some((r)=>r.subject===chairId&&r.predicate==='NEAR'&&r.object===tableId);
+          if (!cupOnTable || !chairNearTable) throw Object.assign(new Error(`Generated-world probe requires ${cupId} ON ${tableId} and ${chairId} NEAR ${tableId}`),{code:'PROBE_RELATION_SEMANTICS'});
+          if (relations.some((r)=>r.predicate==='ON' && !(r.subject===cupId&&r.object===tableId))) throw Object.assign(new Error('Generated-world probe received an invalid ON relation direction'),{code:'PROBE_RELATION_DIRECTION'});
+          generatedWorldPlan=structuredClone(plan);
+          const placements=plan.assets.map((item,index)=>({id:item.id || `${item.assetId}_01`,assetId:item.assetId,position:[[0,.01,2],[2,.01,0],[-2,.01,0]][index],mode:'auto',coverage:item.assetId==='cabinet'?'root-only':'full-root'}));
+          return {
+            status:'world-ready',
+            admission:{status:'ready',reasons:[],validation:{hard:0,advisory:0},assets:{status:'ready'},layout:{status:'ready',placements,issues:[]}},
+            pipeline:{state:{artifacts:{worldSpec:{schema:1,...plan},assets:placements},reports:{layoutAdmission:{status:'ready',placements,issues:[]},worldAdmission:{status:'ready'}}}}
+          };
+        }
+        if (['generateAsset','importEmbodiedGenAsset','spawnAsset'].includes(name)) throw Object.assign(new Error(`Generated-world probe forbids low-level ${name}`),{code:'PROBE_WORLD_PIPELINE_BYPASS'});
+        throw Object.assign(new Error(`Probe does not allow ${name} in generated-world mode`),{code:'PROBE_TOOL_NOT_ALLOWED'});
+      }
       if (mode === 'recovery-articulated' || mode === 'recovery-counterfactual') {
         const counterfactualMode=mode==='recovery-counterfactual';
         const blocker={kind:'object',objectId:'cabinet_B',partName:'door',colliderIndex:0};
@@ -624,6 +670,16 @@ try {
     if (toolCalls.some((call)=>['open','pickup','place','moveObject','navigateTo','approachAndPickup'].includes(call.name))) throw new Error('Recovery probe used a forbidden bypass mutation');
     const executed=result.execution.filter((entry)=>entry.executed&&entry.mutates);
     if (!executed.find((entry)=>entry.tool==='recoverPickupBlocker'&&entry.auxiliary===true&&entry.outcome.state==='verified')) throw new Error('Recovery mutation was not recorded as verified auxiliary execution');
+  }
+  if (mode === 'generated-world') {
+    const pipelineCalls=toolCalls.filter((call)=>call.name==='runWorldPipeline');
+    if (pipelineCalls.length!==1) throw new Error(`Generated-world probe expected exactly one runWorldPipeline, got ${pipelineCalls.length}`);
+    if (!generatedWorldPlan) throw new Error('Generated-world probe did not retain a WorldSpec');
+    if (generatedWorldPlan.assets.some((item)=>Object.prototype.hasOwnProperty.call(item,'position'))) throw new Error('Generated-world probe let the model author coordinates');
+    if (toolCalls.some((call)=>['generateAsset','importEmbodiedGenAsset','spawnAsset'].includes(call.name))) throw new Error('Generated-world probe used a low-level generation/spawn bypass');
+    if (result.taskStatus!=='completed'||result.unresolvedMutations.length) throw new Error(`Generated-world task did not complete: status=${result.taskStatus} unresolved=${result.unresolvedMutations.length}`);
+    const executed=result.execution.filter((entry)=>entry.executed&&entry.mutates);
+    if (!executed.find((entry)=>entry.tool==='runWorldPipeline'&&entry.outcome.state==='verified')) throw new Error('Generated-world pipeline was not recorded as verified');
   }
   if (mode === 'sequence-failure') {
     if (!sequenceAttemptedOpen) throw new Error('Failure sequence never attempted embodied open');
