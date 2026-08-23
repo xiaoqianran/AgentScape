@@ -1115,3 +1115,9 @@ recoverPickupBlocker(... blockerId=obstacle_03)
 ## 45. 1.25：Auxiliary Recovery 获得 Verified Cleanup
 
 当 original retry 产生新 STALL evidence，但 Agent 仍持有上一轮 recovery blocker，新的 candidate 会因 `HANDS_FULL` 无法 pickup。`suggestRecoveryActions` 现在仅在 held object 有同一 target 的 recovery provenance 时生成 `cleanupRecommended`；普通用户任务 held object 不会被自动清理。`cleanupRecoveryBlocker` 本身也是 auxiliary mutation，`recovery-cleaned` 后必须重新 `suggestRecoveryActions`，仍不能清 original unresolved。详见 [`recovery-cleanup.md`](./recovery-cleanup.md)。
+
+---
+
+## 45. 1.26：Auxiliary Recovery 不再只有 Pickup
+
+`recoverArticulatedBlocker` 与 pickup/cleanup 使用同一 auxiliary ledger contract：mutation barrier、fresh replan、同 failure evidence epoch duplicate gate、original unresolved isolation。Blocker Part action 即使 `action-completed`，也只有 original mutation retry verified 后才能完成用户任务。详见 [`articulated-recovery.md`](./articulated-recovery.md)。

@@ -621,3 +621,11 @@ npm run agent:probe -- recovery-cleanup
 ```
 
 严格双 blocker 场景要求：第一次 open STALL → rank-1 `obstacle_02` recovery → original retry 仍 STALL on `obstacle_01` while hands full → `suggestRecoveryActions.cleanupRecommended` → `cleanupRecoveryBlocker(obstacle_02)` 得到 `recovery-cleaned` → fresh `suggestRecoveryActions` → recover `obstacle_01` → final original open verified。禁止 `dropHeld / moveObject / navigateTo / direct approachAndPickup / approachAndPlace / low-level open/pickup/place`。Nemotron/Muse 当前样本都在 10 planning rounds 内完成；sequence trace 要求 cleanup 后 original unresolved 仍为 1，只有 final original action-completed 后才为 0。
+
+## 25. 1.26 Articulated Blocker Recovery Probe
+
+```bash
+npm run agent:probe -- recovery-articulated
+```
+
+严格 probe 模拟 `cabinet_A.open → STALL → cabinet_B/door current contact`。`cabinet_B/door` 当前 verified `open`，唯一 alternate executable action 为 `close`。模型必须先 `suggestRecoveryActions`，再使用专用 `recoverArticulatedBlocker(cabinet_B,door,close)`；禁止直接 `approachAndInteract` B、low-level open/close、moveObject、navigateTo 或 pickup recovery。Nemotron 与 Muse 当前样本都在 blocker close auxiliary verified 后保留 original unresolved=1，随后 fresh retry A.open verified 才变 0。

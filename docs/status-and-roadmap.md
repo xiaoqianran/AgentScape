@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.25.0** 当前状态。
+本文描述 **1.26.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -29,7 +29,7 @@
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
-| Runtime Verification | 99% | 单步、多步、STALL attribution、verified recovery 与 1.24 multi-candidate ranking 已闭环；剩余是 cleanup / articulated recovery 与更强 causal evidence |
+| Runtime Verification | 99% | 单步、多步、STALL attribution、pickup/cleanup recovery 与 1.26 verified articulated blocker recovery 已闭环；剩余是多 action counterfactual evidence 与更强 causal verification |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -320,39 +320,39 @@ Attributed STALL 现在可以进入一条严格受限的 pickup-blocker recovery
 
 ---
 
-## 18. 当前 P0：Articulated Blocker Recovery
+## 18. 1.26 已完成：Articulated Blocker Recovery
 
-当前 recovery 已经覆盖：
+`candidateType=articulated-part` 现在可以进入窄范围 recovery，但只在 blocker Part 当前 `verifiedAction` 明确、`requestedAction=null`、不在 moving、Manifest 中恰好一个 alternate executable `open/close`、current contact 仍存在、Policy 允许且 `findInteractionPose(action,partName)` 成功时。Unverified / pending / ambiguous 都明确 ineligible。Eligible proposal 使用 `recoverArticulatedBlocker`；该 Skill execution-time 会重新生成 recovery proposal，再真实调用 `approachAndInteract` blocker Part。它是 auxiliary mutation，成功只验证 blocker 改态，original unresolved 仍保留到 original action fresh retry verified。
 
-```text
-Dynamic root Object blocker
-→ pickup recovery
-→ verified cleanup
-```
-
-下一类真正不同的 blocker 是：
-
-```text
-kind = object
-partName != $root
-```
-
-它不能被整体 pickup。下一阶段应建立 typed articulated recovery：
-
-```text
-blocking Part
-→ open/close capability + Policy
-→ action-aware sweep / current joint truth
-→ provisional articulated recovery
-→ explicit approachAndInteract on blocker Part
-→ fresh original retry
-```
-
-仍然禁止把 blocker action 成功当成 original task success。
+真实 Rapier/Recast 两柜 E2E 已验证：B.door 真实 open 后阻挡 A.door，A.open 发生 STALL/contact attribution；Agent 真实 approach B 并 close verified，随后 A.open retry verified。该 E2E 还推动 `approachAndInteract` 增加一次 0.05m arrival correction fallback：只在默认 arrival 后 exact action sweep 发现 Agent 因停车误差挡住动作时触发，重新检查 range/LOS/sweep；planner stance selection 与最终 sweep 都没有放宽。Nemotron/Muse `recovery-articulated` probe 均通过。
 
 ---
 
-## 19. 1.11–1.12 已完成：Curated Multi-World Layer
+## 19. 当前 P0：Counterfactual Articulated Recovery / Multi-action Choice
+
+当前若 blocker Part 有多个 alternate executable actions：
+
+```text
+alternateActions.length > 1
+→ AMBIGUOUS_ARTICULATED_RECOVERY
+```
+
+下一阶段不让 LLM 猜，而应增加 deterministic counterfactual evidence：
+
+```text
+multiple blocker actions
+→ executable action sweep / target truth
+→ predicted contact-change evidence
+→ non-causal action ranking
+→ execute one auxiliary action
+→ fresh original retry
+```
+
+仍然保持 proposal ≠ execution ≠ original success。
+
+---
+
+## 20. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -377,7 +377,7 @@ Three.js architecture
 
 ---
 
-## 20. P1：完整 Joint Frame
+## 21. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -413,7 +413,7 @@ Schema claim second
 
 ---
 
-## 21. P2：Compact Agent Observation
+## 22. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -441,7 +441,7 @@ world size
 
 ---
 
-## 22. 自动语义：宁可慢一点，也不虚构能力
+## 23. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -479,7 +479,7 @@ high coverage + fake capability
 
 ---
 
-## 23. 目前不应该成为优先级的方向
+## 24. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -496,7 +496,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 24. 产品差异化应该是什么
+## 25. 产品差异化应该是什么
 
 不应该是：
 
@@ -528,7 +528,7 @@ Agent World
 
 ---
 
-## 25. 未来完成态
+## 26. 未来完成态
 
 可以把 100% 理解为：
 
@@ -593,11 +593,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.25.0 文档快照对应的仓库验证基线：
+1.26.0 文档快照对应的仓库验证基线：
 
 ```text
-103 Test Files PASS
-320 Tests PASS
+104 Test Files PASS
+328 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -706,6 +706,15 @@ Recovery cleanup release-endpoint occupancy PASS
 Recovery cleanup action-sweep failure PASS
 Shared Place / Cleanup settle owner PASS
 Carry E2E deterministic NavMesh preparation PASS
+Articulated blocker verified-state eligibility PASS
+Articulated blocker pending / ambiguous rejection PASS
+Articulated recovery proposal Policy denial PASS
+Articulated recovery execution-time stale revalidation PASS
+Articulated auxiliary duplicate-recovery gate PASS
+Real two-cabinet Rapier/Recast articulated recovery E2E PASS
+Action interaction arrival-correction fallback PASS
+Nemotron verified articulated recovery probe PASS
+Muse verified articulated recovery probe PASS
 ```
 
 这些数字不是架构目标，只是帮助读者知道文档描述的能力已经有怎样的验证覆盖。未来测试数量变化时，应以当前 CI 为准。

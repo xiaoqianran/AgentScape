@@ -3,6 +3,7 @@ import { Errors } from '../../core/errors.js';
 import { DEFAULT_WAYPOINT_TOLERANCE } from './LocomotionSystem.js';
 
 export const DEFAULT_INTERACTION_DISTANCE = 1.5;
+const ACTION_INTERACTION_CORRECTION_TOLERANCE = 0.05;
 
 export class InteractionSystem {
   constructor({ store, physics, spatial, navigation = null, locomotion = null, events }) {
@@ -387,16 +388,28 @@ export class InteractionSystem {
       if (locomotion.status !== 'arrived') return { status:'interaction-blocked', reason:'APPROACH_FAILED', actorId,targetId,action,pose,locomotion };
     }
 
-    const reach = this.interactionStatus(actorId, targetId, { maxDistance });
+    let reach = this.interactionStatus(actorId, targetId, { maxDistance });
     if (!reach.interactable) {
       const reason = reach.inRange ? 'LINE_OF_SIGHT_BLOCKED' : 'OUT_OF_RANGE';
       return { status:'interaction-blocked', reason, actorId,targetId,action,pose,locomotion,reach };
     }
     const finalSweep = this.actionSweepBounds(targetId, action, partName);
-    const actualPosition = this.physics.getPosition(actorId);
     if (!finalSweep.checked) return { status:'interaction-blocked', reason:'ACTION_SWEEP_UNAVAILABLE', actorId,targetId,action,pose,locomotion,sweep:{checked:false,reason:finalSweep.reason,partName:finalSweep.partName} };
+    let actualPosition = this.physics.getPosition(actorId);
+    let arrivalCorrection = null;
+    if (actualPosition && pose.status !== 'current-pose' && finalSweep.box.intersectsBox(this.actorBoxAt(actorId, actualPosition))) {
+      arrivalCorrection = await this.locomotion.navigate(actorId,pose.position,{speed,waypointTolerance:ACTION_INTERACTION_CORRECTION_TOLERANCE});
+      actualPosition=this.physics.getPosition(actorId);
+      if (arrivalCorrection.status==='arrived') {
+        reach=this.interactionStatus(actorId,targetId,{maxDistance});
+        if (!reach.interactable) {
+          const reason=reach.inRange ? 'LINE_OF_SIGHT_BLOCKED' : 'OUT_OF_RANGE';
+          return {status:'interaction-blocked',reason,actorId,targetId,action,pose,locomotion,arrivalCorrection,reach};
+        }
+      }
+    }
     if (!actualPosition || finalSweep.box.intersectsBox(this.actorBoxAt(actorId, actualPosition))) {
-      return { status:'interaction-blocked', reason:'AGENT_BLOCKS_ACTION_SWEEP', actorId,targetId,action,pose,locomotion,sweep:{checked:true,partName:finalSweep.partName} };
+      return { status:'interaction-blocked', reason:'AGENT_BLOCKS_ACTION_SWEEP', actorId,targetId,action,pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),sweep:{checked:true,partName:finalSweep.partName} };
     }
     const center = this.spatial.getBounds(targetId).center;
     const actor = this.physics.getPosition(actorId);
@@ -405,7 +418,7 @@ export class InteractionSystem {
     const completion = await this.waitForArticulationCompletion(targetId,interaction.part,action,interaction.target);
     const statePromoted = this.promoteArticulationCompletion(completion);
     const stateFinalized = !statePromoted && this.finalizeArticulationAttempt(completion);
-    return { ...completion, statePromoted,stateFinalized,actorId,targetId,action,pose,locomotion,reach,actionSweep:{checked:true,clear:true,partName:finalSweep.partName},interaction };
+    return { ...completion, statePromoted,stateFinalized,actorId,targetId,action,pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,actionSweep:{checked:true,clear:true,partName:finalSweep.partName},interaction };
   }
 
   async findPickupPlan(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {

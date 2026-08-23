@@ -541,3 +541,9 @@ held recovery blocker
 ## 26. 1.25：Rank-1 Recovery 后的 Hands-full 已闭环
 
 1.24 一次 evidence epoch 只执行一个 ranked recovery。若 original retry 后新的 evidence 仍需要另一个 pickup blocker，而 rank-1 blocker 仍在 Hold Anchor，1.25 不连续 pickup；`suggestRecoveryActions` 会识别 `HANDS_FULL + recoveryHeld provenance` 并给 `cleanupRecommended`。Verified cleanup 后 fresh replan，再重新计算候选/rank。详见 [`recovery-cleanup.md`](./recovery-cleanup.md)。
+
+---
+
+## 26. 1.26：Ranking 开始比较不同 Recovery Primitive
+
+1.26 的 eligible set 不再只有 pickup recovery，也可能包含 `articulated-blocker`。因此 strategy 名称升级为 `eligible-recovery-route-cost-v2`。排序仍只表达当前 executable recovery 的 approach/interaction route cost，`causal=false` 不变；contact force 不进入 root-cause score。详见 [`articulated-recovery.md`](./articulated-recovery.md)。

@@ -1606,3 +1606,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.24 排出了多个 recovery candidates，但第一个 pickup recovery 会占用唯一 Hold Anchor；继续恢复第二个 blocker 会命中 `HANDS_FULL`。1.25 没有用 `dropHeld` 草率清手，也没有改写 `SpatialSystem.findFreeSpace`，而是新增 world-space cleanup：原 action sweep 外生成固定 candidates，Rapier downward ray 找真实 Environment 支撑，Detour 找 release stance，planner 用 `bodyPoseClear` 检查 endpoint，executor 仍用 Place 共用的三段 `bodyMotionClear` transfer，释放 Dynamic 后进入同一个 settleTasks owner。
 
 真实开发还顺手修掉 settle target removal 的 lifecycle 缺口：support/failed target 被删除时 Place/Cleanup pending Promise 都会立即得到 unverified result。双模型 `recovery-cleanup` probe 已跑通 `first blocker recovery → original retry still STALL → cleanup held blocker → recover second blocker → original retry verified`，且 cleanup 前后 original unresolved 始终保持 1。
+
+---
+
+## 47. 1.26：另一个 Door 第一次可以成为受验证的 Recovery Action
+
+1.25 能安全腾出 recovery-held blocker，但 contact candidate 指向另一个 articulated Part 时仍只能拒绝。1.26 没有把 Part 当 movable root，也没有让 LLM 猜 action；Runtime 要求 blocker Part 当前 `verifiedAction` 明确、`requestedAction=null`，并从 Manifest executable actions/targets 中得到恰好一个 alternate open/close，再经过 current-contact、Policy 与 interaction/action-sweep preflight 才给 `recoverArticulatedBlocker`。Execution wrapper 会重新生成 proposal，再调用原 `approachAndInteract`。
+
+真实两柜 Rapier/Recast E2E 使用 A=[0,0,0] 与 B=[-2.2,0,1], yaw=90°：B.door 先真实打开，A.door 随后在约 -1.02 处因 B.door contact STALL；Agent 真实走到 B 并 close verified 后，fresh retry A.open 到达 target。该 E2E 又暴露了 0.18m locomotion arrival drift 可能把实际 Agent 带进 action sweep，因此最终只在 exact final sweep 失败时增加一次 0.05m stance correction，而没有改变原 planner stance selection 或放宽最终 sweep。

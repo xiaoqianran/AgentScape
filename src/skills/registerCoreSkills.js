@@ -100,13 +100,32 @@ export function registerCoreSkills(registry, runtime) {
     });
     return {...pickup,recovery:{kind:'pickup-blocker',blockerId:a.blockerId,evidence:proposal.evidence},retryOriginal:true,verification:proposal.verification};
   });
+  add('recoverArticulatedBlocker', { ...meta('执行一个窄范围 articulated-Part blocker recovery：仅当该 blocker Part 仍是当前 contact candidate、当前 verified state 明确、只有一个可执行 alternate open/close、Policy 允许且 interaction/action-sweep preflight 通过时，才真实 approachAndInteract 改变 blocker Part。它是 auxiliary mutation；成功只验证 blocker Part 改态，原始失败动作仍必须 fresh-replan 后 retry。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId','blockerPartName','blockerAction'], {actorId:string,targetId:string,partName:string,blockerId:string,blockerPartName:string,blockerAction:{type:'string',enum:['open','close']},speed:{type:'number',exclusiveMinimum:0,maximum:8}}), batchable:false,auxiliary:true,mutates:true }, async(a,{registry,context})=>{
+    const recovery=await buildRecoveryProposals(runtime,registry,{actorId:a.actorId,targetId:a.targetId,partName:a.partName,profile:context.profile || 'builder'});
+    const proposal=recovery.proposals.find((item)=>
+      item.eligible && item.recovery==='articulated-blocker'
+      && item.blocker?.objectId===a.blockerId && item.blocker?.partName===a.blockerPartName
+      && item.blockerAction===a.blockerAction
+    );
+    if (!proposal) return {
+      status:'recovery-stale',
+      reason:recovery.proposals.find((item)=>item.blocker?.objectId===a.blockerId && item.blocker?.partName===a.blockerPartName)?.reason || recovery.reason || 'RECOVERY_NOT_ELIGIBLE',
+      actorId:a.actorId,targetId:a.targetId,blockerId:a.blockerId,blockerPartName:a.blockerPartName,blockerAction:a.blockerAction,retryOriginal:true
+    };
+    const interaction=await runtime.interactions.approachAndInteract(a.actorId,a.blockerId,a.blockerAction,{partName:a.blockerPartName,speed:a.speed});
+    return {
+      ...interaction,
+      recovery:{kind:'articulated-blocker',blockerId:a.blockerId,blockerPartName:a.blockerPartName,blockerAction:a.blockerAction,evidence:proposal.evidence},
+      retryOriginal:true,verification:proposal.verification
+    };
+  });
   add('suggestRecoveryCleanup', meta('只读为当前通过 recoverPickupBlocker 持有的 blocker 规划安全 cleanup。候选必须由 Rapier 向下射线找到 Environment 支撑、位于原 articulation action sweep 外、Agent 可达且 carried-body endpoint clear。Proposal 不修改世界。', ['world.read','spatial.read','physics.read'], ['actorId','targetId'], {actorId:string,targetId:string,partName:string,blockerId:string,action:{type:'string',enum:['open','close']}}), (a)=>runtime.interactions.findRecoveryCleanupPlan(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action}));
   add('cleanupRecoveryBlocker', { ...meta('对当前 recovery-held blocker 执行 verified cleanup：真实导航到 cleanup pose，经共享三段 Rapier body-motion transfer 释放为 Dynamic，等待 settle，并验证 blocker 已释放、离开原 action sweep 且不再接触失败 Part。recovery-cleaned 只表示 cleanup 成功，不表示原始任务成功。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId'], {actorId:string,targetId:string,partName:string,blockerId:string,action:{type:'string',enum:['open','close']},speed:{type:'number',exclusiveMinimum:0,maximum:8}}), batchable:false,auxiliary:true,mutates:true }, async(a)=>{
     const result=await runtime.interactions.cleanupRecoveryBlocker(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action,speed:a.speed});
     if (result.status==='cleanup-unavailable') return {status:'recovery-cleanup-blocked',reason:result.reason || 'CLEANUP_UNAVAILABLE',actorId:a.actorId,targetId:a.targetId,blockerId:a.blockerId,plan:result};
     return result;
   });
-  add('suggestRecoveryActions', meta('针对最近一次 articulated STALL 只读生成恢复候选。仅对当前仍接触、可由具身 Agent pickup 的动态 Object blocker 给出 provisional proposal；Environment/fixed/不可携带/Policy denied 均明确拒绝。Recovery proposal 不是成功，执行后必须 retry 原始 action 并重新验证 post-condition。', ['world.read','physics.read'], ['actorId','targetId'], { actorId:string,targetId:string,partName:string }), (a,{registry,context}) => buildRecoveryProposals(runtime,registry,{actorId:a.actorId,targetId:a.targetId,partName:a.partName,profile:context.profile || 'builder'}));
+  add('suggestRecoveryActions', meta('针对最近一次 articulated STALL 只读生成恢复候选。对当前仍接触的 blocker 做 typed recovery eligibility：Dynamic root Object 可走 pickup recovery，具有 verified current state 且唯一 alternate open/close 的 articulated Part 可走 articulated recovery；Environment、stale/ambiguous/Policy denied 均明确拒绝。Recovery proposal 不是成功，执行后必须 retry 原始 action 并重新验证 post-condition。', ['world.read','physics.read'], ['actorId','targetId'], { actorId:string,targetId:string,partName:string }), (a,{registry,context}) => buildRecoveryProposals(runtime,registry,{actorId:a.actorId,targetId:a.targetId,partName:a.partName,profile:context.profile || 'builder'}));
   add('approachAndPickup', { ...meta('具身 pickup：Agent 先走到固定 1.5m 交互位并复核 Rapier LOS，再对对象到 hold anchor 做 shape-sweep；成功后记录 heldBy 并以 kinematic anchor 携带。不是 grasp force verification。', ['world.write','spatial.read','physics.read'], ['actorId','targetId'], { actorId:string, targetId:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, (a) => runtime.interactions.approachAndPickup(a.actorId,a.targetId,{speed:a.speed}));
   add('approachAndPlace', { ...meta('具身 place 的首选单一工具：被放置物由 actor 当前 held ownership 自动推导，不要传 held object id。supportId 是接收物体的支撑对象 ID（例如 table_01）；surfaceId 只是该支撑对象 Manifest 中可选的 surface 名（例如 top），绝不是对象 ID。内部完成 carry-aware approach、三段 Rapier shape-cast release、Dynamic settle 与 ON/SUPPORTS post-condition。只有 status=placed 且 supportVerified=true 才表示最终放置成功。', ['world.write','spatial.read','physics.read'], ['actorId','supportId'], { actorId:{type:'string',description:'持有物体的 Agent ID，例如 agent_01'}, supportId:{type:'string',description:'接收放置物的支撑对象 ID，例如 table_01；不要填 cup_01'}, surfaceId:{type:'string',description:'可选 surface 名，例如 top；不要填对象 ID'}, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, (a) => runtime.interactions.approachAndPlace(a.actorId,a.supportId,{surfaceId:a.surfaceId,speed:a.speed}));
   add('dropHeld', { ...meta('释放 Agent 当前 kinematic-anchor held object，恢复其原始 Physics body type。', ['world.write','physics.read'], ['actorId'], { actorId:string }), batchable:false, mutates:true }, (a) => runtime.interactions.dropHeld(a.actorId));

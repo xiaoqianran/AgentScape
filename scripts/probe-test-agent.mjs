@@ -107,6 +107,16 @@ const scenarios = {
     ],
     expected:['approachAndInteract','suggestRecoveryActions','recoverPickupBlocker','cleanupRecoveryBlocker']
   }
+,
+  'recovery-articulated': {
+    goal:'Open cabinet_A with agent_01 using approachAndInteract. The first attempt will STALL with current-contact-at-failure evidence that cabinet_B/door is blocking it. Call suggestRecoveryActions. Follow exactly the eligible recommended recoverArticulatedBlocker proposal: cabinet_B door is currently verified open and the unique alternate executable action is close. Do not directly call approachAndInteract on cabinet_B; the recovery must go through recoverArticulatedBlocker so Runtime can revalidate contact/state/Policy at execution time. After blocker recovery is action-completed + targetReached + settled, do not claim the original task is complete: fresh-replan and retry the original approachAndInteract open on cabinet_A. Only that original retry being action-completed + targetReached + settled means success. Never use low-level open/close, moveObject, navigateTo, pickup/place, or direct recovery bypasses.',
+    world:[
+      { id:'agent_01', asset:'agent', position:[2.5,0,4], actions:['navigate'] },
+      { id:'cabinet_A', asset:'cabinet', position:[0,0,0], actions:['open','close','move'] },
+      { id:'cabinet_B', asset:'cabinet', position:[-2.2,0,1], actions:['open','close','move'] }
+    ],
+    expected:['approachAndInteract','suggestRecoveryActions','recoverArticulatedBlocker']
+  }
 };
 const scenario = scenarios[mode];
 if (!scenario) throw new Error(`Unknown probe mode: ${mode}`);
@@ -133,6 +143,7 @@ try {
   let sequenceDoorOpen=false, sequenceHeld=false, sequencePlaced=false, sequenceAttemptedOpen=false, recoveryApplied=false;
   let multiAttemptedOpen=false,multiRecoveredBlocker=null,multiDoorOpen=false;
   let cleanupOpenAttempts=0,cleanupHeld=null,cleanupFirstDone=false,cleanupFirstCleaned=false,cleanupSecondDone=false,cleanupDoorOpen=false;
+  let articulatedAttemptedOpen=false,articulatedBlockerClosed=false,articulatedDoorOpen=false;
   const sequenceEvents=[];
   const tools = {
     definitions:() => registry.definitions(),
@@ -141,7 +152,68 @@ try {
     call:async(name, args = {}) => {
       if (name === 'listObjects') return scenario.world;
       toolCalls.push({ name, args });
-      if (mode === 'recovery-cleanup') {
+      if (mode === 'recovery-articulated') {
+        const blocker={kind:'object',objectId:'cabinet_B',partName:'door',colliderIndex:0};
+        const contact={
+          source:{kind:'object',objectId:'cabinet_A',partName:'door',colliderIndex:0},target:blocker,external:true,
+          contactCount:4,activeContactCount:2,minDistance:-.0012,totalImpulse:.45,normal:[1,0,0]
+        };
+        const attribution={status:'contact-evidence',evidence:'current-contact-at-failure',blockerCandidates:[blocker],contactEvidence:[contact]};
+        if (name === 'getArticulationStatus') {
+          if (args.id==='cabinet_B') return {id:'cabinet_B',parts:[{
+            partName:'door',status:'verified-state',requestedAction:null,verifiedAction:articulatedBlockerClosed?'close':'open',
+            live:{coordinate:articulatedBlockerClosed?0:-1.35,target:articulatedBlockerClosed?0:-1.35,error:0,tolerance:.08,coordinateReference:'rest-zero-pose'}
+          }]};
+          if (args.id==='cabinet_A') return {id:'cabinet_A',parts:[{
+            partName:'door',status:articulatedDoorOpen?'action-completed':(articulatedAttemptedOpen?'action-failed':'verified-state'),
+            requestedAction:null,verifiedAction:articulatedDoorOpen?'open':'close',
+            last:articulatedAttemptedOpen&&!articulatedDoorOpen?{status:'action-failed',reason:'STALL',targetReached:false,settled:false,action:'open',attribution}:undefined,
+            live:{coordinate:articulatedDoorOpen?-1.35:(articulatedAttemptedOpen?-1.02:0),target:articulatedDoorOpen?-1.35:0,error:articulatedDoorOpen?0:(articulatedAttemptedOpen?.33:0),tolerance:.08,coordinateReference:'rest-zero-pose'}
+          }]};
+        }
+        if (name === 'approachAndInteract') {
+          if (args.targetId==='cabinet_B') throw Object.assign(new Error('Articulated recovery probe requires recoverArticulatedBlocker wrapper for cabinet_B'),{code:'PROBE_RECOVERY_BYPASS'});
+          if (args.actorId!=='agent_01'||args.targetId!=='cabinet_A'||args.action!=='open') throw Object.assign(new Error('Articulated original action arguments invalid'),{code:'PROBE_BAD_ARGUMENTS'});
+          articulatedAttemptedOpen=true;
+          if (!articulatedBlockerClosed) return {
+            status:'action-failed',reason:'STALL',partName:'door',actorId:'agent_01',targetId:'cabinet_A',action:'open',
+            targetReached:false,settled:false,stateFinalized:true,coordinate:-1.02,error:.33,tolerance:.08,coordinateReference:'rest-zero-pose',attribution
+          };
+          articulatedDoorOpen=true;
+          return {status:'action-completed',partName:'door',actorId:'agent_01',targetId:'cabinet_A',action:'open',targetReached:true,settled:true,statePromoted:true,coordinate:-1.35,error:0,tolerance:.08,coordinateReference:'rest-zero-pose'};
+        }
+        if (name === 'suggestRecoveryActions') {
+          if (!articulatedAttemptedOpen||articulatedBlockerClosed||articulatedDoorOpen) throw Object.assign(new Error('Articulated suggestion requested outside first failed evidence epoch'),{code:'PROBE_RECOVERY_ORDER'});
+          const proposal={
+            blocker,candidateType:'articulated-part',eligible:true,status:'provisional',recovery:'articulated-blocker',evidence:'current-contact-at-failure',rank:1,
+            currentContact:{pairCount:1,contactCount:4,activeContactCount:2,minDistance:-.0012,totalImpulse:.45,colliderIndices:[0]},
+            blockerState:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'open',live:{coordinate:-1.35,target:-1.35,error:0,tolerance:.08,coordinateReference:'rest-zero-pose'}},
+            blockerAction:'close',policy:{allow:true,profile:'builder',missing:[]},
+            preflight:{pose:{status:'approach-pose',position:[-3,0,-.3],routeCost:2.2,actionSweep:{checked:true,clear:true,partName:'door'}},actionSweep:{checked:true,clear:true,partName:'door'}},
+            rankingEvidence:{causal:false,recoveryRouteCost:2.2},
+            tool:'recoverArticulatedBlocker',args:{actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'},
+            verification:{required:'retry-original-post-condition',tool:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_A',action:'open',partName:'door'},success:{status:'action-completed',targetReached:true,settled:true}}
+          };
+          return {
+            status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_A',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',
+            ranking:{strategy:'eligible-recovery-route-cost-v2',causal:false,criteria:['eligible','recoveryRouteCostAsc','stableBlockerKeyAsc']},
+            recommended:{rank:1,blocker,tool:'recoverArticulatedBlocker',args:proposal.args},proposals:[proposal]
+          };
+        }
+        if (name === 'recoverArticulatedBlocker') {
+          if (!articulatedAttemptedOpen||articulatedBlockerClosed) throw Object.assign(new Error('Articulated recovery mutation order invalid'),{code:'PROBE_RECOVERY_ORDER'});
+          if (args.actorId!=='agent_01'||args.targetId!=='cabinet_A'||args.partName!=='door'||args.blockerId!=='cabinet_B'||args.blockerPartName!=='door'||args.blockerAction!=='close') throw Object.assign(new Error('Articulated recovery arguments invalid'),{code:'PROBE_BAD_ARGUMENTS'});
+          articulatedBlockerClosed=true;
+          return {
+            status:'action-completed',partName:'door',actorId:'agent_01',targetId:'cabinet_B',action:'close',targetReached:true,settled:true,statePromoted:true,coordinate:0,error:0,tolerance:.08,coordinateReference:'rest-zero-pose',
+            recovery:{kind:'articulated-blocker',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close',evidence:'current-contact-at-failure'},retryOriginal:true,
+            verification:{required:'retry-original-post-condition',tool:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_A',action:'open',partName:'door'},success:{status:'action-completed',targetReached:true,settled:true}}
+          };
+        }
+        if (['open','close','pickup','place','moveObject','navigateTo','approachAndPickup','approachAndPlace','dropHeld','recoverPickupBlocker'].includes(name)) throw Object.assign(new Error(`Articulated recovery probe rejects bypass ${name}`),{code:'PROBE_RECOVERY_LOW_LEVEL_REJECTED'});
+        throw Object.assign(new Error(`Probe does not allow ${name} in recovery-articulated mode`),{code:'PROBE_TOOL_NOT_ALLOWED'});
+      }
+        if (mode === 'recovery-cleanup') {
         const first={kind:'object',objectId:'obstacle_01',partName:'$root',colliderIndex:0};
         const second={kind:'object',objectId:'obstacle_02',partName:'$root',colliderIndex:0};
         const contactsFor=(candidates)=>candidates.map((target,index)=>({
@@ -178,15 +250,15 @@ try {
           if (!cleanupOpenAttempts || cleanupDoorOpen) throw Object.assign(new Error('Cleanup recovery suggestion outside failed state'),{code:'PROBE_RECOVERY_ORDER'});
           if (!cleanupFirstDone) {
             const p2=proposal(second,1,2),p1=proposal(first,2,5);
-            return {status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-pickup-route-cost-v1',causal:false,criteria:['eligible','pickupRouteCostAsc','stableBlockerKeyAsc']},recommended:{rank:1,blocker:second,tool:'recoverPickupBlocker',args:p2.args},proposals:[p2,p1]};
+            return {status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-recovery-route-cost-v2',causal:false,criteria:['eligible','recoveryRouteCostAsc','stableBlockerKeyAsc']},recommended:{rank:1,blocker:second,tool:'recoverPickupBlocker',args:p2.args},proposals:[p2,p1]};
           }
           if (!cleanupFirstCleaned) {
             const blocked={...proposal(first,undefined,undefined),eligible:false,status:'ineligible',reason:'HANDS_FULL'}; delete blocked.rank; delete blocked.rankingEvidence;
-            return {status:'recovery-cleanup-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-pickup-route-cost-v1',causal:false,criteria:['eligible','pickupRouteCostAsc','stableBlockerKeyAsc']},recommended:null,cleanupRecommended:{status:'provisional',reason:'HANDS_FULL_WITH_RECOVERY_BLOCKER',blockerId:'obstacle_02',tool:'cleanupRecoveryBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',action:'open',blockerId:'obstacle_02'},plan:cleanupPlan,verification:{required:'replan-recovery-after-cleanup',cleanupStatus:'recovery-cleaned'}},proposals:[blocked]};
+            return {status:'recovery-cleanup-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-recovery-route-cost-v2',causal:false,criteria:['eligible','recoveryRouteCostAsc','stableBlockerKeyAsc']},recommended:null,cleanupRecommended:{status:'provisional',reason:'HANDS_FULL_WITH_RECOVERY_BLOCKER',blockerId:'obstacle_02',tool:'cleanupRecoveryBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',action:'open',blockerId:'obstacle_02'},plan:cleanupPlan,verification:{required:'replan-recovery-after-cleanup',cleanupStatus:'recovery-cleaned'}},proposals:[blocked]};
           }
           if (!cleanupSecondDone) {
             const p1=proposal(first,1,3);
-            return {status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-pickup-route-cost-v1',causal:false,criteria:['eligible','pickupRouteCostAsc','stableBlockerKeyAsc']},recommended:{rank:1,blocker:first,tool:'recoverPickupBlocker',args:p1.args},proposals:[p1]};
+            return {status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-recovery-route-cost-v2',causal:false,criteria:['eligible','recoveryRouteCostAsc','stableBlockerKeyAsc']},recommended:{rank:1,blocker:first,tool:'recoverPickupBlocker',args:p1.args},proposals:[p1]};
           }
           throw Object.assign(new Error('Cleanup recovery suggestion requested after all blockers recovered'),{code:'PROBE_RECOVERY_ORDER'});
         }
@@ -247,7 +319,7 @@ try {
             verification:{required:'retry-original-post-condition',tool:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'},success:{status:'action-completed',targetReached:true,settled:true}}
           });
           const proposals=[mk(candidates[1],1,2),mk(candidates[0],2,5)];
-          return {status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-pickup-route-cost-v1',causal:false,criteria:['eligible','pickupRouteCostAsc','stableBlockerKeyAsc']},recommended:{rank:1,blocker:candidates[1],tool:'recoverPickupBlocker',args:proposals[0].args},proposals};
+          return {status:'recovery-proposed',actorId:'agent_01',targetId:'cabinet_01',partName:'door',originalAction:'open',evidence:'current-contact-at-failure',ranking:{strategy:'eligible-recovery-route-cost-v2',causal:false,criteria:['eligible','recoveryRouteCostAsc','stableBlockerKeyAsc']},recommended:{rank:1,blocker:candidates[1],tool:'recoverPickupBlocker',args:proposals[0].args},proposals};
         }
         if (name === 'recoverPickupBlocker') {
           if (multiRecoveredBlocker) throw Object.assign(new Error('Multi recovery attempted more than one recovery before original retry'),{code:'PROBE_RECOVERY_ORDER'});
@@ -419,7 +491,7 @@ try {
   };
   const gateway = new HttpLLMGateway({ endpoint:`http://127.0.0.1:${port}/agent`, timeoutMs:90000 });
   const trace = process.env.AGENTSCAPE_TEST_LLM_TRACE === '1';
-  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway:null, maxSteps:(mode.startsWith('sequence')||mode==='recovery'||mode==='recovery-multi'||mode==='recovery-cleanup')?16:8, log:trace ? (message,type)=>console.error(`[${type}] ${message}`) : ()=>{} });
+  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway:null, maxSteps:(mode.startsWith('sequence')||mode==='recovery'||mode==='recovery-multi'||mode==='recovery-cleanup'||mode==='recovery-articulated')?16:8, log:trace ? (message,type)=>console.error(`[${type}] ${message}`) : ()=>{} });
   const result = await agent.run(scenario.goal);
   const expectedTools=Array.isArray(scenario.expected)?scenario.expected:[scenario.expected];
   for (const expected of expectedTools) if (!toolCalls.some((call)=>call.name===expected)) {
@@ -447,6 +519,20 @@ try {
     if (result.taskStatus!=='incomplete') throw new Error(`Attribution taskStatus is ${result.taskStatus}, expected incomplete`);
     if (!/obstacle_03/i.test(result.message || '')) throw new Error(`Attribution final did not name obstacle_03: ${result.message}`);
     if (!/(contact|接触|candidate|候选)/i.test(result.message || '')) throw new Error(`Attribution final did not frame obstacle_03 as contact evidence: ${result.message}`);
+  }
+  if (mode === 'recovery-articulated') {
+    const mutations=toolCalls.filter((call)=>['approachAndInteract','recoverArticulatedBlocker','recoverPickupBlocker','moveObject','navigateTo','open','close','pickup','place'].includes(call.name));
+    const names=mutations.map((call)=>call.name);
+    if (JSON.stringify(names)!==JSON.stringify(['approachAndInteract','recoverArticulatedBlocker','approachAndInteract'])) throw new Error(`Unexpected articulated recovery mutation order: ${names.join(' -> ')}`);
+    if (mutations[1]?.args?.blockerId!=='cabinet_B'||mutations[1]?.args?.blockerPartName!=='door'||mutations[1]?.args?.blockerAction!=='close') throw new Error('Articulated recovery did not follow the unique alternate action proposal');
+    const suggestIndex=toolCalls.findIndex((call)=>call.name==='suggestRecoveryActions');
+    const recoveryIndex=toolCalls.findIndex((call)=>call.name==='recoverArticulatedBlocker');
+    if (suggestIndex<0||suggestIndex>recoveryIndex) throw new Error('Articulated recovery mutation was not preceded by suggestRecoveryActions');
+    if (!articulatedBlockerClosed||!articulatedDoorOpen) throw new Error(`Articulated recovery world state incomplete: blockerClosed=${articulatedBlockerClosed} originalOpen=${articulatedDoorOpen}`);
+    if (result.taskStatus!=='completed'||result.unresolvedMutations.length) throw new Error(`Articulated recovery task did not resolve original open: status=${result.taskStatus} unresolved=${result.unresolvedMutations.length}`);
+    if (toolCalls.some((call)=>['open','close','pickup','place','moveObject','navigateTo','approachAndPickup','approachAndPlace','recoverPickupBlocker'].includes(call.name))) throw new Error('Articulated recovery used a forbidden bypass');
+    const recoveryEntry=result.execution.find((entry)=>entry.tool==='recoverArticulatedBlocker'&&entry.executed);
+    if (!recoveryEntry||recoveryEntry.auxiliary!==true||recoveryEntry.outcome.state!=='verified') throw new Error('Articulated recovery was not recorded as a verified auxiliary mutation');
   }
   if (mode === 'recovery-cleanup') {
     const mutations=toolCalls.filter((call)=>['approachAndInteract','recoverPickupBlocker','cleanupRecoveryBlocker','approachAndPickup','approachAndPlace','moveObject','dropHeld','open','pickup','place'].includes(call.name));

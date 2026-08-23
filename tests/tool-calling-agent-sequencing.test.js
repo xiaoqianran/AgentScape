@@ -321,3 +321,40 @@ it('skips duplicate verified cleanup within the same original failure evidence e
     tool:'cleanupRecoveryBlocker',executed:false,auxiliary:true,outcome:{state:'skipped'}
   });
 });
+
+
+
+it('keeps articulated blocker recovery auxiliary and blocks a duplicate until the original mutation is retried',async()=>{
+  let round=0,openAttempt=0,recoveryCalls=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o1',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_A',action:'open',partName:'door'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'r1',name:'recoverArticulatedBlocker',args:{actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'}}]};
+    if(round===3) return {message:'',toolCalls:[{id:'r2',name:'recoverArticulatedBlocker',args:{actorId:'agent_01',targetId:'cabinet_A',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'}}]};
+    if(round===4) return {message:'',toolCalls:[{id:'o2',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_A',action:'open',partName:'door'}}]};
+    return {message:'verified',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    approachAndInteract:async()=>++openAttempt===1
+      ? {status:'action-failed',reason:'STALL',partName:'door'}
+      : {status:'action-completed',targetReached:true,settled:true,partName:'door'},
+    recoverArticulatedBlocker:async()=>{recoveryCalls++;return {status:'action-completed',targetReached:true,settled:true,partName:'door',recovery:{kind:'articulated-blocker'}};}
+  },{
+    recoverArticulatedBlocker:{mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false}
+  });
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:7}).run('open A; recover articulated blocker B if needed');
+  expect(result).toMatchObject({taskStatus:'completed',unresolvedMutations:[]});
+  expect(recoveryCalls).toBe(1);
+  expect(result.execution.find((entry)=>entry.reason==='RECOVERY_ALREADY_APPLIED')).toMatchObject({
+    tool:'recoverArticulatedBlocker',executed:false,auxiliary:true,outcome:{state:'skipped'}
+  });
+  const recovery=result.execution.find((entry)=>entry.tool==='recoverArticulatedBlocker'&&entry.executed);
+  expect(recovery).toMatchObject({auxiliary:true,recoveryOf:expect.stringContaining('cabinet_A'),outcome:{state:'verified'}});
+  expect(result.execution.filter((entry)=>entry.executed&&entry.mutates).map((entry)=>entry.tool)).toEqual([
+    'approachAndInteract','recoverArticulatedBlocker','approachAndInteract'
+  ]);
+  const event=tools.recordSequence.mock.calls.map(([payload])=>payload).find((payload)=>payload.tool==='recoverArticulatedBlocker'&&payload.executed===true);
+  expect(event.identity).toContain('\"blockerId\":\"cabinet_B\"');
+  expect(event.identity).toContain('\"blockerPartName\":\"door\"');
+  expect(event.identity).toContain('\"blockerAction\":\"close\"');
+});

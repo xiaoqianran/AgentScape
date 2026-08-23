@@ -45,6 +45,71 @@ const denied = (candidate, reason, details={}) => ({
 const routeCostOf = (proposal) => Number.isFinite(proposal?.preflight?.pose?.routeCost)
   ? proposal.preflight.pose.routeCost : Infinity;
 
+const originalVerification = (actorId,targetId,failedPart,last) => ({
+  required:'retry-original-post-condition',
+  tool:'approachAndInteract',
+  args:{actorId,targetId,action:last.action || 'open',partName:failedPart.partName},
+  success:{status:'action-completed',targetReached:true,settled:true}
+});
+
+const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart,last,candidate,currentContact,profile}) => {
+  const record=runtime.store.get(candidate.objectId);
+  const blockerPartName=candidate.partName;
+  const part=record?.manifest?.parts?.[blockerPartName];
+  if (!part?.joint || !part.physics || !Object.keys(part.targets || {}).length) {
+    return denied(candidate,'ARTICULATED_PART_UNAVAILABLE',{currentContact});
+  }
+  let blockerStatus;
+  try {
+    blockerStatus=runtime.interactions.articulationStatus(candidate.objectId,blockerPartName).parts?.find((value)=>value.partName===blockerPartName) || null;
+  } catch {
+    return denied(candidate,'ARTICULATED_STATE_UNAVAILABLE',{currentContact});
+  }
+  if (!blockerStatus?.verifiedAction) return denied(candidate,'ARTICULATED_STATE_UNVERIFIED',{currentContact,blockerState:blockerStatus});
+  if (blockerStatus.requestedAction || blockerStatus.status==='moving') {
+    return denied(candidate,'ARTICULATED_ACTION_PENDING',{currentContact,blockerState:blockerStatus});
+  }
+  const actions=(part.actions || []).filter((action)=>
+    action!==blockerStatus.verifiedAction
+    && ['open','close'].includes(action)
+    && record.manifest.actions?.includes(action)
+    && Number.isFinite(part.targets?.[action])
+  );
+  if (!actions.length) return denied(candidate,'NO_ALTERNATE_ARTICULATED_ACTION',{currentContact,blockerState:blockerStatus});
+  if (actions.length!==1) return denied(candidate,'AMBIGUOUS_ARTICULATED_RECOVERY',{currentContact,blockerState:blockerStatus,alternateActions:actions});
+  const blockerAction=actions[0];
+  const authorization=registry.authorization('recoverArticulatedBlocker',{profile});
+  if (!authorization.allow) return {
+    blocker:structuredClone(candidate),candidateType:candidateType(candidate),eligible:false,status:'denied',reason:'POLICY_DENIED',currentContact,
+    blockerState:structuredClone(blockerStatus),blockerAction,
+    policy:{allow:false,profile:authorization.profile,missing:[...authorization.missing]}
+  };
+  let pose;
+  try {
+    pose=await runtime.interactions.findInteractionPose(actorId,candidate.objectId,{action:blockerAction,partName:blockerPartName});
+  } catch (error) {
+    return denied(candidate,error.details?.reason || error.code || 'ARTICULATED_RECOVERY_PREFLIGHT_FAILED',{
+      currentContact,blockerState:blockerStatus,blockerAction
+    });
+  }
+  if (!pose) return denied(candidate,'NO_INTERACTION_POSE',{currentContact,blockerState:blockerStatus,blockerAction});
+  return {
+    blocker:structuredClone(candidate),candidateType:candidateType(candidate),eligible:true,status:'provisional',recovery:'articulated-blocker',
+    evidence:'current-contact-at-failure',currentContact,
+    blockerState:{
+      partName:blockerPartName,status:blockerStatus.status,requestedAction:null,verifiedAction:blockerStatus.verifiedAction,
+      ...(blockerStatus.live ? {live:structuredClone(blockerStatus.live)} : {})
+    },
+    blockerAction,
+    policy:{allow:true,profile:authorization.profile,missing:[]},
+    preflight:{pose:structuredClone(pose),actionSweep:{checked:true,clear:true,partName:blockerPartName}},
+    rankingEvidence:{causal:false,recoveryRouteCost:Number.isFinite(pose.routeCost)?pose.routeCost:null},
+    tool:'recoverArticulatedBlocker',
+    args:{actorId,targetId,partName:failedPart.partName,blockerId:candidate.objectId,blockerPartName,blockerAction},
+    verification:originalVerification(actorId,targetId,failedPart,last)
+  };
+};
+
 const rankProposals = (proposals) => {
   const eligible=proposals.filter((proposal)=>proposal.eligible).sort((a,b)=>
     routeCostOf(a)-routeCostOf(b) || candidateKey(a.blocker).localeCompare(candidateKey(b.blocker))
@@ -83,12 +148,12 @@ export async function buildRecoveryProposals(runtime,registry,{
       proposals.push(denied(candidate,'BLOCKER_OBJECT_UNAVAILABLE',{currentContact}));
       continue;
     }
-    if ((candidate.partName || '$root')!=='$root') {
-      proposals.push(denied(candidate,'ARTICULATED_PART_RECOVERY_UNSUPPORTED',{currentContact}));
-      continue;
-    }
     if (!currentContact) {
       proposals.push(denied(candidate,'CONTACT_EVIDENCE_STALE',{status:'stale',currentContact:null}));
+      continue;
+    }
+    if ((candidate.partName || '$root')!=='$root') {
+      proposals.push(await articulatedRecovery(runtime,registry,{actorId,targetId,failedPart,last,candidate,currentContact,profile}));
       continue;
     }
     if (!authorization.allow) {
@@ -118,12 +183,7 @@ export async function buildRecoveryProposals(runtime,registry,{
       preflight:{pose:structuredClone(pickupPlan.pose),transfer:{clear:true}},
       rankingEvidence:{causal:false,pickupRouteCost:Number.isFinite(pickupPlan.pose?.routeCost)?pickupPlan.pose.routeCost:null},
       tool:'recoverPickupBlocker',args:{actorId,targetId,partName:failedPart.partName,blockerId:candidate.objectId},
-      verification:{
-        required:'retry-original-post-condition',
-        tool:'approachAndInteract',
-        args:{actorId,targetId,action:retryAction,partName:failedPart.partName},
-        success:{status:'action-completed',targetReached:true,settled:true}
-      }
+      verification:originalVerification(actorId,targetId,failedPart,{...last,action:retryAction})
     });
   }
   const ranked=rankProposals(proposals);
@@ -157,8 +217,8 @@ export async function buildRecoveryProposals(runtime,registry,{
     actorId,targetId,partName:failedPart.partName,originalAction:last.action || null,
     evidence:'current-contact-at-failure',
     ranking:{
-      strategy:'eligible-pickup-route-cost-v1',causal:false,
-      criteria:['eligible','pickupRouteCostAsc','stableBlockerKeyAsc']
+      strategy:'eligible-recovery-route-cost-v2',causal:false,
+      criteria:['eligible','recoveryRouteCostAsc','stableBlockerKeyAsc']
     },
     recommended:eligible[0] ? {
       rank:1,blocker:structuredClone(eligible[0].blocker),tool:eligible[0].tool,args:structuredClone(eligible[0].args)

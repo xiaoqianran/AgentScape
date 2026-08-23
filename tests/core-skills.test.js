@@ -170,8 +170,31 @@ describe('core skills', () => {
     const r=runtime(); const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
     expect(registry.executionPolicy('suggestRecoveryActions')).toMatchObject({mutates:false,barrier:false,auxiliary:false});
     expect(registry.executionPolicy('recoverPickupBlocker')).toMatchObject({mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false});
+    expect(registry.executionPolicy('recoverArticulatedBlocker')).toMatchObject({mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false});
     expect(registry.executionPolicy('suggestRecoveryCleanup')).toMatchObject({mutates:false,barrier:false,auxiliary:false});
     expect(registry.executionPolicy('cleanupRecoveryBlocker')).toMatchObject({mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false});
+  });
+
+
+  it('revalidates articulated blocker recovery before execution and returns recovery-stale when evidence is no longer executable',async()=>{
+    const r=runtime();
+    r.store={has:vi.fn((id)=>['cabinet_A','cabinet_B'].includes(id)),get:vi.fn((id)=>({
+      id,manifest:id==='cabinet_B'?{
+        actions:['open','close'],parts:{door:{node:'Door',actions:['open','close'],targets:{open:-1,close:0},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}
+      }:{actions:['open','close'],parts:{door:{node:'Door',actions:['open','close'],targets:{open:-1,close:0},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}},state:{parts:{door:id==='cabinet_B'?'open':'close'}}
+    }))};
+    r.physics={articulationContacts:vi.fn(()=>[])};
+    r.interactions.articulationStatus=vi.fn((id)=>id==='cabinet_A'?{
+      id,parts:[{partName:'door',status:'action-failed',verifiedAction:'close',requestedAction:null,last:{status:'action-failed',reason:'STALL',action:'open',attribution:{status:'contact-evidence',blockerCandidates:[{kind:'object',objectId:'cabinet_B',partName:'door',colliderIndex:0}]}}}]
+    }:{id,parts:[{partName:'door',status:'verified-state',verifiedAction:'open',requestedAction:null}]});
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const result=await registry.invoke('recoverArticulatedBlocker',{
+      actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'
+    },{profile:'builder',actor:'agent_01'});
+    expect(result).toMatchObject({success:true,result:{
+      status:'recovery-stale',reason:'CONTACT_EVIDENCE_STALE',actorId:'agent_01',targetId:'cabinet_A',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close',retryOriginal:true
+    }});
+    expect(r.interactions.approachAndInteract).not.toHaveBeenCalled();
   });
 
 });

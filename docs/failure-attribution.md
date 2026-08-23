@@ -1187,3 +1187,9 @@ recovery proposal != success
 ## 55. 1.24：Object 与 Environment 使用不同 Candidate Identity
 
 多候选 recovery 暴露了 collider identity 边界：同一 Object 的 contact 从 collider #0 转到 #1 时，semantic blocker 仍应是同一 `objectId + partName`；Environment 没有可执行 object owner，因此不同 `environmentId + colliderIndex` 仍保留为 distinct candidates。1.24 按这一规则重新聚合 current contact evidence，避免 Object recovery 被误判 stale。详见 [`recovery-ranking.md`](./recovery-ranking.md)。
+
+---
+
+## 56. 1.26：Articulated Candidate 开始消费 Verified Part State
+
+当 contact target 是 `object + non-root Part` 时，1.26 不再固定标记 unsupported，而是将 contact provenance 与 blocker Part 的 `articulationStatus().verifiedAction`、Manifest executable targets、Policy 和 action-aware interaction pose 联合判断 recovery eligibility。Contact 本身仍只证明 current touching，不证明哪个 alternate action 会解除原失败；因此 action success 后仍必须 retry original post-condition。详见 [`articulated-recovery.md`](./articulated-recovery.md)。
