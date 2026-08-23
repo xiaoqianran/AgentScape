@@ -476,7 +476,7 @@ export class NavigationSystem {
     const candidates = [];
     for (const group of groups) {
       const eligibility = articulationEligibility(group.record, group.partName, 'open');
-      const requested = group.record.state?.parts?.[group.partName] === 'open';
+      const requested = group.record.state?.partTargets?.[group.partName] === 'open' || group.record.state?.parts?.[group.partName] === 'open';
       let counterfactual;
       try {
         counterfactual = this.counterfactualWithout(group, start, end, { maxSnapDistance, endTolerance }, current.build || this.lastBuild);

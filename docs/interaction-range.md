@@ -1177,3 +1177,7 @@ interaction-requested
 ## 32. 1.18：Interaction Pose 需要区分 Actor Envelope 与 Carry Envelope
 
 Place E2E 证明普通 Agent capsule stand-off 不足以承载手中物：Cup 会在 Agent 到达 Table pose 前先撞桌沿。1.18 因此让 `findInteractionPose` 接受内部 `standOff`，普通 open/pickup 仍使用 actor radius；Agent-held place 使用 `holdAnchor horizontal offset + held collider radius` 的 carry envelope。另一个修复是 candidate Y 改用 target root world Y，而不是 visual bounds.min.y，避免只有桌面 Mesh 的 Table 把 Agent 站位抬到桌面高度。详见 [`agent-place.md`](./agent-place.md)。
+
+## 33. 1.19：`interaction-requested` 只剩低层 Primitive 语义
+
+本文件 1.16 历史章节中的 `interaction-requested` 是当时高层 `approachAndInteract` 的终点。1.19 已升级：低层 `setArticulationAction/open/close` 仍只表示 motor request；高层 `approachAndInteract` 会继续等待 live joint completion，最终返回 `action-completed / action-failed / action-unverified`。成功要求 target tolerance + stable duration + coordinate stability，详见 [`live-articulation.md`](./live-articulation.md)。

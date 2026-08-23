@@ -32,7 +32,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export class WorldRuntime {
   constructor(container, { environmentFactory } = {}) {
-    this.version = '1.18.0';
+    this.version = '1.19.0';
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
@@ -184,7 +184,8 @@ export class WorldRuntime {
     const record = this.store.get(id);
     record.state = structuredClone(state);
     if (record.state.navigation?.status === 'moving') record.state.navigation.status = 'interrupted';
-    for (const [partName, action] of Object.entries(state.parts || {})) {
+    const articulationTargets = Object.keys(state.partTargets || {}).length ? state.partTargets : (state.parts || {});
+    for (const [partName, action] of Object.entries(articulationTargets)) {
       if (record.manifest.actions.includes(action)) this.interactions.setArticulationAction(id, action, { partName });
     }
     // 兼容 1.1.8 以前的 cabinet 状态。

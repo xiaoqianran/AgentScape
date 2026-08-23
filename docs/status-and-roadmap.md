@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.18.0** 当前状态。
+本文描述 **1.19.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 84%
+                           当前 ≈ 87%
 ```
 
-84% 不是“代码写完 84%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+87% 不是“代码写完 87%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -28,8 +28,8 @@
 | Asset Compiler 基础 | 90% | inspect / normalize / budget / quality 很完整 |
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
-| Runtime Articulation | 90% | 多级 Part + Rapier action + interaction action-sweep precondition 已通；live settled observation 仍缺 |
-| Runtime Verification | 82% | Motion Sweep + interaction sweep + carried clearance + Dynamic place settle/post-condition；live articulation settled observation 仍缺 |
+| Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
+| Runtime Verification | 90% | Asset Motion Sweep + live articulation completion + interaction/carry/place post-condition 已形成纵向验证链 |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -262,41 +262,42 @@ settle timeout
 
 ---
 
-## 11. 当前 P0：Live Articulation Completion / Verified Action Sequencing
+## 11. 1.19 已完成：Live Articulation Completion / Verified Action Sequencing
 
-现在 `pickup → carry → place` 已有明确终态和 post-condition，但 `open / close` 仍只返回：
+`approachAndInteract` 现在在 motor request 后持续观察 live joint coordinate；只有 target error 在 revolute/prismatic tolerance 内持续稳定窗口，并且窗口内 coordinate movement 足够小，才返回 `action-completed + targetReached + settled`。真实 external blocker 会得到 `action-failed / STALL`；持续有进展但无法证明终态得到 `action-unverified / TIMEOUT`。
 
-```text
-interaction-requested
-```
-
-下一阶段优先补：
-
-```text
-motor request
-→ live joint coordinate observation
-→ moving / settled / blocked
-→ target reached post-condition
-→ action-completed | action-failed | action-unverified
-```
-
-这样真实 Agent task 才能可靠执行：
-
-```text
-open
-→ 等待最终关节状态
-→ replan
-→ navigate
-→ pickup
-→ carry
-→ place
-```
-
-而不是把“motor target 已接受”偷换成“门已经打开”。
+Durable state 同时拆成 `partTargets=requested` 与 `parts=verified`。Observer 本身不越权写 durable Scene；成功只能由仍在运行的高层 mutation promote。失败时同一 transaction 会把 motor target hold 在当前 coordinate 并清理 active request。
 
 ---
 
-## 12. 1.11–1.12 已完成：Curated Multi-World Layer
+## 12. 当前 P0：Verified Multi-step Task Sequencing
+
+现在单步具身动作终于都有结构化终态：
+
+```text
+open/close → completed | failed | unverified
+pickup     → held | blocked
+carry      → arrived | CARRIED_OBJECT_BLOCKED
+place      → placed | failed | unverified
+```
+
+下一阶段不急着再加原语，而是让真实 Agent 在一个任务里严格按 post-condition 串联：
+
+```text
+open cabinet
+→ 只有 action-completed 才 replan
+→ navigate to cup
+→ pickup
+→ carry
+→ place on table
+→ 只有 supportVerified 才完成任务
+```
+
+重点是 sequencing / failure recovery / compact observation，不是 BehaviorTree 大框架。
+
+---
+
+## 13. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -321,7 +322,7 @@ Three.js architecture
 
 ---
 
-## 13. P1：完整 Joint Frame
+## 14. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -357,7 +358,7 @@ Schema claim second
 
 ---
 
-## 14. P2：Compact Agent Observation
+## 15. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -385,7 +386,7 @@ world size
 
 ---
 
-## 15. 自动语义：宁可慢一点，也不虚构能力
+## 16. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -423,7 +424,7 @@ high coverage + fake capability
 
 ---
 
-## 16. 目前不应该成为优先级的方向
+## 17. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -440,7 +441,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 17. 产品差异化应该是什么
+## 18. 产品差异化应该是什么
 
 不应该是：
 
@@ -472,7 +473,7 @@ Agent World
 
 ---
 
-## 18. 未来完成态
+## 19. 未来完成态
 
 可以把 100% 理解为：
 
@@ -537,11 +538,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.18.0 文档快照对应的仓库验证基线：
+1.19.0 文档快照对应的仓库验证基线：
 
 ```text
-88 Test Files PASS
-240 Tests PASS
+91 Test Files PASS
+252 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -550,6 +551,16 @@ Grand Urban Block 96×72m Recast benchmark PASS
 Action-aware Navigation E2E PASS
 Embodied Locomotion Ruined Courtyard E2E PASS
 Embodied interaction range / Rapier LOS E2E PASS
+Live articulation completion E2E PASS
+External blocker → action-failed / STALL PASS
+High-level post-approach STALL / stateFinalized PASS
+Revolute / prismatic live articulationState PASS
+Target tolerance + coordinate-stability settle PASS
+TIMEOUT / SUPERSEDED / observer cancellation PASS
+Requested partTargets / verified parts restore compatibility PASS
+Articulation completion event-kind separation PASS
+Nemotron live action-completed interaction probe PASS
+Muse live action-completed interaction probe PASS
 Agent carry / hold-anchor E2E PASS
 Agent-held Place / Release E2E PASS
 Release trajectory blocker ownership PASS

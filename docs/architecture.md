@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.18.0** 的真实架构，不描述未来设想。
+本文描述 **1.19.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -771,3 +771,21 @@ Spatial.supportStatus
 ```
 
 `SpatialSystem.supportStatus` 同时成为 SceneGraph `ON/SUPPORTS` 与 Place post-condition 的唯一几何 predicate。`placed` 只在 Dynamic body 稳定后且 `supportStatus.on=true` 时返回。详见 [`agent-place.md`](./agent-place.md)。
+
+---
+
+## 22. Live Articulation Completion：Request、Observation、Promotion 三层分离
+
+1.19 不再把 `setArticulationAction` 的 motor request 当成最终 action state。
+
+```text
+setArticulationAction
+→ state.partTargets = requested
+→ Rapier motor
+→ PhysicsSystem.articulationState
+→ InteractionSystem live observer
+→ completed | failed | unverified
+→ high-level transaction promote or finalize
+```
+
+`state.parts` 现在只表示在明确 mutation owner 内 promote 的 verified action；observer result 只保存在 runtime ephemeral map。失败时高层会把 motor target 重设为当前 coordinate，并清理 active request，避免报告 STALL 后 Part 又偷偷继续运动。详见 [`live-articulation.md`](./live-articulation.md)。

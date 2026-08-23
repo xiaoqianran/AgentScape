@@ -1544,3 +1544,13 @@ Agent-facing Skill 不暴露 interaction distance，避免模型把 1.5m 临时�
 Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后恢复 Dynamic、清零 carry velocity并等待 sleeping/低速度稳定窗口。最终不是看“release 指令有没有执行”，而是调用与 SceneGraph ON/SUPPORTS 同源的 `SpatialSystem.supportStatus`。物体稳定但掉出目标 surface 时返回 `place-failed / SUPPORT_NOT_REACHED`；超时则 `place-unverified`。
 
 这一轮还统一了长具身事务失败语义：一旦已经发生 locomotion，后续 physical failure 返回 structured blocked result，让 History 记录真实部分位移，而不是 throw 后 cancel transaction。
+
+---
+
+## 40. 1.19：Motor Request 终于不再是假完成态
+
+1.16 的具身 open/close 已经有 interaction pose、range、LOS 和 action sweep，但最终仍停在 `interaction-requested`。1.19 把现有 Motion Sweep 的 coordinate/tolerance/stall 思想带回 live Runtime，却没有把离线 verifier 搬进热路径：PhysicsSystem 新增 revolute/prismatic `articulationState`，InteractionSystem 用时间窗口观察当前 joint。
+
+真实 blocker E2E 证明 Door 在 Agent 已到位后仍可能被外部物体卡住；现在高层直接返回 `action-failed / STALL`。同时审计又发现 request 时立即写 `state.parts=open` 会污染 durable truth，于是拆成 `partTargets=requested` 与 `parts=verified`；background observer 不拥有 durable mutation，只有仍在运行的高层 transaction 才能 promote success。失败则在同一 transaction 内 hold-current 并清 active request。
+
+最后又收紧 `settled`：仅连续位于 target tolerance 内仍不够，stable window 内 coordinate movement 也必须 <= tolerance/4。

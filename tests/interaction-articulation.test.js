@@ -13,7 +13,10 @@ const record = {
 };
 
 const make = () => {
-  const physics = { setArticulationTarget:vi.fn(()=>true) };
+  const physics = {
+    setArticulationTarget:vi.fn(()=>true),
+    articulationState:vi.fn((_id,_part,{target}={})=>({coordinate:0,target,error:Math.abs(target ?? 0),tolerance:.08,jointType:'revolute',limits:[-1,1],coordinateReference:'rest-zero-pose'}))
+  };
   const events = { emit:vi.fn() };
   const system = new InteractionSystem({ store:{ get:()=>record }, physics, spatial:{}, events });
   return { system, physics, events };
@@ -25,7 +28,8 @@ describe('InteractionSystem articulated actions', () => {
     const result = system.setArticulationAction('cab_1','open',{partName:'right'});
     expect(result).toMatchObject({part:'right',action:'open',target:1});
     expect(physics.setArticulationTarget).toHaveBeenCalledWith('cab_1','right',1);
-    expect(record.state.parts.right).toBe('open');
+    expect(record.state.partTargets.right).toBe('open');
+    expect(record.state.parts?.right).toBeUndefined();
   });
 
   it('rejects ambiguous articulated actions unless a part is selected', () => {

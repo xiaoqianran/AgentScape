@@ -93,11 +93,15 @@ try {
           actorId:'agent_01', targetId:'cabinet_01', action:'open',
           locomotion:{status:'arrived',position:[0,0,1]},
           reach:{inRange:true,visible:true,interactable:true,distance:.55},
-          status:'interaction-requested',
+          status:'action-completed',targetReached:true,settled:true,statePromoted:true,
+          coordinate:-1.31,error:.04,tolerance:.08,coordinateReference:'rest-zero-pose',
           actionSweep:{checked:true,clear:true,partName:'door'},
           interaction:{id:'cabinet_01',part:'door',action:'open',target:-1.35,requested:true}
         };
       }
+      if (name === 'getArticulationStatus' && mode === 'interaction') return {
+        id:'cabinet_01',parts:[{partName:'door',status:'action-completed',verifiedAction:'open',requestedAction:null,live:{coordinate:-1.31,target:-1.35,error:.04,tolerance:.08,coordinateReference:'rest-zero-pose'}}]
+      };
       if (name === 'approachAndPickup' && mode === 'pickup') {
         if (args.actorId !== 'agent_01' || args.targetId !== 'cup_01') {
           throw Object.assign(new Error('Embodied pickup probe received wrong arguments'), { code:'PROBE_BAD_ARGUMENTS' });

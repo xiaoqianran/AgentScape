@@ -372,6 +372,44 @@ export class PhysicsSystem {
     return { position:part.restLocalPosition.toArray(), rotation:part.restLocalRotation.toArray() };
   }
 
+  articulationState(id, partName, { target = null } = {}) {
+    const entry = this.entries.get(id);
+    const part = entry?.parts.get(partName);
+    if (!entry || !part?.node?.parent) return null;
+    const parentFrame = part.parentName === ROOT_PART ? entry.root : entry.parts.get(part.parentName)?.node;
+    if (!parentFrame) return null;
+    entry.root.updateWorldMatrix(true, true);
+    const parentWorldRotation = new THREE.Quaternion();
+    const nodeParentWorldRotation = new THREE.Quaternion();
+    parentFrame.getWorldQuaternion(parentWorldRotation);
+    part.node.parent.getWorldQuaternion(nodeParentWorldRotation);
+    const axis = new THREE.Vector3(...(part.spec.joint.axis || [1,0,0])).normalize()
+      .applyQuaternion(parentWorldRotation)
+      .applyQuaternion(nodeParentWorldRotation.invert())
+      .normalize();
+    if (!Number.isFinite(axis.lengthSq()) || axis.lengthSq() < .99) return null;
+
+    let coordinate;
+    if (part.spec.joint.type === 'prismatic') {
+      coordinate = part.node.position.clone().sub(part.restLocalPosition).dot(axis);
+    } else {
+      const delta = part.node.quaternion.clone().multiply(part.restLocalRotation.clone().invert()).normalize();
+      const angle = 2 * Math.atan2(delta.x*axis.x + delta.y*axis.y + delta.z*axis.z, delta.w);
+      coordinate = Math.atan2(Math.sin(angle), Math.cos(angle));
+    }
+    if (!Number.isFinite(coordinate)) return null;
+    const wrap = (value) => part.spec.joint.type === 'revolute' ? Math.atan2(Math.sin(value),Math.cos(value)) : value;
+    const error = Number.isFinite(target) ? Math.abs(wrap(coordinate-target)) : null;
+    return {
+      id,partName,jointType:part.spec.joint.type,
+      coordinate,target:Number.isFinite(target) ? target : null,error,
+      tolerance:part.spec.joint.type === 'prismatic' ? .03 : .08,
+      limits:part.spec.joint.limits ? [...part.spec.joint.limits] : null,
+      localAxis:axis.toArray(),
+      coordinateReference:'rest-zero-pose'
+    };
+  }
+
   ownerOfBodyHandle(handle) {
     for (const [id, entry] of this.entries) {
       if (entry.body.handle === handle) return { id, part: '$root' };
@@ -448,6 +486,16 @@ export class PhysicsSystem {
     if (!part) return false;
     const motor = part.spec.joint.motor || {};
     part.joint.configureMotorPosition(target, motor.stiffness ?? 40, motor.damping ?? 8);
+    part.body.wakeUp();
+    return true;
+  }
+
+  holdArticulationCurrent(id, partName) {
+    const part = this.entries.get(id)?.parts.get(partName);
+    const state = this.articulationState(id,partName);
+    if (!part || !state) return false;
+    const motor = part.spec.joint.motor || {};
+    part.joint.configureMotorPosition(state.coordinate,motor.stiffness ?? 40,motor.damping ?? 8);
     part.body.wakeUp();
     return true;
   }

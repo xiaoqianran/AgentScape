@@ -14,6 +14,8 @@ export class InteractionSystem {
     this.humanHeldId = null;
     this.agentHeld = new Map();
     this.settleTasks = new Map();
+    this.articulationTasks = new Map();
+    this.articulationResults = new Map();
   }
 
   get heldId() { return this.humanHeldId; }
@@ -96,6 +98,10 @@ export class InteractionSystem {
   }
 
   beforeRemove(id) {
+    for (const key of [...this.articulationResults.keys()]) if (key.startsWith(`${id}:`)) this.articulationResults.delete(key);
+    for (const task of [...this.articulationTasks.values()]) if (task.id === id) {
+      this.finishArticulationTask(task,{status:'action-unverified',reason:'OBJECT_REMOVED',targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
+    }
     const settle = this.settleTasks.get(id);
     if (settle) this.finishPlacementSettle(settle,{status:'place-unverified',reason:'OBJECT_REMOVED',supportVerified:false,settled:false,elapsed:Number(settle.elapsed.toFixed(3))});
     if (this.store.has(id) && this.store.get(id).state?.heldBy) this.releaseHeld(id, 'OBJECT_REMOVED');
@@ -106,6 +112,9 @@ export class InteractionSystem {
   cancelPending(reason = 'RUNTIME_DISPOSED') {
     for (const task of [...this.settleTasks.values()]) {
       this.finishPlacementSettle(task,{status:'place-unverified',reason,supportVerified:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
+    }
+    for (const task of [...this.articulationTasks.values()]) {
+      this.finishArticulationTask(task,{status:'action-unverified',reason,targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
     }
   }
 
@@ -183,30 +192,13 @@ export class InteractionSystem {
       return { checked:false, reason:'REVOLUTE_CHILD_ANCHOR_UNSUPPORTED', partName:name };
     }
 
-    const parentName = part.parent || '$root';
-    const parentFrame = parentName === '$root' ? record.object : record.object.getObjectByName(record.manifest.parts?.[parentName]?.node);
-    if (!parentFrame) return { checked:false, reason:'PARENT_FRAME_UNAVAILABLE', partName:name };
-    record.object.updateWorldMatrix(true, true);
-    const parentWorldRotation = new THREE.Quaternion();
-    const nodeParentWorldRotation = new THREE.Quaternion();
-    parentFrame.getWorldQuaternion(parentWorldRotation);
-    node.parent.getWorldQuaternion(nodeParentWorldRotation);
-    const axis = new THREE.Vector3(...part.joint.axis).normalize().applyQuaternion(parentWorldRotation).applyQuaternion(nodeParentWorldRotation.invert()).normalize();
-    if (!Number.isFinite(axis.lengthSq()) || axis.lengthSq() < .99) return { checked:false, reason:'JOINT_AXIS_INVALID', partName:name };
-
+    const target = part.targets[action];
+    const live = this.physics.articulationState(targetId,name,{target});
+    if (!live) return { checked:false, reason:'JOINT_COORDINATE_UNAVAILABLE', partName:name };
+    const axis = new THREE.Vector3(...live.localAxis);
+    const currentCoordinate = live.coordinate;
     const restPosition = new THREE.Vector3(...rest.position);
     const restRotation = new THREE.Quaternion(...rest.rotation);
-    const restInverse = restRotation.clone().invert();
-    let currentCoordinate;
-    if (part.joint.type === 'prismatic') {
-      currentCoordinate = node.position.clone().sub(restPosition).dot(axis);
-    } else {
-      const delta = node.quaternion.clone().multiply(restInverse).normalize();
-      const angle = 2 * Math.atan2(delta.x * axis.x + delta.y * axis.y + delta.z * axis.z, delta.w);
-      currentCoordinate = Math.atan2(Math.sin(angle), Math.cos(angle));
-    }
-    const target = part.targets[action];
-    if (!Number.isFinite(currentCoordinate) || !Number.isFinite(target)) return { checked:false, reason:'JOINT_COORDINATE_INVALID', partName:name };
 
     const originalPosition = node.position.clone();
     const originalRotation = node.quaternion.clone();
@@ -350,7 +342,10 @@ export class InteractionSystem {
     const actor = this.physics.getPosition(actorId);
     if (actor) this.physics.faceCharacter(actorId, [center[0] - actor[0], 0, center[2] - actor[2]]);
     const interaction = this.setArticulationAction(targetId, action, { partName });
-    return { status:'interaction-requested', actorId, targetId, action, pose, locomotion, reach, actionSweep:{checked:true,clear:true,partName:finalSweep.partName}, interaction };
+    const completion = await this.waitForArticulationCompletion(targetId,interaction.part,action,interaction.target);
+    const statePromoted = this.promoteArticulationCompletion(completion);
+    const stateFinalized = !statePromoted && this.finalizeArticulationAttempt(completion);
+    return { ...completion, statePromoted,stateFinalized,actorId,targetId,action,pose,locomotion,reach,actionSweep:{checked:true,clear:true,partName:finalSweep.partName},interaction };
   }
 
   async approachAndPickup(actorId, targetId, { speed, maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
@@ -383,6 +378,128 @@ export class InteractionSystem {
       status:'held', actorId, targetId, attachment:'kinematic-anchor', graspVerified:false,
       pose, locomotion, reach, transfer:{clear:true}, anchor:{name:'hold', position:anchorPose.position}
     };
+  }
+
+  articulationTaskKey(id, partName) { return `${id}:${partName}`; }
+
+  finishArticulationTask(task, result) {
+    const key = this.articulationTaskKey(task.id,task.partName);
+    if (this.articulationTasks.get(key) !== task) return;
+    this.articulationTasks.delete(key);
+    const report = { ...result, id:task.id, partName:task.partName, action:task.action, target:task.target };
+    this.articulationResults.set(key,report);
+    this.events.emit('interaction', { ...report, action:'articulation-completion', articulationAction:report.action });
+    task.resolve(report);
+  }
+
+  promoteArticulationCompletion(report) {
+    if (report?.status !== 'action-completed' || !report.targetReached || !this.store.has(report.id)) return false;
+    const record = this.store.get(report.id);
+    if (record.state.partTargets?.[report.partName] !== report.action) return false;
+    record.state.parts ||= {};
+    record.state.parts[report.partName] = report.action;
+    delete record.state.partTargets[report.partName];
+    if (!Object.keys(record.state.partTargets).length) delete record.state.partTargets;
+    return true;
+  }
+
+  finalizeArticulationAttempt(report) {
+    if (!report || !['action-failed','action-unverified'].includes(report.status) || !this.store.has(report.id)) return false;
+    const record = this.store.get(report.id);
+    if (record.state.partTargets?.[report.partName] !== report.action) return false;
+    this.physics.holdArticulationCurrent?.(report.id,report.partName);
+    delete record.state.partTargets[report.partName];
+    if (!Object.keys(record.state.partTargets).length) delete record.state.partTargets;
+    return true;
+  }
+
+  articulationStatus(id, partName = null) {
+    const record = this.store.get(id);
+    const entries = Object.entries(record.manifest.parts || {}).filter(([name,part]) =>
+      (!partName || name === partName) && part.joint && part.physics && Object.keys(part.targets || {}).length
+    );
+    if (!entries.length) throw Errors.actionUnsupported(id, partName ? `status:${partName}` : 'articulation-status');
+    const parts = entries.map(([name,part]) => {
+      const key = this.articulationTaskKey(id,name);
+      const pending = this.articulationTasks.get(key);
+      const last = this.articulationResults.get(key) || null;
+      const requestedAction = record.state.partTargets?.[name] || null;
+      const verifiedAction = record.state.parts?.[name] || null;
+      const targetAction = pending?.action || requestedAction || verifiedAction;
+      const target = targetAction && Number.isFinite(part.targets?.[targetAction]) ? part.targets[targetAction] : null;
+      const live = this.physics.articulationState(id,name,{target});
+      return {
+        partName:name,
+        status:pending ? 'moving' : (last?.status || (verifiedAction ? 'verified-state' : 'idle')),
+        requestedAction,verifiedAction,
+        ...(pending ? { pending:{action:pending.action,target:pending.target,elapsed:Number(pending.elapsed.toFixed(3))} } : {}),
+        ...(last ? { last:structuredClone(last) } : {}),
+        ...(live ? { live:{coordinate:live.coordinate,target:live.target,error:live.error,tolerance:live.tolerance,coordinateReference:live.coordinateReference} } : {})
+      };
+    });
+    return { id, parts };
+  }
+
+  waitForArticulationCompletion(id, partName, action, target, {
+    timeout = 4, stableDuration = .18, stallWindow = .5, stallTolerance = .008
+  } = {}) {
+    const key = this.articulationTaskKey(id,partName);
+    const existing = this.articulationTasks.get(key);
+    if (existing && existing.action === action && Math.abs(existing.target-target) <= 1e-9) return existing.promise;
+    if (existing) this.finishArticulationTask(existing,{status:'action-unverified',reason:'SUPERSEDED',targetReached:false,settled:false,elapsed:Number(existing.elapsed.toFixed(3))});
+    const state = this.physics.articulationState(id,partName,{target});
+    if (!state) return Promise.resolve({status:'action-unverified',reason:'JOINT_STATE_UNAVAILABLE',id,partName,action,target,targetReached:false,settled:false,elapsed:0});
+    let resolveTask;
+    const task = {
+      id,partName,action,target,timeout,stableDuration,stallWindow,stallTolerance,
+      elapsed:0,stable:0,initialCoordinate:state.coordinate,samples:[{time:0,coordinate:state.coordinate}],
+      resolve:null,promise:null
+    };
+    task.promise = new Promise((resolve) => { resolveTask=resolve; });
+    task.resolve = resolveTask;
+    this.articulationTasks.set(key,task);
+    return task.promise;
+  }
+
+  updateArticulationTasks(dt) {
+    const wrap = (jointType,value) => jointType === 'revolute' ? Math.atan2(Math.sin(value),Math.cos(value)) : value;
+    for (const task of [...this.articulationTasks.values()]) {
+      task.elapsed += dt;
+      const state = this.physics.articulationState(task.id,task.partName,{target:task.target});
+      if (!state || !Number.isFinite(state.coordinate) || !Number.isFinite(state.error)) {
+        this.finishArticulationTask(task,{status:'action-unverified',reason:'JOINT_STATE_UNAVAILABLE',targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
+        continue;
+      }
+      const limits = state.limits;
+      if (limits?.length === 2 && (state.coordinate < limits[0]-state.tolerance || state.coordinate > limits[1]+state.tolerance)) {
+        this.finishArticulationTask(task,{status:'action-failed',reason:'LIMIT_VIOLATION',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,limits,elapsed:Number(task.elapsed.toFixed(3))});
+        continue;
+      }
+      const reached = state.error <= state.tolerance;
+      task.stable = reached ? task.stable + dt : 0;
+      task.samples.push({time:task.elapsed,coordinate:state.coordinate});
+      const cutoff = task.elapsed-task.stallWindow;
+      while (task.samples.length > 2 && task.samples[1].time <= cutoff) task.samples.shift();
+      const oldest = task.samples[0];
+      const recentMovement = Math.abs(wrap(state.jointType,state.coordinate-oldest.coordinate));
+      const observedWindow = task.elapsed-oldest.time;
+      const stableCutoff = task.elapsed-task.stableDuration;
+      const stableReference = task.samples.find((sample)=>sample.time >= stableCutoff) || oldest;
+      const settleMovement = Math.abs(wrap(state.jointType,state.coordinate-stableReference.coordinate));
+      const settleTolerance = state.tolerance*.25;
+      const progress = Math.abs(wrap(state.jointType,task.initialCoordinate-task.target)) - state.error;
+      if (task.stable >= task.stableDuration && settleMovement <= settleTolerance) {
+        this.finishArticulationTask(task,{status:'action-completed',targetReached:true,settled:true,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,settleMovement:Number(settleMovement.toFixed(6)),settleTolerance:Number(settleTolerance.toFixed(6)),progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference});
+        continue;
+      }
+      if (!reached && task.elapsed >= task.stallWindow && observedWindow >= task.stallWindow*.8 && recentMovement < task.stallTolerance) {
+        this.finishArticulationTask(task,{status:'action-failed',reason:'STALL',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,recentMovement:Number(recentMovement.toFixed(6)),stallWindow:task.stallWindow,progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference});
+        continue;
+      }
+      if (task.elapsed >= task.timeout) {
+        this.finishArticulationTask(task,{status:'action-unverified',reason:'TIMEOUT',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,recentMovement:Number(recentMovement.toFixed(6)),progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference});
+      }
+    }
   }
 
   waitForPlacementSettle(objectId, targetId, surfaceId, { timeout = 4, stableDuration = 0.35, linearSpeed = 0.04, angularSpeed = 0.12 } = {}) {
@@ -518,14 +635,17 @@ export class InteractionSystem {
     const record = this.assertSupports(id, action);
     const [name, part] = this.findPartForAction(record, action, partName);
     if (!this.physics.setArticulationTarget(id, name, part.targets[action])) throw Errors.actionUnsupported(id, action);
-    record.state.parts ||= {};
-    record.state.parts[name] = action;
-    this.events.emit('interaction', { action, id, part: name, target: part.targets[action] });
-    return { id, part: name, action, target: part.targets[action], requested:true };
+    record.state.partTargets ||= {};
+    record.state.partTargets[name] = action;
+    this.articulationResults.delete(this.articulationTaskKey(id,name));
+    this.waitForArticulationCompletion(id,name,action,part.targets[action]);
+    this.events.emit('interaction', { action, id, part:name, target:part.targets[action] });
+    return { id, part:name, action, target:part.targets[action], requested:true };
   }
 
   update(dt, camera) {
     this.updatePlacementSettles(dt);
+    this.updateArticulationTasks(dt);
     if (this.humanHeldId) {
       const target = new THREE.Vector3(0,0,-1.6).applyQuaternion(camera.quaternion).add(camera.position);
       this.physics.setHeldTarget(this.humanHeldId, target);

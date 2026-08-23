@@ -51,17 +51,18 @@ async function setup({ wall=null }={}) {
   return {store,scene,ground,physics,spatial,navigation,locomotion,interactions};
 }
 
-async function drive(promise, locomotion, physics, store, max=900) {
+async function drive(promise, locomotion, physics, store, interactions, max=1200) {
   let done=false, result, error;
   promise.then((value)=>{done=true;result=value;},(value)=>{done=true;error=value;});
-  for(let i=0;i<120&&!done&&locomotion.tasks.size===0;i++) await new Promise((resolve)=>setTimeout(resolve,0));
+  for(let i=0;i<120&&!done&&locomotion.tasks.size===0&&interactions.articulationTasks.size===0;i++) await new Promise((resolve)=>setTimeout(resolve,0));
   for(let i=0;i<max&&!done;i++){
     locomotion.update(1/60);
     physics.step(1/60,store);
+    interactions.update(1/60,new THREE.PerspectiveCamera());
     await Promise.resolve();
   }
-  if(!done) await Promise.race([promise.then((value)=>{result=value;done=true;}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('interaction task did not settle')),1000))]);
   if(error) throw error;
+  if(!done) throw new Error('interaction task did not settle');
   return result;
 }
 
@@ -83,16 +84,15 @@ describe('interaction-range task execution',()=>{
 
   it('walks to a verified interaction pose before issuing a real articulation open command',async()=>{
     const ctx=await setup();
+    const hinge=ctx.store.get('cabinet_01').object.getObjectByName('doorHinge');
+    const initial=hinge.quaternion.clone();
     const task=ctx.interactions.approachAndInteract('agent_01','cabinet_01','open',{partName:'door',speed:2.5});
-    const result=await drive(task,ctx.locomotion,ctx.physics,ctx.store);
-    expect(result).toMatchObject({status:'interaction-requested',action:'open',interaction:{requested:true}});
+    const result=await drive(task,ctx.locomotion,ctx.physics,ctx.store,ctx.interactions);
+    expect(result).toMatchObject({status:'action-completed',action:'open',targetReached:true,settled:true,interaction:{requested:true}});
     expect(result.locomotion.status).toBe('arrived');
     expect(result.reach).toMatchObject({inRange:true,visible:true,interactable:true});
     expect(result.reach.distance).toBeLessThanOrEqual(1.5);
     expect(ctx.store.get('cabinet_01').state.parts.door).toBe('open');
-    const hinge=ctx.store.get('cabinet_01').object.getObjectByName('doorHinge');
-    const initial=hinge.quaternion.clone();
-    for(let i=0;i<240;i++) ctx.physics.step(1/60,ctx.store);
     expect(hinge.quaternion.angleTo(initial)).toBeGreaterThan(.5);
     const closeSweep=ctx.interactions.actionSweepBounds('cabinet_01','close','door');
     expect(closeSweep.checked).toBe(true);
@@ -128,5 +128,17 @@ describe('interaction-range task execution',()=>{
     ctx.locomotion.navigate=originalNavigate;
     ctx.navigation.dispose(); ctx.physics.dispose();
   },15000);
+
+
+  it('reports a real post-approach door stall without promoting the requested action to verified state',async()=>{
+    const ctx=await setup({wall:{shape:'box',halfExtents:[.18,1,.18],translation:[-.64,1,1.08]}});
+    const task=ctx.interactions.approachAndInteract('agent_01','cabinet_01','open',{partName:'door',speed:2.5});
+    const result=await drive(task,ctx.locomotion,ctx.physics,ctx.store,ctx.interactions);
+    expect(result).toMatchObject({status:'action-failed',reason:'STALL',targetReached:false,settled:false,statePromoted:false,stateFinalized:true,action:'open'});
+    expect(result.locomotion.status).toBe('arrived');
+    expect(ctx.store.get('cabinet_01').state.parts.door).toBe('close');
+    expect(ctx.store.get('cabinet_01').state.partTargets).toBeUndefined();
+    ctx.navigation.dispose(); ctx.physics.dispose();
+  },20000);
 
 });

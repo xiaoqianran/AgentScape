@@ -173,13 +173,14 @@ TileCache 官方 obstacle request queue 上限 64。AgentScape 在 48 个 queued
 
 ### 当前 pose，不是 action target
 
-`open`/`close` 当前是 motor target 命令，不会同步等待关节 settle。因此：
+Navigation 始终读取 Rapier collider 当前 pose，而不是 action target。1.19 又把状态拆成：
 
 ```text
-record.state.parts.door = open
+record.state.partTargets.door = open  // active/requested motor target
+record.state.parts.door = open        // verified completion only
 ```
 
-表达的是命令/状态意图；Navigation 仍读取 Rapier collider 当前 pose。若 motor 正在运动，path query 看到的是中间姿态。这是有意的 current-world semantics。
+Motor 正在运动时，path query 看到的仍是中间物理姿态；Action-aware diagnosis 会把 `partTargets=open` 视为 already requested，避免重复建议。高层失败会 hold-current 并清 active request。详见 [`live-articulation.md`](./live-articulation.md)。
 
 ## 世界单位与 Recast voxel
 

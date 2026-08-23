@@ -548,4 +548,18 @@ Probe 禁止模型调用低层 Human `pickup`，要求最终使用 `approachAndP
 npm run agent:probe -- place
 ```
 
-Probe 假定 `agent_01` 已持有 `cup_01`，但不把 held ownership 塞进 `listObjects`；模型可通过 `getCarryStatus` 查询。低层 scene `place` 会被拒绝，成功必须调用 `approachAndPlace(actorId,supportId)`。当前 Nemotron 与 Muse 都能在 2 planning steps 第一工具直接选择 `approachAndPlace`，并只在 `status=placed + supportVerified=true + settled=true` 后宣布成功。
+Probe 假定 `agent_01` 已持有 `cup_01`，但不把 held ownership 塞进 `listObjects`；模型可通过 `getCarryStatus` 查询。低层 scene `place` 会被拒绝，成功必须调用 `approachAndPlace(actorId,supportId)`。当前 Nemotron 与 Muse 都已真实通过 `approachAndPlace` probe；planning steps 会随采样波动，不作为稳定能力指标。成功标准始终是最终选择高层 `approachAndPlace`，并只在 `status=placed + supportVerified=true + settled=true` 后宣布成功。
+
+## 19. 1.19 Live Articulation Completion Probe
+
+`npm run agent:probe -- interaction` 现在返回最终 live completion，而不是旧 `interaction-requested`。成功 mock 与真实 Runtime contract 对齐：
+
+```text
+status = action-completed
+targetReached = true
+settled = true
+coordinate ≈ target
+error <= tolerance
+```
+
+Nemotron 与 Muse 都已真实通过 interaction completion probe；具体 planning steps 会随采样波动，不作为能力判断。Nemotron 某些 run 会先尝试不合适的纯 `navigateTo` 再纠正，Muse 常见先 `findInteractionPose` 预览。成功标准始终是最终调用 `approachAndInteract`，并且只在 completion contract 成立后宣布 Door 已打开。新的 `getArticulationStatus` 只用于失败诊断或后续状态查询，成功后不需要冗余调用。详见 [`live-articulation.md`](./live-articulation.md)。

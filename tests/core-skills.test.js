@@ -20,7 +20,8 @@ function runtime() {
     interactions: {
       move: vi.fn(), pickup: vi.fn(), drop: vi.fn(), place: vi.fn(), setArticulationAction: vi.fn(),
       findInteractionPose:vi.fn(async()=>({status:'approach-pose',position:[1,0,1]})),
-      approachAndInteract:vi.fn(async()=>({actorId:'agent_01',targetId:'cabinet_01',action:'open'})),
+      approachAndInteract:vi.fn(async()=>({status:'action-completed',actorId:'agent_01',targetId:'cabinet_01',action:'open',targetReached:true,settled:true})),
+      articulationStatus:vi.fn(()=>({id:'cabinet_01',parts:[{partName:'door',status:'action-completed',verifiedAction:'open',requestedAction:null}]})),
       approachAndPickup:vi.fn(async()=>({status:'held',actorId:'agent_01',targetId:'cup_01',graspVerified:false})),
       approachAndPlace:vi.fn(async()=>({status:'placed',actorId:'agent_01',targetId:'table_01',heldId:'cup_01',supportVerified:true})),
       dropHeld:vi.fn(()=>({status:'dropped',actorId:'agent_01',targetId:'cup_01'})),
@@ -93,7 +94,9 @@ describe('core skills', () => {
     const pose = await registry.invoke('findInteractionPose', { actorId:'agent_01', targetId:'cabinet_01' }, { profile:'viewer' });
     expect(pose).toMatchObject({success:true,result:{status:'approach-pose',position:[1,0,1]}});
     const task = await registry.invoke('approachAndInteract', { actorId:'agent_01', targetId:'cabinet_01', action:'open', partName:'door' }, { profile:'builder', actor:'agent_01' });
-    expect(task).toMatchObject({success:true,result:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}});
+    expect(task).toMatchObject({success:true,result:{status:'action-completed',actorId:'agent_01',targetId:'cabinet_01',action:'open',targetReached:true,settled:true}});
+    const articulation=await registry.invoke('getArticulationStatus',{id:'cabinet_01',partName:'door'},{profile:'viewer'});
+    expect(articulation).toMatchObject({success:true,result:{parts:[{status:'action-completed',verifiedAction:'open'}]}});
     expect(r.interactions.approachAndInteract).toHaveBeenCalledWith('agent_01','cabinet_01','open',{partName:'door',speed:undefined});
     expect(r.mutate).toHaveBeenCalledWith('skill:approachAndInteract',expect.any(Function),expect.objectContaining({source:'agent_01',skill:'approachAndInteract'}));
     const definition=registry.definitions().find((item)=>item.name==='approachAndInteract');

@@ -292,21 +292,19 @@ actions
 
 ## `waiting-for-world-update`
 
-InteractionSystem 的：
+InteractionSystem 的低层 `open` 仍是 motor request。1.19 中 active request 写入：
 
 ```text
-open
+record.state.partTargets.door = open
 ```
 
-只是设置 motor target。
-
-如果：
+只有 live completion 在明确 transaction 内 promote 后，才有：
 
 ```text
 record.state.parts.door = open
 ```
 
-但 Rapier collider 当前仍然挡住路径，并且 counterfactual 证明它是 blocker，则：
+如果 active request 或 verified-open 已存在，但 Rapier collider 当前仍挡住路径，并且 counterfactual 证明它是 blocker，则：
 
 ```text
 suggestNavigationActions.status
