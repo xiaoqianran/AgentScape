@@ -238,6 +238,8 @@ export class PhysicsSystem {
       const type = entry.heldOriginalType ?? RAPIER.RigidBodyType.Dynamic;
       entry.held = false;
       entry.body.setBodyType(type, true);
+      entry.body.setLinvel?.({x:0,y:0,z:0}, true);
+      entry.body.setAngvel?.({x:0,y:0,z:0}, true);
       delete entry.heldOriginalType;
       entry.body.wakeUp();
     }
@@ -344,6 +346,26 @@ export class PhysicsSystem {
     return p ? [p.x, p.y, p.z] : null;
   }
 
+  getRotation(id) {
+    const q = this.entries.get(id)?.body?.rotation();
+    return q ? [q.x,q.y,q.z,q.w] : null;
+  }
+
+  bodyMotionState(id) {
+    const body = this.entries.get(id)?.body;
+    if (!body) return null;
+    const linear = body.linvel(), angular = body.angvel();
+    const linearSpeed = Math.hypot(linear.x,linear.y,linear.z);
+    const angularSpeed = Math.hypot(angular.x,angular.y,angular.z);
+    return {
+      sleeping:body.isSleeping(),
+      linearVelocity:[linear.x,linear.y,linear.z],
+      angularVelocity:[angular.x,angular.y,angular.z],
+      linearSpeed,
+      angularSpeed
+    };
+  }
+
   getPartRestPose(id, partName) {
     const part = this.entries.get(id)?.parts.get(partName);
     if (!part) return null;
@@ -358,14 +380,19 @@ export class PhysicsSystem {
     return null;
   }
 
-  raycast(origin, target, { excludeId = null } = {}) {
+  raycast(origin, target, { excludeId = null, excludeIds = [] } = {}) {
     const direction = [target[0] - origin[0], target[1] - origin[1], target[2] - origin[2]];
     const distance = Math.hypot(...direction);
     if (!Number.isFinite(distance) || distance < 1e-8 || !this.world) return null;
     const normalized = direction.map((value) => value / distance);
-    const excludedBody = excludeId ? this.entries.get(excludeId)?.body || null : null;
+    const excluded = new Set([...(excludeId ? [excludeId] : []), ...excludeIds]);
+    const filter = excluded.size ? (collider) => {
+      const parent = collider.parent();
+      const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
+      return !owner || !excluded.has(owner.id);
+    } : undefined;
     const ray = new RAPIER.Ray(vec(origin), vec(normalized));
-    const hit = this.world.castRay(ray, distance, true, undefined, undefined, undefined, excludedBody);
+    const hit = this.world.castRay(ray, distance, true, undefined, undefined, undefined, undefined, filter);
     if (!hit) return null;
     const body = hit.collider.parent();
     const owner = body ? this.ownerOfBodyHandle(body.handle) : null;

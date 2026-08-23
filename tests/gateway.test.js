@@ -18,7 +18,7 @@ describe('LLM gateways', () => {
   it('local fallback emits multiple tool calls for a compound request', async () => {
     const gateway = new LocalPlannerGateway();
     const result = await gateway.complete({ messages: [{ role: 'user', content: '把杯子放到桌上，然后打开柜子' }] });
-    expect(result.toolCalls.map((call) => call.name)).toEqual(expect.arrayContaining(['place', 'approachAndInteract']));
+    expect(result.toolCalls.map((call) => call.name)).toEqual(expect.arrayContaining(['approachAndPlace', 'approachAndInteract']));
     expect(result.toolCalls.find((call)=>call.name==='approachAndInteract')).toMatchObject({args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}});
   });
 });
@@ -37,4 +37,6 @@ it('local fallback uses embodied carry tools for pickup/drop language', async ()
   expect(pickup.toolCalls[0]).toMatchObject({name:'approachAndPickup',args:{actorId:'agent_01',targetId:'cup_01'}});
   const drop=await gateway.complete({messages:[{role:'user',content:'放下杯子'}]});
   expect(drop.toolCalls[0]).toMatchObject({name:'dropHeld',args:{actorId:'agent_01'}});
+  const place=await gateway.complete({messages:[{role:'user',content:'把杯子放到桌上'}]});
+  expect(place.toolCalls[0]).toMatchObject({name:'approachAndPlace',args:{actorId:'agent_01',supportId:'table_01'}});
 });

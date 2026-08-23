@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.17.0** 的真实架构，不描述未来设想。
+本文描述 **1.18.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -743,3 +743,31 @@ CARRIED_OBJECT_BLOCKED | move
 ```
 
 Held object 在 carry 期间不进入 TileCache dynamic obstacle snapshot；其空间占用由 carry clearance 负责，drop 后恢复普通 Dynamic obstacle。详见 [`agent-carry.md`](./agent-carry.md)。
+
+---
+
+## 21. Agent-held Place：Release 不是 Success
+
+1.18 新增 `approachAndPlace`，继续由 InteractionSystem 编排已有 truth owners，不引入 ManipulationManager。
+
+```text
+heldByAgent
+   ↓
+Spatial.findFreeSpace
+   ↓
+carry-aware findInteractionPose
+   ↓
+LocomotionSystem
+   ↓
+3 × Physics.bodyMotionClear
+   ↓
+releaseHeld → Dynamic
+   ↓
+Physics bodyMotionState
+   ↓
+Interaction settle window
+   ↓
+Spatial.supportStatus
+```
+
+`SpatialSystem.supportStatus` 同时成为 SceneGraph `ON/SUPPORTS` 与 Place post-condition 的唯一几何 predicate。`placed` 只在 Dynamic body 稳定后且 `supportStatus.on=true` 时返回。详见 [`agent-place.md`](./agent-place.md)。

@@ -40,6 +40,9 @@ describe('PhysicsSystem carry primitives',()=>{
     expect(physics.entries.get('cup').body.isKinematic()).toBe(true);
     physics.setHeld('cup',false);
     expect(physics.entries.get('cup').body.isDynamic()).toBe(true);
+    const state=physics.bodyMotionState('cup');
+    expect(state).toMatchObject({sleeping:expect.any(Boolean),linearSpeed:expect.any(Number),angularSpeed:expect.any(Number)});
+    expect(state.linearSpeed).toBeGreaterThanOrEqual(0);
     physics.dispose();
   });
 });

@@ -35,6 +35,15 @@ const scenarios = {
       { id:'cup_01', asset:'cup', position:[0,0,0], actions:['pickup','drop','place','move'] }
     ],
     expected:'approachAndPickup'
+  },
+  place: {
+    goal:'agent_01 is already carrying cup_01. Place the held object onto table_01 using the embodied place abstraction. Do not use the low-level scene place tool. Only report success if settle support is verified.',
+    world:[
+      { id:'agent_01', asset:'agent', position:[0,0,3], actions:['navigate'] },
+      { id:'cup_01', asset:'cup', position:[0,.95,2.38], actions:['pickup','drop','place','move'] },
+      { id:'table_01', asset:'table', position:[0,0,0], actions:['move'] }
+    ],
+    expected:'approachAndPlace'
   }
 };
 const scenario = scenarios[mode];
@@ -58,6 +67,7 @@ const port = server.address().port;
 try {
   const registry = registerCoreSkills(new SkillRegistry({ runtime:{} }), {});
   const toolCalls = [];
+  let placeHeld = mode === 'place';
   const tools = {
     definitions:() => registry.definitions(),
     call:async(name, args = {}) => {
@@ -101,6 +111,26 @@ try {
         };
       }
       if (name === 'getCarryStatus' && mode === 'pickup') return {status:'held',actorId:'agent_01',targetId:'cup_01',attachment:'kinematic-anchor',graspVerified:false};
+      if (name === 'getCarryStatus' && mode === 'place') return placeHeld
+        ? {status:'held',actorId:'agent_01',targetId:'cup_01',attachment:'kinematic-anchor',graspVerified:false}
+        : {status:'empty',actorId:'agent_01'};
+      if (name === 'findSupportSurface' && mode === 'place') return {targetId:'table_01',id:'top',center:[0,1.1,0],size:[2.2,1.05]};
+      if (name === 'approachAndPlace' && mode === 'place') {
+        if (args.actorId !== 'agent_01' || args.supportId !== 'table_01') {
+          throw Object.assign(new Error('Embodied place probe received wrong arguments'), { code:'PROBE_BAD_ARGUMENTS' });
+        }
+        placeHeld=false;
+        return {
+          status:'placed',actorId:'agent_01',targetId:'table_01',heldId:'cup_01',
+          supportVerified:true,settled:true,stillHeld:false,
+          support:{on:true,surfaceId:'top',gap:.002},
+          release:[0,1.13,0],
+          transfer:[{clear:true},{clear:true},{clear:true}]
+        };
+      }
+      if (name === 'place' && mode === 'place') {
+        throw Object.assign(new Error('Probe rejects low-level scene place; use approachAndPlace'), { code:'REMOTE_PLACE_REJECTED' });
+      }
       if (name === 'pickup' && mode === 'pickup') {
         throw Object.assign(new Error('Probe rejects low-level Human pickup; use approachAndPickup'), { code:'REMOTE_PICKUP_REJECTED' });
       }
@@ -122,6 +152,9 @@ try {
   }
   if (mode === 'pickup' && toolCalls.some((call) => call.name === 'pickup')) {
     throw new Error('Model attempted low-level Human pickup during embodied pickup probe');
+  }
+  if (mode === 'place' && toolCalls.some((call) => call.name === 'place')) {
+    throw new Error('Model attempted low-level scene place during embodied place probe');
   }
   console.log(JSON.stringify({ ok:true, mode, model, toolCalls, final:result.message, steps:result.steps }, null, 2));
 } finally {

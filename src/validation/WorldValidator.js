@@ -14,7 +14,7 @@ export class WorldValidator {
       if (bounds.min[1] > 0.12) {
         const relations = this.runtime.sceneGraph.list({ subject: object.id });
         const supported = relations.some((r) => r.predicate === 'ON' || r.predicate === 'INSIDE');
-        if (!supported && this.runtime.interactions.heldId !== object.id) advisory.push({ code: 'G_FLOATING', object: object.id, message: 'Object appears unsupported', measure: bounds.min[1] });
+        if (!supported && !this.runtime.interactions.isHeld(object.id)) advisory.push({ code: 'G_FLOATING', object: object.id, message: 'Object appears unsupported', measure: bounds.min[1] });
       }
     }
 

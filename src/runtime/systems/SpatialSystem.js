@@ -121,6 +121,22 @@ export class SpatialSystem {
     };
   }
 
+  supportStatus(subjectId, targetId, { surfaceId = null, tolerance = 0.12, snapshot = null } = {}) {
+    const localSnapshot = snapshot || this.snapshot();
+    const subject = localSnapshot.get(subjectId);
+    if (!subject) return { on:false, reason:'SUBJECT_MISSING' };
+    const surface = this.getSupportSurface(targetId, surfaceId, localSnapshot);
+    if (!surface) return { on:false, reason:'SURFACE_MISSING' };
+    const withinX = subject.box.min.x >= surface.center.x - surface.size[0] / 2 - 0.05 && subject.box.max.x <= surface.center.x + surface.size[0] / 2 + 0.05;
+    const withinZ = subject.box.min.z >= surface.center.z - surface.size[1] / 2 - 0.05 && subject.box.max.z <= surface.center.z + surface.size[1] / 2 + 0.05;
+    const gap = Math.abs(subject.box.min.y - surface.center.y);
+    return {
+      on:withinX && withinZ && gap <= tolerance,
+      subjectId,targetId,surfaceId:surface.id,
+      withinX,withinZ,gap:Number(gap.toFixed(4)),tolerance
+    };
+  }
+
   findFreeSpace(objectId, targetId, { surfaceId, clearance = 0.03, grid = 5 } = {}) {
     const objectRecord = this.store.get(objectId);
     const spatialSnapshot = this.snapshot();

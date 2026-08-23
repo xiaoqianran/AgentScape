@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.17.0** 当前状态。
+本文描述 **1.18.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 81%
+                           当前 ≈ 84%
 ```
 
-81% 不是“代码写完 81%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+84% 不是“代码写完 84%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -22,18 +22,18 @@
 |---|---:|---|
 | Web Runtime | 90% | Three / Rapier / lifecycle / persistence + kinematic Agent Body 已形成稳定运行时 |
 | Human Editor | 75% | 可用，但不是当前差异化主线 |
-| Skill / Policy / Trace | 80% | 单一能力边界已经形成 |
-| Spatial API | 92% | placement + current-world Recast/TileCache + 1.16 具身 interaction pose / physical LOS 已形成稳定空间事实层 |
-| Scene Persistence / History | 85% | schema / autosave / undo-redo 基本成熟 |
+| Skill / Policy / Trace | 85% | 单一能力边界稳定；具身 open/pickup/place 都有明确高层 Skill contract |
+| Spatial API | 94% | placement + current-world Recast/TileCache + interaction pose/LOS + 1.18 supportStatus 单一支撑真值已形成稳定空间事实层 |
+| Scene Persistence / History | 88% | schema / autosave / undo-redo + heldBy persistence + 跨帧 embodied transaction 已稳定 |
 | Asset Compiler 基础 | 90% | inspect / normalize / budget / quality 很完整 |
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 90% | 多级 Part + Rapier action + interaction action-sweep precondition 已通；live settled observation 仍缺 |
-| Runtime Verification | 75% | 1.8 已有阶段化 Motion Sweep；仍可继续补外部环境/多对象任务级验证 |
+| Runtime Verification | 82% | Motion Sweep + interaction sweep + carried clearance + Dynamic place settle/post-condition；live articulation settled observation 仍缺 |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
-| Grasp / Manipulation Geometry | 20% | 1.16 建立 interaction pose/sweep 基线；Agent hand anchor / grasp ownership 仍未实现 |
+| Grasp / Manipulation Geometry | 38% | 1.17–1.18 已有 hold ownership、pickup/carry/place 与 verified support；仍无 IK / grasp force / rotational sweep |
 | Navigation / Reachability | 90% | 1.15 已有 Detour path + Rapier physical locomotion；自动动态 replan / off-mesh / multi-agent avoidance 仍缺 |
 | 大型 World Runtime | 58% | 1.13 已有 96×72m 城市基线；19 Recast meshes / 38 renderables / 330–489ms build，当前暂无 streaming 证据 |
 | Multi-Agent | 10% | 不是当前优先级 |
@@ -238,26 +238,65 @@ Detour reachable
 
 ---
 
-## 10. 当前 P0：Agent-held Place / Release Truth
+## 10. 1.18 已完成：Agent-held Place / Release Truth
 
-下一步把：
+`approachAndPlace(actorId, supportId)` 现在从当前 `heldByAgent(actorId)` 自动推导被放置对象，先在目标 surface 上寻找 free space，再用 carry-aware stand-off 找可达交互位。Release 不是 teleport：held object 以 `lift → traverse → lower` 三段 Rapier shape cast 移到 release pose；随后 detach 为 Dynamic，等待 sleeping / 低速度稳定窗口，并用与 SceneGraph `ON / SUPPORTS` 同源的 `supportStatus` 做最终 post-condition。
+
+真实 E2E 同时覆盖：
 
 ```text
-held object
-→ target support surface
-→ valid Agent release pose
-→ carried-object clearance
-→ release occupancy
-→ detach
-→ Dynamic settle
-→ support relation verification
+normal Table
+→ placed + supportVerified=true + settled=true
+
+release trajectory blocker
+→ PLACE_TRANSFER_BLOCKED + stillHeld=true
+
+manifest surface 与真实 Physics support 不一致
+→ Dynamic 掉落后 place-failed / SUPPORT_NOT_REACHED
+
+settle timeout
+→ place-unverified
 ```
 
-做成一个真实具身 place transaction。旧 `place()` 仍是 Human/scene-level deterministic placement，不直接包装成 Agent manipulation。
+这轮也修正两个具身 reference bug：interaction candidate 的 Y 应来自 target root placement reference，而不是 visual `bounds.min.y`；Place stand-off 必须考虑 held-object envelope，而不仅是 Agent capsule。
 
 ---
 
-## 11. 1.11–1.12 已完成：Curated Multi-World Layer
+## 11. 当前 P0：Live Articulation Completion / Verified Action Sequencing
+
+现在 `pickup → carry → place` 已有明确终态和 post-condition，但 `open / close` 仍只返回：
+
+```text
+interaction-requested
+```
+
+下一阶段优先补：
+
+```text
+motor request
+→ live joint coordinate observation
+→ moving / settled / blocked
+→ target reached post-condition
+→ action-completed | action-failed | action-unverified
+```
+
+这样真实 Agent task 才能可靠执行：
+
+```text
+open
+→ 等待最终关节状态
+→ replan
+→ navigate
+→ pickup
+→ carry
+→ place
+```
+
+而不是把“motor target 已接受”偷换成“门已经打开”。
+
+---
+
+## 12. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -282,7 +321,7 @@ Three.js architecture
 
 ---
 
-## 12. P1：完整 Joint Frame
+## 13. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -318,7 +357,7 @@ Schema claim second
 
 ---
 
-## 13. P2：Compact Agent Observation
+## 14. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -346,7 +385,7 @@ world size
 
 ---
 
-## 14. 自动语义：宁可慢一点，也不虚构能力
+## 15. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -384,7 +423,7 @@ high coverage + fake capability
 
 ---
 
-## 15. 目前不应该成为优先级的方向
+## 16. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -401,7 +440,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 16. 产品差异化应该是什么
+## 17. 产品差异化应该是什么
 
 不应该是：
 
@@ -433,7 +472,7 @@ Agent World
 
 ---
 
-## 17. 未来完成态
+## 18. 未来完成态
 
 可以把 100% 理解为：
 
@@ -498,11 +537,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.17.0 文档快照对应的仓库验证基线：
+1.18.0 文档快照对应的仓库验证基线：
 
 ```text
-85 Test Files PASS
-230 Tests PASS
+88 Test Files PASS
+240 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -512,6 +551,14 @@ Action-aware Navigation E2E PASS
 Embodied Locomotion Ruined Courtyard E2E PASS
 Embodied interaction range / Rapier LOS E2E PASS
 Agent carry / hold-anchor E2E PASS
+Agent-held Place / Release E2E PASS
+Release trajectory blocker ownership PASS
+Dynamic settle + support post-condition PASS
+Settle timeout / place-unverified PASS
+Physics ray ownership excludeIds PASS
+Structured embodied partial-failure / History semantics PASS
+Nemotron live approachAndPlace probe PASS
+Muse live approachAndPlace probe PASS
 Carried-object locomotion clearance PASS
 Direct Physics carry shape-cast / held-target PASS
 Held-object TileCache ownership transition PASS

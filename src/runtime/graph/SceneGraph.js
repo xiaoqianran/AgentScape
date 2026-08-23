@@ -71,12 +71,10 @@ export class SceneGraph {
 
     const deriveDirected = (subjectId, subject, targetId, target) => {
       for (const support of surfaces.get(targetId)) {
-        const withinX = subject.box.min.x >= support.center.x - support.size[0] / 2 - 0.05 && subject.box.max.x <= support.center.x + support.size[0] / 2 + 0.05;
-        const withinZ = subject.box.min.z >= support.center.z - support.size[1] / 2 - 0.05 && subject.box.max.z <= support.center.z + support.size[1] / 2 + 0.05;
-        const gap = Math.abs(subject.box.min.y - support.center.y);
-        if (withinX && withinZ && gap <= 0.12) {
-          this.set(subjectId, 'ON', targetId, { surfaceId: support.id, gap: Number(gap.toFixed(3)) });
-          this.set(targetId, 'SUPPORTS', subjectId, { surfaceId: support.id });
+        const status = this.spatial.supportStatus(subjectId,targetId,{surfaceId:support.id,snapshot:spatialSnapshot});
+        if (status.on) {
+          this.set(subjectId, 'ON', targetId, { surfaceId:support.id, gap:Number(status.gap.toFixed(3)) });
+          this.set(targetId, 'SUPPORTS', subjectId, { surfaceId:support.id });
         }
       }
       if (target.box.containsBox(subject.box)) {

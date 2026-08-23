@@ -1534,3 +1534,13 @@ Agent-facing Skill 不暴露 interaction distance，避免模型把 1.5m 临时�
 真实 carry E2E 证明：Agent 能走到 Cup、把它安全吸附到 hold anchor、继续导航并让 Cup 跟随；如果 Cup 会比 Agent capsule 更早撞墙，locomotion 返回 `CARRIED_OBJECT_BLOCKED`，两者都停在安全位置。Held Cup 不再作为独立 TileCache obstacle，drop 后重新恢复 Dynamic obstacle。
 
 这一轮仍没有 `graspVerified=true`：当前只是 kinematic-anchor ownership，没有手指接触/力闭合。下一阶段是 Agent-held place/release truth。
+
+---
+
+## 39. 1.18：Release 成功不再等于 Place 成功
+
+1.17 已经能 pickup/carry/drop，但旧 `place()` 仍是 scene teleport primitive。1.18 首先尝试把 held Cup 带到 Table，真实 E2E 连续暴露两个 reference 错误：`target.bounds.min.y` 被误当 Agent foot Y；以及 Agent capsule 能靠近桌子但前伸的 Cup 会先撞桌沿。前者改为 target root placement Y，后者引入 carry-aware stand-off，同时仍保留 per-frame carried-object Physics clearance。
+
+Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后恢复 Dynamic、清零 carry velocity并等待 sleeping/低速度稳定窗口。最终不是看“release 指令有没有执行”，而是调用与 SceneGraph ON/SUPPORTS 同源的 `SpatialSystem.supportStatus`。物体稳定但掉出目标 surface 时返回 `place-failed / SUPPORT_NOT_REACHED`；超时则 `place-unverified`。
+
+这一轮还统一了长具身事务失败语义：一旦已经发生 locomotion，后续 physical failure 返回 structured blocked result，让 History 记录真实部分位移，而不是 throw 后 cancel transaction。

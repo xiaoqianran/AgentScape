@@ -1173,3 +1173,7 @@ interaction-requested
 ## 31. 1.17：同一 Interaction Pose 基线进入 Pickup
 
 `approachAndPickup` 复用 1.16 的 Detour reachable + fixed 1.5m range + Rapier LOS，但没有 action swept AABB；取而代之的是目标对象当前 pose 到 Agent hold anchor 的 Rapier shape cast。这样 open/close 与 pickup 共享“先走到真正可交互位置”的事实层，而不共享错误的动作几何假设。详见 [`agent-carry.md`](./agent-carry.md)。
+
+## 32. 1.18：Interaction Pose 需要区分 Actor Envelope 与 Carry Envelope
+
+Place E2E 证明普通 Agent capsule stand-off 不足以承载手中物：Cup 会在 Agent 到达 Table pose 前先撞桌沿。1.18 因此让 `findInteractionPose` 接受内部 `standOff`，普通 open/pickup 仍使用 actor radius；Agent-held place 使用 `holdAnchor horizontal offset + held collider radius` 的 carry envelope。另一个修复是 candidate Y 改用 target root world Y，而不是 visual bounds.min.y，避免只有桌面 Mesh 的 Table 把 Agent 站位抬到桌面高度。详见 [`agent-place.md`](./agent-place.md)。

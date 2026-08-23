@@ -541,3 +541,11 @@ npm run agent:probe -- pickup
 ```
 
 Probe 禁止模型调用低层 Human `pickup`，要求最终使用 `approachAndPickup`。当前 Nemotron 与 Muse 都真实通过，并在 pickup 后调用 `getCarryStatus`。返回 contract 明确 `attachment=kinematic-anchor`、`graspVerified=false`。详见 [`agent-carry.md`](./agent-carry.md)。
+
+## 18. 1.18 Agent-held Place Probe
+
+```bash
+npm run agent:probe -- place
+```
+
+Probe 假定 `agent_01` 已持有 `cup_01`，但不把 held ownership 塞进 `listObjects`；模型可通过 `getCarryStatus` 查询。低层 scene `place` 会被拒绝，成功必须调用 `approachAndPlace(actorId,supportId)`。当前 Nemotron 与 Muse 都能在 2 planning steps 第一工具直接选择 `approachAndPlace`，并只在 `status=placed + supportVerified=true + settled=true` 后宣布成功。

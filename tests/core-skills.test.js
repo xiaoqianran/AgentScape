@@ -22,6 +22,7 @@ function runtime() {
       findInteractionPose:vi.fn(async()=>({status:'approach-pose',position:[1,0,1]})),
       approachAndInteract:vi.fn(async()=>({actorId:'agent_01',targetId:'cabinet_01',action:'open'})),
       approachAndPickup:vi.fn(async()=>({status:'held',actorId:'agent_01',targetId:'cup_01',graspVerified:false})),
+      approachAndPlace:vi.fn(async()=>({status:'placed',actorId:'agent_01',targetId:'table_01',heldId:'cup_01',supportVerified:true})),
       dropHeld:vi.fn(()=>({status:'dropped',actorId:'agent_01',targetId:'cup_01'})),
       carryStatus:vi.fn(()=>({status:'held',actorId:'agent_01',targetId:'cup_01',graspVerified:false}))
     },
@@ -114,6 +115,24 @@ describe('core skills', () => {
     const drop=await registry.invoke('dropHeld',{actorId:'agent_01'},{profile:'builder',actor:'agent_01'});
     expect(drop).toMatchObject({success:true,result:{status:'dropped',targetId:'cup_01'}});
     expect(registry.definitions().find((item)=>item.name==='approachAndPickup').parameters.required).toEqual(['actorId','targetId']);
+  });
+
+  it('keeps embodied place inside one async mutation until settle verification resolves', async () => {
+    const r=runtime();
+    let finish;
+    const deferred=new Promise((resolve)=>{finish=resolve;});
+    r.interactions.approachAndPlace=vi.fn(()=>deferred);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const pending=registry.invoke('approachAndPlace',{actorId:'agent_01',supportId:'table_01',surfaceId:'top'},{profile:'builder',actor:'agent_01'});
+    await Promise.resolve(); await Promise.resolve();
+    expect(r.mutate).toHaveBeenCalledWith('skill:approachAndPlace',expect.any(Function),expect.objectContaining({source:'agent_01',skill:'approachAndPlace'}));
+    expect(r.interactions.approachAndPlace).toHaveBeenCalledWith('agent_01','table_01',{surfaceId:'top',speed:undefined});
+    let settled=false; pending.then(()=>{settled=true;}); await Promise.resolve();
+    expect(settled).toBe(false);
+    finish({status:'placed',actorId:'agent_01',targetId:'table_01',heldId:'cup_01',supportVerified:true});
+    await expect(pending).resolves.toMatchObject({success:true,result:{status:'placed',supportVerified:true}});
+    expect(registry.definitions().find((item)=>item.name==='approachAndPlace').parameters.required).toEqual(['actorId','supportId']);
+    expect(registry.definitions().find((item)=>item.name==='approachAndPlace').parameters.properties.surfaceId.description).toMatch(/top/);
   });
 
 });

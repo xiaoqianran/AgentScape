@@ -10,7 +10,7 @@ function runtime({ below = false, collision = false } = {}) {
       collisionPairs: () => collision ? [['a','b']] : []
     },
     sceneGraph: { update: () => [], list: () => [] },
-    interactions: { heldId: null }
+    interactions: { isHeld:()=>false }
   };
 }
 
@@ -26,4 +26,16 @@ describe('WorldValidator', () => {
     expect(report.counts).toHaveProperty('hard');
     expect(report.coverage.objects).toBe(2);
   });
+
+  it('does not report an Agent-held floating object as unsupported', () => {
+    const r=runtime();
+    r.spatial.snapshot=()=>new Map([
+      ['a',{bounds:{id:'a',min:[0,.9,0],max:[.3,1.2,.3],center:[.15,1.05,.15],size:[.3,.3,.3]}}],
+      ['b',{bounds:{id:'b',min:[2,0,0],max:[3,1,1],center:[2.5,.5,.5],size:[1,1,1]}}]
+    ]);
+    r.interactions.isHeld=(id)=>id==='a';
+    const report=new WorldValidator(r).run();
+    expect(report.advisory.some((item)=>item.object==='a'&&item.code==='G_FLOATING')).toBe(false);
+  });
+
 });

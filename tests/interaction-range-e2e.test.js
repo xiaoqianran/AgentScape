@@ -121,8 +121,8 @@ describe('interaction-range task execution',()=>{
       ctx.physics.step(1/60,ctx.store);
       return {status:'arrived',id:'agent_01',position:[0,.1,.87]};
     };
-    await expect(ctx.interactions.approachAndInteract('agent_01','cabinet_01','open',{partName:'door'})).rejects.toMatchObject({
-      code:'INTERACTION_UNAVAILABLE',details:expect.objectContaining({reason:'AGENT_BLOCKS_ACTION_SWEEP'})
+    await expect(ctx.interactions.approachAndInteract('agent_01','cabinet_01','open',{partName:'door'})).resolves.toMatchObject({
+      status:'interaction-blocked',reason:'AGENT_BLOCKS_ACTION_SWEEP'
     });
     expect(ctx.store.get('cabinet_01').state.parts.door).toBe('close');
     ctx.locomotion.navigate=originalNavigate;

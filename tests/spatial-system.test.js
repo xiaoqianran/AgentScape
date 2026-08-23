@@ -89,4 +89,18 @@ describe('SpatialSystem', () => {
     expect(blockerUpdate).toHaveBeenCalledTimes(1);
   });
 
+
+  it('uses the same supportStatus geometry contract for ON verification', () => {
+    const store=new ObjectStore(); const scene=new THREE.Scene();
+    const table=new THREE.Group(); table.position.set(0,0,0); table.updateMatrixWorld(true); scene.add(table);
+    const top=new THREE.Mesh(new THREE.BoxGeometry(2.2,.2,1)); top.position.y=1; table.add(top); table.updateMatrixWorld(true);
+    store.add('table',{id:'table',assetId:'table',object:table,manifest:{actions:[],surfaces:[{id:'top',localPosition:[0,1.1,0],size:[2.2,1]}]}});
+    const cup=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2)); cup.position.set(0,1.2,0); cup.updateMatrixWorld(true); scene.add(cup);
+    store.add('cup',{id:'cup',assetId:'cup',object:cup,manifest:{actions:[]}});
+    const spatial=new SpatialSystem({store,scene});
+    expect(spatial.supportStatus('cup','table',{surfaceId:'top'})).toMatchObject({on:true,surfaceId:'top',withinX:true,withinZ:true});
+    cup.position.set(2,1.2,0); cup.updateMatrixWorld(true);
+    expect(spatial.supportStatus('cup','table',{surfaceId:'top'}).on).toBe(false);
+  });
+
 });

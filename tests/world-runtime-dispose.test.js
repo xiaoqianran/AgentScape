@@ -11,6 +11,7 @@ it('disposes objects without rebuilding semantic relations during teardown', () 
     store:{ list:()=>[...store], delete:(id)=>store.delete(id) },
     physics:{ remove:vi.fn(), dispose:vi.fn() },
     navigation:{ dispose:vi.fn() },
+    interactions:{ cancelPending:vi.fn() },
     scene:{ remove:vi.fn(), traverse:(fn)=>{} },
     sceneGraph:{ reset:vi.fn(), update:vi.fn() },
     controls:{ dispose:vi.fn() },
@@ -22,6 +23,7 @@ it('disposes objects without rebuilding semantic relations during teardown', () 
   globalThis.window = { removeEventListener:vi.fn() };
   try { WorldRuntime.prototype.dispose.call(runtime); }
   finally { globalThis.window = oldWindow; }
+  expect(runtime.interactions.cancelPending).toHaveBeenCalledWith('RUNTIME_DISPOSED');
   expect(runtime.sceneGraph.reset).toHaveBeenCalledOnce();
   expect(runtime.sceneGraph.update).not.toHaveBeenCalled();
   expect(runtime.physics.dispose).toHaveBeenCalledOnce();
