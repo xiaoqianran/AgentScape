@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.21.0** 当前状态。
+本文描述 **1.22.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 92%
+                           当前 ≈ 94%
 ```
 
-92% 不是“代码写完 92%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+94% 不是“代码写完 94%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -23,13 +23,13 @@
 | Web Runtime | 90% | Three / Rapier / lifecycle / persistence + kinematic Agent Body 已形成稳定运行时 |
 | Human Editor | 75% | 可用，但不是当前差异化主线 |
 | Skill / Policy / Trace | 96% | semantic outcome / mutation barrier / unresolved ledger + 1.21 compact task observation / bounded recovery 已形成统一执行边界 |
-| Spatial API | 94% | placement + current-world Recast/TileCache + interaction pose/LOS + 1.18 supportStatus 单一支撑真值已形成稳定空间事实层 |
+| Spatial API | 95% | placement / Recast / interaction pose / support truth 稳定；1.22 又把 live Physics contact provenance 作为按需失败证据暴露 |
 | Scene Persistence / History | 88% | schema / autosave / undo-redo + heldBy persistence + 跨帧 embodied transaction 已稳定 |
 | Asset Compiler 基础 | 90% | inspect / normalize / budget / quality 很完整 |
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
-| Runtime Verification | 96% | 单步 post-condition + multi-step E2E + real STALL compact recovery context；下一短板是 blocker/contact attribution |
+| Runtime Verification | 98% | 单步 post-condition + multi-step E2E + STALL live completion + 1.22 Rapier current-contact provenance；仍缺真正 recovery verification |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -288,36 +288,41 @@ Recovery Hint 明确 `status=provisional`，并且不再推荐重复读取已经
 
 ---
 
-## 14. 当前 P0：Failure Attribution / Contact Provenance
+## 14. 1.22 已完成：Failure Attribution / Contact Provenance
 
-现在 Agent 能稳定知道：
+PhysicsSystem 现在在 collider 创建时登记稳定 provenance：Object collider 带 `objectId / partName / colliderIndex`，Environment collider 带 `environmentId / colliderIndex`。Object remove、attach rollback、dispose 都清理该索引。Live articulation 只有在 STALL 已确定后才用 Rapier narrow-phase `contactPairsWith/contactPair` 采样 current active contacts。
 
-```text
-Door open → STALL
-current joint coordinate / error / verified state
-```
-
-但 Runtime 还不能确定性回答：
-
-```text
-哪个外部 collider / object 导致了这次 STALL？
-```
-
-下一阶段优先把 live articulation failure 与 Rapier contact/intersection provenance 连起来：
-
-```text
-failed Part
-→ current collider contacts / overlaps
-→ owner object / environment provenance
-→ blocker candidates
-→ compact failure attribution
-```
-
-目标仍然不是自动移动 blocker，而是给 recovery planner 更具体、可验证的证据。
+为避免把 prediction-distance proximity 误叫接触，只有 `contactDist<=1e-6` 或存在 solver impulse 的 point 计入 `activeContactCount`。Failure result 输出 `attribution.status=contact-evidence`、`evidence=current-contact-at-failure` 与去重的 `blockerCandidates`；没有 external active contact 则为 `unattributed`。这些 candidate 明确不是唯一 root-cause 证明。`getArticulationStatus` 与 compact task observation 都保留该证据。Nemotron/Muse strict attribution probe 已能指出 `obstacle_03` 并正确描述 evidence boundary。
 
 ---
 
-## 15. 1.11–1.12 已完成：Curated Multi-World Layer
+## 15. 当前 P0：Verified Recovery Action / Blocker-aware Replan
+
+现在 Agent 已经可能拿到：
+
+```text
+Door open → STALL
+blockerCandidate = obstacle_03
+evidence = current-contact-at-failure
+```
+
+下一步不是自动 `moveObject(obstacle_03)`，而是建立受 Policy/Capability 约束的 recovery contract：
+
+```text
+contact blocker candidate
+→ recovery eligibility
+→ explicit recovery proposal
+→ one legal mutation
+→ fresh world re-observation
+→ retry original action
+→ original post-condition must verify
+```
+
+如果 blocker 是 Environment、不可移动、权限不足或 recovery 后仍失败，就必须保留 unresolved task，而不是把“做了 recovery”当成成功。
+
+---
+
+## 16. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -342,7 +347,7 @@ Three.js architecture
 
 ---
 
-## 16. P1：完整 Joint Frame
+## 17. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -378,7 +383,7 @@ Schema claim second
 
 ---
 
-## 17. P2：Compact Agent Observation
+## 18. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -406,7 +411,7 @@ world size
 
 ---
 
-## 18. 自动语义：宁可慢一点，也不虚构能力
+## 19. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -444,7 +449,7 @@ high coverage + fake capability
 
 ---
 
-## 19. 目前不应该成为优先级的方向
+## 20. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -461,7 +466,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 20. 产品差异化应该是什么
+## 21. 产品差异化应该是什么
 
 不应该是：
 
@@ -493,7 +498,7 @@ Agent World
 
 ---
 
-## 21. 未来完成态
+## 22. 未来完成态
 
 可以把 100% 理解为：
 
@@ -558,11 +563,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.21.0 文档快照对应的仓库验证基线：
+1.22.0 文档快照对应的仓库验证基线：
 
 ```text
-96 Test Files PASS
-278 Tests PASS
+97 Test Files PASS
+281 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -637,3 +642,9 @@ Real Rapier STALL compact recovery context PASS
 Implicit / explicit articulated Part identity normalization PASS
 Bounded read-only recovery observation PASS
 Recovery-observation-limit pre-execution stop PASS
+Collider-level Object / Environment provenance PASS
+Rapier active articulation contact provenance PASS
+STALL current-contact failure attribution PASS
+Compact blocker-candidate evidence PASS
+Nemotron strict contact-attribution probe PASS
+Muse strict contact-attribution probe PASS

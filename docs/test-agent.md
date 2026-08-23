@@ -589,3 +589,11 @@ npm run agent:probe -- sequence-failure
 现有 `sequence / sequence-failure` probe 同时覆盖 1.21，因为 ToolCallingAgent 每轮都会向 Gateway 注入 `context.task`。首轮保留完整 world entity index；发生 mutation 后 `context.world` 只保留对象数量与 `id/asset` entity index，相关 actor/object/articulation/unresolved evidence 位于 `agentscape.task-observation.v1`。
 
 真实 Nemotron / Muse success sequence 仍保持 verified `open → pickup → place`。Failure sequence 必须满足：pickup/place 从未执行、`taskStatus=incomplete`、只有一个 semantic open failure 留在 unresolved ledger；模型若持续只读诊断，会以 `recovery-observation-limit` 受控结束，而不是无限读到全局 planning limit。
+
+## 22. 1.22 Contact Provenance Attribution Probe
+
+```bash
+npm run agent:probe -- attribution
+```
+
+Probe world 只有 `agent_01 / cabinet_01 / obstacle_03`。模型必须直接使用 `approachAndInteract`；禁止手工 `navigateTo/findInteractionPose` 分解、低层 open、移动 blocker、pickup/place。模拟 STALL result 附 `current-contact-at-failure`，candidate 为 `obstacle_03`。Nemotron 与 Muse 严格版样本都能直接选择高层具身工具，并把 `obstacle_03` 表述为当前物理接触证据而不是唯一已证明根因。

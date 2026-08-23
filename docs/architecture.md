@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.21.0** 的真实架构，不描述未来设想。
+本文描述 **1.22.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -842,3 +842,28 @@ ToolCallingAgent unresolved ledger
 首次 planning 仍发送完整 `listObjects`；发生 mutation 后只发送 `{world:{count,index:[id/asset]}} + compact task`。Relevant object 来自 actor/lastMutation/unresolved args；articulation 复用 `articulationStatus` 并压缩字段。Recovery Hint 永远 `provisional`。
 
 ToolCallingAgent 另外维护 bounded read-only recovery rounds；它不选择 recovery action，只在 unresolved 世界状态长期不变、模型持续做只读诊断时以 `recovery-observation-limit` 结构化结束。Mutation identity 会用实际 Runtime result 补齐 implicit Part，避免同一 Door retry 形成重复 unresolved。详见 [`task-observation.md`](./task-observation.md)。
+
+---
+
+## 25. Failure Attribution：Contact Evidence 仍属于 Physics Truth
+
+1.22 在 PhysicsSystem 内维护 collider-level provenance，创建 collider 时记录稳定的 object/part/environment owner，remove/attach rollback/dispose 同步清理。`articulationContacts()` 只读取 Rapier narrow phase 的 active current contacts，不从 Three bounds 猜碰撞。
+
+```text
+Rapier Collider
+      │ create-time provenance
+      ▼
+colliderProvenance
+      │
+STALL observer
+      ▼
+articulationContacts
+      ▼
+contact-evidence
+      ▼
+blockerCandidates
+      ▼
+articulationStatus / task-observation
+```
+
+Candidate 只表示 `current-contact-at-failure`，不是唯一因果结论。Contact 没有被写进 SceneGraph，也没有新增持久 FailureStore。完整设计见 [`failure-attribution.md`](./failure-attribution.md)。

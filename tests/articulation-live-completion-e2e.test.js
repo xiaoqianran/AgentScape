@@ -15,7 +15,7 @@ const cabinetObject=()=>{
 
 async function setup({blocker=false}={}){
   const store=new ObjectStore(); const physics=new PhysicsSystem(); await physics.init();
-  if(blocker) physics.addEnvironment([{shape:'box',halfExtents:[.18,1,.18],translation:[-.64,1,1.08]}]);
+  if(blocker) physics.addEnvironment([{shape:'box',halfExtents:[.18,1,.18],translation:[-.64,1,1.08]}],{id:'door-stall-blocker'});
   const object=cabinetObject(); const manifest=structuredClone(assetManifests.cabinet);
   store.add('cabinet',{id:'cabinet',assetId:'cabinet',object,manifest,state:{parts:{door:'close'}}});
   physics.attach('cabinet',manifest,object); physics.step(1/60,store);
@@ -55,13 +55,30 @@ describe('live articulation completion',()=>{
     const ctx=await setup({blocker:true});
     const request=ctx.interactions.setArticulationAction('cabinet','open',{partName:'door'});
     const result=await drive(ctx.interactions,ctx.physics,ctx.store,ctx.interactions.waitForArticulationCompletion('cabinet','door','open',request.target));
-    expect(result).toMatchObject({status:'action-failed',reason:'STALL',targetReached:false,settled:false,action:'open'});
+    expect(result).toMatchObject({
+      status:'action-failed',reason:'STALL',targetReached:false,settled:false,action:'open',
+      attribution:{
+        status:'contact-evidence',evidence:'current-contact-at-failure',
+        blockerCandidates:[{kind:'environment',environmentId:'door-stall-blocker',colliderIndex:0}],
+        contactEvidence:[expect.objectContaining({
+          source:{kind:'object',objectId:'cabinet',partName:'door',colliderIndex:0},
+          target:{kind:'environment',environmentId:'door-stall-blocker',colliderIndex:0},external:true
+        })]
+      }
+    });
     expect(result.error).toBeGreaterThan(result.tolerance);
+    expect(ctx.interactions.articulationFailureAttribution('cabinet','door')).toMatchObject({
+      status:'contact-evidence',evidence:'current-contact-at-failure',
+      blockerCandidates:[{kind:'environment',environmentId:'door-stall-blocker',colliderIndex:0}]
+    });
     expect(result.recentMovement).toBeLessThan(.008);
     expect(ctx.store.get('cabinet').state.parts.door).toBe('close');
     expect(ctx.store.get('cabinet').state.partTargets.door).toBe('open');
     const status=ctx.interactions.articulationStatus('cabinet','door').parts[0];
-    expect(status).toMatchObject({status:'action-failed',verifiedAction:'close',requestedAction:'open',last:{reason:'STALL'}});
+    expect(status).toMatchObject({
+      status:'action-failed',verifiedAction:'close',requestedAction:'open',
+      last:{reason:'STALL',attribution:{status:'contact-evidence',blockerCandidates:[{environmentId:'door-stall-blocker'}]}}
+    });
     ctx.physics.dispose();
   });
 });

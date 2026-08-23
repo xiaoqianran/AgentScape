@@ -41,6 +41,7 @@ export class PhysicsSystem {
   constructor() {
     this.world = null;
     this.entries = new Map();
+    this.colliderProvenance = new Map();
     this.rootRotation = new THREE.Quaternion();
     this.inverseRootRotation = new THREE.Quaternion();
     this.partWorldRotation = new THREE.Quaternion();
@@ -65,9 +66,9 @@ export class PhysicsSystem {
     this.characterController.setApplyImpulsesToDynamicBodies(false);
   }
 
-  addEnvironment(colliders = []) {
+  addEnvironment(colliders = [], { id = '$environment' } = {}) {
     const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    this.addColliders(body, colliders);
+    this.addColliders(body, colliders, undefined, undefined, { kind:'environment', environmentId:id });
     return body;
   }
 
@@ -84,9 +85,11 @@ export class PhysicsSystem {
     return desc.setTranslation(position.x, position.y, position.z);
   }
 
-  addColliders(body, colliders = [], mass, friction) {
+  addColliders(body, colliders = [], mass, friction, provenance = null) {
     const colliderMass = mass != null && colliders.length ? mass / colliders.length : null;
-    for (const spec of colliders) {
+    const created = [];
+    for (let colliderIndex=0; colliderIndex<colliders.length; colliderIndex++) {
+      const spec = colliders[colliderIndex];
       let desc;
       if (spec.shape === 'box') desc = RAPIER.ColliderDesc.cuboid(...spec.halfExtents);
       else if (spec.shape === 'cylinder') desc = RAPIER.ColliderDesc.cylinder(spec.halfHeight, spec.radius);
@@ -100,8 +103,22 @@ export class PhysicsSystem {
       if (spec.rotation) desc.setRotation({ x:spec.rotation[0], y:spec.rotation[1], z:spec.rotation[2], w:spec.rotation[3] });
       if (colliderMass != null) desc.setMass(colliderMass);
       if (friction != null) desc.setFriction(friction);
-      this.world.createCollider(desc, body);
+      const collider=this.world.createCollider(desc, body);
+      created.push(collider);
+      if (provenance) this.colliderProvenance.set(collider.handle,{ ...provenance, colliderIndex });
     }
+    return created;
+  }
+
+  unregisterBodyColliders(body) {
+    if (!body) return;
+    for (let i=0;i<body.numColliders();i++) this.colliderProvenance.delete(body.collider(i).handle);
+  }
+
+  provenanceOfCollider(collider) {
+    if (!collider) return null;
+    const owner=this.colliderProvenance.get(collider.handle);
+    return owner ? structuredClone(owner) : null;
   }
 
   attach(id, manifest, object) {
@@ -114,7 +131,7 @@ export class PhysicsSystem {
       const body = this.world.createRigidBody(this.bodyDesc(manifest.physics?.body || 'fixed', worldPos));
       body.setRotation({ x:worldRot.x, y:worldRot.y, z:worldRot.z, w:worldRot.w }, true);
       createdBodies.push(body);
-      this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass, manifest.physics?.friction);
+      this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass, manifest.physics?.friction, { kind:'object', objectId:id, partName:ROOT_PART });
 
       const entry = { body, root: object, rootSpec:manifest.physics || {}, parts: new Map(), lastPosition: worldPos.clone(), lastRotation: worldRot.clone() };
       const bodies = new Map([[ROOT_PART, body]]);
@@ -133,7 +150,7 @@ export class PhysicsSystem {
         const child = this.world.createRigidBody(this.bodyDesc(part.physics.body || 'dynamic', partWorld));
         child.setRotation({ x:partRotation.x, y:partRotation.y, z:partRotation.z, w:partRotation.w }, true);
         createdBodies.push(child);
-        this.addColliders(child, part.physics.colliders, part.physics.mass, part.physics.friction);
+        this.addColliders(child, part.physics.colliders, part.physics.mass, part.physics.friction, { kind:'object', objectId:id, partName });
 
         const data = part.joint.type === 'revolute'
           ? RAPIER.JointData.revolute(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis))
@@ -149,7 +166,7 @@ export class PhysicsSystem {
       return entry;
     } catch (error) {
       for (const body of createdBodies.reverse()) {
-        try { this.world.removeRigidBody(body); } catch {}
+        try { this.unregisterBodyColliders(body); this.world.removeRigidBody(body); } catch {}
       }
       throw error;
     }
@@ -219,7 +236,11 @@ export class PhysicsSystem {
   remove(id) {
     const entry = this.entries.get(id);
     if (!entry) return false;
-    for (const part of entry.parts.values()) this.world.removeRigidBody(part.body);
+    for (const part of entry.parts.values()) {
+      this.unregisterBodyColliders(part.body);
+      this.world.removeRigidBody(part.body);
+    }
+    this.unregisterBodyColliders(entry.body);
     this.world.removeRigidBody(entry.body);
     this.entries.delete(id);
     return true;
@@ -555,6 +576,51 @@ export class PhysicsSystem {
     return { items, skipped };
   }
 
+  articulationContacts(id, partName) {
+    const entry=this.entries.get(id);
+    const part=entry?.parts.get(partName);
+    if (!entry || !part || !this.world) return [];
+    const contacts=[];
+    for (let sourceIndex=0;sourceIndex<part.body.numColliders();sourceIndex++) {
+      const source=part.body.collider(sourceIndex);
+      const sourceOwner=this.provenanceOfCollider(source) || { kind:'object',objectId:id,partName,colliderIndex:sourceIndex };
+      this.world.contactPairsWith(source,(other)=>{
+        const target=this.provenanceOfCollider(other);
+        const external=!target || target.kind==='environment' || target.objectId!==id;
+        let manifoldCount=0,contactCount=0,activeContactCount=0,minDistance=Infinity,totalImpulse=0,normal=null;
+        this.world.contactPair(source,other,(manifold,flipped)=>{
+          manifoldCount+=1;
+          const rawNormal=manifold.normal();
+          normal=flipped ? [-rawNormal.x,-rawNormal.y,-rawNormal.z] : [rawNormal.x,rawNormal.y,rawNormal.z];
+          for(let i=0;i<manifold.numContacts();i++) {
+            const distance=manifold.contactDist(i);
+            const impulse=Math.abs(manifold.contactImpulse(i) || 0);
+            contactCount+=1;
+            if (distance <= 1e-6 || impulse > 1e-8) activeContactCount+=1;
+            minDistance=Math.min(minDistance,distance);
+            totalImpulse+=impulse;
+          }
+        });
+        if (!manifoldCount || !activeContactCount) return;
+        contacts.push({
+          source:sourceOwner,
+          target:target || { kind:'unknown',colliderIndex:null },
+          external,
+          manifoldCount,contactCount,activeContactCount,
+          minDistance:Number.isFinite(minDistance) ? minDistance : null,
+          totalImpulse,
+          normal
+        });
+      });
+    }
+    contacts.sort((a,b)=>{
+      const ak=`${a.target.kind}:${a.target.objectId || a.target.environmentId || ''}:${a.target.partName || ''}:${a.target.colliderIndex ?? -1}:${a.source.colliderIndex}`;
+      const bk=`${b.target.kind}:${b.target.objectId || b.target.environmentId || ''}:${b.target.partName || ''}:${b.target.colliderIndex ?? -1}:${b.source.colliderIndex}`;
+      return ak.localeCompare(bk);
+    });
+    return contacts;
+  }
+
   articulationPenetrations(id, partName, { refresh = false } = {}) {
     if (refresh) this.world.updateSceneQueries();
     const entry = this.entries.get(id);
@@ -588,6 +654,7 @@ export class PhysicsSystem {
 
   dispose() {
     this.entries.clear();
+    this.colliderProvenance.clear();
     if (this.world && this.characterController) this.world.removeCharacterController(this.characterController);
     this.characterController = null;
     this.world?.free?.();

@@ -65,6 +65,16 @@ const scenarios = {
     ],
     expected:'approachAndInteract'
   }
+,
+  attribution: {
+    goal:'Call approachAndInteract directly so agent_01 walks to cabinet_01 and tries to open its door. Do not call navigateTo or findInteractionPose separately. If it fails with STALL and current-contact-at-failure evidence, stop immediately and report the named blocker candidate as current physical contact evidence. Do not claim it is the uniquely proven root cause. Do not move the blocker and do not use any low-level open/pickup/place tool.',
+    world:[
+      { id:'agent_01', asset:'agent', position:[0,0,4], actions:['navigate'] },
+      { id:'cabinet_01', asset:'cabinet', position:[0,0,0], actions:['open','close','move'] },
+      { id:'obstacle_03', asset:'blocker', position:[-.64,1,1.08], actions:['move'] }
+    ],
+    expected:'approachAndInteract'
+  }
 };
 const scenario = scenarios[mode];
 if (!scenario) throw new Error(`Unknown probe mode: ${mode}`);
@@ -97,11 +107,12 @@ try {
     call:async(name, args = {}) => {
       if (name === 'listObjects') return scenario.world;
       toolCalls.push({ name, args });
-      if (mode === 'sequence' || mode === 'sequence-failure') {
+      if (mode === 'sequence' || mode === 'sequence-failure' || mode === 'attribution') {
         if (name === 'findInteractionPose') return {status:'approach-pose',position:[0,0,args.targetId==='cabinet_01'?1:1.2],routeCost:2,distance:.7,lineOfSight:{hit:{id:args.targetId}}};
         if (name === 'getBounds') {
           const map={
             agent_01:{id:'agent_01',min:[-.32,0,3.68],max:[.32,1.7,4.32],center:[0,.85,4],size:[.64,1.7,.64]},
+            obstacle_03:{id:'obstacle_03',min:[-.82,0,.9],max:[-.46,2,1.26],center:[-.64,1,1.08],size:[.36,2,.36]},
             cabinet_01:{id:'cabinet_01',min:[-.85,0,-.36],max:[.85,2,.43],center:[0,1,.035],size:[1.7,2,.79]},
             cup_01:{id:'cup_01',min:[1.65,0,1.05],max:[1.95,.32,1.35],center:[1.8,.16,1.2],size:[.3,.32,.3]},
             table_01:{id:'table_01',min:[2.1,0,0.875],max:[4.3,1.1,1.925],center:[3.2,.55,1.4],size:[2.2,1.1,1.05]}
@@ -113,7 +124,15 @@ try {
         if (name === 'canReach') return {reachable:true,cost:2};
         if (name === 'findPath') return {reachable:true,path:[args.start,args.end],cost:2,end:{snapped:args.end}};
         if (name === 'getNavigationStatus') return {state:'ready',scope:'current'};
-        if (name === 'getArticulationStatus') return {id:'cabinet_01',parts:[{partName:'door',status:sequenceDoorOpen?'action-completed':(sequenceAttemptedOpen&&mode==='sequence-failure'?'action-failed':'verified-state'),verifiedAction:sequenceDoorOpen?'open':'close',requestedAction:null,last:sequenceAttemptedOpen&&mode==='sequence-failure'?{status:'action-failed',reason:'STALL',targetReached:false,settled:false}:undefined,live:{coordinate:sequenceDoorOpen?-1.31:(sequenceAttemptedOpen?-.42:0),target:sequenceDoorOpen?-1.35:0,error:sequenceDoorOpen?.04:(sequenceAttemptedOpen?.42:0),tolerance:.08,coordinateReference:'rest-zero-pose'}}]};
+        if (name === 'getArticulationStatus') {
+          const failed=sequenceAttemptedOpen&&(mode==='sequence-failure'||mode==='attribution');
+          const attribution=mode==='attribution'?{
+            status:'contact-evidence',evidence:'current-contact-at-failure',
+            blockerCandidates:[{kind:'object',objectId:'obstacle_03',partName:'$root',colliderIndex:0}],
+            contactEvidence:[{source:{kind:'object',objectId:'cabinet_01',partName:'door',colliderIndex:0},target:{kind:'object',objectId:'obstacle_03',partName:'$root',colliderIndex:0},external:true,contactCount:2,activeContactCount:2,minDistance:-.004,totalImpulse:3.1,normal:[1,0,0]}]
+          }:undefined;
+          return {id:'cabinet_01',parts:[{partName:'door',status:sequenceDoorOpen?'action-completed':(failed?'action-failed':'verified-state'),verifiedAction:sequenceDoorOpen?'open':'close',requestedAction:null,last:failed?{status:'action-failed',reason:'STALL',targetReached:false,settled:false,...(attribution?{attribution}:{})}:undefined,live:{coordinate:sequenceDoorOpen?-1.31:(sequenceAttemptedOpen?-.42:0),target:sequenceDoorOpen?-1.35:0,error:sequenceDoorOpen?.04:(sequenceAttemptedOpen?.42:0),tolerance:.08,coordinateReference:'rest-zero-pose'}}]};
+        }
         if (name === 'getCarryStatus') return sequenceHeld
           ? {status:'held',actorId:'agent_01',targetId:'cup_01',attachment:'kinematic-anchor',graspVerified:false}
           : {status:'empty',actorId:'agent_01'};
@@ -122,7 +141,14 @@ try {
         if (name === 'approachAndInteract') {
           if (args.actorId!=='agent_01'||args.targetId!=='cabinet_01'||args.action!=='open') throw Object.assign(new Error('Sequence open arguments invalid'),{code:'PROBE_BAD_ARGUMENTS'});
           sequenceAttemptedOpen=true;
-          if (mode==='sequence-failure') return {status:'action-failed',reason:'STALL',actorId:'agent_01',targetId:'cabinet_01',action:'open',targetReached:false,settled:false,statePromoted:false,stateFinalized:true,coordinate:-.42,error:.93,tolerance:.08,coordinateReference:'rest-zero-pose'};
+          if (mode==='sequence-failure'||mode==='attribution') {
+            const attribution=mode==='attribution'?{
+              status:'contact-evidence',evidence:'current-contact-at-failure',
+              blockerCandidates:[{kind:'object',objectId:'obstacle_03',partName:'$root',colliderIndex:0}],
+              contactEvidence:[{source:{kind:'object',objectId:'cabinet_01',partName:'door',colliderIndex:0},target:{kind:'object',objectId:'obstacle_03',partName:'$root',colliderIndex:0},external:true,contactCount:2,activeContactCount:2,minDistance:-.004,totalImpulse:3.1,normal:[1,0,0]}]
+            }:undefined;
+            return {status:'action-failed',reason:'STALL',actorId:'agent_01',targetId:'cabinet_01',action:'open',targetReached:false,settled:false,statePromoted:false,stateFinalized:true,coordinate:-.42,error:.93,tolerance:.08,coordinateReference:'rest-zero-pose',...(attribution?{attribution}:{})};
+          }
           if (sequenceDoorOpen) return {status:'action-completed',targetReached:true,settled:true,statePromoted:true,alreadyOpen:true};
           sequenceDoorOpen=true;
           return {status:'action-completed',actorId:'agent_01',targetId:'cabinet_01',action:'open',targetReached:true,settled:true,statePromoted:true,coordinate:-1.31,error:.04,tolerance:.08,coordinateReference:'rest-zero-pose'};
@@ -235,6 +261,13 @@ try {
     if (!sequenceDoorOpen||sequenceHeld||!sequencePlaced) throw new Error(`Sequence world state incomplete: open=${sequenceDoorOpen} held=${sequenceHeld} placed=${sequencePlaced}`);
     if (result.taskStatus!=='completed') throw new Error(`Sequence taskStatus is ${result.taskStatus}, expected completed`);
     if (toolCalls.some((call)=>['open','pickup','place','navigateTo','moveObject','dropHeld'].includes(call.name))) throw new Error('Sequence used a forbidden low-level mutation');
+  }
+  if (mode === 'attribution') {
+    if (!sequenceAttemptedOpen) throw new Error('Attribution probe never attempted embodied open');
+    if (toolCalls.some((call)=>['open','pickup','place','approachAndPickup','approachAndPlace','moveObject','navigateTo'].includes(call.name))) throw new Error('Attribution probe performed a forbidden mutation');
+    if (result.taskStatus!=='incomplete') throw new Error(`Attribution taskStatus is ${result.taskStatus}, expected incomplete`);
+    if (!/obstacle_03/i.test(result.message || '')) throw new Error(`Attribution final did not name obstacle_03: ${result.message}`);
+    if (!/(contact|接触|candidate|候选)/i.test(result.message || '')) throw new Error(`Attribution final did not frame obstacle_03 as contact evidence: ${result.message}`);
   }
   if (mode === 'sequence-failure') {
     if (!sequenceAttemptedOpen) throw new Error('Failure sequence never attempted embodied open');

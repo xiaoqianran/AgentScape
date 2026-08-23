@@ -792,3 +792,9 @@ Door STALL
 ```
 
 仍然要求真实 world mutation 后重新验证，不把 attribution 直接变成自动行动。
+
+---
+
+## 33. 1.22：Compact Context 获得 Contact Provenance
+
+当 relevant articulated Part 的最近失败报告包含 attribution，`agentscape.task-observation.v1` 会压缩带入：`status / evidence / blockerCandidates`，以及最多 4 条 current contact evidence（source/target、contactCount、activeContactCount、minDistance、totalImpulse、normal）。它仍是 Physics truth 的只读快照，不产生新持久状态。详见 [`failure-attribution.md`](./failure-attribution.md)。

@@ -98,7 +98,18 @@ export function buildTaskObservation(runtime, {
           ...(part.live ? { live:{
             coordinate:round(part.live.coordinate),target:round(part.live.target),error:round(part.live.error),tolerance:round(part.live.tolerance),coordinateReference:part.live.coordinateReference
           } } : {}),
-          ...(part.last ? { last:{ status:part.last.status,reason:part.last.reason || null,targetReached:part.last.targetReached ?? null,settled:part.last.settled ?? null } } : {})
+          ...(part.last ? { last:{
+            status:part.last.status,reason:part.last.reason || null,targetReached:part.last.targetReached ?? null,settled:part.last.settled ?? null,
+            ...(part.last.attribution ? { attribution:{
+              status:part.last.attribution.status,
+              evidence:part.last.attribution.evidence,
+              blockerCandidates:(part.last.attribution.blockerCandidates || []).map((item)=>structuredClone(item)),
+              contactEvidence:(part.last.attribution.contactEvidence || []).slice(0,4).map((item)=>({
+                source:structuredClone(item.source),target:structuredClone(item.target),
+                contactCount:item.contactCount,activeContactCount:item.activeContactCount,minDistance:round(item.minDistance),totalImpulse:round(item.totalImpulse),normal:roundVec(item.normal)
+              }))
+            } } : {})
+          } } : {})
         }))
       });
     } catch {}

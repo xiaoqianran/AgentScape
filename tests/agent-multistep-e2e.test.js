@@ -32,7 +32,7 @@ async function setup({blockedDoor=false}={}){
   const physics=new PhysicsSystem(); await physics.init();
   const env=[{shape:'box',halfExtents:[7,.1,5],translation:[0,-.1,0]}];
   if(blockedDoor) env.push({shape:'box',halfExtents:[.18,1,.18],translation:[-3.14,1,1.08]});
-  physics.addEnvironment(env);
+  physics.addEnvironment(env,{id:blockedDoor?'sequence-stall-environment':'sequence-environment'});
 
   const add=(id,assetId,object,position,state={})=>{
     object.position.fromArray(position); scene.add(object); object.updateMatrixWorld(true);
@@ -142,7 +142,13 @@ describe('verified multi-step embodied sequencing',()=>{
     expect(task.objects.map((item)=>item.id).sort()).toEqual(['agent_01','cabinet_01']);
     expect(task.actor).toMatchObject({id:'agent_01',carry:{status:'empty'}});
     expect(task.articulation[0]).toMatchObject({
-      id:'cabinet_01',parts:[{partName:'door',status:'action-failed',verifiedAction:'close',last:{reason:'STALL'},live:{coordinate:expect.any(Number),error:expect.any(Number),tolerance:.08}}]
+      id:'cabinet_01',parts:[{
+        partName:'door',status:'action-failed',verifiedAction:'close',live:{coordinate:expect.any(Number),error:expect.any(Number),tolerance:.08},
+        last:{
+          reason:'STALL',
+          attribution:{status:'contact-evidence',evidence:'current-contact-at-failure',blockerCandidates:[{kind:'environment',environmentId:'sequence-stall-environment',colliderIndex:1}]}
+        }
+      }]
     });
     expect(task.recoveryHints[0]).toMatchObject({action:'report-incomplete-or-retry-after-world-change',status:'provisional',basedOn:'STALL'});
     expect(task.objects.some((item)=>item.id==='cup_01'||item.id==='table_01')).toBe(false);

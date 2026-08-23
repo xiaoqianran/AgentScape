@@ -28,7 +28,18 @@ function runtimeFixture(){
         id:'cabinet_01',parts:[{
           partName:'door',status:'action-failed',requestedAction:null,verifiedAction:'close',
           live:{coordinate:-.42,target:-1,error:.58,tolerance:.08,coordinateReference:'rest-zero-pose'},
-          last:{status:'action-failed',reason:'STALL',targetReached:false,settled:false,progress:.41,elapsed:.8}
+          last:{
+            status:'action-failed',reason:'STALL',targetReached:false,settled:false,progress:.41,elapsed:.8,
+            attribution:{
+              status:'contact-evidence',evidence:'current-contact-at-failure',
+              blockerCandidates:[{kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0}],
+              contactEvidence:[{
+                source:{kind:'object',objectId:'cabinet_01',partName:'door',colliderIndex:0},
+                target:{kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0},
+                external:true,contactCount:2,activeContactCount:2,minDistance:-.004321,totalImpulse:3.14159,normal:[1,0,0]
+              }]
+            }
+          }
         }]
       }))
     },
@@ -60,7 +71,17 @@ describe('compact task observation',()=>{
     ]);
     expect(observation.actor).toMatchObject({id:'agent_01',position:[0,0,2],navigation:{status:'arrived'},carry:{status:'empty'}});
     expect(observation.articulation[0]).toMatchObject({
-      id:'cabinet_01',parts:[{partName:'door',status:'action-failed',verifiedAction:'close',live:{coordinate:-.42,error:.58,tolerance:.08},last:{reason:'STALL'}}]
+      id:'cabinet_01',parts:[{
+        partName:'door',status:'action-failed',verifiedAction:'close',live:{coordinate:-.42,error:.58,tolerance:.08},
+        last:{
+          reason:'STALL',
+          attribution:{
+            status:'contact-evidence',evidence:'current-contact-at-failure',
+            blockerCandidates:[{kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0}],
+            contactEvidence:[{contactCount:2,activeContactCount:2,minDistance:-.004,totalImpulse:3.142,normal:[1,0,0]}]
+          }
+        }
+      }]
     });
     expect(observation.articulation[0].parts[0].last).not.toHaveProperty('progress');
     expect(observation.recoveryHints).toEqual([

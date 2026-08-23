@@ -499,6 +499,25 @@ export class InteractionSystem {
     return task.promise;
   }
 
+  articulationFailureAttribution(id, partName) {
+    const contacts=(this.physics.articulationContacts?.(id,partName) || []).filter((item)=>item.external);
+    const blockerMap=new Map();
+    for (const item of contacts) {
+      const target=item.target || {};
+      if (!['object','environment'].includes(target.kind)) continue;
+      const key=target.kind==='object'
+        ? `object:${target.objectId}:${target.partName || '$root'}`
+        : `environment:${target.environmentId}`;
+      if (!blockerMap.has(key)) blockerMap.set(key,structuredClone(target));
+    }
+    return {
+      status:contacts.length ? 'contact-evidence' : 'unattributed',
+      evidence:'current-contact-at-failure',
+      contactEvidence:contacts,
+      blockerCandidates:[...blockerMap.values()]
+    };
+  }
+
   updateArticulationTasks(dt) {
     const wrap = (jointType,value) => jointType === 'revolute' ? Math.atan2(Math.sin(value),Math.cos(value)) : value;
     for (const task of [...this.articulationTasks.values()]) {
@@ -531,7 +550,8 @@ export class InteractionSystem {
         continue;
       }
       if (!reached && task.elapsed >= task.stallWindow && observedWindow >= task.stallWindow*.8 && recentMovement < task.stallTolerance) {
-        this.finishArticulationTask(task,{status:'action-failed',reason:'STALL',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,recentMovement:Number(recentMovement.toFixed(6)),stallWindow:task.stallWindow,progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference});
+        const attribution=this.articulationFailureAttribution(task.id,task.partName);
+        this.finishArticulationTask(task,{status:'action-failed',reason:'STALL',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,recentMovement:Number(recentMovement.toFixed(6)),stallWindow:task.stallWindow,progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference,attribution});
         continue;
       }
       if (task.elapsed >= task.timeout) {

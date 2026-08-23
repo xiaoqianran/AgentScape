@@ -1574,3 +1574,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.20 已经能阻止失败步骤被后续成功洗白，但每轮模型仍收到完整 `listObjects` 并容易在 STALL 后重复查询同一事实。1.21 第一次把 Agent planning context 变成“首轮完整 entity discovery，mutation 后 relevant evidence”：actor pose、navigation/carry、相关对象、live articulation、relations、last/unresolved mutation。
 
 真实 Muse failure probe 证明单纯 prompt 不够：它曾在 STALL 后做约十次 read tools，并把隐式 Door retry 与显式 `partName=door` 记成两个 unresolved。最终实现因此增加两个执行层修复：mutation identity 从 Runtime result 归一实际 Part；unresolved 状态下 read-only recovery rounds 默认最多 4，继续只读则以 `recovery-observation-limit` 结束。Recovery Hint 仍只是 provisional，不替模型行动。
+
+---
+
+## 43. 1.22：STALL 第一次有了物理接触来源
+
+1.21 能把 Door STALL 的 joint coordinate/error 压进 compact context，但仍无法回答“失败时谁在碰门”。1.22 没有在 Interaction 层遍历 ObjectStore 猜 owner，而是在 collider 创建时由 PhysicsSystem 登记 provenance；真实 narrow-phase `contactPairsWith/contactPair` 只在 STALL 终态采样。
+
+实现过程中又收紧了 evidence 语义：Rapier prediction-distance pair 不能直接叫 touching，只有 `contactDist<=1e-6` 或存在 solver impulse 的 contact point 才计入 `activeContactCount`。输出叫 `contact-evidence / blockerCandidates`，故意不叫 rootCause。Nemotron 与 Muse 的真实 attribution probe 都能正确指出 `obstacle_03`，并明确它不是唯一已证明根因。
