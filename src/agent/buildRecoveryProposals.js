@@ -52,6 +52,34 @@ const originalVerification = (actorId,targetId,failedPart,last) => ({
   success:{status:'action-completed',targetReached:true,settled:true}
 });
 
+const boundsOverlap = (a,b) => {
+  if (!a?.min || !a?.max || !b?.min || !b?.max) return {available:false,intersects:false,volume:null};
+  const extents=[0,1,2].map((index)=>Math.max(0,Math.min(a.max[index],b.max[index])-Math.max(a.min[index],b.min[index])));
+  const intersects=extents.every((value)=>value>1e-9);
+  return {available:true,intersects,volume:intersects ? extents[0]*extents[1]*extents[2] : 0};
+};
+
+const counterfactualTuple = (evidence) => [
+  evidence.targetSweepClear ? 1 : 0,
+  evidence.overlapReduction,
+  -evidence.targetOverlapVolume,
+  -evidence.actionSweepOverlapVolume
+];
+
+const compareCounterfactual = (a,b) => {
+  const ta=counterfactualTuple(a.counterfactual),tb=counterfactualTuple(b.counterfactual);
+  for(let i=0;i<ta.length;i++) if (ta[i]!==tb[i]) return tb[i]-ta[i];
+  return (a.pose?.routeCost ?? Infinity)-(b.pose?.routeCost ?? Infinity) || a.action.localeCompare(b.action);
+};
+
+const sameCounterfactualDecision = (a,b) => {
+  if (!a || !b) return false;
+  const ta=counterfactualTuple(a.counterfactual),tb=counterfactualTuple(b.counterfactual);
+  const routeA=a.pose?.routeCost ?? Infinity,routeB=b.pose?.routeCost ?? Infinity;
+  const sameRoute=Number.isFinite(routeA)&&Number.isFinite(routeB) ? Math.abs(routeA-routeB)<=1e-9 : routeA===routeB;
+  return ta.every((value,index)=>Math.abs(value-tb[index])<=1e-9) && sameRoute;
+};
+
 const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart,last,candidate,currentContact,profile}) => {
   const record=runtime.store.get(candidate.objectId);
   const blockerPartName=candidate.partName;
@@ -76,23 +104,100 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
     && Number.isFinite(part.targets?.[action])
   );
   if (!actions.length) return denied(candidate,'NO_ALTERNATE_ARTICULATED_ACTION',{currentContact,blockerState:blockerStatus});
-  if (actions.length!==1) return denied(candidate,'AMBIGUOUS_ARTICULATED_RECOVERY',{currentContact,blockerState:blockerStatus,alternateActions:actions});
-  const blockerAction=actions[0];
   const authorization=registry.authorization('recoverArticulatedBlocker',{profile});
   if (!authorization.allow) return {
     blocker:structuredClone(candidate),candidateType:candidateType(candidate),eligible:false,status:'denied',reason:'POLICY_DENIED',currentContact,
-    blockerState:structuredClone(blockerStatus),blockerAction,
+    blockerState:structuredClone(blockerStatus),
+    ...(actions.length===1?{blockerAction:actions[0]}:{alternateActions:[...actions]}),
     policy:{allow:false,profile:authorization.profile,missing:[...authorization.missing]}
   };
-  let pose;
-  try {
-    pose=await runtime.interactions.findInteractionPose(actorId,candidate.objectId,{action:blockerAction,partName:blockerPartName});
-  } catch (error) {
-    return denied(candidate,error.details?.reason || error.code || 'ARTICULATED_RECOVERY_PREFLIGHT_FAILED',{
-      currentContact,blockerState:blockerStatus,blockerAction
+
+  let actionCandidates=[];
+  if (actions.length===1) {
+    const blockerAction=actions[0];
+    let pose;
+    try {
+      pose=await runtime.interactions.findInteractionPose(actorId,candidate.objectId,{action:blockerAction,partName:blockerPartName});
+    } catch (error) {
+      return denied(candidate,error.details?.reason || error.code || 'ARTICULATED_RECOVERY_PREFLIGHT_FAILED',{
+        currentContact,blockerState:blockerStatus,blockerAction
+      });
+    }
+    if (!pose) return denied(candidate,'NO_INTERACTION_POSE',{currentContact,blockerState:blockerStatus,blockerAction});
+    actionCandidates=[{action:blockerAction,pose,counterfactual:null}];
+  } else {
+    const originalAction=last.action || 'open';
+    const originalSweep=runtime.interactions.actionSweepBounds?.(targetId,originalAction,failedPart.partName);
+    const currentPose=runtime.interactions.actionSweepBounds?.(candidate.objectId,blockerStatus.verifiedAction,blockerPartName,1);
+    if (!originalSweep?.checked || !currentPose?.checked) return denied(candidate,'COUNTERFACTUAL_EVIDENCE_UNAVAILABLE',{
+      currentContact,blockerState:blockerStatus,alternateActions:[...actions],
+      counterfactual:{causal:false,originalSweepChecked:Boolean(originalSweep?.checked),currentPoseChecked:Boolean(currentPose?.checked)}
     });
+    const currentOverlap=boundsOverlap(originalSweep.bounds,currentPose.bounds);
+    if (!currentOverlap.available || !currentOverlap.intersects || !(currentOverlap.volume>0)) return denied(candidate,'COUNTERFACTUAL_EVIDENCE_INSUFFICIENT',{
+      currentContact,blockerState:blockerStatus,alternateActions:[...actions],
+      counterfactual:{causal:false,currentOverlapVolume:currentOverlap.volume,originalSweep:structuredClone(originalSweep.bounds),currentPose:structuredClone(currentPose.bounds)}
+    });
+    for (const action of actions) {
+      const actionSweep=runtime.interactions.actionSweepBounds?.(candidate.objectId,action,blockerPartName);
+      const targetPose=runtime.interactions.actionSweepBounds?.(candidate.objectId,action,blockerPartName,1);
+      if (!actionSweep?.checked || !targetPose?.checked) {
+        actionCandidates.push({action,executable:false,reason:'ACTION_GEOMETRY_UNAVAILABLE'});
+        continue;
+      }
+      let pose=null;
+      try { pose=await runtime.interactions.findInteractionPose(actorId,candidate.objectId,{action,partName:blockerPartName}); }
+      catch (error) {
+        actionCandidates.push({action,executable:false,reason:error.details?.reason || error.code || 'ARTICULATED_RECOVERY_PREFLIGHT_FAILED'});
+        continue;
+      }
+      if (!pose) {
+        actionCandidates.push({action,executable:false,reason:'NO_INTERACTION_POSE'});
+        continue;
+      }
+      const targetOverlap=boundsOverlap(originalSweep.bounds,targetPose.bounds);
+      const actionOverlap=boundsOverlap(originalSweep.bounds,actionSweep.bounds);
+      if (!targetOverlap.available || !actionOverlap.available) {
+        actionCandidates.push({action,executable:false,reason:'ACTION_GEOMETRY_UNAVAILABLE'});
+        continue;
+      }
+      const overlapReduction=Math.max(0,currentOverlap.volume-targetOverlap.volume);
+      actionCandidates.push({
+        action,executable:true,pose,
+        counterfactual:{
+          causal:false,geometry:'three-aabb',
+          currentOverlapVolume:Number(currentOverlap.volume.toFixed(6)),
+          targetOverlapVolume:Number(targetOverlap.volume.toFixed(6)),
+          overlapReduction:Number(overlapReduction.toFixed(6)),
+          targetSweepClear:!targetOverlap.intersects,
+          actionSweepOverlapVolume:Number(actionOverlap.volume.toFixed(6)),
+          targetBounds:structuredClone(targetPose.bounds),
+          actionSweepBounds:structuredClone(actionSweep.bounds)
+        }
+      });
+    }
+    const viable=actionCandidates.filter((item)=>item.executable && item.counterfactual.overlapReduction>1e-9).sort(compareCounterfactual);
+    const rankedActions=actionCandidates.map((item)=>structuredClone(item));
+    if (!viable.length) return denied(candidate,'NO_COUNTERFACTUAL_CLEARANCE_GAIN',{
+      currentContact,blockerState:blockerStatus,alternateActions:[...actions],
+      actionRanking:{strategy:'articulated-target-sweep-counterfactual-v1',causal:false,criteria:['targetSweepClearDesc','overlapReductionDesc','targetOverlapVolumeAsc','actionSweepOverlapVolumeAsc','routeCostAsc'],actions:rankedActions}
+    });
+    if (sameCounterfactualDecision(viable[0],viable[1])) return denied(candidate,'COUNTERFACTUAL_ACTION_TIE',{
+      currentContact,blockerState:blockerStatus,alternateActions:[...actions],
+      actionRanking:{strategy:'articulated-target-sweep-counterfactual-v1',causal:false,criteria:['targetSweepClearDesc','overlapReductionDesc','targetOverlapVolumeAsc','actionSweepOverlapVolumeAsc','routeCostAsc'],tiedActions:[viable[0].action,viable[1].action],actions:rankedActions}
+    });
+    viable.forEach((item,index)=>{ const target=rankedActions.find((entry)=>entry.action===item.action); if(target) target.rank=index+1; });
+    actionCandidates=[{...viable[0],actionRanking:{
+      strategy:'articulated-target-sweep-counterfactual-v1',causal:false,
+      criteria:['targetSweepClearDesc','overlapReductionDesc','targetOverlapVolumeAsc','actionSweepOverlapVolumeAsc','routeCostAsc'],
+      current:{action:blockerStatus.verifiedAction,overlapVolume:Number(currentOverlap.volume.toFixed(6)),bounds:structuredClone(currentPose.bounds)},
+      originalSweep:structuredClone(originalSweep.bounds),
+      actions:rankedActions
+    }}];
   }
-  if (!pose) return denied(candidate,'NO_INTERACTION_POSE',{currentContact,blockerState:blockerStatus,blockerAction});
+
+  const selected=actionCandidates[0];
+  const blockerAction=selected.action;
   return {
     blocker:structuredClone(candidate),candidateType:candidateType(candidate),eligible:true,status:'provisional',recovery:'articulated-blocker',
     evidence:'current-contact-at-failure',currentContact,
@@ -101,14 +206,16 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
       ...(blockerStatus.live ? {live:structuredClone(blockerStatus.live)} : {})
     },
     blockerAction,
+    ...(selected.actionRanking?{actionRanking:selected.actionRanking}:{}),
     policy:{allow:true,profile:authorization.profile,missing:[]},
-    preflight:{pose:structuredClone(pose),actionSweep:{checked:true,clear:true,partName:blockerPartName}},
-    rankingEvidence:{causal:false,recoveryRouteCost:Number.isFinite(pose.routeCost)?pose.routeCost:null},
+    preflight:{pose:structuredClone(selected.pose),actionSweep:{checked:true,clear:true,partName:blockerPartName}},
+    rankingEvidence:{causal:false,recoveryRouteCost:Number.isFinite(selected.pose.routeCost)?selected.pose.routeCost:null},
     tool:'recoverArticulatedBlocker',
     args:{actorId,targetId,partName:failedPart.partName,blockerId:candidate.objectId,blockerPartName,blockerAction},
     verification:originalVerification(actorId,targetId,failedPart,last)
   };
 };
+
 
 const rankProposals = (proposals) => {
   const eligible=proposals.filter((proposal)=>proposal.eligible).sort((a,b)=>

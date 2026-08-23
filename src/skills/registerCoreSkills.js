@@ -107,11 +107,16 @@ export function registerCoreSkills(registry, runtime) {
       && item.blocker?.objectId===a.blockerId && item.blocker?.partName===a.blockerPartName
       && item.blockerAction===a.blockerAction
     );
-    if (!proposal) return {
-      status:'recovery-stale',
-      reason:recovery.proposals.find((item)=>item.blocker?.objectId===a.blockerId && item.blocker?.partName===a.blockerPartName)?.reason || recovery.reason || 'RECOVERY_NOT_ELIGIBLE',
-      actorId:a.actorId,targetId:a.targetId,blockerId:a.blockerId,blockerPartName:a.blockerPartName,blockerAction:a.blockerAction,retryOriginal:true
-    };
+    if (!proposal) {
+      const current=recovery.proposals.find((item)=>item.blocker?.objectId===a.blockerId && item.blocker?.partName===a.blockerPartName);
+      const selectionChanged=Boolean(current?.eligible && current.recovery==='articulated-blocker' && current.blockerAction && current.blockerAction!==a.blockerAction);
+      return {
+        status:'recovery-stale',
+        reason:selectionChanged?'COUNTERFACTUAL_SELECTION_CHANGED':(current?.reason || recovery.reason || 'RECOVERY_NOT_ELIGIBLE'),
+        actorId:a.actorId,targetId:a.targetId,blockerId:a.blockerId,blockerPartName:a.blockerPartName,blockerAction:a.blockerAction,
+        ...(selectionChanged?{currentRecommendedAction:current.blockerAction}:{}),retryOriginal:true
+      };
+    }
     const interaction=await runtime.interactions.approachAndInteract(a.actorId,a.blockerId,a.blockerAction,{partName:a.blockerPartName,speed:a.speed});
     return {
       ...interaction,

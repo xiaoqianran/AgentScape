@@ -24,7 +24,7 @@ const cabinetObject=()=>{
   root.updateMatrixWorld(true); return root;
 };
 
-async function setup(){
+async function setup({blockerAction='open',blockerTarget=-1.35}={}){
   const store=new ObjectStore(),scene=new THREE.Scene(),ground=floorMesh(); scene.add(ground);
   const physics=new PhysicsSystem(); await physics.init();
   physics.addEnvironment([{shape:'box',halfExtents:[7,.1,6],translation:[0,-.1,0]}],{id:'articulated-recovery-floor'});
@@ -35,14 +35,19 @@ async function setup(){
   };
   add('agent_01','agent',new THREE.Group(),assetManifests.agent,[2.5,0,4]);
   add('cabinet_A','cabinet',cabinetObject(),assetManifests.cabinet,[0,0,0],{state:{parts:{door:'close'}}});
-  add('cabinet_B','cabinet',cabinetObject(),assetManifests.cabinet,[-2.2,0,1],{yaw:Math.PI/2,state:{parts:{door:'close'}}});
+  const blockerManifest=structuredClone(assetManifests.cabinet);
+  if (blockerAction==='ajar') {
+    blockerManifest.parts.door.actions=[...new Set([...blockerManifest.parts.door.actions,'ajar'])];
+    blockerManifest.parts.door.targets.ajar=blockerTarget;
+  }
+  add('cabinet_B','cabinet',cabinetObject(),blockerManifest,[-2.2,0,1],{yaw:Math.PI/2,state:{parts:{door:'close'}}});
   for(let i=0;i<30;i++) physics.step(1/60,store);
 
-  expect(physics.setArticulationTarget('cabinet_B','door',-1.35)).toBe(true);
+  expect(physics.setArticulationTarget('cabinet_B','door',blockerTarget)).toBe(true);
   for(let i=0;i<260;i++) physics.step(1/60,store);
-  const opened=physics.articulationState('cabinet_B','door',{target:-1.35});
-  expect(opened.error).toBeLessThan(.08);
-  store.get('cabinet_B').state.parts.door='open';
+  const initial=physics.articulationState('cabinet_B','door',{target:blockerTarget});
+  expect(initial.error).toBeLessThan(.08);
+  store.get('cabinet_B').state.parts.door=blockerAction;
 
   const events=new EventBus();
   const spatial=new SpatialSystem({store,scene});
@@ -135,4 +140,58 @@ describe('verified articulated blocker recovery',()=>{
     ]);
     ctx.navigation.dispose(); ctx.physics.dispose();
   },50000);
+
+  it('uses real target-pose counterfactual evidence to choose close over open from an ajar blocking Door, then verifies the original retry',async()=>{
+    const ctx=await setup({blockerAction:'ajar',blockerTarget:-.8});
+    let round=0;
+    const requests=[];
+    const gateway={isConfigured:()=>true,complete:vi.fn(async(request)=>{
+      requests.push(structuredClone(request));
+      round++;
+      if(round===1) return {message:'',toolCalls:[{id:'open-A',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_A',action:'open',partName:'door'}}]};
+      if(round===2) return {message:'',toolCalls:[{id:'suggest',name:'suggestRecoveryActions',args:{actorId:'agent_01',targetId:'cabinet_A',partName:'door'}}]};
+      if(round===3) return {message:'',toolCalls:[{id:'recover-B',name:'recoverArticulatedBlocker',args:{actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'}}]};
+      if(round===4) return {message:'',toolCalls:[{id:'retry-A',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_A',action:'open',partName:'door'}}]};
+      return {message:'counterfactual articulated recovery verified',toolCalls:[]};
+    })};
+    const agent=new ToolCallingAgent({tools:ctx.tools,gateway,maxSteps:7});
+    const result=await driveAgent(agent.run('打开 cabinet_A；如果 cabinet_B 的 articulated blocker 有多个候选动作，只按 Runtime counterfactual evidence 选择后重试原动作。'),ctx);
+
+    expect(result).toMatchObject({taskStatus:'completed',unresolvedMutations:[]});
+    const firstOpen=JSON.parse(requests[1].messages.find((message)=>message.role==='tool'&&message.name==='approachAndInteract').content);
+    expect(firstOpen).toMatchObject({
+      status:'action-failed',reason:'STALL',
+      attribution:{status:'contact-evidence',blockerCandidates:[expect.objectContaining({objectId:'cabinet_B',partName:'door'})]}
+    });
+    const suggestion=JSON.parse(requests[2].messages.find((message)=>message.role==='tool'&&message.name==='suggestRecoveryActions').content);
+    expect(suggestion).toMatchObject({
+      status:'recovery-proposed',
+      recommended:{tool:'recoverArticulatedBlocker',args:{blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'}},
+      proposals:[expect.objectContaining({
+        blockerAction:'close',
+        blockerState:expect.objectContaining({verifiedAction:'ajar',requestedAction:null}),
+        actionRanking:expect.objectContaining({strategy:'articulated-target-sweep-counterfactual-v1',causal:false,current:expect.objectContaining({action:'ajar'})})
+      })]
+    });
+    const ranking=suggestion.proposals[0].actionRanking;
+    const open=ranking.actions.find((item)=>item.action==='open');
+    const close=ranking.actions.find((item)=>item.action==='close');
+    expect(ranking.current.overlapVolume).toBeGreaterThan(0);
+    expect(open).toMatchObject({executable:true,rank:2,counterfactual:expect.objectContaining({targetSweepClear:false})});
+    expect(close).toMatchObject({executable:true,rank:1,counterfactual:expect.objectContaining({targetSweepClear:true,targetOverlapVolume:0})});
+    expect(close.counterfactual.overlapReduction).toBeGreaterThan(open.counterfactual.overlapReduction);
+
+    const recovered=JSON.parse(requests[3].messages.find((message)=>message.role==='tool'&&message.name==='recoverArticulatedBlocker').content);
+    expect(recovered).toMatchObject({status:'action-completed',targetId:'cabinet_B',action:'close',targetReached:true,settled:true,retryOriginal:true});
+    expect(requests[3].context.task.unresolvedMutations).toHaveLength(1);
+    const retried=JSON.parse(requests[4].messages.filter((message)=>message.role==='tool'&&message.name==='approachAndInteract').at(-1).content);
+    expect(retried).toMatchObject({status:'action-completed',targetId:'cabinet_A',action:'open',targetReached:true,settled:true});
+    expect(ctx.store.get('cabinet_B').state.parts.door).toBe('close');
+    expect(ctx.store.get('cabinet_A').state.parts.door).toBe('open');
+    expect(ctx.mutate.mock.calls.map(([label])=>label)).toEqual([
+      'skill:approachAndInteract','skill:recoverArticulatedBlocker','skill:approachAndInteract'
+    ]);
+    ctx.navigation.dispose(); ctx.physics.dispose();
+  },50000);
+
 });

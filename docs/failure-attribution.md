@@ -1193,3 +1193,9 @@ recovery proposal != success
 ## 56. 1.26：Articulated Candidate 开始消费 Verified Part State
 
 当 contact target 是 `object + non-root Part` 时，1.26 不再固定标记 unsupported，而是将 contact provenance 与 blocker Part 的 `articulationStatus().verifiedAction`、Manifest executable targets、Policy 和 action-aware interaction pose 联合判断 recovery eligibility。Contact 本身仍只证明 current touching，不证明哪个 alternate action 会解除原失败；因此 action success 后仍必须 retry original post-condition。详见 [`articulated-recovery.md`](./articulated-recovery.md)。
+
+---
+
+## 57. 1.27：Contact Evidence 与 Counterfactual Geometry 明确分源
+
+1.27 继续把 Rapier current contact 当 failure evidence；multi-action choice 使用 Three visual AABB 作为 provisional counterfactual geometry。若 Physics contact 存在但 current AABB 与 original sweep 没有可解释 overlap，Runtime 返回 `COUNTERFACTUAL_EVIDENCE_INSUFFICIENT`，不会假装两种 evidence 完全等价。详见 [`counterfactual-articulated-recovery.md`](./counterfactual-articulated-recovery.md)。

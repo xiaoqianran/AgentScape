@@ -4,7 +4,7 @@ import { buildRecoveryProposals } from '../src/agent/buildRecoveryProposals.js';
 const blockerCandidate={kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0};
 const environmentCandidate={kind:'environment',environmentId:'monument-hall',colliderIndex:4};
 
-function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,articulatedAllow=allow,cleanupAllow=allow,carryError=null,planCosts={},recoveryHeld=null,cleanupPlan=null,articulatedStatus=null,articulatedActions=['open','close']}={}){
+function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,articulatedAllow=allow,cleanupAllow=allow,carryError=null,planCosts={},recoveryHeld=null,cleanupPlan=null,articulatedStatus=null,articulatedActions=['open','close'],actionGeometry={}}={}){
   const records=new Map([
     ['agent_01',{id:'agent_01',assetId:'agent',manifest:{actions:['navigate']},state:{}}],
     ['cabinet_01',{id:'cabinet_01',assetId:'cabinet',manifest:{actions:['open','close']},state:{}}],
@@ -27,6 +27,11 @@ function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=t
       assertAgentCarryable:vi.fn(()=>{if(carryError) throw Object.assign(new Error(carryError),{code:'CARRY_UNAVAILABLE',details:{reason:carryError}});}),
       findPickupPlan:vi.fn(async(_actor,id)=>({pose:{status:'approach-pose',position:[1,0,1],routeCost:planCosts[id] ?? 1},transfer:{clear:true}})),
       findInteractionPose:vi.fn(async(_actor,id,{action,partName})=>({status:'approach-pose',position:[2,0,2],routeCost:planCosts[`${id}:${partName}:${action}`] ?? planCosts[id] ?? 1,actionSweep:{checked:true,clear:true,partName}})),
+      actionSweepBounds:vi.fn((id,action,partName,samples=9)=>{
+        const key=`${id}:${action}:${samples===1?'target':'sweep'}`;
+        const bounds=actionGeometry[key] || actionGeometry[`${id}:${action}`] || {min:[0,0,0],max:[1,1,1]};
+        return {checked:true,partName,action,bounds};
+      }),
       recoveryHeldStatus:vi.fn(()=>recoveryHeld),
       findRecoveryCleanupPlan:vi.fn(async()=>cleanupPlan || {status:'cleanup-unavailable',reason:'NO_SAFE_CLEANUP_SPACE'})
     }
@@ -153,16 +158,85 @@ describe('verified recovery proposals',()=>{
     expect(result.proposals[0]).toMatchObject({eligible:false,reason:'ARTICULATED_ACTION_PENDING'});
   });
 
-  it('rejects ambiguous articulated recovery instead of choosing among multiple alternate open/close actions',async()=>{
+  it('selects the alternate articulated action with explicit counterfactual target-sweep clearance evidence',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const actionGeometry={
+      'cabinet_01:open:sweep':{min:[0,0,0],max:[2,2,2]},
+      'articulated_01:ajar:target':{min:[.5,.2,.5],max:[1.5,1.8,1.5]},
+      'articulated_01:open:target':{min:[.4,.2,.4],max:[1.4,1.8,1.4]},
+      'articulated_01:open:sweep':{min:[.2,.1,.2],max:[1.6,1.9,1.6]},
+      'articulated_01:close:target':{min:[3,.2,.4],max:[4,1.8,1.4]},
+      'articulated_01:close:sweep':{min:[.8,.1,.2],max:[4,1.9,1.6]}
+    };
+    const {runtime,registry}=setup({
+      candidates:[articulated],current:[articulated],articulatedActions:['open','close','ajar'],actionGeometry,
+      articulatedStatus:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'ajar'},
+      planCosts:{'articulated_01:door:open':1,'articulated_01:door:close':3}
+    });
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result).toMatchObject({
+      status:'recovery-proposed',
+      recommended:{tool:'recoverArticulatedBlocker',args:{blockerAction:'close'}},
+      proposals:[{
+        eligible:true,recovery:'articulated-blocker',blockerAction:'close',
+        actionRanking:{
+          strategy:'articulated-target-sweep-counterfactual-v1',causal:false,
+          current:{action:'ajar'},
+          actions:[
+            expect.objectContaining({action:'open',executable:true}),
+            expect.objectContaining({action:'close',executable:true,rank:1,counterfactual:expect.objectContaining({targetSweepClear:true})})
+          ]
+        }
+      }]
+    });
+    const chosen=result.proposals[0];
+    const open=chosen.actionRanking.actions.find((item)=>item.action==='open');
+    const close=chosen.actionRanking.actions.find((item)=>item.action==='close');
+    expect(open.counterfactual.targetSweepClear).toBe(false);
+    expect(open.counterfactual.overlapReduction).toBe(0);
+    expect(open.rank).toBeUndefined();
+    expect(close.counterfactual.targetOverlapVolume).toBe(0);
+    expect(close.counterfactual.overlapReduction).toBeGreaterThan(open.counterfactual.overlapReduction);
+  });
+
+  it('rejects multi-action articulated recovery when current AABB evidence does not show the blocker occupying the original sweep',async()=>{
     const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
     const {runtime,registry}=setup({
       candidates:[articulated],current:[articulated],articulatedActions:['open','close','ajar'],
-      articulatedStatus:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'ajar'}
+      articulatedStatus:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'ajar'},
+      actionGeometry:{
+        'cabinet_01:open:sweep':{min:[0,0,0],max:[1,1,1]},
+        'articulated_01:ajar:target':{min:[3,0,3],max:[4,1,4]}
+      }
     });
     const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
-    expect(result.proposals[0]).toMatchObject({eligible:false,reason:'AMBIGUOUS_ARTICULATED_RECOVERY',alternateActions:['open','close']});
+    expect(result.proposals[0]).toMatchObject({eligible:false,reason:'COUNTERFACTUAL_EVIDENCE_INSUFFICIENT'});
     expect(runtime.interactions.findInteractionPose).not.toHaveBeenCalled();
   });
+
+  it('rejects a true counterfactual tie instead of breaking it by action name',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const sameTarget={min:[2.5,.2,.5],max:[3.5,1.8,1.5]};
+    const sameSweep={min:[.5,.1,.3],max:[3.5,1.9,1.7]};
+    const {runtime,registry}=setup({
+      candidates:[articulated],current:[articulated],articulatedActions:['open','close','ajar'],
+      articulatedStatus:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'ajar'},
+      planCosts:{'articulated_01:door:open':2,'articulated_01:door:close':2},
+      actionGeometry:{
+        'cabinet_01:open:sweep':{min:[0,0,0],max:[2,2,2]},
+        'articulated_01:ajar:target':{min:[.5,.2,.5],max:[1.5,1.8,1.5]},
+        'articulated_01:open:target':sameTarget,'articulated_01:close:target':sameTarget,
+        'articulated_01:open:sweep':sameSweep,'articulated_01:close:sweep':sameSweep
+      }
+    });
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.proposals[0]).toMatchObject({
+      eligible:false,reason:'COUNTERFACTUAL_ACTION_TIE',
+      actionRanking:{strategy:'articulated-target-sweep-counterfactual-v1',causal:false,tiedActions:['close','open']}
+    });
+    expect(result.proposals[0].actionRanking.actions.every((item)=>item.rank==null)).toBe(true);
+  });
+
 
   it('ranks articulated and pickup recoveries by route cost without making a causal claim',async()=>{
     const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};

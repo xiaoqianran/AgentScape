@@ -547,3 +547,9 @@ held recovery blocker
 ## 26. 1.26：Ranking 开始比较不同 Recovery Primitive
 
 1.26 的 eligible set 不再只有 pickup recovery，也可能包含 `articulated-blocker`。因此 strategy 名称升级为 `eligible-recovery-route-cost-v2`。排序仍只表达当前 executable recovery 的 approach/interaction route cost，`causal=false` 不变；contact force 不进入 root-cause score。详见 [`articulated-recovery.md`](./articulated-recovery.md)。
+
+---
+
+## 27. 1.27：Global Recovery Rank 与 Per-Part Action Rank 分离
+
+Root `eligible-recovery-route-cost-v2` 继续比较不同 blocker/recovery primitive 的执行 route cost。1.27 新增的 `articulated-target-sweep-counterfactual-v1` 只在**同一个 articulated blocker Part 内部**选择 alternate action；不会用一个 Part 的 AABB counterfactual score 压过另一个 blocker 的 pickup proposal。详见 [`counterfactual-articulated-recovery.md`](./counterfactual-articulated-recovery.md)。

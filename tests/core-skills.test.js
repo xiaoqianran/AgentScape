@@ -197,4 +197,38 @@ describe('core skills', () => {
     expect(r.interactions.approachAndInteract).not.toHaveBeenCalled();
   });
 
+
+  it('stales an articulated recovery when execution-time counterfactual ranking selects a different action',async()=>{
+    const r=runtime();
+    const candidate={kind:'object',objectId:'cabinet_B',partName:'door',colliderIndex:0};
+    const manifests={
+      cabinet_A:{actions:['open','close'],parts:{door:{node:'Door',actions:['open','close'],targets:{open:-1,close:0},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}},
+      cabinet_B:{actions:['open','close'],parts:{door:{node:'Door',actions:['open','close','ajar'],targets:{open:-1.35,close:0,ajar:-.8},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}}
+    };
+    r.store={has:vi.fn((id)=>id in manifests),get:vi.fn((id)=>({id,manifest:manifests[id],state:{parts:{door:id==='cabinet_B'?'ajar':'close'}}}))};
+    r.physics={articulationContacts:vi.fn(()=>[{external:true,target:candidate,contactCount:1,activeContactCount:1,minDistance:-.001,totalImpulse:1}])};
+    r.interactions.articulationStatus=vi.fn((id)=>id==='cabinet_A'?{
+      id,parts:[{partName:'door',status:'action-failed',verifiedAction:'close',requestedAction:null,last:{status:'action-failed',reason:'STALL',action:'open',attribution:{status:'contact-evidence',blockerCandidates:[candidate]}}}]
+    }:{id,parts:[{partName:'door',status:'verified-state',verifiedAction:'ajar',requestedAction:null,live:{coordinate:-.8,target:-.8,error:0,tolerance:.08}}]});
+    r.interactions.findInteractionPose=vi.fn(async(_actor,_id,{action,partName})=>({status:'approach-pose',position:[1,0,1],routeCost:action==='open'?1:2,actionSweep:{checked:true,clear:true,partName}}));
+    const geometry={
+      'cabinet_A:open:sweep':{min:[0,0,0],max:[2,2,2]},
+      'cabinet_B:ajar:target':{min:[.5,.2,.5],max:[1.5,1.8,1.5]},
+      'cabinet_B:open:target':{min:[3,.2,.5],max:[4,1.8,1.5]},
+      'cabinet_B:close:target':{min:[.6,.2,.6],max:[1.4,1.8,1.4]},
+      'cabinet_B:open:sweep':{min:[.4,.1,.3],max:[4,1.9,1.7]},
+      'cabinet_B:close:sweep':{min:[.4,.1,.3],max:[1.6,1.9,1.7]}
+    };
+    r.interactions.actionSweepBounds=vi.fn((id,action,partName,samples=9)=>({checked:true,partName,action,bounds:geometry[`${id}:${action}:${samples===1?'target':'sweep'}`] || geometry[`${id}:${action}:sweep`]}));
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const result=await registry.invoke('recoverArticulatedBlocker',{
+      actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'
+    },{profile:'builder',actor:'agent_01'});
+    expect(result).toMatchObject({success:true,result:{
+      status:'recovery-stale',reason:'COUNTERFACTUAL_SELECTION_CHANGED',currentRecommendedAction:'open',
+      actorId:'agent_01',targetId:'cabinet_A',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close',retryOriginal:true
+    }});
+    expect(r.interactions.approachAndInteract).not.toHaveBeenCalled();
+  });
+
 });

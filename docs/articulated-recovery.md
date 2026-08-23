@@ -738,3 +738,9 @@ multiple executable blocker actions
 ```
 
 仍然禁止让 LLM 在没有 Runtime evidence 时自行选择。
+
+---
+
+## 31. 1.27：多个 Alternate Actions 开始有 Runtime Counterfactual Evidence
+
+1.26 的 `AMBIGUOUS_ARTICULATED_RECOVERY` 边界在 1.27 被窄化：如果多个 alternate open/close 都 executable，Runtime 会复用原 action sweep、blocker current/target pose AABB 与 embodied interaction route 构造 `actionRanking`。只有存在明确 overlap reduction 且没有完全 tie 时才选择一个 `blockerAction`；evidence 明确 `causal=false / geometry=three-aabb`，真正 recovery 仍走原 `recoverArticulatedBlocker`，execution-time 重新 ranking。详见 [`counterfactual-articulated-recovery.md`](./counterfactual-articulated-recovery.md)。

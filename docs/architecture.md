@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.26.0** 的真实架构，不描述未来设想。
+本文描述 **1.27.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -955,3 +955,29 @@ fresh original retry
 ```
 
 真实两柜 E2E 还暴露普通 Locomotion 0.18m arrival tolerance 可能让实际 Agent 停在已规划 safe stance 之前、进入 action sweep。最终没有全局放大 sweep，而是在 `approachAndInteract` final exact sweep 失败时，向同一 planned pose 做一次 0.05m correction，再重新检查 range/LOS/exact sweep。完整设计见 [`articulated-recovery.md`](./articulated-recovery.md)。
+
+---
+
+## 30. Counterfactual Articulated Recovery：只新增 Proposal Evidence
+
+1.27 仍没有 counterfactual simulator。多 alternate articulated recovery 只在 `buildRecoveryProposals` 内增加 evidence：复用 `actionSweepBounds(original)`、`actionSweepBounds(blocker,current, samples=1)`、每个 alternate 的 target-pose / full sweep，以及原 `findInteractionPose`。这些 Three AABB 被比较成 `currentOverlapVolume / targetOverlapVolume / overlapReduction / targetSweepClear / actionSweepOverlapVolume`，并明确 `causal=false, geometry=three-aabb`。
+
+```text
+Rapier current contact
+        +
+verified blocker state
+        ↓
+Three AABB counterfactual evidence
+        ↓
+articulated-target-sweep-counterfactual-v1
+        ↓
+selected blockerAction
+        ↓
+existing recoverArticulatedBlocker
+        ↓
+execution-time rerank
+        ↓
+existing approachAndInteract
+```
+
+完全 tie 不产生 rank；execution-time selected action 改变则 `COUNTERFACTUAL_SELECTION_CHANGED`。没有新增 state owner、motor owner 或 mutation path。完整 contract 见 [`counterfactual-articulated-recovery.md`](./counterfactual-articulated-recovery.md)。

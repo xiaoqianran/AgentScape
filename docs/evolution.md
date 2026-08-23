@@ -1614,3 +1614,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.25 能安全腾出 recovery-held blocker，但 contact candidate 指向另一个 articulated Part 时仍只能拒绝。1.26 没有把 Part 当 movable root，也没有让 LLM 猜 action；Runtime 要求 blocker Part 当前 `verifiedAction` 明确、`requestedAction=null`，并从 Manifest executable actions/targets 中得到恰好一个 alternate open/close，再经过 current-contact、Policy 与 interaction/action-sweep preflight 才给 `recoverArticulatedBlocker`。Execution wrapper 会重新生成 proposal，再调用原 `approachAndInteract`。
 
 真实两柜 Rapier/Recast E2E 使用 A=[0,0,0] 与 B=[-2.2,0,1], yaw=90°：B.door 先真实打开，A.door 随后在约 -1.02 处因 B.door contact STALL；Agent 真实走到 B 并 close verified 后，fresh retry A.open 到达 target。该 E2E 又暴露了 0.18m locomotion arrival drift 可能把实际 Agent 带进 action sweep，因此最终只在 exact final sweep 失败时增加一次 0.05m stance correction，而没有改变原 planner stance selection 或放宽最终 sweep。
+
+---
+
+## 48. 1.27：多动作第一次由 Runtime Evidence 选择
+
+1.26 在 articulated blocker 出现多个 alternate actions 时故意拒绝。1.27 没有把这个选择权还给 LLM，而是复用现有 action-sweep geometry：先要求 current Rapier contact 和 verified blocker state，再比较 current blocker target pose、每个 alternate target pose / action sweep 与 original failed sweep 的 Three AABB overlap。只有明确减少 overlap 的 executable actions 才进入 non-causal action ranking；target 完全离开 original sweep 优先，完全打平则仍拒绝。
+
+真实两柜 fixture 将 B.door 真正 settle 在 `ajar=-0.8`，此时 A.open 发生 Rapier STALL。Three AABB evidence 显示 current overlap 约 .664、B.open target overlap 约 .622、B.close target overlap 0，因此 close rank-1；Agent 真实 close B 后 fresh retry A.open verified。Execution wrapper 每次仍重新生成 proposal，如果当前 rank-1 改变则旧 action stale。

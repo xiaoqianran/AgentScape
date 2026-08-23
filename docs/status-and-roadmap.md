@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.26.0** 当前状态。
+本文描述 **1.27.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -29,7 +29,7 @@
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
-| Runtime Verification | 99% | 单步、多步、STALL attribution、pickup/cleanup recovery 与 1.26 verified articulated blocker recovery 已闭环；剩余是多 action counterfactual evidence 与更强 causal verification |
+| Runtime Verification | 99% | STALL attribution、pickup/cleanup、articulated recovery 与 1.27 multi-action counterfactual choice 已闭环；剩余是 Physics-backed hypothetical geometry 与更强 causal verification |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -328,31 +328,41 @@ Attributed STALL 现在可以进入一条严格受限的 pickup-blocker recovery
 
 ---
 
-## 19. 当前 P0：Counterfactual Articulated Recovery / Multi-action Choice
+## 19. 1.27 已完成：Counterfactual Articulated Recovery / Multi-action Choice
 
-当前若 blocker Part 有多个 alternate executable actions：
+同一个 articulated blocker Part 若有多个 alternate executable open/close，Runtime 不再让 LLM 猜。只有 current Rapier contact 仍存在、blocker verified state 明确且不 moving 时，才复用 `actionSweepBounds` 构造 original failed sweep、current blocker target pose、每个 alternate target pose / action sweep，并结合 `findInteractionPose` 形成 `articulated-target-sweep-counterfactual-v1`。Evidence 明确 `causal=false / geometry=three-aabb`；只有 `overlapReduction>0` 的 executable action 才进入 rank，优先 target 完全离开 original sweep，再比较 reduction / remaining overlap / action-sweep overlap / route cost。完全 tie 不产生 rank。
 
-```text
-alternateActions.length > 1
-→ AMBIGUOUS_ARTICULATED_RECOVERY
-```
-
-下一阶段不让 LLM 猜，而应增加 deterministic counterfactual evidence：
-
-```text
-multiple blocker actions
-→ executable action sweep / target truth
-→ predicted contact-change evidence
-→ non-causal action ranking
-→ execute one auxiliary action
-→ fresh original retry
-```
-
-仍然保持 proposal ≠ execution ≠ original success。
+真实两柜 E2E 将 B.door settle 到 `ajar=-0.8`，A.open 随后真实 STALL/contact B.door；current Three AABB overlap 约 .664，B.open target 仍约 .622，B.close target 为 0，因此 close rank-1。Agent 真实 close B 后 fresh retry A.open verified。`recoverArticulatedBlocker` execution-time 会重新 ranking；若 selected action 改变，旧请求 `COUNTERFACTUAL_SELECTION_CHANGED` stale。Nemotron/Muse `recovery-counterfactual` probe 都通过，1.26 unique-action probe 也重新通过。
 
 ---
 
-## 20. 1.11–1.12 已完成：Curated Multi-World Layer
+## 20. 当前 P0：Physics-backed Counterfactual Geometry
+
+1.27 的 counterfactual action choice 仍然是：
+
+```text
+Rapier current contact       = failure truth
+Three AABB target/sweep      = provisional hypothetical geometry
+```
+
+下一阶段不应增加搜索树，而应先缩小这个 evidence gap：
+
+```text
+blocker alternate target/sweep
+→ hypothetical Rapier collider transforms
+→ collider-level overlap / shape-cast evidence
+→ 不修改 live world
+→ 不调用 motor 试错
+→ non-causal ranking
+→ execute one action
+→ original retry verification
+```
+
+目标是让 counterfactual 从 visual AABB approximation 更接近 Physics truth，但仍不把 prediction 叫 verified。
+
+---
+
+## 21. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -377,7 +387,7 @@ Three.js architecture
 
 ---
 
-## 21. P1：完整 Joint Frame
+## 22. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -413,7 +423,7 @@ Schema claim second
 
 ---
 
-## 22. P2：Compact Agent Observation
+## 23. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -441,7 +451,7 @@ world size
 
 ---
 
-## 23. 自动语义：宁可慢一点，也不虚构能力
+## 24. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -479,7 +489,7 @@ high coverage + fake capability
 
 ---
 
-## 24. 目前不应该成为优先级的方向
+## 25. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -496,7 +506,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 25. 产品差异化应该是什么
+## 26. 产品差异化应该是什么
 
 不应该是：
 
@@ -528,7 +538,7 @@ Agent World
 
 ---
 
-## 26. 未来完成态
+## 27. 未来完成态
 
 可以把 100% 理解为：
 
@@ -593,11 +603,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.26.0 文档快照对应的仓库验证基线：
+1.27.0 文档快照对应的仓库验证基线：
 
 ```text
 104 Test Files PASS
-328 Tests PASS
+332 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -715,6 +725,15 @@ Real two-cabinet Rapier/Recast articulated recovery E2E PASS
 Action interaction arrival-correction fallback PASS
 Nemotron verified articulated recovery probe PASS
 Muse verified articulated recovery probe PASS
+Multi-action articulated counterfactual AABB evidence PASS
+Counterfactual insufficient-evidence refusal PASS
+Counterfactual no-gain / true-tie refusal PASS
+Counterfactual tie result without fake rank PASS
+Execution-time COUNTERFACTUAL_SELECTION_CHANGED revalidation PASS
+Real ajar=-0.8 two-cabinet counterfactual E2E PASS
+Nemotron counterfactual articulated recovery probe PASS
+Muse counterfactual articulated recovery probe PASS
+1.26 unique-action articulated recovery regression PASS
 ```
 
 这些数字不是架构目标，只是帮助读者知道文档描述的能力已经有怎样的验证覆盖。未来测试数量变化时，应以当前 CI 为准。

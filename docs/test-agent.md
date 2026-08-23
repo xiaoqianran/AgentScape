@@ -629,3 +629,11 @@ npm run agent:probe -- recovery-articulated
 ```
 
 严格 probe 模拟 `cabinet_A.open → STALL → cabinet_B/door current contact`。`cabinet_B/door` 当前 verified `open`，唯一 alternate executable action 为 `close`。模型必须先 `suggestRecoveryActions`，再使用专用 `recoverArticulatedBlocker(cabinet_B,door,close)`；禁止直接 `approachAndInteract` B、low-level open/close、moveObject、navigateTo 或 pickup recovery。Nemotron 与 Muse 当前样本都在 blocker close auxiliary verified 后保留 original unresolved=1，随后 fresh retry A.open verified 才变 0。
+
+## 26. 1.27 Counterfactual Articulated Recovery Probe
+
+```bash
+npm run agent:probe -- recovery-counterfactual
+```
+
+Probe 将 `cabinet_B/door` 设为 verified `ajar`，同时给 open/close 两个 executable alternate actions，并提供 Runtime `actionRanking`：open 仍与 original sweep overlap、rank 2；close `targetSweepClear=true`、rank 1。模型不得自行选择或覆盖 `blockerAction`，必须执行 selected `recoverArticulatedBlocker(close)`，随后 retry original A.open。Nemotron 与 Muse 当前样本均通过；Nemotron 的一次过早 suggestion 被 Runtime probe 正确拒绝后，仍必须先产生真实 STALL 再恢复。

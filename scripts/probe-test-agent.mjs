@@ -117,6 +117,16 @@ const scenarios = {
     ],
     expected:['approachAndInteract','suggestRecoveryActions','recoverArticulatedBlocker']
   }
+,
+  'recovery-counterfactual': {
+    goal:'Open cabinet_A with agent_01. The first approachAndInteract will STALL with cabinet_B/door current-contact evidence. cabinet_B/door is verified ajar, so both open and close are executable alternate actions. Call suggestRecoveryActions and consume its actionRanking; do not choose an action yourself. Follow exactly the selected recoverArticulatedBlocker proposal. The Runtime evidence says close has targetSweepClear=true and rank 1, while open remains overlapping and rank 2. After the selected blocker recovery verifies, fresh-replan and retry the original cabinet_A open. Only the original retry action-completed + targetReached + settled means success. Never directly approachAndInteract cabinet_B, never override blockerAction, and never use low-level open/close, moveObject, navigateTo, pickup/place, or another recovery primitive.',
+    world:[
+      { id:'agent_01', asset:'agent', position:[2.5,0,4], actions:['navigate'] },
+      { id:'cabinet_A', asset:'cabinet', position:[0,0,0], actions:['open','close','move'] },
+      { id:'cabinet_B', asset:'cabinet', position:[-2.2,0,1], actions:['open','close','move'] }
+    ],
+    expected:['approachAndInteract','suggestRecoveryActions','recoverArticulatedBlocker']
+  }
 };
 const scenario = scenarios[mode];
 if (!scenario) throw new Error(`Unknown probe mode: ${mode}`);
@@ -152,7 +162,8 @@ try {
     call:async(name, args = {}) => {
       if (name === 'listObjects') return scenario.world;
       toolCalls.push({ name, args });
-      if (mode === 'recovery-articulated') {
+      if (mode === 'recovery-articulated' || mode === 'recovery-counterfactual') {
+        const counterfactualMode=mode==='recovery-counterfactual';
         const blocker={kind:'object',objectId:'cabinet_B',partName:'door',colliderIndex:0};
         const contact={
           source:{kind:'object',objectId:'cabinet_A',partName:'door',colliderIndex:0},target:blocker,external:true,
@@ -161,8 +172,8 @@ try {
         const attribution={status:'contact-evidence',evidence:'current-contact-at-failure',blockerCandidates:[blocker],contactEvidence:[contact]};
         if (name === 'getArticulationStatus') {
           if (args.id==='cabinet_B') return {id:'cabinet_B',parts:[{
-            partName:'door',status:'verified-state',requestedAction:null,verifiedAction:articulatedBlockerClosed?'close':'open',
-            live:{coordinate:articulatedBlockerClosed?0:-1.35,target:articulatedBlockerClosed?0:-1.35,error:0,tolerance:.08,coordinateReference:'rest-zero-pose'}
+            partName:'door',status:'verified-state',requestedAction:null,verifiedAction:articulatedBlockerClosed?'close':(counterfactualMode?'ajar':'open'),
+            live:{coordinate:articulatedBlockerClosed?0:(counterfactualMode?-.8:-1.35),target:articulatedBlockerClosed?0:(counterfactualMode?-.8:-1.35),error:0,tolerance:.08,coordinateReference:'rest-zero-pose'}
           }]};
           if (args.id==='cabinet_A') return {id:'cabinet_A',parts:[{
             partName:'door',status:articulatedDoorOpen?'action-completed':(articulatedAttemptedOpen?'action-failed':'verified-state'),
@@ -187,8 +198,19 @@ try {
           const proposal={
             blocker,candidateType:'articulated-part',eligible:true,status:'provisional',recovery:'articulated-blocker',evidence:'current-contact-at-failure',rank:1,
             currentContact:{pairCount:1,contactCount:4,activeContactCount:2,minDistance:-.0012,totalImpulse:.45,colliderIndices:[0]},
-            blockerState:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'open',live:{coordinate:-1.35,target:-1.35,error:0,tolerance:.08,coordinateReference:'rest-zero-pose'}},
-            blockerAction:'close',policy:{allow:true,profile:'builder',missing:[]},
+            blockerState:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:counterfactualMode?'ajar':'open',live:{coordinate:counterfactualMode?-.8:-1.35,target:counterfactualMode?-.8:-1.35,error:0,tolerance:.08,coordinateReference:'rest-zero-pose'}},
+            blockerAction:'close',
+            ...(counterfactualMode?{actionRanking:{
+              strategy:'articulated-target-sweep-counterfactual-v1',causal:false,
+              criteria:['targetSweepClearDesc','overlapReductionDesc','targetOverlapVolumeAsc','actionSweepOverlapVolumeAsc','routeCostAsc'],
+              current:{action:'ajar',overlapVolume:.663647,bounds:{min:[-1.858,.03,.643],max:[-.6,1.97,1.869]}},
+              originalSweep:{min:[-.879,.03,.346],max:[.205,1.97,1.999]},
+              actions:[
+                {action:'open',executable:true,rank:2,pose:{routeCost:1.7},counterfactual:{causal:false,geometry:'three-aabb',currentOverlapVolume:.663647,targetOverlapVolume:.62237,overlapReduction:.041277,targetSweepClear:false,actionSweepOverlapVolume:1.622824}},
+                {action:'close',executable:true,rank:1,pose:{routeCost:2.2},counterfactual:{causal:false,geometry:'three-aabb',currentOverlapVolume:.663647,targetOverlapVolume:0,overlapReduction:.663647,targetSweepClear:true,actionSweepOverlapVolume:.8341}}
+              ]
+            }}:{}),
+            policy:{allow:true,profile:'builder',missing:[]},
             preflight:{pose:{status:'approach-pose',position:[-3,0,-.3],routeCost:2.2,actionSweep:{checked:true,clear:true,partName:'door'}},actionSweep:{checked:true,clear:true,partName:'door'}},
             rankingEvidence:{causal:false,recoveryRouteCost:2.2},
             tool:'recoverArticulatedBlocker',args:{actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'},
@@ -491,7 +513,7 @@ try {
   };
   const gateway = new HttpLLMGateway({ endpoint:`http://127.0.0.1:${port}/agent`, timeoutMs:90000 });
   const trace = process.env.AGENTSCAPE_TEST_LLM_TRACE === '1';
-  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway:null, maxSteps:(mode.startsWith('sequence')||mode==='recovery'||mode==='recovery-multi'||mode==='recovery-cleanup'||mode==='recovery-articulated')?16:8, log:trace ? (message,type)=>console.error(`[${type}] ${message}`) : ()=>{} });
+  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway:null, maxSteps:(mode.startsWith('sequence')||mode==='recovery'||mode==='recovery-multi'||mode==='recovery-cleanup'||mode==='recovery-articulated'||mode==='recovery-counterfactual')?16:8, log:trace ? (message,type)=>console.error(`[${type}] ${message}`) : ()=>{} });
   const result = await agent.run(scenario.goal);
   const expectedTools=Array.isArray(scenario.expected)?scenario.expected:[scenario.expected];
   for (const expected of expectedTools) if (!toolCalls.some((call)=>call.name===expected)) {
@@ -520,11 +542,12 @@ try {
     if (!/obstacle_03/i.test(result.message || '')) throw new Error(`Attribution final did not name obstacle_03: ${result.message}`);
     if (!/(contact|接触|candidate|候选)/i.test(result.message || '')) throw new Error(`Attribution final did not frame obstacle_03 as contact evidence: ${result.message}`);
   }
-  if (mode === 'recovery-articulated') {
+  if (mode === 'recovery-articulated' || mode === 'recovery-counterfactual') {
+    const counterfactualMode=mode==='recovery-counterfactual';
     const mutations=toolCalls.filter((call)=>['approachAndInteract','recoverArticulatedBlocker','recoverPickupBlocker','moveObject','navigateTo','open','close','pickup','place'].includes(call.name));
     const names=mutations.map((call)=>call.name);
     if (JSON.stringify(names)!==JSON.stringify(['approachAndInteract','recoverArticulatedBlocker','approachAndInteract'])) throw new Error(`Unexpected articulated recovery mutation order: ${names.join(' -> ')}`);
-    if (mutations[1]?.args?.blockerId!=='cabinet_B'||mutations[1]?.args?.blockerPartName!=='door'||mutations[1]?.args?.blockerAction!=='close') throw new Error('Articulated recovery did not follow the unique alternate action proposal');
+    if (mutations[1]?.args?.blockerId!=='cabinet_B'||mutations[1]?.args?.blockerPartName!=='door'||mutations[1]?.args?.blockerAction!=='close') throw new Error(counterfactualMode?'Counterfactual recovery did not follow Runtime rank-1 action':'Articulated recovery did not follow the unique alternate action proposal');
     const suggestIndex=toolCalls.findIndex((call)=>call.name==='suggestRecoveryActions');
     const recoveryIndex=toolCalls.findIndex((call)=>call.name==='recoverArticulatedBlocker');
     if (suggestIndex<0||suggestIndex>recoveryIndex) throw new Error('Articulated recovery mutation was not preceded by suggestRecoveryActions');
