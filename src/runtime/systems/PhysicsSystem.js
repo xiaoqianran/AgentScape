@@ -462,9 +462,7 @@ export class PhysicsSystem {
     if (!entry || !part?.node?.parent || !Number.isFinite(coordinate)) return {checked:false,reason:'PART_POSE_UNAVAILABLE',id,partName,coordinate};
     const state=this.articulationState(id,partName);
     if (!state) return {checked:false,reason:'JOINT_COORDINATE_UNAVAILABLE',id,partName,coordinate};
-    if (part.spec.joint.type==='revolute' && Math.hypot(...(part.spec.joint.childAnchor || [0,0,0]))>1e-5) {
-      return {checked:false,reason:'REVOLUTE_CHILD_ANCHOR_UNSUPPORTED',id,partName,coordinate};
-    }
+    const childAnchor=new THREE.Vector3(...(part.spec.joint.childAnchor || [0,0,0]));
     const parentRotation=new THREE.Quaternion();
     part.node.parent.updateWorldMatrix(true,false);
     part.node.parent.getWorldQuaternion(parentRotation);
@@ -478,8 +476,13 @@ export class PhysicsSystem {
     const delta=coordinate-state.coordinate;
     const bodyPosition=currentBodyPosition.clone();
     const bodyRotation=currentBodyRotation.clone();
-    if (part.spec.joint.type==='prismatic') bodyPosition.addScaledVector(worldAxis,delta);
-    else bodyRotation.premultiply(new THREE.Quaternion().setFromAxisAngle(worldAxis,delta)).normalize();
+    if (part.spec.joint.type==='prismatic') {
+      bodyPosition.addScaledVector(worldAxis,delta);
+    } else {
+      const pivotWorld=childAnchor.clone().applyQuaternion(currentBodyRotation).add(currentBodyPosition);
+      bodyRotation.premultiply(new THREE.Quaternion().setFromAxisAngle(worldAxis,delta)).normalize();
+      bodyPosition.copy(pivotWorld).sub(childAnchor.clone().applyQuaternion(bodyRotation));
+    }
 
     const inverseCurrent=currentBodyRotation.clone().invert();
     const colliders=[];
@@ -498,14 +501,69 @@ export class PhysicsSystem {
     return {checked:true,id,partName,jointType:state.jointType,currentCoordinate:state.coordinate,coordinate,colliders};
   }
 
-  articulationPairCounterfactual(originalId, originalPartName, originalTarget, blockerId, blockerPartName, blockerTarget, { samples = 9 } = {}) {
-    const count=Math.max(2,Math.min(33,Math.trunc(samples) || 9));
+  shapeBoundingRadius(shape) {
+    if (!shape) return null;
+    if (shape.halfExtents) {
+      const h=shape.halfExtents;
+      const border=Number(shape.borderRadius) || 0;
+      return Math.hypot(h.x+border,h.y+border,h.z+border);
+    }
+    if (Number.isFinite(shape.halfHeight) && Number.isFinite(shape.radius)) {
+      const border=Number(shape.borderRadius) || 0;
+      return Math.hypot(shape.radius+border,shape.halfHeight+shape.radius+border);
+    }
+    if (Number.isFinite(shape.radius)) return shape.radius;
+    if (shape.vertices?.length) {
+      let radius=0;
+      for(let i=0;i+2<shape.vertices.length;i+=3) radius=Math.max(radius,Math.hypot(shape.vertices[i],shape.vertices[i+1],shape.vertices[i+2]));
+      return radius || null;
+    }
+    if (shape.a && shape.b) return Math.max(Math.hypot(shape.a.x,shape.a.y,shape.a.z),Math.hypot(shape.b.x,shape.b.y,shape.b.z));
+    return null;
+  }
+
+  articulationCounterfactualSampleCount(id, partName, current, target, { minSamples = 5, maxSamples = 33 } = {}) {
+    const entry=this.entries.get(id);
+    const part=entry?.parts.get(partName);
+    if (!part || !Number.isFinite(current) || !Number.isFinite(target)) return {checked:false,reason:'PART_SAMPLE_GEOMETRY_UNAVAILABLE'};
+    const delta=Math.abs(target-current);
+    if (delta<1e-9) return {checked:true,count:minSamples,delta,maxTravel:0,resolution:.08};
+    const rawBodyPosition=part.body.translation();
+    const rawBodyRotation=part.body.rotation();
+    const bodyPosition=new THREE.Vector3(rawBodyPosition.x,rawBodyPosition.y,rawBodyPosition.z);
+    const bodyRotation=new THREE.Quaternion(rawBodyRotation.x,rawBodyRotation.y,rawBodyRotation.z,rawBodyRotation.w).normalize();
+    const inverseBody=bodyRotation.clone().invert();
+    const childAnchor=new THREE.Vector3(...(part.spec.joint.childAnchor || [0,0,0]));
+    let minRadius=Infinity,maxLever=0,covered=0;
+    for(let i=0;i<part.body.numColliders();i++) {
+      const collider=part.body.collider(i);
+      const radius=this.shapeBoundingRadius(collider.shape);
+      if (!Number.isFinite(radius) || radius<=0) continue;
+      const raw=collider.translation();
+      const localCenter=new THREE.Vector3(raw.x,raw.y,raw.z).sub(bodyPosition).applyQuaternion(inverseBody);
+      minRadius=Math.min(minRadius,radius);
+      maxLever=Math.max(maxLever,localCenter.distanceTo(childAnchor)+radius);
+      covered+=1;
+    }
+    if (!covered || !Number.isFinite(minRadius)) return {checked:false,reason:'COLLIDER_EXTENT_UNAVAILABLE'};
+    const maxTravel=part.spec.joint.type==='revolute' ? delta*maxLever : delta;
+    const resolution=THREE.MathUtils.clamp(minRadius*.35,.02,.08);
+    const count=THREE.MathUtils.clamp(Math.ceil(maxTravel/resolution)+1,minSamples,maxSamples);
+    return {checked:true,count,delta,maxTravel,resolution,colliders:covered,minRadius,maxLever:part.spec.joint.type==='revolute'?maxLever:null};
+  }
+
+  articulationPairCounterfactual(originalId, originalPartName, originalTarget, blockerId, blockerPartName, blockerTarget, { samples = null } = {}) {
     const originalState=this.articulationState(originalId,originalPartName,{target:originalTarget});
     const blockerState=this.articulationState(blockerId,blockerPartName,{target:blockerTarget});
     if (!originalState || !blockerState) return {checked:false,reason:'JOINT_COORDINATE_UNAVAILABLE'};
     if (!Number.isFinite(originalTarget) || !Number.isFinite(blockerTarget)) return {checked:false,reason:'TARGET_UNAVAILABLE'};
+    const fixedSamples=Number.isFinite(samples) ? Math.max(2,Math.min(33,Math.trunc(samples))) : null;
+    const originalSampling=fixedSamples ? {checked:true,count:fixedSamples,mode:'fixed'} : this.articulationCounterfactualSampleCount(originalId,originalPartName,originalState.coordinate,originalTarget);
+    const blockerSampling=fixedSamples ? {checked:true,count:fixedSamples,mode:'fixed'} : this.articulationCounterfactualSampleCount(blockerId,blockerPartName,blockerState.coordinate,blockerTarget);
+    if (!originalSampling.checked) return {checked:false,reason:originalSampling.reason,source:'original-sampling'};
+    if (!blockerSampling.checked) return {checked:false,reason:blockerSampling.reason,source:'blocker-sampling'};
 
-    const trajectory=(id,partName,current,target)=>{
+    const trajectory=(id,partName,current,target,count)=>{
       const poses=[];
       for(let i=0;i<count;i++) {
         const alpha=i/(count-1);
@@ -516,9 +574,9 @@ export class PhysicsSystem {
       }
       return {checked:true,poses};
     };
-    const original=trajectory(originalId,originalPartName,originalState.coordinate,originalTarget);
+    const original=trajectory(originalId,originalPartName,originalState.coordinate,originalTarget,originalSampling.count);
     if (!original.checked) return {checked:false,reason:original.reason,source:'original'};
-    const blocker=trajectory(blockerId,blockerPartName,blockerState.coordinate,blockerTarget);
+    const blocker=trajectory(blockerId,blockerPartName,blockerState.coordinate,blockerTarget,blockerSampling.count);
     if (!blocker.checked) return {checked:false,reason:blocker.reason,source:'blocker'};
 
     const pairAt=(a,b)=>{
@@ -550,7 +608,9 @@ export class PhysicsSystem {
     const target=againstPose(original.poses,blocker.poses.at(-1));
     const action=trajectoryConflict(original.poses,blocker.poses);
     return {
-      checked:true,geometry:'rapier-shape-pairs',causal:false,samples:count,
+      checked:true,geometry:'rapier-shape-pairs',causal:false,
+      samples:{original:originalSampling.count,blocker:blockerSampling.count,mode:fixedSamples?'fixed':'adaptive'},
+      sampling:{original:originalSampling,blocker:blockerSampling},
       original:{id:originalId,partName:originalPartName,currentCoordinate:originalState.coordinate,target:originalTarget},
       blocker:{id:blockerId,partName:blockerPartName,currentCoordinate:blockerState.coordinate,target:blockerTarget},
       current,target,action,

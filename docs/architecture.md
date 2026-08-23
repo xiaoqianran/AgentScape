@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.28.0** 的真实架构，不描述未来设想。
+本文描述 **1.29.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -1003,3 +1003,19 @@ execution-time rerank + original retry
 ```
 
 只有所有 executable actions 的 Physics coverage 完整、`current.conflictSamples / pairIntersections` baseline 一致且大于零时才采用 v2；否则 `buildRecoveryProposals` 显式降级到 1.27 `three-aabb-fallback` 并记录 reason。Revolute hypothetical pose 当前仅支持 `childAnchor≈0`；非零 anchor 返回 `REVOLUTE_CHILD_ANCHOR_UNSUPPORTED`，不猜 pivot。完整 contract 见 [`physics-counterfactual-geometry.md`](./physics-counterfactual-geometry.md)。
+
+---
+
+## 32. Counterfactual Calibration：Prediction / Observation / Verification 分层
+
+1.29 继续保持 `PhysicsSystem` 为唯一 hypothetical geometry owner。Revolute hypothetical body pose 现在围绕 `childAnchor` 的 world pivot 旋转，并同步修正 body origin；该公式通过真实 non-zero childAnchor motor pose 对拍。`articulationCounterfactualSampleCount` 根据 live collider bounding radius 与 joint travel 计算 5–33 的 adaptive density，original / blocker trajectories 独立采样，fixed override 仍保留。Prismatic 真实 fixture 也走同一 contract。
+
+`recoverArticulatedBlocker` 在 blocker action verified 后额外读取一次 original Part live contact，返回 ephemeral `counterfactualCalibration`：
+
+```text
+prediction     = pre-execution Rapier hypothetical evidence
+observation    = post-recovery current-contact fact
+verification   = later original action retry post-condition
+```
+
+三者不共用 success 语义；`consistent` 也明确 `originalRetryRequired=true`。没有新增持久 Calibration state。详见 [`counterfactual-calibration.md`](./counterfactual-calibration.md)。

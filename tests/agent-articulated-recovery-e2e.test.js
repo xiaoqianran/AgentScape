@@ -170,19 +170,29 @@ describe('verified articulated blocker recovery',()=>{
       proposals:[expect.objectContaining({
         blockerAction:'close',
         blockerState:expect.objectContaining({verifiedAction:'ajar',requestedAction:null}),
-        actionRanking:expect.objectContaining({strategy:'articulated-rapier-shape-counterfactual-v2',basis:'rapier-shape-pairs',causal:false,current:expect.objectContaining({action:'ajar',conflictSamples:17})})
+        actionRanking:expect.objectContaining({strategy:'articulated-rapier-shape-counterfactual-v2',basis:'rapier-shape-pairs',causal:false,current:expect.objectContaining({action:'ajar'})})
       })]
     });
     const ranking=suggestion.proposals[0].actionRanking;
     const open=ranking.actions.find((item)=>item.action==='open');
     const close=ranking.actions.find((item)=>item.action==='close');
     expect(ranking.current.conflictSamples).toBeGreaterThan(0);
-    expect(open).toMatchObject({executable:true,rank:2,physicsCounterfactual:expect.objectContaining({checked:true,geometry:'rapier-shape-pairs',targetSweepClear:false})});
-    expect(close).toMatchObject({executable:true,rank:1,physicsCounterfactual:expect.objectContaining({checked:true,geometry:'rapier-shape-pairs',targetSweepClear:true,target:expect.objectContaining({conflictSamples:0})})});
+    expect(open).toMatchObject({executable:true,rank:2,physicsCounterfactual:expect.objectContaining({checked:true,geometry:'rapier-shape-pairs',samples:expect.objectContaining({mode:'adaptive'}),targetSweepClear:false})});
+    expect(close).toMatchObject({executable:true,rank:1,physicsCounterfactual:expect.objectContaining({checked:true,geometry:'rapier-shape-pairs',samples:expect.objectContaining({mode:'adaptive'}),targetSweepClear:true,target:expect.objectContaining({conflictSamples:0})})});
+    expect(open.physicsCounterfactual.samples.original).toBe(close.physicsCounterfactual.samples.original);
+    expect(close.physicsCounterfactual.samples.blocker).toBeGreaterThan(open.physicsCounterfactual.samples.blocker);
     expect(close.physicsCounterfactual.conflictReduction).toBeGreaterThan(open.physicsCounterfactual.conflictReduction);
 
     const recovered=JSON.parse(requests[3].messages.find((message)=>message.role==='tool'&&message.name==='recoverArticulatedBlocker').content);
-    expect(recovered).toMatchObject({status:'action-completed',targetId:'cabinet_B',action:'close',targetReached:true,settled:true,retryOriginal:true});
+    expect(recovered).toMatchObject({
+      status:'action-completed',targetId:'cabinet_B',action:'close',targetReached:true,settled:true,retryOriginal:true,
+      counterfactualCalibration:{
+        status:'observed',scope:'post-recovery-current-contact',causal:false,
+        prediction:{strategy:'articulated-rapier-shape-counterfactual-v2',basis:'rapier-shape-pairs',targetSweepClear:true,targetConflictSamples:0,samples:expect.objectContaining({mode:'adaptive'})},
+        observed:{blockerActionVerified:true,currentContactStillPresent:false},
+        consistency:'consistent',originalRetryRequired:true
+      }
+    });
     expect(requests[3].context.task.unresolvedMutations).toHaveLength(1);
     const retried=JSON.parse(requests[4].messages.filter((message)=>message.role==='tool'&&message.name==='approachAndInteract').at(-1).content);
     expect(retried).toMatchObject({status:'action-completed',targetId:'cabinet_A',action:'open',targetReached:true,settled:true});

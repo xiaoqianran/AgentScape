@@ -693,3 +693,9 @@ Counterfactual Calibration
 ```
 
 仍然先提升 evidence fidelity，再考虑搜索树。
+
+---
+
+## 37. 1.29：Joint-frame 与 Sampling / Calibration Generalization
+
+1.29 将本章的 `REVOLUTE_CHILD_ANCHOR_UNSUPPORTED` 边界升级为正确 pivot transform，并通过 hypothetical-vs-real-motor pose 对拍；proposal 也不再固定 `{samples:17}`，而是按 live collider extent / joint travel adaptive sampling，original 与 blocker 独立取样。真实 prismatic fixture加入同一 counterfactual contract。执行 `recoverArticulatedBlocker` 后还增加 ephemeral live-contact calibration，但 observation 仍不拥有 task success 语义。详见 [`counterfactual-calibration.md`](./counterfactual-calibration.md)。

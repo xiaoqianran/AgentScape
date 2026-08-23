@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.28.0** 当前状态。
+本文描述 **1.29.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -29,7 +29,7 @@
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
-| Runtime Verification | 99% | STALL attribution、pickup/cleanup、articulated recovery 与 1.28 Physics-first hypothetical shape evidence 已闭环；剩余是 adaptive sampling、joint-frame coverage 与更强 causal calibration |
+| Runtime Verification | 99% | Recovery、Physics-first hypothetical geometry、1.29 adaptive sampling / joint-frame generalization / observed calibration 已闭环；剩余是 convergence、nested-frame 与 broader hypothetical coverage |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -344,33 +344,39 @@ Attributed STALL 现在可以进入一条严格受限的 pickup-blocker recovery
 
 ---
 
-## 21. 当前 P0：Counterfactual Calibration / Adaptive Sampling / Joint-frame Generalization
+## 21. 1.29 已完成：Counterfactual Calibration / Adaptive Sampling / Joint-frame Generalization
 
-1.28 的 Rapier evidence 仍是离散 geometry prediction：
+Revolute hypothetical pose 现在支持 non-zero `childAnchor`：先保持 child anchor world pivot 固定，再围绕 world joint axis 旋转 body 并修正 body origin；专项 fixture 将 hypothetical target collider pose 与真实 Rapier motor target pose 对拍，position/rotation 均在 articulation tolerance 内，真实 Compiler→Runtime non-zero childAnchor fixture 继续通过。Sampling 也从固定17升级为 `articulationCounterfactualSampleCount`：读取 live Rapier shape extent，revolute 用 joint delta×max lever、prismatic 用线性 delta，resolution 按 collider characteristic radius clamp 到2–8cm，最终5–33 samples；original/blocker trajectory 独立取样，fixed override保留。真实 ajar Door 自动使用 original=12 / open=16 / close=22，真实 prismatic blocker fixture也通过 hypothetical-vs-motor pose验证。
 
-```text
-17 samples
-Shape.intersectsShape
-Cartesian sampled sweep envelope
-causal = false
-```
-
-下一阶段优先提升 evidence fidelity，而不是加搜索树：
-
-```text
-joint delta + collider extent
-→ adaptive sample density
-→ prediction vs actual recovery outcome calibration
-→ non-zero revolute childAnchor pivot transform
-→ prismatic real fixture
-→ 保持 no-live-mutation query
-```
-
-只有这些 coverage/data 成立后，再考虑更强 continuous / lookahead counterfactual。
+`recoverArticulatedBlocker` verified 后还会做一次只读 `post-recovery-current-contact` observation。若 selected Physics prediction `targetSweepClear=true` 且 current contact 消失，记录 `counterfactualCalibration.consistency=consistent`；若 contact 仍存在则 `contradicted`。该 calibration 只存在于 tool result，明确 `causal=false / originalRetryRequired=true`，不会清 original unresolved。专项反例锁住 prediction clear + live contact remains 时不能隐藏矛盾。Nemotron/Muse strict probe 已升级到 adaptive sampling + calibration contract。
 
 ---
 
-## 22. 1.11–1.12 已完成：Curated Multi-World Layer
+## 22. 当前 P0：Counterfactual Convergence / Nested-frame Coverage
+
+1.29 已能自适应采样并观察执行后 contact，但还没有系统回答：
+
+```text
+adaptive N 的预测
+vs
+更密 N×2 的预测
+是否稳定？
+```
+
+以及 nested articulated parent 已移动时，child Part hypothetical frame 是否仍与真实 motor 对齐。下一阶段优先：
+
+```text
+adaptive prediction convergence report
+nested Part parent-frame motor-vs-hypothetical fixture
+third-object hypothetical collision coverage
+bounded calibration summary（仍不持久学习）
+```
+
+在这些 coverage 成立前，不引入 multi-step recovery search tree。
+
+---
+
+## 23. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -395,7 +401,7 @@ Three.js architecture
 
 ---
 
-## 23. P1：完整 Joint Frame
+## 24. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -431,7 +437,7 @@ Schema claim second
 
 ---
 
-## 24. P2：Compact Agent Observation
+## 25. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -459,7 +465,7 @@ world size
 
 ---
 
-## 25. 自动语义：宁可慢一点，也不虚构能力
+## 26. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -497,7 +503,7 @@ high coverage + fake capability
 
 ---
 
-## 26. 目前不应该成为优先级的方向
+## 27. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -514,7 +520,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 27. 产品差异化应该是什么
+## 28. 产品差异化应该是什么
 
 不应该是：
 
@@ -546,7 +552,7 @@ Agent World
 
 ---
 
-## 28. 未来完成态
+## 29. 未来完成态
 
 可以把 100% 理解为：
 
@@ -611,11 +617,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.28.0 文档快照对应的仓库验证基线：
+1.29.0 文档快照对应的仓库验证基线：
 
 ```text
 105 Test Files PASS
-336 Tests PASS
+339 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -753,6 +759,15 @@ Nemotron Physics-first counterfactual probe PASS
 Muse Physics-first counterfactual probe PASS
 1.26 articulated recovery live regression PASS
 1.25 cleanup live regression PASS
+Non-zero revolute childAnchor hypothetical-vs-real motor pose PASS
+Adaptive counterfactual sample density PASS
+Independent original/blocker adaptive sampling PASS
+Fixed counterfactual sampling override PASS
+Real prismatic blocker counterfactual + motor pose PASS
+Post-recovery counterfactual calibration consistent PASS
+Post-recovery counterfactual calibration contradicted PASS
+Nemotron adaptive/calibration counterfactual probe PASS
+Muse adaptive/calibration counterfactual probe PASS
 1.26 unique-action articulated recovery regression PASS
 ```
 

@@ -39,8 +39,8 @@ describe('Rapier articulated counterfactual geometry',()=>{
     const beforeB=physics.articulationState('cabinet_B','door');
     const open=physics.articulationPairCounterfactual('cabinet_A','door',-1.35,'cabinet_B','door',-1.35,{samples:17});
     const close=physics.articulationPairCounterfactual('cabinet_A','door',-1.35,'cabinet_B','door',0,{samples:17});
-    expect(open).toMatchObject({checked:true,geometry:'rapier-shape-pairs',causal:false,samples:17,targetSweepClear:false});
-    expect(close).toMatchObject({checked:true,geometry:'rapier-shape-pairs',causal:false,samples:17,targetSweepClear:true,target:{conflictSamples:0}});
+    expect(open).toMatchObject({checked:true,geometry:'rapier-shape-pairs',causal:false,samples:{original:17,blocker:17,mode:'fixed'},targetSweepClear:false});
+    expect(close).toMatchObject({checked:true,geometry:'rapier-shape-pairs',causal:false,samples:{original:17,blocker:17,mode:'fixed'},targetSweepClear:true,target:{conflictSamples:0}});
     expect(open.current.conflictSamples).toBeGreaterThan(0);
     expect(close.current.conflictSamples).toBe(open.current.conflictSamples);
     expect(close.conflictReduction).toBeGreaterThan(open.conflictReduction);
@@ -52,18 +52,117 @@ describe('Rapier articulated counterfactual geometry',()=>{
     physics.dispose();
   });
 
-  it('refuses hypothetical revolute poses when childAnchor requires an unsupported pivot transform',async()=>{
+  it('matches a non-zero childAnchor hypothetical revolute pose against the real Rapier motor result',async()=>{
     const physics=new PhysicsSystem(); await physics.init();
     const store=new ObjectStore();
-    const manifest=structuredClone(assetManifests.cabinet);
-    manifest.parts.door.joint.childAnchor=[.1,0,0];
-    const object=cabinetObject(); object.updateMatrixWorld(true);
-    store.add('cabinet',{id:'cabinet',assetId:'cabinet',object,manifest,state:{parts:{door:'close'}}});
-    physics.attach('cabinet',manifest,object);
+    const manifest={
+      id:'pivot-door',type:'cabinet',source:{kind:'builtin'},actions:['open','close'],
+      physics:{body:'fixed',colliders:[]},
+      parts:{door:{
+        node:'Door',actions:['open','close'],targets:{open:-1,close:0},
+        physics:{body:'dynamic',mass:1,colliders:[{shape:'box',halfExtents:[.35,.7,.06]}]},
+        joint:{type:'revolute',axis:[0,1,0],limits:[-1,0],parentAnchor:[0,1,0],childAnchor:[-1,0,0],motor:{stiffness:60,damping:10}}
+      }}
+    };
+    const root=new THREE.Group();
+    const door=new THREE.Group(); door.name='Door'; door.position.set(1,1,0); root.add(door); root.updateMatrixWorld(true);
+    store.add('pivot',{id:'pivot',assetId:'pivot-door',object:root,manifest,state:{parts:{door:'close'}}});
+    physics.attach('pivot',manifest,root);
+    for(let i=0;i<20;i++) physics.step(1/60,store);
+
+    const predicted=physics.articulationColliderPoses('pivot','door',-1);
+    expect(predicted).toMatchObject({checked:true,jointType:'revolute',coordinate:-1});
+    expect(predicted.colliders).toHaveLength(1);
+    const predictedCollider=predicted.colliders[0];
+
+    expect(physics.setArticulationTarget('pivot','door',-1)).toBe(true);
+    for(let i=0;i<300;i++) physics.step(1/60,store);
+    const state=physics.articulationState('pivot','door',{target:-1});
+    expect(state.error).toBeLessThan(.08);
+    const body=physics.entries.get('pivot').parts.get('door').body;
+    const collider=body.collider(0);
+    const actualPosition=collider.translation();
+    const actualRotation=collider.rotation();
+    const actualQ=new THREE.Quaternion(actualRotation.x,actualRotation.y,actualRotation.z,actualRotation.w).normalize();
+    expect(predictedCollider.position.distanceTo(new THREE.Vector3(actualPosition.x,actualPosition.y,actualPosition.z))).toBeLessThan(.035);
+    expect(2*Math.acos(Math.min(1,Math.abs(predictedCollider.rotation.dot(actualQ))))).toBeLessThan(.08);
+
+    const pivotAtPrediction=new THREE.Vector3(-1,0,0).applyQuaternion(predictedCollider.rotation).add(predictedCollider.position);
+    expect(pivotAtPrediction.distanceTo(new THREE.Vector3(0,1,0))).toBeLessThan(.04);
+    physics.dispose();
+  });
+
+
+  it('adapts sample density to joint travel and collider extent while preserving a fixed override',async()=>{
+    const physics=new PhysicsSystem(); await physics.init();
+    const store=new ObjectStore();
+    const manifest={
+      id:'adaptive-drawer',type:'drawer',source:{kind:'builtin'},actions:['open','close'],
+      physics:{body:'fixed',colliders:[]},
+      parts:{drawer:{
+        node:'Drawer',actions:['open','close'],targets:{open:.6,close:0},
+        physics:{body:'dynamic',mass:1,colliders:[{shape:'box',halfExtents:[.08,.08,.08]}]},
+        joint:{type:'prismatic',axis:[1,0,0],limits:[0,.6],parentAnchor:[0,0,0],childAnchor:[0,0,0],motor:{stiffness:50,damping:9}}
+      }}
+    };
+    const root=new THREE.Group(); const drawer=new THREE.Group(); drawer.name='Drawer'; root.add(drawer); root.updateMatrixWorld(true);
+    store.add('drawer',{id:'drawer',assetId:'adaptive-drawer',object:root,manifest,state:{parts:{drawer:'close'}}});
+    physics.attach('drawer',manifest,root);
     for(let i=0;i<10;i++) physics.step(1/60,store);
-    expect(physics.articulationColliderPoses('cabinet','door',-.5)).toMatchObject({
-      checked:false,reason:'REVOLUTE_CHILD_ANCHOR_UNSUPPORTED',id:'cabinet',partName:'door',coordinate:-.5
+    const short=physics.articulationCounterfactualSampleCount('drawer','drawer',0,.08);
+    const long=physics.articulationCounterfactualSampleCount('drawer','drawer',0,.6);
+    expect(short).toMatchObject({checked:true,delta:.08,colliders:1});
+    expect(long).toMatchObject({checked:true,delta:.6,colliders:1});
+    expect(short.count).toBeGreaterThanOrEqual(5);
+    expect(long.count).toBeGreaterThan(short.count);
+    expect(long.count).toBeLessThanOrEqual(33);
+    expect(long.resolution).toBeGreaterThanOrEqual(.02);
+    expect(long.resolution).toBeLessThanOrEqual(.08);
+    physics.dispose();
+  });
+
+
+  it('predicts and matches a real prismatic blocker moving out of an original prismatic trajectory',async()=>{
+    const physics=new PhysicsSystem(); await physics.init();
+    const store=new ObjectStore();
+    const sliderManifest=(axis,target)=>({
+      id:'slider',type:'drawer',source:{kind:'builtin'},actions:['open','close'],physics:{body:'fixed',colliders:[]},
+      parts:{slide:{node:'Slide',actions:['open','close'],targets:{open:target,close:0},physics:{body:'dynamic',mass:1,colliders:[{shape:'box',halfExtents:[.1,.1,.1]}]},joint:{type:'prismatic',axis,limits:[0,target],parentAnchor:[0,0,0],childAnchor:[0,0,0],motor:{stiffness:55,damping:9}}}}
     });
+    const add=(id,position,manifest)=>{
+      const root=new THREE.Group(); root.position.fromArray(position); const slide=new THREE.Group(); slide.name='Slide'; root.add(slide); root.updateMatrixWorld(true);
+      store.add(id,{id,assetId:'slider',object:root,manifest,state:{parts:{slide:'close'}}});
+      physics.attach(id,manifest,root);
+    };
+    const originalManifest=sliderManifest([1,0,0],.6);
+    const blockerManifest=sliderManifest([0,0,1],.5);
+    add('original',[0,0,0],originalManifest);
+    add('blocker',[.3,0,0],blockerManifest);
+    for(let i=0;i<20;i++) physics.step(1/60,store);
+
+    const beforeOriginal=physics.articulationState('original','slide');
+    const beforeBlocker=physics.articulationState('blocker','slide');
+    const predictedTarget=physics.articulationColliderPoses('blocker','slide',.5);
+    const evidence=physics.articulationPairCounterfactual('original','slide',.6,'blocker','slide',.5);
+    expect(evidence).toMatchObject({
+      checked:true,geometry:'rapier-shape-pairs',causal:false,
+      samples:expect.objectContaining({mode:'adaptive'}),
+      targetSweepClear:true,target:{conflictSamples:0}
+    });
+    expect(evidence.current.conflictSamples).toBeGreaterThan(0);
+    expect(evidence.conflictReduction).toBe(evidence.current.conflictSamples);
+    expect(evidence.samples.original).toBeGreaterThanOrEqual(5);
+    expect(evidence.samples.blocker).toBeGreaterThanOrEqual(5);
+    expect(physics.articulationState('original','slide').coordinate).toBeCloseTo(beforeOriginal.coordinate,8);
+    expect(physics.articulationState('blocker','slide').coordinate).toBeCloseTo(beforeBlocker.coordinate,8);
+
+    expect(physics.setArticulationTarget('blocker','slide',.5)).toBe(true);
+    for(let i=0;i<240;i++) physics.step(1/60,store);
+    const blockerState=physics.articulationState('blocker','slide',{target:.5});
+    expect(blockerState.error).toBeLessThan(.03);
+    const collider=physics.entries.get('blocker').parts.get('slide').body.collider(0);
+    const actual=collider.translation();
+    expect(predictedTarget.colliders[0].position.distanceTo(new THREE.Vector3(actual.x,actual.y,actual.z))).toBeLessThan(.03);
     physics.dispose();
   });
 

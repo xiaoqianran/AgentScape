@@ -1630,3 +1630,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.27 的 multi-action choice 已经不让 LLM 猜，但 hypothetical geometry 仍来自 Three AABB。1.28 没有复制一套 Physics world，而是直接复用 live Rapier collider shape 与当前 Part body/collider transform，计算 hypothetical joint coordinate 下的 collider poses，再做离散 `Shape.intersectsShape` pair query。真实 `ajar=-0.8` 两柜 fixture 中，open target 在 17 个 original samples 中仍冲突 13 个，close target 为 0；两者 current baseline 都是 17，因此 close 在 Physics evidence 下 rank-1。
 
 为了证明优先级不是偶然，专项测试故意让 Three AABB 推荐 open、Rapier shape-pair 推荐 close，Runtime 必须选择 close。若 Physics coverage 不完整、baseline 不一致或简化 revolute pivot 不支持，则显式 fallback，不把弱 evidence 冒充强 evidence。
+
+---
+
+## 50. 1.29：Prediction 第一次开始与执行后 Observation 对照
+
+1.28 首次把 hypothetical evidence 拉到 Rapier shape level；1.29 开始校准 fidelity。首先移除 non-zero revolute childAnchor 的简化限制：body 不再绕自身 origin 旋转，而围绕 child local anchor 对应的 world pivot 转动，并用真实 motor target pose 对拍。其次 sampling 从固定17改成基于 collider extent / joint travel 的 adaptive 5–33，真实 ajar fixture 自动得到 original=12、open=16、close=22，同时 Physics rank 仍稳定选 close。还新增真实 prismatic blocker fixture。
+
+更重要的是，selected blocker action verified 后会重新读取 original Part 与 blocker 的 live current contact，形成只存在于 tool result 的 calibration observation。Prediction clear + contact cleared 记录 consistent；Prediction clear + contact remains 记录 contradicted。两者都不能清 original unresolved。

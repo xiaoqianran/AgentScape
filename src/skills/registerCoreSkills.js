@@ -100,7 +100,7 @@ export function registerCoreSkills(registry, runtime) {
     });
     return {...pickup,recovery:{kind:'pickup-blocker',blockerId:a.blockerId,evidence:proposal.evidence},retryOriginal:true,verification:proposal.verification};
   });
-  add('recoverArticulatedBlocker', { ...meta('执行一个窄范围 articulated-Part blocker recovery：仅当该 blocker Part 仍是当前 contact candidate、当前 verified state 明确、只有一个可执行 alternate open/close、Policy 允许且 interaction/action-sweep preflight 通过时，才真实 approachAndInteract 改变 blocker Part。它是 auxiliary mutation；成功只验证 blocker Part 改态，原始失败动作仍必须 fresh-replan 后 retry。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId','blockerPartName','blockerAction'], {actorId:string,targetId:string,partName:string,blockerId:string,blockerPartName:string,blockerAction:{type:'string',enum:['open','close']},speed:{type:'number',exclusiveMinimum:0,maximum:8}}), batchable:false,auxiliary:true,mutates:true }, async(a,{registry,context})=>{
+  add('recoverArticulatedBlocker', { ...meta('执行一个窄范围 articulated-Part blocker recovery：仅当该 blocker Part 仍是当前 contact candidate、当前 verified state 明确，且 Runtime 已通过唯一 alternate 或 counterfactual ranking 选出 blockerAction、Policy 与 interaction preflight 仍通过时，才真实 approachAndInteract 改变 blocker Part。它是 auxiliary mutation；成功只验证 blocker Part 改态，原始失败动作仍必须 fresh-replan 后 retry。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId','blockerPartName','blockerAction'], {actorId:string,targetId:string,partName:string,blockerId:string,blockerPartName:string,blockerAction:{type:'string',enum:['open','close']},speed:{type:'number',exclusiveMinimum:0,maximum:8}}), batchable:false,auxiliary:true,mutates:true }, async(a,{registry,context})=>{
     const recovery=await buildRecoveryProposals(runtime,registry,{actorId:a.actorId,targetId:a.targetId,partName:a.partName,profile:context.profile || 'builder'});
     const proposal=recovery.proposals.find((item)=>
       item.eligible && item.recovery==='articulated-blocker'
@@ -118,9 +118,36 @@ export function registerCoreSkills(registry, runtime) {
       };
     }
     const interaction=await runtime.interactions.approachAndInteract(a.actorId,a.blockerId,a.blockerAction,{partName:a.blockerPartName,speed:a.speed});
+    let counterfactualCalibration=null;
+    const selectedEvidence=proposal.actionRanking?.actions?.find((item)=>item.action===a.blockerAction)?.physicsCounterfactual || null;
+    const blockerActionVerified=interaction.status==='action-completed' && interaction.targetReached===true && interaction.settled===true;
+    if (selectedEvidence?.checked && blockerActionVerified && typeof runtime.physics?.articulationContacts==='function') {
+      const originalPartName=proposal.verification?.args?.partName || a.partName;
+      const contacts=runtime.physics.articulationContacts(a.targetId,originalPartName) || [];
+      const currentContactStillPresent=contacts.some((contact)=>{
+        const target=contact?.target || {};
+        return contact?.external===true && target.kind==='object' && target.objectId===a.blockerId
+          && (target.partName || '$root')===a.blockerPartName;
+      });
+      const predictedClear=selectedEvidence.targetSweepClear===true;
+      counterfactualCalibration={
+        status:'observed',scope:'post-recovery-current-contact',causal:false,
+        prediction:{
+          strategy:proposal.actionRanking.strategy,basis:proposal.actionRanking.basis,
+          targetSweepClear:predictedClear,
+          targetConflictSamples:selectedEvidence.target?.conflictSamples ?? null,
+          conflictReduction:selectedEvidence.conflictReduction ?? null,
+          samples:structuredClone(selectedEvidence.samples || null)
+        },
+        observed:{blockerActionVerified:true,currentContactStillPresent},
+        consistency:predictedClear ? (currentContactStillPresent?'contradicted':'consistent') : 'not-comparable',
+        originalRetryRequired:true
+      };
+    }
     return {
       ...interaction,
       recovery:{kind:'articulated-blocker',blockerId:a.blockerId,blockerPartName:a.blockerPartName,blockerAction:a.blockerAction,evidence:proposal.evidence},
+      ...(counterfactualCalibration?{counterfactualCalibration}:{}),
       retryOriginal:true,verification:proposal.verification
     };
   });

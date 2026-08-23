@@ -231,4 +231,53 @@ describe('core skills', () => {
     expect(r.interactions.approachAndInteract).not.toHaveBeenCalled();
   });
 
+
+  it('reports contradicted counterfactual calibration when a verified blocker action leaves the live original contact in place',async()=>{
+    const r=runtime();
+    const candidate={kind:'object',objectId:'cabinet_B',partName:'door',colliderIndex:0};
+    const manifests={
+      cabinet_A:{actions:['open','close'],parts:{door:{node:'Door',actions:['open','close'],targets:{open:-1,close:0},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}},
+      cabinet_B:{actions:['open','close'],parts:{door:{node:'Door',actions:['open','close','ajar'],targets:{open:-1.35,close:0,ajar:-.8},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}}
+    };
+    r.store={has:vi.fn((id)=>id in manifests),get:vi.fn((id)=>({id,manifest:manifests[id],state:{parts:{door:id==='cabinet_B'?'ajar':'close'}}}))};
+    r.physics={
+      articulationContacts:vi.fn(()=>[{external:true,target:candidate,contactCount:1,activeContactCount:1,minDistance:-.001,totalImpulse:1}]),
+      articulationPairCounterfactual:vi.fn((_a,_ap,_at,_b,_bp,target)=>{
+        const close=target===0;
+        return {checked:true,geometry:'rapier-shape-pairs',causal:false,samples:{original:9,blocker:9,mode:'adaptive'},
+          current:{conflictSamples:8,pairIntersections:8},target:close?{conflictSamples:0,pairIntersections:0}:{conflictSamples:6,pairIntersections:6},
+          action:close?{conflictSamplePairs:10,pairIntersections:10}:{conflictSamplePairs:30,pairIntersections:30},
+          targetSweepClear:close,conflictReduction:close?8:2};
+      })
+    };
+    r.interactions.articulationStatus=vi.fn((id)=>id==='cabinet_A'?{
+      id,parts:[{partName:'door',status:'action-failed',verifiedAction:'close',requestedAction:null,last:{status:'action-failed',reason:'STALL',action:'open',attribution:{status:'contact-evidence',blockerCandidates:[candidate]}}}]
+    }:{id,parts:[{partName:'door',status:'verified-state',verifiedAction:'ajar',requestedAction:null,live:{coordinate:-.8,target:-.8,error:0,tolerance:.08}}]});
+    r.interactions.findInteractionPose=vi.fn(async(_actor,_id,{action,partName})=>({status:'approach-pose',position:[1,0,1],routeCost:action==='close'?1:2,actionSweep:{checked:true,clear:true,partName}}));
+    const geometry={
+      'cabinet_A:open:sweep':{min:[0,0,0],max:[2,2,2]},
+      'cabinet_B:ajar:target':{min:[.5,.2,.5],max:[1.5,1.8,1.5]},
+      'cabinet_B:open:target':{min:[.4,.2,.4],max:[1.4,1.8,1.4]},
+      'cabinet_B:close:target':{min:[3,.2,.5],max:[4,1.8,1.5]},
+      'cabinet_B:open:sweep':{min:[.3,.1,.3],max:[1.6,1.9,1.6]},
+      'cabinet_B:close:sweep':{min:[.3,.1,.3],max:[4,1.9,1.6]}
+    };
+    r.interactions.actionSweepBounds=vi.fn((id,action,partName,samples=9)=>({checked:true,partName,action,bounds:geometry[`${id}:${action}:${samples===1?'target':'sweep'}`] || geometry[`${id}:${action}:sweep`]}));
+    r.interactions.approachAndInteract=vi.fn(async()=>({status:'action-completed',targetReached:true,settled:true,targetId:'cabinet_B',partName:'door',action:'close'}));
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const result=await registry.invoke('recoverArticulatedBlocker',{
+      actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'
+    },{profile:'builder',actor:'agent_01'});
+    expect(result).toMatchObject({success:true,result:{
+      status:'action-completed',retryOriginal:true,
+      counterfactualCalibration:{
+        status:'observed',scope:'post-recovery-current-contact',causal:false,
+        prediction:{strategy:'articulated-rapier-shape-counterfactual-v2',basis:'rapier-shape-pairs',targetSweepClear:true,targetConflictSamples:0},
+        observed:{blockerActionVerified:true,currentContactStillPresent:true},
+        consistency:'contradicted',originalRetryRequired:true
+      }
+    }});
+    expect(r.interactions.approachAndInteract).toHaveBeenCalledOnce();
+  });
+
 });

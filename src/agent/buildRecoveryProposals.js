@@ -201,7 +201,7 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
         try {
           physicsCounterfactual=runtime.physics.articulationPairCounterfactual(
             targetId,failedPart.partName,originalTarget,
-            candidate.objectId,blockerPartName,part.targets[action],{samples:17}
+            candidate.objectId,blockerPartName,part.targets[action]
           ) || physicsCounterfactual;
         } catch (error) {
           physicsCounterfactual={checked:false,reason:error.code || 'PHYSICS_COUNTERFACTUAL_ERROR'};
