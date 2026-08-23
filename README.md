@@ -104,6 +104,7 @@ IndexedDB
 GitHub Pages 是静态前端，因此模型密钥和重型服务凭据不应存进浏览器。
 
 - LLM Gateway：[`docs/llm-gateway.md`](docs/llm-gateway.md)
+- 本地测试 Agent：[`docs/test-agent.md`](docs/test-agent.md)（OpenAI-compatible，Key 只在 `.env.local`）
 - Asset Generator：[`docs/asset-generator.md`](docs/asset-generator.md)
 - 重型 Compiler：[`services/asset-compiler/README.md`](services/asset-compiler/README.md)
 

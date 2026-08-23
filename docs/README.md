@@ -66,6 +66,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - [`asset-compiler.md`](./asset-compiler.md)：Agent-Ready Asset Compiler 的完整契约。
 - [`asset-generator.md`](./asset-generator.md)：可选 Asset Generator Gateway。
 - [`llm-gateway.md`](./llm-gateway.md)：LLM Tool Calling Gateway。
+- [`test-agent.md`](./test-agent.md)：1.15.1 本地 OpenAI-compatible 测试 Agent、Secret 边界、tool-call history 与 live probe。
 
 服务端补充：
 

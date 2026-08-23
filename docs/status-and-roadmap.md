@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.15.0** 当前状态。
+本文描述 **1.15.1** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -469,11 +469,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.15.0 文档快照对应的仓库验证基线：
+1.15.1 文档快照对应的仓库验证基线：
 
 ```text
-79 Test Files PASS
-205 Tests PASS
+81 Test Files PASS
+215 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -484,6 +484,9 @@ Embodied Locomotion Ruined Courtyard E2E PASS
 Physical-only blocker locomotion E2E PASS
 Kinematic CharacterController capsule/wall/yaw PASS
 Long mutation ownership/history lock PASS
+OpenAI-compatible local Agent adapter tests PASS
+Provider-neutral tool-call history PASS
+Nemotron live ToolCallingAgent→navigateTo probe PASS
 Counterfactual restore recovery PASS
 Live verification metadata sync PASS
 World-pack dynamic import chunks PASS

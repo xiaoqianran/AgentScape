@@ -57,3 +57,21 @@ Content-Type: application/json
 ```
 
 Gateway 可以连接 OpenAI、Anthropic、Gemini 或本地模型，只需把供应商原生 tool-calling 格式转换成上面的轻量协议。
+
+## 多轮 Tool Call History
+
+Gateway 协议中的 assistant message 可以携带：
+
+```json
+{
+  "role": "assistant",
+  "content": "",
+  "toolCalls": [
+    { "id": "call_1", "name": "navigateTo", "args": { "id": "agent_01", "end": [3,0,2] } }
+  ]
+}
+```
+
+下一条 tool result 使用同一个 `toolCallId`。这样 OpenAI-compatible adapter 可以恢复原生 `assistant.tool_calls → tool.tool_call_id` 顺序，不需要猜上一轮调用参数。
+
+本地/VPS 可直接使用仓库内置测试适配器，见 [`test-agent.md`](./test-agent.md)。真实 API Key 只能放 `.env.local`，不能放 Browser/Pages。

@@ -1,6 +1,6 @@
 {
   "name": "agentscape",
-  "version": "1.15.0",
+  "version": "1.15.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run assets:validate && npm run test && npm run build",
-    "assets:validate": "node tools/validate-assets.mjs"
+    "assets:validate": "node tools/validate-assets.mjs",
+    "agent:gateway": "node scripts/openai-compatible-agent-gateway.mjs",
+    "agent:probe": "node scripts/probe-test-agent.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.17.3",

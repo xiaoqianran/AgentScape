@@ -1502,3 +1502,13 @@ Pages 同时加入 Cinematic Mode：它只隐藏编辑 UI、扩大 viewport，�
 没有用 `moveObject` 把 Agent 按 waypoint teleport，也没有让 Detour Crowd 成为第二个 position authority。Detour 只给 global path；Rapier CharacterController 每帧执行 move-and-slide/autostep/snap-to-ground。真实 Ruined Courtyard E2E 证明 Agent 能沿 6 个 0.2m 台阶走上 1.2m 高台；另一个故意让 NavMesh 漏掉物理墙的测试证明 Agent 会停在墙前并返回 `PHYSICS_BLOCKED`。
 
 跨帧 locomotion 还暴露了历史事务的并发假设：原来的 `WorldRuntime.mutate()` 允许第二 mutation 在第一个 async mutation 未完成时进入。1.15 用一个 `mutationOwner` 明确串行化 world-write，不新增 Queue/Manager。
+
+---
+
+## 36. 1.15.1：真实模型测试不把 Secret 下发到 Browser
+
+1.15 有了真正的 embodied `navigateTo`，下一步需要确认真实 tool-calling 模型能正确选择这些能力。1.15.1 没有把 provider SDK/API Key 放进前端，而是新增 loopback OpenAI-compatible test gateway：浏览器仍只认识 provider-neutral `HttpLLMGateway`。
+
+两个候选模型都通过 native tool-call roundtrip；一个很小的三任务首工具 smoke 中 Nemotron 3/3、Muse 1/3，因此本地默认选择 Nemotron，Muse 保留 alternate。
+
+这轮还修正了 provider-neutral conversation history：assistant tool call 现在会写回 messages，下一轮 tool result 有完整 `toolCallId` 前驱。Local gateway 默认限制 CORS 到 loopback origins，避免任意网页借用本机代理中的 Secret。

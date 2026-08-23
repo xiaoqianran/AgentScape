@@ -29,12 +29,12 @@ export class ToolCallingAgent {
         tools: this.tools.definitions(),
         context: { world: await this.tools.call('listObjects') }
       });
-      if (response.message) messages.push({ role: 'assistant', content: response.message });
       if (!response.toolCalls.length) {
         const final = response.message || '任务完成。';
         this.log(final, 'result');
         return { message: final, steps: step + 1 };
       }
+      messages.push({ role: 'assistant', content: response.message || '', toolCalls: response.toolCalls });
 
       for (const call of response.toolCalls) {
         this.log(`plan: ${call.name} ${JSON.stringify(call.args)}`, 'plan');
