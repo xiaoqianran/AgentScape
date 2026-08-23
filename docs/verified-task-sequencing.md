@@ -1682,3 +1682,39 @@ unresolvedMutations = [open failure]
 ```
 
 具体 planning steps 会随采样波动，不作为能力指标。验证重点是 mutation 顺序、Runtime outcome 和最终 taskStatus。
+
+---
+
+## 67. 1.20.1：Planning Limit 也必须保留任务真值
+
+1.20.0 发布后审计发现一个终止边界：如果 Agent 已经产生 unresolved mutation，但之后一直做只读诊断，直到 `maxSteps` 用尽，旧代码会直接 throw：
+
+```text
+Agent exceeded N planning steps
+```
+
+这会丢掉本轮已经积累的：
+
+```text
+lastMutation
+unresolvedMutations
+execution
+```
+
+1.20.1 改为：只有在 planning limit 用尽且仍有 unresolved mutation 时，返回结构化不完整结果：
+
+```text
+taskStatus = incomplete
+termination = planning-limit
+unresolvedMutations = [...]
+execution = [...]
+```
+
+并通过现有 `agent.sequence` Trace 记录：
+
+```text
+termination = planning-limit
+unresolved = N
+```
+
+如果 planning limit 用尽但没有 unresolved mutation，仍保留原来的异常语义，因为那表示 planner 自身没有正常收敛，而不是一个已经可解释的 world-task failure。

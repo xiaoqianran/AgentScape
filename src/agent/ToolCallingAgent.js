@@ -124,6 +124,21 @@ export class ToolCallingAgent {
         }
       }
     }
+    const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
+    if (unresolved.length) {
+      const message = `Task incomplete: planning limit reached with ${unresolved.length} unresolved world mutation(s).`;
+      this.log(`sequence: ${message}`, 'error');
+      this.tools.recordSequence?.({
+        planningStep:this.maxSteps, executed:false, termination:'planning-limit',
+        unresolved:unresolved.length,
+        lastMutation:lastMutation ? structuredClone(lastMutation) : null
+      });
+      return {
+        message, steps:this.maxSteps, taskStatus:'incomplete', termination:'planning-limit',
+        lastMutation:lastMutation ? structuredClone(lastMutation) : null,
+        unresolvedMutations:unresolved, execution:structuredClone(execution)
+      };
+    }
     throw new Error(`Agent exceeded ${this.maxSteps} planning steps`);
   }
 }

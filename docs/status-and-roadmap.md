@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.20.0** 当前状态。
+本文描述 **1.20.1** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -538,11 +538,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.20.0 文档快照对应的仓库验证基线：
+1.20.1 文档快照对应的仓库验证基线：
 
 ```text
 94 Test Files PASS
-270 Tests PASS
+271 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -610,3 +610,5 @@ Python service tests PASS
 ```
 
 这些数字不是架构目标，只是帮助读者知道文档描述的能力已经有怎样的验证覆盖。未来测试数量变化时，应以当前 CI 为准。
+
+Planning-limit unresolved task preservation / trace PASS

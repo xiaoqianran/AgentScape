@@ -111,3 +111,19 @@ it('clears an unresolved mutation only when the same semantic step later verifie
   expect(result).toMatchObject({taskStatus:'completed',unresolvedMutations:[]});
   expect(result.execution.filter((entry)=>entry.executed&&entry.tool==='approachAndInteract')).toHaveLength(2);
 });
+
+
+it('terminates safely as incomplete at the planning limit when an adverse mutation remains unresolved',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}]};
+    return {message:'',toolCalls:[{id:`r${round}`,name:'listObjects',args:{}}]};
+  })};
+  const tools=makeTools({approachAndInteract:async()=>({status:'action-failed',reason:'STALL'})});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:3}).run('open then continue only if verified');
+  expect(result).toMatchObject({taskStatus:'incomplete',termination:'planning-limit',steps:3});
+  expect(result.unresolvedMutations).toHaveLength(1);
+  expect(result.unresolvedMutations[0]).toMatchObject({tool:'approachAndInteract',outcome:{state:'failed',reason:'STALL'}});
+  expect(tools.recordSequence).toHaveBeenCalledWith(expect.objectContaining({termination:'planning-limit',unresolved:1}));
+});
