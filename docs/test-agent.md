@@ -502,3 +502,34 @@ long-term conversation storage
 它的责任只有一个：
 
 > 在不把 Secret 暴露给 Browser/Pages 的前提下，让 AgentScape 可以真实测试 OpenAI-compatible tool-calling models。
+
+## 16. 1.16 Embodied Interaction Probe
+
+除了默认 locomotion probe，现在可运行：
+
+```bash
+npm run agent:probe -- interaction
+```
+
+目标要求模型：
+
+```text
+Walk agent_01 to cabinet_01 and open its door.
+Do not open it remotely; use the embodied interaction abstraction.
+```
+
+Probe 明确拒绝低层 `open`，成功标准是模型最终调用 `approachAndInteract`。Nemotron 与 Muse 都已在真实 upstream 上成功选择该高层工具，并正确区分：
+
+```text
+interaction-requested
+!=
+joint settled
+```
+
+这是 behavioral smoke，不是确定性模型排名；同一模型不同 run 可能先尝试一个不合适的纯 `navigateTo`，Runtime/Probe 会拒绝错误路径并让模型纠正。
+
+默认 Probe 静默；需要完整 plan/tool trace 时：
+
+```bash
+AGENTSCAPE_TEST_LLM_TRACE=1 npm run agent:probe -- interaction
+```

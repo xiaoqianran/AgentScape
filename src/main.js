@@ -97,15 +97,13 @@ async function main() {
               <small>搜索不到时 Agent 才应调用生成器。生成器返回 GLB URL + manifest。</small>
             </details>
             <div class="chips">
-              <button data-prompt="打开柜子">打开柜子</button>
-              <button data-prompt="关闭柜子">关闭柜子</button>
-              <button data-prompt="拿起杯子">拿起杯子</button>
-              <button data-prompt="把杯子放到桌上">放到桌上</button>
+              <button data-prompt="让 agent_01 走到 cabinet_01 前并打开柜门">走过去打开柜门</button>
+              <button data-prompt="让 agent_01 走到 cabinet_01 前并关闭柜门">走过去关闭柜门</button>
               <button data-prompt="建立一个咖啡角">建立咖啡角</button>
             </div>
             <div id="log" class="log"></div>
             <form id="command" class="command">
-              <input id="input" autocomplete="off" placeholder="例如：打开柜子" />
+              <input id="input" autocomplete="off" placeholder="例如：让 agent_01 走到 cabinet_01 前并打开柜门" />
               <button type="submit">执行</button>
             </form>
           </section>

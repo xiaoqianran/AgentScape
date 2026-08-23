@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.15.0** 的真实架构，不描述未来设想。
+本文描述 **1.16.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -688,3 +688,32 @@ Three / ObjectStore
 `navigateTo` 会等待 arrived/blocked 后才让 SkillRegistry 的 `runtime.mutate()` commit，整个跨帧行走只有一个 History command。为了避免长 mutation 与其它写操作争用同一个 CommandHistory pending slot，WorldRuntime 增加单一 `mutationOwner`；并发写明确返回 `WORLD_MUTATION_BUSY`。
 
 当前不接 Detour Crowd：单 Agent 的真实瓶颈是 physical move-and-slide，而不是群体 avoidance。详见 [`locomotion.md`](./locomotion.md)。
+
+---
+
+## 19. Embodied Interaction：可达不是可交互
+
+1.16 在已有 Navigation + Locomotion 上增加 `findInteractionPose / approachAndInteract`，但没有引入 TaskManager。
+
+```text
+Agent-facing approachAndInteract
+        ↓
+InteractionSystem
+        ├─ 8 candidate poses
+        ├─ NavigationSystem.findPath
+        ├─ fixed 1.5m range
+        ├─ PhysicsSystem.raycast
+        ├─ articulation swept AABB
+        ↓
+LocomotionSystem.navigate
+        ↓
+actual Rapier arrival pose
+        ↓
+range / LOS / sweep recheck
+        ↓
+setArticulationAction
+```
+
+InteractionSystem 只组织已有 truth owners：Navigation 仍拥有 path，Locomotion 仍拥有执行状态，Physics 仍拥有碰撞/LOS/joint motor。
+
+`interaction-requested` 只表示 motor target 已接受，不等于 joint settled。详情见 [`interaction-range.md`](./interaction-range.md)。

@@ -18,7 +18,8 @@ describe('LLM gateways', () => {
   it('local fallback emits multiple tool calls for a compound request', async () => {
     const gateway = new LocalPlannerGateway();
     const result = await gateway.complete({ messages: [{ role: 'user', content: '把杯子放到桌上，然后打开柜子' }] });
-    expect(result.toolCalls.map((call) => call.name)).toEqual(expect.arrayContaining(['place', 'open']));
+    expect(result.toolCalls.map((call) => call.name)).toEqual(expect.arrayContaining(['place', 'approachAndInteract']));
+    expect(result.toolCalls.find((call)=>call.name==='approachAndInteract')).toMatchObject({args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}});
   });
 });
 

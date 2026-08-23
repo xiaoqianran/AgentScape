@@ -1512,3 +1512,15 @@ Pages 同时加入 Cinematic Mode：它只隐藏编辑 UI、扩大 viewport，�
 两个候选模型都通过 native tool-call roundtrip；一个很小的三任务首工具 smoke 中 Nemotron 3/3、Muse 1/3，因此本地默认选择 Nemotron，Muse 保留 alternate。
 
 这轮还修正了 provider-neutral conversation history：assistant tool call 现在会写回 messages，下一轮 tool result 有完整 `toolCallId` 前驱。Local gateway 默认限制 CORS 到 loopback origins，避免任意网页借用本机代理中的 Secret。
+
+---
+
+## 37. 1.16：Agent 必须先站在一个不会妨碍动作的位置
+
+1.15 让 Agent 真正会走，但低层 `open` 仍然可以不考虑 Agent 身体位置。1.16 最初补了 Detour 可达 + 1.5m range + Rapier LOS，真实柜门 E2E 却暴露了更深的问题：最短交互位就在 Door 正前方，三项检查全过，但 Door 只转约 0.32rad 就撞上 Agent capsule。
+
+因此 interaction pose 最终增加第四层 `ACTION CLEAR`：从 Part rest pose、joint axis、当前 coordinate 和 action target 采样保守 swept AABB，候选 Agent physical capsule 不能与它相交；真正走到位后还会用实际 Rapier pose 再检查一次。Prismatic drawer 也有独立回归，证明不是 cabinet 特判。
+
+Agent-facing Skill 不暴露 interaction distance，避免模型把 1.5m 临时放宽成 forceAction。`approachAndInteract` 整条“找位→行走→复核→motor request”仍只有一个 mutation/history ownership。
+
+本轮没有把 pickup/place 冒充具身能力，因为现有 held target 属于 Human Camera；下一步必须先建立 Agent hold anchor / grasp ownership。

@@ -18,7 +18,9 @@ function runtime() {
     listObjects: () => [],
     spawn: vi.fn(async () => { value += 1; return 'x'; }),
     interactions: {
-      move: vi.fn(), pickup: vi.fn(), drop: vi.fn(), place: vi.fn(), setArticulationAction: vi.fn()
+      move: vi.fn(), pickup: vi.fn(), drop: vi.fn(), place: vi.fn(), setArticulationAction: vi.fn(),
+      findInteractionPose:vi.fn(async()=>({status:'approach-pose',position:[1,0,1]})),
+      approachAndInteract:vi.fn(async()=>({actorId:'agent_01',targetId:'cabinet_01',action:'open'}))
     },
     duplicate: vi.fn(), remove: vi.fn(),
     spatial: { getBounds:vi.fn(), findNearby:vi.fn(), raycast:vi.fn(), isColliding:vi.fn(), getSupportSurface:vi.fn(), findFreeSpace:vi.fn() },
@@ -79,6 +81,22 @@ describe('core skills', () => {
     expect(r.navigation.suggestActions).toHaveBeenCalledWith([0,0,0],[3,0,0],{maxSnapDistance:undefined,maxCandidates:undefined});
     expect(r.navigation.canReach).toHaveBeenCalledWith([0,0,0],[3,0,0],{maxSnapDistance:undefined});
     expect(registry.definitions().find((item)=>item.name==='findPath').parameters.required).toEqual(['start','end']);
+  });
+
+  it('exposes embodied interaction pose discovery and wraps approach+open in one mutation', async () => {
+    const r = runtime();
+    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r);
+    const pose = await registry.invoke('findInteractionPose', { actorId:'agent_01', targetId:'cabinet_01' }, { profile:'viewer' });
+    expect(pose).toMatchObject({success:true,result:{status:'approach-pose',position:[1,0,1]}});
+    const task = await registry.invoke('approachAndInteract', { actorId:'agent_01', targetId:'cabinet_01', action:'open', partName:'door' }, { profile:'builder', actor:'agent_01' });
+    expect(task).toMatchObject({success:true,result:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}});
+    expect(r.interactions.approachAndInteract).toHaveBeenCalledWith('agent_01','cabinet_01','open',{partName:'door',speed:undefined});
+    expect(r.mutate).toHaveBeenCalledWith('skill:approachAndInteract',expect.any(Function),expect.objectContaining({source:'agent_01',skill:'approachAndInteract'}));
+    const definition=registry.definitions().find((item)=>item.name==='approachAndInteract');
+    expect(definition.parameters.required).toEqual(['actorId','targetId','action']);
+    expect(definition.parameters.properties.action.enum).toEqual(['open','close']);
+    expect(definition.parameters.properties.maxDistance).toBeUndefined();
+    expect(registry.definitions().find((item)=>item.name==='findInteractionPose').parameters.properties.maxDistance).toBeUndefined();
   });
 
 });

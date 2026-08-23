@@ -693,3 +693,7 @@ Agent Body
 ```
 
 这是后续 Multi-Agent、交互距离、Manipulation locomotion 的可信基础。
+
+## 19. 1.16：从走到坐标到走到交互位
+
+`navigateTo` 在 1.16 仍然是纯坐标 locomotion 原语。对于“走到对象前并 open/close”的任务，不应该把 target center 猜成导航终点，而使用 `approachAndInteract`：它会先找 Detour 可达、固定交互距离、Rapier LOS 和 action sweep 都成立的位姿，再复用 LocomotionSystem。详见 [`interaction-range.md`](./interaction-range.md)。

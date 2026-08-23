@@ -401,3 +401,7 @@ RRT / TAMP motion planning
 > “有没有一个**单个、可验证的可交互 obstacle**，移除其阻挡后路径就会出现？”
 
 这是可解释、可测试、不会虚构世界状态的最小闭环。
+
+## 与 1.16 Embodied Interaction 的关系
+
+1.14 的 `suggestNavigationActions` 回答“哪个可交互 obstacle 可能让路径重新出现”；1.16 的 `approachAndInteract` 回答“Agent 应站在哪里才能安全请求这个 articulation action”。前者是 navigation blocker counterfactual，后者是 interaction precondition，不应合成一个 Planner。详见 [`interaction-range.md`](./interaction-range.md)。

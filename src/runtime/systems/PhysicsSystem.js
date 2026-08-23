@@ -142,7 +142,7 @@ export class PhysicsSystem {
         joint.setContactsEnabled(false);
         if (part.joint.limits) joint.setLimits(part.joint.limits[0], part.joint.limits[1]);
         bodies.set(partName, child);
-        entry.parts.set(partName, { body: child, joint, node, spec: part, parentName, lastLocalRotation: node.quaternion.clone(), lastLocalPosition: node.position.clone() });
+        entry.parts.set(partName, { body: child, joint, node, spec: part, parentName, restLocalRotation:node.quaternion.clone(), restLocalPosition:node.position.clone(), lastLocalRotation: node.quaternion.clone(), lastLocalPosition: node.position.clone() });
       }
 
       this.entries.set(id, entry);
@@ -238,6 +238,44 @@ export class PhysicsSystem {
   getPosition(id) {
     const p = this.entries.get(id)?.body?.translation();
     return p ? [p.x, p.y, p.z] : null;
+  }
+
+  getPartRestPose(id, partName) {
+    const part = this.entries.get(id)?.parts.get(partName);
+    if (!part) return null;
+    return { position:part.restLocalPosition.toArray(), rotation:part.restLocalRotation.toArray() };
+  }
+
+  ownerOfBodyHandle(handle) {
+    for (const [id, entry] of this.entries) {
+      if (entry.body.handle === handle) return { id, part: '$root' };
+      for (const [part, value] of entry.parts) if (value.body.handle === handle) return { id, part };
+    }
+    return null;
+  }
+
+  raycast(origin, target, { excludeId = null } = {}) {
+    const direction = [target[0] - origin[0], target[1] - origin[1], target[2] - origin[2]];
+    const distance = Math.hypot(...direction);
+    if (!Number.isFinite(distance) || distance < 1e-8 || !this.world) return null;
+    const normalized = direction.map((value) => value / distance);
+    const excludedBody = excludeId ? this.entries.get(excludeId)?.body || null : null;
+    const ray = new RAPIER.Ray(vec(origin), vec(normalized));
+    const hit = this.world.castRay(ray, distance, true, undefined, undefined, undefined, excludedBody);
+    if (!hit) return null;
+    const body = hit.collider.parent();
+    const owner = body ? this.ownerOfBodyHandle(body.handle) : null;
+    return {
+      id:owner?.id || null,
+      part:owner?.part || null,
+      environment:!owner,
+      distance:hit.timeOfImpact,
+      point:[
+        origin[0] + normalized[0] * hit.timeOfImpact,
+        origin[1] + normalized[1] * hit.timeOfImpact,
+        origin[2] + normalized[2] * hit.timeOfImpact
+      ]
+    };
   }
 
   faceCharacter(id, direction) {

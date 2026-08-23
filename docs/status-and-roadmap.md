@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.15.1** 当前状态。
+本文描述 **1.16.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -9,10 +9,10 @@
 │----------│----------│----------│----------│----------│
 ██████████████████████████████░░░░░░░░░░░░░░░░░░░░
                               ▲
-                           当前 ≈ 75%
+                           当前 ≈ 78%
 ```
 
-75% 不是“代码写完 75%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
+78% 不是“代码写完 78%”，而是：基础 Runtime 和 Asset→Executable 纵向链已经成熟，剩余主要是更困难的验证、导航、自动语义与世界级能力。
 
 ---
 
@@ -23,17 +23,17 @@
 | Web Runtime | 90% | Three / Rapier / lifecycle / persistence + kinematic Agent Body 已形成稳定运行时 |
 | Human Editor | 75% | 可用，但不是当前差异化主线 |
 | Skill / Policy / Trace | 80% | 单一能力边界已经形成 |
-| Spatial API | 88% | placement + Recast/Detour + query-time TileCache 动态障碍已形成当前世界可达性 |
+| Spatial API | 92% | placement + current-world Recast/TileCache + 1.16 具身 interaction pose / physical LOS 已形成稳定空间事实层 |
 | Scene Persistence / History | 85% | schema / autosave / undo-redo 基本成熟 |
 | Asset Compiler 基础 | 90% | inspect / normalize / budget / quality 很完整 |
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
-| Runtime Articulation | 85% | 多级 Part + Rapier action 已通 |
+| Runtime Articulation | 90% | 多级 Part + Rapier action + interaction action-sweep precondition 已通；live settled observation 仍缺 |
 | Runtime Verification | 75% | 1.8 已有阶段化 Motion Sweep；仍可继续补外部环境/多对象任务级验证 |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
-| Grasp / Manipulation Geometry | 15% | 尚未成为主干能力 |
+| Grasp / Manipulation Geometry | 20% | 1.16 建立 interaction pose/sweep 基线；Agent hand anchor / grasp ownership 仍未实现 |
 | Navigation / Reachability | 90% | 1.15 已有 Detour path + Rapier physical locomotion；自动动态 replan / off-mesh / multi-agent avoidance 仍缺 |
 | 大型 World Runtime | 58% | 1.13 已有 96×72m 城市基线；19 Recast meshes / 38 renderables / 330–489ms build，当前暂无 streaming 证据 |
 | Multi-Agent | 10% | 不是当前优先级 |
@@ -213,22 +213,41 @@ arrived | blocked
 
 ---
 
-## 8. 当前 P0：Interaction-range Task Execution
+## 8. 1.16 已完成：Interaction-range Open / Close
 
-Agent 已经会走，但 `open / pickup / place` 当前还没有统一的“必须先到交互距离”约束。下一步更有价值的是把：
+`approachAndInteract` 现在把：
 
 ```text
-find target
-→ navigate to interaction pose
-→ verify range / line-of-sight
-→ execute open/pickup/place
+Detour reachable
++ fixed 1.5m range
++ Rapier line-of-sight
++ Agent clear of articulation sweep
++ real locomotion
++ arrival recheck
 ```
 
-做成可信闭环，而不是马上进入 Multi-Agent Crowd。
+合成一个具身 open/close transaction。真实 Cabinet E2E 曾证明“只满足 range+LOS”仍会让 Agent 自己挡住 Door，因此加入基于 joint contract 的 swept AABB；Prismatic drawer 也有独立回归。
 
 ---
 
-## 9. 1.11–1.12 已完成：Curated Multi-World Layer
+## 9. 当前 P0：Agent Hold Anchor / Grasp Ownership
+
+下一步不是把现有 `pickup()` 直接贴到 Agent 上。当前 held object target 仍来自 Human Camera，所以真正具身 pickup/place 需要先定义：
+
+```text
+Agent hand / hold anchor
+→ pickup interaction pose
+→ grasp ownership
+→ held-object collider policy
+→ carried-object navigation clearance
+→ place release truth
+```
+
+在这条链成立前，pickup/place 仍是 Human/scene-level Runtime 原语，不宣称为 embodied manipulation。
+
+---
+
+## 10. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -253,7 +272,7 @@ Three.js architecture
 
 ---
 
-## 10. P1：完整 Joint Frame
+## 11. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -289,7 +308,7 @@ Schema claim second
 
 ---
 
-## 11. P2：Compact Agent Observation
+## 12. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -317,7 +336,7 @@ world size
 
 ---
 
-## 12. 自动语义：宁可慢一点，也不虚构能力
+## 13. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -355,7 +374,7 @@ high coverage + fake capability
 
 ---
 
-## 13. 目前不应该成为优先级的方向
+## 14. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -372,7 +391,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 14. 产品差异化应该是什么
+## 15. 产品差异化应该是什么
 
 不应该是：
 
@@ -404,7 +423,7 @@ Agent World
 
 ---
 
-## 15. 未来完成态
+## 16. 未来完成态
 
 可以把 100% 理解为：
 
@@ -469,11 +488,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.15.1 文档快照对应的仓库验证基线：
+1.16.0 文档快照对应的仓库验证基线：
 
 ```text
-81 Test Files PASS
-215 Tests PASS
+83 Test Files PASS
+222 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -481,12 +500,18 @@ Ruined Courtyard split-level Recast PASS
 Grand Urban Block 96×72m Recast benchmark PASS
 Action-aware Navigation E2E PASS
 Embodied Locomotion Ruined Courtyard E2E PASS
+Embodied interaction range / Rapier LOS E2E PASS
+Articulation action-sweep pose guard PASS
+Arrival-pose action-sweep recheck PASS
+Prismatic / revolute current-coordinate sweep PASS
 Physical-only blocker locomotion E2E PASS
 Kinematic CharacterController capsule/wall/yaw PASS
 Long mutation ownership/history lock PASS
 OpenAI-compatible local Agent adapter tests PASS
 Provider-neutral tool-call history PASS
 Nemotron live ToolCallingAgent→navigateTo probe PASS
+Nemotron live approachAndInteract interaction probe PASS
+Muse live approachAndInteract interaction probe PASS
 Counterfactual restore recovery PASS
 Live verification metadata sync PASS
 World-pack dynamic import chunks PASS
