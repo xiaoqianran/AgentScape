@@ -45,6 +45,16 @@ describe('Rapier articulated counterfactual geometry',()=>{
     expect(close.current.conflictSamples).toBe(open.current.conflictSamples);
     expect(close.conflictReduction).toBeGreaterThan(open.conflictReduction);
     expect(close.action.conflictSamplePairs).toBeGreaterThan(0);
+    const convergence=physics.articulationPairCounterfactualConvergence('cabinet_A','door',-1.35,'cabinet_B','door',0);
+    expect(convergence).toMatchObject({
+      checked:true,status:'stable',causal:false,
+      qualitative:{targetSweepClear:true,clearanceGain:true},
+      base:{samples:expect.objectContaining({mode:'adaptive'})},
+      dense:{samples:expect.objectContaining({mode:'fixed-pair'})}
+    });
+    expect(convergence.dense.samples.original).toBeGreaterThan(convergence.base.samples.original);
+    expect(convergence.dense.samples.blocker).toBeGreaterThan(convergence.base.samples.blocker);
+    expect(convergence.maxRatioDrift).toBeLessThan(.2);
     const afterA=physics.articulationState('cabinet_A','door');
     const afterB=physics.articulationState('cabinet_B','door');
     expect(afterA.coordinate).toBeCloseTo(beforeA.coordinate,8);
@@ -163,6 +173,77 @@ describe('Rapier articulated counterfactual geometry',()=>{
     const collider=physics.entries.get('blocker').parts.get('slide').body.collider(0);
     const actual=collider.translation();
     expect(predictedTarget.colliders[0].position.distanceTo(new THREE.Vector3(actual.x,actual.y,actual.z))).toBeLessThan(.03);
+    physics.dispose();
+  });
+
+
+  it('matches a nested child hypothetical pose after its articulated parent has already moved',async()=>{
+    const physics=new PhysicsSystem(); await physics.init();
+    const store=new ObjectStore();
+    const manifest={
+      id:'nested-frame',type:'cabinet',source:{kind:'builtin'},actions:['open','close'],physics:{body:'fixed',colliders:[]},
+      parts:{
+        door:{
+          node:'Door',actions:['open','close'],targets:{open:-.5,close:0},
+          physics:{body:'dynamic',mass:1,colliders:[{shape:'box',halfExtents:[.35,.7,.06]}]},
+          joint:{type:'revolute',axis:[0,1,0],limits:[-.5,0],parentAnchor:[0,1,0],childAnchor:[-1,0,0],motor:{stiffness:65,damping:11}}
+        },
+        slider:{
+          node:'Slider',parent:'door',actions:['open','close'],targets:{open:.35,close:0},
+          physics:{body:'dynamic',mass:.5,colliders:[{shape:'box',halfExtents:[.08,.08,.12]}]},
+          joint:{type:'prismatic',axis:[1,0,0],limits:[0,.35],parentAnchor:[.45,0,0],childAnchor:[0,0,0],motor:{stiffness:60,damping:10}}
+        }
+      }
+    };
+    const root=new THREE.Group();
+    const door=new THREE.Group(); door.name='Door'; door.position.set(1,1,0); root.add(door);
+    const slider=new THREE.Group(); slider.name='Slider'; slider.position.set(.45,0,0); door.add(slider);
+    root.updateMatrixWorld(true);
+    store.add('nested',{id:'nested',assetId:'nested-frame',object:root,manifest,state:{parts:{door:'close',slider:'close'}}});
+    physics.attach('nested',manifest,root);
+    for(let i=0;i<20;i++) physics.step(1/60,store);
+    // Keep the free prismatic child at its verified close coordinate while the parent moves.
+    expect(physics.setArticulationTarget('nested','slider',0)).toBe(true);
+
+    expect(physics.setArticulationTarget('nested','door',-.5)).toBe(true);
+    for(let i=0;i<300;i++) physics.step(1/60,store);
+    const doorState=physics.articulationState('nested','door',{target:-.5});
+    expect(doorState.error).toBeLessThan(.08);
+
+    const sliderBefore=physics.articulationState('nested','slider');
+    expect(Math.abs(sliderBefore.coordinate)).toBeLessThan(.03);
+    const predicted=physics.articulationColliderPoses('nested','slider',.35);
+    expect(predicted).toMatchObject({checked:true,jointType:'prismatic',coordinate:.35});
+    const parentRotation=new THREE.Quaternion();
+    door.getWorldQuaternion(parentRotation);
+    const expectedWorldAxis=new THREE.Vector3(1,0,0).applyQuaternion(parentRotation).normalize();
+    const currentBody=physics.entries.get('nested').parts.get('slider').body.translation();
+    const predictedDelta=predicted.colliders[0].position.clone().sub(new THREE.Vector3(currentBody.x,currentBody.y,currentBody.z));
+    expect(Math.abs(predictedDelta.clone().normalize().dot(expectedWorldAxis))).toBeGreaterThan(.98);
+
+    const parentBody=physics.entries.get('nested').parts.get('door').body;
+    const parentBeforePosRaw=parentBody.translation(); const parentBeforeRotRaw=parentBody.rotation();
+    const parentBeforePos=new THREE.Vector3(parentBeforePosRaw.x,parentBeforePosRaw.y,parentBeforePosRaw.z);
+    const parentBeforeRot=new THREE.Quaternion(parentBeforeRotRaw.x,parentBeforeRotRaw.y,parentBeforeRotRaw.z,parentBeforeRotRaw.w).normalize();
+    const predictedLocalPosition=predicted.colliders[0].position.clone().sub(parentBeforePos).applyQuaternion(parentBeforeRot.clone().invert());
+    const predictedLocalRotation=parentBeforeRot.clone().invert().multiply(predicted.colliders[0].rotation).normalize();
+
+    expect(physics.setArticulationTarget('nested','slider',.35)).toBe(true);
+    for(let i=0;i<260;i++) physics.step(1/60,store);
+    const sliderState=physics.articulationState('nested','slider',{target:.35});
+    expect(sliderState.error).toBeLessThan(.03);
+    const collider=physics.entries.get('nested').parts.get('slider').body.collider(0);
+    const rawPos=collider.translation(); const rawRot=collider.rotation();
+    const actualPosition=new THREE.Vector3(rawPos.x,rawPos.y,rawPos.z);
+    const actualRotation=new THREE.Quaternion(rawRot.x,rawRot.y,rawRot.z,rawRot.w).normalize();
+    const parentAfterPosRaw=parentBody.translation(); const parentAfterRotRaw=parentBody.rotation();
+    const parentAfterPos=new THREE.Vector3(parentAfterPosRaw.x,parentAfterPosRaw.y,parentAfterPosRaw.z);
+    const parentAfterRot=new THREE.Quaternion(parentAfterRotRaw.x,parentAfterRotRaw.y,parentAfterRotRaw.z,parentAfterRotRaw.w).normalize();
+    const actualLocalPosition=actualPosition.clone().sub(parentAfterPos).applyQuaternion(parentAfterRot.clone().invert());
+    const actualLocalRotation=parentAfterRot.clone().invert().multiply(actualRotation).normalize();
+    expect(predictedLocalPosition.distanceTo(actualLocalPosition)).toBeLessThan(.035);
+    expect(2*Math.acos(Math.min(1,Math.abs(predictedLocalRotation.dot(actualLocalRotation))))).toBeLessThan(.08);
+    expect(parentBeforePos.distanceTo(parentAfterPos)).toBeGreaterThan(1e-4);
     physics.dispose();
   });
 

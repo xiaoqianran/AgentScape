@@ -4,7 +4,7 @@ import { buildRecoveryProposals } from '../src/agent/buildRecoveryProposals.js';
 const blockerCandidate={kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0};
 const environmentCandidate={kind:'environment',environmentId:'monument-hall',colliderIndex:4};
 
-function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,articulatedAllow=allow,cleanupAllow=allow,carryError=null,planCosts={},recoveryHeld=null,cleanupPlan=null,articulatedStatus=null,articulatedActions=['open','close'],actionGeometry={},physicsCounterfactual=null}={}){
+function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,articulatedAllow=allow,cleanupAllow=allow,carryError=null,planCosts={},recoveryHeld=null,cleanupPlan=null,articulatedStatus=null,articulatedActions=['open','close'],actionGeometry={},physicsCounterfactual=null,physicsConvergence=null}={}){
   const records=new Map([
     ['agent_01',{id:'agent_01',assetId:'agent',manifest:{actions:['navigate']},state:{}}],
     ['cabinet_01',{id:'cabinet_01',assetId:'cabinet',manifest:{actions:['open','close'],parts:{door:{node:'Door',actions:['open','close'],targets:{open:-1,close:0},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}},state:{parts:{door:'close'}}}],
@@ -19,7 +19,8 @@ function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=t
     store:{has:(id)=>records.has(id),get:(id)=>records.get(id)},
     physics:{
       articulationContacts:vi.fn(()=>current.map((item)=>item?.target ? item : ({external:true,target:item,contactCount:1,activeContactCount:1,minDistance:-.001,totalImpulse:1}))),
-      ...(physicsCounterfactual ? {articulationPairCounterfactual:vi.fn(physicsCounterfactual)} : {})
+      ...(physicsCounterfactual ? {articulationPairCounterfactual:vi.fn(physicsCounterfactual)} : {}),
+      ...(physicsConvergence ? {articulationPairCounterfactualConvergence:vi.fn(physicsConvergence)} : {})
     },
     interactions:{
       articulationStatus:vi.fn((id)=>id==='articulated_01'
@@ -274,6 +275,54 @@ describe('verified recovery proposals',()=>{
         actionRanking:{strategy:'articulated-target-sweep-counterfactual-v1',basis:'three-aabb-fallback',fallbackReason:'PHYSICS_COUNTERFACTUAL_BASELINE_INCONSISTENT',causal:false}
       }]
     });
+  });
+
+  it('falls back from Physics ranking when denser counterfactual sampling changes the selected qualitative result',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const actionGeometry={
+      'cabinet_01:open:sweep':{min:[0,0,0],max:[2,2,2]},
+      'articulated_01:ajar:target':{min:[.5,.2,.5],max:[1.5,1.8,1.5]},
+      'articulated_01:open:target':{min:[.4,.2,.4],max:[1.4,1.8,1.4]},
+      'articulated_01:open:sweep':{min:[.2,.1,.2],max:[1.6,1.9,1.6]},
+      'articulated_01:close:target':{min:[3,.2,.4],max:[4,1.8,1.4]},
+      'articulated_01:close:sweep':{min:[.8,.1,.2],max:[4,1.9,1.6]}
+    };
+    const physicsCounterfactual=(_a,_ap,_at,_b,_bp,target)=>{
+      const close=target===0;
+      return {
+        checked:true,geometry:'rapier-shape-pairs',causal:false,
+        samples:{original:9,blocker:close?11:9,mode:'adaptive'},
+        current:{conflictSamples:8,pairIntersections:8},
+        target:close?{conflictSamples:0,pairIntersections:0}:{conflictSamples:6,pairIntersections:6},
+        action:close?{conflictSamplePairs:10,pairIntersections:10}:{conflictSamplePairs:30,pairIntersections:30},
+        targetSweepClear:close,conflictReduction:close?8:2
+      };
+    };
+    const physicsConvergence=()=>({
+      checked:true,status:'unstable',causal:false,
+      qualitative:{targetSweepClear:false,clearanceGain:true},
+      base:{samples:{original:9,blocker:11,mode:'adaptive'}},
+      dense:{samples:{original:18,blocker:22,mode:'fixed-pair'}},
+      ratios:{base:{current:.88,target:0,action:.1},dense:{current:.89,target:.12,action:.11},drift:{current:.01,target:.12,action:.01}},
+      maxRatioDrift:.12
+    });
+    const {runtime,registry}=setup({
+      candidates:[articulated],current:[articulated],articulatedActions:['open','close','ajar'],actionGeometry,physicsCounterfactual,physicsConvergence,
+      articulatedStatus:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'ajar'}
+    });
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result).toMatchObject({
+      status:'recovery-proposed',recommended:{args:{blockerAction:'close'}},
+      proposals:[{
+        blockerAction:'close',
+        actionRanking:{
+          strategy:'articulated-target-sweep-counterfactual-v1',basis:'three-aabb-fallback',causal:false,
+          fallbackReason:'PHYSICS_COUNTERFACTUAL_UNSTABLE',
+          convergence:{status:'unstable',causal:false,qualitative:{targetSweepClear:false,clearanceGain:true},maxRatioDrift:.12}
+        }
+      }]
+    });
+    expect(runtime.physics.articulationPairCounterfactualConvergence).toHaveBeenCalledOnce();
   });
 
   it('prefers Rapier shape-pair evidence when it conflicts with Three AABB action ranking',async()=>{

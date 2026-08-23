@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.29.0** 当前状态。
+本文描述 **1.30.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -29,7 +29,7 @@
 | Part / Articulation Compiler | 80% | proposal / hierarchy / joint / materialization 已通 |
 | Part Geometry / Collider | 85% | local AABB + per-part CoACD 已通 |
 | Runtime Articulation | 97% | 多级 Part + Rapier motor + action sweep + 1.19 live joint completion / STALL / TIMEOUT / verified promotion 已通 |
-| Runtime Verification | 99% | Recovery、Physics-first hypothetical geometry、1.29 adaptive sampling / joint-frame generalization / observed calibration 已闭环；剩余是 convergence、nested-frame 与 broader hypothetical coverage |
+| Runtime Verification | 99% | Recovery、Physics-first hypothetical geometry、adaptive sampling/calibration 与 1.30 convergence/nested-frame gate 已闭环；剩余是 third-object/environment hypothetical coverage 与 broader calibration |
 | 自动 Part Segmentation 接入 | 50% | 协议/物化已通，默认模型未绑定 |
 | 自动 Semantics | 35% | 仍以 evidence/provider 为主 |
 | 自动 Joint / Target 推断 | 30% | 保守，不愿用猜测换 coverage |
@@ -352,31 +352,39 @@ Revolute hypothetical pose 现在支持 non-zero `childAnchor`：先保持 child
 
 ---
 
-## 22. 当前 P0：Counterfactual Convergence / Nested-frame Coverage
+## 22. 1.30 已完成：Counterfactual Convergence / Nested-frame Coverage
 
-1.29 已能自适应采样并观察执行后 contact，但还没有系统回答：
+Selected Physics rank-1 action 现在会经过 `articulationPairCounterfactualConvergence`：先运行 adaptive base，再用更密的 original/blocker independent sample counts（单边 cap 33）重跑。只有 `targetSweepClear` 与 `conflictReduction>0` 两个定性结论都保持一致，Physics v2 才继续；否则 `PHYSICS_COUNTERFACTUAL_UNSTABLE` 并显式降级 Three fallback。Report 同时记录 normalized current/target/action conflict ratios 与 drift，但目前只作 evidence，不变成成功阈值。真实两柜 fixture adaptive→dense 保持 stable；专项反例故意让 dense 翻转 target clear，Runtime 正确撤销 Physics-first。
 
-```text
-adaptive N 的预测
-vs
-更密 N×2 的预测
-是否稳定？
-```
-
-以及 nested articulated parent 已移动时，child Part hypothetical frame 是否仍与真实 motor 对齐。下一阶段优先：
-
-```text
-adaptive prediction convergence report
-nested Part parent-frame motor-vs-hypothetical fixture
-third-object hypothetical collision coverage
-bounded calibration summary（仍不持久学习）
-```
-
-在这些 coverage 成立前，不引入 multi-step recovery search tree。
+Nested Door→Slider fixture 也进入真实 motor 对拍：先用 motor 将 free child prismatic 保持在 close，再让 parent Door 真实转到 -0.5rad；此时 child hypothetical +0.35m 的 world axis 跟随 parent rotation，执行真实 child motor 后 predicted/actual local-to-parent pose 在 tolerance 内。测试同时证明 child motor 会让 dynamic parent world pose产生非零 drift，因此 evidence 显式标记 `parent-pose-at-query / parent-poses-static-during-hypothesis`，不 claim parent-child reaction dynamics。Nemotron/Muse convergence strict probe 与 1.26 articulated regression 均通过。
 
 ---
 
-## 23. 1.11–1.12 已完成：Curated Multi-World Layer
+## 23. 当前 P0：Third-object Hypothetical Collision Coverage
+
+1.30 已验证 original Part ↔ blocker Part 的 pairwise shape-pair counterfactual，但 selected blocker action 还没有系统检查：
+
+```text
+hypothetical blocker trajectory
+vs
+Environment / third-object live colliders
+```
+
+下一阶段优先补：
+
+```text
+selected blocker target/action envelope
+→ live world collider query（排除 original pair/self）
+→ third-object/environment blockers
+→ non-mutating evidence
+→ execution-time revalidation
+```
+
+仍然不先引入 multi-step recovery search tree。
+
+---
+
+## 24. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -401,7 +409,7 @@ Three.js architecture
 
 ---
 
-## 24. P1：完整 Joint Frame
+## 25. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -437,7 +445,7 @@ Schema claim second
 
 ---
 
-## 25. P2：Compact Agent Observation
+## 26. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -465,7 +473,7 @@ world size
 
 ---
 
-## 26. 自动语义：宁可慢一点，也不虚构能力
+## 27. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -503,7 +511,7 @@ high coverage + fake capability
 
 ---
 
-## 27. 目前不应该成为优先级的方向
+## 28. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -520,7 +528,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 28. 产品差异化应该是什么
+## 29. 产品差异化应该是什么
 
 不应该是：
 
@@ -552,7 +560,7 @@ Agent World
 
 ---
 
-## 29. 未来完成态
+## 30. 未来完成态
 
 可以把 100% 理解为：
 
@@ -617,11 +625,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.29.0 文档快照对应的仓库验证基线：
+1.30.0 文档快照对应的仓库验证基线：
 
 ```text
 105 Test Files PASS
-339 Tests PASS
+341 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -768,6 +776,12 @@ Post-recovery counterfactual calibration consistent PASS
 Post-recovery counterfactual calibration contradicted PASS
 Nemotron adaptive/calibration counterfactual probe PASS
 Muse adaptive/calibration counterfactual probe PASS
+Adaptive→dense counterfactual convergence PASS
+Unstable convergence → Physics fallback PASS
+Nested parent-moved child local-frame hypothetical-vs-motor PASS
+Explicit parent-pose-at-query frame assumption PASS
+Nemotron convergence strict probe PASS
+Muse convergence strict probe PASS
 1.26 unique-action articulated recovery regression PASS
 ```
 

@@ -170,7 +170,10 @@ describe('verified articulated blocker recovery',()=>{
       proposals:[expect.objectContaining({
         blockerAction:'close',
         blockerState:expect.objectContaining({verifiedAction:'ajar',requestedAction:null}),
-        actionRanking:expect.objectContaining({strategy:'articulated-rapier-shape-counterfactual-v2',basis:'rapier-shape-pairs',causal:false,current:expect.objectContaining({action:'ajar'})})
+        actionRanking:expect.objectContaining({
+          strategy:'articulated-rapier-shape-counterfactual-v2',basis:'rapier-shape-pairs',causal:false,current:expect.objectContaining({action:'ajar'}),
+          convergence:expect.objectContaining({status:'stable',causal:false,qualitative:{targetSweepClear:true,clearanceGain:true},samples:{base:expect.objectContaining({mode:'adaptive'}),dense:expect.objectContaining({mode:'fixed-pair'})}})
+        })
       })]
     });
     const ranking=suggestion.proposals[0].actionRanking;

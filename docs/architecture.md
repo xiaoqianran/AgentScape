@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.29.0** 的真实架构，不描述未来设想。
+本文描述 **1.30.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -1019,3 +1019,9 @@ verification   = later original action retry post-condition
 ```
 
 三者不共用 success 语义；`consistent` 也明确 `originalRetryRequired=true`。没有新增持久 Calibration state。详见 [`counterfactual-calibration.md`](./counterfactual-calibration.md)。
+
+---
+
+## 33. Convergence / Nested-frame：Physics Evidence 也必须自检
+
+1.30 新增 `articulationPairCounterfactualConvergence`：selected Physics rank-1 action 用更密的 independent original/blocker sample counts 重跑一次 shape-pair query，并比较 `targetSweepClear` 与 `conflictReduction>0` 的定性结论。翻转则 `PHYSICS_COUNTERFACTUAL_UNSTABLE`，proposal 降级 Three fallback。Nested child query 明确 `frameAssumption=parent-pose-at-query`；pair query 明确 `parent-poses-static-during-hypothesis`。真实 Door→Slider fixture 在 parent 已运动后用 local-to-parent pose 对拍 child motor，避免把 dynamic parent reaction 错当成 hypothetical frame error。详见 [`counterfactual-convergence.md`](./counterfactual-convergence.md)。

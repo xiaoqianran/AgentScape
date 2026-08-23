@@ -498,7 +498,7 @@ export class PhysicsSystem {
       const rotation=bodyRotation.clone().multiply(localRotation).normalize();
       colliders.push({index:i,shape:collider.shape,position,rotation});
     }
-    return {checked:true,id,partName,jointType:state.jointType,currentCoordinate:state.coordinate,coordinate,colliders};
+    return {checked:true,id,partName,jointType:state.jointType,currentCoordinate:state.coordinate,coordinate,parentName:part.parentName,frameAssumption:'parent-pose-at-query',colliders};
   }
 
   shapeBoundingRadius(shape) {
@@ -558,8 +558,16 @@ export class PhysicsSystem {
     if (!originalState || !blockerState) return {checked:false,reason:'JOINT_COORDINATE_UNAVAILABLE'};
     if (!Number.isFinite(originalTarget) || !Number.isFinite(blockerTarget)) return {checked:false,reason:'TARGET_UNAVAILABLE'};
     const fixedSamples=Number.isFinite(samples) ? Math.max(2,Math.min(33,Math.trunc(samples))) : null;
-    const originalSampling=fixedSamples ? {checked:true,count:fixedSamples,mode:'fixed'} : this.articulationCounterfactualSampleCount(originalId,originalPartName,originalState.coordinate,originalTarget);
-    const blockerSampling=fixedSamples ? {checked:true,count:fixedSamples,mode:'fixed'} : this.articulationCounterfactualSampleCount(blockerId,blockerPartName,blockerState.coordinate,blockerTarget);
+    const pairedSamples=samples && typeof samples==='object' ? {
+      original:Math.max(2,Math.min(33,Math.trunc(samples.original) || 2)),
+      blocker:Math.max(2,Math.min(33,Math.trunc(samples.blocker) || 2))
+    } : null;
+    const originalSampling=fixedSamples ? {checked:true,count:fixedSamples,mode:'fixed'}
+      : pairedSamples ? {checked:true,count:pairedSamples.original,mode:'fixed-pair'}
+      : this.articulationCounterfactualSampleCount(originalId,originalPartName,originalState.coordinate,originalTarget);
+    const blockerSampling=fixedSamples ? {checked:true,count:fixedSamples,mode:'fixed'}
+      : pairedSamples ? {checked:true,count:pairedSamples.blocker,mode:'fixed-pair'}
+      : this.articulationCounterfactualSampleCount(blockerId,blockerPartName,blockerState.coordinate,blockerTarget);
     if (!originalSampling.checked) return {checked:false,reason:originalSampling.reason,source:'original-sampling'};
     if (!blockerSampling.checked) return {checked:false,reason:blockerSampling.reason,source:'blocker-sampling'};
 
@@ -608,14 +616,50 @@ export class PhysicsSystem {
     const target=againstPose(original.poses,blocker.poses.at(-1));
     const action=trajectoryConflict(original.poses,blocker.poses);
     return {
-      checked:true,geometry:'rapier-shape-pairs',causal:false,
-      samples:{original:originalSampling.count,blocker:blockerSampling.count,mode:fixedSamples?'fixed':'adaptive'},
+      checked:true,geometry:'rapier-shape-pairs',causal:false,frameAssumption:'parent-poses-static-during-hypothesis',
+      samples:{original:originalSampling.count,blocker:blockerSampling.count,mode:fixedSamples?'fixed':pairedSamples?'fixed-pair':'adaptive'},
       sampling:{original:originalSampling,blocker:blockerSampling},
       original:{id:originalId,partName:originalPartName,currentCoordinate:originalState.coordinate,target:originalTarget},
       blocker:{id:blockerId,partName:blockerPartName,currentCoordinate:blockerState.coordinate,target:blockerTarget},
       current,target,action,
       targetSweepClear:target.conflictSamples===0,
       conflictReduction:Math.max(0,current.conflictSamples-target.conflictSamples)
+    };
+  }
+
+  articulationPairCounterfactualConvergence(originalId, originalPartName, originalTarget, blockerId, blockerPartName, blockerTarget, { multiplier = 2 } = {}) {
+    const base=this.articulationPairCounterfactual(originalId,originalPartName,originalTarget,blockerId,blockerPartName,blockerTarget);
+    if (!base.checked) return {checked:false,reason:base.reason || 'BASE_COUNTERFACTUAL_UNAVAILABLE',base};
+    const denserCount=(count)=>Math.min(33,Math.max(count+2,Math.ceil(count*Math.max(1.25,multiplier))));
+    const denseSamples={original:denserCount(base.samples.original),blocker:denserCount(base.samples.blocker)};
+    const dense=this.articulationPairCounterfactual(originalId,originalPartName,originalTarget,blockerId,blockerPartName,blockerTarget,{samples:denseSamples});
+    if (!dense.checked) return {checked:false,reason:dense.reason || 'DENSE_COUNTERFACTUAL_UNAVAILABLE',base,dense};
+    const ratio=(value,total)=>total>0?value/total:0;
+    const baseRatios={
+      current:ratio(base.current.conflictSamples,base.samples.original),
+      target:ratio(base.target.conflictSamples,base.samples.original),
+      action:ratio(base.action.conflictSamplePairs,base.samples.original*base.samples.blocker)
+    };
+    const denseRatios={
+      current:ratio(dense.current.conflictSamples,dense.samples.original),
+      target:ratio(dense.target.conflictSamples,dense.samples.original),
+      action:ratio(dense.action.conflictSamplePairs,dense.samples.original*dense.samples.blocker)
+    };
+    const drift={
+      current:Math.abs(baseRatios.current-denseRatios.current),
+      target:Math.abs(baseRatios.target-denseRatios.target),
+      action:Math.abs(baseRatios.action-denseRatios.action)
+    };
+    const qualitative={
+      targetSweepClear:base.targetSweepClear===dense.targetSweepClear,
+      clearanceGain:(base.conflictReduction>0)===(dense.conflictReduction>0)
+    };
+    return {
+      checked:true,causal:false,status:qualitative.targetSweepClear&&qualitative.clearanceGain?'stable':'unstable',
+      base,dense,
+      qualitative,
+      ratios:{base:baseRatios,dense:denseRatios,drift},
+      maxRatioDrift:Math.max(drift.current,drift.target,drift.action)
     };
   }
 

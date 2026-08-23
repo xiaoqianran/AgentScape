@@ -1638,3 +1638,9 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.28 首次把 hypothetical evidence 拉到 Rapier shape level；1.29 开始校准 fidelity。首先移除 non-zero revolute childAnchor 的简化限制：body 不再绕自身 origin 旋转，而围绕 child local anchor 对应的 world pivot 转动，并用真实 motor target pose 对拍。其次 sampling 从固定17改成基于 collider extent / joint travel 的 adaptive 5–33，真实 ajar fixture 自动得到 original=12、open=16、close=22，同时 Physics rank 仍稳定选 close。还新增真实 prismatic blocker fixture。
 
 更重要的是，selected blocker action verified 后会重新读取 original Part 与 blocker 的 live current contact，形成只存在于 tool result 的 calibration observation。Prediction clear + contact cleared 记录 consistent；Prediction clear + contact remains 记录 contradicted。两者都不能清 original unresolved。
+
+---
+
+## 51. 1.30：Physics Prediction 第一次对自己的采样密度做收敛检查
+
+1.29 有 adaptive sampling，但还默认 adaptive N 足够。1.30 对 selected action 再用 denser sample counts 复查；如果 target-clear 或 clearance-gain 翻转，Physics-first rank 被撤销并 fallback。与此同时 nested Door→Slider 对拍发现 free child joint 在 parent motion 下会真实滑动，因此测试不再把“无 request”误当“coordinate=0”，而先真实 hold child。Parent 已移动后 child hypothetical local frame 与 real motor 对拍通过；world pose 差异则明确归因于 child motor 对 dynamic parent 的真实反作用，而不是硬说 query 预测了动力学耦合。

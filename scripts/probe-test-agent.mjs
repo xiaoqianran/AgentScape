@@ -119,7 +119,7 @@ const scenarios = {
   }
 ,
   'recovery-counterfactual': {
-    goal:'Open cabinet_A with agent_01. The first approachAndInteract will STALL with cabinet_B/door current-contact evidence. cabinet_B/door is verified ajar, so both open and close are executable alternate actions. Call suggestRecoveryActions and consume its actionRanking; do not choose an action yourself. Follow exactly the selected recoverArticulatedBlocker proposal. The Runtime Physics-first evidence uses articulated-rapier-shape-counterfactual-v2 / basis=rapier-shape-pairs with adaptive sampling: close has targetSweepClear=true, target conflictSamples=0 and rank 1, while open remains conflicting and rank 2. Treat sample counts as Runtime evidence, not constants. After recovery, counterfactualCalibration may report observed current-contact consistency; it never replaces the required original retry. After the selected blocker recovery verifies, fresh-replan and retry the original cabinet_A open. Only the original retry action-completed + targetReached + settled means success. Never directly approachAndInteract cabinet_B, never override blockerAction, and never use low-level open/close, moveObject, navigateTo, pickup/place, or another recovery primitive.',
+    goal:'Open cabinet_A with agent_01. The first approachAndInteract will STALL with cabinet_B/door current-contact evidence. cabinet_B/door is verified ajar, so both open and close are executable alternate actions. Call suggestRecoveryActions and consume its actionRanking; do not choose an action yourself. Follow exactly the selected recoverArticulatedBlocker proposal. The Runtime Physics-first evidence uses articulated-rapier-shape-counterfactual-v2 / basis=rapier-shape-pairs with adaptive sampling and convergence.status=stable after denser resampling: close has targetSweepClear=true, target conflictSamples=0 and rank 1, while open remains conflicting and rank 2. Treat sample counts as Runtime evidence, not constants, and never override a Runtime fallback if convergence becomes unstable. After recovery, counterfactualCalibration may report observed current-contact consistency; it never replaces the required original retry. After the selected blocker recovery verifies, fresh-replan and retry the original cabinet_A open. Only the original retry action-completed + targetReached + settled means success. Never directly approachAndInteract cabinet_B, never override blockerAction, and never use low-level open/close, moveObject, navigateTo, pickup/place, or another recovery primitive.',
     world:[
       { id:'agent_01', asset:'agent', position:[2.5,0,4], actions:['navigate'] },
       { id:'cabinet_A', asset:'cabinet', position:[0,0,0], actions:['open','close','move'] },
@@ -204,6 +204,12 @@ try {
               strategy:'articulated-rapier-shape-counterfactual-v2',basis:'rapier-shape-pairs',causal:false,
               criteria:['targetSweepClearDesc','conflictReductionDesc','targetConflictSamplesAsc','targetPairIntersectionsAsc','actionConflictSamplePairsAsc','actionPairIntersectionsAsc','routeCostAsc'],
               current:{action:'ajar',conflictSamples:12,pairIntersections:12},
+              convergence:{
+                status:'stable',causal:false,qualitative:{targetSweepClear:true,clearanceGain:true},
+                samples:{base:{original:12,blocker:22,mode:'adaptive'},dense:{original:24,blocker:33,mode:'fixed-pair'}},
+                ratios:{base:{current:1,target:0,action:.174},dense:{current:1,target:0,action:.171},drift:{current:0,target:0,action:.003}},
+                maxRatioDrift:.003
+              },
               originalSweep:{min:[-.879,.03,.346],max:[.205,1.97,1.999]},
               actions:[
                 {action:'open',executable:true,rank:2,pose:{routeCost:1.7},visualCounterfactual:{causal:false,geometry:'three-aabb',currentOverlapVolume:.663647,targetOverlapVolume:.62237,overlapReduction:.041277,targetSweepClear:false,actionSweepOverlapVolume:1.622824},physicsCounterfactual:{checked:true,geometry:'rapier-shape-pairs',causal:false,samples:{original:12,blocker:16,mode:'adaptive'},sampling:{original:{count:12},blocker:{count:16}},current:{conflictSamples:12,pairIntersections:12},target:{conflictSamples:9,pairIntersections:9},action:{conflictSamplePairs:176,pairIntersections:176},targetSweepClear:false,conflictReduction:3}},
@@ -563,6 +569,8 @@ try {
       const open=ranking?.actions?.find((item)=>item.action==='open');
       const close=ranking?.actions?.find((item)=>item.action==='close');
       if (ranking?.strategy!=='articulated-rapier-shape-counterfactual-v2'||ranking?.basis!=='rapier-shape-pairs') throw new Error('Counterfactual probe did not serve Physics-first actionRanking');
+      if (ranking?.convergence?.status!=='stable'||ranking?.convergence?.samples?.base?.mode!=='adaptive'||ranking?.convergence?.samples?.dense?.mode!=='fixed-pair') throw new Error('Counterfactual probe convergence evidence is missing or unstable');
+      if (!(ranking.convergence.samples.dense.original>ranking.convergence.samples.base.original)||!(ranking.convergence.samples.dense.blocker>ranking.convergence.samples.base.blocker)) throw new Error('Counterfactual probe dense convergence sampling did not increase');
       if (!(open?.physicsCounterfactual?.target?.conflictSamples>0)||close?.physicsCounterfactual?.target?.conflictSamples!==0||close?.rank!==1) throw new Error('Counterfactual probe Physics evidence is inconsistent');
       if (open?.physicsCounterfactual?.samples?.mode!=='adaptive'||close?.physicsCounterfactual?.samples?.mode!=='adaptive'||open.physicsCounterfactual.samples.original!==close.physicsCounterfactual.samples.original||!(close.physicsCounterfactual.samples.blocker>open.physicsCounterfactual.samples.blocker)) throw new Error('Counterfactual probe adaptive sampling evidence is inconsistent');
       if (lastArticulatedCalibration?.consistency!=='consistent'||lastArticulatedCalibration?.originalRetryRequired!==true) throw new Error('Counterfactual probe calibration contract missing');

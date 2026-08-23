@@ -720,3 +720,9 @@ selected action 与实际 retry outcome 的 bounded calibration record
 ```
 
 仍然不先造 multi-step recovery search tree。
+
+---
+
+## 35. 1.30：Calibration 前先要求 Sampling Convergence
+
+1.30 对 selected Physics counterfactual 加 denser resampling gate。只有定性 `targetSweepClear / clearanceGain` 保持一致时才继续 v2；翻转则 `PHYSICS_COUNTERFACTUAL_UNSTABLE` 并 fallback。Nested Part query 也显式标注 parent pose conditional assumption。详见 [`counterfactual-convergence.md`](./counterfactual-convergence.md)。

@@ -75,6 +75,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - [`counterfactual-articulated-recovery.md`](./counterfactual-articulated-recovery.md)：1.27 Counterfactual Articulated Recovery：multi-action Three-AABB evidence、tie refusal 与 execution-time rerank。
 - [`physics-counterfactual-geometry.md`](./physics-counterfactual-geometry.md)：1.28 Physics-backed Counterfactual：hypothetical Rapier shape-pairs、Physics-first ranking 与 explicit Three fallback。
 - [`counterfactual-calibration.md`](./counterfactual-calibration.md)：1.29 Counterfactual Calibration：non-zero childAnchor、adaptive sampling、prismatic coverage 与 observed contact consistency。
+- [`counterfactual-convergence.md`](./counterfactual-convergence.md)：1.30 Counterfactual Convergence：denser resampling gate、nested parent-frame validation 与 explicit frame assumptions。
 - [`asset-sourcing.md`](./asset-sourcing.md)：Curated scene packs 的素材来源、许可、风格与 Web 资源准入。
 - [`worlds.md`](./worlds.md)：WORLD 01/02、Environment Catalog、世界切换、存档隔离与场景真值。
 - [`asset-compiler.md`](./asset-compiler.md)：Agent-Ready Asset Compiler 的完整契约。

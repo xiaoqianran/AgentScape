@@ -215,12 +215,41 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
     const physicsBaselineConsistent=physicsCurrent.length===executable.length && physicsCurrent.every((value)=>
       value.conflictSamples===physicsCurrent[0]?.conflictSamples && value.pairIntersections===physicsCurrent[0]?.pairIntersections
     );
-    const physicsReady=Boolean(executable.length)
+    let physicsReady=Boolean(executable.length)
       && executable.every((item)=>item.physicsCounterfactual?.checked && item.physicsCounterfactual.current?.conflictSamples>0)
       && physicsBaselineConsistent;
+    let physicsConvergence=null,physicsConvergenceFallbackReason=null;
+    const physicsViable=physicsReady ? executable.filter((item)=>item.physicsCounterfactual.conflictReduction>0).sort(comparePhysicsCounterfactual) : [];
+    if (physicsReady && physicsViable.length && typeof runtime.physics?.articulationPairCounterfactualConvergence==='function') {
+      const top=physicsViable[0];
+      try {
+        const raw=runtime.physics.articulationPairCounterfactualConvergence(
+          targetId,failedPart.partName,originalTarget,
+          candidate.objectId,blockerPartName,part.targets[top.action]
+        );
+        if (raw?.checked) {
+          physicsConvergence={
+            status:raw.status,causal:false,
+            qualitative:structuredClone(raw.qualitative),
+            samples:{base:structuredClone(raw.base?.samples || null),dense:structuredClone(raw.dense?.samples || null)},
+            ratios:structuredClone(raw.ratios || null),maxRatioDrift:raw.maxRatioDrift
+          };
+          if (raw.status!=='stable') {
+            physicsReady=false;
+            physicsConvergenceFallbackReason='PHYSICS_COUNTERFACTUAL_UNSTABLE';
+          }
+        } else {
+          physicsReady=false;
+          physicsConvergenceFallbackReason='PHYSICS_COUNTERFACTUAL_CONVERGENCE_UNAVAILABLE';
+        }
+      } catch {
+        physicsReady=false;
+        physicsConvergenceFallbackReason='PHYSICS_COUNTERFACTUAL_CONVERGENCE_ERROR';
+      }
+    }
     let viable,rankedActions,strategy,criteria,basis,fallbackReason=null,currentEvidence;
     if (physicsReady) {
-      viable=executable.filter((item)=>item.physicsCounterfactual.conflictReduction>0).sort(comparePhysicsCounterfactual);
+      viable=physicsViable;
       rankedActions=actionCandidates.map((item)=>structuredClone(item));
       strategy='articulated-rapier-shape-counterfactual-v2';
       basis='rapier-shape-pairs';
@@ -231,10 +260,10 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
         pairIntersections:executable[0].physicsCounterfactual.current.pairIntersections
       };
     } else {
-      fallbackReason=!executable.length ? 'NO_EXECUTABLE_ACTION'
+      fallbackReason=physicsConvergenceFallbackReason || (!executable.length ? 'NO_EXECUTABLE_ACTION'
         : executable.some((item)=>!item.physicsCounterfactual?.checked) ? 'PHYSICS_COUNTERFACTUAL_PARTIAL_COVERAGE'
         : !physicsBaselineConsistent ? 'PHYSICS_COUNTERFACTUAL_BASELINE_INCONSISTENT'
-        : 'PHYSICS_COUNTERFACTUAL_BASELINE_INSUFFICIENT';
+        : 'PHYSICS_COUNTERFACTUAL_BASELINE_INSUFFICIENT');
       if (!visualAvailable) return denied(candidate,'COUNTERFACTUAL_EVIDENCE_UNAVAILABLE',{
         currentContact,blockerState:blockerStatus,alternateActions:[...actions],
         counterfactual:{causal:false,physicsFallbackReason:fallbackReason,originalSweepChecked:Boolean(originalSweep?.checked),currentPoseChecked:Boolean(currentPose?.checked)}
@@ -253,16 +282,16 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
 
     if (!viable.length) return denied(candidate,'NO_COUNTERFACTUAL_CLEARANCE_GAIN',{
       currentContact,blockerState:blockerStatus,alternateActions:[...actions],
-      actionRanking:{strategy,basis,causal:false,criteria,...(fallbackReason?{fallbackReason}:{}),actions:rankedActions}
+      actionRanking:{strategy,basis,causal:false,criteria,...(fallbackReason?{fallbackReason}:{}),...(physicsConvergence?{convergence:physicsConvergence}:{}),actions:rankedActions}
     });
     const tied=physicsReady ? samePhysicsCounterfactualDecision(viable[0],viable[1]) : sameCounterfactualDecision(viable[0],viable[1]);
     if (tied) return denied(candidate,'COUNTERFACTUAL_ACTION_TIE',{
       currentContact,blockerState:blockerStatus,alternateActions:[...actions],
-      actionRanking:{strategy,basis,causal:false,criteria,...(fallbackReason?{fallbackReason}:{}),tiedActions:[viable[0].action,viable[1].action],actions:rankedActions}
+      actionRanking:{strategy,basis,causal:false,criteria,...(fallbackReason?{fallbackReason}:{}),...(physicsConvergence?{convergence:physicsConvergence}:{}),tiedActions:[viable[0].action,viable[1].action],actions:rankedActions}
     });
     viable.forEach((item,index)=>{ const target=rankedActions.find((entry)=>entry.action===item.action); if(target) target.rank=index+1; });
     actionCandidates=[{...viable[0],actionRanking:{
-      strategy,basis,causal:false,criteria,...(fallbackReason?{fallbackReason}:{}),
+      strategy,basis,causal:false,criteria,...(fallbackReason?{fallbackReason}:{}),...(physicsConvergence?{convergence:physicsConvergence}:{}),
       current:currentEvidence,
       ...(visualAvailable?{originalSweep:structuredClone(originalSweep.bounds)}:{}),
       actions:rankedActions
