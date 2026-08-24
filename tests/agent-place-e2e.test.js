@@ -43,6 +43,9 @@ describe('agent-held place/release truth',()=>{
     const ctx=await setup();
     const result=await drive(ctx.interactions.approachAndPlace('agent_01','table_01',{surfaceId:'top',speed:2.5}),ctx);
     expect(result).toMatchObject({status:'placed',supportVerified:true,settled:true,actorId:'agent_01',targetId:'table_01',heldId:'cup_01',stillHeld:false});
+    expect(result.arrivalCorrection).toMatchObject({status:'arrived',id:'agent_01'});
+    const actorPosition=ctx.physics.getPosition('agent_01');
+    expect(Math.hypot(actorPosition[0]-result.pose.position[0],actorPosition[2]-result.pose.position[2])).toBeLessThanOrEqual(.051);
     expect(result.transfer).toHaveLength(3);
     expect(result.transfer.every((step)=>step.clear)).toBe(true);
     expect(ctx.store.get('cup_01').state.heldBy).toBeUndefined();

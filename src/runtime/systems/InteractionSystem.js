@@ -862,22 +862,32 @@ export class InteractionSystem {
     if (!pose) throw Errors.placeUnavailable(actorId,targetId,'NO_INTERACTION_POSE',{heldId});
 
     let locomotion = null;
+    let arrivalCorrection = null;
     if (pose.status !== 'current-pose') {
       locomotion = await this.locomotion.navigate(actorId,pose.position,{speed});
-      if (locomotion.status !== 'arrived') return { status:'place-blocked', reason:'APPROACH_FAILED', actorId,targetId,heldId,locomotion,stillHeld:true };
+      if (locomotion.status !== 'arrived') return { status:'place-blocked', reason:'APPROACH_FAILED', actorId,targetId,heldId,pose,locomotion,stillHeld:true };
+      const actualPosition=this.physics.getPosition(actorId);
+      const remaining=actualPosition ? Math.hypot(actualPosition[0]-pose.position[0],actualPosition[2]-pose.position[2]) : Infinity;
+      if (remaining>ACTION_INTERACTION_CORRECTION_TOLERANCE) {
+        arrivalCorrection=await this.locomotion.navigate(actorId,pose.position,{speed,waypointTolerance:ACTION_INTERACTION_CORRECTION_TOLERANCE});
+        if (arrivalCorrection.status!=='arrived') return {
+          status:'place-blocked',reason:'APPROACH_CORRECTION_FAILED',actorId,targetId,heldId,
+          pose,locomotion,arrivalCorrection,stillHeld:true
+        };
+      }
     }
 
     release = this.spatial.findFreeSpace(heldId,targetId,{surfaceId,clearance,ignore:[actorId]});
-    if (!release) return { status:'place-blocked', reason:'NO_FREE_SURFACE_SPACE_AFTER_APPROACH', actorId,targetId,heldId,locomotion,stillHeld:true };
+    if (!release) return { status:'place-blocked', reason:'NO_FREE_SURFACE_SPACE_AFTER_APPROACH', actorId,targetId,heldId,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),stillHeld:true };
     const reach = this.interactionStatus(actorId,targetId,{ignoreIds:[heldId]});
-    if (!reach.interactable) return { status:'place-blocked', reason:reach.inRange ? 'LINE_OF_SIGHT_BLOCKED' : 'OUT_OF_RANGE', actorId,targetId,heldId,locomotion,reach,stillHeld:true };
+    if (!reach.interactable) return { status:'place-blocked', reason:reach.inRange ? 'LINE_OF_SIGHT_BLOCKED' : 'OUT_OF_RANGE', actorId,targetId,heldId,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,stillHeld:true };
     const reorientation = this.reorientHeldToward(actorId,heldId,release.toArray());
-    if (!reorientation.clear) return { status:'place-blocked', reason:'CARRY_REORIENT_BLOCKED', actorId,targetId,heldId,locomotion,reach,reorientation,stillHeld:true };
+    if (!reorientation.clear) return { status:'place-blocked', reason:'CARRY_REORIENT_BLOCKED', actorId,targetId,heldId,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,reorientation,stillHeld:true };
     const originalPosition=this.physics.getPosition(heldId);
     const releaseDistance=originalPosition ? new THREE.Vector3(...originalPosition).distanceTo(release) : Infinity;
     if (releaseDistance>DEFAULT_INTERACTION_DISTANCE) return {
       status:'place-blocked',reason:'RELEASE_OUT_OF_RANGE',actorId,targetId,heldId,
-      pose,locomotion,reach,reorientation,
+      pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,reorientation,
       heldPosition:originalPosition?[...originalPosition]:null,release:release.toArray(),releaseDistance:Number(releaseDistance.toFixed(3)),stillHeld:true
     };
     const moved=this.transferHeldToRelease(actorId,heldId,release);
@@ -888,7 +898,7 @@ export class InteractionSystem {
     this.releaseHeld(heldId,'PLACE_RELEASE');
     const settled = await this.waitForPlacementSettle(heldId,targetId,selectedSurface);
     return {
-      ...settled, actorId,targetId,heldId,pose,locomotion,reach,reorientation,
+      ...settled, actorId,targetId,heldId,pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,reorientation,
       release:release.toArray().map((value)=>Number(value.toFixed(4))),
       transfer:transfer.map(({point,clear,code,blockedBy,toi})=>({point,clear,...(code?{code}:{}),...(blockedBy?{blockedBy}:{}),...(Number.isFinite(toi)?{toi}: {})})),
       stillHeld:false
