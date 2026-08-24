@@ -45,7 +45,14 @@ export class ManifestPass {
         meshQuality: context.meshQuality || null,
         resources: context.resources
       },
-      provenance: { sourceUrl: context.sourceUrl || null, compiler: 'AgentScape' }
+      provenance: {
+        sourceUrl: context.sourceUrl || null,
+        compiler:'AgentScape',
+        ...(context.providerEvidence ? {
+          provider:context.providerEvidence.provider || null,
+          providerEvidence:structuredClone(context.providerEvidence)
+        } : {})
+      }
     };
     return { ...context, manifest };
   }

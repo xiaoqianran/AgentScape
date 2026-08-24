@@ -46,6 +46,16 @@ describe('CompileQualityPass', () => {
     expect(verified.quality.advisory.some((x) => x.code === 'ARTICULATION_UNVERIFIED')).toBe(false);
   });
 
+  it('keeps provider segmentation/raw grasps explicitly provisional without promoting interaction truth', async () => {
+    const result=await run({
+      providerEvidence:{levels:{partSegmentation:'provider',partSemantics:'none',grasps:'raw-provider-only'}},
+      partSegmentation:{version:1,source:'embodiedgen/p3sam',segments:[{id:'0'}],issues:[],materialization:{status:'materialized'}}
+    });
+    const codes=result.quality.advisory.map((item)=>item.code);
+    expect(codes).toEqual(expect.arrayContaining(['PART_SEMANTICS_UNVERIFIED','PROVIDER_GRASP_RAW_ONLY']));
+    expect(result.quality.status).toBe('provisional');
+  });
+
   it('keeps face-level segmentation provisional until it is materialized into executable parts', async () => {
     const result=await run({partSegmentation:{version:1,source:'external',segments:[{id:'a'}],issues:[]}});
     expect(result.quality.status).toBe('provisional');
