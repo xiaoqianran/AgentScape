@@ -187,16 +187,26 @@ async def compile_asset(request: Request):
             import json
             form = await request.form()
             stage = str(form.get("stage") or "")
-            if stage != "part-geometry":
-                raise HTTPException(400, f"不支持的 multipart stage: {stage}")
             upload = form.get("asset")
             if upload is None or not hasattr(upload, 'read'):
-                raise ValueError("part-geometry requires asset upload")
-            metadata_text = str(form.get("metadata") or "{}")
-            if len(metadata_text.encode("utf-8")) > MAX_PART_METADATA_BYTES:
-                raise ValueError("Part metadata 超过 MAX_PART_METADATA_BYTES")
-            metadata = json.loads(metadata_text)
-            return _compile_part_geometry(await _read_upload(upload), metadata)
+                raise ValueError(f"{stage or 'multipart'} requires asset upload")
+            try:
+                if stage == "urdf-proposal":
+                    upload_content_type = str(getattr(upload, 'content_type', '') or '').lower()
+                    if upload_content_type not in {"application/xml", "text/xml", "application/octet-stream"}:
+                        raise ValueError(f"urdf-proposal unsupported media type: {upload_content_type or '<missing>'}")
+                    return {"partProposal": urdf_part_proposal(await _read_upload(upload, MAX_URDF_BYTES))}
+                if stage != "part-geometry":
+                    raise HTTPException(400, f"不支持的 multipart stage: {stage}")
+                metadata_text = str(form.get("metadata") or "{}")
+                if len(metadata_text.encode("utf-8")) > MAX_PART_METADATA_BYTES:
+                    raise ValueError("Part metadata 超过 MAX_PART_METADATA_BYTES")
+                metadata = json.loads(metadata_text)
+                return _compile_part_geometry(await _read_upload(upload), metadata)
+            finally:
+                close = getattr(upload, 'close', None)
+                if close is not None:
+                    await close()
         except HTTPException:
             raise
         except Exception as exc:

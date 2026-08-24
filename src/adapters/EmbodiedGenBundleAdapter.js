@@ -109,13 +109,137 @@ const validateSegmentation = (evidence, primary) => {
   }
 };
 
-const evidenceLevel = (roles) => ({
+
+const URDF_PROPOSAL_MAX_PARTS = 128;
+const URDF_MAX_BYTES = 5 * 1024 * 1024;
+const URDF_JOINT_TYPES = new Set(['revolute','prismatic','continuous']);
+const URDF_PART_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/;
+const FORBIDDEN_URDF_KEYS = /(actions?|physics|targets?|motor|authorization|api[-_]?key|token|secret|credential|signed[-_]?url|(^|[_-])url($|[_-])|(^|[_-])path($|[_-])|prompt|pose|remote.*id|function.*id)/i;
+
+const safeEvidenceText = (value, label, { allowRoot = false } = {}) => {
+  const text=String(value ?? '').trim();
+  if (allowRoot && text === '$root') return text;
+  if (!text || text.length > 160 || /[\u0000-\u001f\u007f]/.test(text) || /https?:\/\/|Bearer\s+/i.test(text)) {
+    fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `${label} must be bounded safe text.`);
+  }
+  return text;
+};
+
+const finiteVector = (value, length, label) => {
+  if (!Array.isArray(value) || value.length !== length || !value.every(Number.isFinite)) {
+    fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `${label} requires finite [${length}].`);
+  }
+  return value.map(Number);
+};
+
+const finiteMatrix4 = (value, label) => {
+  if (!Array.isArray(value) || value.length !== 4 || value.some((row) => !Array.isArray(row) || row.length !== 4 || !row.every(Number.isFinite))) {
+    fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `${label} requires finite 4x4 matrix.`);
+  }
+  return value.map((row) => row.map(Number));
+};
+
+const rejectForbiddenUrdfFields = (value, path = 'partProposal') => {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((item,index) => rejectForbiddenUrdfFields(item, `${path}[${index}]`));
+    return;
+  }
+  for (const [key,item] of Object.entries(value)) {
+    if (FORBIDDEN_URDF_KEYS.test(key)) {
+      fail('EMBODIEDGEN_URDF_PROPOSAL_FORBIDDEN_FIELD', `URDF proposal contains forbidden executable/transport field: ${path}.${key}`);
+    }
+    rejectForbiddenUrdfFields(item, `${path}.${key}`);
+  }
+};
+
+const normalizeUrdfProposal = (payload) => {
+  const proposal=payload?.partProposal;
+  if (!proposal || proposal.version !== 1 || proposal.source !== 'urdf/yourdfpy' || proposal.frameConvention !== 'urdf-link-local' || !Array.isArray(proposal.parts)) {
+    fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', 'URDF proposal requires Part Proposal v1 from urdf/yourdfpy with urdf-link-local frameConvention.');
+  }
+  if (proposal.parts.length > URDF_PROPOSAL_MAX_PARTS) {
+    fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal exceeds ${URDF_PROPOSAL_MAX_PARTS} movable parts.`);
+  }
+  rejectForbiddenUrdfFields(proposal);
+  const seen=new Set();
+  const seenNodes=new Set();
+  const parts=proposal.parts.map((raw,index) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal part ${index} must be an object.`);
+    const id=safeEvidenceText(raw.id, `parts[${index}].id`);
+    if (!URDF_PART_ID.test(id) || id === '$root') fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal part id is not a stable identifier: ${id}`);
+    if (seen.has(id)) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `Duplicate URDF proposal part id: ${id}`);
+    seen.add(id);
+    const node=safeEvidenceText(raw.node, `parts[${index}].node`);
+    if (seenNodes.has(node)) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `Duplicate URDF proposal child node: ${node}`);
+    seenNodes.add(node);
+    const parent=safeEvidenceText(raw.parent || '$root', `parts[${index}].parent`, { allowRoot:true });
+    if (parent !== '$root' && !URDF_PART_ID.test(parent)) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal parent is not a stable identifier: ${parent}`);
+    const joint=raw.joint;
+    if (!joint || typeof joint !== 'object' || Array.isArray(joint) || !URDF_JOINT_TYPES.has(joint.type)) {
+      fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal part ${id} requires revolute/prismatic/continuous joint.`);
+    }
+    const axis=finiteVector(joint.axis,3,`parts[${index}].joint.axis`);
+    if (Math.hypot(...axis) < 1e-9) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal part ${id} has zero joint axis.`);
+    let limits;
+    if (joint.limits != null) {
+      limits=finiteVector(joint.limits,2,`parts[${index}].joint.limits`);
+      if (limits[0] >= limits[1]) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal part ${id} has invalid joint limits.`);
+    }
+    const urdf=joint.urdf;
+    if (!urdf || typeof urdf !== 'object' || Array.isArray(urdf)) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal part ${id} requires urdf metadata.`);
+    const normalizedUrdf={
+      name:safeEvidenceText(urdf.name, `parts[${index}].joint.urdf.name`),
+      parentLink:safeEvidenceText(urdf.parentLink, `parts[${index}].joint.urdf.parentLink`),
+      childLink:safeEvidenceText(urdf.childLink, `parts[${index}].joint.urdf.childLink`),
+      originMatrix:finiteMatrix4(urdf.originMatrix,`parts[${index}].joint.urdf.originMatrix`),
+      parentToJointMatrix:finiteMatrix4(urdf.parentToJointMatrix,`parts[${index}].joint.urdf.parentToJointMatrix`)
+    };
+    const confidence=Number(raw.confidence ?? proposal.confidence ?? 0);
+    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal part ${id} confidence must be within [0,1].`);
+    return {
+      id,node,parent,
+      joint:{type:joint.type,axis,...(limits?{limits}:{}),urdf:normalizedUrdf},
+      confidence
+    };
+  });
+  const ids=new Set(parts.map((part)=>part.id));
+  for (const part of parts) {
+    if (part.parent === part.id) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal part cannot parent itself: ${part.id}`);
+    if (part.parent !== '$root' && !ids.has(part.parent)) {
+      fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal parent does not exist: ${part.parent}`);
+    }
+  }
+  const byId=new Map(parts.map((part)=>[part.id,part]));
+  for (const part of parts) {
+    const visited=new Set([part.id]);
+    let parent=part.parent;
+    while (parent !== '$root') {
+      if (visited.has(parent)) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', `URDF proposal hierarchy contains a cycle at ${parent}`);
+      visited.add(parent);
+      parent=byId.get(parent)?.parent || '$root';
+    }
+  }
+  const confidence=Number(proposal.confidence ?? 0);
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) fail('EMBODIEDGEN_URDF_PROPOSAL_INVALID', 'URDF proposal confidence must be within [0,1].');
+  return {version:1,source:'urdf/yourdfpy',frameConvention:'urdf-link-local',confidence,parts};
+};
+
+const safeErrorCode = (error) => {
+  const code=String(error?.code || error?.name || 'URDF_PROPOSAL_FAILED').trim();
+  return /^[A-Za-z0-9._:-]{1,120}$/.test(code) ? code : 'URDF_PROPOSAL_FAILED';
+};
+
+const evidenceLevel = (roles, urdfStatus = 'none') => ({
   partSegmentation: roles.has('part_segmentation') ? 'provider' : 'none',
   partSemantics: roles.has('part_semantics') ? 'provider-unverified' : 'none',
-  grasps: roles.has('sapien_grasps') ? 'sapien-validated-provider-only' : roles.has('raw_grasps') ? 'raw-provider-only' : 'none'
+  grasps: roles.has('sapien_grasps') ? 'sapien-validated-provider-only' : roles.has('raw_grasps') ? 'raw-provider-only' : 'none',
+  urdf:urdfStatus
 });
 
 export class EmbodiedGenBundleAdapter {
+  constructor({ compilerProvider = null } = {}) { this.compilerProvider=compilerProvider; }
+
   /**
    * Convert a versioned EmbodiedGen artifact bundle into existing AssetCompiler input.
    * This adapter preserves provider evidence; it never creates a runtime Manifest.
@@ -138,13 +262,52 @@ export class EmbodiedGenBundleAdapter {
     const primaryBytes = normalizeBytes(artifactBytesFor(artifactBytes, primary), primary.id);
     await assertHash(primary, primaryBytes);
 
+    const verifiedRoles=new Set(['primary_glb']);
     let partSegmentation = null;
     const segmentationDescriptor = byRole.get('part_segmentation');
     if (segmentationDescriptor) {
       const segmentationBytes = normalizeBytes(artifactBytesFor(artifactBytes, segmentationDescriptor), segmentationDescriptor.id);
       await assertHash(segmentationDescriptor, segmentationBytes);
+      verifiedRoles.add('part_segmentation');
       partSegmentation = parseJsonArtifact(segmentationDescriptor, segmentationBytes);
       validateSegmentation(partSegmentation, primary);
+    }
+
+    let partProposal=null;
+    let urdfEvidence=null;
+    let urdfStatus='none';
+    const urdfDescriptor=byRole.get('source_urdf');
+    if (urdfDescriptor) {
+      if (!['application/xml','text/xml','application/urdf+xml'].includes(urdfDescriptor.mediaType)) {
+        fail('EMBODIEDGEN_URDF_MEDIA_TYPE_INVALID', `source_urdf has unsupported media type: ${urdfDescriptor.mediaType}`);
+      }
+      const urdfBytes=normalizeBytes(artifactBytesFor(artifactBytes,urdfDescriptor),urdfDescriptor.id);
+      if (urdfBytes.byteLength > URDF_MAX_BYTES) {
+        fail('EMBODIEDGEN_URDF_TOO_LARGE', `source_urdf exceeds ${URDF_MAX_BYTES} bytes.`, { bytes:urdfBytes.byteLength, maxBytes:URDF_MAX_BYTES });
+      }
+      await assertHash(urdfDescriptor,urdfBytes);
+      verifiedRoles.add('source_urdf');
+      urdfStatus='verified-bytes-only';
+      urdfEvidence={artifactId:urdfDescriptor.id,sha256:urdfDescriptor.sha256,status:urdfStatus,parser:null,partCount:null,frameConvention:null};
+      const parser=this.compilerProvider;
+      const canParse=typeof parser?.runUrdfProposal === 'function' && (typeof parser.isConfigured !== 'function' || parser.isConfigured());
+      if (canParse) {
+        try {
+          partProposal=normalizeUrdfProposal(await parser.runUrdfProposal(urdfBytes));
+          urdfStatus='service-parsed';
+          urdfEvidence={
+            artifactId:urdfDescriptor.id,sha256:urdfDescriptor.sha256,status:urdfStatus,
+            parser:'asset-compiler/yourdfpy',partCount:partProposal.parts.length,frameConvention:partProposal.frameConvention
+          };
+        } catch (error) {
+          partProposal=null;
+          urdfStatus='parse-rejected';
+          urdfEvidence={
+            artifactId:urdfDescriptor.id,sha256:urdfDescriptor.sha256,status:urdfStatus,
+            parser:'asset-compiler/yourdfpy',partCount:null,frameConvention:null,errorCode:safeErrorCode(error)
+          };
+        }
+      }
     }
 
     const providerEvidence = {
@@ -152,8 +315,9 @@ export class EmbodiedGenBundleAdapter {
       bundleVersion:1,
       sourceJobId:sourceJobId || null,
       lineage:safeLineage(bundle.lineage),
-      levels:evidenceLevel(seenRoles),
-      artifacts:descriptors.map((descriptor) => ({ ...descriptor, verified:descriptor.role === 'primary_glb' || descriptor.role === 'part_segmentation' }))
+      levels:evidenceLevel(seenRoles,urdfStatus),
+      ...(urdfEvidence ? { urdf:urdfEvidence } : {}),
+      artifacts:descriptors.map((descriptor) => ({ ...descriptor, verified:verifiedRoles.has(descriptor.role) }))
     };
 
     const asset = bundle.asset && typeof bundle.asset === 'object' ? bundle.asset : {};
@@ -163,8 +327,9 @@ export class EmbodiedGenBundleAdapter {
       assetId:asset.id || bundle.assetId || undefined,
       label:asset.label || bundle.label || undefined,
       partSegmentation,
-      // Semantic and grasp evidence are deliberately not promoted into executable Part Proposal v1.
-      partProposal:null,
+      // Only mechanically parsed URDF evidence may become a Part Proposal candidate.
+      // Semantic and grasp evidence remain non-executable provider evidence.
+      partProposal,
       providerEvidence
     };
     return { compilerInput, providerEvidence };

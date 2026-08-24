@@ -41,7 +41,7 @@ describe('EmbodiedGen affordance frozen bundle v1',()=>{
     const result=await compiler.compile(prepared.compilerInput);
     const admission=assetAdmission(result.manifest);
 
-    expect(prepared.providerEvidence.levels).toEqual({partSegmentation:'provider',partSemantics:'none',grasps:'raw-provider-only'});
+    expect(prepared.providerEvidence.levels).toEqual({partSegmentation:'provider',partSemantics:'none',grasps:'raw-provider-only',urdf:'verified-bytes-only'});
     expect(prepared.compilerInput.partProposal).toBeNull();
     expect(result.partSegmentation.issues).toEqual([]);
     expect(result.partSegmentation.materialization.status).toBe('materialized');

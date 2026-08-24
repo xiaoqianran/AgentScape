@@ -73,3 +73,19 @@ asset = 当前 materialized GLB binary
 服务按 Part Node 层级提取 Part-local Mesh，再逐 Part 运行 CoACD。`MAX_PARTS_PER_REQUEST` 默认 32，metadata 默认限制 256 KiB，上传 GLB 继续受 `MAX_ASSET_BYTES` 限制。单个 Part 的提取或 CoACD 失败不会终止同批其它 Part。
 
 质量/质量估算规则：只有 watertight volume 才返回 Part mass；非 watertight mesh 仅返回 geometry report 与 collider。
+
+### Verified URDF proposal upload
+
+For browser/provider bundles, prefer the existing `/compile` multipart endpoint with verified local bytes rather than asking the compiler service to download a provider URL:
+
+```text
+POST /compile
+Content-Type: multipart/form-data
+
+stage = urdf-proposal
+asset = asset.urdf (application/xml)
+```
+
+The service applies `MAX_URDF_BYTES` and parses the upload with `yourdfpy`, returning only Part Proposal v1 mechanical evidence (`urdf-link-local`). AgentScape re-validates that proposal before it can enter compiler passes; provider/service output does not directly create runtime actions, physics, or targets.
+
+`POST /proposal/urdf { url }` remains a legacy/server-side URL path for controlled integrations. New browser flows should use verified Artifact bytes through the multipart upload path.
