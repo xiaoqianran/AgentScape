@@ -1,6 +1,6 @@
 export const DEFAULT_PROFILES = {
-  viewer: ['world.read', 'asset.read', 'spatial.read', 'physics.read'],
-  builder: ['world.read', 'world.write', 'asset.read', 'asset.write', 'spatial.read', 'physics.read'],
+  viewer: ["generation.read", 'world.read', 'asset.read', 'spatial.read', 'physics.read'],
+  builder: ["generation.read", "generation.submit", "generation.cancel", "artifact.import", 'world.read', 'world.write', 'asset.read', 'asset.write', 'spatial.read', 'physics.read'],
   admin: ['*']
 };
 

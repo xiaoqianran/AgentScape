@@ -10,6 +10,10 @@ const BLOCKED_STATUSES = new Set(['blocked', 'unreachable', 'interaction-blocked
 const FAILED_STATUSES = new Set(['action-failed', 'place-failed']);
 const UNVERIFIED_STATUSES = new Set(['action-unverified', 'place-unverified', 'cancelled']);
 const REQUESTED_STATUSES = new Set(['moving', 'interaction-requested']);
+BLOCKED_STATUSES.add("connection-required");
+for (const status of ["generation-failed","generation-cancelled","generation-expired"]) FAILED_STATUSES.add(status);
+for (const status of ["provider-succeeded","artifact-imported"]) UNVERIFIED_STATUSES.add(status);
+for (const status of ["generation-pending","generation-cancelling"]) REQUESTED_STATUSES.add(status);
 
 function classifyResult(result) {
   if (result && typeof result === 'object' && !Array.isArray(result)) {
