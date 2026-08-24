@@ -171,6 +171,7 @@ describe('Connector pairing session contract',()=>{
     const [url,options]=fetchImpl.mock.calls[1];
     expect(url).toBe(`${ENDPOINT}/connector/v1/capabilities`);
     expect(options.credentials).toBe('omit');
+    expect(options.redirect).toBe('error');
     expect(options.headers.authorization).toBe('Bearer session-secret-value');
     expect(JSON.stringify(client.session())).not.toContain('session-secret-value');
     await expect(client.request('https://evil.example/connector/v1/capabilities',{scope:'capabilities.read'}))

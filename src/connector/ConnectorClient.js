@@ -166,7 +166,8 @@ export class ConnectorClient {
       method,
       headers:{ ...callerHeaders, authorization },
       ...(body === undefined ? {} : { body }),
-      credentials:'omit'
+      credentials:'omit',
+      redirect:'error'
     });
   }
 

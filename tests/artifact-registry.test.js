@@ -18,7 +18,7 @@ const artifact=(overrides={})=>({
   createdAt:'2026-08-24T07:00:00.000Z',retention:{class:'project'},
   locations:[{
     id:'loc_connector',kind:'connector',scope:'job',state:'available',
-    access:{kind:'connector-artifact',artifactId:'artifact_01'}
+    access:{kind:'connector-artifact',artifactId:'artifact_01',connector:{id:'unified-connector',instance:'instance_01'}}
   }],
   ...overrides
 });
@@ -44,7 +44,7 @@ describe('ArtifactRegistry identity and location semantics',()=>{
     registry.register(artifact({
       id:'artifact_02',
       producer:{...artifact().producer,jobId:'job_02'},
-      locations:[{id:'loc_2',kind:'connector',scope:'job',state:'available',access:{kind:'connector-artifact',artifactId:'artifact_02'}}]
+      locations:[{id:'loc_2',kind:'connector',scope:'job',state:'available',access:{kind:'connector-artifact',artifactId:'artifact_02',connector:{id:'unified-connector',instance:'instance_01'}}}]
     }));
     expect(registry.findByHash(H1)).toEqual(['artifact_01','artifact_02']);
     expect(registry.get('artifact_01').id).not.toBe(registry.get('artifact_02').id);

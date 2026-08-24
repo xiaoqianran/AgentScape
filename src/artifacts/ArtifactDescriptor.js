@@ -145,7 +145,17 @@ function normalizeAccess(value,locationKind,artifactId) {
     if (kind!=='connector-artifact') throw new ArtifactContractError('ARTIFACT_LOCATION_INVALID','Connector location must use connector-artifact access');
     const accessArtifactId=requireSafeArtifactId(value.artifactId,'locations[].access.artifactId');
     if (accessArtifactId!==artifactId) throw new ArtifactContractError('ARTIFACT_LOCATION_INVALID','Connector access artifactId must match descriptor identity');
-    return {kind,artifactId:accessArtifactId};
+    if (!value.connector || typeof value.connector!=='object' || Array.isArray(value.connector)) {
+      throw new ArtifactContractError('ARTIFACT_LOCATION_INVALID','Connector artifact access requires connector identity');
+    }
+    return {
+      kind,
+      artifactId:accessArtifactId,
+      connector:{
+        id:requireSafeArtifactId(value.connector.id,'locations[].access.connector.id'),
+        instance:requireSafeArtifactId(value.connector.instance,'locations[].access.connector.instance')
+      }
+    };
   }
   if (locationKind==='local-cache') {
     if (kind!=='cache-key') throw new ArtifactContractError('ARTIFACT_LOCATION_INVALID','Local cache location must use cache-key access');

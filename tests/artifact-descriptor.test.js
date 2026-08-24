@@ -40,7 +40,7 @@ const descriptor=(overrides={})=>({
   locations:[{
     id:'loc_connector',kind:'connector',scope:'job',state:'available',
     verifiedAt:'2026-08-24T07:01:00.000Z',expiresAt:'2026-08-24T08:01:00.000Z',
-    access:{kind:'connector-artifact',artifactId:'artifact_01'}
+    access:{kind:'connector-artifact',artifactId:'artifact_01',connector:{id:'unified-connector',instance:'instance_01'}}
   }],
   ...overrides
 });
@@ -60,7 +60,7 @@ describe('Artifact descriptor contract',()=>{
     expect(result.locations[0]).toEqual({
       id:'loc_connector',kind:'connector',scope:'job',state:'available',
       verifiedAt:'2026-08-24T07:01:00.000Z',expiresAt:'2026-08-24T08:01:00.000Z',
-      access:{kind:'connector-artifact',artifactId:'artifact_01'}
+      access:{kind:'connector-artifact',artifactId:'artifact_01',connector:{id:'unified-connector',instance:'instance_01'}}
     });
   });
 
@@ -167,7 +167,7 @@ describe('Artifact descriptor contract',()=>{
     for (const bad of [
       {...descriptor().locations[0],url:'https://signed.example/x'},
       {...descriptor().locations[0],path:'/tmp/a.glb'},
-      {...descriptor().locations[0],access:{kind:'connector-artifact',artifactId:'other_artifact'}},
+      {...descriptor().locations[0],access:{kind:'connector-artifact',artifactId:'other_artifact',connector:{id:'unified-connector',instance:'instance_01'}}},
       {...descriptor().locations[0],kind:'connector',access:{kind:'raw-url',artifactId:'artifact_01'}}
     ]) {
       expect(()=>normalizeArtifactLocation(bad,'artifact_01')).toThrow(ArtifactContractError);
