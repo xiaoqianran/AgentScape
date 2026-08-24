@@ -10,6 +10,7 @@ import { AutosaveController } from './persistence/AutosaveController.js';
 import { RESOURCE_BUDGET } from './compiler/resourceBudget.js';
 import { EditorController } from './editor/EditorController.js';
 import { ENVIRONMENTS, resolveEnvironment } from './content/environments.js';
+import { GenerationJobCenter, generationJobCenterMarkup } from './generation/GenerationJobCenter.js';
 
 const QUICK_TASK_GROUPS = [
   {
@@ -83,6 +84,7 @@ async function main() {
         <aside class="panel" data-view="agent">
           <nav class="panel-tabs" aria-label="工作台视图">
             <button type="button" data-panel-view="agent" class="active" aria-selected="true">任务</button>
+            <button type="button" data-panel-view="generation" aria-selected="false">生成</button>
             <button type="button" data-panel-view="inspect" aria-selected="false">对象</button>
           </nav>
           <section class="inspector">
@@ -100,6 +102,7 @@ async function main() {
               <div id="actions" class="action-list"></div>
             </div>
           </section>
+          ${generationJobCenterMarkup()}
           <section class="agent-console">
             <div class="console-heading">
               <div><div class="eyebrow">任务</div><h2>你想让世界做什么？</h2></div>
@@ -227,6 +230,7 @@ async function main() {
     requestAnimationFrame(() => world.resize());
   };
   panelTabs.forEach((tab) => tab.addEventListener('click', () => setPanelView(tab.dataset.panelView)));
+  const generationJobCenter = await new GenerationJobCenter({ root:panel, world, tools, log }).init();
   document.querySelector('#world-select').addEventListener('change', (event) => {
     const url = new URL(location.href);
     url.searchParams.set('world', event.target.value);

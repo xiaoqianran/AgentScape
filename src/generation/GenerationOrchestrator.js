@@ -78,7 +78,7 @@ function safeJobView(job) {
     phase:job.phase,stage:job.stage,progress:clone(job.progress),attempt:job.attempt,
     createdAt:job.createdAt,submittedAt:job.submittedAt,startedAt:job.startedAt,
     updatedAt:job.updatedAt,completedAt:job.completedAt,error:clone(job.error),
-    artifacts:clone(job.result?.artifacts||[]),
+    artifacts:clone(job.result?.artifacts||[]),relations:clone(job.relations||[]),
     capability:{hash:job.capabilityHash,revision:job.capabilityRevision}
   };
 }
@@ -166,6 +166,44 @@ export class GenerationOrchestrator {
     return {status:"providers-listed",providers};
   }
 
+  connectorStatus() {
+    const session=this.connectorClient?.session?.()||null;
+    return {
+      status:this.connectorClient?.isPaired?.() ? "paired" : "connection-required",
+      connector:session?.connector||null,
+      expiresAt:session?.expiresAt||null
+    };
+  }
+
+  async pairConnector({pairingId=null}={}) {
+    const state=await this.initialize({pair:true,pairingId});
+    this.events?.emit?.("generation.state",clone(state));
+    return state;
+  }
+
+  async revokeConnector() {
+    if (!this.connectorClient) return {status:"connection-required",reason:"CONNECTOR_NOT_CONFIGURED"};
+    const result=await this.connectorClient.revoke();
+    const state={status:"connection-required",reason:result.status==="revoked"?"REVOKED":"PAIRING_REQUIRED"};
+    this.events?.emit?.("generation.state",clone(state));
+    return state;
+  }
+
+  listGenerationJobs() {
+    const jobs=(this.jobClient?.listCached?.()||[]).map(safeJobView);
+    return {status:this.connectorClient?.isPaired?.()?"jobs-listed":"connection-required",jobs};
+  }
+
+  async reconcileGenerationJobs() {
+    if (!this.jobReconciler) return {status:"connection-required",jobs:this.listGenerationJobs().jobs};
+    const result=await this.jobReconciler.bootstrap();
+    const jobs=(result.jobs||this.jobClient.listCached?.()||[]).map(safeJobView);
+    const status=result.state==="connection_required"?"connection-required":"jobs-reconciled";
+    const payload={status,jobs,eventCursor:result.eventCursor??null};
+    this.events?.emit?.("generation.jobs.reconciled",{status,count:jobs.length});
+    return payload;
+  }
+
   listGenerationCapabilities({provider=null,category=null,availableOnly=false}={}) {
     const capabilities=this.providerRegistry.findCapabilities({provider:provider||undefined,availableOnly})
       .filter((capability)=>GENERATION_CATEGORY.test(capability.category||""))
@@ -177,7 +215,9 @@ export class GenerationOrchestrator {
           displayName:capability.displayName,category:capability.category,status:capability.status,
           input:{types:[...(capability.input?.types||[])],schema:clone(capability.input?.schema||null),limits:clone(capability.input?.limits||null)},
           output:{roles:[...(capability.output?.roles||[])],required:[...(capability.output?.required||[])],optional:[...(capability.output?.optional||[])]},
+          profiles:clone(capability.profiles||{}),optionsSchema:clone(capability.optionsSchema||null),
           execution:clone(capability.execution),support:clone(capability.support),
+          prerequisites:{connection:Boolean(capability.prerequisites?.connection),authMode:capability.prerequisites?.authMode||null,license:capability.prerequisites?.license||null},
           connectionRequired:Boolean(capability.prerequisites?.connection),
           capabilityRevision:source?.capabilityRevision||null,capabilityHash:source?.capabilityHash||null
         };
@@ -284,7 +324,11 @@ export class GenerationOrchestrator {
     this.events?.emit?.("generation.artifact.imported",{jobId:job.id,artifactId:artifact.id,hash:artifact.hash});
     return {
       status:"artifact-imported",jobId:job.id,
-      artifact:{id:artifact.id,role:artifact.role,mime:artifact.mime,format:artifact.format,bytes:artifact.bytes,hash:artifact.hash,integrity:artifact.integrity?.state},
+      artifact:{
+        id:artifact.id,role:artifact.role,mime:artifact.mime,format:artifact.format,
+        bytes:artifact.bytes,hash:artifact.hash,integrity:artifact.integrity?.state,
+        producer:clone(artifact.producer),lineage:clone(artifact.lineage)
+      },
       reused:Boolean(imported.reused)
     };
   }
