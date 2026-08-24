@@ -1682,3 +1682,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 默认 World 中的 `cup_01` 真实放在 `table_01` 上时，旧 pickup planner 会围绕 Cup 自身 bounds 选站位，并把 target root 高度带入候选 Nav endpoint；结果要么候选落进 Table footprint，要么把 Agent 脚底投到桌面高度，导致 `NO_PICKUP_TRANSFER_POSE`。1.34.1 改为识别当前 support，站位围绕 support bounds，并把既有 `carryStandOff`（HoldAnchor 前伸 + carried object radius）纳入 clearance；NavMesh 继续拥有最终脚底高度。对于有 support 的物体，真实拿取采用 lift → horizontal → anchor 三段 Physics-checked transfer，任一段 blocked 都回滚。
 
 同一 hotfix 修正 `dropHeld` 的假完成：过去 release 后立即返回 `status=dropped`，SkillRegistry 会直接标 verified；现在 drop 必须等待 Dynamic body settle，并且同时满足 `released=true / settled=true / stillHeld=false` 才能成为 verified。新增默认 Table 支撑 Cup 的真实 Rapier/Recast E2E 与 release-only false-positive regression。
+
+---
+
+## 57. 1.34.2：Human-first Frontend UX
+
+1.34.2 只调整前端产品面，不改变 Runtime tool/physics/admission 语义。右侧控制区从“开发调试面板”改为用户任务优先：具身操作与场景任务变成可扩展 task cards，Engine/Compiler/Generator 统一折叠到 Developer tools，Activity log 默认降级为辅助证据，command 保持固定底部。Agent 执行新增稳定的 ready/running/success/error 状态卡，busy 时统一禁用重复入口，避免并发点击与视觉跳动。
+
+Scene toolbar 收敛为 Move/Rotate/Duplicate/Delete + Scene menu；Scene menu 新增两步 `Reset world`，用于清除当前 world autosave 并恢复官方 bootstrap，避免旧版本异常场景在 GitHub Pages 部署后继续被自动恢复。移动端默认隐藏 Inspector，把有限高度优先给 3D viewport 与 Agent task surface。Vite dev server 还明确忽略 service `.venv/__pycache__` 等目录，避免弱 VPS 因 file watcher 上限崩溃。

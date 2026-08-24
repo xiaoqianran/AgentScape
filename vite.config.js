@@ -2,6 +2,11 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   base: '/AgentScape/',
+  server: {
+    watch: {
+      ignored: ['**/.venv/**', '**/__pycache__/**', '**/.git/**', '**/dist/**']
+    }
+  },
   build: {
     rollupOptions: {
       output: {

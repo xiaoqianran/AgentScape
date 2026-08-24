@@ -11,6 +11,34 @@ import { RESOURCE_BUDGET } from './compiler/resourceBudget.js';
 import { EditorController } from './editor/EditorController.js';
 import { ENVIRONMENTS, resolveEnvironment } from './content/environments.js';
 
+const QUICK_TASK_GROUPS = [
+  {
+    label:'具身操作',
+    tasks:[
+      { title:'拿起杯子', detail:'导航到杯子并拿起', prompt:'让 agent_01 走到 cup_01 前并拿起杯子', tone:'primary' },
+      { title:'放到桌上', detail:'放置并验证支撑稳定', prompt:'让 agent_01 把当前拿着的物体放到 table_01 上', tone:'primary' },
+      { title:'自由放下', detail:'释放并等待物理稳定', prompt:'让 agent_01 放下当前拿着的物体' },
+      { title:'打开柜门', detail:'走近并完成开门', prompt:'让 agent_01 走到 cabinet_01 前并打开柜门' },
+      { title:'关闭柜门', detail:'走近并完成关门', prompt:'让 agent_01 走到 cabinet_01 前并关闭柜门' }
+    ]
+  },
+  {
+    label:'场景任务',
+    tasks:[
+      { title:'完整具身任务', detail:'开柜门 → 拿杯子 → 放到桌上', prompt:'让 agent_01 打开 cabinet_01，确认柜门完成打开后拿起 cup_01，再把杯子放到 table_01 上；每一步失败都不要继续后续动作', tone:'workflow' },
+      { title:'建立咖啡角', detail:'让 Agent 规划并布置场景', prompt:'建立一个咖啡角', tone:'workflow' }
+    ]
+  }
+];
+
+const quickTaskMarkup = () => QUICK_TASK_GROUPS.map((group) => `
+  <section class="task-group">
+    <div class="task-group-label">${group.label}</div>
+    <div class="task-grid">
+      ${group.tasks.map((task) => `<button class="task-card" data-prompt="${task.prompt}" data-tone="${task.tone || 'default'}"><strong>${task.title}</strong><span>${task.detail}</span></button>`).join('')}
+    </div>
+  </section>`).join('');
+
 async function main() {
   const app = document.querySelector('#app');
   const environmentDefinition = resolveEnvironment(new URLSearchParams(location.search).get('world'));
@@ -24,20 +52,24 @@ async function main() {
       </header>
       <section class="workspace">
         <div id="viewport" class="viewport">
-          <div class="editor-toolbar">
+          <div class="editor-toolbar" aria-label="Scene editor tools">
             <button data-mode="translate" class="active">Move <kbd>W</kbd></button>
             <button data-mode="rotate">Rotate <kbd>E</kbd></button>
-            <span></span>
+            <span class="toolbar-divider"></span>
             <button id="duplicate">Duplicate</button>
             <button id="delete" class="danger">Delete</button>
-            <span></span>
-            <button id="undo" disabled>Undo <kbd>⌘Z</kbd></button>
-            <button id="redo" disabled>Redo</button>
-            <span></span>
-            <button id="save-scene">Save</button>
-            <button id="load-scene">Load</button>
-            <button id="export-scene">Export</button>
-            <button id="import-scene">Import</button>
+            <details class="toolbar-more">
+              <summary>Scene</summary>
+              <div class="toolbar-menu">
+                <button id="undo" disabled>Undo <kbd>⌘Z</kbd></button>
+                <button id="redo" disabled>Redo</button>
+                <button id="save-scene">Save</button>
+                <button id="load-scene">Load</button>
+                <button id="export-scene">Export</button>
+                <button id="import-scene">Import</button>
+                <button id="reset-world" class="danger">Reset world</button>
+              </div>
+            </details>
             <input id="import-scene-file" type="file" accept="application/json,.json" hidden />
           </div>
           <div class="world-intro">
@@ -46,12 +78,12 @@ async function main() {
             <p>${environmentDefinition.description}</p>
             <div class="world-facts">${environmentDefinition.facts.map((fact) => `<span>${fact}</span>`).join('')}</div>
           </div>
-          <div class="hint">点击选择 · 拖拽 Gizmo 编辑 · W 移动 · E 旋转 · Delete 删除</div>
+          <div class="hint">点击选择 · 拖拽 Gizmo 编辑 · W 移动 · E 旋转</div>
         </div>
         <aside class="panel">
           <section class="inspector">
-            <div class="eyebrow">INSPECTOR</div>
-            <div id="empty-selection" class="empty-selection">点击场景中的对象进行编辑</div>
+            <div class="inspector-heading"><div class="eyebrow">INSPECTOR</div><span class="inspector-hint">选择场景对象查看详情</span></div>
+            <div id="empty-selection" class="empty-selection">尚未选择对象</div>
             <div id="selection" class="selection hidden">
               <div class="object-title"><h1 id="object-id"></h1><span id="object-type"></span></div>
               <dl class="properties">
@@ -65,50 +97,54 @@ async function main() {
             </div>
           </section>
           <section class="agent-console">
-            <div class="console-heading"><div class="eyebrow">AGENT CONSOLE</div><span id="agent-mode" class="agent-mode">LOCAL</span></div>
-            <p class="intro">Tool-calling Agent 与 Human Editor 共用同一个 World Runtime。配置你的 LLM Gateway 后即可执行自然语言多步规划。</p>
-            <details class="gateway-settings">
-              <summary>LLM Gateway</summary>
-              <label>Endpoint<input id="gateway-endpoint" type="url" placeholder="https://your-server.example/agent" /></label>
-              <small>只保存 Gateway URL，不在浏览器保存模型 API Key。留空时使用本地 planner。</small>
-            </details>
-            <details class="gateway-settings engine-settings" open>
-              <summary>Engine / Validation</summary>
-              <div class="engine-actions">
-                <button id="validate-world">Validate</button>
-                <button id="repair-world">Repair</button>
-                <button id="verify-trace">Verify Trace</button>
-              </div>
-              <div id="engine-report" class="engine-report">Engine ready.</div>
-            </details>
-            <details class="gateway-settings compiler-settings" open>
-              <summary>Agent-Ready Asset Compiler</summary>
-              <div class="asset-search"><input id="compiler-url" type="url" placeholder="https://.../model.glb" /><button id="compile-url-button">Compile URL</button></div>
-              <div class="compiler-file-row"><input id="compiler-file" type="file" accept=".glb,model/gltf-binary" /><button id="compile-file-button">Compile File</button></div>
-              <label>Compiler Endpoint<input id="compiler-endpoint" type="url" placeholder="https://your-server.example/compile" /></label>
-              <small>本地 pass: glTF inspect/optimize、bounds、语义/关节候选、fallback collider。配置后端后可升级为 CoACD/视觉语义/关节推断。</small>
-              <div id="compiler-report" class="engine-report">No asset compiled yet.</div>
-            </details>
-            <details class="gateway-settings asset-settings">
-              <summary>Asset Library / Generator</summary>
-              <div class="asset-search"><input id="asset-query" placeholder="搜索 chair / 椅子 / cup" /><button id="asset-search-button">Search</button></div>
-              <div id="asset-results" class="asset-results"></div>
-              <label>Generator Endpoint<input id="asset-generator-endpoint" type="url" placeholder="https://your-server.example/generate-3d" /></label>
-              <small>搜索不到时 Agent 才应调用生成器。生成器返回 GLB URL + manifest。</small>
-            </details>
-            <div class="chips">
-              <button data-prompt="让 agent_01 走到 cabinet_01 前并打开柜门">走过去打开柜门</button>
-              <button data-prompt="让 agent_01 走到 cabinet_01 前并关闭柜门">走过去关闭柜门</button>
-              <button data-prompt="让 agent_01 走到 cup_01 前并拿起杯子">走过去拿起杯子</button>
-              <button data-prompt="让 agent_01 把当前拿着的物体放到 table_01 上">把手中物体放到桌上</button>
-              <button data-prompt="让 agent_01 打开 cabinet_01，确认柜门完成打开后拿起 cup_01，再把杯子放到 table_01 上；每一步失败都不要继续后续动作">完整具身任务</button>
-              <button data-prompt="让 agent_01 放下当前拿着的物体">放下手中物体</button>
-              <button data-prompt="建立一个咖啡角">建立咖啡角</button>
+            <div class="console-heading">
+              <div><div class="eyebrow">AGENT</div><h2>让世界动起来</h2></div>
+              <span id="agent-mode" class="agent-mode">LOCAL</span>
             </div>
-            <div id="log" class="log"></div>
+            <div id="task-state" class="task-state" data-state="ready" role="status" aria-live="polite">
+              <span class="task-state-dot"></span>
+              <div><strong id="task-state-label">准备就绪</strong><span id="task-state-detail">选择一个任务，或直接描述你想做什么。</span></div>
+            </div>
+            <div class="agent-scroll">
+              <div class="quick-tasks">${quickTaskMarkup()}</div>
+              <details class="activity-panel">
+                <summary><span>Activity</span><small id="activity-count">0</small></summary>
+                <div id="log" class="log"></div>
+              </details>
+              <details class="developer-tools">
+                <summary><span>Developer tools</span><small>Gateway · Validation · Assets</small></summary>
+                <div class="developer-tools-body">
+                  <details class="gateway-settings">
+                    <summary>LLM Gateway</summary>
+                    <label>Endpoint<input id="gateway-endpoint" type="url" placeholder="https://your-server.example/agent" /></label>
+                    <small>只保存 Gateway URL，不在浏览器保存模型 API Key。留空时使用本地 planner。</small>
+                  </details>
+                  <details class="gateway-settings engine-settings">
+                    <summary>Engine / Validation</summary>
+                    <div class="engine-actions"><button id="validate-world">Validate</button><button id="repair-world">Repair</button><button id="verify-trace">Verify Trace</button></div>
+                    <div id="engine-report" class="engine-report">Engine ready.</div>
+                  </details>
+                  <details class="gateway-settings compiler-settings">
+                    <summary>Agent-Ready Asset Compiler</summary>
+                    <div class="asset-search"><input id="compiler-url" type="url" placeholder="https://.../model.glb" /><button id="compile-url-button">Compile URL</button></div>
+                    <div class="compiler-file-row"><input id="compiler-file" type="file" accept=".glb,model/gltf-binary" /><button id="compile-file-button">Compile File</button></div>
+                    <label>Compiler Endpoint<input id="compiler-endpoint" type="url" placeholder="https://your-server.example/compile" /></label>
+                    <small>未配置后端时使用浏览器本地检查；重型碰撞/视觉语义交给 Compiler Provider。</small>
+                    <div id="compiler-report" class="engine-report">No asset compiled yet.</div>
+                  </details>
+                  <details class="gateway-settings asset-settings">
+                    <summary>Asset Library / Generator</summary>
+                    <div class="asset-search"><input id="asset-query" placeholder="搜索 chair / 椅子 / cup" /><button id="asset-search-button">Search</button></div>
+                    <div id="asset-results" class="asset-results"></div>
+                    <label>Generator Endpoint<input id="asset-generator-endpoint" type="url" placeholder="https://your-server.example/generate-3d" /></label>
+                    <small>搜索不到时才应进入生成链。</small>
+                  </details>
+                </div>
+              </details>
+            </div>
             <form id="command" class="command">
-              <input id="input" autocomplete="off" placeholder="例如：让 agent_01 走到 cabinet_01 前并打开柜门" />
-              <button type="submit">执行</button>
+              <input id="input" autocomplete="off" placeholder="描述任务，例如：把杯子拿起来放到桌上" aria-label="Agent task" />
+              <button type="submit"><span>执行</span></button>
             </form>
           </section>
         </aside>
@@ -116,11 +152,39 @@ async function main() {
     </main>`;
 
   const logEl = document.querySelector('#log');
+  const activityCountEl = document.querySelector('#activity-count');
+  let activityCount = 0;
   const log = (text, kind = '') => {
     const row = document.createElement('div');
     row.className = `log-row ${kind}`;
     row.textContent = text;
     logEl.prepend(row);
+    while (logEl.children.length > 80) logEl.lastElementChild.remove();
+    activityCount += 1;
+    activityCountEl.textContent = String(Math.min(activityCount, 99));
+  };
+
+  const taskState = document.querySelector('#task-state');
+  const taskStateLabel = document.querySelector('#task-state-label');
+  const taskStateDetail = document.querySelector('#task-state-detail');
+  const commandForm = document.querySelector('#command');
+  const commandInput = document.querySelector('#input');
+  const commandButton = commandForm.querySelector('button[type="submit"]');
+  const commandButtonLabel = commandButton.querySelector('span');
+  const taskButtons = [...document.querySelectorAll('.task-card')];
+  let taskBusy = false;
+  const setTaskState = (state, label, detail) => {
+    taskState.dataset.state = state;
+    taskStateLabel.textContent = label;
+    taskStateDetail.textContent = detail;
+  };
+  const setTaskBusy = (busy) => {
+    taskBusy = busy;
+    for (const button of taskButtons) button.disabled = busy;
+    commandInput.disabled = busy;
+    commandButton.disabled = busy;
+    commandButtonLabel.textContent = busy ? '执行中' : '执行';
+    taskState.setAttribute('aria-busy', busy ? 'true' : 'false');
   };
 
   const world = new WorldRuntime(document.querySelector('#viewport'), { environmentFactory });
@@ -329,20 +393,41 @@ async function main() {
     log(gateway.isConfigured() ? `LLM gateway: ${gateway.endpoint}` : 'LLM gateway disabled; using local planner', 'result');
   });
 
-  async function execute(prompt) {
+  async function execute(prompt, label = '自定义任务') {
+    if (taskBusy) return;
+    setTaskBusy(true);
+    setTaskState('running', '正在执行', label);
     try {
       const result = await agent.run(prompt);
-      if (result.taskStatus === 'completed') log('task status: completed · mutation chain verified', 'result');
-      else if (result.taskStatus === 'incomplete') log(`task status: incomplete · ${result.lastMutation?.tool || 'mutation'} → ${result.lastMutation?.outcome?.state || 'unknown'}`, 'error');
-    } catch (err) { log(`error: ${err.message}`, 'error'); }
+      if (result.taskStatus === 'completed') {
+        setTaskState('success', '任务完成', `${label} · 已通过 Runtime 验证`);
+        log('task status: completed · mutation chain verified', 'result');
+      } else {
+        const tool = result.lastMutation?.tool || 'mutation';
+        const outcome = result.lastMutation?.outcome?.state || 'unknown';
+        setTaskState('error', '需要处理', `${label} · ${tool} → ${outcome}`);
+        log(`task status: incomplete · ${tool} → ${outcome}`, 'error');
+      }
+      return result;
+    } catch (err) {
+      setTaskState('error', '执行失败', err.message);
+      log(`error: ${err.message}`, 'error');
+      return null;
+    } finally {
+      setTaskBusy(false);
+    }
   }
 
-  document.querySelectorAll('[data-prompt]').forEach(btn => btn.addEventListener('click', () => execute(btn.dataset.prompt)));
-  document.querySelector('#command').addEventListener('submit', async (event) => {
+  taskButtons.forEach((button) => button.addEventListener('click', () => {
+    const label = button.querySelector('strong')?.textContent || '快捷任务';
+    execute(button.dataset.prompt, label);
+  }));
+  commandForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const input = document.querySelector('#input');
-    if (!input.value.trim()) return;
-    const value = input.value; input.value = ''; await execute(value);
+    const value = commandInput.value.trim();
+    if (!value || taskBusy) return;
+    commandInput.value = '';
+    await execute(value, value.length > 42 ? `${value.slice(0, 42)}…` : value);
   });
 
   document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
@@ -355,6 +440,40 @@ async function main() {
     const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   };
+
+  const resetWorldButton = document.querySelector('#reset-world');
+  let resetWorldArmed = false;
+  let resetWorldTimer = null;
+  resetWorldButton.addEventListener('click', async () => {
+    if (!resetWorldArmed) {
+      resetWorldArmed = true;
+      resetWorldButton.textContent = 'Confirm reset';
+      resetWorldTimer = setTimeout(() => {
+        resetWorldArmed = false;
+        resetWorldButton.textContent = 'Reset world';
+      }, 3000);
+      return;
+    }
+    clearTimeout(resetWorldTimer);
+    resetWorldArmed = false;
+    resetWorldButton.textContent = 'Resetting…';
+    resetWorldButton.disabled = true;
+    try {
+      editor.select(null);
+      sceneStore.clear();
+      await world.clearObjects();
+      await bootstrapWorld(tools, environmentDefinition.bootstrap);
+      world.history.clear();
+      setTaskState('ready', '世界已重置', '已恢复官方初始场景，可以重新测试拿杯子、放置和柜门任务。');
+      log(`world reset · ${world.listObjects().length} objects`, 'result');
+    } catch (error) {
+      setTaskState('error', '重置失败', error.message);
+      log(`reset error: ${error.message}`, 'error');
+    } finally {
+      resetWorldButton.disabled = false;
+      resetWorldButton.textContent = 'Reset world';
+    }
+  });
 
   document.querySelector('#save-scene').addEventListener('click', () => {
     const scene = world.serialize({ name: 'AgentScape World' });
