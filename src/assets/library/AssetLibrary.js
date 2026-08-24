@@ -1,16 +1,16 @@
 import { validateAssetManifest } from '../schema.js';
-import { EmbodiedGenAdapter } from '../../adapters/EmbodiedGenAdapter.js';
+import { createDefaultProviderRegistry } from '../../providers/ProviderRegistry.js';
 import { assetAdmission } from '../admission.js';
 
 const normalize = (value = '') => String(value).trim().toLowerCase();
 const tokens = (value = '') => normalize(value).split(/[^a-z0-9\u4e00-\u9fff]+/).filter(Boolean);
 
 export class AssetLibrary {
-  constructor({ assetManager, generator = null, events = null, embodiedGenAdapter = new EmbodiedGenAdapter() } = {}) {
+  constructor({ assetManager, generator = null, events = null, providerRegistry = null, embodiedGenAdapter } = {}) {
     this.assetManager = assetManager;
     this.generator = generator;
     this.events = events;
-    this.embodiedGenAdapter = embodiedGenAdapter;
+    this.providerRegistry = providerRegistry || createDefaultProviderRegistry({ generator, embodiedGenAdapter });
   }
 
   list() {
@@ -59,14 +59,28 @@ export class AssetLibrary {
   }
 
   async generate(prompt, options = {}) {
-    if (!this.generator?.isConfigured?.()) {
+    if (options.provider && !this.providerRegistry.hasProvider(options.provider)) {
+      throw new Error(`Asset Generator response requires manifest or a recognized provider payload contract; unknown provider: ${options.provider}`);
+    }
+    const capability = this.providerRegistry.resolveCapability({
+      provider: options.provider || undefined,
+      operation: options.operation || undefined,
+      input: 'text',
+      output: 'asset'
+    });
+    if (!capability) {
       return {
         status: 'generator_not_configured',
         prompt,
-        hint: 'Configure an Asset Generator endpoint before requesting missing assets.'
+        provider: options.provider || null,
+        hint: options.provider
+          ? `Provider ${options.provider} has no available text-to-asset capability.`
+          : 'Configure an Asset Generator endpoint before requesting missing assets.'
       };
     }
-    const result = await this.generator.generate({ prompt, ...options });
+    const request = { prompt, ...options };
+    if (options.provider) request.provider = capability.provider;
+    const result = await this.providerRegistry.execute(capability, request);
     let manifest;
     if (result?.manifest) {
       manifest = validateAssetManifest(structuredClone(result.manifest));
@@ -74,11 +88,19 @@ export class AssetLibrary {
         ...(manifest.provenance || {}),
         admission:assetAdmission(manifest,{generated:true})
       };
-    } else if (options.provider === 'embodiedgen' || result?.provider === 'embodiedgen') {
-      const payload = result?.payload || result;
-      manifest = validateAssetManifest(this.embodiedGenAdapter.toManifest(payload, { id:options.id, glbUrl:result?.glbUrl }));
     } else {
-      throw new Error('Asset Generator response requires manifest or a recognized provider payload');
+      const responseCapability = result?.provider && result.provider !== capability.provider
+        ? this.providerRegistry.resolveCapability({ provider: result.provider, input: 'text', output: 'asset' })
+        : null;
+      const consumerCapability = responseCapability || capability;
+      try {
+        manifest = validateAssetManifest(await this.providerRegistry.consume(consumerCapability, result, { request, options }));
+      } catch (error) {
+        if (/no registered consumer/.test(error?.message || '')) {
+          throw new Error(`Asset Generator response requires manifest or a recognized provider payload; no consumer for ${consumerCapability.operation}`);
+        }
+        throw error;
+      }
     }
     const admission=assetAdmission(manifest,{generated:true});
     if (admission.status==='rejected') return { status:'rejected', id:manifest.id, admission };
