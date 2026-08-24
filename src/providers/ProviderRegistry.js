@@ -65,7 +65,7 @@ function normalizeCapability(providerId, capability = {}) {
   };
 }
 
-function normalizeProvider(provider = {}) {
+export function normalizeProviderDescriptor(provider = {}) {
   const id = requiredString(provider.id, 'provider.id');
   const status = provider.status || 'disabled';
   const health = provider.health || 'unknown';
@@ -92,20 +92,145 @@ function normalizeProvider(provider = {}) {
 }
 
 export class ProviderRegistry {
-  constructor({ providers = [] } = {}) {
+  constructor({ providers = [], replaceableProviders = {} } = {}) {
     this.providers = new Map();
     this.bindings = new Map();
+    this.providerSources = new Map();
+    this.snapshots = new Map();
     for (const provider of providers) this.registerProvider(provider);
+    for (const [id, replaceableBy] of Object.entries(replaceableProviders || {})) {
+      if (!this.providers.has(id)) throw new Error(`Cannot mark unknown provider replaceable: ${id}`);
+      this.providerSources.set(id, { kind:'placeholder', sourceId:null, replaceableBy:copyArray(replaceableBy) });
+    }
   }
 
   registerProvider(provider) {
-    const normalized = normalizeProvider(provider);
+    const normalized = normalizeProviderDescriptor(provider);
     if (this.providers.has(normalized.id)) throw new Error(`Provider already registered: ${normalized.id}`);
     this.providers.set(normalized.id, normalized);
+    this.providerSources.set(normalized.id, { kind:'local', sourceId:null, replaceableBy:[] });
     return this.getProvider(normalized.id);
   }
 
   hasProvider(id) { return this.providers.has(id); }
+
+  getProviderSource(id) {
+    const source = this.providerSources.get(id);
+    return source ? clone(source) : null;
+  }
+
+  getSnapshotState(sourceId) {
+    const snapshot = this.snapshots.get(sourceId);
+    if (!snapshot) return null;
+    return {
+      sourceId,
+      revision:snapshot.revision,
+      hash:snapshot.hash,
+      connector:clone(snapshot.connector),
+      providerIds:[...snapshot.providerIds]
+    };
+  }
+
+  applyProviderSnapshot(snapshot = {}, { sourceId, sourceKind = 'connector' } = {}) {
+    const id = requiredString(sourceId, 'snapshot sourceId');
+    if (!Array.isArray(snapshot.providers)) throw new Error('Provider snapshot requires providers array');
+    const revision = requiredString(snapshot.revision, 'snapshot revision');
+    const hash = requiredString(snapshot.hash, 'snapshot hash');
+    const connector = clone(snapshot.connector || null);
+    const normalizedProviders = snapshot.providers.map((provider) => normalizeProviderDescriptor(provider));
+    const ids = new Set();
+    for (const provider of normalizedProviders) {
+      if (ids.has(provider.id)) throw new Error(`Duplicate provider in snapshot: ${provider.id}`);
+      ids.add(provider.id);
+      const currentSource = this.providerSources.get(provider.id);
+      if (!currentSource) continue;
+      const sameSource = currentSource.kind === sourceKind && currentSource.sourceId === id;
+      const replaceable = currentSource.kind === 'placeholder' && currentSource.replaceableBy.includes(sourceKind);
+      if (!sameSource && !replaceable) {
+        throw new Error(`Provider snapshot ownership conflict: ${provider.id}`);
+      }
+    }
+
+    const previous = this.snapshots.get(id);
+    const fallbacks = previous?.fallbacks ? new Map(previous.fallbacks) : new Map();
+    for (const provider of normalizedProviders) {
+      const currentSource = this.providerSources.get(provider.id);
+      if (currentSource?.kind === 'placeholder' && !fallbacks.has(provider.id)) {
+        fallbacks.set(provider.id, {
+          provider:clone(this.providers.get(provider.id)),
+          source:clone(currentSource)
+        });
+      }
+    }
+
+    const nextProviders = new Map(this.providers);
+    const nextSources = new Map(this.providerSources);
+    for (const previousId of previous?.providerIds || []) {
+      if (ids.has(previousId)) continue;
+      const fallback = fallbacks.get(previousId);
+      if (fallback) {
+        nextProviders.set(previousId, clone(fallback.provider));
+        nextSources.set(previousId, clone(fallback.source));
+      } else {
+        nextProviders.delete(previousId);
+        nextSources.delete(previousId);
+      }
+    }
+    for (const provider of normalizedProviders) {
+      nextProviders.set(provider.id, provider);
+      nextSources.set(provider.id, {
+        kind:sourceKind,
+        sourceId:id,
+        replaceableBy:[],
+        connectorInstance:connector?.instance || null,
+        capabilityRevision:revision,
+        capabilityHash:hash
+      });
+    }
+
+    const validOperations = new Set();
+    for (const provider of nextProviders.values()) for (const capability of provider.capabilities) validOperations.add(capability.operation);
+    const nextBindings = new Map([...this.bindings].filter(([operation]) => validOperations.has(operation)));
+
+    this.providers = nextProviders;
+    this.providerSources = nextSources;
+    this.bindings = nextBindings;
+    this.snapshots.set(id, {
+      revision,
+      hash,
+      connector,
+      providerIds:[...ids],
+      fallbacks
+    });
+    return this.getSnapshotState(id);
+  }
+
+  clearProviderSnapshot(sourceId) {
+    const id = requiredString(sourceId, 'snapshot sourceId');
+    const previous = this.snapshots.get(id);
+    if (!previous) return { sourceId:id, cleared:false, providerIds:[] };
+    const nextProviders = new Map(this.providers);
+    const nextSources = new Map(this.providerSources);
+    for (const providerId of previous.providerIds) {
+      const currentSource = nextSources.get(providerId);
+      if (currentSource?.sourceId !== id) continue;
+      const fallback = previous.fallbacks.get(providerId);
+      if (fallback) {
+        nextProviders.set(providerId, clone(fallback.provider));
+        nextSources.set(providerId, clone(fallback.source));
+      } else {
+        nextProviders.delete(providerId);
+        nextSources.delete(providerId);
+      }
+    }
+    const validOperations = new Set();
+    for (const provider of nextProviders.values()) for (const capability of provider.capabilities) validOperations.add(capability.operation);
+    this.providers = nextProviders;
+    this.providerSources = nextSources;
+    this.bindings = new Map([...this.bindings].filter(([operation]) => validOperations.has(operation)));
+    this.snapshots.delete(id);
+    return { sourceId:id, cleared:true, providerIds:[...previous.providerIds] };
+  }
 
   getProvider(id) {
     const provider = this.providers.get(id);
@@ -230,7 +355,11 @@ export function createDefaultProviderRegistry({ generator = null, embodiedGenAda
         consumption: { kind: 'embodiedgen-adapter' }, artifactTransport: 'inline-json'
       }]
     }
-  ] });
+  ], replaceableProviders: {
+    'modal-2d':['connector'],
+    'modal-3d':['connector'],
+    ...(!configured ? { embodiedgen:['connector'] } : {})
+  } });
 
   if (configured) {
     const execute = (request) => generator.generate(request);
