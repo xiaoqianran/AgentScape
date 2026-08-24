@@ -1,0 +1,26 @@
+{
+  "fixtureVersion": 1,
+  "contractSource": "modal-build@adf9fcf",
+  "consumerBaseline": "AgentScape@671e1ac",
+  "primaryGlbSha256": "da0e6fb1b3fc3381087056f6aa3725f602c6b7aced4caf2ab4fc2d32cbf6b91f",
+  "segmentationSha256": "167a7e1003ab1f37621d921818952d45dc24e8177f51ca3b2fb1a7750e756a47",
+  "rawGraspsSha256": "9f8e9f5160ad0a0d8edec0b593bddb95c3fa3e2870b03a640c1c6434f144bf77",
+  "bundleSha256": "4199fbe408e0d684066b8ed4d6cd316a6a7284be40cff3eab37d0b900503ce2f",
+  "faceCount": 12,
+  "partCount": 4,
+  "rawGraspCount": 3,
+  "expectedMaterializedNodes": [
+    "geometry_0__part_0",
+    "geometry_0__part_1",
+    "geometry_0__part_2",
+    "geometry_0__part_3"
+  ],
+  "expectedQuality": "provisional",
+  "expectedAdmissionReasons": [
+    "PART_SEMANTICS_UNVERIFIED",
+    "PROVIDER_GRASP_RAW_ONLY",
+    "PART_PROPOSAL_PARTIAL",
+    "COLLIDER_COARSE",
+    "SEMANTIC_LOW_CONFIDENCE"
+  ]
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<robot name="embodiedgen_fixture">
+  <link name="base">
+    <visual><geometry><mesh filename="source/sample_00.glb"/></geometry></visual>
+  </link>
+</robot>

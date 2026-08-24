@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "source": "embodiedgen/p3sam",
+  "faceCount": 12,
+  "segments": [
+    {
+      "id": "0",
+      "faceCount": 3
+    },
+    {
+      "id": "1",
+      "faceCount": 3
+    },
+    {
+      "id": "2",
+      "faceCount": 3
+    },
+    {
+      "id": "3",
+      "faceCount": 3
+    }
+  ],
+  "artifact": {
+    "role": "primary_glb",
+    "path": "source/sample_00.glb",
+    "sha256": "da0e6fb1b3fc3381087056f6aa3725f602c6b7aced4caf2ab4fc2d32cbf6b91f",
+    "bytes": 1268,
+    "sourceObjSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "alignment": {
+      "strategy": "verified-vertex-identity-triangle-index-set",
+      "maxVertexAbsError": 0
+    }
+  },
+  "materialization": {
+    "sourceNode": "geometry_0",
+    "primitives": [
+      {
+        "primitive": 0,
+        "faceLabels": [
+          "0",
+          "0",
+          "0",
+          "1",
+          "1",
+          "1",
+          "2",
+          "2",
+          "2",
+          "3",
+          "3",
+          "3"
+        ]
+      }
+    ]
+  }
+}
