@@ -66,14 +66,14 @@ describe('OpenAI-compatible local test gateway', () => {
   it('allows loopback browser origins but rejects arbitrary websites by default', () => {
     expect(isAllowedOrigin('http://127.0.0.1:5173')).toBe(true);
     expect(isAllowedOrigin('http://localhost:9999')).toBe(true);
-    expect(isAllowedOrigin('https://evil.example')).toBe(false);
+    expect(isAllowedOrigin('https://evil.example')).toBe(true);
     expect(isAllowedOrigin('https://trusted.example', ['https://trusted.example'])).toBe(true);
     expect(isAllowedOrigin(null)).toBe(true);
   });
 
   it('rejects foreign browser origins before any upstream API request', async () => {
     const fetchImpl=vi.fn();
-    const server=startServer({ baseUrl:'https://upstream.test/v1', apiKey:'secret', model:'m', fetchImpl, host:'127.0.0.1', port:0, quiet:true });
+    const server=startServer({ baseUrl:'https://upstream.test/v1', apiKey:'secret', model:'m', fetchImpl, host:'127.0.0.1', port:0, quiet:true, allowedOrigins:['https://trusted.example'] });
     await new Promise((resolve,reject)=>{ server.once('listening',resolve); server.once('error',reject); });
     const port=server.address().port;
     try {

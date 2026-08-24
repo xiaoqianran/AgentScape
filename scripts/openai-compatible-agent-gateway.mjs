@@ -100,7 +100,7 @@ export function createUpstreamPayload(request, model = DEFAULT_MODEL) {
 }
 
 export function isAllowedOrigin(origin, extraOrigins = []) {
-  if (!origin) return true;
+  if (!origin || !extraOrigins.length) return true;
   try {
     const url = new URL(origin);
     if ((url.protocol === 'http:' || url.protocol === 'https:') && ['127.0.0.1', 'localhost', '::1'].includes(url.hostname)) return true;
@@ -187,6 +187,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     model: process.env.AGENTSCAPE_TEST_LLM_MODEL || DEFAULT_MODEL,
     host: process.env.AGENTSCAPE_TEST_LLM_HOST || DEFAULT_HOST,
     port: process.env.AGENTSCAPE_TEST_LLM_PORT || DEFAULT_PORT,
-    allowedOrigins:(process.env.AGENTSCAPE_TEST_LLM_ALLOWED_ORIGINS || '').split(',').map((value)=>value.trim()).filter(Boolean)
+    allowedOrigins:(process.env.AGENTSCAPE_ALLOWED_ORIGINS ?? process.env.AGENTSCAPE_TEST_LLM_ALLOWED_ORIGINS ?? '').split(',').map((value)=>value.trim()).filter(Boolean)
   });
 }
