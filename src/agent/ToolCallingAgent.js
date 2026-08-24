@@ -72,13 +72,13 @@ export class ToolCallingAgent {
 
   get mode() { return this.gateway?.isConfigured() ? 'llm' : 'local'; }
 
-  async run(text) {
+  async run(text, { forceFallback = false } = {}) {
     this.log(`goal: ${text}`, 'goal');
     const messages = [
       { role:'system', content:SYSTEM_PROMPT },
       { role:'user', content:text }
     ];
-    const gateway = this.gateway?.isConfigured() ? this.gateway : this.fallbackGateway;
+    const gateway = !forceFallback && this.gateway?.isConfigured() ? this.gateway : this.fallbackGateway;
     if (!gateway) throw new Error('No agent gateway available');
 
     const execution = [];

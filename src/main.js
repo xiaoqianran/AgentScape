@@ -428,12 +428,12 @@ async function main() {
     log(gateway.isConfigured() ? `LLM gateway: ${gateway.endpoint}` : 'LLM gateway disabled; using local planner', 'result');
   });
 
-  async function execute(prompt, label = '自定义任务', sourceButton = null) {
+  async function execute(prompt, label = '自定义任务', sourceButton = null, { deterministic = false } = {}) {
     if (taskBusy) return;
     setTaskBusy(true, sourceButton);
     setTaskState('running', '正在处理', label);
     try {
-      const result = await agent.run(prompt);
+      const result = await agent.run(prompt, { forceFallback:deterministic });
       if (result.taskStatus === 'completed') {
         setTaskState('success', '已完成', `${label} · Runtime 已验证`);
         log('task status: completed · mutation chain verified', 'result');
@@ -456,7 +456,7 @@ async function main() {
   taskButtons.forEach((button) => button.addEventListener('click', () => {
     const label = button.querySelector('strong')?.textContent || '快捷任务';
     setPanelView('agent');
-    execute(button.dataset.prompt, label, button);
+    execute(button.dataset.prompt, label, button, { deterministic:true });
   }));
   commandForm.addEventListener('submit', async (event) => {
     event.preventDefault();

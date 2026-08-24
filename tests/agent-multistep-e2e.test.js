@@ -78,6 +78,21 @@ async function driveAgent(promise,ctx,max=6000){
 }
 
 describe('verified multi-step embodied sequencing',()=>{
+  it('executes the exact quick-task prompt as pickup then verified place',async()=>{
+    const ctx=await setup();
+    const result=await driveAgent(ctx.agent.run('让 agent_01 先拿起 cup_01，再把它放到 table_01 上并确认稳定'),ctx);
+    expect(result).toMatchObject({
+      taskStatus:'completed',
+      lastMutation:{tool:'approachAndPlace',outcome:{state:'verified',status:'placed'}},
+      unresolvedMutations:[]
+    });
+    expect(ctx.mutate.mock.calls.map(([label])=>label)).toEqual([
+      'skill:approachAndPickup','skill:approachAndPlace'
+    ]);
+    expect(ctx.spatial.supportStatus('cup_01','table_01',{surfaceId:'top'}).on).toBe(true);
+    ctx.navigation.dispose(); ctx.physics.dispose();
+  },45000);
+
   it('opens, replans, picks up, replans, and places using real Runtime post-conditions',async()=>{
     const ctx=await setup();
     const result=await driveAgent(ctx.agent.run('打开柜门，然后拿起杯子，再把杯子放到桌上。'),ctx);

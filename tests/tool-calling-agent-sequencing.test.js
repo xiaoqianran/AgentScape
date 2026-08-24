@@ -25,6 +25,31 @@ const makeTools=(results,policyOverrides={})=>({
   recordSequence:vi.fn()
 });
 
+it('uses the deterministic fallback planner for preset tasks even when a remote gateway is configured',async()=>{
+  const remote={isConfigured:()=>true,complete:vi.fn(async()=>({
+    message:'',toolCalls:[{id:'wrong',name:'approachAndPlace',args:{actorId:'agent_01',supportId:'table_01'}}]
+  }))};
+  let round=0;
+  const fallback={complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'pick',name:'approachAndPickup',args:{actorId:'agent_01',targetId:'cup_01'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'place',name:'approachAndPlace',args:{actorId:'agent_01',supportId:'table_01'}}]};
+    return {message:'done',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    approachAndPickup:async()=>({status:'held'}),
+    approachAndPlace:async()=>({status:'placed',supportVerified:true,settled:true})
+  });
+  const result=await new ToolCallingAgent({tools,gateway:remote,fallbackGateway:fallback,maxSteps:5})
+    .run('先拿起杯子，再放到桌上', {forceFallback:true});
+  expect(remote.complete).not.toHaveBeenCalled();
+  expect(fallback.complete).toHaveBeenCalledTimes(3);
+  expect(tools.call.mock.calls.filter(([name])=>name!=='listObjects').map(([name])=>name)).toEqual([
+    'approachAndPickup','approachAndPlace'
+  ]);
+  expect(result).toMatchObject({taskStatus:'completed',lastMutation:{tool:'approachAndPlace',outcome:{state:'verified'}}});
+});
+
 
 
 it('blocks an unchanged rejected WorldSpec from executing again in the same Agent run',async()=>{
