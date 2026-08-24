@@ -16,10 +16,12 @@ export class CompileQualityPass {
     if (providerLevels?.partSegmentation === 'provider' && providerLevels?.partSemantics !== 'provider-verified') {
       advisory.push({ code:'PART_SEMANTICS_UNVERIFIED', message:'Provider 已提供 Part segmentation，但 semantic Part 仍未验证。' });
     }
-    if (providerLevels?.grasps === 'raw-provider-only') {
-      advisory.push({ code:'PROVIDER_GRASP_RAW_ONLY', message:'Provider 只有 raw grasp candidates；不得视为 AgentScape pickup 已验证。' });
+    if (providerLevels?.grasps === 'raw-provider-unverified' || providerLevels?.grasps === 'sapien-provider-unverified') {
+      advisory.push({ code:'PROVIDER_GRASP_UNVERIFIED', message:'Provider 声明了 grasp artifact，但 AgentScape 尚未验证其 bytes/hash/schema。' });
+    } else if (providerLevels?.grasps === 'raw-provider-only') {
+      advisory.push({ code:'PROVIDER_GRASP_RAW_ONLY', message:'Provider 只有已验证 bytes/schema 的 raw grasp candidates；不得视为 AgentScape pickup 已验证。' });
     } else if (providerLevels?.grasps === 'sapien-validated-provider-only') {
-      advisory.push({ code:'PROVIDER_GRASP_SAPIEN_ONLY', message:'Grasp 仅通过 Provider/SAPIEN 验证，尚未通过 AgentScape/Rapier runtime verification。' });
+      advisory.push({ code:'PROVIDER_GRASP_SAPIEN_ONLY', message:'Grasp bytes/schema 已验证且仅通过 Provider/SAPIEN 验证，尚未通过 AgentScape/Rapier runtime verification。' });
     }
     if (context.partSegmentation?.issues?.length) {
       advisory.push({ code:'PART_SEGMENTATION_INVALID', message:`Part segmentation evidence 存在 ${context.partSegmentation.issues.length} 个格式或覆盖错误。` });

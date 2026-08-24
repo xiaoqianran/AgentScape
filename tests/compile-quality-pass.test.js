@@ -56,6 +56,15 @@ describe('CompileQualityPass', () => {
     expect(result.quality.status).toBe('provisional');
   });
 
+  it('distinguishes unverified grasp descriptors from hash/schema-verified raw or SAPIEN evidence', async () => {
+    for (const level of ['raw-provider-unverified','sapien-provider-unverified']) {
+      const result=await run({providerEvidence:{levels:{partSegmentation:'none',partSemantics:'none',grasps:level}}});
+      expect(result.quality.advisory.map((item)=>item.code)).toContain('PROVIDER_GRASP_UNVERIFIED');
+    }
+    const sapien=await run({providerEvidence:{levels:{partSegmentation:'none',partSemantics:'none',grasps:'sapien-validated-provider-only'}}});
+    expect(sapien.quality.advisory.map((item)=>item.code)).toContain('PROVIDER_GRASP_SAPIEN_ONLY');
+  });
+
   it('keeps face-level segmentation provisional until it is materialized into executable parts', async () => {
     const result=await run({partSegmentation:{version:1,source:'external',segments:[{id:'a'}],issues:[]}});
     expect(result.quality.status).toBe('provisional');

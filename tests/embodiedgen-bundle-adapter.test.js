@@ -18,7 +18,17 @@ const fixture = async () => {
     materialization:{sourceNode:'Door',primitives:[{primitive:0,faceLabels:[...Array(6).fill('a'),...Array(6).fill('b')]}]}
   };
   const segmentationBytes = enc.encode(JSON.stringify(segmentation));
-  const rawGrasps = enc.encode(JSON.stringify({version:1,evidence_level:'raw',grasps:[{score:.8,pose:[1]}]}));
+  const rawGrasps = enc.encode(JSON.stringify({
+    version:1,
+    source_job_id:`job-${'a'.repeat(32)}`,
+    output_job_id:`job-${'b'.repeat(32)}`,
+    backend:'GraspGen',
+    evidence_level:'raw',
+    gripper:'franka_panda',
+    source_frame:'urdf_link:Door',
+    seed:42,
+    grasps:[{rank:0,score:.8,pose:[[1,0,0,.25],[0,1,0,.1],[0,0,1,.3],[0,0,0,1]]}]
+  }));
   const bundle = {
     version:1, provider:'embodiedgen', sourceJobId:`job-${'a'.repeat(32)}`,
     asset:{id:'bundle_cabinet',label:'Provider cabinet'},
@@ -41,7 +51,9 @@ describe('EmbodiedGenBundleAdapter', () => {
     expect(prepared.compilerInput.partSegmentation.source).toBe('embodiedgen/p3sam');
     expect(prepared.compilerInput.partProposal).toBeNull();
     expect(prepared.providerEvidence.levels).toEqual({partSegmentation:'provider',partSemantics:'none',grasps:'raw-provider-only',urdf:'none'});
-    expect(prepared.providerEvidence.artifacts.find((item)=>item.role==='raw_grasps').verified).toBe(false);
+    expect(prepared.providerEvidence.artifacts.find((item)=>item.role==='raw_grasps').verified).toBe(true);
+    expect(prepared.providerEvidence.grasps.raw_grasps).toMatchObject({status:'verified',evidenceLevel:'raw',count:1,topScore:.8,gripper:'franka_panda',sourceFrame:'urdf_link:Door'});
+    expect(JSON.stringify(prepared.providerEvidence.grasps.raw_grasps)).not.toContain('pose');
     expect(prepared.providerEvidence.lineage).toEqual({providerCommit:'deadbeef',seed:42});
     expect(JSON.stringify(prepared.providerEvidence)).not.toContain('SECRET');
   });
@@ -78,14 +90,121 @@ describe('EmbodiedGenBundleAdapter', () => {
     expect(result.partSegmentation.coverage).toBe(1);
     expect(result.partProposal.parts.map((part)=>part.node).sort()).toEqual(['Door__part_a','Door__part_b']);
     expect(result.quality.status).toBe('provisional');
-    expect(result.quality.advisory.map((item)=>item.code)).toEqual(expect.arrayContaining(['PART_SEMANTICS_UNVERIFIED','PROVIDER_GRASP_RAW_ONLY']));
+    expect(result.quality.advisory.map((item)=>item.code)).toEqual(expect.arrayContaining(['PART_SEMANTICS_UNVERIFIED','PROVIDER_GRASP_UNVERIFIED']));
     expect(Object.keys(result.manifest.parts||{})).toEqual([]);
     expect(result.manifest.provenance.provider).toBe('embodiedgen');
-    expect(result.manifest.provenance.providerEvidence.levels.grasps).toBe('raw-provider-only');
+    expect(result.manifest.provenance.providerEvidence.levels.grasps).toBe('raw-provider-unverified');
     expect(JSON.stringify(result.manifest.provenance.providerEvidence)).not.toContain('faceLabels');
   });
 
 
+
+  it('keeps a grasp descriptor unverified when bytes are not supplied and records a separate quality advisory', async () => {
+    const { primary, segmentationBytes, bundle }=await fixture();
+    const prepared=await new EmbodiedGenBundleAdapter().prepare(bundle,{artifactBytes:{glb:primary,segments:segmentationBytes}});
+    expect(prepared.providerEvidence.levels.grasps).toBe('raw-provider-unverified');
+    expect(prepared.providerEvidence.grasps.raw_grasps).toMatchObject({status:'descriptor-only'});
+    expect(prepared.providerEvidence.artifacts.find((item)=>item.role==='raw_grasps').verified).toBe(false);
+    const result=await new AssetCompiler({store:{put:async()=>{}},version:'grasp-unverified-test'}).compile(prepared.compilerInput);
+    expect(result.quality.advisory.map((item)=>item.code)).toContain('PROVIDER_GRASP_UNVERIFIED');
+  });
+
+  it('rejects forbidden execution claims and non-rigid grasp poses', async () => {
+    const { primary, segmentationBytes, bundle }=await fixture();
+    const base={
+      version:1,source_job_id:`job-${'a'.repeat(32)}`,output_job_id:`job-${'b'.repeat(32)}`,
+      backend:'GraspGen',evidence_level:'raw',gripper:'franka_panda',source_frame:'urdf_link:Door',seed:1
+    };
+    const invalidPayloads=[
+      {...base,pickup:true,grasps:[{rank:0,score:.8,pose:[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]}]},
+      {...base,verified:true,grasps:[{rank:0,score:.8,pose:[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]}]},
+      {...base,grasps:[{rank:0,score:.8,pose:[[2,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]}]}
+    ];
+    for (const payload of invalidPayloads) {
+      const bytes=enc.encode(JSON.stringify(payload));
+      const next=structuredClone(bundle);
+      next.artifacts=next.artifacts.map((item)=>item.role==='raw_grasps'?makeDescriptor('grasps','raw_grasps','application/json',bytes):item);
+      await expect(new EmbodiedGenBundleAdapter().prepare(next,{artifactBytes:{glb:primary,segments:segmentationBytes,grasps:bytes}}))
+        .rejects.toMatchObject({code:expect.stringMatching(/^EMBODIEDGEN_GRASP_/)});
+    }
+  });
+
+  it('rejects grasp hash mismatch and payloads above the bounded evidence size', async () => {
+    const { primary, segmentationBytes, rawGrasps, bundle }=await fixture();
+    const corrupted=rawGrasps.slice(); corrupted[corrupted.length-2]^=1;
+    await expect(new EmbodiedGenBundleAdapter().prepare(bundle,{artifactBytes:{glb:primary,segments:segmentationBytes,grasps:corrupted}}))
+      .rejects.toMatchObject({code:'EMBODIEDGEN_ARTIFACT_HASH_MISMATCH'});
+
+    const oversized=new Uint8Array(2*1024*1024+1);
+    const next=structuredClone(bundle);
+    next.artifacts=next.artifacts.map((item)=>item.role==='raw_grasps'?makeDescriptor('grasps','raw_grasps','application/json',oversized):item);
+    await expect(new EmbodiedGenBundleAdapter().prepare(next,{artifactBytes:{glb:primary,segments:segmentationBytes,grasps:oversized}}))
+      .rejects.toMatchObject({code:'EMBODIEDGEN_GRASP_TOO_LARGE'});
+  });
+
+  it('rejects duplicate ranks, invalid scores, and wrong raw evidence level', async () => {
+    const { primary, segmentationBytes, bundle }=await fixture();
+    const base={
+      version:1,source_job_id:`job-${'a'.repeat(32)}`,output_job_id:`job-${'b'.repeat(32)}`,
+      backend:'GraspGen',evidence_level:'raw',gripper:'franka_panda',source_frame:'urdf_link:Door',seed:1
+    };
+    const pose=[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];
+    const invalidPayloads=[
+      {...base,grasps:[{rank:0,score:.8,pose},{rank:0,score:.7,pose}]},
+      {...base,grasps:[{rank:0,score:1.2,pose}]},
+      {...base,evidence_level:'simulator-validated',grasps:[{rank:0,score:.8,pose}]}
+    ];
+    for (const payload of invalidPayloads) {
+      const bytes=enc.encode(JSON.stringify(payload));
+      const next=structuredClone(bundle);
+      next.artifacts=next.artifacts.map((item)=>item.role==='raw_grasps'?makeDescriptor('grasps','raw_grasps','application/json',bytes):item);
+      await expect(new EmbodiedGenBundleAdapter().prepare(next,{artifactBytes:{glb:primary,segments:segmentationBytes,grasps:bytes}}))
+        .rejects.toMatchObject({code:'EMBODIEDGEN_GRASP_INVALID'});
+    }
+  });
+
+  it('keeps verified raw evidence when a higher-level SAPIEN descriptor has no bytes', async () => {
+    const { primary, segmentationBytes, rawGrasps, bundle }=await fixture();
+    const sapienDescriptor={...makeDescriptor('sapien','sapien_grasps','application/json',rawGrasps),sha256:'c'.repeat(64)};
+    bundle.artifacts.push(sapienDescriptor);
+    const prepared=await new EmbodiedGenBundleAdapter().prepare(bundle,{artifactBytes:{glb:primary,segments:segmentationBytes,grasps:rawGrasps}});
+    expect(prepared.providerEvidence.levels.grasps).toBe('raw-provider-only');
+    expect(prepared.providerEvidence.grasps.raw_grasps.status).toBe('verified');
+    expect(prepared.providerEvidence.grasps.sapien_grasps.status).toBe('descriptor-only');
+  });
+
+  it('rejects grasp evidence bound to a different source Job or wrong media type', async () => {
+    const { primary, segmentationBytes, bundle }=await fixture();
+    const mismatch=enc.encode(JSON.stringify({
+      version:1,source_job_id:`job-${'f'.repeat(32)}`,output_job_id:`job-${'b'.repeat(32)}`,
+      backend:'GraspGen',evidence_level:'raw',gripper:'franka_panda',source_frame:'urdf_link:Door',
+      grasps:[{rank:0,score:.8,pose:[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]}]
+    }));
+    bundle.artifacts=bundle.artifacts.map((item)=>item.role==='raw_grasps'?makeDescriptor('grasps','raw_grasps','application/json',mismatch):item);
+    await expect(new EmbodiedGenBundleAdapter().prepare(bundle,{artifactBytes:{glb:primary,segments:segmentationBytes,grasps:mismatch}}))
+      .rejects.toMatchObject({code:'EMBODIEDGEN_GRASP_SOURCE_MISMATCH'});
+    bundle.artifacts=bundle.artifacts.map((item)=>item.role==='raw_grasps'?{...item,mediaType:'text/plain'}:item);
+    await expect(new EmbodiedGenBundleAdapter().prepare(bundle,{artifactBytes:{glb:primary,segments:segmentationBytes}}))
+      .rejects.toMatchObject({code:'EMBODIEDGEN_GRASP_MEDIA_TYPE_INVALID'});
+  });
+
+  it('accepts SAPIEN simulator-validated grasp evidence as provenance only', async () => {
+    const { primary, segmentationBytes, bundle }=await fixture();
+    bundle.artifacts=bundle.artifacts.filter((item)=>item.role!=='raw_grasps');
+    const sapien=enc.encode(JSON.stringify({
+      version:1,source_job_id:`job-${'a'.repeat(32)}`,output_job_id:`job-${'c'.repeat(32)}`,
+      backend:'SAPIEN',evidence_level:'simulator-validated',gripper:'franka_panda',source_frame:'urdf_link:Door',seed:7,
+      grasps:[{rank:0,score:.91,pose:[[1,0,0,.2],[0,1,0,.1],[0,0,1,.25],[0,0,0,1]]}]
+    }));
+    bundle.artifacts.push(makeDescriptor('sapien','sapien_grasps','application/json',sapien));
+    const prepared=await new EmbodiedGenBundleAdapter().prepare(bundle,{artifactBytes:{glb:primary,segments:segmentationBytes,sapien}});
+    expect(prepared.providerEvidence.levels.grasps).toBe('sapien-validated-provider-only');
+    expect(prepared.providerEvidence.grasps.sapien_grasps).toMatchObject({status:'verified',evidenceLevel:'simulator-validated',count:1,topScore:.91,backend:'SAPIEN'});
+    expect(prepared.compilerInput.partProposal).toBeNull();
+    expect(JSON.stringify(prepared.compilerInput)).not.toMatch(/pickup|held/);
+    const result=await new AssetCompiler({store:{put:async()=>{}},version:'sapien-grasp-test'}).compile(prepared.compilerInput);
+    expect(result.quality.advisory.map((item)=>item.code)).toContain('PROVIDER_GRASP_SAPIEN_ONLY');
+  });
 
   it('verifies source URDF bytes and keeps them evidence-only when no parser is configured', async () => {
     const { primary, segmentationBytes, bundle }=await fixture();

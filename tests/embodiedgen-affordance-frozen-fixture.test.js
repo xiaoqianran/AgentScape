@@ -42,6 +42,9 @@ describe('EmbodiedGen affordance frozen bundle v1',()=>{
     const admission=assetAdmission(result.manifest);
 
     expect(prepared.providerEvidence.levels).toEqual({partSegmentation:'provider',partSemantics:'none',grasps:'raw-provider-only',urdf:'verified-bytes-only'});
+    expect(prepared.providerEvidence.artifacts.find((item)=>item.role==='raw_grasps').verified).toBe(true);
+    expect(prepared.providerEvidence.grasps.raw_grasps).toMatchObject({status:'verified',evidenceLevel:'raw',count:expected.rawGraspCount,topScore:.82,gripper:'franka_panda',backend:'GraspGen'});
+    expect(JSON.stringify(prepared.providerEvidence.grasps.raw_grasps)).not.toContain('pose');
     expect(prepared.compilerInput.partProposal).toBeNull();
     expect(result.partSegmentation.issues).toEqual([]);
     expect(result.partSegmentation.materialization.status).toBe('materialized');

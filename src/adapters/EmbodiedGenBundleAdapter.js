@@ -110,6 +110,107 @@ const validateSegmentation = (evidence, primary) => {
 };
 
 
+const GRASP_MAX_BYTES = 2 * 1024 * 1024;
+const GRASP_MAX_CANDIDATES = 256;
+const GRASP_SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/;
+const FORBIDDEN_GRASP_KEYS = /(actions?|pickup|held|runtime[-_]?verified|(^|[_-])verified($|[_-])|authorization|api[-_]?key|token|secret|credential|signed[-_]?url|(^|[_-])url($|[_-])|(^|[_-])path($|[_-])|prompt|image[-_]?bytes|base64)/i;
+
+const safeGraspText=(value,label,max=160)=>{
+  const text=String(value ?? '').trim();
+  if (!text || text.length>max || /[\u0000-\u001f\u007f]/.test(text) || /https?:\/\/|Bearer\s+/i.test(text)) {
+    fail('EMBODIEDGEN_GRASP_INVALID',`${label} must be bounded safe text.`);
+  }
+  return text;
+};
+
+const rejectForbiddenGraspFields=(value,path='graspEvidence')=>{
+  if (!value || typeof value!=='object') return;
+  if (Array.isArray(value)) {
+    value.forEach((item,index)=>rejectForbiddenGraspFields(item,`${path}[${index}]`));
+    return;
+  }
+  for (const [key,item] of Object.entries(value)) {
+    if (FORBIDDEN_GRASP_KEYS.test(key)) {
+      fail('EMBODIEDGEN_GRASP_FORBIDDEN_FIELD',`Grasp evidence contains forbidden execution/transport field: ${path}.${key}`);
+    }
+    rejectForbiddenGraspFields(item,`${path}.${key}`);
+  }
+};
+
+const determinant3=(m)=>
+  m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-
+  m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+
+  m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+const dot3=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const rigidGraspPose=(value,label)=>{
+  if (!Array.isArray(value) || value.length!==4 || value.some((row)=>!Array.isArray(row)||row.length!==4||!row.every(Number.isFinite))) {
+    fail('EMBODIEDGEN_GRASP_INVALID',`${label} requires finite 4x4 pose.`);
+  }
+  const pose=value.map((row)=>row.map(Number));
+  const tail=pose[3];
+  if (Math.abs(tail[0])>1e-6 || Math.abs(tail[1])>1e-6 || Math.abs(tail[2])>1e-6 || Math.abs(tail[3]-1)>1e-6) {
+    fail('EMBODIEDGEN_GRASP_INVALID',`${label} must be affine with [0,0,0,1] final row.`);
+  }
+  const r=pose.slice(0,3).map((row)=>row.slice(0,3));
+  for (let i=0;i<3;i++) {
+    if (Math.abs(dot3(r[i],r[i])-1)>1e-3) fail('EMBODIEDGEN_GRASP_INVALID',`${label} rotation rows must be unit length.`);
+    for (let j=i+1;j<3;j++) if (Math.abs(dot3(r[i],r[j]))>1e-3) fail('EMBODIEDGEN_GRASP_INVALID',`${label} rotation rows must be orthogonal.`);
+  }
+  if (Math.abs(determinant3(r)-1)>1e-3) fail('EMBODIEDGEN_GRASP_INVALID',`${label} rotation must be right-handed.`);
+  for (let i=0;i<3;i++) if (Math.abs(pose[i][3])>1e6) fail('EMBODIEDGEN_GRASP_INVALID',`${label} translation exceeds bounded evidence range.`);
+  return pose;
+};
+
+const normalizeGraspEvidence=(payload,{role,descriptor,bundleSourceJobId=null})=>{
+  if (!payload || typeof payload!=='object' || Array.isArray(payload) || payload.version!==1 || !Array.isArray(payload.grasps)) {
+    fail('EMBODIEDGEN_GRASP_INVALID',`${role} must be Grasp Evidence v1 with grasps[].`);
+  }
+  rejectForbiddenGraspFields(payload);
+  if (payload.grasps.length>GRASP_MAX_CANDIDATES) fail('EMBODIEDGEN_GRASP_INVALID',`${role} exceeds ${GRASP_MAX_CANDIDATES} grasp candidates.`);
+  const expectedLevel=role==='sapien_grasps'?'simulator-validated':'raw';
+  if (String(payload.evidence_level||'')!==expectedLevel) {
+    fail('EMBODIEDGEN_GRASP_INVALID',`${role} requires evidence_level=${expectedLevel}.`);
+  }
+  const sourceJobId=payload.source_job_id==null?null:String(payload.source_job_id).trim();
+  const outputJobId=payload.output_job_id==null?null:String(payload.output_job_id).trim();
+  if (sourceJobId && !JOB_ID.test(sourceJobId)) fail('EMBODIEDGEN_GRASP_INVALID',`${role} source_job_id is invalid.`);
+  if (outputJobId && !JOB_ID.test(outputJobId)) fail('EMBODIEDGEN_GRASP_INVALID',`${role} output_job_id is invalid.`);
+  if (bundleSourceJobId && sourceJobId && sourceJobId!==bundleSourceJobId) {
+    fail('EMBODIEDGEN_GRASP_SOURCE_MISMATCH',`${role} source_job_id does not match bundle sourceJobId.`,{bundleSourceJobId,graspSourceJobId:sourceJobId});
+  }
+  const gripper=safeGraspText(payload.gripper,`${role}.gripper`,120);
+  if (!GRASP_SAFE_ID.test(gripper)) fail('EMBODIEDGEN_GRASP_INVALID',`${role}.gripper must be a stable identifier.`);
+  const sourceFrame=safeGraspText(payload.source_frame,`${role}.source_frame`,160);
+  const backend=safeGraspText(payload.backend,`${role}.backend`,120);
+  const seenRanks=new Set();
+  let topScore=null;
+  payload.grasps.forEach((grasp,index)=>{
+    if (!grasp || typeof grasp!=='object' || Array.isArray(grasp)) fail('EMBODIEDGEN_GRASP_INVALID',`${role}.grasps[${index}] must be an object.`);
+    const rank=Number(grasp.rank);
+    const score=Number(grasp.score);
+    if (!Number.isSafeInteger(rank)||rank<0||seenRanks.has(rank)) fail('EMBODIEDGEN_GRASP_INVALID',`${role}.grasps[${index}].rank must be unique non-negative integer.`);
+    seenRanks.add(rank);
+    if (!Number.isFinite(score)||score<0||score>1) fail('EMBODIEDGEN_GRASP_INVALID',`${role}.grasps[${index}].score must be within [0,1].`);
+    rigidGraspPose(grasp.pose,`${role}.grasps[${index}].pose`);
+    topScore=topScore==null?score:Math.max(topScore,score);
+  });
+  if (payload.seed!=null && !Number.isSafeInteger(Number(payload.seed))) fail('EMBODIEDGEN_GRASP_INVALID',`${role}.seed must be a safe integer.`);
+  return {
+    artifactId:descriptor.id,
+    sha256:descriptor.sha256,
+    status:'verified',
+    evidenceLevel:expectedLevel,
+    count:payload.grasps.length,
+    topScore,
+    gripper,
+    sourceFrame,
+    backend,
+    sourceJobId,
+    outputJobId,
+    ...(payload.seed==null?{}:{seed:Number(payload.seed)})
+  };
+};
+
 const URDF_PROPOSAL_MAX_PARTS = 128;
 const URDF_MAX_BYTES = 5 * 1024 * 1024;
 const URDF_JOINT_TYPES = new Set(['revolute','prismatic','continuous']);
@@ -230,10 +331,10 @@ const safeErrorCode = (error) => {
   return /^[A-Za-z0-9._:-]{1,120}$/.test(code) ? code : 'URDF_PROPOSAL_FAILED';
 };
 
-const evidenceLevel = (roles, urdfStatus = 'none') => ({
+const evidenceLevel = (roles, urdfStatus = 'none', graspLevel = 'none') => ({
   partSegmentation: roles.has('part_segmentation') ? 'provider' : 'none',
   partSemantics: roles.has('part_semantics') ? 'provider-unverified' : 'none',
-  grasps: roles.has('sapien_grasps') ? 'sapien-validated-provider-only' : roles.has('raw_grasps') ? 'raw-provider-only' : 'none',
+  grasps:graspLevel,
   urdf:urdfStatus
 });
 
@@ -310,12 +411,36 @@ export class EmbodiedGenBundleAdapter {
       }
     }
 
+    const graspEvidence={};
+    for (const role of ['raw_grasps','sapien_grasps']) {
+      const descriptor=byRole.get(role);
+      if (!descriptor) continue;
+      if (descriptor.mediaType!=='application/json') fail('EMBODIEDGEN_GRASP_MEDIA_TYPE_INVALID',`${role} must use application/json.`);
+      const rawBytes=artifactBytesFor(artifactBytes,descriptor);
+      if (rawBytes == null) {
+        graspEvidence[role]={artifactId:descriptor.id,sha256:descriptor.sha256,status:'descriptor-only'};
+        continue;
+      }
+      const bytes=normalizeBytes(rawBytes,descriptor.id);
+      if (bytes.byteLength>GRASP_MAX_BYTES) fail('EMBODIEDGEN_GRASP_TOO_LARGE',`${role} exceeds ${GRASP_MAX_BYTES} bytes.`,{bytes:bytes.byteLength,maxBytes:GRASP_MAX_BYTES});
+      await assertHash(descriptor,bytes);
+      const payload=parseJsonArtifact(descriptor,bytes);
+      graspEvidence[role]=normalizeGraspEvidence(payload,{role,descriptor,bundleSourceJobId:sourceJobId||null});
+      verifiedRoles.add(role);
+    }
+    const graspLevel = graspEvidence.sapien_grasps?.status==='verified' ? 'sapien-validated-provider-only'
+      : graspEvidence.raw_grasps?.status==='verified' ? 'raw-provider-only'
+      : graspEvidence.sapien_grasps ? 'sapien-provider-unverified'
+      : graspEvidence.raw_grasps ? 'raw-provider-unverified'
+      : 'none';
+
     const providerEvidence = {
       provider:'embodiedgen',
       bundleVersion:1,
       sourceJobId:sourceJobId || null,
       lineage:safeLineage(bundle.lineage),
-      levels:evidenceLevel(seenRoles,urdfStatus),
+      levels:evidenceLevel(seenRoles,urdfStatus,graspLevel),
+      ...(Object.keys(graspEvidence).length ? { grasps:graspEvidence } : {}),
       ...(urdfEvidence ? { urdf:urdfEvidence } : {}),
       artifacts:descriptors.map((descriptor) => ({ ...descriptor, verified:verifiedRoles.has(descriptor.role) }))
     };
