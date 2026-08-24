@@ -1,7 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 
-export const DEFAULT_BASE_URL = 'https://newapi-jp1.202820.xyz/v1';
+export const DEFAULT_BASE_URL = 'https://nim.202820.xyz/v1';
 export const DEFAULT_HOST = '127.0.0.1';
 export const DEFAULT_PORT = 8788;
 export const DEFAULT_MODEL = 'nvidia/nemotron-3.5-lightning-30b-a3b';
