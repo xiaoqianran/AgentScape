@@ -1666,3 +1666,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.32 已经能安全 admission generated world，但 WorldSpec 仍把 `position` 暴露为普通字段，Agent 很容易自己猜坐标。1.33 把这个责任下沉到 Runtime：WorldSpec schema 明确 position 可省略，`WorldComposer` 用 Manifest collider footprint + Environment bounds + live Rapier pose query 确定性排位。三个 curated Environment Pack 都必须暴露 layout contract。
 
 同一阶段还修掉 `NEAR` 的语义漏洞：以前 distance 省略时 relation schema 合法但 pipeline 实际 no-op；现在 Runtime 根据两对象 footprint 自动推导安全间距，并做方向 preflight。Strict live probe 还暴露并修正了 `id / assetId` 语义歧义。最终 Nemotron 和 Muse 都能从自然语言完成 search-first → WorldSpec(no coordinates) → single canonical pipeline → world-ready。
+
+---
+
+## 55. 1.34：Generated World 第一次可以有限次自我重试
+
+1.33 让模型不再猜坐标，但 generated-world search miss 仍然只能一次性失败或要求模型手动 generate。1.34 把唯一安全的自动变化收进 Runtime：如果 request 尚未允许 generation、AssetLibrary search miss 且 Generator 已配置，pipeline rejection 会生成 `enable-generation` retry action；scene 先 restore，再完整执行第二次 canonical pipeline。其它 deterministic layout/relation/validation rejection 一律不自动改约束。
+
+同一 Agent run 还新增 exact WorldSpec duplicate gate，避免模型用重复 tool call 绕过内部两次 attempt budget；WorldSpec fingerprint 只用于 duplicate gate，不改变 `runWorldPipeline:{}` 的 unresolved semantic identity。真实 Generator E2E 和 Nemotron/Muse `generated-world-retry` strict probe 均通过。

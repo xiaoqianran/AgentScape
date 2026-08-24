@@ -417,3 +417,8 @@ validation/rejection findings
 Generator proposes
 Runtime validates
 ```
+
+
+## 24. 1.34：Composer Rejection 不靠原样重跑解决
+
+1.34 的 bounded retry 不会自动修改 position、NEAR 或 relation，也不会对 `WORLD_POSE_BLOCKED / NEAR_NO_CLEAR_POSE` 原样重试。只有 upstream missing asset 可以自动开启 generation。详见 [`bounded-world-regeneration.md`](./bounded-world-regeneration.md)。

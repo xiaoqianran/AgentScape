@@ -72,6 +72,11 @@ const scenarios = {
     world:[],
     expected:'runWorldPipeline'
   },
+  'generated-world-retry': {
+    goal:'Create a small calibration work area with one reusable table and one calibration fixture. The calibration fixture must be NEAR the table. Search for both assets first. The table exists, but the calibration fixture search will miss. Do NOT call generateAsset/importEmbodiedGenAsset/spawnAsset yourself and do NOT set generate=true in the WorldSpec. Submit runWorldPipeline exactly once with no asset position coordinates. Do not invent a NEAR distance; omit distance so Runtime derives collider-safe spacing. The Runtime may internally perform its single bounded generation retry for the missing fixture. Only report success if the one runWorldPipeline result is world-ready after attempt 1 rejected + retry-proposed and attempt 2 ready.',
+    world:[],
+    expected:'runWorldPipeline'
+  },
   attribution: {
     goal:'Call approachAndInteract directly so agent_01 walks to cabinet_01 and tries to open its door. Do not call navigateTo or findInteractionPose separately. If it fails with STALL and current-contact-at-failure evidence, stop immediately and report the named blocker candidate as current physical contact evidence. Do not claim it is the uniquely proven root cause. Do not move the blocker and do not use any low-level open/pickup/place tool.',
     world:[
@@ -159,7 +164,7 @@ try {
   let sequenceDoorOpen=false, sequenceHeld=false, sequencePlaced=false, sequenceAttemptedOpen=false, recoveryApplied=false;
   let multiAttemptedOpen=false,multiRecoveredBlocker=null,multiDoorOpen=false;
   let cleanupOpenAttempts=0,cleanupHeld=null,cleanupFirstDone=false,cleanupFirstCleaned=false,cleanupSecondDone=false,cleanupDoorOpen=false;
-  let articulatedAttemptedOpen=false,articulatedBlockerClosed=false,articulatedDoorOpen=false,lastArticulatedSuggestion=null,lastArticulatedCalibration=null,generatedWorldPlan=null;
+  let articulatedAttemptedOpen=false,articulatedBlockerClosed=false,articulatedDoorOpen=false,lastArticulatedSuggestion=null,lastArticulatedCalibration=null,generatedWorldPlan=null,generatedWorldRetryEvidence=null,lastGeneratedWorldResult=null;
   const sequenceEvents=[];
   const tools = {
     definitions:() => registry.definitions(),
@@ -168,7 +173,7 @@ try {
     call:async(name, args = {}) => {
       if (name === 'listObjects') return scenario.world;
       toolCalls.push({ name, args });
-      if (mode === 'generated-world') {
+      if (mode === 'generated-world' || mode === 'generated-world-retry') {
         if (name === 'searchAssets') {
           const q=String(args.query || '').toLowerCase();
           const catalog=[
@@ -183,6 +188,41 @@ try {
           let plan;
           try { plan=normalizeWorldSpec(args.plan); }
           catch (error) { throw Object.assign(new Error(`Generated-world probe rejected WorldSpec: ${error.message}`),{code:'PROBE_BAD_WORLD_SPEC'}); }
+          if (mode === 'generated-world-retry') {
+            if (!Array.isArray(plan.assets) || plan.assets.length!==2) throw Object.assign(new Error('Generated-world retry probe requires exactly table + missing calibration fixture'),{code:'PROBE_BAD_WORLD_SPEC'});
+            if (plan.assets.some((item)=>Object.prototype.hasOwnProperty.call(item,'position'))) throw Object.assign(new Error('Generated-world retry probe forbids LLM-authored positions'),{code:'PROBE_LLM_POSITION'});
+            if (plan.assets.some((item)=>item.generate===true)) throw Object.assign(new Error('Generated-world retry probe requires Runtime—not the LLM—to enable generation'),{code:'PROBE_LLM_GENERATION'});
+            const searched=toolCalls.filter((call)=>call.name==='searchAssets').map((call)=>String(call.args.query || '').toLowerCase());
+            if (!searched.some((q)=>q.includes('table')) || !searched.some((q)=>q.includes('calibration') || q.includes('fixture'))) throw Object.assign(new Error('Generated-world retry probe requires search-first for table and calibration fixture'),{code:'PROBE_SEARCH_FIRST'});
+            const table=plan.assets.find((item)=>(item.assetId||item.type||item.query)==='table');
+            const fixture=plan.assets.find((item)=>String(item.query||item.type||'').toLowerCase().includes('calibration') || String(item.query||item.type||'').toLowerCase().includes('fixture'));
+            if (!table?.id || !fixture?.id) throw Object.assign(new Error('Generated-world retry probe requires explicit instance ids for table and fixture'),{code:'PROBE_INSTANCE_IDS'});
+            const relations=plan.relations || [];
+            if (relations.length!==1 || relations[0].subject!==fixture.id || relations[0].predicate!=='NEAR' || relations[0].object!==table.id) throw Object.assign(new Error(`Generated-world retry probe requires exactly ${fixture.id} NEAR ${table.id}`),{code:'PROBE_RELATION_SEMANTICS'});
+            if (Object.prototype.hasOwnProperty.call(relations[0],'distance')) throw Object.assign(new Error('Generated-world retry probe forbids LLM-authored NEAR distance'),{code:'PROBE_LLM_DISTANCE'});
+            generatedWorldPlan=structuredClone(plan);
+            generatedWorldRetryEvidence={
+              status:'retry-proposed',retriable:true,schema:'agentscape.world-retry.v1',attempt:1,budget:2,
+              findings:[{stage:'asset',code:'missing',instanceId:fixture.id,query:fixture.query,retriable:true}],
+              actions:[{kind:'enable-generation',instanceId:fixture.id,query:fixture.query}]
+            };
+            const placements=[
+              {id:table.id,assetId:'table',position:[0,.01,0],mode:'auto',coverage:'full-root'},
+              {id:fixture.id,assetId:'generated_calibration_fixture',position:[2,.01,0],mode:'auto',coverage:'full-root'}
+            ];
+            const relationAdmission={status:'ready',applied:[{subject:fixture.id,predicate:'NEAR',object:table.id,distance:2.15,mode:'runtime-derived'}],issues:[]};
+            lastGeneratedWorldResult={
+              status:'world-ready',
+              admission:{status:'ready',reasons:[],validation:{hard:0,advisory:0},assets:{status:'ready'},layout:{status:'ready',placements,issues:[]},relations:relationAdmission},
+              attempts:[
+                {attempt:1,admission:{status:'rejected',reasons:['ASSET_UNRESOLVED','ASSET_ADMISSION_REJECTED']},retry:generatedWorldRetryEvidence},
+                {attempt:2,admission:{status:'ready',reasons:[]}}
+              ],
+              retry:generatedWorldRetryEvidence,
+              pipeline:{state:{artifacts:{worldSpec:{schema:1,...plan},assets:placements},reports:{relationAdmission,worldAdmission:{status:'ready'}}}}
+            };
+            return lastGeneratedWorldResult;
+          }
           if (!Array.isArray(plan.assets) || plan.assets.length!==3) throw Object.assign(new Error('Generated-world probe requires exactly three WorldSpec assets'),{code:'PROBE_BAD_WORLD_SPEC'});
           if (plan.assets.some((item)=>Object.prototype.hasOwnProperty.call(item,'position'))) throw Object.assign(new Error('Generated-world probe forbids LLM-authored positions'),{code:'PROBE_LLM_POSITION'});
           const searched=new Set(toolCalls.filter((call)=>call.name==='searchAssets').map((call)=>String(call.args.query || '').toLowerCase()));
@@ -671,9 +711,29 @@ try {
     const executed=result.execution.filter((entry)=>entry.executed&&entry.mutates);
     if (!executed.find((entry)=>entry.tool==='recoverPickupBlocker'&&entry.auxiliary===true&&entry.outcome.state==='verified')) throw new Error('Recovery mutation was not recorded as verified auxiliary execution');
   }
+  if (mode === 'generated-world-retry') {
+    const pipelineCalls=toolCalls.filter((call)=>call.name==='runWorldPipeline');
+    if (pipelineCalls.length!==1) throw new Error(`Generated-world retry probe expected exactly one runWorldPipeline, got ${pipelineCalls.length}`);
+    const pipelineIndex=toolCalls.findIndex((call)=>call.name==='runWorldPipeline');
+    if (toolCalls.length!==pipelineIndex+1) throw new Error(`Generated-world retry probe made redundant tool calls after world-ready: ${toolCalls.slice(pipelineIndex+1).map((call)=>call.name).join(',')}`);
+    if (!generatedWorldPlan || !generatedWorldRetryEvidence) throw new Error('Generated-world retry probe did not retain bounded retry evidence');
+    if (generatedWorldPlan.assets.some((item)=>Object.prototype.hasOwnProperty.call(item,'position'))) throw new Error('Generated-world retry probe let the model author coordinates');
+    if (generatedWorldPlan.assets.some((item)=>item.generate===true)) throw new Error('Generated-world retry probe let the model enable generation instead of Runtime');
+    if (generatedWorldPlan.relations?.some((relation)=>Object.prototype.hasOwnProperty.call(relation,'distance'))) throw new Error('Generated-world retry probe let the model author NEAR distance');
+    if (lastGeneratedWorldResult?.admission?.relations?.applied?.[0]?.mode!=='runtime-derived') throw new Error('Generated-world retry probe missing Runtime-derived relation evidence');
+    if (toolCalls.some((call)=>['generateAsset','importEmbodiedGenAsset','spawnAsset'].includes(call.name))) throw new Error('Generated-world retry probe used a low-level generation/spawn bypass');
+    if (result.taskStatus!=='completed'||result.unresolvedMutations.length) throw new Error(`Generated-world retry task did not complete: status=${result.taskStatus} unresolved=${result.unresolvedMutations.length}`);
+    const executed=result.execution.filter((entry)=>entry.executed&&entry.mutates);
+    const pipeline=executed.find((entry)=>entry.tool==='runWorldPipeline'&&entry.outcome.state==='verified');
+    if (!pipeline) throw new Error('Generated-world retry pipeline was not recorded as verified');
+    if (lastGeneratedWorldResult?.attempts?.length!==2) throw new Error(`Generated-world retry expected two internal attempts, got ${lastGeneratedWorldResult?.attempts?.length ?? 0}`);
+    if (lastGeneratedWorldResult.attempts[0]?.admission?.status!=='rejected'||lastGeneratedWorldResult.attempts[0]?.retry?.status!=='retry-proposed'||lastGeneratedWorldResult.attempts[1]?.admission?.status!=='ready') throw new Error('Generated-world retry internal attempt evidence is invalid');
+  }
   if (mode === 'generated-world') {
     const pipelineCalls=toolCalls.filter((call)=>call.name==='runWorldPipeline');
     if (pipelineCalls.length!==1) throw new Error(`Generated-world probe expected exactly one runWorldPipeline, got ${pipelineCalls.length}`);
+    const pipelineIndex=toolCalls.findIndex((call)=>call.name==='runWorldPipeline');
+    if (toolCalls.length!==pipelineIndex+1) throw new Error(`Generated-world probe made redundant tool calls after world-ready: ${toolCalls.slice(pipelineIndex+1).map((call)=>call.name).join(',')}`);
     if (!generatedWorldPlan) throw new Error('Generated-world probe did not retain a WorldSpec');
     if (generatedWorldPlan.assets.some((item)=>Object.prototype.hasOwnProperty.call(item,'position'))) throw new Error('Generated-world probe let the model author coordinates');
     if (toolCalls.some((call)=>['generateAsset','importEmbodiedGenAsset','spawnAsset'].includes(call.name))) throw new Error('Generated-world probe used a low-level generation/spawn bypass');

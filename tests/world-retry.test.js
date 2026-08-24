@@ -1,0 +1,56 @@
+import { describe,expect,it } from 'vitest';
+import { buildWorldRetryPlan } from '../src/pipeline/WorldRetry.js';
+
+const rejected=(overrides={})=>({state:{
+  input:{schema:1,name:'Lab',generation:{generate:false},assets:[{id:'machine_01',query:'rare machine',generate:false}],relations:[]},
+  artifacts:{worldSpec:{schema:1,name:'Lab',generation:{generate:false},assets:[{id:'machine_01',query:'rare machine',generate:false}],relations:[]}},
+  reports:{
+    assetAdmission:{status:'rejected',unresolved:[{id:'machine_01',query:'rare machine',status:'missing'}],provisional:[]},
+    layoutAdmission:{status:'rejected',reason:'ASSET_ADMISSION_REJECTED',placements:[],issues:[]},
+    validation:{counts:{hard:0,advisory:0},hard:[],advisory:[]},
+    worldAdmission:{status:'rejected',reasons:['ASSET_UNRESOLVED','ASSET_ADMISSION_REJECTED']},
+    ...overrides
+  }
+}});
+
+describe('buildWorldRetryPlan',()=>{
+  it('enables generation only for missing assets when a generator is configured',()=>{
+    const result=buildWorldRetryPlan(rejected(),{generatorConfigured:true,attempt:1,budget:2});
+    expect(result).toMatchObject({
+      schema:'agentscape.world-retry.v1',status:'retry-proposed',retriable:true,attempt:1,budget:2,
+      findings:[{stage:'asset',code:'missing',instanceId:'machine_01',query:'rare machine',retriable:true}],
+      actions:[{kind:'enable-generation',instanceId:'machine_01',query:'rare machine'}],
+      nextPlan:{name:'Lab',generation:{generate:false},assets:[{id:'machine_01',query:'rare machine',generate:true}],relations:[]}
+    });
+    expect(result.nextPlan.schema).toBeUndefined();
+  });
+
+  it('does not retry a search miss when no generator is configured',()=>{
+    expect(buildWorldRetryPlan(rejected(),{generatorConfigured:false,attempt:1,budget:2})).toMatchObject({status:'not-retriable',retriable:false,findings:[{code:'missing',retriable:false}]});
+  });
+
+  it('does not auto-relax layout or relation failures',()=>{
+    const pipeline=rejected({
+      assetAdmission:{status:'ready',unresolved:[],provisional:[]},
+      layoutAdmission:{status:'rejected',reason:'WORLD_POSE_BLOCKED',issues:[{id:'machine_01'}]},
+      relationAdmission:{status:'rejected',reason:'NEAR_NO_CLEAR_POSE',issues:[{subject:'a',object:'b'}]}
+    });
+    const result=buildWorldRetryPlan(pipeline,{generatorConfigured:true,attempt:1,budget:2});
+    expect(result).toMatchObject({status:'not-retriable',retriable:false});
+    expect(result.findings.map((x)=>x.stage)).toEqual(['layout','relation']);
+  });
+
+  it('marks the retry exhausted at the fixed budget',()=>{
+    expect(buildWorldRetryPlan(rejected(),{generatorConfigured:true,attempt:2,budget:2})).toMatchObject({status:'exhausted',retriable:false,attempt:2,budget:2});
+  });
+
+  it('does not let pre-repair validation noise mask a retriable upstream asset miss',()=>{
+    const pipeline=rejected({
+      validation:{counts:{hard:1,advisory:0},hard:[{code:'P_OVERLAP',object:'existing_01'}],advisory:[]}
+    });
+    const result=buildWorldRetryPlan(pipeline,{generatorConfigured:true,attempt:1,budget:2});
+    expect(result).toMatchObject({status:'retry-proposed',retriable:true,findings:[{stage:'asset',code:'missing',retriable:true}]});
+    expect(result.findings.some((item)=>item.stage==='validation')).toBe(false);
+  });
+
+});

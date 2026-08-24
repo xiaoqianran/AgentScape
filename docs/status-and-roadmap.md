@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.33.0** 当前状态。
+本文描述 **1.34.0** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -12,7 +12,7 @@
                            当前 ≈ 91%
 ```
 
-93% 不是“代码写完 93%”。1.33 已闭合 Prompt→strong WorldSpec→deterministic composition→canonical admission；基础 Runtime / Asset→Executable 纵向链已经成熟，当前 generated-world 主线剩余的主要缺口是 bounded regenerate / repair orchestration 与更复杂的全局空间约束。
+94% 不是“代码写完 94%”。1.34 已闭合 Prompt→WorldSpec→deterministic composition→canonical admission→missing-asset bounded regeneration；基础 Runtime / Asset→Executable 纵向链已经成熟，当前 generated-world 主线剩余主要是 non-retriable finding 的受约束 WorldSpec revision 与更复杂的全局空间约束。
 
 ---
 
@@ -37,7 +37,7 @@
 | Navigation / Reachability | 90% | 1.15 已有 Detour path + Rapier physical locomotion；自动动态 replan / off-mesh / multi-agent avoidance 仍缺 |
 | 大型 World Runtime | 58% | 1.13 已有 96×72m 城市基线；19 Recast meshes / 38 renderables / 330–489ms build，当前暂无 streaming 证据 |
 | Multi-Agent | 10% | 不是当前优先级 |
-| 完整生成式 World Pipeline | 68% | 1.33 已有 strong WorldSpec、双模型 prompt→spec、deterministic auto layout、Rapier preflight 与 Runtime-derived NEAR；下一步缺 bounded regenerate / repair orchestration |
+| 完整生成式 World Pipeline | 76% | 1.34 已有 missing-asset-only bounded regeneration、fixed attempt budget 与 exact-plan duplicate gate；下一步是 non-retriable finding→受约束 WorldSpec revision |
 | Pages / Art Direction | 78% | Monument Hall + Ruined Courtyard + Grand Urban Block；world pack JS 已按当前选择 lazy load |
 
 ---
@@ -384,30 +384,38 @@ Runtime 新增纯 `WorldComposer`：从 Manifest root colliders 推导 footprint
 
 ---
 
-## 26. 当前 P0：Bounded Regenerate / Repair Orchestration
+## 26. 1.34 已完成：Bounded World Regeneration
 
-现在 Prompt→WorldSpec→Composition→Admission 已闭环。下一阶段不扩第二个 Planner，而是消费已有 rejection evidence：
+`buildWorldRetryPlan` 现在把 rejected pipeline reports 压成 `agentscape.world-retry.v1` findings/actions。唯一自动 retry 条件是：request 尚未 `generate=true`、AssetLibrary search miss、且 Generator 已配置。Runtime 只为该缺失 request 打开 generation，restore 调用前 scene，并完整重跑 canonical pipeline；固定 budget=2，第二次失败直接 `exhausted`。Layout / relation / post-repair hard validation 均 `not-retriable`，不会自动改 position、NEAR 或其它用户约束。
 
-```text
-world-rejected / asset-rejected / layout-rejected / relation-rejected
-→ compact machine-readable findings
-→ bounded repair or regenerate proposal
-→ only failed assets / constraints
-→ rerun canonical pipeline
-→ fixed attempt budget
-```
-
-目标是让“AI 自造世界”从一次性生成升级为可验证、有限次数的自我修复，同时继续禁止 Generator/LLM 自己宣称成功。
+真实 Generator E2E 已验证：attempt1 missing→retry-proposed→attempt2 真正 `AssetLibrary.generate`→Compiler-ready Manifest→layout→spawn→world-ready。ToolCallingAgent 还用 run-local exact WorldSpec identity 阻止同 plan 重复执行来绕过 budget；真正修订后的 WorldSpec 仍允许执行，并继续用 `runWorldPipeline:{}` 作为同一个 world-build unresolved semantic identity。Nemotron/Muse `generated-world-retry` strict probe 均通过，且 `world-ready` 后不再冗余 `validateWorld`。
 
 ---
 
-## 27. P1：Dynamic Third-body / Environment Counterfactual Fidelity
+## 27. 当前 P0：Rejected Finding → Constrained WorldSpec Revision
+
+下一步只处理 1.34 明确标为 non-retriable 的 evidence，不让 Runtime 偷改用户意图：
+
+```text
+layout / relation / validation finding
+→ compact repair evidence
+→ Agent proposes revised WorldSpec
+→ changed-plan gate
+→ canonical pipeline
+→ Runtime revalidates
+```
+
+优先研究可以机器表达的 constraint revision，而不是引入无界 search tree。
+
+---
+
+## 28. P1：Dynamic Third-body / Environment Counterfactual Fidelity
 
 1.31 将其它 world collider 视为 query-time static background。后续继续研究 dynamic third-body motion envelope / environment moving parts 的保守 coverage，但当前主线优先转向 generated-world orchestration。
 
 ---
 
-## 28. 1.11–1.12 已完成：Curated Multi-World Layer
+## 29. 1.11–1.12 已完成：Curated Multi-World Layer
 
 Pages 默认世界从 10 × 8m 测试地面升级为约 32 × 24m 的 `Monument Hall`。这不是纯视觉主题：
 
@@ -432,7 +440,7 @@ Three.js architecture
 
 ---
 
-## 29. P1：完整 Joint Frame
+## 30. P1：完整 Joint Frame
 
 当前 Joint：
 
@@ -468,7 +476,7 @@ Schema claim second
 
 ---
 
-## 30. P2：Compact Agent Observation
+## 31. P2：Compact Agent Observation
 
 随着世界变大，Agent 不可能每轮看到整个 Scene Tree。
 
@@ -496,7 +504,7 @@ world size
 
 ---
 
-## 31. 自动语义：宁可慢一点，也不虚构能力
+## 32. 自动语义：宁可慢一点，也不虚构能力
 
 长期目标：
 
@@ -534,7 +542,7 @@ high coverage + fake capability
 
 ---
 
-## 32. 目前不应该成为优先级的方向
+## 33. 目前不应该成为优先级的方向
 
 竞争者审计后明确：
 
@@ -551,7 +559,7 @@ Isaac-style Manager 体系
 
 ---
 
-## 33. 产品差异化应该是什么
+## 34. 产品差异化应该是什么
 
 不应该是：
 
@@ -583,7 +591,7 @@ Agent World
 
 ---
 
-## 34. 未来完成态
+## 35. 未来完成态
 
 可以把 100% 理解为：
 
@@ -648,11 +656,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.33.0 文档快照对应的仓库验证基线：
+1.34.0 文档快照对应的仓库验证基线：
 
 ```text
-109 Test Files PASS
-373 Tests PASS
+111 Test Files PASS
+383 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -838,6 +846,19 @@ Pipeline NEAR no-distance application PASS
 Nemotron generated-world semantic WorldSpec probe PASS
 Muse generated-world semantic WorldSpec probe PASS
 WorldSpec unknown-field deterministic rejection PASS
+Bounded missing-asset retry classification PASS
+Fixed two-attempt canonical pipeline budget PASS
+Non-retriable layout/relation/validation guard PASS
+Pre-repair validation-noise isolation PASS
+Real AssetLibrary Generator retry E2E PASS
+Exact WorldSpec duplicate Agent gate PASS
+Revised WorldSpec retry clears prior world-build unresolved PASS
+Nemotron bounded generated-world retry strict probe PASS
+Muse bounded generated-world retry strict probe PASS
+Nemotron generated-world reuse regression PASS
+Runtime-derived NEAR distance retry probe PASS
+World-ready redundant validation stop PASS
+README structured project overview + links PASS
 1.26 unique-action articulated recovery regression PASS
 ```
 

@@ -5,11 +5,14 @@ const policies={
   listObjects:{mutates:false,barrier:false,batchable:true,batchAcceptable:true},
   approachAndInteract:{mutates:true,barrier:true,batchable:false,batchAcceptable:true},
   approachAndPickup:{mutates:true,barrier:true,batchable:false,batchAcceptable:true},
-  approachAndPlace:{mutates:true,barrier:true,batchable:false,batchAcceptable:true}
+  approachAndPlace:{mutates:true,barrier:true,batchable:false,batchAcceptable:true},
+  runWorldPipeline:{mutates:true,barrier:true,batchable:false,batchAcceptable:true}
 };
 const classify=(result)=>{
   const status=result?.status;
-  if(status==='action-completed'||status==='held'||status==='placed') return {state:'verified',verified:true,status};
+  if(status==='action-completed'||status==='held'||status==='placed'||status==='world-ready') return {state:'verified',verified:true,status};
+  if(status==='world-provisional') return {state:'unverified',verified:false,status,reason:'WORLD_PROVISIONAL'};
+  if(status==='world-rejected') return {state:'failed',verified:false,status,reason:result.reason || 'WORLD_REJECTED'};
   if(String(status||'').includes('failed')) return {state:'failed',verified:false,status,reason:result.reason};
   if(String(status||'').includes('blocked')) return {state:'blocked',verified:false,status,reason:result.reason};
   if(String(status||'').includes('unverified')) return {state:'unverified',verified:false,status,reason:result.reason};
@@ -20,6 +23,50 @@ const makeTools=(results,policyOverrides={})=>({
   call:vi.fn(async(name,args)=>name==='listObjects'?[]:results[name](args)),
   executionPolicy:(name,result)=>({...policies[name],...policyOverrides[name],outcome:classify(result)}),
   recordSequence:vi.fn()
+});
+
+
+
+it('blocks an unchanged rejected WorldSpec from executing again in the same Agent run',async()=>{
+  let round=0,pipelineCalls=0;
+  const plan={name:'Retry Lab',assets:[{id:'fixture_01',query:'rare fixture'}]};
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'w1',name:'runWorldPipeline',args:{plan}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'w2',name:'runWorldPipeline',args:{plan:structuredClone(plan)}}]};
+    return {message:'cannot retry unchanged',toolCalls:[]};
+  })};
+  const tools=makeTools({runWorldPipeline:async()=>{pipelineCalls++;return {status:'world-rejected',reason:'ASSET_UNRESOLVED',retry:{status:'exhausted'}};}});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:5}).run('build retry lab');
+  expect(pipelineCalls).toBe(1);
+  expect(result.taskStatus).toBe('incomplete');
+  expect(result.unresolvedMutations).toHaveLength(1);
+  expect(result.execution.find((entry)=>entry.reason==='WORLD_PIPELINE_PLAN_ALREADY_ATTEMPTED')).toMatchObject({tool:'runWorldPipeline',executed:false,outcome:{state:'skipped'}});
+});
+
+it('allows a revised WorldSpec and lets its verified result resolve the earlier rejected world build',async()=>{
+  let round=0,pipelineCalls=0;
+  const first={name:'Lab',assets:[{id:'fixture_01',query:'rare fixture'}]};
+  const revised={name:'Lab',assets:[{id:'fixture_01',query:'rare fixture',generate:true}]};
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'w1',name:'runWorldPipeline',args:{plan:first}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'w2',name:'runWorldPipeline',args:{plan:revised}}]};
+    return {message:'world ready',toolCalls:[]};
+  })};
+  const tools=makeTools({runWorldPipeline:async(args)=>{
+    pipelineCalls++;
+    return args.plan.assets[0].generate
+      ? {status:'world-ready',admission:{status:'ready'}}
+      : {status:'world-rejected',reason:'ASSET_UNRESOLVED',retry:{status:'not-retriable'}};
+  }});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:5}).run('build lab');
+  expect(pipelineCalls).toBe(2);
+  expect(result).toMatchObject({taskStatus:'completed',unresolvedMutations:[],lastMutation:{tool:'runWorldPipeline',outcome:{state:'verified'}}});
+  const events=tools.recordSequence.mock.calls.map(([payload])=>payload).filter((payload)=>payload.tool==='runWorldPipeline'&&payload.executed);
+  expect(events).toHaveLength(2);
+  expect(events[0].identity).toBe('runWorldPipeline:{}');
+  expect(events[1].identity).toBe('runWorldPipeline:{}');
 });
 
 it('executes only the first mutation in a planner turn and returns protocol-complete not-executed results for the rest',async()=>{

@@ -1,6 +1,6 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.33.0** 的真实架构，不描述未来设想。
+本文描述 **1.34.0** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
@@ -1065,3 +1065,11 @@ Agent skill 永远运行完整 canonical pipeline；内部 stage selection 不�
 1.33 在 `asset_admission` 与 `instantiate` 之间加入纯计算 `compose_layout`。`WorldComposer` 从 Manifest root collider 推导 footprint，从 Environment Pack 读取可搜索 bounds，并调用 `PhysicsSystem.manifestPoseClear` 对候选 world pose 做 non-mutating Rapier shape query；同批尚未 spawn 的 assets 用 conservative footprint reservation。WorldSpec 没有 position 时由 Runtime 确定性选位，explicit position 则只验证、不偷偷改写。
 
 `NEAR` 关系也不再要求 LLM 猜 distance：省略时由 subject/target footprint + clearance 推导，按固定 ±X/±Z 顺序做 Rapier preflight。`layoutAdmission / relationAdmission` 会进入最终 `worldAdmission`。`ON` 继续复用现有 `InteractionSystem.place / SpatialSystem.findFreeSpace`，没有第二套 support solver。详见 [`deterministic-world-composer.md`](./deterministic-world-composer.md)。
+
+---
+
+## 37. Bounded World Regeneration：Retry 不是第二个 Planner
+
+1.34 新增纯 `buildWorldRetryPlan`，只把 pipeline rejection reports 压成 machine-readable findings/actions。唯一自动 retry 是 `search missing + generator configured`：只给缺失 request 打开 `generate=true`，restore 调用前 scene，再完整跑一次 canonical pipeline；固定 budget=2，第二次失败即 exhausted。Layout / relation / post-repair validation failure 都不会被 Runtime 自动放宽。
+
+ToolCallingAgent 同时维护 run-local `attemptedWorldPlans`，阻止完全相同 WorldSpec 在后续 planning round 再执行；但 unresolved semantic identity 仍是 `runWorldPipeline:{}`，因此真正修订后的 WorldSpec 成功可以清掉原失败。没有新增 World/Asset state owner。详见 [`bounded-world-regeneration.md`](./bounded-world-regeneration.md)。

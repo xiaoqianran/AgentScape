@@ -657,3 +657,7 @@ Probe 将 `cabinet_B/door` 设为 verified `ajar`，同时给 open/close 两个 
 ## 31. 1.33 Generated-world Planner Probe
 
 新增 `generated-world` strict live probe：模型必须先 search table/chair/cup，再只调用一次 `runWorldPipeline`；WorldSpec 不得携带任何 `position`，不得走 `generateAsset/importEmbodiedGenAsset/spawnAsset` 低层旁路，并必须正确表达 `cup ON table / chair NEAR table`。Runtime mock 只在这些条件满足后返回 `world-ready`。Nemotron 与 Muse 当前均 PASS；前者使用 type-based reuse resolve，后者使用显式 assetId。
+
+## 32. 1.34 Bounded Generated-world Retry Probe
+
+新增 `generated-world-retry` strict live probe。模型必须 search table 与 calibration fixture；fixture search 明确 miss，并表达 `fixture NEAR table`。模型仍只能调用一次 `runWorldPipeline`，不得自己设置 `generate=true`、不得调用 `generateAsset/importEmbodiedGenAsset/spawnAsset`、不得提供 position，也不得填写 NEAR distance；distance 必须由 Runtime collider footprint 推导。Tool result 模拟/验证真实 Runtime contract：attempt 1 `world-rejected + retry-proposed`，attempt 2 `world-ready`，relation evidence 为 `mode=runtime-derived`。`world-ready` 后不得再调用 `validateWorld`。Nemotron 与 Muse 当前均 PASS。

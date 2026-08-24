@@ -358,3 +358,8 @@ Planner 只产生 specification/proposal；Runtime validation 继续拥有最终
 ## 20. 1.33：WorldSpec 不再要求 LLM 提供坐标
 
 1.33 在 canonical pipeline 中新增 `compose_layout`，WorldSpec 的 `position` 变成真正 optional constraint。缺省位置由 `WorldComposer` + `PhysicsSystem.manifestPoseClear` 确定性选择；Environment Pack 提供 layout bounds，但真实碰撞仍由 Rapier 判断。`NEAR` 缺省 distance 也由 Runtime 根据 collider footprint 推导。详见 [`deterministic-world-composer.md`](./deterministic-world-composer.md)。
+
+
+## 21. 1.34：Admission Rejection 可以产生受限 Retry Evidence
+
+1.34 只在 `search miss + generator configured` 时由 Runtime 构造一次 `enable-generation` retry，restore scene 后完整重跑 canonical pipeline；其它 rejection 不自动放宽。详见 [`bounded-world-regeneration.md`](./bounded-world-regeneration.md)。
