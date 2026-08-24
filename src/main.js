@@ -13,20 +13,20 @@ import { ENVIRONMENTS, resolveEnvironment } from './content/environments.js';
 
 const QUICK_TASK_GROUPS = [
   {
-    label:'具身操作',
+    label:'常用操作',
     tasks:[
-      { title:'拿起杯子', detail:'导航到杯子并拿起', prompt:'让 agent_01 走到 cup_01 前并拿起杯子', tone:'primary' },
-      { title:'放到桌上', detail:'放置并验证支撑稳定', prompt:'让 agent_01 把当前拿着的物体放到 table_01 上', tone:'primary' },
-      { title:'自由放下', detail:'释放并等待物理稳定', prompt:'让 agent_01 放下当前拿着的物体' },
-      { title:'打开柜门', detail:'走近并完成开门', prompt:'让 agent_01 走到 cabinet_01 前并打开柜门' },
-      { title:'关闭柜门', detail:'走近并完成关门', prompt:'让 agent_01 走到 cabinet_01 前并关闭柜门' }
+      { title:'拿起杯子', detail:'走近杯子并安全拿起', prompt:'让 agent_01 走到 cup_01 前并拿起杯子', tone:'primary' },
+      { title:'放到桌上', detail:'放到桌面并确认稳定', prompt:'让 agent_01 把当前拿着的物体放到 table_01 上', tone:'primary' },
+      { title:'放下手中物体', detail:'原地释放并等待落稳', prompt:'让 agent_01 放下当前拿着的物体' },
+      { title:'打开柜门', detail:'走近柜门并确认打开', prompt:'让 agent_01 走到 cabinet_01 前并打开柜门' },
+      { title:'关闭柜门', detail:'走近柜门并确认关闭', prompt:'让 agent_01 走到 cabinet_01 前并关闭柜门' }
     ]
   },
   {
-    label:'场景任务',
+    label:'场景流程',
     tasks:[
-      { title:'完整具身任务', detail:'开柜门 → 拿杯子 → 放到桌上', prompt:'让 agent_01 打开 cabinet_01，确认柜门完成打开后拿起 cup_01，再把杯子放到 table_01 上；每一步失败都不要继续后续动作', tone:'workflow' },
-      { title:'建立咖啡角', detail:'让 Agent 规划并布置场景', prompt:'建立一个咖啡角', tone:'workflow' }
+      { title:'完整具身任务', detail:'开门 → 拿杯 → 放桌，全程验证', prompt:'让 agent_01 打开 cabinet_01，确认柜门完成打开后拿起 cup_01，再把杯子放到 table_01 上；每一步失败都不要继续后续动作', tone:'workflow' },
+      { title:'建立咖啡角', detail:'让 Agent 自主规划场景流程', prompt:'建立一个咖啡角', tone:'workflow' }
     ]
   }
 ];
@@ -48,26 +48,26 @@ async function main() {
     <main class="shell" data-world="${environmentDefinition.id}">
       <header class="brandbar">
         <div class="brand-lockup"><strong>AgentScape</strong><span>${environmentDefinition.number} · ${environmentDefinition.title.toUpperCase()}</span></div>
-        <div class="brand-actions"><select id="world-select" class="world-select" aria-label="World">${environmentOptions}</select><button id="cinematic-toggle" class="cinematic-toggle">Cinematic</button><div class="status"><i></i> LIVE WORLD</div></div>
+        <div class="brand-actions"><select id="world-select" class="world-select" aria-label="World">${environmentOptions}</select><button id="cinematic-toggle" class="cinematic-toggle">沉浸</button><div class="status"><i></i> 实时</div></div>
       </header>
       <section class="workspace">
         <div id="viewport" class="viewport">
           <div class="editor-toolbar" aria-label="Scene editor tools">
-            <button data-mode="translate" class="active">Move <kbd>W</kbd></button>
-            <button data-mode="rotate">Rotate <kbd>E</kbd></button>
+            <button data-mode="translate" class="active">移动 <kbd>W</kbd></button>
+            <button data-mode="rotate">旋转 <kbd>E</kbd></button>
             <span class="toolbar-divider"></span>
-            <button id="duplicate">Duplicate</button>
-            <button id="delete" class="danger">Delete</button>
+            <button id="duplicate">复制</button>
+            <button id="delete" class="danger">删除</button>
             <details class="toolbar-more">
-              <summary>Scene</summary>
+              <summary>场景</summary>
               <div class="toolbar-menu">
-                <button id="undo" disabled>Undo <kbd>⌘Z</kbd></button>
-                <button id="redo" disabled>Redo</button>
-                <button id="save-scene">Save</button>
-                <button id="load-scene">Load</button>
-                <button id="export-scene">Export</button>
-                <button id="import-scene">Import</button>
-                <button id="reset-world" class="danger">Reset world</button>
+                <button id="undo" disabled>撤销 <kbd>⌘Z</kbd></button>
+                <button id="redo" disabled>重做</button>
+                <button id="save-scene">保存</button>
+                <button id="load-scene">载入</button>
+                <button id="export-scene">导出</button>
+                <button id="import-scene">导入</button>
+                <button id="reset-world" class="danger">重置世界</button>
               </div>
             </details>
             <input id="import-scene-file" type="file" accept="application/json,.json" hidden />
@@ -80,16 +80,20 @@ async function main() {
           </div>
           <div class="hint">点击选择 · 拖拽 Gizmo 编辑 · W 移动 · E 旋转</div>
         </div>
-        <aside class="panel">
+        <aside class="panel" data-view="agent">
+          <nav class="panel-tabs" aria-label="工作台视图">
+            <button type="button" data-panel-view="agent" class="active" aria-selected="true">任务</button>
+            <button type="button" data-panel-view="inspect" aria-selected="false">对象</button>
+          </nav>
           <section class="inspector">
-            <div class="inspector-heading"><div class="eyebrow">INSPECTOR</div><span class="inspector-hint">选择场景对象查看详情</span></div>
-            <div id="empty-selection" class="empty-selection">尚未选择对象</div>
+            <div class="inspector-heading"><div><div class="eyebrow">对象</div><strong>场景属性</strong></div><span class="inspector-hint">点击场景中的对象</span></div>
+            <div id="empty-selection" class="empty-selection">选择一个物体后，这里会显示位置、关系与可执行动作。</div>
             <div id="selection" class="selection hidden">
               <div class="object-title"><h1 id="object-id"></h1><span id="object-type"></span></div>
               <dl class="properties">
-                <div><dt>Asset</dt><dd id="asset-id"></dd></div>
-                <div><dt>Position</dt><dd id="position"></dd></div>
-                <div><dt>Rotation</dt><dd id="rotation"></dd></div>
+                <div><dt>资产</dt><dd id="asset-id"></dd></div>
+                <div><dt>位置</dt><dd id="position"></dd></div>
+                <div><dt>旋转</dt><dd id="rotation"></dd></div>
               </dl>
               <div id="spatial-info" class="spatial-info"></div>
               <div id="relation-info" class="relation-info"></div>
@@ -98,21 +102,21 @@ async function main() {
           </section>
           <section class="agent-console">
             <div class="console-heading">
-              <div><div class="eyebrow">AGENT</div><h2>让世界动起来</h2></div>
+              <div><div class="eyebrow">任务</div><h2>你想让世界做什么？</h2></div>
               <span id="agent-mode" class="agent-mode">LOCAL</span>
             </div>
             <div id="task-state" class="task-state" data-state="ready" role="status" aria-live="polite">
               <span class="task-state-dot"></span>
-              <div><strong id="task-state-label">准备就绪</strong><span id="task-state-detail">选择一个任务，或直接描述你想做什么。</span></div>
+              <div><strong id="task-state-label">准备好了</strong><span id="task-state-detail">选择一个常用操作，或在下方直接描述任务。</span></div>
             </div>
             <div class="agent-scroll">
               <div class="quick-tasks">${quickTaskMarkup()}</div>
               <details class="activity-panel">
-                <summary><span>Activity</span><small id="activity-count">0</small></summary>
+                <summary><span>运行记录</span><small id="activity-count">0</small></summary>
                 <div id="log" class="log"></div>
               </details>
               <details class="developer-tools">
-                <summary><span>Developer tools</span><small>Gateway · Validation · Assets</small></summary>
+                <summary><span>高级设置</span><small>Gateway · Validation · Assets</small></summary>
                 <div class="developer-tools-body">
                   <details class="gateway-settings">
                     <summary>LLM Gateway</summary>
@@ -143,8 +147,8 @@ async function main() {
               </details>
             </div>
             <form id="command" class="command">
-              <input id="input" autocomplete="off" placeholder="描述任务，例如：把杯子拿起来放到桌上" aria-label="Agent task" />
-              <button type="submit"><span>执行</span></button>
+              <input id="input" autocomplete="off" placeholder="告诉 Agent 你想完成什么…" aria-label="Agent task" />
+              <button type="submit"><span>发送</span></button>
             </form>
           </section>
         </aside>
@@ -158,10 +162,16 @@ async function main() {
     const row = document.createElement('div');
     row.className = `log-row ${kind}`;
     row.textContent = text;
-    logEl.prepend(row);
-    while (logEl.children.length > 80) logEl.lastElementChild.remove();
-    activityCount += 1;
-    activityCountEl.textContent = String(Math.min(activityCount, 99));
+    logEl.append(row);
+    while (logEl.children.length > 80) logEl.firstElementChild.remove();
+    if (activityPanel?.open) {
+      activityCount = 0;
+      activityCountEl.textContent = '0';
+      logEl.scrollTop = logEl.scrollHeight;
+    } else {
+      activityCount += 1;
+      activityCountEl.textContent = String(Math.min(activityCount, 99));
+    }
   };
 
   const taskState = document.querySelector('#task-state');
@@ -172,20 +182,31 @@ async function main() {
   const commandButton = commandForm.querySelector('button[type="submit"]');
   const commandButtonLabel = commandButton.querySelector('span');
   const taskButtons = [...document.querySelectorAll('.task-card')];
+  const activityPanel = document.querySelector('.activity-panel');
   let taskBusy = false;
+  let activeTaskButton = null;
   const setTaskState = (state, label, detail) => {
     taskState.dataset.state = state;
     taskStateLabel.textContent = label;
     taskStateDetail.textContent = detail;
   };
-  const setTaskBusy = (busy) => {
+  const setTaskBusy = (busy, sourceButton = null) => {
     taskBusy = busy;
+    activeTaskButton?.classList.remove('is-running');
+    activeTaskButton = busy ? sourceButton : null;
+    activeTaskButton?.classList.add('is-running');
     for (const button of taskButtons) button.disabled = busy;
-    commandInput.disabled = busy;
+    commandInput.readOnly = busy;
     commandButton.disabled = busy;
-    commandButtonLabel.textContent = busy ? '执行中' : '执行';
+    commandButtonLabel.textContent = busy ? '处理中' : '发送';
     taskState.setAttribute('aria-busy', busy ? 'true' : 'false');
   };
+  activityPanel.addEventListener('toggle', () => {
+    if (!activityPanel.open) return;
+    activityCount = 0;
+    activityCountEl.textContent = '0';
+    requestAnimationFrame(() => { logEl.scrollTop = logEl.scrollHeight; });
+  });
 
   const world = new WorldRuntime(document.querySelector('#viewport'), { environmentFactory });
   await world.init();
@@ -194,6 +215,18 @@ async function main() {
   const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway: new LocalPlannerGateway({ coffeeCorner:environmentDefinition.coffeeCorner }), log });
   const editor = new EditorController(world);
   const shell = document.querySelector('.shell');
+  const panel = document.querySelector('.panel');
+  const panelTabs = [...document.querySelectorAll('[data-panel-view]')];
+  const setPanelView = (view) => {
+    panel.dataset.view = view;
+    for (const tab of panelTabs) {
+      const active = tab.dataset.panelView === view;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    }
+    requestAnimationFrame(() => world.resize());
+  };
+  panelTabs.forEach((tab) => tab.addEventListener('click', () => setPanelView(tab.dataset.panelView)));
   document.querySelector('#world-select').addEventListener('change', (event) => {
     const url = new URL(location.href);
     url.searchParams.set('world', event.target.value);
@@ -202,7 +235,7 @@ async function main() {
   const cinematicButton = document.querySelector('#cinematic-toggle');
   cinematicButton.addEventListener('click', () => {
     const enabled = shell.classList.toggle('cinematic');
-    cinematicButton.textContent = enabled ? 'Editor' : 'Cinematic';
+    cinematicButton.textContent = enabled ? '编辑' : '沉浸';
     requestAnimationFrame(() => world.resize());
   });
   const sceneStore = new LocalSceneStore({ key:`agentscape.scene.autosave.${environmentDefinition.id}` });
@@ -217,7 +250,7 @@ async function main() {
   world.events.on('locomotion.started', ({ id, waypoints, pathCost }) => log(`walk: ${id} · ${waypoints} waypoints · ${pathCost ?? '?'}m`, 'tool'));
   world.events.on('locomotion.arrived', ({ id, elapsed }) => log(`arrived: ${id} · ${elapsed}s`, 'result'));
   world.events.on('locomotion.blocked', ({ id, reason }) => log(`blocked: ${id} · ${reason}`, 'error'));
-  world.events.on('editor.selection', ({ id }) => renderInspector(id));
+  world.events.on('editor.selection', ({ id }) => { renderInspector(id); if (id) setPanelView('inspect'); });
   world.events.on('editor.transform', ({ id }) => renderInspector(id));
   world.events.on('object.removed', ({ id }) => log(`removed: ${id}`, 'tool'));
   world.events.on('object.duplicated', ({ sourceId, id }) => log(`duplicate: ${sourceId} → ${id}`, 'tool'));
@@ -253,6 +286,8 @@ async function main() {
   function renderInspector(id) {
     const empty = document.querySelector('#empty-selection');
     const selection = document.querySelector('#selection');
+    const inspectorTab = document.querySelector('[data-panel-view="inspect"]');
+    inspectorTab.classList.toggle('has-selection', Boolean(id));
     if (!id) { empty.classList.remove('hidden'); selection.classList.add('hidden'); return; }
     const info = world.getObjectInfo(id);
     empty.classList.add('hidden'); selection.classList.remove('hidden');
@@ -277,7 +312,7 @@ async function main() {
     for (const action of info.actions) {
       if (!['open', 'close', 'pickup', 'drop'].includes(action)) continue;
       const button = document.createElement('button');
-      button.textContent = action;
+      button.textContent = ({open:'打开',close:'关闭',pickup:'拿起',drop:'放下'})[action] || action;
       button.addEventListener('click', async () => {
         try { await tools.call(action === 'drop' ? 'drop' : action, action === 'drop' ? { id } : { id }); }
         catch (error) { log(`error: ${error.message}`, 'error'); }
@@ -393,24 +428,24 @@ async function main() {
     log(gateway.isConfigured() ? `LLM gateway: ${gateway.endpoint}` : 'LLM gateway disabled; using local planner', 'result');
   });
 
-  async function execute(prompt, label = '自定义任务') {
+  async function execute(prompt, label = '自定义任务', sourceButton = null) {
     if (taskBusy) return;
-    setTaskBusy(true);
-    setTaskState('running', '正在执行', label);
+    setTaskBusy(true, sourceButton);
+    setTaskState('running', '正在处理', label);
     try {
       const result = await agent.run(prompt);
       if (result.taskStatus === 'completed') {
-        setTaskState('success', '任务完成', `${label} · 已通过 Runtime 验证`);
+        setTaskState('success', '已完成', `${label} · Runtime 已验证`);
         log('task status: completed · mutation chain verified', 'result');
       } else {
         const tool = result.lastMutation?.tool || 'mutation';
         const outcome = result.lastMutation?.outcome?.state || 'unknown';
-        setTaskState('error', '需要处理', `${label} · ${tool} → ${outcome}`);
+        setTaskState('error', '未完成', `${label} · ${tool} → ${outcome}`);
         log(`task status: incomplete · ${tool} → ${outcome}`, 'error');
       }
       return result;
     } catch (err) {
-      setTaskState('error', '执行失败', err.message);
+      setTaskState('error', '遇到问题', err.message);
       log(`error: ${err.message}`, 'error');
       return null;
     } finally {
@@ -420,13 +455,15 @@ async function main() {
 
   taskButtons.forEach((button) => button.addEventListener('click', () => {
     const label = button.querySelector('strong')?.textContent || '快捷任务';
-    execute(button.dataset.prompt, label);
+    setPanelView('agent');
+    execute(button.dataset.prompt, label, button);
   }));
   commandForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const value = commandInput.value.trim();
     if (!value || taskBusy) return;
     commandInput.value = '';
+    setPanelView('agent');
     await execute(value, value.length > 42 ? `${value.slice(0, 42)}…` : value);
   });
 
