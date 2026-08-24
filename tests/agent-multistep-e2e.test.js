@@ -101,6 +101,19 @@ describe('verified multi-step embodied sequencing',()=>{
     ctx.navigation.dispose(); ctx.physics.dispose();
   },45000);
 
+  it('releases and reacquires a carried Cup when the requested door step comes after pickup',async()=>{
+    const ctx=await setup();
+    const result=await driveAgent(ctx.agent.run('先拿起 cup_01，再打开 cabinet_01，最后把杯子放到 table_01 上。'),ctx,12000);
+    expect(result).toMatchObject({taskStatus:'completed',lastMutation:{tool:'approachAndPlace',outcome:{state:'verified',status:'placed'}},unresolvedMutations:[]});
+    expect(ctx.store.get('cabinet_01').state.parts.door).toBe('open');
+    expect(ctx.store.get('cup_01').state.heldBy).toBeUndefined();
+    expect(ctx.spatial.supportStatus('cup_01','table_01',{surfaceId:'top'}).on).toBe(true);
+    expect(ctx.mutate.mock.calls.map(([label])=>label)).toEqual([
+      'skill:approachAndPickup','skill:dropHeld','skill:approachAndInteract','skill:approachAndPickup','skill:approachAndPlace'
+    ]);
+    ctx.navigation.dispose(); ctx.physics.dispose();
+  },60000);
+
   it('stops after a real door STALL and never executes pickup/place',async()=>{
     const ctx=await setup({blockedDoor:true});
     const result=await driveAgent(ctx.agent.run('打开柜门，然后拿起杯子，再把杯子放到桌上。'),ctx);

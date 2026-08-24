@@ -380,6 +380,11 @@ export class InteractionSystem {
   async approachAndInteract(actorId, targetId, action, { partName = null, maxDistance = DEFAULT_INTERACTION_DISTANCE, speed } = {}) {
     if (!['open', 'close'].includes(action)) throw Errors.actionUnsupported(targetId, `embodied:${action}`);
     this.assertSupports(targetId, action);
+    const heldId = this.heldByAgent(actorId);
+    if (heldId && !this.recoveryHeld.has(actorId)) return {
+      status:'interaction-blocked', reason:'HANDS_FULL', actorId,targetId,action,heldId,
+      requires:'dropHeld', instruction:'Release the carried object and retry the interaction.'
+    };
     if (!this.locomotion) throw Errors.interactionUnavailable(actorId, targetId, 'LOCOMOTION_UNAVAILABLE');
     const pose = await this.findInteractionPose(actorId, targetId, { maxDistance, action, partName });
     if (!pose) throw Errors.interactionUnavailable(actorId, targetId, 'NO_INTERACTION_POSE', { maxDistance });
@@ -834,13 +839,16 @@ export class InteractionSystem {
 
   async approachAndPlace(actorId, targetId, { surfaceId = null, speed, clearance = 0.03 } = {}) {
     const heldId = this.heldByAgent(actorId);
-    if (!heldId) throw Errors.placeUnavailable(actorId, targetId, 'NOT_HOLDING_OBJECT');
+    if (!heldId) return {
+      status:'place-blocked', reason:'NOT_HOLDING_OBJECT', actorId,targetId,heldId:null,
+      requires:'approachAndPickup', stillHeld:false
+    };
     this.assertSupports(heldId, 'place');
     const target = this.store.get(targetId);
     if (!target.manifest.surfaces?.length) throw Errors.placeUnavailable(actorId, targetId, 'TARGET_HAS_NO_SURFACE');
     if (!this.locomotion) throw Errors.placeUnavailable(actorId, targetId, 'LOCOMOTION_UNAVAILABLE');
 
-    let release = this.spatial.findFreeSpace(heldId,targetId,{surfaceId,clearance});
+    let release = this.spatial.findFreeSpace(heldId,targetId,{surfaceId,clearance,ignore:[actorId]});
     if (!release) throw Errors.placeUnavailable(actorId,targetId,'NO_FREE_SURFACE_SPACE',{heldId,surfaceId});
     const anchor = this.holdAnchor(actorId);
     const releasePoint = release.toArray();
@@ -859,7 +867,7 @@ export class InteractionSystem {
       if (locomotion.status !== 'arrived') return { status:'place-blocked', reason:'APPROACH_FAILED', actorId,targetId,heldId,locomotion,stillHeld:true };
     }
 
-    release = this.spatial.findFreeSpace(heldId,targetId,{surfaceId,clearance});
+    release = this.spatial.findFreeSpace(heldId,targetId,{surfaceId,clearance,ignore:[actorId]});
     if (!release) return { status:'place-blocked', reason:'NO_FREE_SURFACE_SPACE_AFTER_APPROACH', actorId,targetId,heldId,locomotion,stillHeld:true };
     const reach = this.interactionStatus(actorId,targetId,{ignoreIds:[heldId]});
     if (!reach.interactable) return { status:'place-blocked', reason:reach.inRange ? 'LINE_OF_SIGHT_BLOCKED' : 'OUT_OF_RANGE', actorId,targetId,heldId,locomotion,reach,stillHeld:true };

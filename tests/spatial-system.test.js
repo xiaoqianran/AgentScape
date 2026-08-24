@@ -103,4 +103,16 @@ describe('SpatialSystem', () => {
     expect(spatial.supportStatus('cup','table',{surfaceId:'top'}).on).toBe(false);
   });
 
+  it('does not report ON when an object is slightly below the declared support surface', () => {
+    const store=new ObjectStore(); const scene=new THREE.Scene();
+    const table=new THREE.Group(); table.updateMatrixWorld(true); scene.add(table);
+    const top=new THREE.Mesh(new THREE.BoxGeometry(2.2,.2,1)); top.position.set(0,1,0); table.add(top);
+    table.updateMatrixWorld(true);
+    store.add('table',{id:'table',assetId:'table',object:table,manifest:{actions:[],surfaces:[{id:'top',localPosition:[0,1.1,0],size:[2.2,1]}]}});
+    const cup=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2)); cup.position.set(0,1.15,0); cup.updateMatrixWorld(true); scene.add(cup);
+    store.add('cup',{id:'cup',assetId:'cup',object:cup,manifest:{actions:[]}});
+    const spatial=new SpatialSystem({store,scene});
+    expect(spatial.supportStatus('cup','table',{surfaceId:'top'})).toMatchObject({on:false,aboveSurface:false,withinX:true,withinZ:true});
+  });
+
 });

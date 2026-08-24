@@ -129,15 +129,19 @@ export class SpatialSystem {
     if (!surface) return { on:false, reason:'SURFACE_MISSING' };
     const withinX = subject.box.min.x >= surface.center.x - surface.size[0] / 2 - 0.05 && subject.box.max.x <= surface.center.x + surface.size[0] / 2 + 0.05;
     const withinZ = subject.box.min.z >= surface.center.z - surface.size[1] / 2 - 0.05 && subject.box.max.z <= surface.center.z + surface.size[1] / 2 + 0.05;
-    const gap = Math.abs(subject.box.min.y - surface.center.y);
+    const verticalGap = subject.box.min.y - surface.center.y;
+    const gap = Math.abs(verticalGap);
+    // A surface relation is directional: an object resting below the declared
+    // surface is not ON it, even when the absolute gap is small.
+    const aboveSurface = verticalGap >= -0.03;
     return {
-      on:withinX && withinZ && gap <= tolerance,
+      on:withinX && withinZ && aboveSurface && gap <= tolerance,
       subjectId,targetId,surfaceId:surface.id,
-      withinX,withinZ,gap:Number(gap.toFixed(4)),tolerance
+      withinX,withinZ,aboveSurface,verticalGap:Number(verticalGap.toFixed(4)),gap:Number(gap.toFixed(4)),tolerance
     };
   }
 
-  findFreeSpace(objectId, targetId, { surfaceId, clearance = 0.03, grid = 5 } = {}) {
+  findFreeSpace(objectId, targetId, { surfaceId, clearance = 0.03, grid = 5, ignore = [] } = {}) {
     const objectRecord = this.store.get(objectId);
     const spatialSnapshot = this.snapshot();
     const surface = this.getSupportSurface(targetId, surfaceId, spatialSnapshot);
@@ -149,6 +153,7 @@ export class SpatialSystem {
     const size = entry.size;
     const halfX = size.x / 2 + clearance;
     const halfZ = size.z / 2 + clearance;
+    if (surface.size[0] < halfX * 2 || surface.size[1] < halfZ * 2) return null;
     const usableX = Math.max(0, surface.size[0] / 2 - halfX);
     const usableZ = Math.max(0, surface.size[1] / 2 - halfZ);
     const center = entry.center;
@@ -173,7 +178,7 @@ export class SpatialSystem {
     for (const candidate of candidates) {
       objectRecord.object.position.copy(candidate);
       spatialSnapshot.set(objectId, snapshotEntry(objectId, objectRecord.object));
-      const collisions = this.isColliding(objectId, { ignore: [targetId], margin: clearance / 2, snapshot: spatialSnapshot });
+      const collisions = this.isColliding(objectId, { ignore: [targetId, ...ignore], margin: clearance / 2, snapshot: spatialSnapshot });
       if (!collisions.length) {
         objectRecord.object.position.copy(originalPosition);
         objectRecord.object.updateWorldMatrix(true, true);

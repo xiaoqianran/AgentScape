@@ -16,7 +16,7 @@ const QUICK_TASK_GROUPS = [
     label:'常用操作',
     tasks:[
       { title:'拿起杯子', detail:'走近杯子并安全拿起', prompt:'让 agent_01 走到 cup_01 前并拿起杯子', tone:'primary' },
-      { title:'放到桌上', detail:'放到桌面并确认稳定', prompt:'让 agent_01 把当前拿着的物体放到 table_01 上', tone:'primary' },
+      { title:'放到桌上', detail:'拿起杯子，放到桌面并确认稳定', prompt:'让 agent_01 先拿起 cup_01，再把它放到 table_01 上并确认稳定', tone:'primary' },
       { title:'放下手中物体', detail:'原地释放并等待落稳', prompt:'让 agent_01 放下当前拿着的物体' },
       { title:'打开柜门', detail:'走近柜门并确认打开', prompt:'让 agent_01 走到 cabinet_01 前并打开柜门' },
       { title:'关闭柜门', detail:'走近柜门并确认关闭', prompt:'让 agent_01 走到 cabinet_01 前并关闭柜门' }
@@ -210,7 +210,7 @@ async function main() {
 
   const world = new WorldRuntime(document.querySelector('#viewport'), { environmentFactory });
   await world.init();
-  const tools = new AgentTools(world);
+  const tools = new AgentTools(world, { profile:'builder', actor:'agent_01' });
   const gateway = new HttpLLMGateway({ endpoint: localStorage.getItem('agentscape.gatewayEndpoint') || '' });
   const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway: new LocalPlannerGateway({ coffeeCorner:environmentDefinition.coffeeCorner }), log });
   const editor = new EditorController(world);

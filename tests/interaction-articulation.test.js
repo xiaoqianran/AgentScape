@@ -36,4 +36,12 @@ describe('InteractionSystem articulated actions', () => {
     const { system } = make();
     expect(() => system.setArticulationAction('cab_1','open')).toThrow(/does not support open/);
   });
+
+  it('blocks embodied door actions while the Agent is carrying an object', async () => {
+    const { system } = make();
+    system.agentHeld.set('agent_01','cup_1');
+    await expect(system.approachAndInteract('agent_01','cab_1','open')).resolves.toMatchObject({
+      status:'interaction-blocked',reason:'HANDS_FULL',heldId:'cup_1',requires:'dropHeld'
+    });
+  });
 });

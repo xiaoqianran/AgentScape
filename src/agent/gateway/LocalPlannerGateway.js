@@ -8,6 +8,7 @@ const stableValue = (value) => {
   return JSON.stringify(value);
 };
 const sameArgs = (a = {}, b = {}) => stableValue(a) === stableValue(b);
+const callKey = (call) => `${call.name}:${stableValue(call.args || {})}`;
 
 function parseToolContent(message) {
   try { return JSON.parse(message.content || 'null'); }
@@ -26,18 +27,60 @@ function inferOutcome(value) {
   return { state:'accepted', verified:null, ...(status ? {status} : {}) };
 }
 
-function desiredCalls(q, coffeeCorner) {
+function desiredCalls(q, coffeeCorner, context = {}, toolMessages = [], assistantCalls = new Map()) {
   const calls = [];
   if (q.includes('列出') || q.includes('对象') || q.includes('list')) calls.push({ name:'listObjects', args:{} });
   if (q.includes('椅子') || q.includes('chair')) {
     calls.push({ name:'searchAssets', args:{query:'chair'} });
     calls.push({ name:'spawnAsset', args:{assetId:'chair',position:[1.8,0,0]} });
   }
-  if (q.includes('打开') || q.includes('open')) calls.push({ name:'approachAndInteract', args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'} });
-  if (q.includes('关闭') || q.includes('close')) calls.push({ name:'approachAndInteract', args:{actorId:'agent_01',targetId:'cabinet_01',action:'close'} });
-  if (q.includes('拿') || q.includes('取') || q.includes('pickup') || q.includes('pick up')) calls.push({ name:'approachAndPickup', args:{actorId:'agent_01',targetId:'cup_01'} });
-  if (q.includes('放下') || q.includes('drop')) calls.push({ name:'dropHeld', args:{actorId:'agent_01'} });
-  else if (q.includes('放') || q.includes('place')) calls.push({ name:'approachAndPlace', args:{actorId:'agent_01',supportId:'table_01'} });
+
+  const pickupIndex = Math.min(...['拿','取','pickup','pick up'].map((value)=>q.indexOf(value)).filter((value)=>value >= 0), Infinity);
+  const interactionCalls = [
+    ...(q.includes('打开') || q.includes('open') ? [{ index:Math.min(...['打开','open'].map((value)=>q.indexOf(value)).filter((value)=>value >= 0)), call:{ name:'approachAndInteract', args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'} } }] : []),
+    ...(q.includes('关闭') || q.includes('close') ? [{ index:Math.min(...['关闭','close'].map((value)=>q.indexOf(value)).filter((value)=>value >= 0)), call:{ name:'approachAndInteract', args:{actorId:'agent_01',targetId:'cabinet_01',action:'close'} } }] : [])
+  ].sort((a,b)=>a.index-b.index).map((item)=>item.call);
+  const interactionIndex = Math.min(...interactionCalls.map((call)=>call.args.action === 'open'
+    ? Math.min(...['打开','open'].map((value)=>q.indexOf(value)).filter((value)=>value >= 0))
+    : Math.min(...['关闭','close'].map((value)=>q.indexOf(value)).filter((value)=>value >= 0))), Infinity);
+  const placeIndex = Math.min(...['放到','放在','放上','place'].map((value)=>q.indexOf(value)).filter((value)=>value >= 0), Infinity);
+  const dropIndex = Math.min(...['放下','drop'].map((value)=>q.indexOf(value)).filter((value)=>value >= 0), Infinity);
+  const pickupRequested = Number.isFinite(pickupIndex);
+  const placeRequested = ['放到','放在','放上','放置','放桌','place'].some((value)=>q.includes(value));
+  const carrying = context?.task?.actor?.carry?.status === 'held';
+  const carriedId = context?.task?.actor?.carry?.targetId || 'cup_01';
+  const carryMentioned = q.includes('拿着') || q.includes('手里') || q.includes('携带');
+  const dropped = toolMessages.some((message)=>message.name === 'dropHeld' && inferOutcome(parseToolContent(message)).state === 'verified');
+  const interactionPending = interactionCalls.some((call)=>!toolMessages.some((message)=>
+    message.name === call.name
+      && (!assistantCalls.get(message.toolCallId) || sameArgs(assistantCalls.get(message.toolCallId).args || {}, call.args || {}))
+      && COMPLETE.has(inferOutcome(parseToolContent(message)).state)
+  ));
+  const pickupBeforeInteraction = pickupRequested && pickupIndex < interactionIndex;
+  const needsReleaseBeforeInteraction = interactionPending
+    && (carrying || carryMentioned || pickupBeforeInteraction || dropped);
+  const repickupAfterInteraction = placeRequested && interactionCalls.length > 0
+    && (pickupBeforeInteraction || (!pickupRequested && (carrying || carryMentioned || dropped)));
+  const pickupCall = { name:'approachAndPickup', args:{actorId:'agent_01',targetId:carriedId} };
+  const placeCall = { name:'approachAndPlace', args:{actorId:'agent_01',supportId:'table_01'} };
+
+  if (needsReleaseBeforeInteraction) {
+    if (pickupBeforeInteraction) calls.push(pickupCall);
+    calls.push({ name:'dropHeld', args:{actorId:'agent_01'} });
+    calls.push(...interactionCalls);
+    if (repickupAfterInteraction) calls.push(pickupCall);
+    if (placeRequested) calls.push(placeCall);
+  } else {
+    const ordered = [];
+    if (interactionCalls.length) ordered.push({ index:interactionIndex, call:interactionCalls[0] }, ...interactionCalls.slice(1).map((call)=>({ index:call.args.action === 'open'
+      ? Math.min(...['打开','open'].map((value)=>q.indexOf(value)).filter((value)=>value >= 0))
+      : Math.min(...['关闭','close'].map((value)=>q.indexOf(value)).filter((value)=>value >= 0)), call })));
+    if (pickupRequested) ordered.push({ index:pickupIndex, call:pickupCall });
+    if (Number.isFinite(dropIndex)) ordered.push({ index:dropIndex, call:{ name:'dropHeld', args:{actorId:'agent_01'} } });
+    if (repickupAfterInteraction && placeRequested) ordered.push({ index:placeIndex - 0.5, call:pickupCall });
+    if (placeRequested) ordered.push({ index:placeIndex, call:placeCall });
+    ordered.sort((a,b)=>a.index-b.index).forEach(({call})=>calls.push(call));
+  }
   if (q.includes('咖啡角') || q.includes('coffee')) {
     calls.push({
       name:'executeBatch',
@@ -55,18 +98,22 @@ export class LocalPlannerGateway {
   constructor({ coffeeCorner = DEFAULT_COFFEE_CORNER } = {}) { this.coffeeCorner = coffeeCorner; }
   isConfigured() { return true; }
 
-  async complete({ messages }) {
+  async complete({ messages, context = {} }) {
     const user = [...messages].reverse().find((m) => m.role === 'user');
     const q = String(user?.content || '').toLowerCase();
-    const desired = desiredCalls(q, this.coffeeCorner);
-    if (!desired.length) return { final:true, message:'本地模式无法规划这个请求。配置 LLM Gateway 后可使用自然语言多步规划。', toolCalls:[] };
-
     const toolMessages = messages.filter((message) => message.role === 'tool');
     const assistantCalls = new Map();
     for (const message of messages) if (message.role === 'assistant') {
       for (const call of message.toolCalls || []) assistantCalls.set(call.id,call);
     }
+    const desired = desiredCalls(q, this.coffeeCorner, context, toolMessages, assistantCalls);
+    if (!desired.length) return { final:true, message:'本地模式无法规划这个请求。配置 LLM Gateway 后可使用自然语言多步规划。', toolCalls:[] };
+
+    const occurrences = new Map();
     for (const call of desired) {
+      const key = callKey(call);
+      const occurrence = occurrences.get(key) || 0;
+      occurrences.set(key, occurrence + 1);
       const matching = toolMessages
         .filter((message) => {
           if (message.name !== call.name) return false;
@@ -74,7 +121,7 @@ export class LocalPlannerGateway {
           return !original || sameArgs(original.args || {},call.args || {});
         })
         .map((message) => ({ message, value:parseToolContent(message) }));
-      const latest = matching.at(-1);
+      const latest = matching[occurrence];
       if (!latest) return { final:false, message:'', toolCalls:[{ id:`local_${toolMessages.length}`, ...call }] };
       const outcome = inferOutcome(latest.value);
       if (outcome.state === 'skipped') return { final:false, message:'', toolCalls:[{ id:`local_${toolMessages.length}`, ...call }] };
