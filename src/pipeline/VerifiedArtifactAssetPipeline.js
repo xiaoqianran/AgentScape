@@ -68,7 +68,7 @@ function buildProvenance({artifact,assetId,admission}) {
       producer:safeProducer(artifact)
     },
     assetId,
-    admission:clone(admission)
+    admission:admission?{status:admission.status,reasons:[...(admission.reasons||[])]}:null
   };
 }
 
@@ -196,7 +196,7 @@ export class VerifiedArtifactAssetPipeline {
       manifest.provenance={
         ...(manifest.provenance||{}),
         assetProduction:buildProvenance({artifact:input.artifact,assetId:input.assetId,admission}),
-        admission:clone(admission)
+        admission:admission?{status:admission.status,reasons:[...(admission.reasons||[])]}:null
       };
       validateAssetManifest(manifest);
 

@@ -34,7 +34,7 @@ describe('AssetLibrary', () => {
     };
     const assets = library(generator);
     const result = await assets.resolve('rare plant', { generate: true });
-    expect(result).toMatchObject({status:'generated',assets:[{id:'plant_generated',admission:{status:'provisional',reasons:['UNVERIFIED_GENERATOR_MANIFEST']}}]});
+    expect(result).toMatchObject({status:'generated',assets:[{id:'plant_generated',admission:{status:'provisional',reasons:['COMPILER_UNVERIFIED']}}]});
     expect(assets.search('plant')[0].id).toBe('plant_generated');
   });
 
@@ -50,7 +50,7 @@ describe('AssetLibrary', () => {
     const result = await assets.resolve('generated workbench', { generate:true, provider:'embodiedgen' });
     expect(result).toMatchObject({status:'generated',assets:[{
       id:'eg-bench',type:'workbench',source:'glb',
-      admission:{status:'provisional',reasons:['FALLBACK_BOX_COLLIDER','UNVERIFIED_PROVIDER_SEMANTICS']}
+      admission:{status:'provisional',reasons:['FALLBACK_BOX_COLLIDER','UNVERIFIED_PROVIDER_SEMANTICS','COMPILER_UNVERIFIED']}
     }]});
     const manifest=assets.assetManager.getManifest('eg-bench');
     expect(manifest).toMatchObject({

@@ -50,8 +50,9 @@ export function registerCoreSkills(registry, runtime) {
     }
     runtime.assets.registerManifest(manifest, { replace: true });
     syncLiveVerification(runtime, a.assetId, manifest);
-    runtime.events.emit('asset.verified', { assetId: a.assetId, articulation: report });
-    return { ...report, readiness: quality?.status || null };
+    const admission=assetAdmission(manifest);
+    runtime.events.emit('asset.verified', { assetId: a.assetId, articulation: report, admission:admission.status });
+    return { ...report, readiness: admission.status, admission };
   });
   add('inspectCompiledAsset', meta('读取已编译资产的编译报告。', ['asset.read'], ['assetId'], { assetId: string }), (a) => runtime.assets.getManifest(a.assetId).compiler || null);
   add('listAssets', meta('列出资产库。', ['asset.read']), () => runtime.assetLibrary.list());

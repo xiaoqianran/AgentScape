@@ -77,12 +77,12 @@ describe('VerifiedArtifactAssetPipeline vertical path',()=>{
       artifactId:'artifact_modal3d_01',assetId:'asset_modal3d_cabinet',
       admission:{status:'provisional'}
     });
-    expect(result.admission.reasons).toContain('COMPILER_PROVISIONAL');
+    expect(result.admission.reasons).toContain('COLLIDER_COARSE');
+    expect(result.admission.layers.compiler.status).toBe('provisional');
     expect(result.manifest).toMatchObject({
       id:'asset_modal3d_cabinet',source:{kind:'compiled',key:'asset_modal3d_cabinet'},actions:['move'],
       compiler:{quality:{status:'provisional'}},
       provenance:{
-        admission:{status:'provisional'},
         assetProduction:{
           sourceArtifact:{
             id:'artifact_modal3d_01',hash:sha(state.bytes),
