@@ -25,9 +25,11 @@ function classifyResult(result) {
           ? result.targetReached === true && result.settled === true
           : status === 'placed'
             ? result.supportVerified === true && result.settled === true
-            : status === 'recovery-cleaned'
-              ? result.released === true && result.settled === true && result.sweepClear === true && result.contactClear === true
-              : true;
+            : status === 'dropped'
+              ? result.released === true && result.settled === true && result.stillHeld === false
+              : status === 'recovery-cleaned'
+                ? result.released === true && result.settled === true && result.sweepClear === true && result.contactClear === true
+                : true;
         return contractVerified
           ? { state:'verified', verified:true, status }
           : { state:'unverified', verified:false, status, reason:'POST_CONDITION_NOT_VERIFIED' };

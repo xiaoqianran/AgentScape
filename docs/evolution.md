@@ -1674,3 +1674,11 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 1.33 让模型不再猜坐标，但 generated-world search miss 仍然只能一次性失败或要求模型手动 generate。1.34 把唯一安全的自动变化收进 Runtime：如果 request 尚未允许 generation、AssetLibrary search miss 且 Generator 已配置，pipeline rejection 会生成 `enable-generation` retry action；scene 先 restore，再完整执行第二次 canonical pipeline。其它 deterministic layout/relation/validation rejection 一律不自动改约束。
 
 同一 Agent run 还新增 exact WorldSpec duplicate gate，避免模型用重复 tool call 绕过内部两次 attempt budget；WorldSpec fingerprint 只用于 duplicate gate，不改变 `runWorldPipeline:{}` 的 unresolved semantic identity。真实 Generator E2E 和 Nemotron/Muse `generated-world-retry` strict probe 均通过。
+
+---
+
+## 56. 1.34.1：桌面 Pickup 与 Verified Drop Hotfix
+
+默认 World 中的 `cup_01` 真实放在 `table_01` 上时，旧 pickup planner 会围绕 Cup 自身 bounds 选站位，并把 target root 高度带入候选 Nav endpoint；结果要么候选落进 Table footprint，要么把 Agent 脚底投到桌面高度，导致 `NO_PICKUP_TRANSFER_POSE`。1.34.1 改为识别当前 support，站位围绕 support bounds，并把既有 `carryStandOff`（HoldAnchor 前伸 + carried object radius）纳入 clearance；NavMesh 继续拥有最终脚底高度。对于有 support 的物体，真实拿取采用 lift → horizontal → anchor 三段 Physics-checked transfer，任一段 blocked 都回滚。
+
+同一 hotfix 修正 `dropHeld` 的假完成：过去 release 后立即返回 `status=dropped`，SkillRegistry 会直接标 verified；现在 drop 必须等待 Dynamic body settle，并且同时满足 `released=true / settled=true / stillHeld=false` 才能成为 verified。新增默认 Table 支撑 Cup 的真实 Rapier/Recast E2E 与 release-only false-positive regression。

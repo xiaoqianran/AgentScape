@@ -161,7 +161,9 @@ export class InteractionSystem {
     for (const settle of [...this.settleTasks.values()]) if (settle.objectId===id || settle.targetId===id) {
       this.finishPlacementSettle(settle,settle.kind==='recovery-cleanup'
         ? this.recoveryCleanupSettleResult(settle,null,{settled:false,reason:'OBJECT_REMOVED'})
-        : {status:'place-unverified',reason:'OBJECT_REMOVED',supportVerified:false,settled:false,elapsed:Number(settle.elapsed.toFixed(3))});
+        : settle.kind==='drop'
+          ? this.dropSettleResult(settle,null,{settled:false,reason:'OBJECT_REMOVED'})
+          : {status:'place-unverified',reason:'OBJECT_REMOVED',supportVerified:false,settled:false,elapsed:Number(settle.elapsed.toFixed(3))});
     }
     if (this.store.has(id) && this.store.get(id).state?.heldBy) this.releaseHeld(id, 'OBJECT_REMOVED');
     const carried = this.agentHeld.get(id);
@@ -172,7 +174,9 @@ export class InteractionSystem {
     for (const task of [...this.settleTasks.values()]) {
       this.finishPlacementSettle(task,task.kind==='recovery-cleanup'
         ? this.recoveryCleanupSettleResult(task,null,{settled:false,reason})
-        : {status:'place-unverified',reason,supportVerified:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
+        : task.kind==='drop'
+          ? this.dropSettleResult(task,null,{settled:false,reason})
+          : {status:'place-unverified',reason,supportVerified:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
     }
     for (const task of [...this.articulationTasks.values()]) {
       this.finishArticulationTask(task,{status:'action-unverified',reason,targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
@@ -336,7 +340,7 @@ export class InteractionSystem {
     return this.interactionStatusAt(actorId, targetId, position, options);
   }
 
-  async findInteractionPose(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE, clearance = 0.12, action = null, partName = null, ignoreIds = [], standOff = 0, candidateFilter = null } = {}) {
+  async findInteractionPose(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE, clearance = 0.12, action = null, partName = null, ignoreIds = [], standOff = 0, stanceBounds = null, candidateFilter = null } = {}) {
     if (!this.navigation) throw Errors.interactionUnavailable(actorId, targetId, 'NAVIGATION_UNAVAILABLE');
     const current = this.physics.getPosition(actorId);
     if (!current) throw Errors.interactionUnavailable(actorId, targetId, 'ACTOR_PHYSICS_UNAVAILABLE');
@@ -347,12 +351,10 @@ export class InteractionSystem {
     if (now.interactable && clearOfSweep(current) && (!candidateFilter || candidateFilter(current))) return { status:'current-pose', position:[...current], routeCost:0, distance:now.distance, lineOfSight:now.lineOfSight, ...(sweep ? { actionSweep:{checked:true,clear:true,partName:sweep.partName} } : {}) };
 
     const metrics = this.actorMetrics(actorId);
-    const bounds = this.spatial.getBounds(targetId);
+    const bounds = stanceBounds || this.spatial.getBounds(targetId);
     const offset = Math.max(metrics.radius,standOff) + clearance;
     const [cx,,cz] = bounds.center;
-    const targetRoot = new THREE.Vector3();
-    this.store.get(targetId).object.getWorldPosition(targetRoot);
-    const y = targetRoot.y;
+    const y = current[1];
     const candidates = [
       [bounds.min[0] - offset, y, cz], [bounds.max[0] + offset, y, cz],
       [cx, y, bounds.min[2] - offset], [cx, y, bounds.max[2] + offset],
@@ -421,23 +423,87 @@ export class InteractionSystem {
     return { ...completion, statePromoted,stateFinalized,actorId,targetId,action,pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,actionSweep:{checked:true,clear:true,partName:finalSweep.partName},interaction };
   }
 
+  pickupSupportIds(targetId) {
+    const supports=[];
+    for (const [id,record] of this.store.list()) {
+      if (id===targetId || !record.manifest.surfaces?.length) continue;
+      const status=this.spatial.supportStatus(targetId,id);
+      if (status.on) supports.push(id);
+    }
+    return supports.sort();
+  }
+
+  pickupStanceBounds(targetId,supportIds) {
+    const target=this.spatial.getBounds(targetId);
+    if (!supportIds.length) return target;
+    const min=[...target.min],max=[...target.max];
+    for (const id of supportIds) {
+      const support=this.spatial.getBounds(id);
+      for (let axis=0;axis<3;axis++) {
+        if (Number.isFinite(support.min[axis])) min[axis]=Math.min(min[axis],support.min[axis]);
+        if (Number.isFinite(support.max[axis])) max[axis]=Math.max(max[axis],support.max[axis]);
+      }
+    }
+    return {min,max,center:min.map((value,index)=>(value+max[index])/2),size:min.map((value,index)=>max[index]-value)};
+  }
+
   async findPickupPlan(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
     this.assertAgentCarryable(actorId,targetId);
     if (!this.locomotion) throw Errors.carryUnavailable(actorId,targetId,'LOCOMOTION_UNAVAILABLE');
     const targetCenter=this.spatial.getBounds(targetId).center;
+    const supportIds=this.pickupSupportIds(targetId);
+    const stanceBounds=this.pickupStanceBounds(targetId,supportIds);
     const anchor=this.holdAnchor(actorId);
     const transferAt=(position)=>{
       const dx=targetCenter[0]-position[0], dz=targetCenter[2]-position[2];
       const yaw=Math.hypot(dx,dz)<1e-8 ? 0 : Math.atan2(-dx,-dz);
       const anchorPose=this.holdPoseAt(position,yaw,anchor);
-      const transfer=this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
+      const transfer=supportIds.length
+        ? this.physics.bodyPoseClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]})
+        : this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
       return {yaw,anchorPose,transfer};
     };
     const plannedMaxDistance=Math.max(.05,maxDistance-DEFAULT_WAYPOINT_TOLERANCE);
-    const pose=await this.findInteractionPose(actorId,targetId,{maxDistance:plannedMaxDistance,candidateFilter:(position)=>transferAt(position).transfer.clear});
-    if (!pose) throw Errors.carryUnavailable(actorId,targetId,'NO_PICKUP_TRANSFER_POSE');
+    const supportClearance=supportIds.length ? .05 : .12;
+    const standOff=supportIds.length ? this.carryStandOff(actorId,targetId) : 0;
+    const pose=await this.findInteractionPose(actorId,targetId,{maxDistance:plannedMaxDistance,clearance:supportClearance,standOff,stanceBounds,candidateFilter:(position)=>transferAt(position).transfer.clear});
+    if (!pose) throw Errors.carryUnavailable(actorId,targetId,'NO_PICKUP_TRANSFER_POSE',{supportIds});
     const preview=transferAt(pose.position);
-    return {pose,facingYaw:preview.yaw,anchorPose:preview.anchorPose,transfer:preview.transfer,plannedMaxDistance};
+    return {pose,facingYaw:preview.yaw,anchorPose:preview.anchorPose,transfer:preview.transfer,plannedMaxDistance,supportIds,standOff:Number(standOff.toFixed(4)),supportClearance};
+  }
+
+  transferSupportedPickupToAnchor(actorId,targetId,anchorPose,supportIds) {
+    const originalPosition=this.physics.getPosition(targetId);
+    const originalRotation=this.physics.getRotation(targetId);
+    if (!originalPosition || !originalRotation) return {clear:false,reason:'CARRY_BODY_UNAVAILABLE',phases:[]};
+    const size=this.spatial.getBounds(targetId).size;
+    const liftY=originalPosition[1]+Math.max(.12,Math.min(.28,(size[1] || .32)*.55));
+    const phases=[];
+    const rollback=(reason)=>{
+      this.physics.setHeldPose(targetId,originalPosition,originalRotation);
+      this.physics.setHeld(targetId,false);
+      return {clear:false,reason,phases,originalPosition:[...originalPosition]};
+    };
+
+    this.physics.setHeld(targetId,true);
+    const lift=[originalPosition[0],liftY,originalPosition[2]];
+    const liftSweep=this.physics.bodyMotionClear(targetId,lift,originalRotation,{excludeIds:[actorId,...supportIds]});
+    const liftPose=liftSweep.clear ? this.physics.bodyPoseClear(targetId,lift,originalRotation,{excludeIds:[actorId]}) : liftSweep;
+    phases.push({phase:'lift',point:[...lift],clear:Boolean(liftSweep.clear && liftPose.clear),sweep:liftSweep,pose:liftPose});
+    if (!liftSweep.clear || !liftPose.clear) return rollback('PICKUP_LIFT_BLOCKED');
+    this.physics.setHeldPose(targetId,lift,originalRotation);
+
+    const horizontal=[anchorPose.position[0],liftY,anchorPose.position[2]];
+    const horizontalCheck=this.physics.bodyMotionClear(targetId,horizontal,anchorPose.rotation,{excludeIds:[actorId]});
+    phases.push({phase:'horizontal',point:[...horizontal],...horizontalCheck});
+    if (!horizontalCheck.clear) return rollback('PICKUP_HORIZONTAL_BLOCKED');
+    this.physics.setHeldPose(targetId,horizontal,anchorPose.rotation);
+
+    const anchorCheck=this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
+    phases.push({phase:'anchor',point:[...anchorPose.position],...anchorCheck});
+    if (!anchorCheck.clear) return rollback('PICKUP_ANCHOR_BLOCKED');
+    this.physics.setHeldPose(targetId,anchorPose.position,anchorPose.rotation);
+    return {clear:true,mode:'support-lift-horizontal-anchor',supportIds:[...supportIds],phases};
   }
 
   async approachAndPickup(actorId, targetId, { speed, maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
@@ -461,17 +527,22 @@ export class InteractionSystem {
     this.physics.setCharacterYaw(actorId,facingYaw);
     const anchorPose=this.physics.anchorPose(actorId,this.holdAnchor(actorId));
     if (!anchorPose) return {status:'pickup-blocked',reason:'HOLD_ANCHOR_UNAVAILABLE',actorId,targetId,pose,locomotion,held:false};
-    const transfer=this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
+    const supportIds=this.pickupSupportIds(targetId);
+    const transfer=supportIds.length
+      ? this.transferSupportedPickupToAnchor(actorId,targetId,anchorPose,supportIds)
+      : this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
     if (!transfer.clear) return {status:'pickup-blocked',reason:'PICKUP_TRANSFER_BLOCKED',actorId,targetId,pose,locomotion,transfer,held:false};
 
-    this.physics.setHeld(targetId,true);
+    if (!supportIds.length) {
+      this.physics.setHeld(targetId,true);
+      this.physics.setHeldPose(targetId,anchorPose.position,anchorPose.rotation);
+    }
     target.state.heldBy={kind:'agent',id:actorId,anchor:'hold'};
     this.agentHeld.set(actorId,targetId);
-    this.physics.setHeldPose(targetId,anchorPose.position,anchorPose.rotation);
     this.events.emit('interaction',{action:'pickup',id:targetId,actorId,heldBy:target.state.heldBy});
     return {
       status:'held',actorId,targetId,attachment:'kinematic-anchor',graspVerified:false,
-      pose,locomotion,reach,transfer:{clear:true},facingYaw,anchor:{name:'hold',position:anchorPose.position}
+      pose,locomotion,reach,transfer,facingYaw,anchor:{name:'hold',position:anchorPose.position},supportIds
     };
   }
 
@@ -670,6 +741,27 @@ export class InteractionSystem {
     };
   }
 
+
+  dropSettleResult(task,motion,{settled,reason=null}={}) {
+    const held=this.store.has(task.objectId) ? this.store.get(task.objectId).state?.heldBy : null;
+    const released=!held && this.heldByAgent(task.actorId)!==task.objectId;
+    const position=this.physics.getPosition(task.objectId);
+    if (!settled) return {
+      status:reason==='BODY_UNAVAILABLE'?'drop-failed':'drop-unverified',reason:reason || 'SETTLE_TIMEOUT',
+      actorId:task.actorId,targetId:task.objectId,released,settled:false,stillHeld:!released,
+      position:position ? [...position] : null,elapsed:Number(task.elapsed.toFixed(3)),motion
+    };
+    if (!released) return {
+      status:'drop-failed',reason:'STILL_HELD',actorId:task.actorId,targetId:task.objectId,
+      released:false,settled:true,stillHeld:true,position:position ? [...position] : null,
+      elapsed:Number(task.elapsed.toFixed(3)),motion
+    };
+    return {
+      status:'dropped',actorId:task.actorId,targetId:task.objectId,released:true,settled:true,stillHeld:false,
+      position:position ? [...position] : null,elapsed:Number(task.elapsed.toFixed(3)),motion
+    };
+  }
+
   recoveryCleanupSettleResult(task,motion,{settled,reason=null}={}) {
     const held=this.store.has(task.objectId) ? this.store.get(task.objectId).state?.heldBy : null;
     const sweep=this.store.has(task.targetId) ? this.actionSweepBounds(task.targetId,task.action,task.partName) : {checked:false,reason:'TARGET_UNAVAILABLE'};
@@ -698,7 +790,8 @@ export class InteractionSystem {
   finishPlacementSettle(task, result) {
     if (!this.settleTasks.has(task.objectId)) return;
     this.settleTasks.delete(task.objectId);
-    this.events.emit('interaction',{action:task.kind==='recovery-cleanup'?'recovery-cleanup':'place',id:task.objectId,targetId:task.targetId,...result});
+    const eventAction=task.kind==='recovery-cleanup'?'recovery-cleanup':task.kind==='drop'?'drop':'place';
+    this.events.emit('interaction',{action:eventAction,id:task.objectId,targetId:task.targetId,...result});
     task.resolve(result);
   }
 
@@ -710,7 +803,9 @@ export class InteractionSystem {
         const motion=null;
         const result=task.kind==='recovery-cleanup'
           ? this.recoveryCleanupSettleResult(task,motion,{settled:false,reason:'BODY_UNAVAILABLE'})
-          : {status:'place-failed',reason:'BODY_UNAVAILABLE',supportVerified:false,elapsed:Number(task.elapsed.toFixed(3))};
+          : task.kind==='drop'
+            ? this.dropSettleResult(task,motion,{settled:false,reason:'BODY_UNAVAILABLE'})
+            : {status:'place-failed',reason:'BODY_UNAVAILABLE',supportVerified:false,elapsed:Number(task.elapsed.toFixed(3))};
         this.finishPlacementSettle(task,result);
         continue;
       }
@@ -720,14 +815,18 @@ export class InteractionSystem {
       if (task.stable>=task.stableDuration) {
         const result=task.kind==='recovery-cleanup'
           ? this.recoveryCleanupSettleResult(task,motion,{settled:true})
-          : this.placementSettleResult(task,motion,{settled:true});
+          : task.kind==='drop'
+            ? this.dropSettleResult(task,motion,{settled:true})
+            : this.placementSettleResult(task,motion,{settled:true});
         this.finishPlacementSettle(task,result);
         continue;
       }
       if (task.elapsed>=task.timeout) {
         const result=task.kind==='recovery-cleanup'
           ? this.recoveryCleanupSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'})
-          : this.placementSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'});
+          : task.kind==='drop'
+            ? this.dropSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'})
+            : this.placementSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'});
         this.finishPlacementSettle(task,result);
       }
     }
@@ -903,12 +1002,12 @@ export class InteractionSystem {
     };
   }
 
-  dropHeld(actorId) {
+  async dropHeld(actorId, { timeout=4, stableDuration=.35 } = {}) {
     const id = this.heldByAgent(actorId);
     if (!id) return { status:'empty', actorId };
     this.assertSupports(id, 'drop');
-    this.releaseHeld(id);
-    return { status:'dropped', actorId, targetId:id, position:this.physics.getPosition(id) };
+    this.releaseHeld(id,'AGENT_DROP_RELEASE');
+    return this.waitForObjectSettle(id,{kind:'drop',actorId,timeout,stableDuration});
   }
 
   carryStatus(actorId) {

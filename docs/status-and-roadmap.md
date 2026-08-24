@@ -1,6 +1,6 @@
 # 当前完成度与路线图
 
-本文描述 **1.34.0** 当前状态。
+本文描述 **1.34.1** 当前状态。
 
 总体完成度只能作为粗略参考。按“从普通 GLB 到可信 Agent World”的完整目标估计，目前约：
 
@@ -656,11 +656,11 @@ Verified executable objects
 
 ## 当前验证基线
 
-1.34.0 文档快照对应的仓库验证基线：
+1.34.1 文档快照对应的仓库验证基线：
 
 ```text
-111 Test Files PASS
-383 Tests PASS
+112 Test Files PASS
+386 Tests PASS
 GLB asset validation PASS
 Production build PASS
 Monument Hall Environment Recast/Rapier PASS
@@ -859,6 +859,11 @@ Nemotron generated-world reuse regression PASS
 Runtime-derived NEAR distance retry probe PASS
 World-ready redundant validation stop PASS
 README structured project overview + links PASS
+Table-supported Cup pickup E2E PASS
+Support-aware pickup stance + hold-anchor clearance PASS
+Supported pickup lift-horizontal-anchor transfer PASS
+Verified drop dynamic-settle post-condition PASS
+Drop release-only false-positive guard PASS
 1.26 unique-action articulated recovery regression PASS
 ```
 

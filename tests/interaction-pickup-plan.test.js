@@ -5,7 +5,7 @@ import { DEFAULT_WAYPOINT_TOLERANCE } from '../src/runtime/systems/LocomotionSys
 const setup=()=>{
   const physics={bodyMotionClear:vi.fn((_id,targetPosition)=>({clear:targetPosition[0]>.3}))};
   const spatial={getBounds:vi.fn(()=>({center:[0,0,0]}))};
-  const system=new InteractionSystem({store:{},physics,spatial,locomotion:{},events:{emit(){}}});
+  const system=new InteractionSystem({store:{list:()=>[]},physics,spatial,locomotion:{},events:{emit(){}}});
   system.assertAgentCarryable=vi.fn(()=>({}));
   system.holdAnchor=vi.fn(()=>({translation:[0,.95,-.62],rotation:[0,0,0,1]}));
   return {system,physics};
