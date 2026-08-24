@@ -23,6 +23,30 @@ export class GenerationJobStore {
     return [...this.jobs.values()].map(clone).sort((a,b)=>Date.parse(b.updatedAt)-Date.parse(a.updatedAt) || a.id.localeCompare(b.id));
   }
 
+
+  replaceAllAtomically(payloads = []) {
+    if (!Array.isArray(payloads)) {
+      throw new GenerationJobContractError('JOB_SNAPSHOT_INVALID','Job snapshot must be an array');
+    }
+    const duplicateIds=new Set();
+    const seenIds=new Set();
+    for (const payload of payloads) {
+      const id=String(payload?.id || '').trim();
+      if (seenIds.has(id)) duplicateIds.add(id);
+      seenIds.add(id);
+    }
+    if (duplicateIds.size) {
+      throw new GenerationJobContractError('JOB_SNAPSHOT_DUPLICATE_ID','Job snapshot contains duplicate Job IDs',{
+        ids:[...duplicateIds]
+      });
+    }
+    const next=new GenerationJobStore();
+    for (const payload of payloads) next.apply(payload);
+    this.jobs=new Map(next.jobs);
+    this.idempotency=new Map(next.idempotency);
+    return this.list();
+  }
+
   apply(payload) {
     const next=normalizeGenerationJobProjection(payload);
     const idempotentOwner=this.idempotency.get(next.idempotencyKey);

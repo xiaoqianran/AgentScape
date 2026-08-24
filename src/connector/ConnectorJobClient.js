@@ -15,6 +15,16 @@ const requireText=(value,field)=>{
   return text;
 };
 
+
+function normalizeEventCursor(value) {
+  if (value == null || value === '') return null;
+  const n=Number(value);
+  if (!Number.isSafeInteger(n) || n < 0) {
+    throw new GenerationJobContractError('JOB_EVENT_SEQUENCE_INVALID','Connector event cursor must be a non-negative safe integer');
+  }
+  return n;
+}
+
 async function readJson(response) {
   const payload=await response.json().catch(()=>null);
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -110,6 +120,19 @@ export class ConnectorJobClient {
     const job=normalizeGenerationJobProjection(rawJob);
     assertResponseMatchesRequest(job,body);
     return this.store.apply(rawJob).job;
+  }
+
+  async list({ replaceStore=true } = {}) {
+    const response=await this.connectorClient.request(JOBS_PATH,{scope:'jobs.read'});
+    const payload=await readJson(response);
+    if (!response.ok) throw httpError(payload,response.status);
+    if (!Array.isArray(payload.jobs)) {
+      throw new ConnectorContractError('CONNECTOR_JOB_RESPONSE_INVALID','Connector Job list requires jobs array');
+    }
+    const jobs=replaceStore
+      ? this.store.replaceAllAtomically(payload.jobs)
+      : payload.jobs.map((job)=>normalizeGenerationJobProjection(job));
+    return { jobs, eventCursor:normalizeEventCursor(payload.eventCursor) };
   }
 
   async get(id) {
