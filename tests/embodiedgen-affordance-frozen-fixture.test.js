@@ -63,6 +63,25 @@ describe('EmbodiedGen affordance frozen bundle v1',()=>{
     expect(JSON.stringify(result.manifest.provenance.providerEvidence)).not.toContain('"pose"');
   });
 
+  it('freezes semantic-evidence-v1 through BundleAdapter → Compiler without executable promotion',async()=>{
+    const [bundle,expected,primary,segmentation,rawGrasps,urdf,semantics]=await Promise.all([
+      readJson('bundle.semantic.v1.json'),readJson('expected.json'),readBytes('sample_00.glb'),
+      readBytes('agentscape_part_segmentation.v1.json'),readBytes('raw_grasps.franka.v1.json'),readBytes('sample_00.urdf'),readBytes('part_semantics.v1.json')
+    ]);
+    expect(sha256(semantics)).toBe(expected.partSemanticsSha256);
+    expect(sha256(new TextEncoder().encode(`${JSON.stringify(bundle,null,2)}\n`))).toBe(expected.semanticBundleSha256);
+    const prepared=await new EmbodiedGenBundleAdapter().prepare(bundle,{artifactBytes:{primary,urdf,segmentation,'raw-grasps':rawGrasps,semantics}});
+    expect(prepared.providerEvidence.levels.partSemantics).toBe('provider-verified');
+    expect(prepared.providerEvidence.semantics).toMatchObject({status:'verified',model:'meta/muse-glimmer-30b',partCount:expected.partCount,mappedToPartProposal:true});
+    const result=await new AssetCompiler({store:{put:async()=>{}},version:'embodiedgen-affordance-semantic-frozen-v1'}).compile(prepared.compilerInput);
+    expect(result.partSegmentation.materialization.status).toBe('materialized');
+    expect(result.partProposal.promoted).toEqual([]);
+    expect(Object.fromEntries(result.partProposal.parts.map((part)=>[part.id,part.semantic]))).toEqual(expected.expectedSemanticByPart);
+    expect(result.quality.advisory.map((item)=>item.code)).not.toContain('PART_SEMANTICS_UNVERIFIED');
+    expect(result.manifest.actions).toEqual(['move']);
+    expect(assetAdmission(result.manifest).status).toBe('provisional');
+  });
+
   it('keeps raw grasp payload raw and finite without promoting it to executable actions',async()=>{
     const [raw,expected]=await Promise.all([readJson('raw_grasps.franka.v1.json'),readJson('expected.json')]);
     expect(raw.evidence_level).toBe('raw');

@@ -326,14 +326,109 @@ const normalizeUrdfProposal = (payload) => {
   return {version:1,source:'urdf/yourdfpy',frameConvention:'urdf-link-local',confidence,parts};
 };
 
+const SEMANTIC_MAX_BYTES = 1024 * 1024;
+const SEMANTIC_SAFE_TEXT = /^[^\u0000-\u001f\u007f]{1,800}$/;
+const SEMANTIC_FORBIDDEN_KEYS = /(joint|axis|anchors?|limits?|motor|actions?|targets?|pickup|runtime[-_]?verified|(^|[_-])verified($|[_-])|authorization|api[-_]?key|token|secret|credential|signed[-_]?url|(^|[_-])url($|[_-])|(^|[_-])path($|[_-])|image[-_]?bytes|base64)/i;
+
+const safeSemanticText=(value,label,max=800)=>{
+  const text=String(value ?? '').trim();
+  if (!text || text.length>max || !SEMANTIC_SAFE_TEXT.test(text) || /https?:\/\/|Bearer\s+/i.test(text)) {
+    fail('EMBODIEDGEN_SEMANTICS_INVALID',`${label} must be bounded safe text.`);
+  }
+  return text;
+};
+
+const rejectForbiddenSemanticFields=(value,path='partSemantics')=>{
+  if (!value || typeof value!=='object') return;
+  if (Array.isArray(value)) {
+    value.forEach((item,index)=>rejectForbiddenSemanticFields(item,`${path}[${index}]`));
+    return;
+  }
+  for (const [key,item] of Object.entries(value)) {
+    if (SEMANTIC_FORBIDDEN_KEYS.test(key)) {
+      fail('EMBODIEDGEN_SEMANTICS_FORBIDDEN_FIELD',`Part semantics contains forbidden executable/secret field: ${path}.${key}`);
+    }
+    rejectForbiddenSemanticFields(item,`${path}.${key}`);
+  }
+};
+
+const normalizeSemanticEvidence=(payload,{descriptor,bundleSourceJobId,segmentation,segmentationDescriptor})=>{
+  if (!payload || typeof payload!=='object' || Array.isArray(payload) || payload.version!==1 || payload.source!=='embodiedgen/gpt-part-semantics' || payload.profile!=='part-semantics-v1' || !Array.isArray(payload.parts)) {
+    fail('EMBODIEDGEN_SEMANTICS_INVALID','part_semantics must be EmbodiedGen Part Semantics v1.');
+  }
+  rejectForbiddenSemanticFields(payload);
+  const sourceJobId=String(payload.sourceJobId || '').trim();
+  const outputJobId=String(payload.outputJobId || '').trim();
+  if (!JOB_ID.test(sourceJobId) || !JOB_ID.test(outputJobId)) fail('EMBODIEDGEN_SEMANTICS_INVALID','part_semantics requires valid sourceJobId/outputJobId.');
+  if (bundleSourceJobId && sourceJobId!==bundleSourceJobId) {
+    fail('EMBODIEDGEN_SEMANTICS_SOURCE_MISMATCH','part_semantics sourceJobId does not match bundle sourceJobId.',{bundleSourceJobId,semanticSourceJobId:sourceJobId});
+  }
+  const boundSegmentationSha=String(payload.input?.segmentationSha256 || '').toLowerCase();
+  if (!HEX_SHA256.test(boundSegmentationSha) || boundSegmentationSha!==segmentationDescriptor.sha256) {
+    fail('EMBODIEDGEN_SEMANTICS_SEGMENTATION_MISMATCH','part_semantics is not bound to the bundle part_segmentation SHA-256.',{expected:segmentationDescriptor.sha256,actual:boundSegmentationSha||null});
+  }
+  const expectedIds=new Set((segmentation?.segments || []).map((item)=>String(item?.id ?? '')).filter(Boolean));
+  if (!expectedIds.size) fail('EMBODIEDGEN_SEMANTICS_INVALID','part_semantics requires non-empty segmentation IDs.');
+  const seen=new Set();
+  const parts=[];
+  for (let index=0;index<payload.parts.length;index++) {
+    const raw=payload.parts[index];
+    if (!raw || typeof raw!=='object' || Array.isArray(raw)) fail('EMBODIEDGEN_SEMANTICS_INVALID',`part_semantics.parts[${index}] must be an object.`);
+    const rawId=raw.id;
+    const id=typeof rawId==='number' && Number.isSafeInteger(rawId) ? String(rawId) : String(rawId ?? '').trim();
+    if (!id || !expectedIds.has(id) || seen.has(id)) fail('EMBODIEDGEN_SEMANTICS_INVALID',`Invalid or duplicate semantic part id: ${id||'<missing>'}.`);
+    seen.add(id);
+    const maskColor=safeSemanticText(raw.mask_color,`parts[${index}].mask_color`,80);
+    const partName=safeSemanticText(raw.part_name,`parts[${index}].part_name`,160);
+    if (typeof raw.graspable!=='boolean') fail('EMBODIEDGEN_SEMANTICS_INVALID',`parts[${index}].graspable must be boolean.`);
+    const scenarios=raw.grasp_scenarios;
+    if (!Array.isArray(scenarios) || scenarios.length>8) fail('EMBODIEDGEN_SEMANTICS_INVALID',`parts[${index}].grasp_scenarios must be a bounded list.`);
+    if (raw.graspable && !scenarios.length) fail('EMBODIEDGEN_SEMANTICS_INVALID',`Graspable semantic part ${id} requires a grasp scenario.`);
+    if (!raw.graspable && scenarios.length) fail('EMBODIEDGEN_SEMANTICS_INVALID',`Non-graspable semantic part ${id} must not claim grasp scenarios.`);
+    const normalizedScenarios=scenarios.map((scenario,scenarioIndex)=>{
+      if (!scenario || typeof scenario!=='object' || Array.isArray(scenario) || new Set(Object.keys(scenario)).size!==2 || !Object.hasOwn(scenario,'scenario') || !Object.hasOwn(scenario,'confidence')) {
+        fail('EMBODIEDGEN_SEMANTICS_INVALID',`parts[${index}].grasp_scenarios[${scenarioIndex}] has invalid schema.`);
+      }
+      const text=safeSemanticText(scenario.scenario,`parts[${index}].grasp_scenarios[${scenarioIndex}].scenario`,280);
+      const confidence=Number(scenario.confidence);
+      if (!Number.isFinite(confidence) || confidence<0 || confidence>1) fail('EMBODIEDGEN_SEMANTICS_INVALID',`parts[${index}].grasp_scenarios[${scenarioIndex}].confidence must be within [0,1].`);
+      return {scenario:text,confidence};
+    });
+    if (!Array.isArray(raw.functional_labels) || raw.functional_labels.length<1 || raw.functional_labels.length>8) {
+      fail('EMBODIEDGEN_SEMANTICS_INVALID',`parts[${index}].functional_labels must contain 1..8 labels.`);
+    }
+    const functionalLabels=raw.functional_labels.map((label,labelIndex)=>safeSemanticText(label,`parts[${index}].functional_labels[${labelIndex}]`,160));
+    const description=safeSemanticText(raw.semantic_description,`parts[${index}].semantic_description`,800);
+    parts.push({id,maskColor,partName,graspable:raw.graspable,graspScenarios:normalizedScenarios,functionalLabels,description});
+  }
+  if (seen.size!==expectedIds.size || [...expectedIds].some((id)=>!seen.has(id))) {
+    fail('EMBODIEDGEN_SEMANTICS_ID_COVERAGE','part_semantics IDs must exactly cover segmentation IDs.',{semanticIds:[...seen].sort(),segmentationIds:[...expectedIds].sort()});
+  }
+  const model=safeSemanticText(payload.provenance?.model,'provenance.model',200);
+  const apiStyle=safeSemanticText(payload.provenance?.apiStyle,'provenance.apiStyle',80);
+  const promptRevision=String(payload.provenance?.promptRevision || '').toLowerCase();
+  if (!HEX_SHA256.test(promptRevision)) fail('EMBODIEDGEN_SEMANTICS_INVALID','provenance.promptRevision must be SHA-256.');
+  return {
+    evidence:{
+      artifactId:descriptor.id,sha256:descriptor.sha256,status:'verified',source:payload.source,profile:payload.profile,
+      sourceJobId,outputJobId,partCount:parts.length,model,apiStyle,promptRevision,
+      parts:parts.map(({id,partName,graspable,functionalLabels,graspScenarios})=>({id,partName,graspable,functionalLabels,graspScenarioCount:graspScenarios.length}))
+    },
+    proposal:{
+      version:1,source:'embodiedgen/gpt-part-semantics',confidence:0,
+      parts:parts.map((part)=>({id:part.id,semantic:part.partName,confidence:0}))
+    }
+  };
+};
+
 const safeErrorCode = (error) => {
   const code=String(error?.code || error?.name || 'URDF_PROPOSAL_FAILED').trim();
   return /^[A-Za-z0-9._:-]{1,120}$/.test(code) ? code : 'URDF_PROPOSAL_FAILED';
 };
 
-const evidenceLevel = (roles, urdfStatus = 'none', graspLevel = 'none') => ({
+const evidenceLevel = (roles, urdfStatus = 'none', graspLevel = 'none', semanticLevel = 'none') => ({
   partSegmentation: roles.has('part_segmentation') ? 'provider' : 'none',
-  partSemantics: roles.has('part_semantics') ? 'provider-unverified' : 'none',
+  partSemantics: semanticLevel === 'none' && roles.has('part_semantics') ? 'provider-unverified' : semanticLevel,
   grasps:graspLevel,
   urdf:urdfStatus
 });
@@ -374,6 +469,32 @@ export class EmbodiedGenBundleAdapter {
       validateSegmentation(partSegmentation, primary);
     }
 
+    let semanticProposal=null;
+    let semanticEvidence=null;
+    let semanticLevel='none';
+    const semanticDescriptor=byRole.get('part_semantics');
+    if (semanticDescriptor) {
+      if (!segmentationDescriptor || !partSegmentation) {
+        fail('EMBODIEDGEN_SEMANTICS_REQUIRES_SEGMENTATION','part_semantics requires verified part_segmentation in the same bundle.');
+      }
+      if (semanticDescriptor.mediaType!=='application/json') fail('EMBODIEDGEN_SEMANTICS_MEDIA_TYPE_INVALID','part_semantics must use application/json.');
+      const rawSemanticBytes=artifactBytesFor(artifactBytes,semanticDescriptor);
+      if (rawSemanticBytes == null) {
+        semanticEvidence={artifactId:semanticDescriptor.id,sha256:semanticDescriptor.sha256,status:'descriptor-only'};
+        semanticLevel='provider-unverified';
+      } else {
+        const semanticBytes=normalizeBytes(rawSemanticBytes,semanticDescriptor.id);
+        if (semanticBytes.byteLength>SEMANTIC_MAX_BYTES) fail('EMBODIEDGEN_SEMANTICS_TOO_LARGE',`part_semantics exceeds ${SEMANTIC_MAX_BYTES} bytes.`,{bytes:semanticBytes.byteLength,maxBytes:SEMANTIC_MAX_BYTES});
+        await assertHash(semanticDescriptor,semanticBytes);
+        const semanticPayload=parseJsonArtifact(semanticDescriptor,semanticBytes);
+        const normalized=normalizeSemanticEvidence(semanticPayload,{descriptor:semanticDescriptor,bundleSourceJobId:sourceJobId||null,segmentation:partSegmentation,segmentationDescriptor});
+        semanticEvidence=normalized.evidence;
+        semanticProposal=normalized.proposal;
+        semanticLevel='provider-verified';
+        verifiedRoles.add('part_semantics');
+      }
+    }
+
     let partProposal=null;
     let urdfEvidence=null;
     let urdfStatus='none';
@@ -411,6 +532,12 @@ export class EmbodiedGenBundleAdapter {
       }
     }
 
+    let semanticProposalApplied=false;
+    if (semanticProposal && (!partProposal || !Array.isArray(partProposal.parts) || partProposal.parts.length===0)) {
+      partProposal=semanticProposal;
+      semanticProposalApplied=true;
+    }
+
     const graspEvidence={};
     for (const role of ['raw_grasps','sapien_grasps']) {
       const descriptor=byRole.get(role);
@@ -439,8 +566,9 @@ export class EmbodiedGenBundleAdapter {
       bundleVersion:1,
       sourceJobId:sourceJobId || null,
       lineage:safeLineage(bundle.lineage),
-      levels:evidenceLevel(seenRoles,urdfStatus,graspLevel),
+      levels:evidenceLevel(seenRoles,urdfStatus,graspLevel,semanticLevel),
       ...(Object.keys(graspEvidence).length ? { grasps:graspEvidence } : {}),
+      ...(semanticEvidence ? { semantics:{...semanticEvidence,mappedToPartProposal:semanticProposalApplied} } : {}),
       ...(urdfEvidence ? { urdf:urdfEvidence } : {}),
       artifacts:descriptors.map((descriptor) => ({ ...descriptor, verified:verifiedRoles.has(descriptor.role) }))
     };
@@ -452,8 +580,8 @@ export class EmbodiedGenBundleAdapter {
       assetId:asset.id || bundle.assetId || undefined,
       label:asset.label || bundle.label || undefined,
       partSegmentation,
-      // Only mechanically parsed URDF evidence may become a Part Proposal candidate.
-      // Semantic and grasp evidence remain non-executable provider evidence.
+      // Verified semantic evidence may become an unpromoted semantic-only Part Proposal.
+      // Verified URDF proposal wins when it has explicit movable parts; grasp evidence remains non-executable.
       partProposal,
       providerEvidence
     };

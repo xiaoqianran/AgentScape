@@ -5,7 +5,9 @@
   "primaryGlbSha256": "da0e6fb1b3fc3381087056f6aa3725f602c6b7aced4caf2ab4fc2d32cbf6b91f",
   "segmentationSha256": "167a7e1003ab1f37621d921818952d45dc24e8177f51ca3b2fb1a7750e756a47",
   "rawGraspsSha256": "9f8e9f5160ad0a0d8edec0b593bddb95c3fa3e2870b03a640c1c6434f144bf77",
+  "partSemanticsSha256": "d32d1c932341e8ac7a335205c9c79e60d12c47a3945f2ea3f34911f5316eb0db",
   "bundleSha256": "4199fbe408e0d684066b8ed4d6cd316a6a7284be40cff3eab37d0b900503ce2f",
+  "semanticBundleSha256": "d18155b6dd576509d086b1fadf7f713a52d7fbfa380f92af7fef4e0664d2cbf3",
   "faceCount": 12,
   "partCount": 4,
   "rawGraspCount": 3,
@@ -15,6 +17,12 @@
     "geometry_0__part_2",
     "geometry_0__part_3"
   ],
+  "expectedSemanticByPart": {
+    "0": "handle",
+    "1": "rim",
+    "2": "body",
+    "3": "base"
+  },
   "expectedQuality": "provisional",
   "expectedAdmissionReasons": [
     "PART_SEMANTICS_UNVERIFIED",

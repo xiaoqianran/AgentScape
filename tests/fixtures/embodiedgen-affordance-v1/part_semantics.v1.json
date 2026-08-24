@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "source": "embodiedgen/gpt-part-semantics",
+  "profile": "part-semantics-v1",
+  "sourceJobId": "job-11111111111111111111111111111111",
+  "outputJobId": "job-22222222222222222222222222222222",
+  "input": {
+    "manifestSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "segmentationSha256": "167a7e1003ab1f37621d921818952d45dc24e8177f51ca3b2fb1a7750e756a47",
+    "rgbGridSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "maskGridSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "partAtlasSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "provenance": {
+    "apiStyle": "openai-compatible",
+    "model": "meta/muse-glimmer-30b",
+    "promptRevision": "c2fe6c8c8868270e73443d47ef35b56ec17b0432a2c40f1fd9a5ca9514786621",
+    "requestIds": [
+      "fixture-request-id"
+    ],
+    "attempts": 1
+  },
+  "parts": [
+    {
+      "id": "0",
+      "mask_color": "Red",
+      "part_name": "handle",
+      "graspable": true,
+      "grasp_scenarios": [
+        {
+          "scenario": "grasp handle",
+          "confidence": 0.9
+        }
+      ],
+      "functional_labels": [
+        "provide grip"
+      ],
+      "semantic_description": "Handle-like region."
+    },
+    {
+      "id": "1",
+      "mask_color": "Green",
+      "part_name": "rim",
+      "graspable": false,
+      "grasp_scenarios": [],
+      "functional_labels": [
+        "bound opening"
+      ],
+      "semantic_description": "Upper rim region."
+    },
+    {
+      "id": "2",
+      "mask_color": "Yellow",
+      "part_name": "body",
+      "graspable": true,
+      "grasp_scenarios": [
+        {
+          "scenario": "grasp body",
+          "confidence": 0.7
+        }
+      ],
+      "functional_labels": [
+        "support object"
+      ],
+      "semantic_description": "Main body region."
+    },
+    {
+      "id": "3",
+      "mask_color": "Blue",
+      "part_name": "base",
+      "graspable": false,
+      "grasp_scenarios": [],
+      "functional_labels": [
+        "support placement"
+      ],
+      "semantic_description": "Bottom support region."
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "provider": "embodiedgen",
+  "sourceJobId": "job-11111111111111111111111111111111",
+  "asset": {
+    "id": "embodiedgen_frozen_affordance_v1",
+    "label": "EmbodiedGen frozen affordance v1"
+  },
+  "lineage": {
+    "modalBuildCommit": "eda84b7",
+    "embodiedGenCommit": "cc3015ca5ccdacf94df3428d9e65f79375982216",
+    "workflow": "asset.affordance",
+    "workflowVersion": "semantic-evidence-v1",
+    "seed": 42
+  },
+  "artifacts": [
+    {
+      "id": "primary",
+      "role": "primary_glb",
+      "mediaType": "model/gltf-binary",
+      "sha256": "da0e6fb1b3fc3381087056f6aa3725f602c6b7aced4caf2ab4fc2d32cbf6b91f",
+      "bytes": 1268,
+      "fileName": "sample_00.glb",
+      "path": "sample_00.glb"
+    },
+    {
+      "id": "urdf",
+      "role": "source_urdf",
+      "mediaType": "application/xml",
+      "sha256": "fdbac962edb9df3a1ac5f5d7b3ea595eb4f17164c615cc91436d8ba9664c8b80",
+      "bytes": 179,
+      "fileName": "sample_00.urdf",
+      "path": "sample_00.urdf"
+    },
+    {
+      "id": "segmentation",
+      "role": "part_segmentation",
+      "mediaType": "application/vnd.agentscape.part-segmentation+json",
+      "sha256": "167a7e1003ab1f37621d921818952d45dc24e8177f51ca3b2fb1a7750e756a47",
+      "bytes": 1029,
+      "fileName": "agentscape_part_segmentation.v1.json",
+      "path": "agentscape_part_segmentation.v1.json"
+    },
+    {
+      "id": "raw-grasps",
+      "role": "raw_grasps",
+      "mediaType": "application/json",
+      "sha256": "9f8e9f5160ad0a0d8edec0b593bddb95c3fa3e2870b03a640c1c6434f144bf77",
+      "bytes": 1400,
+      "fileName": "raw_grasps.franka.v1.json",
+      "path": "raw_grasps.franka.v1.json"
+    },
+    {
+      "id": "semantics",
+      "role": "part_semantics",
+      "mediaType": "application/json",
+      "sha256": "d32d1c932341e8ac7a335205c9c79e60d12c47a3945f2ea3f34911f5316eb0db",
+      "bytes": 2165,
+      "fileName": "part_semantics.v1.json",
+      "path": "part_semantics.v1.json"
+    }
+  ]
+}

@@ -74,6 +74,36 @@ const rawGrasps={
 const rawGraspBytes=enc.encode(JSON.stringify(rawGrasps,null,2)+'\n');
 await writeFile(resolve(outDir,'raw_grasps.franka.v1.json'),rawGraspBytes);
 
+const partSemantics={
+  version:1,
+  source:'embodiedgen/gpt-part-semantics',
+  profile:'part-semantics-v1',
+  sourceJobId:'job-11111111111111111111111111111111',
+  outputJobId:'job-22222222222222222222222222222222',
+  input:{
+    manifestSha256:'e'.repeat(64),
+    segmentationSha256:sha256(segmentationBytes),
+    rgbGridSha256:'a'.repeat(64),
+    maskGridSha256:'b'.repeat(64),
+    partAtlasSha256:'c'.repeat(64),
+  },
+  provenance:{
+    apiStyle:'openai-compatible',
+    model:'meta/muse-glimmer-30b',
+    promptRevision:'c2fe6c8c8868270e73443d47ef35b56ec17b0432a2c40f1fd9a5ca9514786621',
+    requestIds:['fixture-request-id'],
+    attempts:1,
+  },
+  parts:[
+    {id:'0',mask_color:'Red',part_name:'handle',graspable:true,grasp_scenarios:[{scenario:'grasp handle',confidence:.9}],functional_labels:['provide grip'],semantic_description:'Handle-like region.'},
+    {id:'1',mask_color:'Green',part_name:'rim',graspable:false,grasp_scenarios:[],functional_labels:['bound opening'],semantic_description:'Upper rim region.'},
+    {id:'2',mask_color:'Yellow',part_name:'body',graspable:true,grasp_scenarios:[{scenario:'grasp body',confidence:.7}],functional_labels:['support object'],semantic_description:'Main body region.'},
+    {id:'3',mask_color:'Blue',part_name:'base',graspable:false,grasp_scenarios:[],functional_labels:['support placement'],semantic_description:'Bottom support region.'},
+  ],
+};
+const partSemanticBytes=enc.encode(JSON.stringify(partSemantics,null,2)+'\n');
+await writeFile(resolve(outDir,'part_semantics.v1.json'),partSemanticBytes);
+
 const urdf=`<?xml version="1.0"?>\n<robot name="embodiedgen_fixture">\n  <link name="base">\n    <visual><geometry><mesh filename="source/sample_00.glb"/></geometry></visual>\n  </link>\n</robot>\n`;
 const urdfBytes=enc.encode(urdf);
 await writeFile(resolve(outDir,'sample_00.urdf'),urdfBytes);
@@ -101,6 +131,17 @@ const bundle={
 const bundleBytes=enc.encode(JSON.stringify(bundle,null,2)+'\n');
 await writeFile(resolve(outDir,'bundle.v1.json'),bundleBytes);
 
+const semanticBundle={
+  ...bundle,
+  lineage:{...bundle.lineage,modalBuildCommit:'eda84b7',workflowVersion:'semantic-evidence-v1'},
+  artifacts:[
+    ...bundle.artifacts,
+    descriptor('semantics','part_semantics','application/json','part_semantics.v1.json',partSemanticBytes),
+  ],
+};
+const semanticBundleBytes=enc.encode(JSON.stringify(semanticBundle,null,2)+'\n');
+await writeFile(resolve(outDir,'bundle.semantic.v1.json'),semanticBundleBytes);
+
 const expected={
   fixtureVersion:1,
   contractSource:'modal-build@adf9fcf',
@@ -108,13 +149,16 @@ const expected={
   primaryGlbSha256:sha256(glb),
   segmentationSha256:sha256(segmentationBytes),
   rawGraspsSha256:sha256(rawGraspBytes),
+  partSemanticsSha256:sha256(partSemanticBytes),
   bundleSha256:sha256(bundleBytes),
+  semanticBundleSha256:sha256(semanticBundleBytes),
   faceCount:12,
   partCount:4,
   rawGraspCount:3,
   expectedMaterializedNodes:['geometry_0__part_0','geometry_0__part_1','geometry_0__part_2','geometry_0__part_3'],
+  expectedSemanticByPart:{'0':'handle','1':'rim','2':'body','3':'base'},
   expectedQuality:'provisional',
   expectedAdmissionReasons:['PART_SEMANTICS_UNVERIFIED','PROVIDER_GRASP_RAW_ONLY','PART_PROPOSAL_PARTIAL','COLLIDER_COARSE','SEMANTIC_LOW_CONFIDENCE'],
 };
 await writeFile(resolve(outDir,'expected.json'),JSON.stringify(expected,null,2)+'\n');
-console.log(JSON.stringify({outDir,files:5,glbBytes:glb.byteLength,bundleSha256:expected.bundleSha256},null,2));
+console.log(JSON.stringify({outDir,files:8,glbBytes:glb.byteLength,bundleSha256:expected.bundleSha256,semanticBundleSha256:expected.semanticBundleSha256},null,2));
