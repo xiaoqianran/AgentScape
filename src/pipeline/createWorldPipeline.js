@@ -1,5 +1,5 @@
 import { PipelineEngine } from './PipelineEngine.js';
-import { normalizeWorldSpec } from './WorldSpec.js';
+import { normalizeWorldIR, worldIRToWorldSpec } from './WorldIR.js';
 import { assetAdmission } from '../assets/admission.js';
 import { composeNearPlacement, composeWorldLayout } from './WorldComposer.js';
 
@@ -7,7 +7,9 @@ export function createWorldPipeline(runtime) {
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
 
   pipeline.register('normalize_spec', async (state) => {
-    state.input = normalizeWorldSpec(state.input);
+    const worldIR = normalizeWorldIR(state.input);
+    state.artifacts.worldIR = structuredClone(worldIR);
+    state.input = worldIRToWorldSpec(worldIR);
     state.artifacts.worldSpec = structuredClone(state.input);
     return state;
   });

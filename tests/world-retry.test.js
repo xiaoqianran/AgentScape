@@ -54,3 +54,29 @@ describe('buildWorldRetryPlan',()=>{
   });
 
 });
+
+
+
+
+
+it('preserves WorldIR revision/provenance and projects the revised IR into nextPlan',()=>{
+  const pipeline={state:{
+    input:{},
+    artifacts:{
+      worldIR:{
+        schema:'agentscape.world-ir',schemaVersion:1,
+        revision:{id:'rev-1'},
+        provenance:{source:'planner',evidenceRefs:['trace-1']},
+        intent:{name:'Retry Lab'},policy:{generation:{generate:false},physics:{}},
+        entities:[{id:'asset-1',asset:{assetId:'missing',query:'crate',generate:false},transform:{},capabilityIntent:[],initialState:{}}],
+        spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]
+      },
+      worldSpec:{schema:1,name:'Retry Lab',generation:{generate:false},assets:[{id:'asset-1',assetId:'missing',query:'crate',generate:false}],relations:[]}
+    },
+    reports:{assetAdmission:{status:'partial',unresolved:[{id:'asset-1',query:'crate',status:'missing'}]}}
+  }};
+  const plan=buildWorldRetryPlan(pipeline,{generatorConfigured:true,attempt:1,budget:2});
+  expect(plan).toMatchObject({status:'retry-proposed',retriable:true,nextPlan:{assets:[{id:'asset-1',generate:true}]}});
+  expect(plan.nextIR).toMatchObject({revision:{id:'rev-1:retry-2',parentId:'rev-1'},provenance:{source:'world-retry',sourceId:'rev-1'}});
+  expect(plan.nextIR.provenance.evidenceRefs).toEqual(expect.arrayContaining(['trace-1','asset-1']));
+});

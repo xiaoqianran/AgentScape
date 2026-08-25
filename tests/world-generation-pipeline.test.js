@@ -34,6 +34,7 @@ describe('generated world pipeline',()=>{
     expect(assets.has('eg-workbench')).toBe(true);
     expect(runtime.spawn).toHaveBeenCalledWith('eg-workbench',{position:[2,0,-1],id:'bench_01'});
     expect(result.state.artifacts.worldSpec).toMatchObject({schema:1,name:'Generated Lab',generation:{provider:'embodiedgen',generate:true}});
+    expect(result.state.artifacts.worldIR).toMatchObject({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'legacy-root'},provenance:{source:'legacy-world-spec'}});
     expect(result.state.reports.assetAdmission).toEqual({
       status:'provisional',unresolved:[],
       provisional:[{assetId:'eg-workbench',reasons:['FALLBACK_BOX_COLLIDER','UNVERIFIED_PROVIDER_SEMANTICS']}]
