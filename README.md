@@ -43,7 +43,11 @@ export AGENTSCAPE_MODAL_AGENT_SESSION='...'
 - 最终 GLB role 为 `primary-glb`；
 - 当前 Kaggle WebP 属于有损历史链，标记为 `legacy-lossy`，不能冒充未来 2D→3D 的 lossless `primary-image`；
 - Artifact ID 是独立 opaque identity，SHA-256 只负责内容校验与去重；
-- GLB 保留对输入图片的 `derived_from` lineage。
+- GLB 保留对输入图片的 `derived_from` lineage；
+- 3D operation 固定为 `modal-3d.asset.image_to_3d.v1`；
+- `requestHash` / `idempotencyKey` 与 AgentScape 的稳定 JSON 算法一致，且敏感字段直接拒绝进入 Job request；
+- 当前 modal-3D API 支持取消与持久 Job 恢复，但尚未提供幂等 submit，因此 capability 明确声明 `idempotency=false`；
+- 生成 GLB 通过 Job-scoped artifact endpoint 获取，不再使用已退休的 path-based `/v1/assets`。
 
 ## 命令
 

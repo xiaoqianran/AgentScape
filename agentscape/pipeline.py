@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .artifacts import write_atomic
 from .contracts import JobResult
+from .jobs import JobRequest
 from .providers.base import ImageProvider, ReconstructionProvider
 
 
@@ -36,6 +37,22 @@ class TextTo3DPipeline:
             model=image_model,
             seed=image_seed,
         )
+        reference_summary = image_result.artifact.summary("legacy-lossy")
+        reconstruction_request = JobRequest(
+            provider=self.reconstruction_provider.name,
+            operation=self.reconstruction_provider.operation,
+            inputs={
+                "image": {
+                    "artifactId": reference_summary.id,
+                    "hash": reference_summary.hash,
+                    "mime": reference_summary.mime,
+                },
+                "concept": prompt,
+            },
+            profile=profile,
+            options={"model": reconstruction_model, "seed": reconstruction_seed},
+            output_roles=("primary-glb",),
+        )
         reconstruction_result = self.reconstruction_provider.reconstruct(
             reference,
             model_path,
@@ -46,7 +63,6 @@ class TextTo3DPipeline:
         )
 
         # Kaggle WebP 是 legacy lossy，不冒充统一 2D contract 的 lossless primary。
-        reference_summary = image_result.artifact.summary("legacy-lossy")
         model_summary = reconstruction_result.artifact.summary("primary-glb")
         manifest: dict[str, object] = {
             "schema": "agentscape-client.result.v1",
@@ -85,6 +101,7 @@ class TextTo3DPipeline:
                 "modal_project_id": reconstruction_result.project_id,
                 "modal_job_id": reconstruction_result.job_id,
             },
+            "request": reconstruction_request.to_dict(),
             # 与 AgentScape GenerationJobProjection.result 直接兼容。
             "result": JobResult((model_summary,)).to_dict(),
         }

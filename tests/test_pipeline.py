@@ -12,6 +12,8 @@ def glb() -> bytes:
 
 
 class FakeImageProvider:
+    name = "fake-image"
+
     def generate(self, prompt: str, destination: Path, *, model: str, seed: int | None = None) -> ImageGenerationResult:
         destination.write_bytes(b"image")
         return ImageGenerationResult(
@@ -23,6 +25,9 @@ class FakeImageProvider:
 
 
 class FakeReconstructionProvider:
+    name = "fake-3d"
+    operation = "fake-3d.asset.image_to_3d.v1"
+
     def reconstruct(self, image_path: Path, destination: Path, **kwargs) -> ReconstructionResult:
         assert image_path.read_bytes() == b"image"
         destination.write_bytes(glb())
@@ -59,6 +64,12 @@ def test_pipeline_writes_manifest(tmp_path: Path) -> None:
     assert manifest["artifacts"]["model"]["format"] == "glb"
     assert manifest["artifacts"]["model"]["bytes"] == 12
     assert manifest["artifacts"]["model"]["hash"].startswith("sha256:")
+    assert manifest["request"]["provider"] == "fake-3d"
+    assert manifest["request"]["operation"] == "fake-3d.asset.image_to_3d.v1"
+    assert manifest["request"]["outputRoles"] == ["primary-glb"]
+    assert manifest["request"]["options"] == {"model": "fastsam3d", "seed": 42}
+    assert manifest["request"]["requestHash"].startswith("sha256:")
+    assert manifest["request"]["idempotencyKey"].startswith("idem_")
 
 
 def test_pipeline_exposes_agentscape_job_result(tmp_path: Path) -> None:

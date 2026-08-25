@@ -7,6 +7,8 @@ from ..contracts import ImageGenerationResult, ReconstructionResult
 
 
 class ImageProvider(Protocol):
+    name: str
+
     def generate(
         self,
         prompt: str,
@@ -18,6 +20,9 @@ class ImageProvider(Protocol):
 
 
 class ReconstructionProvider(Protocol):
+    name: str
+    operation: str
+
     def reconstruct(
         self,
         image_path: Path,

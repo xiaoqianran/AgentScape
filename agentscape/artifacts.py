@@ -23,15 +23,23 @@ def write_atomic(destination: Path, data: bytes) -> None:
         temp_path.unlink(missing_ok=True)
 
 
-def write_artifact(destination: Path, data: bytes, *, mime: str, format: str) -> Artifact:
+def write_artifact(
+    destination: Path,
+    data: bytes,
+    *,
+    mime: str,
+    format: str,
+    artifact_id: str | None = None,
+) -> Artifact:
     write_atomic(destination, data)
-    return Artifact(
-        path=destination,
-        mime=mime,
-        format=format,
-        bytes=len(data),
-        hash=f"sha256:{sha256(data).hexdigest()}",
-    )
+    values = {
+        "path": destination,
+        "mime": mime,
+        "format": format,
+        "bytes": len(data),
+        "hash": f"sha256:{sha256(data).hexdigest()}",
+    }
+    return Artifact(**values, **({"id": artifact_id} if artifact_id else {}))
 
 
 def validate_glb(data: bytes) -> None:

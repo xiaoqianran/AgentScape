@@ -1,18 +1,36 @@
 from __future__ import annotations
 
 import mimetypes
+import re
 import time
+from hashlib import sha256
 from pathlib import Path
 
 import httpx
 
 from ..artifacts import validate_glb, write_artifact
+from ..capabilities import MODAL_3D_IMAGE_TO_3D, MODAL_3D_PROVIDER
 from ..contracts import Artifact, ReconstructionResult
-from ..errors import ContractError, ProviderError
+from ..errors import ArtifactError, ContractError, ProviderError
+
+
+_ARTIFACT_ID = re.compile(r"^[A-Za-z0-9_-]{1,160}$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_JOB_STATUSES = {
+    "running",
+    "connection_required",
+    "cancel_requested",
+    "succeeded",
+    "failed",
+    "cancelled",
+    "expired",
+}
+_TERMINAL_JOB_STATUSES = {"succeeded", "failed", "cancelled", "expired"}
 
 
 class Modal3DProvider:
-    name = "modal-3d"
+    name = MODAL_3D_PROVIDER
+    operation = MODAL_3D_IMAGE_TO_3D
 
     def __init__(
         self,
@@ -103,26 +121,86 @@ class Modal3DProvider:
         except (KeyError, TypeError) as exc:
             raise ContractError("modal-3D generation 返回缺少 job.id") from exc
 
+    def get_job(self, job_id: str) -> dict:
+        job = self._request("GET", f"/v1/jobs/{job_id}").json()
+        if not isinstance(job, dict):
+            raise ContractError("modal-3D job 返回结构无效")
+        status = job.get("status")
+        if status not in _JOB_STATUSES:
+            raise ContractError(f"modal-3D job 返回未知状态: {status!r}")
+        return job
+
+    def cancel(self, job_id: str) -> dict:
+        job = self._request("DELETE", f"/v1/jobs/{job_id}").json()
+        if not isinstance(job, dict) or job.get("status") not in _JOB_STATUSES:
+            raise ContractError("modal-3D cancel 返回结构无效")
+        return job
+
     def wait(self, job_id: str, *, timeout: float = 1800.0) -> dict:
         deadline = time.monotonic() + timeout
-        terminal = {"succeeded", "failed", "cancelled", "expired"}
         while time.monotonic() < deadline:
-            job = self._request("GET", f"/v1/jobs/{job_id}").json()
-            if not isinstance(job, dict):
-                raise ContractError("modal-3D job 返回结构无效")
-            status = job.get("status")
-            if status in terminal:
+            job = self.get_job(job_id)
+            status = job["status"]
+            if status in _TERMINAL_JOB_STATUSES:
                 if status != "succeeded":
+                    code = job.get("error_code")
                     error = job.get("error") or "unknown error"
-                    raise ProviderError(f"modal-3D job {job_id} ended as {status}: {error}")
+                    detail = f"{code}: {error}" if code else error
+                    raise ProviderError(f"modal-3D job {job_id} ended as {status}: {detail}")
                 return job
             time.sleep(self.poll_interval)
         raise TimeoutError(f"modal-3D job {job_id} did not finish within {timeout:.0f}s")
 
-    def download_artifact(self, artifact_path: str, destination: Path) -> Artifact:
-        response = self._request("GET", "/v1/assets", params={"path": artifact_path})
-        validate_glb(response.content)
-        return write_artifact(destination, response.content, mime="model/gltf-binary", format="glb")
+    @staticmethod
+    def _artifact_descriptor(job: dict) -> dict[str, object]:
+        result = job.get("result")
+        artifact = result.get("artifact") if isinstance(result, dict) else None
+        if not isinstance(artifact, dict):
+            raise ContractError("modal-3D job succeeded without result.artifact")
+
+        artifact_id = artifact.get("id")
+        role = artifact.get("role")
+        mime = artifact.get("mime")
+        size = artifact.get("bytes")
+        digest = artifact.get("sha256")
+        if not isinstance(artifact_id, str) or not _ARTIFACT_ID.fullmatch(artifact_id):
+            raise ContractError("modal-3D artifact.id 无效")
+        if role != "primary-glb" or mime != "model/gltf-binary":
+            raise ContractError("modal-3D artifact role/mime 不符合 primary-glb 契约")
+        if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
+            raise ContractError("modal-3D artifact.bytes 无效")
+        if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+            raise ContractError("modal-3D artifact.sha256 无效")
+        return {
+            "id": artifact_id,
+            "role": role,
+            "mime": mime,
+            "bytes": size,
+            "sha256": digest,
+        }
+
+    def download_artifact(self, job_id: str, descriptor: dict[str, object], destination: Path) -> Artifact:
+        response = self._request("GET", f"/v1/jobs/{job_id}/artifact")
+        data = response.content
+        validate_glb(data)
+
+        expected_bytes = descriptor["bytes"]
+        expected_sha = descriptor["sha256"]
+        if len(data) != expected_bytes:
+            raise ArtifactError(
+                f"modal-3D artifact bytes 不一致: expected={expected_bytes}, actual={len(data)}"
+            )
+        actual_sha = sha256(data).hexdigest()
+        if actual_sha != expected_sha:
+            raise ArtifactError("modal-3D artifact SHA-256 校验失败")
+
+        return write_artifact(
+            destination,
+            data,
+            mime="model/gltf-binary",
+            format="glb",
+            artifact_id=str(descriptor["id"]),
+        )
 
     def reconstruct(
         self,
@@ -157,13 +235,8 @@ class Modal3DProvider:
         job = self.submit_generation(project_id, model=model, profile=profile, seed=seed)
         job_id = str(job["id"])
         finished = self.wait(job_id, timeout=timeout)
-        result = finished.get("result")
-        artifact = result.get("artifact") if isinstance(result, dict) else None
-        artifact_path = artifact.get("path") if isinstance(artifact, dict) else None
-        if not isinstance(artifact_path, str) or not artifact_path:
-            raise ContractError("modal-3D job succeeded without result.artifact.path")
-
-        local_artifact = self.download_artifact(artifact_path, destination)
+        descriptor = self._artifact_descriptor(finished)
+        local_artifact = self.download_artifact(job_id, descriptor, destination)
         return ReconstructionResult(
             provider=self.name,
             model=model,
