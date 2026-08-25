@@ -2,7 +2,7 @@ import { PipelineEngine } from './PipelineEngine.js';
 import { normalizeWorldIR, worldIRToWorldSpec } from './WorldIR.js';
 import { assetAdmission } from '../assets/admission.js';
 import { composeNearPlacement, composeWorldLayout } from './WorldComposer.js';
-import { compileWorldAcceptance, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
+import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
 
 export function createWorldPipeline(runtime) {
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
@@ -145,7 +145,13 @@ export function createWorldPipeline(runtime) {
     const worldIR=state.artifacts.worldIR;
     const acceptanceGraph=worldIR?.acceptance?.length ? compileWorldAcceptance(worldIR.acceptance) : null;
     const worldAcceptance=acceptanceGraph ? evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined}) : null;
-    if(worldAcceptance) state.reports.worldAcceptance=worldAcceptance;
+    if(worldAcceptance){
+      state.reports.worldAcceptance=worldAcceptance;
+      const bundle=buildAcceptanceEvidenceBundle(acceptanceGraph,worldAcceptance,{worldRevisionId:worldIR?.revision?.id || null,source:'world-pipeline',provenance:worldIR?.provenance || null});
+      state.artifacts.acceptanceEvidence=structuredClone(bundle);
+      runtime.lastAcceptanceBundle=structuredClone(bundle);
+      runtime.trace?.emit?.('world.acceptance',{bundle:structuredClone(bundle)},{actor:'world-pipeline'});
+    }
     const acceptanceRejected=worldAcceptance?.status==='world-incomplete';
     const status=validation.counts.hard || assetAdmission.status==='rejected' || layoutAdmission.status==='rejected' || relationAdmission.status==='rejected' || acceptanceRejected ? 'rejected'
       : validation.counts.advisory || assetAdmission.status==='provisional' || layoutAdmission.status==='provisional' ? 'provisional'

@@ -430,3 +430,32 @@ it('keeps articulated blocker recovery auxiliary and blocks a duplicate until th
   expect(event.identity).toContain('\"blockerPartName\":\"door\"');
   expect(event.identity).toContain('\"blockerAction\":\"close\"');
 });
+
+
+it('gates model final completion on required world acceptance evidence',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'w',name:'runWorldPipeline',args:{plan:{name:'lab'}}}]};
+    return {message:'done',final:true,toolCalls:[]};
+  })};
+  const runtime={lastAcceptanceBundle:null};
+  const tools=makeTools({runWorldPipeline:async()=>{runtime.lastAcceptanceBundle={schema:'agentscape.acceptance-evidence',schemaVersion:1,required:true,result:{status:'world-incomplete',failedCount:1}};return {status:'world-ready'};}});
+  tools.runtime=runtime;
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:4}).run('build and verify world');
+  expect(result).toMatchObject({taskStatus:'incomplete',message:'Task incomplete: world acceptance is world-incomplete.',acceptanceBundle:{required:true,result:{status:'world-incomplete'}}});
+});
+
+it('allows final completion when required world acceptance is accepted and resets stale evidence at task start',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'w',name:'runWorldPipeline',args:{plan:{name:'lab'}}}]};
+    return {message:'verified',final:true,toolCalls:[]};
+  })};
+  const runtime={lastAcceptanceBundle:{required:true,result:{status:'world-incomplete'}}};
+  const tools=makeTools({runWorldPipeline:async()=>{expect(runtime.lastAcceptanceBundle).toBeNull();runtime.lastAcceptanceBundle={schema:'agentscape.acceptance-evidence',schemaVersion:1,required:true,result:{status:'world-accepted',failedCount:0}};return {status:'world-ready'};}});
+  tools.runtime=runtime;
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:4}).run('build accepted world');
+  expect(result).toMatchObject({taskStatus:'completed',message:'verified',acceptanceBundle:{required:true,result:{status:'world-accepted'}}});
+});
