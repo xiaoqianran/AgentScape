@@ -46,6 +46,8 @@ function classifyResult(result) {
       if (status === 'asset-ready') return { state:'verified', verified:true, status };
       if (status === 'asset-provisional') return { state:'unverified', verified:false, status, reason:'ASSET_PROVISIONAL' };
       if (status === 'asset-rejected') return { state:'failed', verified:false, status, reason:'ASSET_REJECTED' };
+      if (status === 'world-accepted') return { state:'verified', verified:true, status };
+      if (status === 'world-incomplete') return { state:'unverified', verified:false, status, reason:result.reason || result.replay?.reason || 'WORLD_ACCEPTANCE_INCOMPLETE' };
       if (status === 'world-ready') return { state:'verified', verified:true, status };
       if (status === 'world-provisional') return { state:'unverified', verified:false, status, reason:'WORLD_PROVISIONAL' };
       if (status === 'world-rejected') return { state:'failed', verified:false, status, reason:result.reason || 'WORLD_REJECTED' };

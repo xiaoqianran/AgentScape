@@ -421,4 +421,16 @@ describe('core skills', () => {
     expect(r.interactions.approachAndInteract).toHaveBeenCalledOnce();
   });
 
+
+  it('replays restored acceptance evidence instead of trusting it directly', async () => {
+    const r=runtime();
+    r.currentWorldRevision={revision:{id:'rev-1'},provenance:{source:'planner'}};
+    r.restoredAcceptanceEvidence={schema:'agentscape.acceptance-evidence',schemaVersion:1,required:true,source:'world-pipeline',worldRevisionId:'rev-1',criteria:[{id:'valid',kind:'world-valid'}],result:{schema:'agentscape.world-acceptance',schemaVersion:1,status:'world-accepted',checks:[{id:'valid',kind:'world-valid',verified:true}],verifiedCount:1,failedCount:0},findings:[]};
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const result=await registry.invoke('replayWorldAcceptance',{}, {profile:'viewer',actor:'agent_01'});
+    expect(result).toMatchObject({success:true,result:{status:'world-accepted',replay:{status:'replayed',evidenceRevisionId:'rev-1',currentRevisionId:'rev-1'},acceptanceBundle:{source:'acceptance-replay'}}});
+    expect(r.lastAcceptanceBundle).toMatchObject({source:'acceptance-replay',result:{status:'world-accepted'}});
+    expect(registry.executionPolicy('replayWorldAcceptance',result.result).outcome).toMatchObject({state:'verified',verified:true,status:'world-accepted'});
+  });
+
 });

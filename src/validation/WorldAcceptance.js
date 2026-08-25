@@ -68,3 +68,51 @@ export function buildAcceptanceEvidenceBundle(graph,result,{worldRevisionId=null
     findings:compileAcceptanceFindings(result,{worldRevisionId})
   };
 }
+
+
+export function replayAcceptanceEvidence(runtime,evidence,{unresolvedMutations=undefined}={}){
+  if(!evidence||typeof evidence!=='object'||evidence.schema!=='agentscape.acceptance-evidence'||evidence.schemaVersion!==1) throw new TypeError('Unsupported acceptance evidence bundle');
+  const graph=compileWorldAcceptance(evidence.criteria || []);
+  const evidenceRevisionId=clean(evidence.worldRevisionId)||null;
+  const currentRevisionId=clean(runtime?.currentWorldRevision?.revision?.id)||null;
+  let bindingReason=null;
+  if(evidenceRevisionId&&!currentRevisionId) bindingReason='CURRENT_REVISION_UNKNOWN';
+  else if(!evidenceRevisionId&&currentRevisionId) bindingReason='EVIDENCE_REVISION_MISSING';
+  else if(evidenceRevisionId&&currentRevisionId&&evidenceRevisionId!==currentRevisionId) bindingReason='WORLD_REVISION_CHANGED';
+
+  let result;
+  let changedCriteria=[];
+  if(bindingReason){
+    result={
+      schema:SCHEMA,schemaVersion:VERSION,status:'world-incomplete',
+      checks:[{id:'revision-binding',kind:'revision-binding',verified:false,reason:bindingReason,expected:evidenceRevisionId,actual:currentRevisionId}],
+      verifiedCount:0,failedCount:1
+    };
+    changedCriteria=['revision-binding'];
+  } else {
+    result=evaluateWorldAcceptance(runtime,graph,{unresolvedMutations});
+    const previous=new Map((evidence.result?.checks||[]).map((check)=>[check.id,check]));
+    changedCriteria=result.checks.filter((check)=>{
+      const before=previous.get(check.id);
+      if(!before) return true;
+      return JSON.stringify([before.verified,before.reason??null,before.actual??null])!==JSON.stringify([check.verified,check.reason??null,check.actual??null]);
+    }).map((check)=>check.id);
+  }
+
+  const bundle=buildAcceptanceEvidenceBundle(graph,result,{
+    worldRevisionId:currentRevisionId||evidenceRevisionId||null,
+    source:'acceptance-replay',
+    provenance:runtime?.currentWorldRevision?.provenance || evidence.provenance || null
+  });
+  return {
+    ...result,
+    replay:{
+      status:bindingReason?'stale':'replayed',
+      ...(bindingReason?{reason:bindingReason}:{}),
+      evidenceRevisionId,currentRevisionId,
+      previousStatus:evidence.result?.status || null,
+      changedCriteria
+    },
+    acceptanceBundle:bundle
+  };
+}
