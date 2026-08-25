@@ -34,3 +34,82 @@ it('keeps one async world mutation owner until locomotion-like work finishes', a
   expect(runtime.history.commit).toHaveBeenCalledOnce();
   expect(runtime.mutationOwner).toBeNull();
 });
+
+
+it('restores the before snapshot when an async world mutation partially changes state then throws', async () => {
+  let pending=false;
+  const runtime={
+    mutationOwner:null,
+    state:{position:[0,0,0],mode:'idle'},
+    history:{
+      suspended:false,
+      undoStack:[],
+      begin:vi.fn(() => { if(pending) return false; pending=true; return true; }),
+      commit:vi.fn((after) => { pending=false; runtime.history.undoStack.push(after); return true; }),
+      cancel:vi.fn(() => { pending=false; })
+    },
+    snapshot:vi.fn(() => structuredClone(runtime.state)),
+    restore:vi.fn(async(before) => { runtime.state=structuredClone(before); }),
+    sceneGraph:{batch:async(operation)=>operation(),changed:vi.fn()}
+  };
+  const original=new Error('partial mutation failed');
+
+  const mutation=WorldRuntime.prototype.mutate.call(runtime,'skill:partial',async()=>{
+    runtime.state.position=[4,2,-1];
+    runtime.state.mode='dirty';
+    throw original;
+  });
+
+  await expect(mutation).rejects.toBe(original);
+  expect(runtime.restore).toHaveBeenCalledOnce();
+  expect(runtime.restore).toHaveBeenCalledWith({position:[0,0,0],mode:'idle'});
+  expect(runtime.state).toEqual({position:[0,0,0],mode:'idle'});
+  expect(runtime.history.cancel).toHaveBeenCalledOnce();
+  expect(runtime.history.commit).not.toHaveBeenCalled();
+  expect(runtime.history.undoStack).toEqual([]);
+  expect(runtime.mutationOwner).toBeNull();
+});
+
+it('fails closed when mutation rollback cannot restore the before snapshot', async () => {
+  let pending=false;
+  const original=new Error('operation failed');
+  const rollback=new Error('restore failed');
+  const runtime={
+    mutationOwner:null,
+    history:{
+      suspended:false,
+      begin:vi.fn(() => { if(pending) return false; pending=true; return true; }),
+      commit:vi.fn(() => { pending=false; return true; }),
+      cancel:vi.fn(() => { pending=false; })
+    },
+    snapshot:vi.fn(() => ({world:'before'})),
+    restore:vi.fn(async()=>{ throw rollback; }),
+    sceneGraph:{batch:async(operation)=>operation(),changed:vi.fn()}
+  };
+
+  let failure;
+  try {
+    await WorldRuntime.prototype.mutate.call(runtime,'skill:rollback-failure',async()=>{ throw original; });
+  } catch (error) { failure=error; }
+
+  expect(failure).toBeInstanceOf(AggregateError);
+  expect(failure).toMatchObject({code:'WORLD_MUTATION_ROLLBACK_FAILED',cause:original,rollbackError:rollback});
+  expect(failure.errors).toEqual([original,rollback]);
+  expect(runtime.history.cancel).toHaveBeenCalledOnce();
+  expect(runtime.history.commit).not.toHaveBeenCalled();
+  expect(runtime.mutationOwner).toBeNull();
+});
+
+
+it('releases the mutation owner if creating the before snapshot fails', async () => {
+  const snapshotError=new Error('snapshot failed');
+  const runtime={
+    mutationOwner:null,
+    history:{suspended:false,begin:vi.fn()},
+    snapshot:vi.fn(()=>{ throw snapshotError; })
+  };
+
+  await expect(WorldRuntime.prototype.mutate.call(runtime,'skill:snapshot-failure',async()=>true)).rejects.toBe(snapshotError);
+  expect(runtime.history.begin).not.toHaveBeenCalled();
+  expect(runtime.mutationOwner).toBeNull();
+});
