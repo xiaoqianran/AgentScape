@@ -16,6 +16,7 @@ from agentscape.connector_session import CONNECTOR_SESSION_SCOPES, ConnectorSess
 from agentscape.errors import ContractError
 from agentscape.jobs import JobRequest
 from agentscape.modal2d import Modal2DTextToImageRequestBuilder
+from agentscape.modal3d import Modal3DImageTo3DRequestBuilder
 
 
 NOW = datetime(2026, 8, 25, 6, 0, tzinfo=UTC)
@@ -229,12 +230,16 @@ class ConnectorHarness:
                 job_id = "job_image"
             elif body["operation"] == MODAL_3D_IMAGE_TO_3D:
                 assert body["outputRoles"] == ["primary-glb"]
+                assert body["profile"] == "recommended"
                 assert body["inputs"] == {
                     "sourceArtifact": {
                         "id": IMAGE_ARTIFACT_ID,
                         "role": "primary-image",
                         "mime": "image/png",
-                    }
+                        "hash": "sha256:" + "b" * 64,
+                    },
+                    "model": "fastsam3d-plus-plus",
+                    "seed": 42,
                 }
                 assert "bytes" not in json.dumps(body["inputs"])
                 job_id = "job_model"
@@ -343,23 +348,10 @@ def make_pipeline(harness: ConnectorHarness, prompt: str) -> ConnectorTextTo3DPi
 
     image_request = Modal2DTextToImageRequestBuilder(model="sana-sprint-0.6b")
 
-    def reconstruction_request(image, parent, value: str) -> JobRequest:
-        assert parent.id == "job_image"
-        assert value == prompt
-        return JobRequest(
-            provider="modal-3d",
-            operation=MODAL_3D_IMAGE_TO_3D,
-            inputs={
-                "sourceArtifact": {
-                    "id": image.id,
-                    "role": image.role,
-                    "mime": image.mime,
-                }
-            },
-            parent={"jobId": parent.id},
-            profile="recommended",
-            output_roles=("primary-glb",),
-        )
+    reconstruction_request = Modal3DImageTo3DRequestBuilder(
+        model="fastsam3d-plus-plus"
+    )
+
 
     return ConnectorTextTo3DPipeline(
         ConnectorJobRunner(capabilities, poll_interval=0),

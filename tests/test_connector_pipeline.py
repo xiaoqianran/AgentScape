@@ -12,6 +12,7 @@ from agentscape.errors import ArtifactError, ProviderError
 from agentscape.job_client import JobState
 from agentscape.jobs import JobRequest
 from agentscape.modal2d import Modal2DTextToImageRequestBuilder
+from agentscape.modal3d import Modal3DImageTo3DRequestBuilder
 
 
 IMAGE_OPERATION = MODAL_2D_TEXT_TO_IMAGE
@@ -179,15 +180,11 @@ def _builders(prompt: str):
         assert value == prompt
         return image_request
 
+    modal3d = Modal3DImageTo3DRequestBuilder(model="fastsam3d-plus-plus")
+
     def reconstruction_builder(source: ArtifactSummary, parent: JobState, value: str) -> JobRequest:
         captured.update(source=source, parent=parent, prompt=value)
-        return JobRequest(
-            provider="modal-3d",
-            operation=RECON_OPERATION,
-            inputs={"sourceArtifactId": source.id},
-            parent={"jobId": parent.id},
-            output_roles=("primary-glb",),
-        )
+        return modal3d(source, parent, value)
 
     return image_request, image_builder, reconstruction_builder, captured
 
@@ -201,13 +198,9 @@ def test_composed_pipeline_passes_opaque_image_reference_and_downloads_only_glb(
         image_request,
         [state("job_image", image_request, "succeeded", 1, (image,))],
     )
-    reconstruction_request = JobRequest(
-        provider="modal-3d",
-        operation=RECON_OPERATION,
-        inputs={"sourceArtifactId": image.id},
-        parent={"jobId": "job_image"},
-        output_roles=("primary-glb",),
-    )
+    reconstruction_request = Modal3DImageTo3DRequestBuilder(
+        model="fastsam3d-plus-plus"
+    )(image, state("job_image", image_request, "succeeded", 1, (image,)), prompt)
     reconstruction_transport = SequenceTransport(
         reconstruction_request,
         [state("job_3d", reconstruction_request, "succeeded", 1, (model,))],

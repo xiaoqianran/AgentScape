@@ -62,7 +62,7 @@ export AGENTSCAPE_MODAL_AGENT_SESSION='...'
 - `ConnectorTextTo3DPipeline` 已完成两阶段 Job 编排：2D `primary-image` 直接以 opaque artifact reference 交给 3D request builder，最终只下载 `primary-glb`；
 - 组合式 pipeline 默认只接受 `image/png` 作为 lossless `primary-image`，preview/WebP 不会自动进入 3D；
 - `Modal2DTextToImageRequestBuilder` 已对齐真实 `modal-2D` public contract：`prompt/model/seed/guidance`，固定 `recommended` profile 与 `primary-image`，不暴露 SANA-Sprint 无效的 `steps` 覆盖；
-- 3D Connector input artifact-reference schema 仍通过 request builder 注入；在真实 Connector/provider contract 冻结前不硬编码该字段；
+- `Modal3DImageTo3DRequestBuilder` 已对齐真实 Connector 3D contract：`sourceArtifact{id,role,mime,hash}` + `model/seed`，固定 `primary-image` PNG 输入、`recommended` profile 与 `primary-glb` 输出；模型 ID 由实时 capability/config 选择，不在 client 硬编码；
 - 契约级 E2E 已覆盖 `Session → Capability → 2D Job → primary-image ref → 3D Job → primary-glb → Artifact → manifest`，并验证 capability revision/hash 漂移会在下一阶段 submit 前 fail closed。
 
 ## 命令
