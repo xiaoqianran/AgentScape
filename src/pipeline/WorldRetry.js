@@ -1,3 +1,5 @@
+import { worldIRToWorldSpec } from './WorldIR.js';
+
 const publicWorldSpec = (spec = {}) => ({
   ...(spec.name ? { name:spec.name } : {}),
   ...(spec.description ? { description:spec.description } : {}),
@@ -9,6 +11,7 @@ const publicWorldSpec = (spec = {}) => ({
 export function buildWorldRetryPlan(pipeline,{generatorConfigured=false,attempt=1,budget=2}={}) {
   const state=pipeline?.state || {};
   const reports=state.reports || {};
+  const worldIR=state.artifacts?.worldIR?.schema==='agentscape.world-ir' ? structuredClone(state.artifacts.worldIR) : null;
   const spec=state.artifacts?.worldSpec || state.input || {};
   const findings=[];
   const actions=[];
@@ -58,11 +61,28 @@ export function buildWorldRetryPlan(pipeline,{generatorConfigured=false,attempt=
     return {...base,status:'not-retriable',retriable:false};
   }
 
+  if (worldIR) {
+    const nextIR=structuredClone(worldIR);
+    nextIR.revision={
+      id:`${worldIR.revision.id}:retry-${attempt+1}`,
+      parentId:worldIR.revision.id,
+      reason:'bounded missing-asset regeneration'
+    };
+    nextIR.provenance={
+      ...nextIR.provenance,
+      source:'world-retry',
+      sourceId:worldIR.revision.id,
+      evidenceRefs:[...(worldIR.provenance.evidenceRefs||[]),...findings.filter((item)=>item.stage==='asset').map((item)=>item.instanceId||item.query).filter(Boolean)]
+    };
+    for (const action of actions) {
+      const request=nextIR.entities.find((item)=>(action.instanceId && item.id===action.instanceId) || (!action.instanceId && item.asset?.query===action.query));
+      if (request) request.asset.generate=true;
+    }
+    return {...base,status:'retry-proposed',retriable:true,nextPlan:worldIRToWorldSpec(nextIR),nextIR};
+  }
   const nextPlan=publicWorldSpec(spec);
   for (const action of actions) {
-    const request=nextPlan.assets.find((item)=>
-      (action.instanceId && item.id===action.instanceId) || (!action.instanceId && item.query===action.query)
-    );
+    const request=nextPlan.assets.find((item)=>(action.instanceId && item.id===action.instanceId) || (!action.instanceId && item.query===action.query));
     if (request) request.generate=true;
   }
   return {...base,status:'retry-proposed',retriable:true,nextPlan};
