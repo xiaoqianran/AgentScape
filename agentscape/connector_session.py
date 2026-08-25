@@ -204,20 +204,26 @@ class ConnectorSession:
         *,
         scope: str,
         json_body: dict[str, object] | None = None,
+        headers: dict[str, str] | None = None,
+        stream: bool = False,
     ) -> httpx.Response:
         self.assert_active(scope)
         if not path.startswith("/") or "://" in path or "?" in path or "#" in path:
             raise ContractError("Connector request path 必须是同源绝对路径")
-        headers = {"Authorization": f"Bearer {self._token}", "Accept": "application/json"}
+        extra = {str(key): str(value) for key, value in (headers or {}).items()}
+        if any(key.lower() == "authorization" for key in extra):
+            raise ContractError("Connector request 禁止覆盖 Authorization header")
+        request_headers = {"Authorization": f"Bearer {self._token}", "Accept": "application/json", **extra}
         if json_body is not None:
-            headers["Content-Type"] = "application/json"
+            request_headers["Content-Type"] = "application/json"
         try:
-            return self.client.request(
+            request = self.client.build_request(
                 method,
                 f"{self.endpoint}{path}",
-                headers=headers,
+                headers=request_headers,
                 content=None if json_body is None else json.dumps(json_body, ensure_ascii=False, separators=(",", ":")),
             )
+            return self.client.send(request, stream=stream, follow_redirects=False)
         except httpx.RequestError as exc:
             raise ConnectionRequiredError("Connector 不可达") from exc
 

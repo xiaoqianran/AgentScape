@@ -12,8 +12,17 @@ from agentscape.providers.modal3d import Modal3DProvider
 
 
 def make_glb(payload: bytes = b"") -> bytes:
-    size = 12 + len(payload)
-    return b"glTF" + (2).to_bytes(4, "little") + size.to_bytes(4, "little") + payload
+    json_chunk = b"{}  "
+    body = json_chunk + payload
+    size = 20 + len(body)
+    return (
+        b"glTF"
+        + (2).to_bytes(4, "little")
+        + size.to_bytes(4, "little")
+        + len(json_chunk).to_bytes(4, "little")
+        + (0x4E4F534A).to_bytes(4, "little")
+        + body
+    )
 
 
 def artifact_descriptor(data: bytes, **overrides) -> dict[str, object]:
@@ -219,7 +228,9 @@ def test_modal_invalid_glb_does_not_replace_existing_file(tmp_path: Path) -> Non
 
 
 def test_modal_glb_length_mismatch_is_rejected(tmp_path: Path) -> None:
-    glb = b"glTF" + (2).to_bytes(4, "little") + (99).to_bytes(4, "little")
+    glb = bytearray(make_glb())
+    glb[8:12] = (99).to_bytes(4, "little")
+    glb = bytes(glb)
     client = httpx.Client(
         transport=httpx.MockTransport(lambda request: httpx.Response(200, content=glb))
     )

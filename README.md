@@ -54,7 +54,9 @@ export AGENTSCAPE_MODAL_AGENT_SESSION='...'
 - `ConnectorCapabilityClient` 从 `/connector/v1/capabilities` 自动发现真实 operationVersion / contractVersion / outputRoles / revision / hash，再构造 `ConnectorHttpJobTransport`；
 - `ConnectorHttpJobTransport` 对齐 `/connector/v1/jobs` 的 submit/get/cancel wire contract，不再要求调用方手填 capability provenance；
 - Connector session token 只进入 Authorization header，不进入 Job request、manifest、缓存或错误文本；projection 若回显当前 credential 会直接拒绝；
-- Connector Job parser 校验完整 projection facts，并用归一化事实签名处理同一 `eventSequence` 的冲突检测。
+- Connector Job parser 校验完整 projection facts，并用归一化事实签名处理同一 `eventSequence` 的冲突检测；
+- `ConnectorArtifactTransport` 从 `/connector/v1/artifacts/{id}` 流式下载产物，校验 scope / redirect / MIME / encoding / bytes / SHA-256 / 内容结构后才原子发布；
+- 当前 Artifact 内容门支持 GLB、PNG、JPEG、WebP，足够覆盖统一 2D→3D 主链；未知 MIME fail closed。
 
 ## 命令
 

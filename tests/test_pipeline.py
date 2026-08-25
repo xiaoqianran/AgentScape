@@ -8,7 +8,16 @@ from agentscape.pipeline import TextTo3DPipeline
 
 
 def glb() -> bytes:
-    return b"glTF" + (2).to_bytes(4, "little") + (12).to_bytes(4, "little")
+    json_chunk = b"{}  "
+    total = 20 + len(json_chunk)
+    return (
+        b"glTF"
+        + (2).to_bytes(4, "little")
+        + total.to_bytes(4, "little")
+        + len(json_chunk).to_bytes(4, "little")
+        + (0x4E4F534A).to_bytes(4, "little")
+        + json_chunk
+    )
 
 
 class FakeImageProvider:
@@ -62,7 +71,7 @@ def test_pipeline_writes_manifest(tmp_path: Path) -> None:
     assert manifest["artifacts"]["model"]["role"] == "primary-glb"
     assert manifest["artifacts"]["model"]["mime"] == "model/gltf-binary"
     assert manifest["artifacts"]["model"]["format"] == "glb"
-    assert manifest["artifacts"]["model"]["bytes"] == 12
+    assert manifest["artifacts"]["model"]["bytes"] == 24
     assert manifest["artifacts"]["model"]["hash"].startswith("sha256:")
     assert manifest["request"]["provider"] == "fake-3d"
     assert manifest["request"]["operation"] == "fake-3d.asset.image_to_3d.v1"
