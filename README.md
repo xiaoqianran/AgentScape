@@ -35,6 +35,16 @@ export AGENTSCAPE_MODAL_AGENT_SESSION='...'
 
 `modal-3D-client` 的 sidecar 默认绑定随机本地端口，因此 `AGENTSCAPE_MODAL_AGENT_URL` 应指向当前正在运行的 Agent 地址。Agent 需要已经连接 Modal，或由桌面客户端恢复凭据。
 
+## 契约边界
+
+`manifest.json` 是本地流水线结果，不伪造 Connector session、Job identity 或 artifact location。
+其中 `result.artifacts` 直接兼容 AgentScape 的 `GenerationJobProjection.result`，统一 Connector 后只需补 Job identity 与传输 location。
+
+- 最终 GLB role 为 `primary-glb`；
+- 当前 Kaggle WebP 属于有损历史链，标记为 `legacy-lossy`，不能冒充未来 2D→3D 的 lossless `primary-image`；
+- Artifact ID 是独立 opaque identity，SHA-256 只负责内容校验与去重；
+- GLB 保留对输入图片的 `derived_from` lineage。
+
 ## 命令
 
 ```bash

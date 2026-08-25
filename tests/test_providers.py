@@ -104,6 +104,7 @@ def test_modal_reconstruct_contract(tmp_path: Path) -> None:
         model="fastsam3d",
     )
 
+    assert result.provider == "modal-3d"
     assert result.project_id == "p1"
     assert result.job_id == "j1"
     assert result.candidate_id == "c00"

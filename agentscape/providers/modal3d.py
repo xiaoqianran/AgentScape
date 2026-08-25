@@ -12,7 +12,7 @@ from ..errors import ContractError, ProviderError
 
 
 class Modal3DProvider:
-    name = "modal-3D-client"
+    name = "modal-3d"
 
     def __init__(
         self,

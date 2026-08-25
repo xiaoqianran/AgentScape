@@ -1,8 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
 from pathlib import Path
+import re
+from uuid import uuid4
+
+from .errors import ContractError
+
+
+ROLE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -12,6 +19,7 @@ class Artifact:
     format: str
     bytes: int
     hash: str
+    id: str = field(default_factory=lambda: f"artifact_{uuid4().hex}")
 
     @classmethod
     def from_file(cls, path: Path, *, mime: str, format: str) -> "Artifact":
@@ -27,6 +35,17 @@ class Artifact:
             hash=f"sha256:{digest.hexdigest()}",
         )
 
+    def summary(self, role: str) -> "ArtifactSummary":
+        if not ROLE_RE.fullmatch(role):
+            raise ContractError(f"Artifact role 不符合 AgentScape 契约: {role!r}")
+        return ArtifactSummary(
+            id=self.id,
+            role=role,
+            mime=self.mime,
+            bytes=self.bytes,
+            hash=self.hash,
+        )
+
     def to_dict(self, *, relative_to: Path | None = None) -> dict[str, object]:
         path = self.path
         if relative_to is not None:
@@ -35,12 +54,43 @@ class Artifact:
             except ValueError:
                 pass
         return {
+            "id": self.id,
             "path": str(path),
             "mime": self.mime,
             "format": self.format,
             "bytes": self.bytes,
             "hash": self.hash,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactSummary:
+    """AgentScape Connector Job result 可直接消费的 Artifact 摘要。"""
+
+    id: str
+    role: str
+    mime: str
+    bytes: int
+    hash: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "role": self.role,
+            "mime": self.mime,
+            "bytes": self.bytes,
+            "hash": self.hash,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class JobResult:
+    """只描述 Provider 结果，不伪造 Connector Job identity。"""
+
+    artifacts: tuple[ArtifactSummary, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        return {"artifacts": [artifact.to_dict() for artifact in self.artifacts]}
 
 
 @dataclass(frozen=True, slots=True)

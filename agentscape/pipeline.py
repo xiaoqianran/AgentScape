@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .artifacts import write_atomic
+from .contracts import JobResult
 from .providers.base import ImageProvider, ReconstructionProvider
 
 
@@ -44,8 +45,11 @@ class TextTo3DPipeline:
             seed=reconstruction_seed,
         )
 
+        # Kaggle WebP 是 legacy lossy，不冒充统一 2D contract 的 lossless primary。
+        reference_summary = image_result.artifact.summary("legacy-lossy")
+        model_summary = reconstruction_result.artifact.summary("primary-glb")
         manifest: dict[str, object] = {
-            "schema": "agentscape.asset.v1",
+            "schema": "agentscape-client.result.v1",
             "created_at": datetime.now(UTC).isoformat(),
             "prompt": prompt,
             "providers": {
@@ -57,14 +61,32 @@ class TextTo3DPipeline:
                 },
             },
             "artifacts": {
-                "reference": image_result.artifact.to_dict(relative_to=output_dir),
-                "model": reconstruction_result.artifact.to_dict(relative_to=output_dir),
+                "reference": {
+                    **reference_summary.to_dict(),
+                    **image_result.artifact.to_dict(relative_to=output_dir),
+                    "lineage": {"parents": []},
+                },
+                "model": {
+                    **model_summary.to_dict(),
+                    **reconstruction_result.artifact.to_dict(relative_to=output_dir),
+                    "lineage": {
+                        "parents": [
+                            {
+                                "artifactId": reference_summary.id,
+                                "hash": reference_summary.hash,
+                                "relation": "derived_from",
+                            }
+                        ]
+                    },
+                },
             },
             "jobs": {
                 "image_task_id": image_result.task_id,
                 "modal_project_id": reconstruction_result.project_id,
                 "modal_job_id": reconstruction_result.job_id,
             },
+            # 与 AgentScape GenerationJobProjection.result 直接兼容。
+            "result": JobResult((model_summary,)).to_dict(),
         }
         write_atomic(
             output_dir / "manifest.json",

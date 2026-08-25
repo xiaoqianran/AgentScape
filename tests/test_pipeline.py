@@ -45,7 +45,7 @@ def test_pipeline_writes_manifest(tmp_path: Path) -> None:
     )
 
     manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
-    assert result["schema"] == "agentscape.asset.v1"
+    assert result["schema"] == "agentscape-client.result.v1"
     assert manifest["providers"]["image"]["name"] == "fake-image"
     assert manifest["jobs"] == {
         "image_task_id": "11",
@@ -53,7 +53,40 @@ def test_pipeline_writes_manifest(tmp_path: Path) -> None:
         "modal_job_id": "j1",
     }
     assert manifest["artifacts"]["reference"]["path"] == "reference.webp"
+    assert manifest["artifacts"]["reference"]["role"] == "legacy-lossy"
+    assert manifest["artifacts"]["model"]["role"] == "primary-glb"
     assert manifest["artifacts"]["model"]["mime"] == "model/gltf-binary"
     assert manifest["artifacts"]["model"]["format"] == "glb"
     assert manifest["artifacts"]["model"]["bytes"] == 12
     assert manifest["artifacts"]["model"]["hash"].startswith("sha256:")
+
+
+def test_pipeline_exposes_agentscape_job_result(tmp_path: Path) -> None:
+    manifest = TextTo3DPipeline(FakeImageProvider(), FakeReconstructionProvider()).run(
+        "mossy shrine",
+        tmp_path,
+        reconstruction_model="fastsam3d",
+    )
+
+    model = manifest["artifacts"]["model"]
+    reference = manifest["artifacts"]["reference"]
+    assert manifest["result"] == {
+        "artifacts": [
+            {
+                "id": model["id"],
+                "role": "primary-glb",
+                "mime": "model/gltf-binary",
+                "bytes": model["bytes"],
+                "hash": model["hash"],
+            }
+        ]
+    }
+    assert model["lineage"] == {
+        "parents": [
+            {
+                "artifactId": reference["id"],
+                "hash": reference["hash"],
+                "relation": "derived_from",
+            }
+        ]
+    }
