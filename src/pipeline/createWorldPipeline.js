@@ -2,6 +2,7 @@ import { PipelineEngine } from './PipelineEngine.js';
 import { normalizeWorldIR, worldIRToWorldSpec } from './WorldIR.js';
 import { assetAdmission } from '../assets/admission.js';
 import { composeNearPlacement, composeWorldLayout } from './WorldComposer.js';
+import { compileWorldAcceptance, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
 
 export function createWorldPipeline(runtime) {
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
@@ -141,7 +142,12 @@ export function createWorldPipeline(runtime) {
     const assetAdmission=state.reports.assetAdmission || { status:'ready', unresolved:[], provisional:[] };
     const layoutAdmission=state.reports.layoutAdmission || {status:'ready',placements:[],issues:[]};
     const relationAdmission=state.reports.relationAdmission || {status:'ready',applied:[],issues:[]};
-    const status=validation.counts.hard || assetAdmission.status==='rejected' || layoutAdmission.status==='rejected' || relationAdmission.status==='rejected' ? 'rejected'
+    const worldIR=state.artifacts.worldIR;
+    const acceptanceGraph=worldIR?.acceptance?.length ? compileWorldAcceptance(worldIR.acceptance) : null;
+    const worldAcceptance=acceptanceGraph ? evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined}) : null;
+    if(worldAcceptance) state.reports.worldAcceptance=worldAcceptance;
+    const acceptanceRejected=worldAcceptance?.status==='world-incomplete';
+    const status=validation.counts.hard || assetAdmission.status==='rejected' || layoutAdmission.status==='rejected' || relationAdmission.status==='rejected' || acceptanceRejected ? 'rejected'
       : validation.counts.advisory || assetAdmission.status==='provisional' || layoutAdmission.status==='provisional' ? 'provisional'
       : 'ready';
     state.reports.worldAdmission={
@@ -153,12 +159,14 @@ export function createWorldPipeline(runtime) {
         ...(assetAdmission.status==='provisional'?['ASSET_PROVISIONAL']:[]),
         ...(layoutAdmission.status==='rejected'?[layoutAdmission.reason || 'LAYOUT_REJECTED']:[]),
         ...(layoutAdmission.status==='provisional'?['LAYOUT_PROVISIONAL']:[]),
-        ...(relationAdmission.status==='rejected'?[relationAdmission.reason || 'RELATION_REJECTED']:[])
+        ...(relationAdmission.status==='rejected'?[relationAdmission.reason || 'RELATION_REJECTED']:[]),
+        ...(acceptanceRejected?['WORLD_ACCEPTANCE_FAILED']:[])
       ],
       validation:{ hard:validation.counts.hard, advisory:validation.counts.advisory },
       assets:structuredClone(assetAdmission),
       layout:structuredClone(layoutAdmission),
-      relations:structuredClone(relationAdmission)
+      relations:structuredClone(relationAdmission),
+      ...(worldAcceptance?{acceptance:structuredClone(worldAcceptance)}:{})
     };
     state.artifacts.scene = runtime.serialize({ name: state.input.name || 'Generated World' });
     return state;
