@@ -216,6 +216,19 @@ export class WorldRuntime {
   serialize(options) { return this.serializer.serialize(this, options); }
   async restore(scene) { return this.serializer.restore(this, scene); }
 
+  applyStateTransition(id, stateKey, value, meta = {}) {
+    const record=this.store.get(id);
+    if(!record) { const error=new Error(`State target not found: ${id}`); error.code='STATE_TARGET_NOT_FOUND'; throw error; }
+    const key=String(stateKey||'').trim();
+    if(!key || key.includes('.') || key.startsWith('__')) { const error=new Error('Invalid state key'); error.code='STATE_KEY_INVALID'; throw error; }
+    if(value!==null && !['string','number','boolean'].includes(typeof value)) { const error=new TypeError('State value must be a JSON scalar'); error.code='STATE_VALUE_INVALID'; throw error; }
+    record.state ||= {};
+    record.state[key]=value;
+    this.sceneGraph?.changed();
+    this.events.emit('world.state-transition',{id,stateKey:key,value,meta});
+    return {status:'state-transition-applied',targetId:id,stateKey:key,value};
+  }
+
   restoreObjectState(id, state = {}) {
     const record = this.store.get(id);
     record.state = structuredClone(state);
