@@ -92,6 +92,7 @@ export class ToolCallingAgent {
       const world = await this.tools.call('listObjects');
       const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
       const task = this.tools.taskObservation?.({ lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved }) || null;
+      if (this.tools.runtime) this.tools.runtime.lastTaskObservation = task ? structuredClone(task) : null;
       const response = await gateway.complete({
         messages,
         tools:this.tools.definitions(),
