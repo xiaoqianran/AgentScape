@@ -26,6 +26,15 @@ describe('BehaviorCompiler',()=>{
     expect(runtime.interactions.approachAndPickup).toHaveBeenCalledWith('a','cup');
     expect(runtime.interactions.approachAndPlace).toHaveBeenCalledWith('a','table');
   });
+
+  it('compiles and verifies SWITCH as an explicit typed state transition',async()=>{
+    const command=compileInteractionIntent({id:'toggle-light',targetId:'light_01',capability:'switch',stateKey:'enabled',value:true});
+    expect(command).toMatchObject({capability:'SWITCH',targetId:'light_01',stateKey:'enabled',value:true,effect:{kind:'set-state'}});
+    expect(verifyBehaviorCommand(command,{status:'state-transition-applied',targetId:'light_01',stateKey:'enabled',value:true})).toEqual({verified:true});
+    const runtime={applyStateTransition:vi.fn(()=>({status:'state-transition-applied',targetId:'light_01',stateKey:'enabled',value:true}))};
+    await executeBehaviorCommand(runtime,command); expect(runtime.applyStateTransition).toHaveBeenCalledWith('light_01','enabled',true,{source:'behavior-command',commandId:'interaction:toggle-light'});
+  });
+
   it('rejects unsupported capabilities before Runtime execution',()=>{ expect(()=>compileInteractionIntent({id:'grab',targetId:'box',capability:'GRAB'})).toThrow(/Unsupported interaction capability/); });
   it('compiles a deterministic graph and rejects duplicate command ids',()=>{ expect(compileBehaviorGraph([{id:'a',targetId:'door',capability:'open'},{id:'b',targetId:'door',capability:'close'}]).commands).toHaveLength(2); expect(()=>compileBehaviorGraph([{id:'a',targetId:'door',capability:'open'},{id:'a',targetId:'door',capability:'open'}])).toThrow(/Duplicate runtime command/); });
   it('verifies only a completed, settled result for the compiled command',()=>{
