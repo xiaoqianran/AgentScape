@@ -61,7 +61,8 @@ export AGENTSCAPE_MODAL_AGENT_SESSION='...'
 - 当前 Artifact 内容门支持 GLB、PNG、JPEG、WebP，足够覆盖统一 2D→3D 主链；未知 MIME fail closed；
 - `ConnectorTextTo3DPipeline` 已完成两阶段 Job 编排：2D `primary-image` 直接以 opaque artifact reference 交给 3D request builder，最终只下载 `primary-glb`；
 - 组合式 pipeline 默认只接受 `image/png` 作为 lossless `primary-image`，preview/WebP 不会自动进入 3D；
-- `modal-2d` 当前尚无实际仓库与最终 input wire schema，因此 Connector pipeline 通过 request builder 注入 provider-specific inputs，避免 client 提前发明字段。
+- `modal-2d` 当前尚无实际仓库与最终 input wire schema，因此 Connector pipeline 通过 request builder 注入 provider-specific inputs，避免 client 提前发明字段；
+- 契约级 E2E 已覆盖 `Session → Capability → 2D Job → primary-image ref → 3D Job → primary-glb → Artifact → manifest`，并验证 capability revision/hash 漂移会在下一阶段 submit 前 fail closed。
 
 ## 命令
 
