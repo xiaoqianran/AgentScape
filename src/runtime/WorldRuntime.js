@@ -150,24 +150,37 @@ export class WorldRuntime {
       throw error;
     }
     this.mutationOwner = label;
-    const before = this.snapshot();
-    if (!this.history.begin(label, before)) {
-      this.mutationOwner = null;
-      const error = new Error('World history transaction unavailable');
-      error.code = 'WORLD_MUTATION_BUSY';
-      throw error;
-    }
     try {
-      let result;
-      await this.sceneGraph.batch(async () => {
-        result = await operation();
-        this.sceneGraph.changed();
-      });
-      this.history.commit(this.snapshot(), meta);
-      return result;
-    } catch (error) {
-      this.history.cancel();
-      throw error;
+      const before = this.snapshot();
+      if (!this.history.begin(label, before)) {
+        const error = new Error('World history transaction unavailable');
+        error.code = 'WORLD_MUTATION_BUSY';
+        throw error;
+      }
+      try {
+        let result;
+        await this.sceneGraph.batch(async () => {
+          result = await operation();
+          this.sceneGraph.changed();
+        });
+        this.history.commit(this.snapshot(), meta);
+        return result;
+      } catch (error) {
+        this.history.cancel();
+        try {
+          await this.restore(before);
+        } catch (rollbackError) {
+          const failure = new AggregateError(
+            [error, rollbackError],
+            `World mutation rollback failed: ${label}`,
+            { cause:error }
+          );
+          failure.code = 'WORLD_MUTATION_ROLLBACK_FAILED';
+          failure.rollbackError = rollbackError;
+          throw failure;
+        }
+        throw error;
+      }
     } finally {
       this.mutationOwner = null;
     }
