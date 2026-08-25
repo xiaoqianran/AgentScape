@@ -76,7 +76,7 @@ class ConnectorArtifactTransport:
         return selected
 
     def download(self, summary: ArtifactSummary, destination: Path) -> Artifact:
-        artifact_id, mime, expected_bytes, expected_hash, format_name = self._validate_summary(summary)
+        artifact_id, mime, expected_bytes, expected_hash, format_name = self.validate_summary(summary)
         if expected_bytes > self.max_bytes:
             raise ArtifactError(f"Artifact 声明大小超过限制: {expected_bytes} > {self.max_bytes}")
 
@@ -200,7 +200,7 @@ class ConnectorArtifactTransport:
             temp_path.unlink(missing_ok=True)
 
     @staticmethod
-    def _validate_summary(summary: ArtifactSummary) -> tuple[str, str, int, str, str]:
+    def validate_summary(summary: ArtifactSummary) -> tuple[str, str, int, str, str]:
         artifact_id = str(summary.id or "").strip()
         if not _SAFE_ID.fullmatch(artifact_id):
             raise ContractError("Artifact ID 必须是 opaque URL-safe identifier")
