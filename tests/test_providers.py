@@ -94,6 +94,8 @@ def test_modal_reconstruct_contract(tmp_path: Path) -> None:
         path = request.url.path
         if request.method == "POST" and path == "/v1/projects":
             return httpx.Response(200, json={"id": "p1"})
+        if request.method == "POST" and path == "/v1/projects/p1/preprocess":
+            return httpx.Response(404, json={"detail": "legacy agent"})
         if request.method == "POST" and path == "/v1/projects/p1/segment":
             return httpx.Response(
                 200,
@@ -139,6 +141,13 @@ def test_modal_no_candidate_fails_before_generation(tmp_path: Path) -> None:
     source.write_bytes(b"image")
     provider = Modal3DProvider("http://agent")
     provider.create_project = lambda _: {"id": "p1"}
+
+    def missing_preprocess(_project_id: str):
+        request = httpx.Request("POST", "http://agent/v1/projects/p1/preprocess")
+        response = httpx.Response(404, request=request)
+        raise httpx.HTTPStatusError("legacy route missing", request=request, response=response)
+
+    provider.preprocess = missing_preprocess
     provider.segment = lambda _project_id, _concept: {"selection": {"candidates": []}}
 
     with pytest.raises(ProviderError, match="SAM found no candidate"):
@@ -203,8 +212,7 @@ def test_modal_succeeded_without_artifact_is_contract_error(tmp_path: Path) -> N
     source.write_bytes(b"image")
     provider = Modal3DProvider("http://agent")
     provider.create_project = lambda _: {"id": "p1"}
-    provider.segment = lambda *_: {"selection": {"candidates": [{"candidate_id": "c1"}]}}
-    provider.materialize = lambda *_args, **_kwargs: {}
+    provider.prepare_project = lambda *_args, **_kwargs: None
     provider.submit_generation = lambda *_args, **_kwargs: {"id": "j1"}
     provider.wait = lambda *_args, **_kwargs: {"id": "j1", "status": "succeeded", "result": {}}
 
@@ -257,3 +265,103 @@ def test_modal_artifact_hash_mismatch_never_replaces_destination(tmp_path: Path)
         )
 
     assert destination.read_bytes() == b"existing"
+
+
+def test_modal_reconstruct_v2_preprocess_contract(tmp_path: Path) -> None:
+    glb = make_glb()
+    descriptor = artifact_descriptor(glb)
+    source = tmp_path / "reference.png"
+    source.write_bytes(b"\x89PNG\r\n\x1a\nmock")
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        calls.append(path)
+        if request.method == "POST" and path == "/v1/projects":
+            return httpx.Response(200, json={"id": "p1"})
+        if request.method == "POST" and path == "/v1/projects/p1/preprocess":
+            return httpx.Response(
+                200,
+                json={
+                    "canonical": {
+                        "id": "can_01",
+                        "role": "canonical-rgba",
+                        "mime": "image/png",
+                        "bytes": 4096,
+                        "sha256": "a" * 64,
+                        "width": 1024,
+                        "height": 1024,
+                        "mode": "RGBA",
+                    }
+                },
+            )
+        if request.method == "POST" and path == "/v1/projects/p1/generation":
+            return httpx.Response(200, json={"job": {"id": "j1", "status": "running"}})
+        if request.method == "GET" and path == "/v1/jobs/j1":
+            return httpx.Response(
+                200,
+                json={"id": "j1", "status": "succeeded", "result": {"artifact": descriptor}},
+            )
+        if request.method == "GET" and path == "/v1/jobs/j1/artifact":
+            return httpx.Response(200, content=glb)
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
+
+    provider = Modal3DProvider(
+        "http://agent",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        poll_interval=0,
+    )
+    result = provider.reconstruct(
+        source,
+        tmp_path / "model.glb",
+        concept="ignored by v2 preprocess",
+        model="fastsam3d",
+    )
+
+    assert result.candidate_id is None
+    assert "/v1/projects/p1/preprocess" in calls
+    assert "/v1/projects/p1/segment" not in calls
+    assert "/v1/projects/p1/materialize" not in calls
+
+
+def test_modal_preprocess_contract_is_fail_closed() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "canonical": {
+                    "role": "canonical-rgba",
+                    "mime": "image/png",
+                    "bytes": 10,
+                    "sha256": "a" * 64,
+                    "width": 512,
+                    "height": 1024,
+                    "mode": "RGBA",
+                }
+            },
+        )
+
+    provider = Modal3DProvider(
+        "http://agent",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    with pytest.raises(ContractError, match="1024x1024 RGBA PNG"):
+        provider.preprocess("p1")
+
+
+def test_modal_preprocess_failure_does_not_fallback_to_legacy() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path.endswith("/preprocess"):
+            return httpx.Response(422, json={"detail": "foreground too small"})
+        raise AssertionError("legacy fallback must not run")
+
+    provider = Modal3DProvider(
+        "http://agent",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.prepare_project("p1", "object")
+    assert calls == ["/v1/projects/p1/preprocess"]

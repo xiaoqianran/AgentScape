@@ -47,6 +47,8 @@ export AGENTSCAPE_MODAL_AGENT_SESSION='...'
 - 3D operation 固定为 `modal-3d.asset.image_to_3d.v1`；
 - `requestHash` / `idempotencyKey` 与 AgentScape 的稳定 JSON 算法一致，且敏感字段直接拒绝进入 Job request；
 - direct `modal-3D-client` adapter 支持取消与持久 Job 恢复；统一 Connector 下的 `cancel/resume/idempotency` 能力以实时 capability snapshot 为准，不在 client 硬编码；
+- direct `modal-3D-client` adapter 优先支持新 `project → preprocess(rembg) → canonical RGBA → generation` 链，只有 `/preprocess` 明确 404/405 才回退旧 SAM `segment → materialize`；
+- 新 preprocess canonical 必须满足 `1024×1024 / RGBA / image/png / canonical-rgba`，422/5xx 等真实预处理失败不会偷偷降级；
 - 生成 GLB 通过 Job-scoped artifact endpoint 获取，不再使用已退休的 path-based `/v1/assets`；
 - `JobController` 统一 `submit/get/cancel/observe` 的幂等与状态迁移门禁，状态机与 AgentScape 完全一致；
 - `JobController` 只保留进程内 projection cache，不写 DB、不管理 Connector session，也不冒充统一 Connector 的持久 JobStore；

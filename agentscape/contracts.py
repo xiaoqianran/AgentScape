@@ -119,7 +119,7 @@ class ReconstructionResult:
     model: str
     project_id: str
     job_id: str
-    candidate_id: str
+    candidate_id: str | None
     artifact: Artifact
 
     def to_dict(self) -> dict[str, object]:

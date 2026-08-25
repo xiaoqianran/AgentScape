@@ -26,6 +26,13 @@ _JOB_STATUSES = {
     "expired",
 }
 _TERMINAL_JOB_STATUSES = {"succeeded", "failed", "cancelled", "expired"}
+_CANONICAL_DESCRIPTOR = {
+    "role": "canonical-rgba",
+    "mime": "image/png",
+    "width": 1024,
+    "height": 1024,
+    "mode": "RGBA",
+}
 
 
 class Modal3DProvider:
@@ -79,6 +86,57 @@ class Modal3DProvider:
         if not isinstance(value, dict) or not value.get("id"):
             raise ContractError("modal-3D /v1/projects 返回缺少 id")
         return value
+
+    def preprocess(self, project_id: str) -> dict:
+        value = self._request(
+            "POST",
+            f"/v1/projects/{project_id}/preprocess",
+        ).json()
+        if not isinstance(value, dict):
+            raise ContractError("modal-3D preprocess 返回结构无效")
+        canonical = value.get("canonical")
+        if not isinstance(canonical, dict):
+            raise ContractError("modal-3D preprocess 返回缺少 canonical")
+        if any(canonical.get(key) != expected for key, expected in _CANONICAL_DESCRIPTOR.items()):
+            raise ContractError("modal-3D preprocess canonical 必须是 1024x1024 RGBA PNG")
+        size = canonical.get("bytes")
+        digest = canonical.get("sha256")
+        if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
+            raise ContractError("modal-3D preprocess canonical.bytes 无效")
+        if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+            raise ContractError("modal-3D preprocess canonical.sha256 无效")
+        return value
+
+    def prepare_project(
+        self,
+        project_id: str,
+        concept: str,
+        *,
+        output_size: int = 1024,
+    ) -> str | None:
+        try:
+            self.preprocess(project_id)
+            return None
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code not in {404, 405}:
+                raise
+
+        selection = self.segment(project_id, concept)
+        selected = selection.get("selection")
+        if not isinstance(selected, dict):
+            raise ContractError("modal-3D segment 返回缺少 selection")
+        candidates = selected.get("candidates")
+        if not isinstance(candidates, list):
+            raise ContractError("modal-3D segment 返回的 candidates 无效")
+        if not candidates:
+            raise ProviderError(f"SAM found no candidate matching concept: {concept}")
+
+        candidate = candidates[0]
+        if not isinstance(candidate, dict) or not candidate.get("candidate_id"):
+            raise ContractError("modal-3D segment candidate 缺少 candidate_id")
+        candidate_id = str(candidate["candidate_id"])
+        self.materialize(project_id, candidate_id, output_size=output_size)
+        return candidate_id
 
     def segment(self, project_id: str, concept: str) -> dict:
         value = self._request(
@@ -216,22 +274,11 @@ class Modal3DProvider:
     ) -> ReconstructionResult:
         project = self.create_project(image_path)
         project_id = str(project["id"])
-        selection = self.segment(project_id, concept)
-        selected = selection.get("selection")
-        if not isinstance(selected, dict):
-            raise ContractError("modal-3D segment 返回缺少 selection")
-        candidates = selected.get("candidates")
-        if not isinstance(candidates, list):
-            raise ContractError("modal-3D segment 返回的 candidates 无效")
-        if not candidates:
-            raise ProviderError(f"SAM found no candidate matching concept: {concept}")
-
-        candidate = candidates[0]
-        if not isinstance(candidate, dict) or not candidate.get("candidate_id"):
-            raise ContractError("modal-3D segment candidate 缺少 candidate_id")
-        candidate_id = str(candidate["candidate_id"])
-
-        self.materialize(project_id, candidate_id, output_size=output_size)
+        candidate_id = self.prepare_project(
+            project_id,
+            concept,
+            output_size=output_size,
+        )
         job = self.submit_generation(project_id, model=model, profile=profile, seed=seed)
         job_id = str(job["id"])
         finished = self.wait(job_id, timeout=timeout)
