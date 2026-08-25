@@ -138,7 +138,8 @@ export function registerCoreSkills(registry, runtime) {
     const graph=compileWorldAcceptance(a.criteria || []);
     const task=runtime.lastTaskObservation || {};
     const result=evaluateWorldAcceptance(runtime,graph,{unresolvedMutations:Array.isArray(task.unresolvedMutations)?task.unresolvedMutations:undefined});
-    const bundle=buildAcceptanceEvidenceBundle(graph,result,{source:'agent-tool'});
+    const revision=runtime.currentWorldRevision;
+    const bundle=buildAcceptanceEvidenceBundle(graph,result,{source:'agent-tool',worldRevisionId:revision?.revision?.id || null,provenance:revision?.provenance || null});
     runtime.lastAcceptanceBundle=structuredClone(bundle);
     runtime.trace?.emit?.('world.acceptance',{bundle:structuredClone(bundle)},{actor:'agent'});
     return {...result,acceptanceBundle:bundle};
