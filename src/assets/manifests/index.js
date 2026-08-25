@@ -58,7 +58,7 @@ export const assetManifests = {
         joint: {
           type: 'revolute', axis: [0, 1, 0], limits: [-1.35, 0],
           parentAnchor: [-0.82, 1, 0.39], childAnchor: [0, 0, 0],
-          motor: { stiffness: 45, damping: 9 }
+          motor: { stiffness: 80, damping: 12 }
         }
       }
     }

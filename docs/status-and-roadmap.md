@@ -12,7 +12,9 @@
                            当前 ≈ 91%
 ```
 
-94% 不是“代码写完 94%”。1.34 已闭合 Prompt→WorldSpec→deterministic composition→canonical admission→missing-asset bounded regeneration；基础 Runtime / Asset→Executable 纵向链已经成熟，当前 generated-world 主线剩余主要是 non-retriable finding 的受约束 WorldSpec revision 与更复杂的全局空间约束。
+91% 不是“代码写完 91%”，也不表示 AgentScape 的最终使命已经完成 91%。这个数字只粗略衡量当前定义下 **“普通 GLB → 可信 Agent World + 当前 generated-world vertical slice”** 的成熟度。1.34 已闭合 Prompt→WorldSpec→deterministic composition→canonical admission→missing-asset bounded regeneration；基础 Runtime / Asset→Executable 纵向链已经成熟，当前 generated-world 主线剩余主要是 non-retriable finding 的受约束 WorldSpec revision 与更复杂的全局空间约束。
+
+最终使命、World IR、五大核心系统和多 AI 分工，统一见 [`mission-and-system-plan.md`](./mission-and-system-plan.md)。
 
 ---
 
@@ -37,7 +39,7 @@
 | Navigation / Reachability | 90% | 1.15 已有 Detour path + Rapier physical locomotion；自动动态 replan / off-mesh / multi-agent avoidance 仍缺 |
 | 大型 World Runtime | 58% | 1.13 已有 96×72m 城市基线；19 Recast meshes / 38 renderables / 330–489ms build，当前暂无 streaming 证据 |
 | Multi-Agent | 10% | 不是当前优先级 |
-| 完整生成式 World Pipeline | 76% | 1.34 已有 missing-asset-only bounded regeneration、fixed attempt budget 与 exact-plan duplicate gate；下一步是 non-retriable finding→受约束 WorldSpec revision |
+| 完整生成式 World Pipeline | 76% | 1.34 已有 missing-asset-only bounded regeneration、fixed attempt budget 与 exact-plan duplicate gate；下一步按新架构先收敛 World IR revision/acceptance contract，再实现 non-retriable finding→受约束修订 |
 | Pages / Art Direction | 78% | Monument Hall + Ruined Courtyard + Grand Urban Block；world pack JS 已按当前选择 lazy load |
 
 ---
@@ -392,23 +394,59 @@ Runtime 新增纯 `WorldComposer`：从 Manifest root colliders 推导 footprint
 
 ---
 
-## 27. 当前 P0：Rejected Finding → Constrained WorldSpec Revision
+## 27. 当前 P0：G0 Runtime Atomicity + G1 World IR Foundation
 
-下一步只处理 1.34 明确标为 non-retriable 的 evidence，不让 Runtime 偷改用户意图：
+在最终使命重新梳理后，当前 P0 不再直接“恢复一个 WorldRevision 原型”。首先需要把两个基础 contract 稳定下来：
+
+```text
+Track A / 轨道 A
+WorldRuntime mutation
+        ↓
+partial mutation + throw
+        ↓
+restore(before)
+        ↓
+exception-atomic transaction
+异常原子事务
+
+Track B / 轨道 B
+Current WorldSpec / 当前 WorldSpec
+        ↓
+World IR vNext contract
+        ↓
+revision + provenance
+physics requirement
+capability/state
+interaction/rule intent
+acceptance
+        ↓
+compatibility normalizer
+兼容归一化
+```
+
+两条基础线稳定后，1.34 已知 non-retriable finding 才进入正式闭环：
 
 ```text
 layout / relation / validation finding
-→ compact repair evidence
-→ Agent proposes revised WorldSpec
-→ changed-plan gate
-→ canonical pipeline
-→ Runtime revalidates
+布局 / 关系 / 验证问题
+        ↓
+compact evidence / 压缩证据
+        ↓
+constrained IR revision proposal
+受约束 IR 修订提议
+        ↓
+changed-plan gate / 变更计划门
+        ↓
+canonical recompile / 标准重编译
+        ↓
+Runtime + Verification / 运行时重新验证
 ```
 
-优先研究可以机器表达的 constraint revision，而不是引入无界 search tree。
+优先研究可机器表达、可归因、可回滚的 revision，不引入无界 search tree，也不允许 finding handler 直接 patch live world 作为永久真值。
+
+Physics 同时进入接口化准备：当前 Rapier 仍是默认实时后端，但长期由 PhysicsBackend contract + capability routing 承担，不把具体 solver 名写进 World IR 语义。
 
 ---
-
 ## 28. P1：Dynamic Third-body / Environment Counterfactual Fidelity
 
 1.31 将其它 world collider 视为 query-time static background。后续继续研究 dynamic third-body motion envelope / environment moving parts 的保守 coverage，但当前主线优先转向 generated-world orchestration。
@@ -561,99 +599,115 @@ Isaac-style Manager 体系
 
 ## 34. 产品差异化应该是什么
 
-不应该是：
+不应该只是：
 
 ```text
 AI + Three.js Editor
 ```
 
-因为 Feather、Aedifex、Trigen、Gizmo 等已经覆盖很多。
-
-更值得守的是：
+AgentScape 更值得守的产品边界是 **World Compilation Authority / 世界编译权**：
 
 ```text
-Unknown GLB
-   ↓
-Evidence
-   ↓
-Executable Asset
-   ↓
-Physical Runtime
-   ↓
-Verification
-   ↓
-Machine-readable failure
-   ↓
-Spatial / Navigation Truth
-   ↓
-Agent World
+Natural-language World Intent / 自然语言世界意图
+                 ↓
+World IR / 世界中间表示
+                 ↓
+┌──────────────────────────────────┐
+│ Asset Compiler / 资产编译器      │
+│ Interaction & Rule Compiler      │
+│ 交互与规则编译器                 │
+└────────────────┬─────────────────┘
+                 ↓
+World Runtime / 世界运行时
+                 ↓
+Physics Capability / 可替换物理能力
+Navigation / 导航
+Interaction / 交互
+                 ↓
+Verification / 验证
+                 ↓
+Machine-readable Finding / 机器可读问题
+                 ↓
+Bounded Repair + IR Revision / 有界修复与 IR 修订
+                 ↓
+Verified World / 已验证世界
 ```
+
+关键差异不是“用了 Rapier”或“接了哪个 3D Generator”，而是任何 Provider、Planner、Physics Backend 都必须进入同一编译与验证真值链。
 
 ---
 
 ## 35. 未来完成态
 
-可以把 100% 理解为：
+最终 100% 不再定义成“把已有 Runtime feature list 全做完”，而是五大核心能够形成稳定的闭环：
 
 ```text
-Generator-neutral assets/worlds
+① World Planner / 世界规划器
+Natural language → World IR
+自然语言 → 世界 IR
           │
           ▼
-Agent-Ready Compiler
+② Physical-Semantic Asset Compiler / 物理语义资产编译器
+Raw 3D → Executable Entity
+原始 3D → 可执行实体
           │
           ▼
-Verified executable objects
+③ Interaction & Rule Compiler / 交互与规则编译器
+Semantics → Executable Behavior
+语义 → 可执行行为
           │
           ▼
-Navigation / reachability
+④ World Runtime / 世界运行时
+Render + Physics + Navigation + State
+渲染 + 可替换物理能力 + 导航 + 状态
           │
           ▼
-Manipulation / grasp
+⑤ Verification & Repair / 验证与修复
+Execute → Verify → Attribute → Repair
+执行 → 验证 → 归因 → 修复
           │
-          ▼
-Task planning
-          │
-          ▼
-Persistent large worlds
-          │
-          ▼
-Multi-agent / long-running world state
+          └──────── constrained revision / 受约束修订 ───────► World IR
 ```
 
-AgentScape 当前已经站在：
+物理层的最终形态是：
 
 ```text
-Verified executable objects
+PhysicsRequirement / 物理需求
+        ↓
+Physics Capability Router / 物理能力路由
+        ├─ Rapier Adapter / 当前默认实时刚体与关节
+        ├─ Validation Backend / 高精度验证后端
+        └─ Future Backend / Genesis、PhysX 或其他候选
 ```
 
-之前的最后一段和之后的第一段之间。
+AgentScape 不重新发明 solver；它负责选择满足 contract 的物理能力、管理 authority scope，并把真实执行结果交给 Verification。
 
-所以接下来最重要的不是“再多一个 feature”，而是把：
+North-star / 北极星不是“场景看起来正确”，而是用户给出完整世界任务后：
 
 ```text
-可动
+Prompt
+  ↓
+World IR
+  ↓
+Asset + Behavior Compile
+  ↓
+World Runtime
+  ↓
+Agent executes
+  ↓
+Physics / Navigation / State evidence
+  ↓
+World Acceptance
+  ↓
+VERIFIED TASK COMPLETE
+任务真实验证完成
 ```
 
-升级成：
+当前 AgentScape 已经拥有很强的 Runtime、Asset Compiler 与 action-level Verification；主要缺口转向 World IR、Behavior Compiler、PhysicsBackend abstraction、world-level acceptance 与 bounded local repair。
 
-```text
-可信可执行
-```
-
-再把：
-
-```text
-有空位
-```
-
-升级成：
-
-```text
-真的可到达
-```
+因此文档顶部约 91% 的数字不能拿来表示这套最终使命的总完成度。
 
 ---
-
 ## 当前验证基线
 
 1.34.2 文档快照对应的仓库验证基线：

@@ -6,6 +6,15 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 
 ## 1. 学习主线
 
+### [`mission-and-system-plan.md`](./mission-and-system-plan.md) — 最终使命、目标架构与多 AI 分工
+
+回答：
+
+- AgentScape 最终要成为什么？
+- 为什么核心是“世界编译权”，而不是让 LLM 直接控制 Three.js？
+- World IR、资产、交互规则、Runtime、验证修复如何形成完整编译链？
+- 如果多个 AI 并行开发，怎样按 Architecture Ownership 分工而不制造多套 Truth？
+
 ### [`evolution.md`](./evolution.md) — 从第一个 Runtime 到当前版本
 
 回答：

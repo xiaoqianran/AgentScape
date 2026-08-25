@@ -246,6 +246,8 @@ GitHub Pages 是静态前端，模型密钥和重型服务凭据不应提交到�
 从 [`docs/README.md`](docs/README.md) 开始最方便。推荐顺序：
 
 ```text
+mission-and-system-plan
+      ↓
 status-and-roadmap
       ↓
 architecture

@@ -3,7 +3,7 @@ uvicorn[standard]>=0.35,<1
 python-multipart>=0.0.20,<1
 requests>=2.32,<3
 numpy>=2,<3
-trimesh>=4.7,<5
+trimesh>=5.0,<6
 coacd>=1.0,<2
 
 yourdfpy>=0.0.60,<1

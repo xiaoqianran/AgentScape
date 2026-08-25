@@ -1,8 +1,10 @@
 # AgentScape 当前架构全景
 
-本文描述 **1.34.0** 的真实架构，不描述未来设想。
+本文描述 **1.34.2** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
+
+> AgentScape 的最终使命、World IR / 世界中间表示、五大核心系统与多 AI 工作分解见 [`mission-and-system-plan.md`](./mission-and-system-plan.md)。本文只记录已经存在的 Runtime / Compiler / Agent / Verification 事实，避免把目标架构误写成当前实现。
 
 ---
 
