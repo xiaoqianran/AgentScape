@@ -4,7 +4,7 @@ import { WORLD_SPEC_SCHEMA } from '../pipeline/WorldSpec.js';
 import { buildWorldRetryPlan } from '../pipeline/WorldRetry.js';
 import { buildRecoveryProposals } from '../agent/buildRecoveryProposals.js';
 import { compileInteractionIntent, executeBehaviorCommand, verifyBehaviorCommand } from '../runtime/behavior/BehaviorCompiler.js';
-import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
+import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance, replayAcceptanceEvidence } from '../validation/WorldAcceptance.js';
 import { sanitizeJobData } from '../jobs/GenerationJobProjection.js';
 
 const string = { type: 'string' };
@@ -143,6 +143,23 @@ export function registerCoreSkills(registry, runtime) {
     runtime.lastAcceptanceBundle=structuredClone(bundle);
     runtime.trace?.emit?.('world.acceptance',{bundle:structuredClone(bundle)},{actor:'agent'});
     return {...result,acceptanceBundle:bundle};
+  });
+  add('replayWorldAcceptance', { ...meta('重新验证已保存的 acceptance evidence。restore 后的 evidence 仅是 historical；只有 revision 绑定一致且当前 Runtime 重跑 criteria 后仍为 world-accepted，才会生成新的 current acceptance bundle。', ['world.read','physics.read'], [], { evidence:{type:'object'} }), batchable:true, mutates:false }, async (a) => {
+    const source=a.evidence || runtime.restoredAcceptanceEvidence || runtime.lastAcceptanceBundle;
+    const task=runtime.lastTaskObservation || {};
+    let replay;
+    if(source){
+      replay=replayAcceptanceEvidence(runtime,source,{unresolvedMutations:Array.isArray(task.unresolvedMutations)?task.unresolvedMutations:undefined});
+    } else {
+      const graph=compileWorldAcceptance([]);
+      const result={schema:'agentscape.world-acceptance',schemaVersion:1,status:'world-incomplete',checks:[{id:'acceptance-evidence',kind:'evidence',verified:false,reason:'ACCEPTANCE_EVIDENCE_MISSING'}],verifiedCount:0,failedCount:1};
+      const revision=runtime.currentWorldRevision;
+      const bundle=buildAcceptanceEvidenceBundle(graph,result,{source:'acceptance-replay',worldRevisionId:revision?.revision?.id || null,provenance:revision?.provenance || null});
+      replay={...result,replay:{status:'unavailable',reason:'ACCEPTANCE_EVIDENCE_MISSING',evidenceRevisionId:null,currentRevisionId:revision?.revision?.id || null,previousStatus:null,changedCriteria:['acceptance-evidence']},acceptanceBundle:bundle};
+    }
+    runtime.lastAcceptanceBundle=structuredClone(replay.acceptanceBundle);
+    runtime.trace?.emit?.('world.acceptance-replayed',{replay:structuredClone(replay.replay),bundle:structuredClone(replay.acceptanceBundle)},{actor:'agent'});
+    return replay;
   });
   add('getArticulationStatus', meta('读取 articulated object 的 live joint 状态：当前 coordinate、requestedAction、verifiedAction，以及 moving/completed/failed/unverified observer 结果。STALL 若有当前 Rapier contact，会附 contact-evidence blockerCandidates；它表示失败时正在接触，不证明唯一因果。不会把 motor request 当成完成。', ['world.read','physics.read'], ['id'], { id:string, partName:string }), (a) => runtime.interactions.articulationStatus(a.id,a.partName));
   add('recoverPickupBlocker', { ...meta('执行一个窄范围的 articulated STALL recovery：仅当 blocker 仍是当前 external contact candidate、Policy 允许且具身 pickup preflight 仍通过时，才真实 approachAndPickup。它是辅助 mutation；成功只表示 blocker 被 held，不表示原始 open/close 已恢复，之后必须 retry 原始 action。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId'], { actorId:string,targetId:string,partName:string,blockerId:string }), batchable:false,auxiliary:true,mutates:true }, async (a,{registry,context}) => {
