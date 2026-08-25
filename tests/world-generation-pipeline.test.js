@@ -120,4 +120,35 @@ describe('generated world pipeline',()=>{
     expect(result.state.reports.worldAdmission).toMatchObject({status:'ready',relations:{status:'ready'}});
   });
 
+
+  it('emits a bounded revision context when world acceptance rejects the current revision',async()=>{
+    const assets=new AssetManager();
+    assets.registerManifest({id:'crate-revision',type:'container',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.5,.5,.5],translation:[0,.5,0]}]}});
+    const records=new Map();
+    const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:1,relations:0}};
+    const runtime={
+      events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},
+      environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
+      physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      spawn:vi.fn(async(assetId,{id})=>{records.set(id,{id,assetId,state:{enabled:false}});return id;}),
+      interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
+      validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),
+      store:{get:(id)=>records.get(id)}
+    };
+    const result=await createWorldPipeline(runtime).run({
+      schema:'agentscape.world-ir',schemaVersion:1,
+      revision:{id:'rev-accept'},provenance:{source:'planner',evidenceRefs:[]},intent:{name:'Acceptance Repair'},
+      policy:{generation:{generate:false}},
+      entities:[{id:'box_01',asset:{assetId:'crate-revision'}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],
+      acceptance:[{id:'box-enabled',kind:'state-equals',targetId:'box_01',stateKey:'enabled',value:true}]
+    });
+    expect(result.state.reports.worldAdmission).toMatchObject({status:'rejected',reasons:['WORLD_ACCEPTANCE_FAILED']});
+    expect(result.state.artifacts.revisionContext).toMatchObject({
+      schema:'agentscape.world-revision-context',baseRevisionId:'rev-accept',
+      affected:{seedEntityIds:['box_01'],editableEntityIds:['box_01']},
+      findings:[{source:'world-acceptance',code:'A_STATE_MISMATCH',worldRevisionId:'rev-accept'}]
+    });
+    expect(result.state.artifacts.revisionContext.subgraph.entities.map((entity)=>entity.id)).toEqual(['box_01']);
+  });
+
 });

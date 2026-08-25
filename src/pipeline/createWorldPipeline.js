@@ -3,6 +3,7 @@ import { normalizeWorldIR, worldIRToWorldSpec } from './WorldIR.js';
 import { assetAdmission } from '../assets/admission.js';
 import { composeNearPlacement, composeWorldLayout } from './WorldComposer.js';
 import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
+import { buildWorldRevisionContext } from './WorldRevision.js';
 
 export function createWorldPipeline(runtime) {
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
@@ -10,6 +11,7 @@ export function createWorldPipeline(runtime) {
   pipeline.register('normalize_spec', async (state) => {
     const worldIR = normalizeWorldIR(state.input);
     state.artifacts.worldIR = structuredClone(worldIR);
+    runtime.currentWorldRevision={revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)};
     state.input = worldIRToWorldSpec(worldIR);
     state.artifacts.worldSpec = structuredClone(state.input);
     return state;
@@ -143,7 +145,6 @@ export function createWorldPipeline(runtime) {
     const layoutAdmission=state.reports.layoutAdmission || {status:'ready',placements:[],issues:[]};
     const relationAdmission=state.reports.relationAdmission || {status:'ready',applied:[],issues:[]};
     const worldIR=state.artifacts.worldIR;
-    runtime.currentWorldRevision=worldIR ? {revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)} : null;
     const acceptanceGraph=worldIR?.acceptance?.length ? compileWorldAcceptance(worldIR.acceptance) : null;
     if(!acceptanceGraph) runtime.lastAcceptanceBundle=null;
     const worldAcceptance=acceptanceGraph ? evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined}) : null;
@@ -176,6 +177,11 @@ export function createWorldPipeline(runtime) {
       relations:structuredClone(relationAdmission),
       ...(worldAcceptance?{acceptance:structuredClone(worldAcceptance)}:{})
     };
+    const revisionFindings=[
+      ...(validation.findings||[]).filter((finding)=>finding.severity==='hard'),
+      ...(state.artifacts.acceptanceEvidence?.findings||[])
+    ];
+    if(status==='rejected'&&revisionFindings.length) state.artifacts.revisionContext=buildWorldRevisionContext(worldIR,revisionFindings);
     state.artifacts.scene = runtime.serialize({ name: state.input.name || 'Generated World' });
     return state;
   });
