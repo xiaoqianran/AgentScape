@@ -69,9 +69,9 @@ class ArtifactSummary:
 
     id: str
     role: str
-    mime: str
-    bytes: int
-    hash: str
+    mime: str | None
+    bytes: int | None
+    hash: str | None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -88,9 +88,13 @@ class JobResult:
     """只描述 Provider 结果，不伪造 Connector Job identity。"""
 
     artifacts: tuple[ArtifactSummary, ...]
+    manifest_id: str | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return {"artifacts": [artifact.to_dict() for artifact in self.artifacts]}
+        result: dict[str, object] = {"artifacts": [artifact.to_dict() for artifact in self.artifacts]}
+        if self.manifest_id is not None:
+            result["manifestId"] = self.manifest_id
+        return result
 
 
 @dataclass(frozen=True, slots=True)

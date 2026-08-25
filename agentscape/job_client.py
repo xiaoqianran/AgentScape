@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from hashlib import sha256
+import json
 from typing import Protocol
 
 from .contracts import JobResult
@@ -55,6 +57,7 @@ class JobState:
     idempotency_key: str
     status: str
     event_sequence: int
+    kind: str = "generation"
     contract_version: str = "1"
     capability_hash: str = ""
     capability_revision: str = ""
@@ -62,6 +65,7 @@ class JobState:
     error_code: str | None = None
     error_message: str | None = None
     recoverable: bool = False
+    fact_signature: str = ""
 
     def __post_init__(self) -> None:
         if not SAFE_JOB_ID.fullmatch(self.id):
@@ -86,6 +90,18 @@ class JobState:
             raise ContractError("Job state 缺少 request identity")
         if not self.contract_version or not self.capability_hash or not self.capability_revision:
             raise ContractError("Job state 缺少 capability identity")
+        if not self.fact_signature:
+            facts = {
+                "status": self.status,
+                "result": None if self.result is None else self.result.to_dict(),
+                "error": None if self.error_code is None else {
+                    "code": self.error_code,
+                    "message": self.error_message,
+                    "recoverable": self.recoverable,
+                },
+            }
+            encoded = json.dumps(facts, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+            object.__setattr__(self, "fact_signature", sha256(encoded).hexdigest())
 
     @property
     def terminal(self) -> bool:
@@ -180,7 +196,7 @@ class JobController:
         if job.event_sequence < previous.event_sequence:
             return previous
         if job.event_sequence == previous.event_sequence:
-            if job != previous:
+            if job.fact_signature != previous.fact_signature:
                 raise ContractError(
                     f"同一 Job event_sequence 出现冲突事实: {job.id}@{job.event_sequence}"
                 )
@@ -213,6 +229,7 @@ class JobController:
             "contract_version",
             "capability_hash",
             "capability_revision",
+            "kind",
         ):
             if getattr(previous, field) != getattr(current, field):
                 raise ContractError(f"Job immutable identity 发生变化: {field}")

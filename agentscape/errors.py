@@ -20,3 +20,12 @@ class ConnectionRequiredError(AgentScapeClientError):
 
 class IdempotencyConflictError(ContractError):
     """同一幂等键绑定了不同 request 或 Job。"""
+
+
+class ConnectorHttpError(ProviderError):
+    """Connector 返回非成功 HTTP 状态。"""
+
+    def __init__(self, *, code: str, status: int) -> None:
+        self.code = code
+        self.status = status
+        super().__init__(f"Connector HTTP {status}: {code}")

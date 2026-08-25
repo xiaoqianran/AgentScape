@@ -45,6 +45,12 @@ def _safe_json(value: Any, path: str) -> JsonValue:
     raise ContractError(f"Job 数据不是 JSON 兼容类型: {path}")
 
 
+def sanitize_job_data(value: Any, path: str = "value") -> JsonValue:
+    """校验并复制可安全进入 Job contract 的 JSON 数据。"""
+
+    return _safe_json(value, path)
+
+
 def _utf16_key(value: str) -> bytes:
     return value.encode("utf-16-be", "surrogatepass")
 
