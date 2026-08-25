@@ -2,6 +2,7 @@ import { EmbodiedGenAdapter } from '../adapters/EmbodiedGenAdapter.js';
 import { assetAdmission } from '../assets/admission.js';
 import { WORLD_SPEC_SCHEMA } from '../pipeline/WorldSpec.js';
 import { buildWorldRetryPlan } from '../pipeline/WorldRetry.js';
+import { recompileWorldRevision } from '../pipeline/WorldRecompiler.js';
 import { buildRecoveryProposals } from '../agent/buildRecoveryProposals.js';
 import { compileInteractionIntent, executeBehaviorCommand, verifyBehaviorCommand } from '../runtime/behavior/BehaviorCompiler.js';
 import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance, replayAcceptanceEvidence } from '../validation/WorldAcceptance.js';
@@ -262,6 +263,10 @@ export function registerCoreSkills(registry, runtime) {
     }
     runtime.sceneGraph.changed();
     return { committed:true, rolledBack:false, results };
+  });
+
+  add('recompileWorldRevision', { ...meta('接受一个 bounded WorldRevision proposal，并在显式 acceptChangedPlan=true 后替换当前 world、重新执行完整 canonical pipeline 与 fresh verification/acceptance。proposal/gate 在任何 Runtime mutation 前校验；新 revision rejected 或执行异常时恢复原 scene。', ['world.write','asset.read','asset.write','physics.read'], ['baseWorldIR','proposal','acceptChangedPlan'], { baseWorldIR:{type:'object'}, proposal:{type:'object'}, acceptChangedPlan:{type:'boolean'} }), batchable:false, mutates:true }, async (a) => {
+    return recompileWorldRevision(runtime,{baseWorldIR:a.baseWorldIR,proposal:a.proposal,acceptChangedPlan:a.acceptChangedPlan===true});
   });
 
   add('runWorldPipeline', { ...meta('规范化 WorldSpec，解析/生成资产，经 admission 后实例化、应用关系、校验、修复并最终序列化。Agent 调用始终执行完整 canonical pipeline。若唯一 rejection 是可生成的 search miss，Runtime 最多自动重跑一次，只为缺失 asset 开启 generation；其它 rejection 不自动放宽约束。world-ready 才视为 verified；world-provisional 保留但不冒充验证；最终 world-rejected 会恢复调用前 scene。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: WORLD_SPEC_SCHEMA }), mutates: true }, async (a) => {
