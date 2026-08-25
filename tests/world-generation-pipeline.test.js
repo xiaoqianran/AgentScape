@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AssetManager } from '../src/runtime/AssetManager.js';
 import { AssetLibrary } from '../src/assets/library/AssetLibrary.js';
 import { createWorldPipeline } from '../src/pipeline/createWorldPipeline.js';
+import { PhysicsBackend } from '../src/runtime/physics/PhysicsBackend.js';
 
 describe('generated world pipeline',()=>{
   it('admits a raw EmbodiedGen asset, spawns it, validates the world, and preserves provisional admission',async()=>{
@@ -43,7 +44,7 @@ describe('generated world pipeline',()=>{
       status:'provisional',reasons:['ASSET_PROVISIONAL'],validation:{hard:0,advisory:0},assets:{status:'provisional'}
     });
     expect(result.state.artifacts.scene).toEqual({schema:'agentscape.scene',name:'Generated Lab',objects:['bench_01']});
-    expect(result.timeline.map((x)=>x.name)).toEqual(['normalize_spec','resolve_assets','asset_admission','compose_layout','behavior_admission','instantiate','apply_relations','validate','repair','finalize']);
+    expect(result.timeline.map((x)=>x.name)).toEqual(['normalize_spec','resolve_assets','asset_admission','compose_layout','behavior_admission','physics_admission','instantiate','apply_relations','validate','repair','finalize']);
   });
 
   it('marks a world rejected when a required generated asset cannot be resolved',async()=>{
@@ -178,6 +179,33 @@ describe('generated world pipeline',()=>{
     expect(result.state.reports.worldAdmission).toMatchObject({status:'ready',behavior:{status:'ready'}});
     expect(runtime.loadRuleGraph).toHaveBeenCalledWith(result.state.artifacts.behaviorBundle.ruleGraph);
     expect(runtime.currentBehaviorBundle).toEqual(result.state.artifacts.behaviorBundle);
+  });
+
+
+  it('admits backend-neutral PhysicsRequirement before world instantiation',async()=>{
+    const assets=new AssetManager();
+    assets.registerManifest({id:'physics-crate',type:'container',source:{kind:'builtin'},actions:['move'],physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.4,.4,.4]}]}});
+    const backend=new PhysicsBackend('test',['rigid-body','collision'],{executionModes:['realtime'],qualities:{realtime:true,deterministic:true}});
+    const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:1,relations:0}};
+    const runtime={events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{backend,manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(async(_assetId,{id})=>id),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}};
+    const result=await createWorldPipeline(runtime).run({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-physics'},provenance:{source:'planner'},intent:{name:'Physics World'},entities:[{id:'crate_01',asset:{assetId:'physics-crate'},physicsRequirement:{bodyClass:'rigid',requiredCapabilities:['collision'],executionMode:'realtime',qualityPolicy:{deterministicRequired:true}}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[{id:'valid',kind:'world-valid'}]});
+    expect(result.state.artifacts.physicsRequirements).toMatchObject({worldRevisionId:'rev-physics',requirements:[{entityId:'crate_01',bodyClass:'rigid',requiredCapabilities:['rigid-body','collision']}]});
+    expect(result.state.reports.physicsAdmission).toMatchObject({status:'ready',backend:{identity:'test'}});
+    expect(result.state.reports.worldAdmission).toMatchObject({status:'ready',physics:{status:'ready'}});
+    expect(runtime.spawn).toHaveBeenCalledOnce();
+    expect(runtime.currentPhysicsRequirements).toEqual(result.state.artifacts.physicsRequirements);
+  });
+
+  it('rejects unsupported PhysicsRequirement before spawning any object',async()=>{
+    const assets=new AssetManager();
+    assets.registerManifest({id:'soft-fixture',type:'object',source:{kind:'builtin'},actions:['move'],physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.4,.4,.4]}]}});
+    const backend=new PhysicsBackend('rigid-only',['rigid-body','collision'],{executionModes:['realtime'],qualities:{realtime:true,deterministic:true}});
+    const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:0,relations:0}};
+    const runtime={events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{backend,manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}};
+    const result=await createWorldPipeline(runtime).run({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-soft'},provenance:{source:'planner'},intent:{name:'Soft World'},entities:[{id:'soft_01',asset:{assetId:'soft-fixture'},physicsRequirement:{bodyClass:'soft',executionMode:'realtime'}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]});
+    expect(result.state.reports.physicsAdmission).toMatchObject({status:'rejected',issues:[{code:'PHYSICS_BACKEND_CAPABILITY_MISSING',entityId:'soft_01',capability:'soft-body'}]});
+    expect(result.state.reports.worldAdmission).toMatchObject({status:'rejected',reasons:['PHYSICS_BACKEND_CAPABILITY_MISSING']});
+    expect(runtime.spawn).not.toHaveBeenCalled();
   });
 
 });
