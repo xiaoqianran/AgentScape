@@ -43,7 +43,7 @@ describe('generated world pipeline',()=>{
       status:'provisional',reasons:['ASSET_PROVISIONAL'],validation:{hard:0,advisory:0},assets:{status:'provisional'}
     });
     expect(result.state.artifacts.scene).toEqual({schema:'agentscape.scene',name:'Generated Lab',objects:['bench_01']});
-    expect(result.timeline.map((x)=>x.name)).toEqual(['normalize_spec','resolve_assets','asset_admission','compose_layout','instantiate','apply_relations','validate','repair','finalize']);
+    expect(result.timeline.map((x)=>x.name)).toEqual(['normalize_spec','resolve_assets','asset_admission','compose_layout','behavior_admission','instantiate','apply_relations','validate','repair','finalize']);
   });
 
   it('marks a world rejected when a required generated asset cannot be resolved',async()=>{
@@ -149,6 +149,35 @@ describe('generated world pipeline',()=>{
       findings:[{source:'world-acceptance',code:'A_STATE_MISMATCH',worldRevisionId:'rev-accept'}]
     });
     expect(result.state.artifacts.revisionContext.subgraph.entities.map((entity)=>entity.id)).toEqual(['box_01']);
+  });
+
+
+  it('compiles World IR behavior and loads rules only after successful admission',async()=>{
+    const assets=new AssetManager();
+    assets.registerManifest({id:'behavior-light',type:'fixture',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.2,.2,.2]}]}});
+    const records=new Map();
+    const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:1,relations:0}};
+    const runtime={
+      events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},
+      environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      spawn:vi.fn(async(assetId,{id})=>{records.set(id,{id,assetId,state:{enabled:false}});return id;}),
+      interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
+      validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:id=>records.get(id)},
+      loadRuleGraph:vi.fn()
+    };
+    const result=await createWorldPipeline(runtime).run({
+      schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-behavior'},provenance:{source:'planner'},intent:{name:'Behavior World'},
+      entities:[{id:'light_01',asset:{assetId:'behavior-light'}}],
+      spatial:{relations:[],constraints:[]},
+      interactions:[{id:'switch-light',targetId:'light_01',capability:'switch',stateKey:'enabled',value:true}],
+      rules:[{id:'light-after-switch',event:'switch.clicked',effect:{kind:'set-state',targetId:'light_01',stateKey:'enabled',value:true}}],
+      acceptance:[{id:'valid',kind:'world-valid'}]
+    });
+    expect(result.state.artifacts.behaviorBundle).toMatchObject({worldRevisionId:'rev-behavior',behaviorGraph:{commands:[{commandId:'interaction:switch-light',capability:'SWITCH'}]},ruleGraph:{rules:[{id:'light-after-switch'}]}});
+    expect(result.state.reports.behaviorAdmission).toEqual({status:'ready',issues:[]});
+    expect(result.state.reports.worldAdmission).toMatchObject({status:'ready',behavior:{status:'ready'}});
+    expect(runtime.loadRuleGraph).toHaveBeenCalledWith(result.state.artifacts.behaviorBundle.ruleGraph);
+    expect(runtime.currentBehaviorBundle).toEqual(result.state.artifacts.behaviorBundle);
   });
 
 });

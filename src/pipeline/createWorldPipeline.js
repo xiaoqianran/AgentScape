@@ -4,6 +4,7 @@ import { assetAdmission } from '../assets/admission.js';
 import { composeNearPlacement, composeWorldLayout } from './WorldComposer.js';
 import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
 import { buildWorldRevisionContext } from './WorldRevision.js';
+import { admitWorldBehavior, compileWorldBehaviorBundle } from './WorldBehaviorCompiler.js';
 
 export function createWorldPipeline(runtime) {
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
@@ -12,7 +13,12 @@ export function createWorldPipeline(runtime) {
     const worldIR = normalizeWorldIR(state.input);
     state.artifacts.worldIR = structuredClone(worldIR);
     runtime.currentWorldRevision={revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)};
-    state.input = worldIRToWorldSpec(worldIR);
+    const behaviorBundle=compileWorldBehaviorBundle(worldIR);
+    state.artifacts.behaviorBundle=structuredClone(behaviorBundle);
+    const executableProjection=structuredClone(worldIR);
+    executableProjection.interactions=[];
+    executableProjection.rules=[];
+    state.input = worldIRToWorldSpec(executableProjection);
     state.artifacts.worldSpec = structuredClone(state.input);
     return state;
   });
@@ -77,9 +83,18 @@ export function createWorldPipeline(runtime) {
     return state;
   });
 
+  pipeline.register('behavior_admission', async (state) => {
+    if(state.reports.assetAdmission?.status==='rejected'){
+      state.reports.behaviorAdmission={status:'rejected',reason:'ASSET_ADMISSION_REJECTED',issues:[]};
+      return state;
+    }
+    state.reports.behaviorAdmission=admitWorldBehavior(state.artifacts.behaviorBundle,{resolvedAssets:state.artifacts.assets||[],getManifest:(assetId)=>runtime.assets.getManifest(assetId)});
+    return state;
+  });
+
   pipeline.register('instantiate', async (state) => {
     const spawned = [];
-    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected') {
+    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected' || state.reports.behaviorAdmission?.status==='rejected') {
       state.artifacts.spawned=spawned;
       return state;
     }
@@ -93,7 +108,7 @@ export function createWorldPipeline(runtime) {
   });
 
   pipeline.register('apply_relations', async (state) => {
-    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected') return state;
+    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected' || state.reports.behaviorAdmission?.status==='rejected') return state;
     const applied=[],issues=[];
     state.reports.relationAdmission={status:'ready',applied,issues};
     for (const relation of state.input.relations || []) {
@@ -128,7 +143,7 @@ export function createWorldPipeline(runtime) {
   });
 
   pipeline.register('repair', async (state) => {
-    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected' || state.reports.relationAdmission?.status==='rejected') {
+    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected' || state.reports.behaviorAdmission?.status==='rejected' || state.reports.relationAdmission?.status==='rejected') {
       state.reports.validationAfterRepair=state.reports.validation || runtime.validator.run();
       return state;
     }
@@ -144,6 +159,7 @@ export function createWorldPipeline(runtime) {
     const assetAdmission=state.reports.assetAdmission || { status:'ready', unresolved:[], provisional:[] };
     const layoutAdmission=state.reports.layoutAdmission || {status:'ready',placements:[],issues:[]};
     const relationAdmission=state.reports.relationAdmission || {status:'ready',applied:[],issues:[]};
+    const behaviorAdmission=state.reports.behaviorAdmission || {status:'ready',issues:[]};
     const worldIR=state.artifacts.worldIR;
     const acceptanceGraph=worldIR?.acceptance?.length ? compileWorldAcceptance(worldIR.acceptance) : null;
     if(!acceptanceGraph) runtime.lastAcceptanceBundle=null;
@@ -156,7 +172,7 @@ export function createWorldPipeline(runtime) {
       runtime.trace?.emit?.('world.acceptance',{bundle:structuredClone(bundle)},{actor:'world-pipeline'});
     }
     const acceptanceRejected=worldAcceptance?.status==='world-incomplete';
-    const status=validation.counts.hard || assetAdmission.status==='rejected' || layoutAdmission.status==='rejected' || relationAdmission.status==='rejected' || acceptanceRejected ? 'rejected'
+    const status=validation.counts.hard || assetAdmission.status==='rejected' || layoutAdmission.status==='rejected' || behaviorAdmission.status==='rejected' || relationAdmission.status==='rejected' || acceptanceRejected ? 'rejected'
       : validation.counts.advisory || assetAdmission.status==='provisional' || layoutAdmission.status==='provisional' ? 'provisional'
       : 'ready';
     state.reports.worldAdmission={
@@ -168,12 +184,14 @@ export function createWorldPipeline(runtime) {
         ...(assetAdmission.status==='provisional'?['ASSET_PROVISIONAL']:[]),
         ...(layoutAdmission.status==='rejected'?[layoutAdmission.reason || 'LAYOUT_REJECTED']:[]),
         ...(layoutAdmission.status==='provisional'?['LAYOUT_PROVISIONAL']:[]),
+        ...(behaviorAdmission.status==='rejected'&&behaviorAdmission.reason!=='ASSET_ADMISSION_REJECTED'?[behaviorAdmission.reason || behaviorAdmission.issues?.[0]?.code || 'BEHAVIOR_REJECTED']:[]),
         ...(relationAdmission.status==='rejected'?[relationAdmission.reason || 'RELATION_REJECTED']:[]),
         ...(acceptanceRejected?['WORLD_ACCEPTANCE_FAILED']:[])
       ],
       validation:{ hard:validation.counts.hard, advisory:validation.counts.advisory },
       assets:structuredClone(assetAdmission),
       layout:structuredClone(layoutAdmission),
+      behavior:structuredClone(behaviorAdmission),
       relations:structuredClone(relationAdmission),
       ...(worldAcceptance?{acceptance:structuredClone(worldAcceptance)}:{})
     };
@@ -182,6 +200,10 @@ export function createWorldPipeline(runtime) {
       ...(state.artifacts.acceptanceEvidence?.findings||[])
     ];
     if(status==='rejected'&&revisionFindings.length) state.artifacts.revisionContext=buildWorldRevisionContext(worldIR,revisionFindings);
+    if(status!=='rejected'){
+      runtime.currentBehaviorBundle=structuredClone(state.artifacts.behaviorBundle);
+      runtime.loadRuleGraph?.(state.artifacts.behaviorBundle.ruleGraph);
+    }
     state.artifacts.scene = runtime.serialize({ name: state.input.name || 'Generated World' });
     return state;
   });
