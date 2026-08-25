@@ -25,6 +25,7 @@ import { CompiledAssetStore } from '../assets/storage/CompiledAssetStore.js';
 import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider.js';
 import { disposeObject3D } from './disposeObject3D.js';
 import { ArticulationVerifier } from '../validation/ArticulationVerifier.js';
+import { RuleRuntime } from './behavior/RuleRuntime.js';
 
 import { ConnectorClient } from "../connector/ConnectorClient.js";
 import { GenerationOrchestrator } from "../generation/GenerationOrchestrator.js";
@@ -58,7 +59,7 @@ export class WorldRuntime {
       events:this.events
     });
     this.generationState = { status:"connection-required", reason:generationConnector ? "PAIRING_REQUIRED" : "CONNECTOR_NOT_CONFIGURED" };
-    this.articulationVerifier = new ArticulationVerifier({ assets: this.assets }); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
+    this.articulationVerifier = new ArticulationVerifier({ assets: this.assets }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
   }
   async getAssetCompiler() {
     if (!this.assetCompiler) {
@@ -94,6 +95,7 @@ export class WorldRuntime {
       this.events.emit("generation.state", structuredClone(this.generationState));
     }
     this.skills = registerCoreSkills(new SkillRegistry({ policy: this.policy, trace: this.trace, runtime: this }), this);
+    this.ruleRuntime.start();
     this.worldPipeline = createWorldPipeline(this);
     this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;
   }
@@ -215,6 +217,8 @@ export class WorldRuntime {
 
   serialize(options) { return this.serializer.serialize(this, options); }
   async restore(scene) { return this.serializer.restore(this, scene); }
+
+  loadRuleGraph(graph) { return this.ruleRuntime.load(graph); }
 
   applyStateTransition(id, stateKey, value, meta = {}) {
     const record=this.store.get(id);
