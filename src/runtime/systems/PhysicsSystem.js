@@ -1,9 +1,71 @@
 import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat/rapier.es.js';
+import RAPIER from '@dimforge/rapier3d-compat';
 import { orderParts, ROOT_PART } from '../../assets/parts.js';
 
 const vec = (a = [0, 0, 0]) => ({ x: a[0], y: a[1], z: a[2] });
 const array3 = (v) => [v.x, v.y, v.z];
+const syncColliderPoses = (world) => {
+  if (!world) return;
+  if (typeof world.updateSceneQueries === "function") world.updateSceneQueries();
+  else world.propagateModifiedBodyPositionsToColliders?.();
+};
+const intersectionsWithShapeImmediate = (world, position, rotation, shape, callback, {
+  excludeCollider = null,
+  excludeRigidBody = null,
+  predicate = null
+} = {}) => {
+  syncColliderPoses(world);
+  let active = true;
+  world?.forEachCollider((other) => {
+    if (!active || other.isEnabled?.() === false) return;
+    if (excludeCollider && other.handle === excludeCollider.handle) return;
+    const parent = other.parent?.();
+    if (excludeRigidBody && parent?.handle === excludeRigidBody.handle) return;
+    if (predicate && !predicate(other)) return;
+    if (!other.intersectsShape(shape, position, rotation)) return;
+    active = callback(other) !== false;
+  });
+};
+const castColliderImmediate = (world, source, velocity, {
+  excludeCollider = null,
+  excludeRigidBody = null,
+  predicate = null,
+  targetDistance = 0,
+  maxToi = 1,
+  stopAtPenetration = false
+} = {}) => {
+  syncColliderPoses(world);
+  let best = null;
+  const zero = { x: 0, y: 0, z: 0 };
+  world?.forEachCollider((other) => {
+    if (other.isEnabled?.() === false) return;
+    if (other.handle === source.handle) return;
+    if (excludeCollider && other.handle === excludeCollider.handle) return;
+    const parent = other.parent?.();
+    if (excludeRigidBody && parent?.handle === excludeRigidBody.handle) return;
+    if (predicate && !predicate(other)) return;
+    const hit = source.castCollider(velocity, other, zero, targetDistance, maxToi, stopAtPenetration);
+    if (!hit) return;
+    if (!best || hit.time_of_impact < best.time_of_impact) {
+      best = { collider: other, time_of_impact: hit.time_of_impact };
+    }
+  });
+  return best;
+};
+
+const castRayImmediate = (world, ray, maxToi, solid, predicate = null) => {
+  syncColliderPoses(world);
+  let best = null;
+  world?.forEachCollider((collider) => {
+    if (collider.isEnabled?.() === false) return;
+    if (predicate && !predicate(collider)) return;
+    const toi = collider.castRay(ray, maxToi, solid);
+    if (!Number.isFinite(toi) || toi < 0) return;
+    if (!best || toi < best.timeOfImpact) best = { collider, timeOfImpact:toi };
+  });
+  return best;
+};
+
 const upright = (q) => {
   const upX = 2 * (q.x * q.y - q.z * q.w);
   const upY = 1 - 2 * (q.x * q.x + q.z * q.z);
@@ -315,14 +377,14 @@ export class PhysicsSystem {
       if (spec.shape==='convexHull') return new RAPIER.ConvexPolyhedron(new Float32Array(spec.vertices));
       return null;
     };
-    this.world.updateSceneQueries();
+    syncColliderPoses(this.world);
     for(let i=0;i<colliders.length;i++) {
       const spec=colliders[i],shape=shapeFor(spec);
       if (!shape) return {checked:false,clear:false,reason:'ROOT_COLLIDER_UNSUPPORTED',collider:i,shape:spec.shape || null};
       const local=spec.translation || [0,0,0];
       const position={x:targetPosition[0]+local[0],y:targetPosition[1]+local[1],z:targetPosition[2]+local[2]};
       const rotation=spec.rotation ? {x:spec.rotation[0],y:spec.rotation[1],z:spec.rotation[2],w:spec.rotation[3]} : {x:0,y:0,z:0,w:1};
-      this.world.intersectionsWithShape(position,rotation,shape,(other)=>{
+      intersectionsWithShapeImmediate(this.world,position,rotation,shape,(other)=>{
         const provenance=this.provenanceOfCollider(other);
         if (provenance?.kind==='object' && excluded.has(provenance.objectId)) return true;
         blockedBy.add(provenance?.kind==='environment' ? `environment:${provenance.environmentId || '$environment'}`
@@ -349,7 +411,7 @@ export class PhysicsSystem {
       return !owner || !excluded.has(owner.id);
     };
 
-    this.world.updateSceneQueries();
+    syncColliderPoses(this.world);
     for (let i=0;i<entry.body.numColliders();i++) {
       const collider = entry.body.collider(i);
       const spec = entry.rootSpec.colliders?.[i] || {};
@@ -357,13 +419,13 @@ export class PhysicsSystem {
       const local = new THREE.Vector3(...(spec.translation || [0,0,0]));
       const targetCenter = local.applyQuaternion(nextRotation).add(targetBody);
       let overlap = null;
-      this.world.intersectionsWithShape(targetCenter, nextRotation, collider.shape, (other) => {
+      intersectionsWithShapeImmediate(this.world, targetCenter, nextRotation, collider.shape, (other) => {
         const parent = other.parent();
         const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
         if (owner && excluded.has(owner.id)) return true;
         overlap = owner?.id || '$environment';
         return false;
-      }, undefined, undefined, collider, entry.body, filter);
+      }, { excludeCollider:collider, excludeRigidBody:entry.body, predicate:filter });
       if (overlap) return { clear:false, code:'CARRY_TARGET_BLOCKED', collider:i, blockedBy:[overlap] };
     }
     return { clear:true };
@@ -384,7 +446,7 @@ export class PhysicsSystem {
       return !owner || !excluded.has(owner.id);
     };
 
-    this.world.updateSceneQueries();
+    syncColliderPoses(this.world);
     for (let i=0;i<entry.body.numColliders();i++) {
       const collider = entry.body.collider(i);
       const spec = entry.rootSpec.colliders?.[i] || {};
@@ -395,10 +457,10 @@ export class PhysicsSystem {
       const delta = targetCenter.clone().sub(new THREE.Vector3(current.x,current.y,current.z));
       const currentRotation = collider.rotation();
       if (delta.lengthSq() > 1e-12) {
-        const hit = this.world.castShape(
-          current, currentRotation, vec(delta.toArray()), collider.shape,
-          0, 1, false, undefined, undefined, collider, entry.body, filter
-        );
+        const hit = castColliderImmediate(this.world, collider, vec(delta.toArray()), {
+          excludeCollider:collider, excludeRigidBody:entry.body, predicate:filter,
+          targetDistance:0, maxToi:1, stopAtPenetration:false
+        });
         if (hit) {
           const parent = hit.collider.parent();
           const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
@@ -680,7 +742,7 @@ export class PhysicsSystem {
     const poseHits=(pose)=>{
       const hits=new Map();
       for(const source of pose.colliders) {
-        this.world.intersectionsWithShape(vec(source.position.toArray()),source.rotation,source.shape,(other)=>{
+        intersectionsWithShapeImmediate(this.world,vec(source.position.toArray()),source.rotation,source.shape,(other)=>{
           const provenance=this.provenanceOfCollider(other);
           if (provenance?.kind==='object' && (excluded.has(provenance.objectId) || excludedParts.has(`${provenance.objectId}:${provenance.partName || ROOT_PART}`))) return true;
           const key=keyOf(provenance,other);
@@ -690,7 +752,7 @@ export class PhysicsSystem {
       }
       return hits;
     };
-    this.world.updateSceneQueries();
+    syncColliderPoses(this.world);
     const poses=[];
     for(let i=0;i<sampling.count;i++) {
       const alpha=i/(sampling.count-1);
@@ -783,7 +845,7 @@ export class PhysicsSystem {
       return !owner || !excluded.has(owner.id);
     } : undefined;
     const ray = new RAPIER.Ray(vec(origin), vec(normalized));
-    const hit = this.world.castRay(ray, distance, true, undefined, undefined, undefined, undefined, filter);
+    const hit = castRayImmediate(this.world, ray, distance, true, filter);
     if (!hit) return null;
     const body = hit.collider.parent();
     const owner = body ? this.ownerOfBodyHandle(body.handle) : null;
@@ -867,7 +929,7 @@ export class PhysicsSystem {
   }
 
   navigationObstacles() {
-    this.world?.updateSceneQueries();
+    syncColliderPoses(this.world);
     const items = [];
     const skipped = [];
     const addBody = (objectId, partName, body, bodyType, navigationObstacle = true) => {
@@ -954,7 +1016,7 @@ export class PhysicsSystem {
   }
 
   articulationPenetrations(id, partName, { refresh = false } = {}) {
-    if (refresh) this.world.updateSceneQueries();
+    if (refresh) syncColliderPoses(this.world);
     const entry = this.entries.get(id);
     const part = entry?.parts.get(partName);
     if (!entry || !part) return [];
@@ -964,7 +1026,7 @@ export class PhysicsSystem {
 
     for (let i = 0; i < part.body.numColliders(); i++) {
       const source = part.body.collider(i);
-      this.world.intersectionsWithShape(source.translation(), source.rotation(), source.shape, (other) => {
+      intersectionsWithShapeImmediate(this.world, source.translation(), source.rotation(), source.shape, (other) => {
         const otherBody = other.parent();
         if (!otherBody || otherBody.handle === part.body.handle) return true;
         const contact = source.contactCollider(other, 0);
@@ -979,7 +1041,7 @@ export class PhysicsSystem {
           hits.set(key, { key, depth, sourcePart:partName, sourceCollider:i, targetPart, targetCollider:targetIndex });
         }
         return true;
-      });
+      }, { excludeCollider:source });
     }
     return [...hits.values()];
   }

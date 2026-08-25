@@ -59,6 +59,39 @@ const boundsOverlap = (a,b) => {
   return {available:true,intersects,volume:intersects ? extents[0]*extents[1]*extents[2] : 0};
 };
 
+
+const currentSweepPersistence = (runtime,targetId,failedPart,last,candidate) => {
+  const action=last?.action || 'open';
+  let originalSweep;
+  try { originalSweep=runtime.interactions.actionSweepBounds?.(targetId,action,failedPart.partName); }
+  catch { return {checked:false,reason:'ORIGINAL_SWEEP_UNAVAILABLE'}; }
+  if (!originalSweep?.checked) return {checked:false,reason:originalSweep?.reason || 'ORIGINAL_SWEEP_UNAVAILABLE'};
+
+  let blockerBounds=null,blockerState=null;
+  if ((candidate.partName || '$root')==='$root') {
+    try {
+      const bounds=runtime.spatial?.getBounds?.(candidate.objectId);
+      if (bounds?.min && bounds?.max) blockerBounds={min:[...bounds.min],max:[...bounds.max]};
+    } catch {}
+  } else {
+    try {
+      blockerState=runtime.interactions.articulationStatus(candidate.objectId,candidate.partName).parts?.find((item)=>item.partName===candidate.partName) || null;
+      if (blockerState?.verifiedAction) {
+        const pose=runtime.interactions.actionSweepBounds?.(candidate.objectId,blockerState.verifiedAction,candidate.partName,1);
+        if (pose?.checked) blockerBounds=pose.bounds;
+      }
+    } catch {}
+  }
+  if (!blockerBounds) return {checked:false,reason:'BLOCKER_CURRENT_BOUNDS_UNAVAILABLE'};
+  const overlap=boundsOverlap(originalSweep.bounds,blockerBounds);
+  if (!overlap.available) return {checked:false,reason:'SWEEP_OVERLAP_UNAVAILABLE'};
+  return {
+    checked:true,source:'current-action-sweep-overlap',intersects:overlap.intersects,volume:overlap.volume,
+    action,partName:failedPart.partName,blocker:structuredClone(candidate),
+    ...(blockerState?{blockerState:structuredClone(blockerState)}:{})
+  };
+};
+
 const counterfactualTuple = (evidence) => [
   evidence.targetSweepClear ? 1 : 0,
   evidence.overlapReduction,
@@ -396,7 +429,7 @@ export async function buildRecoveryProposals(runtime,registry,{
   const authorization=registry.authorization('recoverPickupBlocker',{profile});
   const proposals=[];
   for (const candidate of attribution.blockerCandidates) {
-    const currentContact=currentEvidence.get(candidateKey(candidate)) || null;
+    let currentContact=currentEvidence.get(candidateKey(candidate)) || null;
     if (candidate.kind==='environment') {
       proposals.push(denied(candidate,'ENVIRONMENT_IMMOVABLE',{currentContact}));
       continue;
@@ -406,8 +439,15 @@ export async function buildRecoveryProposals(runtime,registry,{
       continue;
     }
     if (!currentContact) {
-      proposals.push(denied(candidate,'CONTACT_EVIDENCE_STALE',{status:'stale',currentContact:null}));
-      continue;
+      const persistence=currentSweepPersistence(runtime,targetId,failedPart,last,candidate);
+      if (!persistence.checked || !persistence.intersects) {
+        proposals.push(denied(candidate,'CONTACT_EVIDENCE_STALE',{status:'stale',currentContact:null,persistence}));
+        continue;
+      }
+      currentContact={
+        source:'current-action-sweep-overlap',pairCount:0,contactCount:0,activeContactCount:0,minDistance:null,totalImpulse:0,colliderIndices:[],
+        persistence
+      };
     }
     if ((candidate.partName || '$root')!=='$root') {
       proposals.push(await articulatedRecovery(runtime,registry,{actorId,targetId,failedPart,last,candidate,currentContact,profile}));

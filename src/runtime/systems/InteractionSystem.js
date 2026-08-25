@@ -470,14 +470,14 @@ export class InteractionSystem {
     };
     const plannedMaxDistance=Math.max(.05,maxDistance-DEFAULT_WAYPOINT_TOLERANCE);
     const supportClearance=supportIds.length ? .05 : .12;
-    const standOff=supportIds.length ? this.carryStandOff(actorId,targetId) : 0;
+    const standOff=this.carryStandOff(actorId,targetId);
     const pose=await this.findInteractionPose(actorId,targetId,{maxDistance:plannedMaxDistance,clearance:supportClearance,standOff,stanceBounds,candidateFilter:(position)=>transferAt(position).transfer.clear});
     if (!pose) throw Errors.carryUnavailable(actorId,targetId,'NO_PICKUP_TRANSFER_POSE',{supportIds});
     const preview=transferAt(pose.position);
     return {pose,facingYaw:preview.yaw,anchorPose:preview.anchorPose,transfer:preview.transfer,plannedMaxDistance,supportIds,standOff:Number(standOff.toFixed(4)),supportClearance};
   }
 
-  transferSupportedPickupToAnchor(actorId,targetId,anchorPose,supportIds) {
+  transferPickupToAnchor(actorId,targetId,anchorPose,supportIds = []) {
     const originalPosition=this.physics.getPosition(targetId);
     const originalRotation=this.physics.getRotation(targetId);
     if (!originalPosition || !originalRotation) return {clear:false,reason:'CARRY_BODY_UNAVAILABLE',phases:[]};
@@ -508,7 +508,7 @@ export class InteractionSystem {
     phases.push({phase:'anchor',point:[...anchorPose.position],...anchorCheck});
     if (!anchorCheck.clear) return rollback('PICKUP_ANCHOR_BLOCKED');
     this.physics.setHeldPose(targetId,anchorPose.position,anchorPose.rotation);
-    return {clear:true,mode:'support-lift-horizontal-anchor',supportIds:[...supportIds],phases};
+    return {clear:true,mode:'lift-horizontal-anchor',supportIds:[...supportIds],phases};
   }
 
   async approachAndPickup(actorId, targetId, { speed, maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
@@ -533,12 +533,17 @@ export class InteractionSystem {
     const anchorPose=this.physics.anchorPose(actorId,this.holdAnchor(actorId));
     if (!anchorPose) return {status:'pickup-blocked',reason:'HOLD_ANCHOR_UNAVAILABLE',actorId,targetId,pose,locomotion,held:false};
     const supportIds=this.pickupSupportIds(targetId);
-    const transfer=supportIds.length
-      ? this.transferSupportedPickupToAnchor(actorId,targetId,anchorPose,supportIds)
-      : this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
+    let transfer;
+    if (supportIds.length) {
+      transfer=this.transferPickupToAnchor(actorId,targetId,anchorPose,supportIds);
+    } else {
+      const direct=this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
+      transfer=direct.clear ? direct : this.transferPickupToAnchor(actorId,targetId,anchorPose,[]);
+      if (transfer !== direct) transfer={...transfer,direct};
+    }
     if (!transfer.clear) return {status:'pickup-blocked',reason:'PICKUP_TRANSFER_BLOCKED',actorId,targetId,pose,locomotion,transfer,held:false};
 
-    if (!supportIds.length) {
+    if (!supportIds.length && transfer.mode!=='lift-horizontal-anchor') {
       this.physics.setHeld(targetId,true);
       this.physics.setHeldPose(targetId,anchorPose.position,anchorPose.rotation);
     }
@@ -612,7 +617,7 @@ export class InteractionSystem {
   }
 
   waitForArticulationCompletion(id, partName, action, target, {
-    timeout = 4, stableDuration = .18, stallWindow = .5, stallTolerance = .008
+    timeout = 4, stableDuration = .18, stallWindow = .5, stallTolerance = .004
   } = {}) {
     const key = this.articulationTaskKey(id,partName);
     const existing = this.articulationTasks.get(key);

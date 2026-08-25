@@ -15,17 +15,17 @@
     "agent:probe": "node scripts/probe-test-agent.mjs"
   },
   "dependencies": {
-    "@dimforge/rapier3d-compat": "^0.17.3",
+    "@dimforge/rapier3d-compat": "^0.20.0",
     "@gltf-transform/core": "^4.4.2",
     "@gltf-transform/functions": "^4.4.2",
     "@recast-navigation/core": "^0.43.1",
     "@recast-navigation/generators": "^0.43.1",
-    "three": "^0.179.1",
+    "three": "^0.185.1",
     "three-mesh-bvh": "^0.9.1"
   },
   "devDependencies": {
     "sharp": "^0.35.3",
-    "vite": "^6.1.0",
-    "vitest": "^3.2.4"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   }
 }
