@@ -1,3 +1,5 @@
+import { compileAcceptanceFindings } from './Finding.js';
+
 const SCHEMA='agentscape.world-acceptance';
 const VERSION=1;
 const scalar=v=>v===null||typeof v==='string'||typeof v==='number'||typeof v==='boolean';
@@ -62,6 +64,7 @@ export function buildAcceptanceEvidenceBundle(graph,result,{worldRevisionId=null
     ...(worldRevisionId?{worldRevisionId}:{}),
     ...(provenance?{provenance:structuredClone(provenance)}:{}),
     criteria:structuredClone(graph.checks),
-    result:structuredClone(result)
+    result:structuredClone(result),
+    findings:compileAcceptanceFindings(result,{worldRevisionId})
   };
 }
