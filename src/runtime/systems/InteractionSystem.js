@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Errors } from '../../core/errors.js';
+import { compileInteractionContract, getInteractionContract } from '../interaction/InteractionContract.js';
 import { DEFAULT_WAYPOINT_TOLERANCE } from './LocomotionSystem.js';
 
 export const DEFAULT_INTERACTION_DISTANCE = 1.5;
@@ -184,6 +185,7 @@ export class InteractionSystem {
   }
 
   supports(record, action) { return record.manifest.actions.includes(action); }
+  interactionContracts(record) { return compileInteractionContract(record.manifest); }
 
   assertSupports(id, action) {
     const record = this.store.get(id);
@@ -1051,13 +1053,15 @@ export class InteractionSystem {
   setArticulationAction(id, action, { partName = null } = {}) {
     const record = this.assertSupports(id, action);
     const [name, part] = this.findPartForAction(record, action, partName);
+    const contract = getInteractionContract(record.manifest, name, action);
+    if (contract.effects[0]?.kind !== 'set-articulation-target' || contract.verifierTarget.target !== part.targets[action]) throw Errors.actionUnsupported(id, action);
     if (!this.physics.setArticulationTarget(id, name, part.targets[action])) throw Errors.actionUnsupported(id, action);
     record.state.partTargets ||= {};
     record.state.partTargets[name] = action;
     this.articulationResults.delete(this.articulationTaskKey(id,name));
     this.waitForArticulationCompletion(id,name,action,part.targets[action]);
     this.events.emit('interaction', { action, id, part:name, target:part.targets[action] });
-    return { id, part:name, action, target:part.targets[action], requested:true };
+    return { id, part:name, action, capability:contract.capability, target:part.targets[action], requested:true, interactionContractId:contract.id, verifierTarget:structuredClone(contract.verifierTarget) };
   }
 
   update(dt, camera) {
