@@ -1,14 +1,17 @@
 export const PHYSICS_BACKEND_CAPABILITIES = Object.freeze([
-  'rigid-body','articulated-body','collision','joints','scene-query','snapshot-restore','counterfactual-query'
+  'rigid-body','articulated-body','character-controller','collision','joints','scene-query','snapshot-restore','counterfactual-query'
 ]);
 
 export class PhysicsBackend {
-  constructor(identity, capabilities = []) {
+  constructor(identity, capabilities = [], { executionModes=['realtime'], qualities={} } = {}) {
     if (!identity) throw new TypeError('PhysicsBackend identity is required');
     this.identity = identity;
     this.capabilities = Object.freeze([...new Set(capabilities)]);
+    this.executionModes = Object.freeze([...new Set(executionModes)]);
+    this.qualities = Object.freeze({ realtime:qualities.realtime===true, deterministic:qualities.deterministic===true });
   }
   hasCapability(capability) { return this.capabilities.includes(capability); }
+  supportsExecutionMode(mode) { return this.executionModes.includes(mode); }
   async init() { throw new Error('PhysicsBackend.init() must be implemented'); }
   createWorld() { throw new Error('PhysicsBackend.createWorld() must be implemented'); }
   step() { throw new Error('PhysicsBackend.step() must be implemented'); }

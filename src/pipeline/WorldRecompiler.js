@@ -8,11 +8,13 @@ export async function recompileWorldRevision(runtime,{baseWorldIR,proposal,accep
   const nextIR=applyWorldRevisionProposal(baseWorldIR,proposal,{acceptChangedPlan});
   const before=runtime.snapshot();
   const previousBehaviorBundle=runtime.currentBehaviorBundle ? structuredClone(runtime.currentBehaviorBundle) : null;
-  const restoreBehavior=()=>{ runtime.currentBehaviorBundle=previousBehaviorBundle ? structuredClone(previousBehaviorBundle) : null; runtime.loadRuleGraph?.(previousBehaviorBundle?.ruleGraph || []); };
+  const previousPhysicsRequirements=runtime.currentPhysicsRequirements ? structuredClone(runtime.currentPhysicsRequirements) : null;
+  const restoreBehavior=()=>{ runtime.currentBehaviorBundle=previousBehaviorBundle ? structuredClone(previousBehaviorBundle) : null; runtime.currentPhysicsRequirements=previousPhysicsRequirements ? structuredClone(previousPhysicsRequirements) : null; runtime.loadRuleGraph?.(previousBehaviorBundle?.ruleGraph || []); };
   const baseRevisionId=nextIR.revision.parentId;
   const revisionId=nextIR.revision.id;
   try {
     runtime.currentBehaviorBundle=null;
+    runtime.currentPhysicsRequirements=null;
     runtime.loadRuleGraph?.([]);
     await runtime.clearObjects();
     const pipeline=await runtime.worldPipeline.run(nextIR);
