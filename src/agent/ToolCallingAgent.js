@@ -82,6 +82,7 @@ export class ToolCallingAgent {
     if (!gateway) throw new Error('No agent gateway available');
 
     const execution = [];
+    if (this.tools.runtime) this.tools.runtime.lastAcceptanceBundle = null;
     const unresolvedMutations = new Map();
     const appliedAuxiliaryRecoveries = new Map();
     const attemptedWorldPlans = new Set();
@@ -106,16 +107,22 @@ export class ToolCallingAgent {
         }
       });
       if (!response.toolCalls.length) {
-        const final = response.message || '任务完成。';
+        const proposedFinal = response.message || '任务完成。';
         const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
+        const acceptanceBundle=this.tools.runtime?.lastAcceptanceBundle ? structuredClone(this.tools.runtime.lastAcceptanceBundle) : null;
+        const acceptanceRequired=acceptanceBundle?.required===true;
+        const acceptanceAccepted=!acceptanceRequired || acceptanceBundle?.result?.status==='world-accepted';
         const lastComplete = lastMutation && COMPLETE_OUTCOMES.has(lastMutation.outcome.state);
-        const taskStatus = !lastMutation ? 'no-mutation' : lastComplete && !unresolved.length ? 'completed' : 'incomplete';
+        const taskStatus = !lastMutation ? 'no-mutation' : lastComplete && !unresolved.length && acceptanceAccepted ? 'completed' : 'incomplete';
+        const final = acceptanceRequired && !acceptanceAccepted
+          ? `Task incomplete: world acceptance is ${acceptanceBundle?.result?.status || 'missing'}.`
+          : proposedFinal;
         if (taskStatus === 'incomplete') {
-          const detail = unresolved.length ? `${unresolved.length} unresolved mutation(s)` : `${lastMutation.tool} → ${lastMutation.outcome.state}`;
+          const detail = !acceptanceAccepted ? `world acceptance → ${acceptanceBundle?.result?.status || 'missing'}` : unresolved.length ? `${unresolved.length} unresolved mutation(s)` : `${lastMutation.tool} → ${lastMutation.outcome.state}`;
           this.log(`sequence: task incomplete · ${detail}`, 'error');
         }
         this.log(final, 'result');
-        return { message:final, steps:step + 1, taskStatus, lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved, execution:structuredClone(execution) };
+        return { message:final, steps:step + 1, taskStatus, lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved, execution:structuredClone(execution), ...(acceptanceBundle?{acceptanceBundle}:{}) };
       }
       const readOnlyRecovery = unresolved.length && recoveryReadRounds >= this.maxRecoveryReadRounds
         && response.toolCalls.every((call)=>!this.tools.executionPolicy?.(call.name,undefined)?.mutates);

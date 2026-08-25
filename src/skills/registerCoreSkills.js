@@ -4,7 +4,7 @@ import { WORLD_SPEC_SCHEMA } from '../pipeline/WorldSpec.js';
 import { buildWorldRetryPlan } from '../pipeline/WorldRetry.js';
 import { buildRecoveryProposals } from '../agent/buildRecoveryProposals.js';
 import { compileInteractionIntent, executeBehaviorCommand, verifyBehaviorCommand } from '../runtime/behavior/BehaviorCompiler.js';
-import { compileWorldAcceptance, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
+import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
 import { sanitizeJobData } from '../jobs/GenerationJobProjection.js';
 
 const string = { type: 'string' };
@@ -137,7 +137,11 @@ export function registerCoreSkills(registry, runtime) {
   add('evaluateWorldAcceptance', { ...meta('对当前世界执行显式 world-level acceptance criteria。只读；返回逐项证据和最终 world-accepted/world-incomplete。', ['world.read','physics.read'], ['criteria'], { criteria:{type:'array'} }), batchable:true, mutates:false }, async (a) => {
     const graph=compileWorldAcceptance(a.criteria || []);
     const task=runtime.lastTaskObservation || {};
-    return evaluateWorldAcceptance(runtime,graph,{unresolvedMutations:task.unresolvedMutations || []});
+    const result=evaluateWorldAcceptance(runtime,graph,{unresolvedMutations:Array.isArray(task.unresolvedMutations)?task.unresolvedMutations:undefined});
+    const bundle=buildAcceptanceEvidenceBundle(graph,result,{source:'agent-tool'});
+    runtime.lastAcceptanceBundle=structuredClone(bundle);
+    runtime.trace?.emit?.('world.acceptance',{bundle:structuredClone(bundle)},{actor:'agent'});
+    return {...result,acceptanceBundle:bundle};
   });
   add('getArticulationStatus', meta('读取 articulated object 的 live joint 状态：当前 coordinate、requestedAction、verifiedAction，以及 moving/completed/failed/unverified observer 结果。STALL 若有当前 Rapier contact，会附 contact-evidence blockerCandidates；它表示失败时正在接触，不证明唯一因果。不会把 motor request 当成完成。', ['world.read','physics.read'], ['id'], { id:string, partName:string }), (a) => runtime.interactions.articulationStatus(a.id,a.partName));
   add('recoverPickupBlocker', { ...meta('执行一个窄范围的 articulated STALL recovery：仅当 blocker 仍是当前 external contact candidate、Policy 允许且具身 pickup preflight 仍通过时，才真实 approachAndPickup。它是辅助 mutation；成功只表示 blocker 被 held，不表示原始 open/close 已恢复，之后必须 retry 原始 action。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId'], { actorId:string,targetId:string,partName:string,blockerId:string }), batchable:false,auxiliary:true,mutates:true }, async (a,{registry,context}) => {

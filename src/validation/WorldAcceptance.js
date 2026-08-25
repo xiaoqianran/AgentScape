@@ -51,3 +51,17 @@ export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undef
 }
 
 export {SCHEMA as WORLD_ACCEPTANCE_SCHEMA,VERSION as WORLD_ACCEPTANCE_VERSION};
+
+
+export function buildAcceptanceEvidenceBundle(graph,result,{worldRevisionId=null,source='runtime',provenance=null}={}){
+  if(graph?.schema!==SCHEMA||graph.schemaVersion!==VERSION) throw new TypeError('Unsupported WorldAcceptance graph');
+  if(!result||typeof result!=='object') throw new TypeError('WorldAcceptance result is required');
+  return {
+    schema:'agentscape.acceptance-evidence',schemaVersion:1,required:true,
+    source,
+    ...(worldRevisionId?{worldRevisionId}:{}),
+    ...(provenance?{provenance:structuredClone(provenance)}:{}),
+    criteria:structuredClone(graph.checks),
+    result:structuredClone(result)
+  };
+}
