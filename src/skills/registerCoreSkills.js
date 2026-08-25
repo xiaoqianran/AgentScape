@@ -3,6 +3,7 @@ import { assetAdmission } from '../assets/admission.js';
 import { WORLD_SPEC_SCHEMA } from '../pipeline/WorldSpec.js';
 import { buildWorldRetryPlan } from '../pipeline/WorldRetry.js';
 import { buildRecoveryProposals } from '../agent/buildRecoveryProposals.js';
+import { compileInteractionIntent, executeBehaviorCommand, verifyBehaviorCommand } from '../runtime/behavior/BehaviorCompiler.js';
 import { sanitizeJobData } from '../jobs/GenerationJobProjection.js';
 
 const string = { type: 'string' };
@@ -127,6 +128,11 @@ export function registerCoreSkills(registry, runtime) {
   add('getLocomotionStatus', meta('读取 Agent Body 当前或最近一次 locomotion 状态。', ['world.read', 'physics.read'], ['id'], { id:string }), (a) => runtime.locomotion.status(a.id));
   add('findInteractionPose', meta('只读诊断/预览：按 Runtime 固定 1.5m 交互距离，为 Agent 与目标寻找满足 Detour 可达和 Rapier 视线的交互位；可选 action/partName 时排除 Agent 阻挡 articulation sweep 的位姿。若目标是实际走过去并 open/close，应直接调用 approachAndInteract，不要手工拆链。', ['spatial.read', 'physics.read'], ['actorId','targetId'], { actorId:string, targetId:string, action:{type:'string',enum:['open','close']}, partName:string }), (a) => runtime.interactions.findInteractionPose(a.actorId, a.targetId, { action:a.action, partName:a.partName }));
   add('approachAndInteract', { ...meta('具身 open/close 的首选单一工具：内部完成交互位搜索、真实 navigate、距离/物理视线/action-sweep 二次验证，再请求 motor target 并等待 live joint completion。只有 status=action-completed 且 targetReached=true/settled=true 才表示动作最终完成；STALL 返回 action-failed，TIMEOUT 返回 action-unverified。整个任务是一个 mutation。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','action'], { actorId:string, targetId:string, action:{type:'string',enum:['open','close']}, partName:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, (a) => runtime.interactions.approachAndInteract(a.actorId, a.targetId, a.action, { partName:a.partName, speed:a.speed }));
+  add('executeBehaviorCommand', { ...meta('执行由 BehaviorCompiler 编译出的 typed RuntimeCommand。当前纵向切片只允许 OPEN/CLOSE interaction；命令必须包含 actorId/targetId，并且最终结果仍需 action-completed + targetReached + settled 才算验证完成。', ['world.write','spatial.read','physics.read'], ['command'], { command:{type:'object'} }), batchable:false, mutates:true }, async (a) => {
+    const command=compileInteractionIntent(a.command?.source ? { id:a.command.source.interactionId, actorId:a.command.actorId, targetId:a.command.targetId, capability:a.command.capability } : a.command?.intent || a.command, { worldRevisionId:a.command?.source?.worldRevisionId });
+    const result=await executeBehaviorCommand(runtime,command);
+    return {...result,behaviorCommand:command,verification:verifyBehaviorCommand(command,result)};
+  });
   add('getArticulationStatus', meta('读取 articulated object 的 live joint 状态：当前 coordinate、requestedAction、verifiedAction，以及 moving/completed/failed/unverified observer 结果。STALL 若有当前 Rapier contact，会附 contact-evidence blockerCandidates；它表示失败时正在接触，不证明唯一因果。不会把 motor request 当成完成。', ['world.read','physics.read'], ['id'], { id:string, partName:string }), (a) => runtime.interactions.articulationStatus(a.id,a.partName));
   add('recoverPickupBlocker', { ...meta('执行一个窄范围的 articulated STALL recovery：仅当 blocker 仍是当前 external contact candidate、Policy 允许且具身 pickup preflight 仍通过时，才真实 approachAndPickup。它是辅助 mutation；成功只表示 blocker 被 held，不表示原始 open/close 已恢复，之后必须 retry 原始 action。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId'], { actorId:string,targetId:string,partName:string,blockerId:string }), batchable:false,auxiliary:true,mutates:true }, async (a,{registry,context}) => {
     const recovery=await buildRecoveryProposals(runtime,registry,{actorId:a.actorId,targetId:a.targetId,partName:a.partName,profile:context.profile || 'builder'});
