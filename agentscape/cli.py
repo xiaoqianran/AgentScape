@@ -41,7 +41,7 @@ def image(
 ) -> None:
     kaggle, _ = _providers()
     result = kaggle.generate(prompt, output, model=model)
-    typer.echo(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+    typer.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
 
 
 @app.command()
@@ -54,7 +54,7 @@ def reconstruct(
 ) -> None:
     _, modal = _providers()
     result = modal.reconstruct(image_path, output, concept=concept, model=model, profile=profile)
-    typer.echo(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+    typer.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
 
 
 @app.command()

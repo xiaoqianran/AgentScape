@@ -3,20 +3,37 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from agentscape.contracts import Artifact, ImageGenerationResult, ReconstructionResult
 from agentscape.pipeline import TextTo3DPipeline
 
 
+def glb() -> bytes:
+    return b"glTF" + (2).to_bytes(4, "little") + (12).to_bytes(4, "little")
+
+
 class FakeImageProvider:
-    def generate(self, prompt: str, destination: Path, **kwargs) -> dict:
+    def generate(self, prompt: str, destination: Path, *, model: str, seed: int | None = None) -> ImageGenerationResult:
         destination.write_bytes(b"image")
-        return {"task_id": 11}
+        return ImageGenerationResult(
+            provider="fake-image",
+            model=model,
+            task_id="11",
+            artifact=Artifact.from_file(destination, mime="image/webp", format="webp"),
+        )
 
 
 class FakeReconstructionProvider:
-    def reconstruct(self, image_path: Path, destination: Path, **kwargs) -> dict:
+    def reconstruct(self, image_path: Path, destination: Path, **kwargs) -> ReconstructionResult:
         assert image_path.read_bytes() == b"image"
-        destination.write_bytes(b"glTFmock")
-        return {"project_id": "p1", "job_id": "j1"}
+        destination.write_bytes(glb())
+        return ReconstructionResult(
+            provider="fake-3d",
+            model=kwargs["model"],
+            project_id="p1",
+            job_id="j1",
+            candidate_id="c1",
+            artifact=Artifact.from_file(destination, mime="model/gltf-binary", format="glb"),
+        )
 
 
 def test_pipeline_writes_manifest(tmp_path: Path) -> None:
@@ -29,10 +46,14 @@ def test_pipeline_writes_manifest(tmp_path: Path) -> None:
 
     manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
     assert result["schema"] == "agentscape.asset.v1"
+    assert manifest["providers"]["image"]["name"] == "fake-image"
     assert manifest["jobs"] == {
-        "image_task_id": 11,
+        "image_task_id": "11",
         "modal_project_id": "p1",
         "modal_job_id": "j1",
     }
-    assert (tmp_path / "reference.webp").is_file()
-    assert (tmp_path / "model.glb").is_file()
+    assert manifest["artifacts"]["reference"]["path"] == "reference.webp"
+    assert manifest["artifacts"]["model"]["mime"] == "model/gltf-binary"
+    assert manifest["artifacts"]["model"]["format"] == "glb"
+    assert manifest["artifacts"]["model"]["bytes"] == 12
+    assert manifest["artifacts"]["model"]["hash"].startswith("sha256:")

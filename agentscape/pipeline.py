@@ -4,11 +4,12 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .providers import KaggleImageProvider, Modal3DProvider
+from .artifacts import write_atomic
+from .providers.base import ImageProvider, ReconstructionProvider
 
 
 class TextTo3DPipeline:
-    def __init__(self, image_provider: KaggleImageProvider, reconstruction_provider: Modal3DProvider) -> None:
+    def __init__(self, image_provider: ImageProvider, reconstruction_provider: ReconstructionProvider) -> None:
         self.image_provider = image_provider
         self.reconstruction_provider = reconstruction_provider
 
@@ -22,8 +23,9 @@ class TextTo3DPipeline:
         profile: str = "recommended",
         image_seed: int | None = None,
         reconstruction_seed: int = 42,
-    ) -> dict:
+    ) -> dict[str, object]:
         output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "manifest.json").unlink(missing_ok=True)
         reference = output_dir / "reference.webp"
         model_path = output_dir / "model.glb"
 
@@ -41,27 +43,31 @@ class TextTo3DPipeline:
             profile=profile,
             seed=reconstruction_seed,
         )
-        manifest = {
+
+        manifest: dict[str, object] = {
             "schema": "agentscape.asset.v1",
             "created_at": datetime.now(UTC).isoformat(),
             "prompt": prompt,
             "providers": {
-                "image": {"name": "kaggle-inference-hub", "model": image_model},
+                "image": {"name": image_result.provider, "model": image_result.model},
                 "reconstruction": {
-                    "name": "modal-3D-client",
-                    "model": reconstruction_model,
+                    "name": reconstruction_result.provider,
+                    "model": reconstruction_result.model,
                     "profile": profile,
                 },
             },
-            "artifacts": {"reference": reference.name, "model": model_path.name},
+            "artifacts": {
+                "reference": image_result.artifact.to_dict(relative_to=output_dir),
+                "model": reconstruction_result.artifact.to_dict(relative_to=output_dir),
+            },
             "jobs": {
-                "image_task_id": image_result["task_id"],
-                "modal_project_id": reconstruction_result["project_id"],
-                "modal_job_id": reconstruction_result["job_id"],
+                "image_task_id": image_result.task_id,
+                "modal_project_id": reconstruction_result.project_id,
+                "modal_job_id": reconstruction_result.job_id,
             },
         }
-        (output_dir / "manifest.json").write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+        write_atomic(
+            output_dir / "manifest.json",
+            (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode(),
         )
         return manifest

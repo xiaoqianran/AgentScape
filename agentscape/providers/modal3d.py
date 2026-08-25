@@ -6,10 +6,14 @@ from pathlib import Path
 
 import httpx
 
-from .kaggle import ProviderError
+from ..artifacts import validate_glb, write_artifact
+from ..contracts import Artifact, ReconstructionResult
+from ..errors import ContractError, ProviderError
 
 
 class Modal3DProvider:
+    name = "modal-3D-client"
+
     def __init__(
         self,
         base_url: str,
@@ -40,7 +44,10 @@ class Modal3DProvider:
         return self._request("GET", "/modal/status").json()
 
     def models(self) -> list[dict]:
-        return self._request("GET", "/v1/models").json()
+        value = self._request("GET", "/v1/models").json()
+        if not isinstance(value, list):
+            raise ContractError("modal-3D /v1/models 返回结构无效")
+        return value
 
     def create_project(self, image_path: Path) -> dict:
         mime = mimetypes.guess_type(image_path.name)[0] or "application/octet-stream"
@@ -50,21 +57,30 @@ class Modal3DProvider:
                 "/v1/projects",
                 files={"file": (image_path.name, stream, mime)},
             )
-        return response.json()
+        value = response.json()
+        if not isinstance(value, dict) or not value.get("id"):
+            raise ContractError("modal-3D /v1/projects 返回缺少 id")
+        return value
 
     def segment(self, project_id: str, concept: str) -> dict:
-        return self._request(
+        value = self._request(
             "POST",
             f"/v1/projects/{project_id}/segment",
             json={"concept": concept, "max_candidates": 1},
         ).json()
+        if not isinstance(value, dict):
+            raise ContractError("modal-3D segment 返回结构无效")
+        return value
 
     def materialize(self, project_id: str, candidate_id: str, *, output_size: int = 1024) -> dict:
-        return self._request(
+        value = self._request(
             "POST",
             f"/v1/projects/{project_id}/materialize",
             json={"candidate_id": candidate_id, "output_size": output_size},
         ).json()
+        if not isinstance(value, dict):
+            raise ContractError("modal-3D materialize 返回结构无效")
+        return value
 
     def submit_generation(
         self,
@@ -74,35 +90,39 @@ class Modal3DProvider:
         profile: str = "recommended",
         seed: int = 42,
     ) -> dict:
-        return self._request(
+        value = self._request(
             "POST",
             f"/v1/projects/{project_id}/generation",
             json={"model": model, "profile": profile, "seed": seed},
-        ).json()["job"]
+        ).json()
+        try:
+            job = value["job"]
+            if not isinstance(job, dict) or not job.get("id"):
+                raise TypeError
+            return job
+        except (KeyError, TypeError) as exc:
+            raise ContractError("modal-3D generation 返回缺少 job.id") from exc
 
     def wait(self, job_id: str, *, timeout: float = 1800.0) -> dict:
         deadline = time.monotonic() + timeout
         terminal = {"succeeded", "failed", "cancelled", "expired"}
         while time.monotonic() < deadline:
             job = self._request("GET", f"/v1/jobs/{job_id}").json()
+            if not isinstance(job, dict):
+                raise ContractError("modal-3D job 返回结构无效")
             status = job.get("status")
             if status in terminal:
                 if status != "succeeded":
-                    raise ProviderError(
-                        f"modal-3D job {job_id} ended as {status}: {job.get('error') or 'unknown error'}"
-                    )
+                    error = job.get("error") or "unknown error"
+                    raise ProviderError(f"modal-3D job {job_id} ended as {status}: {error}")
                 return job
             time.sleep(self.poll_interval)
         raise TimeoutError(f"modal-3D job {job_id} did not finish within {timeout:.0f}s")
 
-    def download_artifact(self, artifact_path: str, destination: Path) -> Path:
+    def download_artifact(self, artifact_path: str, destination: Path) -> Artifact:
         response = self._request("GET", "/v1/assets", params={"path": artifact_path})
-        data = response.content
-        if len(data) < 12 or data[:4] != b"glTF":
-            raise ProviderError("modal-3D returned an invalid GLB artifact")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(data)
-        return destination
+        validate_glb(response.content)
+        return write_artifact(destination, response.content, mime="model/gltf-binary", format="glb")
 
     def reconstruct(
         self,
@@ -115,27 +135,40 @@ class Modal3DProvider:
         seed: int = 42,
         output_size: int = 1024,
         timeout: float = 1800.0,
-    ) -> dict:
+    ) -> ReconstructionResult:
         project = self.create_project(image_path)
-        project_id = project["id"]
+        project_id = str(project["id"])
         selection = self.segment(project_id, concept)
-        candidates = selection.get("selection", {}).get("candidates", [])
+        selected = selection.get("selection")
+        if not isinstance(selected, dict):
+            raise ContractError("modal-3D segment 返回缺少 selection")
+        candidates = selected.get("candidates")
+        if not isinstance(candidates, list):
+            raise ContractError("modal-3D segment 返回的 candidates 无效")
         if not candidates:
             raise ProviderError(f"SAM found no candidate matching concept: {concept}")
-        candidate_id = candidates[0]["candidate_id"]
+
+        candidate = candidates[0]
+        if not isinstance(candidate, dict) or not candidate.get("candidate_id"):
+            raise ContractError("modal-3D segment candidate 缺少 candidate_id")
+        candidate_id = str(candidate["candidate_id"])
+
         self.materialize(project_id, candidate_id, output_size=output_size)
         job = self.submit_generation(project_id, model=model, profile=profile, seed=seed)
-        finished = self.wait(job["id"], timeout=timeout)
-        artifact = (finished.get("result") or {}).get("artifact") or {}
-        artifact_path = artifact.get("path")
-        if not artifact_path:
-            raise ProviderError("modal-3D job succeeded without result.artifact.path")
-        self.download_artifact(artifact_path, destination)
-        return {
-            "project_id": project_id,
-            "job_id": job["id"],
-            "candidate_id": candidate_id,
-            "artifact_path": artifact_path,
-            "artifact": str(destination),
-            "remote": finished,
-        }
+        job_id = str(job["id"])
+        finished = self.wait(job_id, timeout=timeout)
+        result = finished.get("result")
+        artifact = result.get("artifact") if isinstance(result, dict) else None
+        artifact_path = artifact.get("path") if isinstance(artifact, dict) else None
+        if not isinstance(artifact_path, str) or not artifact_path:
+            raise ContractError("modal-3D job succeeded without result.artifact.path")
+
+        local_artifact = self.download_artifact(artifact_path, destination)
+        return ReconstructionResult(
+            provider=self.name,
+            model=model,
+            project_id=project_id,
+            job_id=job_id,
+            candidate_id=candidate_id,
+            artifact=local_artifact,
+        )
