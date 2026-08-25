@@ -11,6 +11,7 @@ from agentscape.contracts import Artifact, ArtifactSummary, JobResult
 from agentscape.errors import ArtifactError, ProviderError
 from agentscape.job_client import JobState
 from agentscape.jobs import JobRequest
+from agentscape.modal2d import Modal2DTextToImageRequestBuilder
 
 
 IMAGE_OPERATION = MODAL_2D_TEXT_TO_IMAGE
@@ -171,12 +172,7 @@ def test_job_runner_failure_and_timeout_are_bounded() -> None:
 
 
 def _builders(prompt: str):
-    image_request = JobRequest(
-        provider="modal-2d",
-        operation=IMAGE_OPERATION,
-        inputs={"confirmedPrompt": prompt},
-        output_roles=("primary-image",),
-    )
+    image_request = Modal2DTextToImageRequestBuilder()(prompt)
     captured: dict[str, object] = {}
 
     def image_builder(value: str) -> JobRequest:

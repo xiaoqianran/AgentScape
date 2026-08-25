@@ -15,6 +15,7 @@ from agentscape.connector_pipeline import ConnectorJobRunner, ConnectorTextTo3DP
 from agentscape.connector_session import CONNECTOR_SESSION_SCOPES, ConnectorSession
 from agentscape.errors import ContractError
 from agentscape.jobs import JobRequest
+from agentscape.modal2d import Modal2DTextToImageRequestBuilder
 
 
 NOW = datetime(2026, 8, 25, 6, 0, tzinfo=UTC)
@@ -217,6 +218,14 @@ class ConnectorHarness:
 
             if body["operation"] == MODAL_2D_TEXT_TO_IMAGE:
                 assert body["outputRoles"] == ["primary-image"]
+                assert body["profile"] == "recommended"
+                assert body["inputs"] == {
+                    "prompt": "一座长满青苔的蘑菇小屋",
+                    "model": "sana-sprint-0.6b",
+                    "seed": 42,
+                    "guidance": 4.5,
+                }
+                assert "steps" not in body["inputs"]
                 job_id = "job_image"
             elif body["operation"] == MODAL_3D_IMAGE_TO_3D:
                 assert body["outputRoles"] == ["primary-glb"]
@@ -332,15 +341,7 @@ def make_pipeline(harness: ConnectorHarness, prompt: str) -> ConnectorTextTo3DPi
     )
     capabilities = ConnectorCapabilityClient(session, now=lambda: NOW)
 
-    def image_request(value: str) -> JobRequest:
-        # 测试 builder 只代表“Provider-specific schema 可注入”，不是生产 wire schema。
-        return JobRequest(
-            provider="modal-2d",
-            operation=MODAL_2D_TEXT_TO_IMAGE,
-            inputs={"testPrompt": value},
-            profile="recommended",
-            output_roles=("primary-image",),
-        )
+    image_request = Modal2DTextToImageRequestBuilder(model="sana-sprint-0.6b")
 
     def reconstruction_request(image, parent, value: str) -> JobRequest:
         assert parent.id == "job_image"
