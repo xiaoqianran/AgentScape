@@ -5,7 +5,7 @@ const objectSchema = (skill) => ({
   additionalProperties: false
 });
 
-const VERIFIED_STATUSES = new Set(['action-completed', 'arrived', 'held', 'placed', 'dropped', 'recovery-cleaned']);
+const VERIFIED_STATUSES = new Set(['action-completed', 'arrived', 'held', 'placed', 'dropped', 'recovery-cleaned', 'repair-applied']);
 const BLOCKED_STATUSES = new Set(['blocked', 'unreachable', 'interaction-blocked', 'pickup-blocked', 'place-blocked']);
 const FAILED_STATUSES = new Set(['action-failed', 'place-failed']);
 const UNVERIFIED_STATUSES = new Set(['action-unverified', 'place-unverified', 'cancelled']);
@@ -21,6 +21,7 @@ function classifyResult(result) {
       || (result.error && typeof result.error === 'object' && (result.error.code || result.code));
     if (toolError) return { state:'error', verified:false, reason:result.code || result.error?.code || 'TOOL_ERROR' };
     if (result.committed === false || result.rolledBack === true) return { state:'failed', verified:false, reason:result.reason || 'BATCH_NOT_COMMITTED' };
+    if (result.accepted === false) return { state:'failed', verified:false, reason:result.reason || 'RESULT_NOT_ACCEPTED' };
     if (result.committed === true && result.rolledBack === false) return { state:'verified', verified:true, status:'committed' };
     const status = typeof result.status === 'string' ? result.status : null;
     if (status) {

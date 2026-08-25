@@ -19,6 +19,7 @@ describe('WorldValidator', () => {
     const report = new WorldValidator(runtime({ below: true, collision: true })).run();
     expect(report.ok).toBe(false);
     expect(report.hard.map((x) => x.code)).toEqual(expect.arrayContaining(['G_BELOW_GROUND', 'P_OVERLAP']));
+    expect(report.findings).toEqual(expect.arrayContaining([expect.objectContaining({schema:'agentscape.finding',code:'G_BELOW_GROUND',repair:{eligible:true,strategy:'lift_to_ground'}})]));
   });
 
   it('returns stable count/coverage structure', () => {

@@ -1,3 +1,5 @@
+import { compileValidationFindings } from './Finding.js';
+
 export class WorldValidator {
   constructor(runtime) { this.runtime = runtime; }
 
@@ -30,7 +32,7 @@ export class WorldValidator {
       }
     }
 
-    return {
+    const report={
       schema: 1,
       ok: hard.length === 0,
       counts: { hard: hard.length, advisory: advisory.length },
@@ -38,5 +40,7 @@ export class WorldValidator {
       advisory,
       coverage: { objects: objects.length, relations: relations.length }
     };
+    report.findings=compileValidationFindings(report,{worldRevisionId:this.runtime.currentWorldRevision?.revision?.id || null});
+    return report;
   }
 }

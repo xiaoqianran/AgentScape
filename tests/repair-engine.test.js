@@ -44,3 +44,27 @@ describe('RepairEngine', () => {
     expect(runtime.restore).toHaveBeenCalledWith({ before:true });
   });
 });
+
+
+it('rejects stale revision findings before taking a repair snapshot', async () => {
+  const runtime=belowGroundRuntime();
+  runtime.currentWorldRevision={revision:{id:'rev-current'},provenance:{source:'planner'}};
+  const engine=new RepairEngine(runtime);
+  const report={counts:{hard:1,advisory:0},hard:[],advisory:[],findings:[{
+    schema:'agentscape.finding',schemaVersion:1,id:'old',source:'world-validator',severity:'hard',code:'G_BELOW_GROUND',worldRevisionId:'rev-old',affectedObjects:['a'],message:'',evidence:{},repair:{eligible:true,strategy:'lift_to_ground'}
+  }]};
+  await expect(engine.repair(report)).rejects.toMatchObject({code:'FINDING_REVISION_MISMATCH'});
+  expect(runtime.snapshot).not.toHaveBeenCalled();
+  expect(runtime.interactions.move).not.toHaveBeenCalled();
+});
+
+it('ignores non-repairable findings instead of inventing a mutation strategy', async () => {
+  const runtime=belowGroundRuntime();
+  const engine=new RepairEngine(runtime);
+  const report={counts:{hard:1,advisory:0},hard:[],advisory:[],findings:[{
+    schema:'agentscape.finding',schemaVersion:1,id:'rel',source:'world-validator',severity:'hard',code:'R_ASYMMETRIC',affectedObjects:['a'],message:'',evidence:{},repair:{eligible:false}
+  }]};
+  const result=await engine.repair(report);
+  expect(result).toMatchObject({status:'repair-applied',accepted:true,applied:[],ignored:[{findingId:'rel',reason:'NOT_REPAIRABLE'}]});
+  expect(runtime.interactions.move).not.toHaveBeenCalled();
+});
