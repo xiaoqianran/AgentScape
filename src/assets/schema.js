@@ -5,6 +5,24 @@ const BODY_TYPES = new Set(['fixed', 'dynamic', 'kinematic']);
 const SHAPES = new Set(['box', 'cylinder', 'capsule', 'convexHull']);
 const ARTICULATION_ACTIONS = new Set(['open', 'close']);
 
+function validateInteractionContract(value, context = {}) {
+  if (value == null) return;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw Errors.invalidManifest('interactionContract must be an object', context);
+  if (value.schema !== 'agentscape.interaction-contract') throw Errors.invalidManifest('interactionContract.schema must be agentscape.interaction-contract', context);
+  if (value.schemaVersion !== 1) throw Errors.invalidManifest('interactionContract.schemaVersion must be 1', context);
+  if (value.entityId !== context.id) throw Errors.invalidManifest('interactionContract.entityId must match manifest id', context);
+  if (!Array.isArray(value.contracts)) throw Errors.invalidManifest('interactionContract.contracts must be an array', context);
+  const ids=new Set();
+  for (const contract of value.contracts) {
+    if (!contract?.id || ids.has(contract.id)) throw Errors.invalidManifest('interactionContract contract ids must be unique', context);
+    ids.add(contract.id);
+    if (!contract.capability || !contract.action) throw Errors.invalidManifest('interactionContract contract requires capability and action', context);
+    if (!Array.isArray(contract.preconditions) || !Array.isArray(contract.effects)) throw Errors.invalidManifest('interactionContract contract requires preconditions and effects arrays', context);
+    if (!contract.verifierTarget?.type || contract.verifierTarget.type !== 'articulation-state') throw Errors.invalidManifest('interactionContract verifierTarget must be articulation-state', context);
+    if (!Number.isFinite(contract.verifierTarget.target)) throw Errors.invalidManifest('interactionContract verifierTarget.target must be finite', context);
+  }
+}
+
 function validateEmbodiment(embodiment, context = {}) {
   if (!embodiment) return;
   const anchor = embodiment.holdAnchor;
@@ -40,6 +58,7 @@ export function validateAssetManifest(manifest) {
   if (!['builtin', 'glb', 'compiled'].includes(manifest.source?.kind)) throw Errors.invalidManifest('Manifest source.kind must be builtin, glb or compiled', { id: manifest.id });
   if (manifest.source.kind === 'glb' && !manifest.source.url) throw Errors.invalidManifest('GLB source requires url', { id: manifest.id });
   if (manifest.source.kind === 'compiled' && !manifest.source.key) throw Errors.invalidManifest('Compiled source requires key', { id: manifest.id });
+  validateInteractionContract(manifest.interactionContract, { id: manifest.id });
   validatePhysics(manifest.physics, { id: manifest.id });
   validateEmbodiment(manifest.embodiment, { id: manifest.id });
   for (const [name, part] of Object.entries(manifest.parts || {})) {
