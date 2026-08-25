@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat';
+import { RapierPhysicsBackend } from '../physics/RapierPhysicsBackend.js';
 import { orderParts, ROOT_PART } from '../../assets/parts.js';
 
 const vec = (a = [0, 0, 0]) => ({ x: a[0], y: a[1], z: a[2] });
@@ -100,7 +100,8 @@ const convexAabb = (vertices, position, rotation) => {
 };
 
 export class PhysicsSystem {
-  constructor() {
+  constructor({ backend = new RapierPhysicsBackend() } = {}) {
+    this.backend = backend;
     this.world = null;
     this.entries = new Map();
     this.colliderProvenance = new Map();
@@ -118,8 +119,8 @@ export class PhysicsSystem {
   }
 
   async init() {
-    await RAPIER.init();
-    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    await this.backend.init();
+    this.world = this.backend.createWorld();
     this.characterController = this.world.createCharacterController(0.02);
     this.characterController.enableAutostep(0.3, 0.2, false);
     this.characterController.enableSnapToGround(0.3);
@@ -129,7 +130,7 @@ export class PhysicsSystem {
   }
 
   addEnvironment(colliders = [], { id = '$environment' } = {}) {
-    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    const body = this.world.createRigidBody(this.backend.createFixedBodyDesc());
     this.addColliders(body, colliders, undefined, undefined, { kind:'environment', environmentId:id });
     return body;
   }
@@ -139,12 +140,7 @@ export class PhysicsSystem {
   }
 
   bodyDesc(type, position) {
-    const desc = type === 'dynamic'
-      ? RAPIER.RigidBodyDesc.dynamic()
-      : type === 'kinematic'
-        ? RAPIER.RigidBodyDesc.kinematicPositionBased()
-        : RAPIER.RigidBodyDesc.fixed();
-    return desc.setTranslation(position.x, position.y, position.z);
+    return this.backend.createBodyDesc(type, position);
   }
 
   addColliders(body, colliders = [], mass, friction, provenance = null) {
@@ -152,15 +148,8 @@ export class PhysicsSystem {
     const created = [];
     for (let colliderIndex=0; colliderIndex<colliders.length; colliderIndex++) {
       const spec = colliders[colliderIndex];
-      let desc;
-      if (spec.shape === 'box') desc = RAPIER.ColliderDesc.cuboid(...spec.halfExtents);
-      else if (spec.shape === 'cylinder') desc = RAPIER.ColliderDesc.cylinder(spec.halfHeight, spec.radius);
-      else if (spec.shape === 'capsule') desc = RAPIER.ColliderDesc.capsule(spec.halfHeight, spec.radius);
-      else if (spec.shape === 'convexHull') {
-        desc = RAPIER.ColliderDesc.convexHull(new Float32Array(spec.vertices));
-        if (!desc) throw new Error('Rapier rejected a degenerate convex hull collider');
-      }
-      else continue;
+      const desc = this.backend.createColliderDesc(spec);
+      if (!desc) continue;
       if (spec.translation) desc.setTranslation(...spec.translation);
       if (spec.rotation) desc.setRotation({ x:spec.rotation[0], y:spec.rotation[1], z:spec.rotation[2], w:spec.rotation[3] });
       if (colliderMass != null) desc.setMass(colliderMass);
@@ -214,12 +203,7 @@ export class PhysicsSystem {
         createdBodies.push(child);
         this.addColliders(child, part.physics.colliders, part.physics.mass, part.physics.friction, { kind:'object', objectId:id, partName });
 
-        const data = part.joint.type === 'revolute'
-          ? RAPIER.JointData.revolute(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis))
-          : RAPIER.JointData.prismatic(vec(part.joint.parentAnchor), vec(part.joint.childAnchor), vec(part.joint.axis));
-        const joint = this.world.createImpulseJoint(data, parentBody, child, true);
-        joint.setContactsEnabled(false);
-        if (part.joint.limits) joint.setLimits(part.joint.limits[0], part.joint.limits[1]);
+        const joint = this.backend.createImpulseJoint(this.world, part, parentBody, child);
         bodies.set(partName, child);
         entry.parts.set(partName, { body: child, joint, node, spec: part, parentName, restLocalRotation:node.quaternion.clone(), restLocalPosition:node.position.clone(), lastLocalRotation: node.quaternion.clone(), lastLocalPosition: node.position.clone() });
       }
@@ -254,10 +238,10 @@ export class PhysicsSystem {
     const entry = this.entries.get(id);
     if (!entry) return;
     entry.originalType = entry.body.bodyType();
-    entry.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+    this.backend.setKinematicType(entry.body);
     for (const part of entry.parts.values()) {
-      part.originalType = part.body.bodyType();
-      part.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+      part.originalType = this.backend.captureBodyType(part.body);
+      this.backend.setKinematicType(part.body);
     }
   }
 
@@ -286,10 +270,10 @@ export class PhysicsSystem {
   endTransform(id) {
     const entry = this.entries.get(id);
     if (!entry) return;
-    if (entry.originalType != null) entry.body.setBodyType(entry.originalType, true);
+    if (entry.originalType != null) this.backend.restoreBodyType(entry.body, entry.originalType);
     delete entry.originalType;
     for (const part of entry.parts.values()) {
-      if (part.originalType != null) part.body.setBodyType(part.originalType, true);
+      if (part.originalType != null) this.backend.restoreBodyType(part.body, part.originalType);
       delete part.originalType;
       part.body.wakeUp();
     }
@@ -312,15 +296,14 @@ export class PhysicsSystem {
     const entry = this.entries.get(id);
     if (!entry) return false;
     if (held) {
-      if (entry.heldOriginalType == null) entry.heldOriginalType = entry.body.bodyType();
+      if (entry.heldOriginalType == null) entry.heldOriginalType = this.backend.captureBodyType(entry.body);
       entry.held = true;
-      entry.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+      this.backend.setKinematicType(entry.body);
       entry.body.setLinvel?.({x:0,y:0,z:0}, true);
       entry.body.setAngvel?.({x:0,y:0,z:0}, true);
     } else {
-      const type = entry.heldOriginalType ?? RAPIER.RigidBodyType.Dynamic;
       entry.held = false;
-      entry.body.setBodyType(type, true);
+      this.backend.restoreBodyType(entry.body, entry.heldOriginalType ?? 'dynamic');
       entry.body.setLinvel?.({x:0,y:0,z:0}, true);
       entry.body.setAngvel?.({x:0,y:0,z:0}, true);
       delete entry.heldOriginalType;
@@ -371,11 +354,7 @@ export class PhysicsSystem {
     const excluded=new Set(excludeIds);
     const blockedBy=new Set();
     const shapeFor=(spec)=>{
-      if (spec.shape==='box') return new RAPIER.Cuboid(...spec.halfExtents);
-      if (spec.shape==='cylinder') return new RAPIER.Cylinder(spec.halfHeight,spec.radius);
-      if (spec.shape==='capsule') return new RAPIER.Capsule(spec.halfHeight,spec.radius);
-      if (spec.shape==='convexHull') return new RAPIER.ConvexPolyhedron(new Float32Array(spec.vertices));
-      return null;
+      return this.backend.createShape(spec);
     };
     syncColliderPoses(this.world);
     for(let i=0;i<colliders.length;i++) {
@@ -844,7 +823,7 @@ export class PhysicsSystem {
       const owner = parent ? this.ownerOfBodyHandle(parent.handle) : null;
       return !owner || !excluded.has(owner.id);
     } : undefined;
-    const ray = new RAPIER.Ray(vec(origin), vec(normalized));
+    const ray = this.backend.createRay(vec(origin), vec(normalized));
     const hit = castRayImmediate(this.world, ray, distance, true, filter);
     if (!hit) return null;
     const body = hit.collider.parent();
@@ -940,7 +919,7 @@ export class PhysicsSystem {
         const position = collider.translation();
         const rotation = collider.rotation();
         const id = `${objectId}:${partName}:${i}`;
-        if (shape.type === RAPIER.ShapeType.Cuboid) {
+        if (this.backend.isShapeType(shape,'Cuboid')) {
           const exact = upright(rotation);
           items.push({
             id, objectId, part:partName, collider:i, shape:'box', sourceShape:'box', quality:exact ? 'exact-yaw' : 'conservative-aabb',
@@ -948,13 +927,13 @@ export class PhysicsSystem {
             halfExtents:exact ? array3(shape.halfExtents) : boxAabbHalfExtents(shape.halfExtents, rotation),
             angle:exact ? yaw(rotation) : 0
           });
-        } else if (shape.type === RAPIER.ShapeType.Cylinder) {
+        } else if (this.backend.isShapeType(shape,'Cylinder')) {
           if (upright(rotation)) {
             items.push({ id, objectId, part:partName, collider:i, shape:'cylinder', sourceShape:'cylinder', quality:'exact-upright', position:[position.x, position.y - shape.halfHeight, position.z], radius:shape.radius, height:shape.halfHeight * 2 });
           } else {
             items.push({ id, objectId, part:partName, collider:i, shape:'box', sourceShape:'cylinder', quality:'conservative-aabb', position:array3(position), halfExtents:cylinderAabbHalfExtents(shape.radius, shape.halfHeight, rotation), angle:0 });
           }
-        } else if (shape.type === RAPIER.ShapeType.ConvexPolyhedron && shape.vertices?.length) {
+        } else if (this.backend.isShapeType(shape,'ConvexPolyhedron') && shape.vertices?.length) {
           const box = convexAabb(shape.vertices, new THREE.Vector3(position.x, position.y, position.z), rotation);
           items.push({ id, objectId, part:partName, collider:i, shape:'box', sourceShape:'convexHull', quality:'conservative-aabb', ...box, angle:0 });
         } else {
@@ -1051,13 +1030,12 @@ export class PhysicsSystem {
     this.colliderProvenance.clear();
     if (this.world && this.characterController) this.world.removeCharacterController(this.characterController);
     this.characterController = null;
-    this.world?.free?.();
+    this.backend.dispose(this.world);
     this.world = null;
   }
 
   step(dt, store) {
-    this.world.timestep = dt;
-    this.world.step();
+    this.backend.step(this.world, dt);
     let changed = false;
 
     for (const [id, entry] of this.entries) {
