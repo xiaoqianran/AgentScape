@@ -58,7 +58,7 @@ Content-Type: application/json
 
 ### 独立服务 CI
 
-`Asset Compiler Service Check` 只在 `services/asset-compiler/**` 或自身 workflow 变化时运行，安装完整 `requirements.txt` 并测试 URDF 转换与 Part geometry。GitHub Pages 的 Node 构建仍保持纯前端，两条 CI 互不阻塞。
+`Asset Compiler Service Check` 只在 `services/asset-compiler/**` 或自身 workflow 变化时运行。生产服务依赖保持在 `requirements.txt`；CI/本地测试使用 `requirements-test.txt`，在生产依赖之上增加 Starlette TestClient 所需的 `httpx2`。CI 测试 URDF 转换与 Part geometry；GitHub Pages 的 Node 构建仍保持纯前端，两条 CI 互不阻塞。
 
 ## Per-Part CoACD
 
