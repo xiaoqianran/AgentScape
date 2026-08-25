@@ -46,11 +46,13 @@ export AGENTSCAPE_MODAL_AGENT_SESSION='...'
 - GLB 保留对输入图片的 `derived_from` lineage；
 - 3D operation 固定为 `modal-3d.asset.image_to_3d.v1`；
 - `requestHash` / `idempotencyKey` 与 AgentScape 的稳定 JSON 算法一致，且敏感字段直接拒绝进入 Job request；
-- 当前 modal-3D API 支持取消与持久 Job 恢复，但尚未提供幂等 submit，因此 capability 明确声明 `idempotency=false`；
+- direct `modal-3D-client` adapter 支持取消与持久 Job 恢复；统一 Connector 下的 `cancel/resume/idempotency` 能力以实时 capability snapshot 为准，不在 client 硬编码；
 - 生成 GLB 通过 Job-scoped artifact endpoint 获取，不再使用已退休的 path-based `/v1/assets`；
 - `JobController` 统一 `submit/get/cancel/observe` 的幂等与状态迁移门禁，状态机与 AgentScape 完全一致；
 - `JobController` 只保留进程内 projection cache，不写 DB、不管理 Connector session，也不冒充统一 Connector 的持久 JobStore；
-- `ConnectorHttpJobTransport` 对齐 `/connector/v1/jobs` 的 submit/get/cancel wire contract，且只允许 bare loopback Connector origin；
+- `ConnectorSession` 校验配对 scope、过期时间、Connector identity 与 capability provenance，且只允许 bare loopback Connector origin；
+- `ConnectorCapabilityClient` 从 `/connector/v1/capabilities` 自动发现真实 operationVersion / contractVersion / outputRoles / revision / hash，再构造 `ConnectorHttpJobTransport`；
+- `ConnectorHttpJobTransport` 对齐 `/connector/v1/jobs` 的 submit/get/cancel wire contract，不再要求调用方手填 capability provenance；
 - Connector session token 只进入 Authorization header，不进入 Job request、manifest、缓存或错误文本；projection 若回显当前 credential 会直接拒绝；
 - Connector Job parser 校验完整 projection facts，并用归一化事实签名处理同一 `eventSequence` 的冲突检测。
 

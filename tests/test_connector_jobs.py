@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -9,9 +10,9 @@ from agentscape.capabilities import MODAL_3D_IMAGE_TO_3D
 from agentscape.connector_jobs import (
     ConnectorHttpJobTransport,
     ConnectorJobCapability,
-    normalize_connector_endpoint,
     parse_job_state,
 )
+from agentscape.connector_session import ConnectorSession
 from agentscape.errors import (
     ConnectionRequiredError,
     ConnectorHttpError,
@@ -72,13 +73,30 @@ def job_payload(
     return payload
 
 
-def transport(handler, *, token: str = "session-secret") -> ConnectorHttpJobTransport:
-    return ConnectorHttpJobTransport(
+def session(handler, *, token: str = "session-secret", scopes: tuple[str, ...] = ("capabilities.read", "jobs.submit", "jobs.read", "jobs.cancel", "artifacts.read")) -> ConnectorSession:
+    return ConnectorSession(
         "http://127.0.0.1:39001",
         token,
-        CAPABILITY,
+        {
+            "connector": {"id": "unified-connector", "instance": "instance_01", "version": "1.0.0"},
+            "contractVersion": "1",
+            "clientIdentity": "agentscape",
+            "tokenId": "token_01",
+            "scopes": scopes,
+            "issuedAt": "2026-08-25T05:00:00.000Z",
+            "expiresAt": "2026-08-25T08:00:00.000Z",
+            "allowedOrigins": ("http://localhost:3000",),
+            "capabilityRevision": "caprev_01",
+            "capabilityHash": "sha256:cap01",
+            "revokeEndpoint": "/connector/v1/session",
+        },
         client=httpx.Client(transport=httpx.MockTransport(handler)),
+        now=lambda: datetime(2026, 8, 25, 6, 0, tzinfo=UTC),
     )
+
+
+def transport(handler, *, token: str = "session-secret") -> ConnectorHttpJobTransport:
+    return ConnectorHttpJobTransport(session(handler, token=token), CAPABILITY)
 
 
 def test_submit_matches_connector_wire_contract_without_leaking_token() -> None:
@@ -150,10 +168,8 @@ def test_missing_session_token_is_connection_required_without_http_call() -> Non
         called = True
         return httpx.Response(500)
 
-    client = transport(handler, token="")
-
     with pytest.raises(ConnectionRequiredError, match="session token"):
-        client.get("job_01")
+        transport(handler, token="")
     assert called is False
 
 
@@ -195,7 +211,7 @@ def test_http_idempotency_conflict_has_dedicated_error_without_server_message() 
     client = transport(
         lambda request: httpx.Response(
             409,
-            json={"code": "JOB_IDEMPOTENCY_CONFLICT", "message": "session-secret"},
+            json={"code": "JOB_IDEMPOTENCY_CONFLICT", "message": "conflict"},
         )
     )
 
@@ -302,24 +318,3 @@ def test_capability_rejects_unknown_output_role_before_transport() -> None:
 
     with pytest.raises(ContractError, match="output role"):
         CAPABILITY.build_submit(request)
-
-
-@pytest.mark.parametrize(
-    "endpoint",
-    [
-        "https://example.com:443",
-        "http://127.0.0.1:39001/path",
-        "http://user:pass@127.0.0.1:39001",
-        "file:///tmp/connector.sock",
-        "http://127.0.0.1:99999",
-    ],
-)
-def test_connector_endpoint_fails_closed_outside_bare_loopback_origin(endpoint: str) -> None:
-    with pytest.raises(ContractError, match="Connector endpoint"):
-        normalize_connector_endpoint(endpoint)
-
-
-def test_connector_endpoint_accepts_loopback_ipv4_localhost_and_ipv6() -> None:
-    assert normalize_connector_endpoint("http://127.0.0.1:39001/") == "http://127.0.0.1:39001"
-    assert normalize_connector_endpoint("http://localhost:39001") == "http://localhost:39001"
-    assert normalize_connector_endpoint("http://[::1]:39001") == "http://[::1]:39001"

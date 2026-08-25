@@ -6,10 +6,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
 from typing import Any
-from urllib.parse import urlsplit
-
-import httpx
-
 from .contracts import ArtifactSummary, JobResult
 from .errors import (
     ConnectionRequiredError,
@@ -17,6 +13,7 @@ from .errors import (
     ContractError,
     IdempotencyConflictError,
 )
+from .connector_session import ConnectorSession
 from .job_client import JOB_STATUSES, SAFE_JOB_ID, JobState
 from .jobs import JS_MAX_SAFE_INTEGER, JobRequest, sanitize_job_data
 
@@ -82,25 +79,6 @@ class ConnectorJobCapability:
             "capabilityRevision": self.capability_revision,
         }
 
-
-def normalize_connector_endpoint(value: str) -> str:
-    try:
-        parsed = urlsplit(str(value).strip())
-    except ValueError as exc:
-        raise ContractError("Connector endpoint 必须是有效 URL") from exc
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        raise ContractError("Connector endpoint 必须使用 http/https")
-    if parsed.hostname.lower() not in LOOPBACK_HOSTS:
-        raise ContractError("Connector endpoint 必须绑定 loopback host")
-    if parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in {"", "/"}:
-        raise ContractError("Connector endpoint 必须是纯 loopback origin")
-    host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
-    try:
-        parsed_port = parsed.port
-    except ValueError as exc:
-        raise ContractError("Connector endpoint 端口无效") from exc
-    port = f":{parsed_port}" if parsed_port is not None else ""
-    return f"{parsed.scheme}://{host}{port}"
 
 
 def _text(value: Any, field: str, *, optional: bool = False) -> str | None:
@@ -301,23 +279,11 @@ def parse_job_state(payload: Any) -> JobState:
 
 
 class ConnectorHttpJobTransport:
-    """只负责 Connector Job HTTP；session token 永不进入 Job 数据。"""
+    """只负责 Connector Job HTTP；鉴权和 scope 由 ConnectorSession 统一管理。"""
 
-    def __init__(
-        self,
-        endpoint: str,
-        session_token: str,
-        capability: ConnectorJobCapability,
-        *,
-        client: httpx.Client | None = None,
-    ) -> None:
-        self.endpoint = normalize_connector_endpoint(endpoint)
-        self._session_token = str(session_token)
+    def __init__(self, session: ConnectorSession, capability: ConnectorJobCapability) -> None:
+        self.session = session
         self.capability = capability
-        self.client = client or httpx.Client(timeout=60.0, follow_redirects=False)
-
-    def update_session_token(self, token: str) -> None:
-        self._session_token = str(token)
 
     def submit(self, request: JobRequest) -> JobState:
         body = self.capability.build_submit(request)
@@ -351,37 +317,15 @@ class ConnectorHttpJobTransport:
         return job
 
     def _job_request(self, method: str, path: str, *, json_body: dict[str, object] | None = None) -> JobState:
-        payload = self._request(method, path, json_body=json_body)
-        if self._session_token and self._session_token in json.dumps(payload, ensure_ascii=False):
-            raise ContractError("Connector response 回显了 session credential")
-        raw_job = payload.get("job", payload)
-        return parse_job_state(raw_job)
-
-    def _request(self, method: str, path: str, *, json_body: dict[str, object] | None = None) -> dict[str, object]:
-        if not self._session_token:
-            raise ConnectionRequiredError("Connector session token 不可用")
-        headers = {
-            "Authorization": f"Bearer {self._session_token}",
-            "Accept": "application/json",
-        }
-        if json_body is not None:
-            headers["Content-Type"] = "application/json"
-        try:
-            response = self.client.request(
-                method,
-                f"{self.endpoint}{path}",
-                headers=headers,
-                content=None if json_body is None else json.dumps(json_body, ensure_ascii=False, separators=(",", ":")),
-            )
-        except httpx.RequestError as exc:
-            raise ConnectionRequiredError("Connector 不可达") from exc
-
+        scope = "jobs.submit" if method == "POST" and path == JOBS_PATH else "jobs.cancel" if path.endswith("/cancel") else "jobs.read"
+        response = self.session.request(method, path, scope=scope, json_body=json_body)
         try:
             payload = response.json()
         except ValueError as exc:
             raise ContractError("Connector 返回无效 JSON") from exc
         if not isinstance(payload, dict):
             raise ContractError("Connector Job response 必须是 JSON 对象")
+        self.session.assert_no_token_echo(payload)
         if not response.is_success:
             code = str(payload.get("code") or "CONNECTOR_JOB_HTTP_ERROR")
             if code == "CONNECTION_REQUIRED":
@@ -389,7 +333,8 @@ class ConnectorHttpJobTransport:
             if response.status_code == 409 and "IDEMPOTENCY" in code.upper():
                 raise IdempotencyConflictError(f"Connector idempotency conflict: {code}")
             raise ConnectorHttpError(code=code, status=response.status_code)
-        return payload
+        raw_job = payload.get("job", payload)
+        return parse_job_state(raw_job)
 
     @staticmethod
     def _validate_job_id(job_id: str) -> None:
