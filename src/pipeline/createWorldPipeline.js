@@ -143,7 +143,9 @@ export function createWorldPipeline(runtime) {
     const layoutAdmission=state.reports.layoutAdmission || {status:'ready',placements:[],issues:[]};
     const relationAdmission=state.reports.relationAdmission || {status:'ready',applied:[],issues:[]};
     const worldIR=state.artifacts.worldIR;
+    runtime.currentWorldRevision=worldIR ? {revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)} : null;
     const acceptanceGraph=worldIR?.acceptance?.length ? compileWorldAcceptance(worldIR.acceptance) : null;
+    if(!acceptanceGraph) runtime.lastAcceptanceBundle=null;
     const worldAcceptance=acceptanceGraph ? evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined}) : null;
     if(worldAcceptance){
       state.reports.worldAcceptance=worldAcceptance;

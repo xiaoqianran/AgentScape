@@ -27,6 +27,8 @@ export class SceneSerializer {
       .filter((manifest) => ['glb', 'compiled'].includes(manifest.source?.kind))
       .map(clone);
 
+    const worldRevision=runtime.currentWorldRevision ? clone(runtime.currentWorldRevision) : null;
+    const acceptanceEvidence=runtime.lastAcceptanceBundle ? clone(runtime.lastAcceptanceBundle) : null;
     return {
       schema: SCENE_SCHEMA,
       schemaVersion: SCENE_VERSION,
@@ -34,11 +36,13 @@ export class SceneSerializer {
         name,
         savedAt: new Date().toISOString(),
         generator: `AgentScape/${runtime.version || 'unknown'}`,
-        environment: runtime.environment?.id || null
+        environment: runtime.environment?.id || null,
+        ...(worldRevision?{worldRevision}:{})
       },
       assets,
       objects,
       relations: runtime.sceneGraph?.list?.() || [],
+      ...(acceptanceEvidence?{verification:{acceptanceEvidence}}:{}),
       camera: {
         position: runtime.camera.position.toArray(),
         target: runtime.controls.target.toArray()
@@ -53,6 +57,19 @@ export class SceneSerializer {
     if (!Array.isArray(scene.objects)) throw new Error('Scene objects must be an array');
     if (!Array.isArray(scene.assets)) throw new Error('Scene assets must be an array');
     if (scene.relations != null && !Array.isArray(scene.relations)) throw new Error('Scene relations must be an array');
+    const worldRevision=scene.metadata?.worldRevision;
+    if (worldRevision != null) {
+      if (!worldRevision || typeof worldRevision !== 'object' || Array.isArray(worldRevision)) throw new Error('Scene worldRevision must be an object');
+      if (!worldRevision.revision?.id) throw new Error('Scene worldRevision requires revision.id');
+      if (!worldRevision.provenance?.source) throw new Error('Scene worldRevision requires provenance.source');
+    }
+    const acceptanceEvidence=scene.verification?.acceptanceEvidence;
+    if (acceptanceEvidence != null) {
+      if (acceptanceEvidence.schema !== 'agentscape.acceptance-evidence' || acceptanceEvidence.schemaVersion !== 1) throw new Error('Unsupported acceptance evidence');
+      if (!Array.isArray(acceptanceEvidence.criteria) || !acceptanceEvidence.result || typeof acceptanceEvidence.result !== 'object') throw new Error('Invalid acceptance evidence payload');
+      const revisionId=worldRevision?.revision?.id || null;
+      if (revisionId && acceptanceEvidence.worldRevisionId && acceptanceEvidence.worldRevisionId !== revisionId) throw new Error(`Acceptance evidence revision mismatch: ${acceptanceEvidence.worldRevisionId} != ${revisionId}`);
+    }
     const objectIds = new Set(scene.objects.map((object) => object.id));
     const heldOwners = new Set();
     for (const object of scene.objects) {
@@ -105,7 +122,10 @@ export class SceneSerializer {
     if (scene.camera?.position?.length === 3) runtime.camera.position.fromArray(scene.camera.position);
     if (scene.camera?.target?.length === 3) runtime.controls.target.fromArray(scene.camera.target);
     runtime.controls.update();
-    runtime.events.emit('scene.restored', { objects: scene.objects.length });
+    runtime.currentWorldRevision=scene.metadata?.worldRevision ? clone(scene.metadata.worldRevision) : null;
+    runtime.restoredAcceptanceEvidence=scene.verification?.acceptanceEvidence ? clone(scene.verification.acceptanceEvidence) : null;
+    runtime.lastAcceptanceBundle=null;
+    runtime.events.emit('scene.restored', { objects: scene.objects.length, worldRevisionId:runtime.currentWorldRevision?.revision?.id || null, hasAcceptanceEvidence:Boolean(runtime.restoredAcceptanceEvidence) });
     return scene;
   }
 }

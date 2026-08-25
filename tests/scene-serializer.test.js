@@ -108,3 +108,40 @@ it('rejects broken or duplicate heldBy ownership before world mutation', () => {
     base('cup2','cup',{heldBy:{kind:'agent',id:'agent',anchor:'hold'}})
   ]})).toThrow(/multiple held objects/);
 });
+
+
+it('persists world revision and acceptance evidence without promoting restored evidence to current truth', async () => {
+  const serializer=new SceneSerializer();
+  const source=fakeRuntime();
+  source.currentWorldRevision={revision:{id:'rev-7',parentId:'rev-6'},provenance:{source:'planner',evidenceRefs:['finding-1']}};
+  source.lastAcceptanceBundle={schema:'agentscape.acceptance-evidence',schemaVersion:1,required:true,source:'world-pipeline',worldRevisionId:'rev-7',criteria:[{id:'valid',kind:'world-valid'}],result:{status:'world-accepted',checks:[],verifiedCount:1,failedCount:0}};
+  const scene=serializer.serialize(source,{name:'Accepted'});
+  expect(scene.metadata.worldRevision).toMatchObject({revision:{id:'rev-7'},provenance:{source:'planner'}});
+  expect(scene.verification.acceptanceEvidence).toMatchObject({worldRevisionId:'rev-7',result:{status:'world-accepted'}});
+
+  const restored={
+    environment:null,
+    assets:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
+    sceneGraph:{batch:vi.fn(async(operation)=>operation()),changed:vi.fn()},
+    clearObjects:vi.fn(),spawn:vi.fn(async()=>{}),store:{get:vi.fn(()=>({object:new THREE.Group(),state:{}}))},
+    physics:{syncTransform:vi.fn()},restoreObjectState:vi.fn(),interactions:{rebuildHeldOwnership:vi.fn()},
+    camera:{position:new THREE.Vector3()},controls:{target:new THREE.Vector3(),update:vi.fn()},events:{emit:vi.fn()},
+    lastAcceptanceBundle:{required:true,result:{status:'world-accepted'}}
+  };
+  await serializer.restore(restored,{...scene,objects:[],assets:[]});
+  expect(restored.currentWorldRevision).toMatchObject({revision:{id:'rev-7'}});
+  expect(restored.restoredAcceptanceEvidence).toMatchObject({worldRevisionId:'rev-7',result:{status:'world-accepted'}});
+  expect(restored.lastAcceptanceBundle).toBeNull();
+});
+
+it('rejects acceptance evidence attached to a different world revision before mutation', async () => {
+  const serializer=new SceneSerializer();
+  const scene={
+    schema:'agentscape.scene',schemaVersion:1,assets:[],objects:[],relations:[],
+    metadata:{worldRevision:{revision:{id:'rev-current'},provenance:{source:'planner'}}},
+    verification:{acceptanceEvidence:{schema:'agentscape.acceptance-evidence',schemaVersion:1,required:true,worldRevisionId:'rev-other',criteria:[],result:{status:'world-accepted'}}}
+  };
+  const runtime={clearObjects:vi.fn()};
+  await expect(serializer.restore(runtime,scene)).rejects.toThrow(/revision mismatch/i);
+  expect(runtime.clearObjects).not.toHaveBeenCalled();
+});
