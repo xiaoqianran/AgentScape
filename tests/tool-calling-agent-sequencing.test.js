@@ -449,18 +449,40 @@ it('gates model final completion on required world acceptance evidence',async()=
   expect(result).toMatchObject({taskStatus:'incomplete',message:'Task incomplete: world acceptance is world-incomplete.',acceptanceBundle:{required:true,result:{status:'world-incomplete'}}});
 });
 
-it('allows final completion when required world acceptance is accepted and resets stale evidence at task start',async()=>{
+it('allows final completion when this task produces accepted evidence without clearing the previously committed bundle first',async()=>{
   let round=0;
   const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
     round++;
     if(round===1) return {message:'',toolCalls:[{id:'w',name:'runWorldPipeline',args:{plan:{name:'lab'}}}]};
     return {message:'verified',final:true,toolCalls:[]};
   })};
-  const runtime={lastAcceptanceBundle:{required:true,result:{status:'world-incomplete'}}};
-  const tools=makeTools({runWorldPipeline:async()=>{expect(runtime.lastAcceptanceBundle).toBeNull();runtime.lastAcceptanceBundle={schema:'agentscape.acceptance-evidence',schemaVersion:1,required:true,result:{status:'world-accepted',failedCount:0}};return {status:'world-ready'};}});
+  const stale={required:true,result:{status:'world-incomplete'}};
+  const runtime={lastAcceptanceBundle:stale};
+  const tools=makeTools({runWorldPipeline:async()=>{
+    expect(runtime.lastAcceptanceBundle).toBe(stale);
+    runtime.lastAcceptanceBundle={schema:'agentscape.acceptance-evidence',schemaVersion:1,required:true,result:{status:'world-accepted',failedCount:0}};
+    return {status:'world-ready'};
+  }});
   tools.runtime=runtime;
   const result=await new ToolCallingAgent({tools,gateway,maxSteps:4}).run('build accepted world');
   expect(result).toMatchObject({taskStatus:'completed',message:'verified',acceptanceBundle:{required:true,result:{status:'world-accepted'}}});
+});
+
+it('does not let stale committed world acceptance gate an unrelated task that produces no new acceptance evidence',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'pick',name:'approachAndPickup',args:{actorId:'agent_01',targetId:'cup_01'}}]};
+    return {message:'picked',toolCalls:[]};
+  })};
+  const stale={schema:'agentscape.acceptance-evidence',schemaVersion:1,required:true,result:{status:'world-incomplete'}};
+  const runtime={lastAcceptanceBundle:stale};
+  const tools=makeTools({approachAndPickup:async()=>({status:'held'})});
+  tools.runtime=runtime;
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:4}).run('pick up the cup');
+  expect(result).toMatchObject({taskStatus:'completed',message:'picked'});
+  expect(result).not.toHaveProperty('acceptanceBundle');
+  expect(runtime.lastAcceptanceBundle).toBe(stale);
 });
 
 

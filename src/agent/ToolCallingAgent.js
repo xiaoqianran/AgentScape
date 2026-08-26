@@ -117,7 +117,7 @@ export class ToolCallingAgent {
     if (!gateway) { const error=new Error('No agent gateway configured'); error.code='AGENT_GATEWAY_UNAVAILABLE'; throw error; }
 
     const execution = [];
-    if (this.tools.runtime) this.tools.runtime.lastAcceptanceBundle = null;
+    let taskAcceptanceBundle=null;
     const unresolvedMutations = new Map();
     const appliedAuxiliaryRecoveries = new Map();
     const attemptedWorldPlans = new Set();
@@ -151,7 +151,7 @@ export class ToolCallingAgent {
       if (!response.toolCalls.length) {
         const proposedFinal = response.message || '任务完成。';
         const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
-        const acceptanceBundle=this.tools.runtime?.lastAcceptanceBundle ? structuredClone(this.tools.runtime.lastAcceptanceBundle) : null;
+        const acceptanceBundle=taskAcceptanceBundle ? structuredClone(taskAcceptanceBundle) : null;
         const acceptanceRequired=acceptanceBundle?.required===true;
         const acceptanceAccepted=!acceptanceRequired || acceptanceBundle?.result?.status==='world-accepted';
         const lastComplete = lastMutation && COMPLETE_OUTCOMES.has(lastMutation.outcome.state);
@@ -289,6 +289,7 @@ export class ToolCallingAgent {
 
         this.log(`plan: ${call.name} ${JSON.stringify(call.args)}`, 'plan');
         executedTool = true;
+        const acceptanceBefore=this.tools.runtime?.lastAcceptanceBundle || null;
         let result;
         try {
           let internalContext=null;
@@ -302,6 +303,8 @@ export class ToolCallingAgent {
         } catch (error) {
           result = { error:error.message, code:error.code || 'TOOL_ERROR' };
         }
+        const acceptanceAfter=this.tools.runtime?.lastAcceptanceBundle || null;
+        if(acceptanceAfter!==acceptanceBefore) taskAcceptanceBundle=acceptanceAfter?structuredClone(acceptanceAfter):null;
         const safeResult = result === undefined ? { ok:true } : result;
         const policy = this.tools.executionPolicy?.(call.name, safeResult) || {
           mutates:false, barrier:false, batchable:true, batchAcceptable:true,
