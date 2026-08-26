@@ -38,7 +38,7 @@ describe('WorldRecompiler',()=>{
   it('replaces the current world and sends the accepted child revision through the canonical pipeline',async()=>{
     const rt=runtime({status:'ready',reasons:[]});
     const result=await recompileWorldRevision(rt,{baseWorldIR:baseIR(),proposal:proposal(),acceptChangedPlan:true});
-    expect(rt.snapshot).toHaveBeenCalledOnce(); expect(rt.clearObjects).toHaveBeenCalledOnce();
+    expect(rt.snapshot).toHaveBeenCalledOnce(); expect(rt.clearObjects).toHaveBeenCalledWith({silent:true});
     const compiledIR=rt.worldPipeline.run.mock.calls[0][0];
     expect(compiledIR.revision).toMatchObject({id:'rev-2',parentId:'rev-1',reason:'lift box'});
     expect(compiledIR.provenance).toMatchObject({source:'finding-revision'});

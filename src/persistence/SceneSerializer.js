@@ -104,7 +104,7 @@ export class SceneSerializer {
     }
 
     await runtime.sceneGraph.batch(async () => {
-      await runtime.clearObjects();
+      await runtime.clearObjects({silent:true});
       for (const item of scene.objects) {
         await runtime.spawn(item.assetId, { id: item.id, position: item.transform.position });
         const record = runtime.store.get(item.id);

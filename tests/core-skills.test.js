@@ -558,6 +558,7 @@ it('replaces the current world before candidate execution and restores committed
   const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
   const result=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
   expect(result).toMatchObject({success:true,result:{status:'world-rejected',rolledBack:true,reason:'VALIDATION_HARD'}});
+  expect(r.clearObjects).toHaveBeenCalledWith({silent:true});
   expect(order).toEqual(['pause-rules','clear-world','candidate-pipeline','restore-scene','restore-authority']);
   expect(r.currentWorldRevision).toEqual(oldAuthority.currentWorldRevision);
   expect(r.currentBehaviorBundle).toEqual(oldAuthority.currentBehaviorBundle);

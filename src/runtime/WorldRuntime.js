@@ -247,13 +247,13 @@ export class WorldRuntime {
     }
   }
 
-  async clearObjects() {
+  async clearObjects({silent=false}={}) {
     const ids = this.store.list().map(([id]) => id);
     await this.sceneGraph.batch(async () => {
-      for (const id of ids) this.remove(id);
+      for (const id of ids) this.remove(id,{silent});
       this.sceneGraph.changed();
     });
-    this.events.emit('scene.cleared', { count: ids.length });
+    if(!silent) this.events.emit('scene.cleared', { count: ids.length });
   }
 
   serialize(options) { return this.serializer.serialize(this, options); }
@@ -287,7 +287,7 @@ export class WorldRuntime {
     else if (state.door === 'closed') this.interactions.setArticulationAction(id, 'close');
   }
 
-  remove(id) {
+  remove(id,{silent=false}={}) {
     const record = this.store.get(id);
     this.locomotion?.cancel(id, 'OBJECT_REMOVED');
     this.interactions?.beforeRemove(id);
@@ -298,7 +298,7 @@ export class WorldRuntime {
     this.store.delete(id);
     clearInteractionEvidenceForTarget(this,id);
     this.sceneGraph?.removeObject(id); this.sceneGraph?.changed();
-    this.events.emit('object.removed', { id, assetId: record.assetId });
+    if(!silent) this.events.emit('object.removed', { id, assetId: record.assetId });
     return true;
   }
 

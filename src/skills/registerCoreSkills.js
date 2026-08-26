@@ -339,7 +339,7 @@ export function registerCoreSkills(registry, runtime) {
     };
     const prepareCandidate=async()=>{
       runtime.loadRuleGraph?.([]);
-      await runtime.clearObjects();
+      await runtime.clearObjects({silent:true});
     };
     const budget=2,attempts=[];
     let plan=a.plan;

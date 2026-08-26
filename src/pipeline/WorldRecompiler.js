@@ -331,7 +331,7 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
 async function recompileFull(runtime,{nextIR,before,previous,baseRevisionId,revisionId}){
   try{
     runtime.loadRuleGraph?.([]);
-    await runtime.clearObjects();
+    await runtime.clearObjects({silent:true});
     const pipeline=await runtime.worldPipeline.run(nextIR);
     const admission=pipeline?.state?.reports?.worldAdmission;
     if(!admission){

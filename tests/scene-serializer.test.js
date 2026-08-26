@@ -129,6 +129,7 @@ it('persists world revision and acceptance evidence without promoting restored e
     lastAcceptanceBundle:{required:true,result:{status:'world-accepted'}}
   };
   await serializer.restore(restored,{...scene,objects:[],assets:[]});
+  expect(restored.clearObjects).toHaveBeenCalledWith({silent:true});
   expect(restored.currentWorldRevision).toMatchObject({revision:{id:'rev-7'}});
   expect(restored.restoredAcceptanceEvidence).toMatchObject({worldRevisionId:'rev-7',result:{status:'world-accepted'}});
   expect(restored.lastAcceptanceBundle).toBeNull();
