@@ -1,10 +1,26 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AssetManager } from '../src/runtime/AssetManager.js';
 import { AssetLibrary } from '../src/assets/library/AssetLibrary.js';
-import { createWorldPipeline } from '../src/pipeline/createWorldPipeline.js';
+import { createCanonicalWorldPipeline, createWorldPipeline } from '../src/pipeline/createWorldPipeline.js';
 import { PhysicsBackend } from '../src/runtime/physics/PhysicsBackend.js';
 
 describe('generated world pipeline',()=>{
+
+  it('keeps Runtime canonical pipeline strict while the legacy entry remains an explicit compatibility boundary',async()=>{
+    const runtime={events:null,trace:null};
+    await expect(createCanonicalWorldPipeline(runtime).run({name:'legacy'})).rejects.toMatchObject({code:'WORLD_IR_SCHEMA_REQUIRED'});
+    const compatible=await createWorldPipeline({
+      events:null,trace:null,
+      assets:{has:()=>false},assetLibrary:{resolve:async()=>({status:'missing',assets:[]})},
+      environment:{layout:{}},physics:{manifestPoseClear:()=>({checked:true,clear:true,blockedBy:[]})},
+      spawn:async()=>null,interactions:{place:()=>{},move:()=>{}},sceneGraph:{changed:()=>{},update:()=>{}},
+      validator:{run:()=>({counts:{hard:0,advisory:0},findings:[]})},repair:{repair:async()=>{}},serialize:()=>({}),store:{get:()=>null}
+    }).run({name:'legacy',assets:[{id:'missing',query:'missing'}]});
+    expect(compatible.state.artifacts).toMatchObject({
+      worldIR:{schema:'agentscape.world-ir',provenance:{source:'legacy-world-spec'}},
+      worldSpec:{schema:1,name:'legacy'}
+    });
+  });
   it('admits a raw EmbodiedGen asset, spawns it, validates the world, and preserves provisional admission',async()=>{
     const assets=new AssetManager();
     const generator={
@@ -232,6 +248,6 @@ it('runs rich World IR without routing semantic fields through legacy WorldSpec'
 
   expect(result.state.artifacts.compilation).toMatchObject({schema:'agentscape.world-compilation',worldRevisionId:'rev-state'});
   expect(runtime.spawn).toHaveBeenCalledWith('stateful-box',{position:expect.any(Array),id:'box_01',initialState:{enabled:true}});
-  expect(result.state.artifacts.worldSpec.assets[0]).not.toHaveProperty('initialState');
+  expect(result.state.artifacts).not.toHaveProperty('worldSpec');
   expect(result.state.reports.worldAdmission.status).toBe('ready');
 });

@@ -96,9 +96,12 @@ export function projectWorldIRToWorldSpec(input) {
 }
 
 export function compileWorldInput(input) {
-  return input?.schema==='agentscape.world-ir'
-    ? compileWorldIR(input)
-    : compileWorldIR(upgradeLegacyWorldSpec(input));
+  if(input?.schema==='agentscape.world-ir') return compileWorldIR(input);
+  const worldIR=upgradeLegacyWorldSpec(input);
+  return {
+    ...compileWorldIR(worldIR),
+    compatibility:{source:'legacy-world-spec',worldSpec:compatibilityWorldSpec(worldIR)}
+  };
 }
 
 export function compileWorldIR(input) {
@@ -116,7 +119,6 @@ export function compileWorldIR(input) {
     relations:worldIR.spatial.relations.map(clone),
     behaviorBundle,
     physicsRequirements,
-    acceptanceGraph,
-    worldSpec:compatibilityWorldSpec(worldIR)
+    acceptanceGraph
   };
 }

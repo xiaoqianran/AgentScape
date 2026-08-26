@@ -351,7 +351,7 @@ export function registerCoreSkills(registry, runtime) {
       if (retry.status!=='retry-proposed') {
         return {status:'world-rejected',reason:admission.reasons?.[0] || 'WORLD_REJECTED',rolledBack:true,admission,pipeline,attempts,retry};
       }
-      plan=retry.nextIR || retry.nextPlan;
+      plan=retry.nextIR;
     }
     throw new Error('World retry loop exceeded its fixed budget');
   });

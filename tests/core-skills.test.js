@@ -131,8 +131,12 @@ describe('core skills', () => {
   it('retries one canonical world pipeline attempt by enabling generation only for search-missing assets', async () => {
     const r=runtime();
     r.assetLibrary.generator={isConfigured:()=>true};
+    const plan={
+      schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-1'},provenance:{source:'planner'},intent:{name:'Lab'},
+      entities:[{id:'machine_01',asset:{query:'rare machine',generate:false}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]
+    };
     const first={state:{
-      artifacts:{worldSpec:{schema:1,name:'Lab',generation:{generate:false},assets:[{id:'machine_01',query:'rare machine',generate:false}],relations:[]}},
+      artifacts:{worldIR:structuredClone(plan)},
       reports:{
         assetAdmission:{status:'rejected',unresolved:[{id:'machine_01',query:'rare machine',status:'missing'}],provisional:[]},
         layoutAdmission:{status:'rejected',reason:'ASSET_ADMISSION_REJECTED',placements:[],issues:[]},
@@ -143,14 +147,16 @@ describe('core skills', () => {
     const second={state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]};
     r.worldPipeline.run=vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
     const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
-    const result=await registry.invoke('runWorldPipeline',{plan:{name:'Lab',assets:[{id:'machine_01',query:'rare machine'}]}},{profile:'builder',actor:'test'});
+    const result=await registry.invoke('runWorldPipeline',{plan},{profile:'builder',actor:'test'});
     expect(result).toMatchObject({success:true,result:{
       status:'world-ready',attempts:[{attempt:1,retry:{status:'retry-proposed',actions:[{kind:'enable-generation',instanceId:'machine_01'}]}},{attempt:2,admission:{status:'ready'}}],
       retry:{status:'retry-proposed',retriable:true}
     }});
     expect(r.worldPipeline.run).toHaveBeenCalledTimes(2);
-    expect(r.worldPipeline.run.mock.calls[1][0]).toMatchObject({name:'Lab',assets:[{id:'machine_01',query:'rare machine',generate:true}]});
-    expect(r.worldPipeline.run.mock.calls[1][0].schema).toBeUndefined();
+    expect(r.worldPipeline.run.mock.calls[1][0]).toMatchObject({
+      schema:'agentscape.world-ir',revision:{id:'rev-1:retry-2',parentId:'rev-1'},
+      entities:[{id:'machine_01',asset:{query:'rare machine',generate:true}}]
+    });
     expect(r.restore).toHaveBeenCalledOnce();
     expect(registry.executionPolicy('runWorldPipeline',result.result).outcome).toMatchObject({state:'verified',verified:true,status:'world-ready'});
   });
@@ -158,8 +164,12 @@ describe('core skills', () => {
   it('never exceeds the fixed two-attempt world generation budget', async () => {
     const r=runtime();
     r.assetLibrary.generator={isConfigured:()=>true};
-    const rejected=(generate)=>({state:{
-      artifacts:{worldSpec:{schema:1,name:'Lab',generation:{generate:false},assets:[{id:'machine_01',query:'rare machine',generate}],relations:[]}},
+    const basePlan={
+      schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-1'},provenance:{source:'planner'},intent:{name:'Lab'},
+      entities:[{id:'machine_01',asset:{query:'rare machine',generate:false}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]
+    };
+    const rejected=(plan)=>({state:{
+      artifacts:{worldIR:structuredClone(plan)},
       reports:{
         assetAdmission:{status:'rejected',unresolved:[{id:'machine_01',query:'rare machine',status:'missing'}],provisional:[]},
         layoutAdmission:{status:'rejected',reason:'ASSET_ADMISSION_REJECTED',placements:[],issues:[]},
@@ -167,9 +177,12 @@ describe('core skills', () => {
         worldAdmission:{status:'rejected',reasons:['ASSET_UNRESOLVED','ASSET_ADMISSION_REJECTED']}
       }
     },timeline:[]});
-    r.worldPipeline.run=vi.fn().mockResolvedValueOnce(rejected(false)).mockResolvedValueOnce(rejected(true));
+    const retryPlan=structuredClone(basePlan);
+    retryPlan.revision={id:'rev-1:retry-2',parentId:'rev-1',reason:'bounded missing-asset regeneration'};
+    retryPlan.entities[0].asset.generate=true;
+    r.worldPipeline.run=vi.fn().mockResolvedValueOnce(rejected(basePlan)).mockResolvedValueOnce(rejected(retryPlan));
     const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
-    const result=await registry.invoke('runWorldPipeline',{plan:{name:'Lab',assets:[{id:'machine_01',query:'rare machine'}]}},{profile:'builder',actor:'test'});
+    const result=await registry.invoke('runWorldPipeline',{plan:basePlan},{profile:'builder',actor:'test'});
     expect(result).toMatchObject({success:true,result:{
       status:'world-rejected',rolledBack:true,retry:{status:'exhausted',attempt:2,budget:2,retriable:false},attempts:[{attempt:1},{attempt:2}]
     }});

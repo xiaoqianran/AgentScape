@@ -45,10 +45,8 @@ describe('WorldCompilation', () => {
       acceptanceGraph:{checks:[{id:'cabinet-exists',kind:'object-exists',targetId:'cabinet_01'}]}
     });
 
-    expect(compilation.worldSpec).toEqual({
-      schema:1,name:'Rich Lab',description:'',generation:{generate:false},
-      assets:[{id:'cabinet_01',assetId:'cabinet',query:'cabinet',generate:false}],relations:[]
-    });
+    expect(compilation).not.toHaveProperty('worldSpec');
+    expect(compilation).not.toHaveProperty('compatibility');
   });
 
   it('keeps legacy WorldSpec as an explicit compatibility projection, not an executability gate', () => {

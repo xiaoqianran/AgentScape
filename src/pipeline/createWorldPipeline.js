@@ -1,5 +1,5 @@
 import { PipelineEngine } from './PipelineEngine.js';
-import { compileWorldInput } from './WorldCompilation.js';
+import { compileWorldIR, compileWorldInput } from './WorldCompilation.js';
 import { assetAdmission } from '../assets/admission.js';
 import { composeNearPlacement, composeWorldLayout } from './WorldComposer.js';
 import { buildAcceptanceEvidenceBundle, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
@@ -7,15 +7,15 @@ import { buildWorldRevisionContext } from './WorldRevision.js';
 import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
 import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
 
-export function createWorldPipeline(runtime) {
+const createPipeline=(runtime,compileInput)=>{
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
 
   pipeline.register('normalize_spec', async (state) => {
-    const compilation = compileWorldInput(state.input);
+    const compilation = compileInput(state.input);
     const worldIR = compilation.worldIR;
     state.artifacts.compilation = compilation;
     state.artifacts.worldIR = structuredClone(worldIR);
-    state.artifacts.worldSpec = structuredClone(compilation.worldSpec);
+    if(compilation.compatibility?.worldSpec) state.artifacts.worldSpec=structuredClone(compilation.compatibility.worldSpec);
     state.artifacts.behaviorBundle = structuredClone(compilation.behaviorBundle);
     state.artifacts.physicsRequirements = structuredClone(compilation.physicsRequirements);
     runtime.currentWorldRevision={revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)};
@@ -223,4 +223,9 @@ export function createWorldPipeline(runtime) {
   });
 
   return pipeline;
-}
+};
+
+export function createCanonicalWorldPipeline(runtime){return createPipeline(runtime,compileWorldIR);}
+
+// Backward-compatible boundary for direct callers that still submit WorldSpec.
+export function createWorldPipeline(runtime){return createPipeline(runtime,compileWorldInput);}

@@ -20,7 +20,7 @@ import { SkillRegistry } from '../skills/SkillRegistry.js';
 import { registerCoreSkills } from '../skills/registerCoreSkills.js';
 import { WorldValidator } from '../validation/WorldValidator.js';
 import { RepairEngine } from '../validation/RepairEngine.js';
-import { createWorldPipeline } from '../pipeline/createWorldPipeline.js';
+import { createCanonicalWorldPipeline } from '../pipeline/createWorldPipeline.js';
 import { CompiledAssetStore } from '../assets/storage/CompiledAssetStore.js';
 import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider.js';
 import { disposeObject3D } from './disposeObject3D.js';
@@ -97,7 +97,7 @@ export class WorldRuntime {
     }
     this.skills = registerCoreSkills(new SkillRegistry({ policy: this.policy, trace: this.trace, runtime: this }), this);
     this.ruleRuntime.start();
-    this.worldPipeline = createWorldPipeline(this);
+    this.worldPipeline = createCanonicalWorldPipeline(this);
     this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;
   }
   addEnvironment() {

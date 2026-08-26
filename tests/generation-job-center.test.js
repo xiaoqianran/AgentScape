@@ -11,7 +11,7 @@ describe('Generation Job Center view model',()=>{
 
   it('keeps provider success separate from compile/spawn readiness',()=>{
     const job={jobId:'job_01',status:'provider-succeeded'};
-    expect(generationJobActions(job)).toEqual({canRefresh:true,canCancel:false,canImport:true,canCompile:true,canSpawn:false,worldSpecEnabled:false});
+    expect(generationJobActions(job)).toEqual({canRefresh:true,canCancel:false,canImport:true,canCompile:true,canSpawn:false});
     expect(generationJobActions(job,{status:'asset-provisional'}).canSpawn).toBe(true);
     expect(generationJobActions(job,{status:'asset-rejected'}).canSpawn).toBe(false);
   });
@@ -30,9 +30,7 @@ describe('Generation Job Center view model',()=>{
     expect(markup).toContain('id="generation-job-import"');
     expect(markup).toContain('id="generation-job-compile"');
     expect(markup).toContain('id="generation-job-spawn"');
-    expect(markup).toContain('id="generation-job-worldspec"');
     expect(markup).toContain('id="generation-cost-confirm"');
-    expect(markup).toMatch(/generation-job-worldspec[^>]*disabled/);
   });
 
   it('uses human labels without upgrading truth',()=>{

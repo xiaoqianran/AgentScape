@@ -1,31 +1,25 @@
-import { projectWorldIRToWorldSpec } from './WorldCompilation.js';
-
-const publicWorldSpec = (spec = {}) => ({
-  ...(spec.name ? { name:spec.name } : {}),
-  ...(spec.description ? { description:spec.description } : {}),
-  ...(spec.generation ? { generation:structuredClone(spec.generation) } : {}),
-  assets:(spec.assets || []).map((item)=>structuredClone(item)),
-  relations:(spec.relations || []).map((item)=>structuredClone(item))
-});
+const executionRequests=(state,worldIR)=>state.artifacts?.compilation?.entities || worldIR.entities.map((entity)=>({
+  ...(entity.id?{id:entity.id}:{}),...structuredClone(entity.asset)
+}));
 
 export function buildWorldRetryPlan(pipeline,{generatorConfigured=false,attempt=1,budget=2}={}) {
   const state=pipeline?.state || {};
   const reports=state.reports || {};
   const worldIR=state.artifacts?.worldIR?.schema==='agentscape.world-ir' ? structuredClone(state.artifacts.worldIR) : null;
-  const spec=state.artifacts?.worldSpec || state.input || {};
+  if(!worldIR){
+    return {
+      schema:'agentscape.world-retry.v1',attempt,budget,status:'not-retriable',retriable:false,actions:[],
+      findings:[{stage:'pipeline',code:'WORLD_IR_REQUIRED',retriable:false}]
+    };
+  }
+
+  const requests=executionRequests(state,worldIR);
   const findings=[];
   const actions=[];
 
   for (const unresolved of reports.assetAdmission?.unresolved || []) {
-    const request=(spec.assets || []).find((item)=>
-      (unresolved.id && item.id===unresolved.id) || (!unresolved.id && item.query===unresolved.query)
-    );
-    const canGenerate=Boolean(
-      generatorConfigured
-      && unresolved.status==='missing'
-      && request
-      && request.generate!==true
-    );
+    const request=requests.find((item)=>(unresolved.id && item.id===unresolved.id) || (!unresolved.id && item.query===unresolved.query));
+    const canGenerate=Boolean(generatorConfigured && unresolved.status==='missing' && request && request.generate!==true);
     findings.push({
       stage:'asset',code:unresolved.status || 'ASSET_UNRESOLVED',
       instanceId:unresolved.id || request?.id || null,query:unresolved.query || request?.query || null,
@@ -61,29 +55,21 @@ export function buildWorldRetryPlan(pipeline,{generatorConfigured=false,attempt=
     return {...base,status:'not-retriable',retriable:false};
   }
 
-  if (worldIR) {
-    const nextIR=structuredClone(worldIR);
-    nextIR.revision={
-      id:`${worldIR.revision.id}:retry-${attempt+1}`,
-      parentId:worldIR.revision.id,
-      reason:'bounded missing-asset regeneration'
-    };
-    nextIR.provenance={
-      ...nextIR.provenance,
-      source:'world-retry',
-      sourceId:worldIR.revision.id,
-      evidenceRefs:[...(worldIR.provenance.evidenceRefs||[]),...findings.filter((item)=>item.stage==='asset').map((item)=>item.instanceId||item.query).filter(Boolean)]
-    };
-    for (const action of actions) {
-      const request=nextIR.entities.find((item)=>(action.instanceId && item.id===action.instanceId) || (!action.instanceId && item.asset?.query===action.query));
-      if (request) request.asset.generate=true;
-    }
-    return {...base,status:'retry-proposed',retriable:true,nextPlan:projectWorldIRToWorldSpec(nextIR),nextIR};
-  }
-  const nextPlan=publicWorldSpec(spec);
+  const nextIR=structuredClone(worldIR);
+  nextIR.revision={
+    id:`${worldIR.revision.id}:retry-${attempt+1}`,
+    parentId:worldIR.revision.id,
+    reason:'bounded missing-asset regeneration'
+  };
+  nextIR.provenance={
+    ...nextIR.provenance,
+    source:'world-retry',
+    sourceId:worldIR.revision.id,
+    evidenceRefs:[...(worldIR.provenance.evidenceRefs||[]),...findings.filter((item)=>item.stage==='asset').map((item)=>item.instanceId||item.query).filter(Boolean)]
+  };
   for (const action of actions) {
-    const request=nextPlan.assets.find((item)=>(action.instanceId && item.id===action.instanceId) || (!action.instanceId && item.query===action.query));
-    if (request) request.generate=true;
+    const request=nextIR.entities.find((item)=>(action.instanceId && item.id===action.instanceId) || (!action.instanceId && item.asset?.query===action.query));
+    if (request) request.asset.generate=true;
   }
-  return {...base,status:'retry-proposed',retriable:true,nextPlan};
+  return {...base,status:'retry-proposed',retriable:true,nextIR};
 }
