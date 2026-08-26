@@ -8,6 +8,8 @@ from ..contracts import ImageGenerationResult, ReconstructionResult
 
 class ImageProvider(Protocol):
     name: str
+    output_role: str
+    output_suffix: str
 
     def generate(
         self,

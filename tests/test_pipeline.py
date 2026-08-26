@@ -22,6 +22,8 @@ def glb() -> bytes:
 
 class FakeImageProvider:
     name = "fake-image"
+    output_role = "legacy-lossy"
+    output_suffix = ".webp"
 
     def generate(self, prompt: str, destination: Path, *, model: str, seed: int | None = None) -> ImageGenerationResult:
         destination.write_bytes(b"image")
@@ -110,3 +112,32 @@ def test_pipeline_exposes_agentscape_job_result(tmp_path: Path) -> None:
             }
         ]
     }
+
+
+class FakePrimaryImageProvider(FakeImageProvider):
+    name = "modal-2d"
+    output_role = "primary-image"
+    output_suffix = ".png"
+
+    def generate(self, prompt: str, destination: Path, *, model: str, seed: int | None = None) -> ImageGenerationResult:
+        destination.write_bytes(b"image")
+        return ImageGenerationResult(
+            provider=self.name,
+            model=model,
+            task_id="job_image",
+            artifact=Artifact.from_file(destination, mime="image/png", format="png"),
+        )
+
+
+def test_pipeline_preserves_lossless_primary_image_role(tmp_path: Path) -> None:
+    manifest = TextTo3DPipeline(FakePrimaryImageProvider(), FakeReconstructionProvider()).run(
+        "mossy shrine",
+        tmp_path,
+        reconstruction_model="fastsam3d",
+    )
+
+    reference = manifest["artifacts"]["reference"]
+    assert reference["path"] == "reference.png"
+    assert reference["role"] == "primary-image"
+    assert reference["mime"] == "image/png"
+    assert reference["format"] == "png"

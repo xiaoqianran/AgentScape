@@ -6,16 +6,16 @@ from pathlib import Path
 import typer
 
 from .pipeline import TextTo3DPipeline
-from .providers import KaggleImageProvider, Modal3DProvider
+from .providers import Modal2DProvider, Modal3DProvider
 from .settings import Settings
 
 app = typer.Typer(no_args_is_help=True, help="AgentScape provider orchestration client")
 
 
-def _providers() -> tuple[KaggleImageProvider, Modal3DProvider]:
+def _providers() -> tuple[Modal2DProvider, Modal3DProvider]:
     settings = Settings.from_env()
     return (
-        KaggleImageProvider(settings.kaggle_url, settings.kaggle_token),
+        Modal2DProvider(settings.modal_2d_agent_url, settings.modal_2d_agent_session),
         Modal3DProvider(settings.modal_agent_url, settings.modal_agent_session),
     )
 
@@ -23,9 +23,9 @@ def _providers() -> tuple[KaggleImageProvider, Modal3DProvider]:
 @app.command()
 def probe() -> None:
     """Probe configured provider endpoints without printing credentials."""
-    kaggle, modal = _providers()
+    modal2d, modal = _providers()
     result: dict[str, object] = {}
-    for name, provider in (("kaggle", kaggle), ("modal3d", modal)):
+    for name, provider in (("modal2d", modal2d), ("modal3d", modal)):
         try:
             result[name] = {"ok": True, "response": provider.probe()}
         except Exception as exc:  # CLI diagnostic boundary
@@ -36,11 +36,11 @@ def probe() -> None:
 @app.command()
 def image(
     prompt: str,
-    output: Path = typer.Option(Path("reference.webp"), "--output", "-o"),
+    output: Path = typer.Option(Path("reference.png"), "--output", "-o"),
     model: str = typer.Option("sana-sprint-1.6b", "--model"),
 ) -> None:
-    kaggle, _ = _providers()
-    result = kaggle.generate(prompt, output, model=model)
+    modal2d, _ = _providers()
+    result = modal2d.generate(prompt, output, model=model)
     typer.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
 
 
@@ -65,8 +65,8 @@ def create(
     image_model: str = typer.Option("sana-sprint-1.6b", "--image-model"),
     profile: str = typer.Option("recommended", "--profile"),
 ) -> None:
-    kaggle, modal = _providers()
-    manifest = TextTo3DPipeline(kaggle, modal).run(
+    modal2d, modal = _providers()
+    manifest = TextTo3DPipeline(modal2d, modal).run(
         prompt,
         output_dir,
         image_model=image_model,

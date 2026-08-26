@@ -12,6 +12,8 @@ from ..errors import ArtifactError, ContractError, ProviderError
 
 class KaggleImageProvider:
     name = "kaggle-inference-hub"
+    output_role = "legacy-lossy"
+    output_suffix = ".webp"
 
     def __init__(
         self,

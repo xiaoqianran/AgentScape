@@ -1,19 +1,21 @@
 # AgentScape-client
 
-把 `kaggle-inference-hub` 的文生图能力与 `modal-3D-client` 的本地 Agent / Modal 3D 工作流组合成统一的 3D 资产流水线。
+把 `modal-2D-client` 的 lossless Text→Image 与 `modal-3D-client` 的 Image→3D 工作流组合成可验证的 3D 资产流水线，并为最终 Unified Connector 保持清晰的契约边界。
 
-当前 MVP：
+当前 direct MVP：
 
 ```text
 prompt
-  -> kaggle-inference-hub /task
-  -> generated image
+  -> modal-2D-client /v1/jobs
+  -> lossless primary-image PNG
   -> modal-3D-client /v1/projects
-  -> SAM Top-1 + canonical RGBA
+  -> preprocess / canonical RGBA
   -> modal generation job
-  -> GLB
+  -> primary-glb
   -> manifest.json
 ```
+
+`KaggleImageProvider` 仍保留为 legacy adapter，但 CLI 默认链路已经切换到 `modal-2D-client`。
 
 ## 安装
 
@@ -26,14 +28,15 @@ pip install -e '.[dev]'
 ## 配置
 
 ```bash
-export AGENTSCAPE_KAGGLE_URL=http://127.0.0.1:30100
-export AGENTSCAPE_KAGGLE_TOKEN='...'
+export AGENTSCAPE_MODAL_2D_AGENT_URL=http://127.0.0.1:3212
+export AGENTSCAPE_MODAL_2D_AGENT_SESSION=...
 export AGENTSCAPE_MODAL_AGENT_URL=http://127.0.0.1:39000
-# 仅当 modal-3D Agent 启用了本地会话校验时需要：
-export AGENTSCAPE_MODAL_AGENT_SESSION='...'
+export AGENTSCAPE_MODAL_AGENT_SESSION=...
 ```
 
-`modal-3D-client` 的 sidecar 默认绑定随机本地端口，因此 `AGENTSCAPE_MODAL_AGENT_URL` 应指向当前正在运行的 Agent 地址。Agent 需要已经连接 Modal，或由桌面客户端恢复凭据。
+`modal-2D-client` 默认监听 `127.0.0.1:3212`；只有启用了 `MODAL_2D_AGENT_TOKEN` 时才需要 `AGENTSCAPE_MODAL_2D_AGENT_SESSION`。`modal-3D-client` sidecar 默认绑定随机本地端口，因此 `AGENTSCAPE_MODAL_AGENT_URL` 应指向当前 Agent 地址。两边 Agent 都需要已经连接 Modal，或由桌面客户端恢复凭据。
+
+Direct adapter 只消费 provider-local `/v1/*` 事实，不伪造 Unified Connector 的 pairing、global Job identity、event sequence 或 idempotency。最终 `/connector/v1/*` 仍应由单一统一 Connector 持有。
 
 ## 契约边界
 
@@ -41,7 +44,7 @@ export AGENTSCAPE_MODAL_AGENT_SESSION='...'
 其中 `result.artifacts` 直接兼容 AgentScape 的 `GenerationJobProjection.result`，统一 Connector 后只需补 Job identity 与传输 location。
 
 - 最终 GLB role 为 `primary-glb`；
-- 当前 Kaggle WebP 属于有损历史链，标记为 `legacy-lossy`，不能冒充未来 2D→3D 的 lossless `primary-image`；
+- `modal-2D-client` direct adapter 的 PNG 标记为 lossless `primary-image`；保留的 Kaggle WebP adapter 仍严格标记为 `legacy-lossy`；
 - Artifact ID 是独立 opaque identity，SHA-256 只负责内容校验与去重；
 - GLB 保留对输入图片的 `derived_from` lineage；
 - 3D operation 固定为 `modal-3d.asset.image_to_3d.v1`；
@@ -69,8 +72,8 @@ export AGENTSCAPE_MODAL_AGENT_SESSION='...'
 
 ```bash
 agentscape probe
-agentscape image "a mossy stone shrine" -o reference.webp
-agentscape reconstruct reference.webp --concept "stone shrine" --model fastsam3d --output model.glb
+agentscape image "a mossy stone shrine" -o reference.png
+agentscape reconstruct reference.png --concept "stone shrine" --model fastsam3d --output model.glb
 agentscape create "a mossy stone shrine" --model fastsam3d -o artifacts/shrine
 ```
 

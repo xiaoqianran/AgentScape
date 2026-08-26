@@ -206,3 +206,71 @@ def test_origin_and_scope_normalization_match_connector_surface() -> None:
 def test_default_ports_are_normalized_like_url_origin() -> None:
     assert normalize_connector_endpoint("http://localhost:80") == "http://localhost"
     assert normalize_connector_endpoint("https://localhost:443") == "https://localhost"
+
+
+def test_pair_posts_contract_and_binds_origin_for_followup_requests() -> None:
+    calls: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path))
+        assert request.headers["Origin"] == "http://localhost:3000"
+        if request.url.path == "/connector/v1/session":
+            assert request.headers["X-Connector-Pairing"] == "desktop-approval"
+            assert request.headers.get("Authorization") is None
+            body = httpx.Response(200, request=request, json=session_response()).json()
+            return httpx.Response(200, json=body)
+        assert request.headers["Authorization"] == "Bearer session-secret"
+        return httpx.Response(200, json={"ok": True})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    session = ConnectorSession.pair(
+        "http://127.0.0.1:39001",
+        "desktop-approval",
+        origin="http://localhost:3000",
+        client=client,
+        now=lambda: NOW,
+    )
+    response = session.request("GET", "/connector/v1/capabilities", scope="capabilities.read")
+
+    assert response.status_code == 200
+    assert calls == [
+        ("POST", "/connector/v1/session"),
+        ("GET", "/connector/v1/capabilities"),
+    ]
+    assert "desktop-approval" not in repr(session.snapshot())
+
+
+def test_pair_rejects_approval_echo_and_never_persists_pairing_secret() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = session_response()
+        payload["debug"] = "desktop-approval"
+        return httpx.Response(200, json=payload)
+
+    with pytest.raises(ContractError, match="approval credential"):
+        ConnectorSession.pair(
+            "http://127.0.0.1:39001",
+            "desktop-approval",
+            origin="http://localhost:3000",
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+            now=lambda: NOW,
+        )
+
+
+def test_revoke_remote_uses_bound_session_then_invalidates_locally() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert request.method == "DELETE"
+        assert request.url.path == "/connector/v1/session"
+        assert request.headers["Authorization"] == "Bearer session-secret"
+        assert request.headers["Origin"] == "http://localhost:3000"
+        return httpx.Response(200, json={"revoked": True})
+
+    session = make_session(handler)
+    session.revoke_remote()
+    assert calls == 1
+    assert session.snapshot()["status"] == "revoked"
+    with pytest.raises(ConnectionRequiredError, match="不可用"):
+        session.request("GET", "/connector/v1/capabilities", scope="capabilities.read")

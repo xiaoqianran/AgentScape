@@ -28,7 +28,7 @@ class TextTo3DPipeline:
     ) -> dict[str, object]:
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "manifest.json").unlink(missing_ok=True)
-        reference = output_dir / "reference.webp"
+        reference = output_dir / f"reference{self.image_provider.output_suffix}"
         model_path = output_dir / "model.glb"
 
         image_result = self.image_provider.generate(
@@ -37,7 +37,7 @@ class TextTo3DPipeline:
             model=image_model,
             seed=image_seed,
         )
-        reference_summary = image_result.artifact.summary("legacy-lossy")
+        reference_summary = image_result.artifact.summary(self.image_provider.output_role)
         reconstruction_request = JobRequest(
             provider=self.reconstruction_provider.name,
             operation=self.reconstruction_provider.operation,
@@ -62,7 +62,7 @@ class TextTo3DPipeline:
             seed=reconstruction_seed,
         )
 
-        # Kaggle WebP 是 legacy lossy，不冒充统一 2D contract 的 lossless primary。
+        # Image provider owns the role: Kaggle stays legacy-lossy; modal-2D is primary-image.
         model_summary = reconstruction_result.artifact.summary("primary-glb")
         manifest: dict[str, object] = {
             "schema": "agentscape-client.result.v1",

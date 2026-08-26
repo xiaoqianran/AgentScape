@@ -94,6 +94,7 @@ class ConnectorSession:
         *,
         client: httpx.Client | None = None,
         now: Callable[[], datetime] | None = None,
+        origin: str | None = None,
     ) -> None:
         self.endpoint = normalize_connector_endpoint(endpoint)
         if not str(token).strip():
@@ -121,6 +122,12 @@ class ConnectorSession:
         allowed_raw = descriptor.get("allowedOrigins")
         if not isinstance(allowed_raw, (list, tuple)):
             raise ContractError("Connector session allowedOrigins 必须是数组")
+        allowed_origins = tuple(normalize_client_origin(str(item)) for item in allowed_raw)
+        if not allowed_origins:
+            raise ContractError("Connector session allowedOrigins 不能为空")
+        selected_origin = normalize_client_origin(origin) if origin is not None else allowed_origins[0]
+        if selected_origin not in allowed_origins:
+            raise ContractError("Connector session 不允许当前 client origin")
         revoke_endpoint = str(descriptor.get("revokeEndpoint") or CONNECTOR_SESSION_PATH)
         if revoke_endpoint != CONNECTOR_SESSION_PATH:
             raise ContractError("Connector session revokeEndpoint 不符合 v1 契约")
@@ -137,15 +144,79 @@ class ConnectorSession:
             "scopes": scopes,
             "issuedAt": issued_at,
             "expiresAt": expires_at,
-            "allowedOrigins": tuple(normalize_client_origin(str(item)) for item in allowed_raw),
+            "allowedOrigins": allowed_origins,
             "capabilityRevision": _text(descriptor.get("capabilityRevision"), "session.capabilityRevision"),
             "capabilityHash": _text(descriptor.get("capabilityHash"), "session.capabilityHash"),
             "revokeEndpoint": revoke_endpoint,
         }
         self._token = str(token)
+        self._origin = selected_origin
         self.client = client or httpx.Client(timeout=60.0, follow_redirects=False)
         self._now = current_now
         self._revoked = False
+
+    @classmethod
+    def pair(
+        cls,
+        endpoint: str,
+        approval_token: str,
+        *,
+        origin: str,
+        requested_scopes: str | tuple[str, ...] | list[str] = CONNECTOR_SESSION_SCOPES,
+        client: httpx.Client | None = None,
+        now: Callable[[], datetime] | None = None,
+    ) -> "ConnectorSession":
+        normalized_endpoint = normalize_connector_endpoint(endpoint)
+        normalized_origin = normalize_client_origin(origin)
+        scopes = normalize_requested_scopes(requested_scopes)
+        approval = str(approval_token or "").strip()
+        if not approval:
+            raise ConnectionRequiredError("Connector pairing approval 不可用")
+        http_client = client or httpx.Client(timeout=60.0, follow_redirects=False)
+        body = {
+            "clientIdentity": CONNECTOR_CLIENT_ID,
+            "contractVersion": CONNECTOR_CONTRACT_VERSION,
+            "origin": normalized_origin,
+            "scopes": list(scopes),
+        }
+        try:
+            request = http_client.build_request(
+                "POST",
+                f"{normalized_endpoint}{CONNECTOR_SESSION_PATH}",
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "Origin": normalized_origin,
+                    "X-Connector-Pairing": approval,
+                },
+                content=json.dumps(body, ensure_ascii=False, separators=(",", ":")),
+            )
+            response = http_client.send(request, follow_redirects=False)
+        except httpx.RequestError as exc:
+            raise ConnectionRequiredError("Connector 不可达") from exc
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise ContractError("Connector pairing 返回无效 JSON") from exc
+        if not isinstance(payload, dict):
+            raise ContractError("Connector pairing response 必须是对象")
+        if approval in json.dumps(payload, ensure_ascii=False):
+            raise ContractError("Connector pairing response 回显了 approval credential")
+        if not response.is_success:
+            code = str(payload.get("code") or "CONNECTOR_PAIRING_HTTP_ERROR")
+            if code in {"PAIRING_REQUIRED", "CONNECTION_REQUIRED"}:
+                raise ConnectionRequiredError(f"Connector pairing required (HTTP {response.status_code})")
+            from .errors import ConnectorHttpError
+
+            raise ConnectorHttpError(code=code, status=response.status_code)
+        return cls.from_response(
+            normalized_endpoint,
+            payload,
+            origin=normalized_origin,
+            requested_scopes=scopes,
+            client=http_client,
+            now=now,
+        )
 
     @classmethod
     def from_response(
@@ -181,7 +252,7 @@ class ConnectorSession:
         normalized_origin = normalize_client_origin(origin)
         if normalized_origin not in tuple(normalize_client_origin(str(item)) for item in allowed_raw):
             raise ContractError("Connector session 不允许当前 client origin")
-        return cls(endpoint, token, session, client=client, now=now)
+        return cls(endpoint, token, session, client=client, now=now, origin=normalized_origin)
 
     def snapshot(self) -> dict[str, object]:
         expires_at = datetime.fromisoformat(str(self._descriptor["expiresAt"]).replace("Z", "+00:00"))
@@ -213,7 +284,12 @@ class ConnectorSession:
         extra = {str(key): str(value) for key, value in (headers or {}).items()}
         if any(key.lower() == "authorization" for key in extra):
             raise ContractError("Connector request 禁止覆盖 Authorization header")
-        request_headers = {"Authorization": f"Bearer {self._token}", "Accept": "application/json", **extra}
+        request_headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Accept": "application/json",
+            "Origin": self._origin,
+            **extra,
+        }
         if json_body is not None:
             request_headers["Content-Type"] = "application/json"
         try:
@@ -230,6 +306,22 @@ class ConnectorSession:
     def assert_no_token_echo(self, payload: object) -> None:
         if self._token and self._token in json.dumps(payload, ensure_ascii=False):
             raise ContractError("Connector response 回显了 session credential")
+
+    def revoke_remote(self) -> None:
+        scopes = tuple(self._descriptor["scopes"])
+        if not scopes:
+            raise ContractError("Connector session 缺少 revoke 可用 scope")
+        response = self.request("DELETE", CONNECTOR_SESSION_PATH, scope=str(scopes[0]))
+        if not response.is_success:
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = {}
+            code = str(payload.get("code") or "CONNECTOR_REVOKE_HTTP_ERROR") if isinstance(payload, dict) else "CONNECTOR_REVOKE_HTTP_ERROR"
+            from .errors import ConnectorHttpError
+
+            raise ConnectorHttpError(code=code, status=response.status_code)
+        self.revoke()
 
     def revoke(self) -> None:
         self._revoked = True
