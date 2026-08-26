@@ -3,7 +3,6 @@ import { WorldRuntime } from './runtime/WorldRuntime.js';
 import { AgentTools } from './agent/AgentTools.js';
 import { ToolCallingAgent } from './agent/ToolCallingAgent.js';
 import { HttpLLMGateway } from './agent/gateway/HttpLLMGateway.js';
-import { LocalPlannerGateway } from './agent/gateway/LocalPlannerGateway.js';
 import { bootstrapWorld } from './agent/bootstrapWorld.js';
 import { LocalSceneStore } from './persistence/LocalSceneStore.js';
 import { AutosaveController } from './persistence/AutosaveController.js';
@@ -106,7 +105,7 @@ async function main() {
           <section class="agent-console">
             <div class="console-heading">
               <div><div class="eyebrow">任务</div><h2>你想让世界做什么？</h2></div>
-              <span id="agent-mode" class="agent-mode">LOCAL</span>
+              <span id="agent-mode" class="agent-mode">OFF</span>
             </div>
             <div id="task-state" class="task-state" data-state="ready" role="status" aria-live="polite">
               <span class="task-state-dot"></span>
@@ -124,7 +123,7 @@ async function main() {
                   <details class="gateway-settings">
                     <summary>LLM Gateway</summary>
                     <label>Endpoint<input id="gateway-endpoint" type="url" placeholder="https://your-server.example/agent" /></label>
-                    <small>只保存 Gateway URL，不在浏览器保存模型 API Key。留空时使用本地 planner。</small>
+                    <small>只保存 Gateway URL，不在浏览器保存模型 API Key。留空时 Agent 规划不可用；不会回退到本地硬编码 planner。</small>
                   </details>
                   <details class="gateway-settings engine-settings">
                     <summary>Engine / Validation</summary>
@@ -215,7 +214,7 @@ async function main() {
   await world.init();
   const tools = new AgentTools(world, { profile:'builder', actor:'agent_01' });
   const gateway = new HttpLLMGateway({ endpoint: localStorage.getItem('agentscape.gatewayEndpoint') || '' });
-  const agent = new ToolCallingAgent({ tools, gateway, fallbackGateway: new LocalPlannerGateway({ coffeeCorner:environmentDefinition.coffeeCorner }), log });
+  const agent = new ToolCallingAgent({ tools, gateway, log });
   const editor = new EditorController(world);
   const shell = document.querySelector('.shell');
   const panel = document.querySelector('.panel');
@@ -420,7 +419,7 @@ async function main() {
   const modeBadge = document.querySelector('#agent-mode');
   gatewayInput.value = gateway.endpoint || '';
   const updateAgentMode = () => {
-    modeBadge.textContent = gateway.isConfigured() ? 'LLM' : 'LOCAL';
+    modeBadge.textContent = gateway.isConfigured() ? 'LLM' : 'OFF';
     modeBadge.classList.toggle('live', gateway.isConfigured());
   };
   updateAgentMode();
@@ -429,15 +428,15 @@ async function main() {
     if (gateway.endpoint) localStorage.setItem('agentscape.gatewayEndpoint', gateway.endpoint);
     else localStorage.removeItem('agentscape.gatewayEndpoint');
     updateAgentMode();
-    log(gateway.isConfigured() ? `LLM gateway: ${gateway.endpoint}` : 'LLM gateway disabled; using local planner', 'result');
+    log(gateway.isConfigured() ? `LLM gateway: ${gateway.endpoint}` : 'LLM gateway disabled; Agent planning is unavailable', 'result');
   });
 
-  async function execute(prompt, label = '自定义任务', sourceButton = null, { deterministic = false } = {}) {
+  async function execute(prompt, label = '自定义任务', sourceButton = null) {
     if (taskBusy) return;
     setTaskBusy(true, sourceButton);
     setTaskState('running', '正在处理', label);
     try {
-      const result = await agent.run(prompt, { forceFallback:deterministic });
+      const result = await agent.run(prompt);
       if (result.taskStatus === 'completed') {
         setTaskState('success', '已完成', `${label} · Runtime 已验证`);
         log('task status: completed · mutation chain verified', 'result');
@@ -460,7 +459,7 @@ async function main() {
   taskButtons.forEach((button) => button.addEventListener('click', () => {
     const label = button.querySelector('strong')?.textContent || '快捷任务';
     setPanelView('agent');
-    execute(button.dataset.prompt, label, button, { deterministic:true });
+    execute(button.dataset.prompt, label, button);
   }));
   commandForm.addEventListener('submit', async (event) => {
     event.preventDefault();

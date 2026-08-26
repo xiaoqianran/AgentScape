@@ -106,7 +106,7 @@ export class ToolCallingAgent {
     this.maxRecoveryReadRounds = maxRecoveryReadRounds;
   }
 
-  get mode() { return this.gateway?.isConfigured() ? 'llm' : 'local'; }
+  get mode() { return this.gateway?.isConfigured() ? 'llm' : this.fallbackGateway ? 'fallback' : 'unconfigured'; }
 
   async run(text, { forceFallback = false } = {}) {
     this.log(`goal: ${text}`, 'goal');
@@ -115,7 +115,7 @@ export class ToolCallingAgent {
       { role:'user', content:text }
     ];
     const gateway = !forceFallback && this.gateway?.isConfigured() ? this.gateway : this.fallbackGateway;
-    if (!gateway) throw new Error('No agent gateway available');
+    if (!gateway) { const error=new Error('No agent gateway configured'); error.code='AGENT_GATEWAY_UNAVAILABLE'; throw error; }
 
     const execution = [];
     if (this.tools.runtime) this.tools.runtime.lastAcceptanceBundle = null;
