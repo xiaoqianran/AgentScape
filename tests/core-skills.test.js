@@ -139,9 +139,12 @@ describe('core skills', () => {
       artifacts:{worldIR:structuredClone(plan)},
       reports:{
         assetAdmission:{status:'rejected',unresolved:[{id:'machine_01',query:'rare machine',status:'missing'}],provisional:[]},
-        layoutAdmission:{status:'rejected',reason:'ASSET_ADMISSION_REJECTED',placements:[],issues:[]},
-        validation:{counts:{hard:0,advisory:0},hard:[],advisory:[]},
-        worldAdmission:{status:'rejected',reasons:['ASSET_UNRESOLVED','ASSET_ADMISSION_REJECTED']}
+        layoutAdmission:{status:'not-evaluated',reason:'UPSTREAM_ASSET_ADMISSION_REJECTED',placements:[],issues:[]},
+        behaviorAdmission:{status:'not-evaluated',reason:'UPSTREAM_ASSET_ADMISSION_REJECTED',issues:[]},
+        physicsAdmission:{status:'not-evaluated',reason:'UPSTREAM_ASSET_ADMISSION_REJECTED',issues:[]},
+        relationAdmission:{status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED',applied:[],issues:[]},
+        validation:{status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED',counts:{hard:0,advisory:0},hard:[],advisory:[]},
+        worldAdmission:{status:'rejected',reasons:['ASSET_UNRESOLVED']}
       }
     },timeline:[]};
     const second={state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]};
@@ -172,9 +175,12 @@ describe('core skills', () => {
       artifacts:{worldIR:structuredClone(plan)},
       reports:{
         assetAdmission:{status:'rejected',unresolved:[{id:'machine_01',query:'rare machine',status:'missing'}],provisional:[]},
-        layoutAdmission:{status:'rejected',reason:'ASSET_ADMISSION_REJECTED',placements:[],issues:[]},
-        validation:{counts:{hard:0,advisory:0},hard:[],advisory:[]},
-        worldAdmission:{status:'rejected',reasons:['ASSET_UNRESOLVED','ASSET_ADMISSION_REJECTED']}
+        layoutAdmission:{status:'not-evaluated',reason:'UPSTREAM_ASSET_ADMISSION_REJECTED',placements:[],issues:[]},
+        behaviorAdmission:{status:'not-evaluated',reason:'UPSTREAM_ASSET_ADMISSION_REJECTED',issues:[]},
+        physicsAdmission:{status:'not-evaluated',reason:'UPSTREAM_ASSET_ADMISSION_REJECTED',issues:[]},
+        relationAdmission:{status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED',applied:[],issues:[]},
+        validation:{status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED',counts:{hard:0,advisory:0},hard:[],advisory:[]},
+        worldAdmission:{status:'rejected',reasons:['ASSET_UNRESOLVED']}
       }
     },timeline:[]});
     const retryPlan=structuredClone(basePlan);

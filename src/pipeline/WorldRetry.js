@@ -29,7 +29,7 @@ export function buildWorldRetryPlan(pipeline,{generatorConfigured=false,attempt=
   }
 
   const layout=reports.layoutAdmission;
-  if (layout?.status==='rejected' && layout.reason!=='ASSET_ADMISSION_REJECTED') {
+  if (layout?.status==='rejected') {
     findings.push({stage:'layout',code:layout.reason || 'LAYOUT_REJECTED',retriable:false,issues:structuredClone(layout.issues || [])});
   }
 
@@ -39,9 +39,9 @@ export function buildWorldRetryPlan(pipeline,{generatorConfigured=false,attempt=
   }
 
   const validation=reports.validationAfterRepair || reports.validation;
-  const reachedRepair=reports.assetAdmission?.status!=='rejected'
-    && reports.layoutAdmission?.status!=='rejected'
-    && reports.relationAdmission?.status!=='rejected';
+  const reachedRepair=[
+    reports.assetAdmission,reports.layoutAdmission,reports.behaviorAdmission,reports.physicsAdmission,reports.relationAdmission
+  ].every((admission)=>admission?.status!=='rejected');
   if (reachedRepair && validation?.counts?.hard) {
     findings.push({
       stage:'validation',code:'VALIDATION_HARD',count:validation.counts.hard,retriable:false,
