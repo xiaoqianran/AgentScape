@@ -55,6 +55,8 @@ def test_connector_runtime_pairs_once_without_persisting_approval(monkeypatch) -
 
 def test_connector_runtime_requires_pairing_approval(monkeypatch) -> None:
     monkeypatch.delenv("AGENTSCAPE_CONNECTOR_PAIRING_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTSCAPE_MODAL_AGENT_SESSION", raising=False)
+    monkeypatch.setattr("agentscape.settings._load_windows_agent_handoff", lambda: None)
     with pytest.raises(typer.BadParameter, match="AGENTSCAPE_CONNECTOR_PAIRING_TOKEN"):
         cli._connector()
 
