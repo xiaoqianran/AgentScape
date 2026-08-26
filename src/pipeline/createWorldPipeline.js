@@ -36,8 +36,6 @@ const createPipeline=(runtime,compileInput)=>{
     if(compilation.compatibility?.worldSpec) state.artifacts.worldSpec=structuredClone(compilation.compatibility.worldSpec);
     state.artifacts.behaviorBundle = structuredClone(compilation.behaviorBundle);
     state.artifacts.physicsRequirements = structuredClone(compilation.physicsRequirements);
-    runtime.currentWorldRevision={revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)};
-    runtime.restoredAcceptanceEvidence=null;
     return state;
   });
 
@@ -205,7 +203,7 @@ const createPipeline=(runtime,compileInput)=>{
         worldAcceptance={status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED'};
         state.reports.worldAcceptance=structuredClone(worldAcceptance);
       } else {
-        worldAcceptance=evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined});
+        worldAcceptance=evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined,worldRevisionId:worldIR?.revision?.id || null});
         state.reports.worldAcceptance=worldAcceptance;
         const bundle=buildAcceptanceEvidenceBundle(acceptanceGraph,worldAcceptance,{worldRevisionId:worldIR?.revision?.id || null,source:'world-pipeline',provenance:worldIR?.provenance || null});
         state.artifacts.acceptanceEvidence=structuredClone(bundle);
@@ -251,6 +249,8 @@ const createPipeline=(runtime,compileInput)=>{
     ];
     if(status==='rejected'&&revisionFindings.length) state.artifacts.revisionContext=buildWorldRevisionContext(worldIR,revisionFindings);
     if(status!=='rejected'){
+      runtime.currentWorldRevision={revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)};
+      runtime.restoredAcceptanceEvidence=null;
       runtime.currentBehaviorBundle=structuredClone(state.artifacts.behaviorBundle);
       runtime.currentPhysicsRequirements=structuredClone(state.artifacts.physicsRequirements);
       runtime.loadRuleGraph?.(state.artifacts.behaviorBundle.ruleGraph);

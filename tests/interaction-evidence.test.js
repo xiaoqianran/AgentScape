@@ -5,9 +5,9 @@ import {
   recordInteractionEvidence
 } from '../src/validation/InteractionEvidence.js';
 
-describe('InteractionEvidence',()=>{
-  const runtime=(revisionId='rev-1')=>({currentWorldRevision:{revision:{id:revisionId}},trace:{emit:()=>{}}});
+const runtime=(revisionId='rev-1')=>({currentWorldRevision:{revision:{id:revisionId}},trace:{emit:()=>{}}});
 
+describe('InteractionEvidence',()=>{
   it('records only verified evidence and binds it to the active world revision',()=>{
     const world=runtime();
     expect(recordInteractionEvidence(world,{targetId:'door_01',capability:'OPEN',verified:false})).toBeNull();
@@ -33,4 +33,13 @@ describe('InteractionEvidence',()=>{
     expect(getInteractionEvidence(world,'door_01','OPEN')).toBeNull();
     expect(getInteractionEvidence(world,'door_02','OPEN')).not.toBeNull();
   });
+});
+
+
+it('can query evidence against an explicit candidate revision without changing Runtime authority',()=>{
+  const world=runtime('rev-old');
+  recordInteractionEvidence(world,{targetId:'door_01',capability:'OPEN',verified:true});
+  expect(getInteractionEvidence(world,'door_01','OPEN',{worldRevisionId:'rev-old'})).toMatchObject({worldRevisionId:'rev-old'});
+  expect(getInteractionEvidence(world,'door_01','OPEN',{worldRevisionId:'rev-new'})).toBeNull();
+  expect(world.currentWorldRevision.revision.id).toBe('rev-old');
 });

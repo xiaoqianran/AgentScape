@@ -49,10 +49,10 @@ export function recordInteractionEvidence(runtime,{targetId,capability,verified,
   return clone(evidence);
 }
 
-export function getInteractionEvidence(runtime,targetId,capability){
-  const worldRevisionId=clean(runtime?.currentWorldRevision?.revision?.id);
+export function getInteractionEvidence(runtime,targetId,capability,{worldRevisionId=null}={}){
+  const revisionId=clean(worldRevisionId)||clean(runtime?.currentWorldRevision?.revision?.id);
   const target=clean(targetId),normalizedCapability=clean(capability).toUpperCase();
-  if(!worldRevisionId||!target||!normalizedCapability) return null;
-  const evidence=runtime?.interactionEvidence?.get?.(key(worldRevisionId,target,normalizedCapability));
+  if(!revisionId||!target||!normalizedCapability) return null;
+  const evidence=runtime?.interactionEvidence?.get?.(key(revisionId,target,normalizedCapability));
   return evidence?.verified===true ? clone(evidence) : null;
 }

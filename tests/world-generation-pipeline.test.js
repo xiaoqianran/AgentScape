@@ -211,7 +211,7 @@ describe('generated world pipeline',()=>{
     const assets=new AssetManager();
     assets.registerManifest({id:'static-door',type:'fixture',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.4,.8,.1]}]}});
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:0,relations:0}};
-    const runtime={events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}};
+    const runtime={events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()},currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},restoredAcceptanceEvidence:{worldRevisionId:'rev-old'}};
     const result=await createWorldPipeline(runtime).run({
       schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-behavior-reject'},provenance:{source:'planner'},intent:{name:'Behavior Reject'},
       entities:[{id:'door_01',asset:{assetId:'static-door'},capabilityIntent:['open']}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[{id:'door-exists',kind:'object-exists',targetId:'door_01'}]
@@ -230,6 +230,8 @@ describe('generated world pipeline',()=>{
       findings:[{source:'world-behavior-admission',code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',affectedObjects:['door_01']}]
     });
     expect(result.state.artifacts.revisionContext.findings).toHaveLength(1);
+    expect(runtime.currentWorldRevision).toEqual({revision:{id:'rev-old'},provenance:{source:'existing'}});
+    expect(runtime.restoredAcceptanceEvidence).toEqual({worldRevisionId:'rev-old'});
     expect(runtime.spawn).not.toHaveBeenCalled();
   });
 
@@ -297,5 +299,6 @@ it('runs rich World IR without routing semantic fields through legacy WorldSpec'
   expect(runtime.spawn).toHaveBeenCalledWith('stateful-box',{position:expect.any(Array),id:'box_01',initialState:{enabled:true}});
   expect(result.state.artifacts).not.toHaveProperty('worldSpec');
   expect(result.state.reports.worldAdmission.status).toBe('ready');
+  expect(runtime.currentWorldRevision).toMatchObject({revision:{id:'rev-state'},provenance:{source:'planner'}});
   expect(runtime.restoredAcceptanceEvidence).toBeNull();
 });

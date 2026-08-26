@@ -37,7 +37,7 @@ export function compileWorldAcceptance(criteria=[]){
   return {schema:SCHEMA,schemaVersion:VERSION,checks};
 }
 
-export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undefined}={}){
+export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undefined,worldRevisionId=null}={}){
   if(graph?.schema!==SCHEMA||graph.schemaVersion!==VERSION) throw new TypeError('Unsupported WorldAcceptance graph');
   const evidence=graph.checks.map(check=>{
     if(check.kind==='world-valid'){
@@ -53,7 +53,7 @@ export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undef
       return {id:check.id,kind:check.kind,verified:Object.is(value,check.value),targetId:check.targetId,stateKey:check.stateKey,expected:check.value,actual:value,...(!Object.is(value,check.value)?{reason:'STATE_MISMATCH'}:{})};
     }
     if(check.kind==='interaction-verified'){
-      const evidence=getInteractionEvidence(runtime,check.targetId,check.capability);
+      const evidence=getInteractionEvidence(runtime,check.targetId,check.capability,{worldRevisionId});
       const verified=Boolean(evidence);
       return {id:check.id,kind:check.kind,verified,targetId:check.targetId,expected:check.capability,...(evidence?{evidence}:{reason:'INTERACTION_NOT_VERIFIED'})};
     }
