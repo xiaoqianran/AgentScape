@@ -1,0 +1,3 @@
+[submodule "providers/modal/image-runtime"]
+	path = providers/modal/image-runtime
+	url = https://github.com/xiaoqianran/modal-2D
