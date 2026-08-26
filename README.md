@@ -31,9 +31,11 @@ pip install -e '.[dev]'
 export AGENTSCAPE_CONNECTOR_URL=http://127.0.0.1:39000
 export AGENTSCAPE_CONNECTOR_ORIGIN=http://localhost:3000
 export AGENTSCAPE_CONNECTOR_PAIRING_TOKEN=...
+# 若使用 modal-3D 桌面 sidecar，也可复用：
+# export AGENTSCAPE_MODAL_AGENT_SESSION=...
 ```
 
-`AGENTSCAPE_CONNECTOR_URL` 应指向 `modal-3D-client` 暴露 Unified Connector 的当前本地 Agent 地址；桌面 sidecar 使用随机端口时，应传入实际地址。CLI 为一次性进程，每次运行通过 pairing approval 建立短期 Connector session，approval/token 不写入 manifest、缓存或日志。
+`AGENTSCAPE_CONNECTOR_URL` 应指向 `modal-3D-client` 暴露 Unified Connector 的当前本地 Agent 地址；桌面 sidecar 使用随机端口时，应传入实际地址。桌面 sidecar 会复用自身 256-bit session token 作为 pairing approval，因此 `AGENTSCAPE_CONNECTOR_PAIRING_TOKEN` 未设置时会回退到 `AGENTSCAPE_MODAL_AGENT_SESSION`。CLI 为一次性进程，每次运行通过 pairing approval 建立独立的短期 Connector session，approval/token 不写入 manifest、缓存或日志。
 
 仅 `reconstruct-direct` 仍使用：
 

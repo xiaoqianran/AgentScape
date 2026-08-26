@@ -20,7 +20,9 @@ app = typer.Typer(no_args_is_help=True, help="AgentScape Unified Connector clien
 def _connector() -> tuple[ConnectorCapabilityClient, ConnectorJobRunner, ConnectorArtifactTransport]:
     settings = Settings.from_env()
     if not settings.connector_pairing_token.strip():
-        raise typer.BadParameter("需要设置 AGENTSCAPE_CONNECTOR_PAIRING_TOKEN")
+        raise typer.BadParameter(
+            "需要设置 AGENTSCAPE_CONNECTOR_PAIRING_TOKEN 或 AGENTSCAPE_MODAL_AGENT_SESSION"
+        )
     session = ConnectorSession.pair(
         settings.connector_url,
         settings.connector_pairing_token,

@@ -30,5 +30,8 @@ class Settings:
                 os.getenv("AGENTSCAPE_MODAL_AGENT_URL", "http://127.0.0.1:39000"),
             ).rstrip("/"),
             connector_origin=os.getenv("AGENTSCAPE_CONNECTOR_ORIGIN", "http://localhost:3000").rstrip("/"),
-            connector_pairing_token=os.getenv("AGENTSCAPE_CONNECTOR_PAIRING_TOKEN", ""),
+            connector_pairing_token=os.getenv(
+                "AGENTSCAPE_CONNECTOR_PAIRING_TOKEN",
+                os.getenv("AGENTSCAPE_MODAL_AGENT_SESSION", ""),
+            ),
         )

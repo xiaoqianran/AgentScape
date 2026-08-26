@@ -143,3 +143,12 @@ def test_local_reconstruct_is_explicit_direct_command() -> None:
 
     assert direct.exit_code == 0
     assert legacy_name.exit_code != 0
+
+
+def test_connector_pairing_token_falls_back_to_agent_session(monkeypatch) -> None:
+    monkeypatch.delenv("AGENTSCAPE_CONNECTOR_PAIRING_TOKEN", raising=False)
+    monkeypatch.setenv("AGENTSCAPE_MODAL_AGENT_SESSION", "sidecar-session-token")
+
+    settings = Settings.from_env()
+
+    assert settings.connector_pairing_token == "sidecar-session-token"
