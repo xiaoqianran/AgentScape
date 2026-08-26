@@ -9,7 +9,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run assets:validate && npm run test && npm run build",
+    "check": "npm run architecture:validate && npm run assets:validate && npm run test && npm run build",
+    "architecture:validate": "node tools/validate-repository-architecture.mjs",
     "assets:validate": "node tools/validate-assets.mjs",
     "agent:gateway": "node scripts/openai-compatible-agent-gateway.mjs",
     "agent:probe": "node scripts/probe-test-agent.mjs"
