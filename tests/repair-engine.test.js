@@ -68,3 +68,17 @@ it('ignores non-repairable findings instead of inventing a mutation strategy', a
   expect(result).toMatchObject({status:'repair-applied',accepted:true,applied:[],ignored:[{findingId:'rel',reason:'NOT_REPAIRABLE'}]});
   expect(runtime.interactions.move).not.toHaveBeenCalled();
 });
+
+
+it('repairs candidate-revision findings without temporarily committing that revision', async () => {
+  const runtime=belowGroundRuntime();
+  runtime.currentWorldRevision={revision:{id:'rev-old'},provenance:{source:'existing'}};
+  const engine=new RepairEngine(runtime);
+  const report={counts:{hard:1,advisory:0},hard:[],advisory:[],findings:[{
+    schema:'agentscape.finding',schemaVersion:1,id:'candidate',source:'world-validator',severity:'hard',code:'G_BELOW_GROUND',worldRevisionId:'rev-candidate',affectedObjects:['a'],message:'',evidence:{},repair:{eligible:true,strategy:'lift_to_ground'}
+  }]};
+  const result=await engine.repair(report,{worldRevisionId:'rev-candidate'});
+  expect(result.accepted).toBe(true);
+  expect(runtime.validator.run).toHaveBeenCalledWith({worldRevisionId:'rev-candidate'});
+  expect(runtime.currentWorldRevision.revision.id).toBe('rev-old');
+});

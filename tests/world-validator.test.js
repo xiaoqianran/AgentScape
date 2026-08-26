@@ -22,6 +22,15 @@ describe('WorldValidator', () => {
     expect(report.findings).toEqual(expect.arrayContaining([expect.objectContaining({schema:'agentscape.finding',code:'G_BELOW_GROUND',repair:{eligible:true,strategy:'lift_to_ground'}})]));
   });
 
+
+  it('binds candidate findings to an explicit revision without changing committed Runtime authority', () => {
+    const r=runtime({below:true});
+    r.currentWorldRevision={revision:{id:'rev-old'},provenance:{source:'existing'}};
+    const report=new WorldValidator(r).run({worldRevisionId:'rev-candidate'});
+    expect(report.findings.find((finding)=>finding.code==='G_BELOW_GROUND')).toMatchObject({worldRevisionId:'rev-candidate'});
+    expect(r.currentWorldRevision.revision.id).toBe('rev-old');
+  });
+
   it('returns stable count/coverage structure', () => {
     const report = new WorldValidator(runtime()).run();
     expect(report.counts).toHaveProperty('hard');

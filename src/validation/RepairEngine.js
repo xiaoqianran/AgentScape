@@ -3,8 +3,8 @@ import { assertFindingRevision, compileValidationFindings, normalizeFinding } fr
 export class RepairEngine {
   constructor(runtime) { this.runtime = runtime; }
 
-  async repair(report, { maxRepairs = 20 } = {}) {
-    const currentRevisionId=this.runtime.currentWorldRevision?.revision?.id || null;
+  async repair(report, { maxRepairs = 20, worldRevisionId = null } = {}) {
+    const currentRevisionId=worldRevisionId || this.runtime.currentWorldRevision?.revision?.id || null;
     const findings=(report?.findings?.length?report.findings:compileValidationFindings(report||{},{worldRevisionId:currentRevisionId})).map((item,index)=>normalizeFinding(item,{index}));
     assertFindingRevision(findings,currentRevisionId);
     const hardFindings=findings.filter((finding)=>finding.severity==='hard');
@@ -39,7 +39,7 @@ export class RepairEngine {
       ignored.push({findingId:finding.id,code:finding.code,reason:'STRATEGY_UNSUPPORTED'});
     }
     this.runtime.sceneGraph.changed();
-    const after = this.runtime.validator.run();
+    const after = this.runtime.validator.run({worldRevisionId:currentRevisionId});
     if (after.counts.hard > beforeCounts.hard) {
       await this.runtime.restore(before);
       return { status:'repair-failed',accepted: false, reason: 'hard_findings_increased', before: beforeCounts, after: after.counts, applied: [], ignored, findingsConsumed:hardFindings.map((finding)=>finding.id) };

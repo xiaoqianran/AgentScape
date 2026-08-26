@@ -168,7 +168,7 @@ const createPipeline=(runtime,compileInput)=>{
   });
 
   pipeline.register('validate', async (state) => {
-    state.reports.validation=executionAdmissionRejected(state)?validationNotEvaluated():runtime.validator.run();
+    state.reports.validation=executionAdmissionRejected(state)?validationNotEvaluated():runtime.validator.run({worldRevisionId:state.artifacts.worldIR?.revision?.id || null});
     return state;
   });
 
@@ -177,17 +177,17 @@ const createPipeline=(runtime,compileInput)=>{
       state.reports.validationAfterRepair=state.reports.validation || validationNotEvaluated();
       return state;
     }
-    const report=state.reports.validation || runtime.validator.run();
+    const report=state.reports.validation || runtime.validator.run({worldRevisionId:state.artifacts.worldIR?.revision?.id || null});
     if(report.counts.hard){
-      state.reports.repair=await runtime.repair.repair(report);
-      state.reports.validationAfterRepair=runtime.validator.run();
+      state.reports.repair=await runtime.repair.repair(report,{worldRevisionId:state.artifacts.worldIR?.revision?.id || null});
+      state.reports.validationAfterRepair=runtime.validator.run({worldRevisionId:state.artifacts.worldIR?.revision?.id || null});
     } else state.reports.validationAfterRepair=report;
     return state;
   });
 
   pipeline.register('finalize', async (state) => {
     runtime.sceneGraph.update();
-    const validation=state.reports.validationAfterRepair || state.reports.validation || (executionAdmissionRejected(state)?validationNotEvaluated():runtime.validator.run());
+    const validation=state.reports.validationAfterRepair || state.reports.validation || (executionAdmissionRejected(state)?validationNotEvaluated():runtime.validator.run({worldRevisionId:state.artifacts.worldIR?.revision?.id || null}));
     const assetAdmission=state.reports.assetAdmission || { status:'ready', unresolved:[], provisional:[] };
     const layoutAdmission=state.reports.layoutAdmission || {status:'ready',placements:[],issues:[]};
     const relationAdmission=state.reports.relationAdmission || admissionNotEvaluated('RELATION_STAGE_NOT_RUN',{applied:[],issues:[]});

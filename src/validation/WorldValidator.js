@@ -3,7 +3,7 @@ import { compileValidationFindings } from './Finding.js';
 export class WorldValidator {
   constructor(runtime) { this.runtime = runtime; }
 
-  run() {
+  run({ worldRevisionId = null } = {}) {
     const snapshot = this.runtime.spatial.snapshot();
     this.runtime.sceneGraph.update(snapshot);
     const hard = [];
@@ -40,7 +40,7 @@ export class WorldValidator {
       advisory,
       coverage: { objects: objects.length, relations: relations.length }
     };
-    report.findings=compileValidationFindings(report,{worldRevisionId:this.runtime.currentWorldRevision?.revision?.id || null});
+    report.findings=compileValidationFindings(report,{worldRevisionId:worldRevisionId || this.runtime.currentWorldRevision?.revision?.id || null});
     return report;
   }
 }
