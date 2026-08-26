@@ -25,7 +25,7 @@ describe('Generation Job Center view model',()=>{
   });
 
 
-  it('keeps import, compile/register, spawn, and WorldSpec as separate product actions',()=>{
+  it('keeps import, compile/register, spawn, and cost confirmation as separate product actions',()=>{
     const markup=generationJobCenterMarkup();
     expect(markup).toContain('id="generation-job-import"');
     expect(markup).toContain('id="generation-job-compile"');

@@ -47,9 +47,12 @@ it('executes a deterministic scripted gateway through the same single Agent plan
 
 
 
-it('blocks an unchanged rejected WorldSpec from executing again in the same Agent run',async()=>{
+it('blocks an unchanged rejected World IR semantic plan from executing again in the same Agent run',async()=>{
   let round=0,pipelineCalls=0;
-  const plan={name:'Retry Lab',assets:[{id:'fixture_01',query:'rare fixture'}]};
+  const plan={
+    schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-1'},provenance:{source:'test'},intent:{name:'Retry Lab'},
+    entities:[{id:'fixture_01',asset:{query:'rare fixture',generate:false}}],spatial:{relations:[]},interactions:[],rules:[],acceptance:[]
+  };
   const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
     round++;
     if(round===1) return {message:'',toolCalls:[{id:'w1',name:'runWorldPipeline',args:{plan}}]};
@@ -64,10 +67,15 @@ it('blocks an unchanged rejected WorldSpec from executing again in the same Agen
   expect(result.execution.find((entry)=>entry.reason==='WORLD_PIPELINE_PLAN_ALREADY_ATTEMPTED')).toMatchObject({tool:'runWorldPipeline',executed:false,outcome:{state:'skipped'}});
 });
 
-it('allows a revised WorldSpec and lets its verified result resolve the earlier rejected world build',async()=>{
+it('allows revised World IR semantics and lets the verified child resolve the earlier rejected world build',async()=>{
   let round=0,pipelineCalls=0;
-  const first={name:'Lab',assets:[{id:'fixture_01',query:'rare fixture'}]};
-  const revised={name:'Lab',assets:[{id:'fixture_01',query:'rare fixture',generate:true}]};
+  const first={
+    schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-1'},provenance:{source:'test'},intent:{name:'Lab'},
+    entities:[{id:'fixture_01',asset:{query:'rare fixture',generate:false}}],spatial:{relations:[]},interactions:[],rules:[],acceptance:[]
+  };
+  const revised=structuredClone(first);
+  revised.revision={id:'rev-2',parentId:'rev-1'};
+  revised.entities[0].asset.generate=true;
   const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
     round++;
     if(round===1) return {message:'',toolCalls:[{id:'w1',name:'runWorldPipeline',args:{plan:first}}]};
@@ -76,7 +84,7 @@ it('allows a revised WorldSpec and lets its verified result resolve the earlier 
   })};
   const tools=makeTools({runWorldPipeline:async(args)=>{
     pipelineCalls++;
-    return args.plan.assets[0].generate
+    return args.plan.entities[0].asset.generate
       ? {status:'world-ready',admission:{status:'ready'}}
       : {status:'world-rejected',reason:'ASSET_UNRESOLVED',retry:{status:'not-retriable'}};
   }});
