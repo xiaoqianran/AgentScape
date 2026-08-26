@@ -33,7 +33,7 @@ describe('RepairEngine', () => {
     const result = await engine.repair({ counts:{hard:1,advisory:0}, hard:[{ code:'G_BELOW_GROUND', object:'a' }] });
     expect(result.accepted).toBe(true);
     expect(result.applied[0].action).toBe('lift_to_ground');
-    expect(runtime.interactions.move).toHaveBeenCalled();
+    expect(runtime.interactions.move).toHaveBeenCalledWith('a',expect.any(Array),{silent:false});
   });
 
   it('restores the snapshot if hard findings increase', async () => {
@@ -81,4 +81,13 @@ it('repairs candidate-revision findings without temporarily committing that revi
   expect(result.accepted).toBe(true);
   expect(runtime.validator.run).toHaveBeenCalledWith({worldRevisionId:'rev-candidate'});
   expect(runtime.currentWorldRevision.revision.id).toBe('rev-old');
+});
+
+
+it('propagates silent candidate repair mutations without changing repair semantics', async () => {
+  const runtime=belowGroundRuntime();
+  const engine=new RepairEngine(runtime);
+  const result=await engine.repair({counts:{hard:1,advisory:0},hard:[{code:'G_BELOW_GROUND',object:'a'}]},{silent:true});
+  expect(result.accepted).toBe(true);
+  expect(runtime.interactions.move).toHaveBeenCalledWith('a',expect.any(Array),{silent:true});
 });

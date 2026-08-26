@@ -3,7 +3,7 @@ import { assertFindingRevision, compileValidationFindings, normalizeFinding } fr
 export class RepairEngine {
   constructor(runtime) { this.runtime = runtime; }
 
-  async repair(report, { maxRepairs = 20, worldRevisionId = null } = {}) {
+  async repair(report, { maxRepairs = 20, worldRevisionId = null, silent = false } = {}) {
     const currentRevisionId=worldRevisionId || this.runtime.currentWorldRevision?.revision?.id || null;
     const findings=(report?.findings?.length?report.findings:compileValidationFindings(report||{},{worldRevisionId:currentRevisionId})).map((item,index)=>normalizeFinding(item,{index}));
     assertFindingRevision(findings,currentRevisionId);
@@ -20,7 +20,7 @@ export class RepairEngine {
         const bounds = this.runtime.spatial.getBounds(objectId);
         const p = record.object.position.toArray();
         p[1] += -bounds.min[1] + 0.01;
-        this.runtime.interactions.move(objectId, p);
+        this.runtime.interactions.move(objectId, p,{silent});
         applied.push({ findingId:finding.id,code: finding.code, object: objectId, action: 'lift_to_ground' });
         continue;
       }
@@ -29,11 +29,11 @@ export class RepairEngine {
         const p = record.object.position.toArray();
         let solved = false;
         for (const [dx, dz] of [[0.25,0],[-0.25,0],[0,0.25],[0,-0.25],[0.5,0],[0,0.5]]) {
-          this.runtime.interactions.move(objectId, [p[0]+dx, p[1], p[2]+dz]);
+          this.runtime.interactions.move(objectId, [p[0]+dx, p[1], p[2]+dz],{silent});
           if (!this.runtime.spatial.isColliding(objectId, { margin: 0.015 }).length) { solved = true; break; }
         }
         if (solved) applied.push({ findingId:finding.id,code: finding.code, object: objectId, action: 'separate_overlap' });
-        else { this.runtime.interactions.move(objectId, p); ignored.push({findingId:finding.id,code:finding.code,reason:'REPAIR_SEARCH_EXHAUSTED'}); }
+        else { this.runtime.interactions.move(objectId, p,{silent}); ignored.push({findingId:finding.id,code:finding.code,reason:'REPAIR_SEARCH_EXHAUSTED'}); }
         continue;
       }
       ignored.push({findingId:finding.id,code:finding.code,reason:'STRATEGY_UNSUPPORTED'});

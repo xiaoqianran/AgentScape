@@ -164,3 +164,25 @@ describe('InteractionSystem recovery cleanup contracts',()=>{
   });
 
 });
+
+
+it('keeps compiler-internal move/place mutations silent while preserving default interaction events',()=>{
+  const emitted={emit:vi.fn()};
+  const position=new THREE.Vector3(0,0,0);
+  const records=new Map([
+    ['cup',{id:'cup',state:{},manifest:{actions:['move','pickup','drop','place']},object:{position}}],
+    ['table',{id:'table',state:{},manifest:{actions:[],surfaces:[{id:'top'}]},object:{position:new THREE.Vector3(2,0,0)}}]
+  ]);
+  const store={has:(id)=>records.has(id),get:(id)=>records.get(id),list:()=>[...records.entries()]};
+  const physics={setPosition:vi.fn(),setHeld:vi.fn()};
+  const spatial={findFreeSpace:vi.fn(()=>new THREE.Vector3(1,.5,0))};
+  const system=new InteractionSystem({store,physics,spatial,events:emitted});
+
+  system.move('cup',[.5,0,0],{silent:true});
+  system.place('cup','table',{surfaceId:'top',silent:true});
+  expect(emitted.emit).not.toHaveBeenCalled();
+
+  system.move('cup',[.75,0,0]);
+  system.place('cup','table',{surfaceId:'top'});
+  expect(emitted.emit.mock.calls.map(([,event])=>event.action)).toEqual(['move','pickup','drop','place']);
+});

@@ -113,7 +113,7 @@ export class InteractionSystem {
     return target;
   }
 
-  releaseHeld(id, reason = null) {
+  releaseHeld(id, reason = null, {silent=false} = {}) {
     if (!this.store.has(id)) return false;
     const record = this.store.get(id);
     const heldBy = record.state?.heldBy;
@@ -125,7 +125,7 @@ export class InteractionSystem {
     }
     delete record.state.heldBy;
     this.physics.setHeld(id, false);
-    this.events.emit('interaction', { action:'drop', id, heldBy, ...(reason ? {reason} : {}) });
+    if(!silent) this.events.emit('interaction', { action:'drop', id, heldBy, ...(reason ? {reason} : {}) });
     return true;
   }
 
@@ -153,7 +153,7 @@ export class InteractionSystem {
     }
   }
 
-  beforeRemove(id) {
+  beforeRemove(id,{silent=false}={}) {
     for (const [actorId,recovery] of [...this.recoveryHeld]) if (actorId===id || recovery.blockerId===id || recovery.targetId===id) this.recoveryHeld.delete(actorId);
     for (const key of [...this.articulationResults.keys()]) if (key.startsWith(`${id}:`)) this.articulationResults.delete(key);
     for (const task of [...this.articulationTasks.values()]) if (task.id === id) {
@@ -166,9 +166,9 @@ export class InteractionSystem {
           ? this.dropSettleResult(settle,null,{settled:false,reason:'OBJECT_REMOVED'})
           : {status:'place-unverified',reason:'OBJECT_REMOVED',supportVerified:false,settled:false,elapsed:Number(settle.elapsed.toFixed(3))});
     }
-    if (this.store.has(id) && this.store.get(id).state?.heldBy) this.releaseHeld(id, 'OBJECT_REMOVED');
+    if (this.store.has(id) && this.store.get(id).state?.heldBy) this.releaseHeld(id, 'OBJECT_REMOVED',{silent});
     const carried = this.agentHeld.get(id);
-    if (carried && this.store.has(carried)) this.releaseHeld(carried, 'OWNER_REMOVED');
+    if (carried && this.store.has(carried)) this.releaseHeld(carried, 'OWNER_REMOVED',{silent});
   }
 
   cancelPending(reason = 'RUNTIME_DISPOSED') {
@@ -193,41 +193,42 @@ export class InteractionSystem {
     return record;
   }
 
-  move(id, position) {
+  move(id, position, {silent=false} = {}) {
     const record = this.assertSupports(id, 'move');
     record.object.position.fromArray(position);
     this.physics.setPosition(id, position);
-    this.events.emit('interaction', { action: 'move', id, position });
+    if(!silent) this.events.emit('interaction', { action: 'move', id, position });
   }
 
-  pickup(id) {
+  pickup(id,{silent=false}={}) {
     const record = this.assertSupports(id, 'pickup');
     if (record.state?.heldBy?.kind === 'agent') throw Errors.carryUnavailable('human', id, 'OBJECT_ALREADY_HELD', { heldBy:record.state.heldBy });
-    if (this.humanHeldId && this.humanHeldId !== id) this.drop(this.humanHeldId);
+    if (this.humanHeldId && this.humanHeldId !== id) this.drop(this.humanHeldId,{silent});
     record.state.heldBy = { kind:'human' };
     this.humanHeldId = id;
     this.physics.setHeld(id, true);
-    this.events.emit('interaction', { action:'pickup', id, heldBy:{kind:'human'} });
+    if(!silent) this.events.emit('interaction', { action:'pickup', id, heldBy:{kind:'human'} });
     return { status:'held', id, heldBy:{kind:'human'} };
   }
 
-  drop(id = this.humanHeldId) {
+  drop(id = this.humanHeldId,{silent=false}={}) {
     if (!id) return false;
     this.assertSupports(id, 'drop');
-    return this.releaseHeld(id);
+    return this.releaseHeld(id,null,{silent});
   }
 
   place(id, targetId, options = {}) {
+    const {silent=false,...placementOptions}=options;
     this.assertSupports(id, 'place');
     const target = this.store.get(targetId);
     if (!target.manifest.surfaces?.length) throw Errors.actionUnsupported(targetId, 'receive');
-    const p = this.spatial.findFreeSpace(id, targetId, options);
+    const p = this.spatial.findFreeSpace(id, targetId, placementOptions);
     if (!p) throw new Error(`No collision-free placement found on ${targetId}`);
-    this.pickup(id);
+    this.pickup(id,{silent});
     this.store.get(id).object.position.copy(p);
     this.physics.setPosition(id, p.toArray());
-    this.drop(id);
-    this.events.emit('interaction', { action: 'place', id, targetId, position: p.toArray() });
+    this.drop(id,{silent});
+    if(!silent) this.events.emit('interaction', { action: 'place', id, targetId, position: p.toArray() });
     return { id, targetId, position: p.toArray().map((v) => Number(v.toFixed(3))) };
   }
 

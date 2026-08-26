@@ -144,8 +144,31 @@ describe('generated world pipeline',()=>{
     const applied=result.state.reports.relationAdmission.applied[0];
     expect(applied).toMatchObject({subject:'cabinet_01',predicate:'NEAR',object:'table_01',mode:'runtime-derived'});
     expect(applied.distance).toBeGreaterThan(2);
-    expect(move).toHaveBeenCalledWith('cabinet_01',applied.position);
+    expect(move).toHaveBeenCalledWith('cabinet_01',applied.position,{silent:true});
     expect(result.state.reports.worldAdmission).toMatchObject({status:'ready',relations:{status:'ready'}});
+  });
+
+
+  it('applies ON as a silent compiler mutation instead of a user interaction event',async()=>{
+    const assets=new AssetManager();
+    assets.registerManifest({id:'cup-silent',type:'prop',source:{kind:'builtin'},actions:['move','pickup','drop','place'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.1,.1,.1],translation:[0,.1,0]}]}});
+    assets.registerManifest({id:'table-silent',type:'table',source:{kind:'builtin'},actions:['move'],surfaces:[{id:'top'}],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[1,.4,.7],translation:[0,.4,0]}]}});
+    const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:2,relations:1}};
+    const place=vi.fn(()=>({id:'cup_01',targetId:'table_01',position:[0,.8,0]}));
+    const runtime={
+      events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},
+      environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
+      physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      spawn:vi.fn(async(_assetId,{id})=>id),interactions:{place,move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
+      validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}
+    };
+    const result=await createWorldPipeline(runtime).run({
+      name:'On Layout',
+      assets:[{id:'cup_01',assetId:'cup-silent',position:[-1,.01,0]},{id:'table_01',assetId:'table-silent',position:[1,.01,0]}],
+      relations:[{subject:'cup_01',predicate:'ON',object:'table_01',surfaceId:'top'}]
+    });
+    expect(place).toHaveBeenCalledWith('cup_01','table_01',{surfaceId:'top',silent:true});
+    expect(result.state.reports.relationAdmission).toMatchObject({status:'ready',applied:[{subject:'cup_01',predicate:'ON',object:'table_01'}]});
   });
 
 

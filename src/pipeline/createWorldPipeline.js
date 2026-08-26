@@ -143,7 +143,7 @@ const createPipeline=(runtime,compileInput)=>{
     state.reports.relationAdmission={status:'ready',applied,issues};
     for (const relation of state.artifacts.compilation?.relations || []) {
       if (relation.predicate === 'ON') {
-        const result=runtime.interactions.place(relation.subject,relation.object,{surfaceId:relation.surfaceId});
+        const result=runtime.interactions.place(relation.subject,relation.object,{surfaceId:relation.surfaceId,silent:true});
         applied.push({...relation,result});
         continue;
       }
@@ -159,7 +159,7 @@ const createPipeline=(runtime,compileInput)=>{
           state.reports.relationAdmission={status:'rejected',reason:result.reason,applied,issues};
           return state;
         }
-        runtime.interactions.move(relation.subject,result.position);
+        runtime.interactions.move(relation.subject,result.position,{silent:true});
         applied.push({...relation,position:result.position,distance:result.distance,mode:result.mode});
       }
     }
@@ -179,7 +179,7 @@ const createPipeline=(runtime,compileInput)=>{
     }
     const report=state.reports.validation || runtime.validator.run({worldRevisionId:state.artifacts.worldIR?.revision?.id || null});
     if(report.counts.hard){
-      state.reports.repair=await runtime.repair.repair(report,{worldRevisionId:state.artifacts.worldIR?.revision?.id || null});
+      state.reports.repair=await runtime.repair.repair(report,{worldRevisionId:state.artifacts.worldIR?.revision?.id || null,silent:true});
       state.reports.validationAfterRepair=runtime.validator.run({worldRevisionId:state.artifacts.worldIR?.revision?.id || null});
     } else state.reports.validationAfterRepair=report;
     return state;

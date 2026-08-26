@@ -290,7 +290,7 @@ export class WorldRuntime {
   remove(id,{silent=false}={}) {
     const record = this.store.get(id);
     this.locomotion?.cancel(id, 'OBJECT_REMOVED');
-    this.interactions?.beforeRemove(id);
+    this.interactions?.beforeRemove(id,{silent});
     this.navigation?.invalidateIfStatic(record, 'object.removed');
     this.physics.remove(id);
     this.scene.remove(record.object);
