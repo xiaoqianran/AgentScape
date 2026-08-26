@@ -35,7 +35,7 @@ export AGENTSCAPE_CONNECTOR_PAIRING_TOKEN=...
 # export AGENTSCAPE_MODAL_AGENT_SESSION=...
 ```
 
-`AGENTSCAPE_CONNECTOR_URL` 应指向 `modal-3D-client` 暴露 Unified Connector 的当前本地 Agent 地址；桌面 sidecar 使用随机端口时，应传入实际地址。桌面 sidecar 会复用自身 256-bit session token 作为 pairing approval，因此 `AGENTSCAPE_CONNECTOR_PAIRING_TOKEN` 未设置时会回退到 `AGENTSCAPE_MODAL_AGENT_SESSION`。CLI 为一次性进程，每次运行通过 pairing approval 建立独立的短期 Connector session，approval/token 不写入 manifest、缓存或日志。
+显式环境变量始终优先。Windows 桌面 sidecar 未设置 `AGENTSCAPE_CONNECTOR_URL` / `AGENTSCAPE_MODAL_AGENT_URL` 时，AgentScape 会从 Windows Credential Manager 的 `com.modal3d.client.agent-handoff.v1` 读取当前随机端口与短生命周期 session token，并只连接 `127.0.0.1`。因此同机桌面使用无需手工复制随机端口；显式 endpoint 一旦存在，就不会自动继承 handoff secret。桌面 session token 仅作为 pairing approval，成功后 Connector 会签发独立 scoped bearer session。approval/token 不写入 manifest、缓存或日志。
 
 仅 `reconstruct-direct` 仍使用：
 

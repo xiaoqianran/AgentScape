@@ -152,3 +152,93 @@ def test_connector_pairing_token_falls_back_to_agent_session(monkeypatch) -> Non
     settings = Settings.from_env()
 
     assert settings.connector_pairing_token == "sidecar-session-token"
+
+
+def test_parse_windows_agent_handoff_accepts_current_v1_format() -> None:
+    from agentscape.settings import _parse_agent_handoff
+
+    token = "a" * 64
+    url, approval = _parse_agent_handoff(f"v1\n48123\n1234\n5678\n{token}".encode())
+
+    assert url == "http://127.0.0.1:48123"
+    assert approval == token
+
+
+def test_parse_windows_agent_handoff_rejects_invalid_payloads() -> None:
+    from agentscape.settings import _parse_agent_handoff
+
+    invalid = (
+        b"v2\n48123\n1\n2\n" + b"a" * 64,
+        b"v1\n0\n1\n2\n" + b"a" * 64,
+        b"v1\n48123\n0\n2\n" + b"a" * 64,
+        b"v1\n48123\n1\n2\nnot-a-token",
+        b"\xff\xfe",
+    )
+    for payload in invalid:
+        with pytest.raises(ValueError):
+            _parse_agent_handoff(payload)
+
+
+def test_settings_discovers_windows_sidecar_handoff_without_endpoint_override(monkeypatch) -> None:
+    token = "b" * 64
+    for name in (
+        "AGENTSCAPE_CONNECTOR_URL",
+        "AGENTSCAPE_MODAL_AGENT_URL",
+        "AGENTSCAPE_CONNECTOR_PAIRING_TOKEN",
+        "AGENTSCAPE_MODAL_AGENT_SESSION",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(
+        "agentscape.settings._load_windows_agent_handoff",
+        lambda: ("http://127.0.0.1:51234", token),
+    )
+
+    settings = Settings.from_env()
+
+    assert settings.connector_url == "http://127.0.0.1:51234"
+    assert settings.modal_agent_url == "http://127.0.0.1:51234"
+    assert settings.connector_pairing_token == token
+    assert settings.modal_agent_session == token
+    assert token not in repr(settings)
+
+
+def test_explicit_endpoint_never_inherits_discovered_handoff_secret(monkeypatch) -> None:
+    token = "c" * 64
+    monkeypatch.setenv("AGENTSCAPE_CONNECTOR_URL", "http://127.0.0.1:59999")
+    monkeypatch.delenv("AGENTSCAPE_MODAL_AGENT_URL", raising=False)
+    monkeypatch.delenv("AGENTSCAPE_CONNECTOR_PAIRING_TOKEN", raising=False)
+    monkeypatch.delenv("AGENTSCAPE_MODAL_AGENT_SESSION", raising=False)
+    called = False
+
+    def discover():
+        nonlocal called
+        called = True
+        return ("http://127.0.0.1:51234", token)
+
+    monkeypatch.setattr("agentscape.settings._load_windows_agent_handoff", discover)
+
+    settings = Settings.from_env()
+
+    assert settings.connector_url == "http://127.0.0.1:59999"
+    assert settings.connector_pairing_token == ""
+    assert called is False
+    assert token not in repr(settings)
+
+
+def test_explicit_pairing_secret_can_reuse_discovered_loopback_endpoint(monkeypatch) -> None:
+    token = "d" * 64
+    monkeypatch.delenv("AGENTSCAPE_CONNECTOR_URL", raising=False)
+    monkeypatch.delenv("AGENTSCAPE_MODAL_AGENT_URL", raising=False)
+    monkeypatch.setenv("AGENTSCAPE_CONNECTOR_PAIRING_TOKEN", "explicit-approval")
+    monkeypatch.delenv("AGENTSCAPE_MODAL_AGENT_SESSION", raising=False)
+    monkeypatch.setattr(
+        "agentscape.settings._load_windows_agent_handoff",
+        lambda: ("http://127.0.0.1:52345", token),
+    )
+
+    settings = Settings.from_env()
+
+    assert settings.connector_url == "http://127.0.0.1:52345"
+    assert settings.connector_pairing_token == "explicit-approval"
+    assert settings.modal_agent_session == token
+    assert token not in repr(settings)
