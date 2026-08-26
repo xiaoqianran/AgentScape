@@ -201,3 +201,76 @@ it('does not carry interaction verification evidence across an incremental behav
   });
   expect(rt.currentWorldRevision).toMatchObject({revision:{id:'behavior-rev-1'}});
 });
+
+
+const physicsRevision=()=>({
+  schema:'agentscape.world-ir',schemaVersion:1,
+  revision:{id:'physics-rev-1'},provenance:{source:'planner',evidenceRefs:[]},intent:{name:'Physics Lab'},
+  entities:[{id:'box',asset:{assetId:'crate'},transform:{position:[0,0,0]},initialState:{},capabilityIntent:[],physicsRequirement:{bodyClass:'rigid'}}],
+  spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[{id:'box-exists',kind:'object-exists',targetId:'box'}]
+});
+const physicsProposal=()=>{
+  const findings=compileValidationFindings({hard:[{code:'G_BELOW_GROUND',object:'box'}],advisory:[]},{worldRevisionId:'physics-rev-1'});
+  return createWorldRevisionProposal(buildWorldRevisionContext(physicsRevision(),findings),{
+    nextRevisionId:'physics-rev-2',reason:'require collision evidence',edits:[{
+      kind:'set-physics-requirement',entityId:'box',requirement:{
+        bodyClass:'rigid',requiredCapabilities:['collision'],qualityPolicy:{deterministicRequired:true}
+      }
+    }]
+  });
+};
+const physicsRuntime=({revisionId='physics-rev-1',capabilities=['rigid-body','collision'],deterministic=true}={})=>{
+  const record={id:'box',assetId:'crate',state:{},object:{position:{toArray:()=>[0,0,0]}}};
+  const backend={
+    identity:'mock-physics',capabilities:[...capabilities],executionModes:['realtime'],qualities:{realtime:true,deterministic},
+    hasCapability:vi.fn((capability)=>capabilities.includes(capability)),supportsExecutionMode:vi.fn((mode)=>mode==='realtime')
+  };
+  return {
+    currentWorldRevision:{revision:{id:revisionId},provenance:{source:'planner'}},
+    currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{worldRevisionId:'physics-rev-1',requirements:[{entityId:'box',bodyClass:'rigid'}]},
+    lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
+    snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
+    worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
+    store:{get:vi.fn(()=>record)},assets:{getManifest:vi.fn(()=>({id:'crate',actions:['move'],physics:{body:'dynamic'}}))},
+    physics:{backend},validator:{run:vi.fn(()=>({ok:true,counts:{hard:0,advisory:0},findings:[]}))},
+    sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},loadRuleGraph:vi.fn(),trace:{emit:vi.fn()}
+  };
+};
+
+it('incrementally admits a physics requirement when current backend and asset evidence already satisfy it',async()=>{
+  const rt=physicsRuntime();
+  const result=await recompileWorldRevision(rt,{baseWorldIR:physicsRevision(),proposal:physicsProposal(),acceptChangedPlan:true});
+  expect(rt.clearObjects).not.toHaveBeenCalled();
+  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+  expect(rt.currentWorldRevision).toMatchObject({revision:{id:'physics-rev-2',parentId:'physics-rev-1'}});
+  expect(rt.currentPhysicsRequirements).toMatchObject({
+    worldRevisionId:'physics-rev-2',requirements:[{entityId:'box',bodyClass:'rigid',requiredCapabilities:['rigid-body','collision']}]
+  });
+  expect(result).toMatchObject({
+    status:'world-ready',rolledBack:false,
+    admission:{status:'ready',physics:{status:'ready',backend:{identity:'mock-physics'}}},
+    recompile:{mode:'incremental-physics',freshVerification:true,committed:true,affectedEntityIds:['box']}
+  });
+});
+
+it('rejects an unmet physics requirement before changing Runtime authority',async()=>{
+  const rt=physicsRuntime({capabilities:['rigid-body']});
+  const result=await recompileWorldRevision(rt,{baseWorldIR:physicsRevision(),proposal:physicsProposal(),acceptChangedPlan:true});
+  expect(result).toMatchObject({
+    status:'world-rejected',rolledBack:false,reason:'PHYSICS_BACKEND_CAPABILITY_MISSING',
+    admission:{status:'rejected',physics:{status:'rejected',issues:[{code:'PHYSICS_BACKEND_CAPABILITY_MISSING',entityId:'box',capability:'collision'}]}},
+    recompile:{mode:'incremental-physics',freshVerification:false,committed:false}
+  });
+  expect(rt.currentWorldRevision).toMatchObject({revision:{id:'physics-rev-1'}});
+  expect(rt.restoredAcceptanceEvidence).toEqual({historical:true});
+  expect(rt.clearObjects).not.toHaveBeenCalled();
+  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+});
+
+it('falls back to full canonical rebuild when incremental physics authority cannot be proven',async()=>{
+  const rt=physicsRuntime({revisionId:'other-revision'});
+  const result=await recompileWorldRevision(rt,{baseWorldIR:physicsRevision(),proposal:physicsProposal(),acceptChangedPlan:true});
+  expect(rt.clearObjects).toHaveBeenCalledOnce();
+  expect(rt.worldPipeline.run).toHaveBeenCalledOnce();
+  expect(result.recompile).toMatchObject({mode:'full',canonical:true,committed:true});
+});

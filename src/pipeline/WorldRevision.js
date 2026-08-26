@@ -168,7 +168,8 @@ export function classifyWorldRevisionImpact(proposal={}){
   const domains=[...new Set(editKinds.flatMap((kind)=>REVISION_EDIT_DOMAINS[kind]||['unknown']))];
   const stateOnly=edits.length>0 && domains.every((domain)=>['state','acceptance'].includes(domain));
   const behaviorOnly=edits.length>0 && domains.every((domain)=>['behavior','acceptance'].includes(domain));
-  return {mode:stateOnly?'incremental-state':behaviorOnly?'incremental-behavior':'full',editKinds,affectedEntityIds,domains};
+  const physicsOnly=edits.length>0 && domains.every((domain)=>['physics','acceptance'].includes(domain));
+  return {mode:stateOnly?'incremental-state':behaviorOnly?'incremental-behavior':physicsOnly?'incremental-physics':'full',editKinds,affectedEntityIds,domains};
 }
 
 export function applyWorldRevisionProposal(worldIR,proposal,{acceptChangedPlan=false}={}){

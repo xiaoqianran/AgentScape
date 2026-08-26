@@ -137,7 +137,8 @@ it('maps every typed revision edit to explicit compiler/runtime impact domains',
   };
   for(const [kind,domains] of Object.entries(cases)){
     expect(classifyWorldRevisionImpact({edits:[{kind,entityId:'box'}]})).toMatchObject({
-      mode:kind==='set-capability-intent'?'incremental-behavior':'full',editKinds:[kind],affectedEntityIds:['box'],domains
+      mode:kind==='set-capability-intent'?'incremental-behavior':kind==='set-physics-requirement'?'incremental-physics':'full',
+      editKinds:[kind],affectedEntityIds:['box'],domains
     });
   }
 });
