@@ -56,6 +56,12 @@ const restoreWorldAuthority=(runtime,authority={})=>{
   runtime.loadRuleGraph?.(authority.currentBehaviorBundle?.ruleGraph || []);
 };
 
+const mutationResultCommitted=(result)=>!(
+  result?.committed===false ||
+  result?.rolledBack===true ||
+  result?.recompile?.committed===false
+);
+
 export class WorldRuntime {
   constructor(container, { environmentFactory } = {}) {
     this.version = '1.34.2';
@@ -192,8 +198,13 @@ export class WorldRuntime {
         let result;
         await this.sceneGraph.batch(async () => {
           result = await operation();
-          this.sceneGraph.changed();
+          if(mutationResultCommitted(result)) this.sceneGraph.changed();
         });
+        if(!mutationResultCommitted(result)){
+          restoreWorldAuthority(this,authorityBefore);
+          this.history.cancel();
+          return result;
+        }
         this.history.commit(this.snapshot(), meta);
         return result;
       } catch (error) {
