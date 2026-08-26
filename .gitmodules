@@ -16,3 +16,6 @@
 [submodule "providers/kaggle/runtime"]
 	path = providers/kaggle/runtime
 	url = https://github.com/xiaoqianran/kaggle-inference-hub
+[submodule "sdk/python"]
+	path = sdk/python
+	url = https://github.com/xiaoqianran/AgentScape-client
