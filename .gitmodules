@@ -25,3 +25,6 @@
 [submodule "upstream/EmbodiedGen"]
 	path = upstream/EmbodiedGen
 	url = https://github.com/HorizonRobotics/EmbodiedGen
+[submodule "research/modal-lab"]
+	path = research/modal-lab
+	url = https://github.com/xiaoqianran/modal-lab
