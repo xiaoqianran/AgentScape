@@ -178,8 +178,10 @@ const createPipeline=(runtime,compileInput)=>{
       return state;
     }
     const report=state.reports.validation || runtime.validator.run();
-    if(report.counts.hard) state.reports.repair=await runtime.repair.repair(report);
-    state.reports.validationAfterRepair=runtime.validator.run();
+    if(report.counts.hard){
+      state.reports.repair=await runtime.repair.repair(report);
+      state.reports.validationAfterRepair=runtime.validator.run();
+    } else state.reports.validationAfterRepair=report;
     return state;
   });
 

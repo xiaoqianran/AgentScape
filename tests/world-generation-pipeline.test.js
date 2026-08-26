@@ -246,7 +246,7 @@ describe('generated world pipeline',()=>{
     expect(result.state.reports.physicsAdmission).toMatchObject({status:'ready',backend:{identity:'test'}});
     expect(result.state.reports.worldAdmission).toMatchObject({status:'ready',physics:{status:'ready'}});
     expect(result.state.reports.worldAcceptance.checks[0].evidence.validation).toEqual(result.state.reports.validationAfterRepair);
-    expect(runtime.validator.run).toHaveBeenCalledTimes(2);
+    expect(runtime.validator.run).toHaveBeenCalledOnce();
     expect(runtime.spawn).toHaveBeenCalledOnce();
     expect(runtime.currentPhysicsRequirements).toEqual(result.state.artifacts.physicsRequirements);
   });
