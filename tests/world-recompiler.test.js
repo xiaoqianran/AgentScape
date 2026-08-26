@@ -2,6 +2,7 @@ import { describe,expect,it,vi } from 'vitest';
 import { recompileWorldRevision } from '../src/pipeline/WorldRecompiler.js';
 import { buildWorldRevisionContext,createWorldRevisionProposal } from '../src/pipeline/WorldRevision.js';
 import { compileValidationFindings } from '../src/validation/Finding.js';
+import { recordInteractionEvidence } from '../src/validation/InteractionEvidence.js';
 
 const baseIR=()=>({
   schema:'agentscape.world-ir',schemaVersion:1,
@@ -115,4 +116,88 @@ it('rolls back an incremental state revision when fresh validation rejects it',a
   expect(rt.currentWorldRevision).toMatchObject({revision:{id:'state-rev-1'}});
   expect(rt.lastAcceptanceBundle).toEqual({old:true});
   expect(rt.restoredAcceptanceEvidence).toEqual({historical:true});
+});
+
+
+const behaviorRevision=()=>({
+  schema:'agentscape.world-ir',schemaVersion:1,
+  revision:{id:'behavior-rev-1'},provenance:{source:'planner',evidenceRefs:[]},intent:{name:'Behavior Lab'},
+  entities:[{id:'box',asset:{assetId:'crate'},transform:{position:[0,0,0]},initialState:{},capabilityIntent:['PICKUP']}],
+  spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[{id:'box-exists',kind:'object-exists',targetId:'box'}]
+});
+const behaviorProposal=()=>{
+  const findings=compileValidationFindings({hard:[{code:'G_BELOW_GROUND',object:'box'}],advisory:[]},{worldRevisionId:'behavior-rev-1'});
+  return createWorldRevisionProposal(buildWorldRevisionContext(behaviorRevision(),findings),{
+    nextRevisionId:'behavior-rev-2',reason:'expand capability',edits:[{kind:'set-capability-intent',entityId:'box',capabilities:['pickup','place']}]
+  });
+};
+const behaviorRuntime=({revisionId='behavior-rev-1',actions=['pickup','place','move'],assetId='crate'}={})=>{
+  const record={id:'box',assetId,state:{},object:{position:{toArray:()=>[0,0,0]}}};
+  return {
+    currentWorldRevision:{revision:{id:revisionId},provenance:{source:'planner'}},
+    currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{requirements:[]},lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
+    snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
+    worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
+    store:{get:vi.fn(()=>record)},assets:{getManifest:vi.fn(()=>({id:'crate',actions}))},
+    validator:{run:vi.fn(()=>({ok:true,counts:{hard:0,advisory:0},findings:[]}))},
+    sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},
+    loadRuleGraph:vi.fn(),trace:{emit:vi.fn()}
+  };
+};
+
+it('incrementally recompiles capability intent when current assets prove the new behavior contract',async()=>{
+  const rt=behaviorRuntime();
+  const result=await recompileWorldRevision(rt,{baseWorldIR:behaviorRevision(),proposal:behaviorProposal(),acceptChangedPlan:true});
+  expect(rt.clearObjects).not.toHaveBeenCalled();
+  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+  expect(rt.currentWorldRevision).toMatchObject({revision:{id:'behavior-rev-2',parentId:'behavior-rev-1'}});
+  expect(rt.currentBehaviorBundle.capabilityIntents).toEqual([{entityId:'box',capabilities:['PICKUP','PLACE']}]);
+  expect(rt.restoredAcceptanceEvidence).toBeNull();
+  expect(result).toMatchObject({
+    status:'world-ready',rolledBack:false,
+    admission:{status:'ready',behavior:{status:'ready'}},
+    recompile:{mode:'incremental-behavior',freshVerification:true,committed:true,affectedEntityIds:['box']}
+  });
+});
+
+it('rejects unsupported capability intent before changing Runtime authority',async()=>{
+  const rt=behaviorRuntime({actions:['pickup','move']});
+  const result=await recompileWorldRevision(rt,{baseWorldIR:behaviorRevision(),proposal:behaviorProposal(),acceptChangedPlan:true});
+  expect(result).toMatchObject({
+    status:'world-rejected',rolledBack:false,reason:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',
+    admission:{status:'rejected',behavior:{status:'rejected',issues:[{code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',targetId:'box',capability:'PLACE'}]}},
+    recompile:{mode:'incremental-behavior',freshVerification:false,committed:false}
+  });
+  expect(rt.currentWorldRevision).toMatchObject({revision:{id:'behavior-rev-1'}});
+  expect(rt.currentBehaviorBundle).toEqual({ruleGraph:[]});
+  expect(rt.restoredAcceptanceEvidence).toEqual({historical:true});
+  expect(rt.clearObjects).not.toHaveBeenCalled();
+  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+});
+
+it('falls back to full canonical rebuild when incremental behavior authority cannot be proven',async()=>{
+  const rt=behaviorRuntime({revisionId:'other-revision'});
+  const result=await recompileWorldRevision(rt,{baseWorldIR:behaviorRevision(),proposal:behaviorProposal(),acceptChangedPlan:true});
+  expect(rt.clearObjects).toHaveBeenCalledOnce();
+  expect(rt.worldPipeline.run).toHaveBeenCalledOnce();
+  expect(result.recompile).toMatchObject({mode:'full',canonical:true,committed:true});
+});
+
+
+it('does not carry interaction verification evidence across an incremental behavior revision',async()=>{
+  const base=behaviorRevision();
+  base.acceptance=[{id:'pickup-verified',kind:'interaction-verified',targetId:'box',capability:'PICKUP'}];
+  const findings=compileValidationFindings({hard:[{code:'G_BELOW_GROUND',object:'box'}],advisory:[]},{worldRevisionId:'behavior-rev-1'});
+  const patch=createWorldRevisionProposal(buildWorldRevisionContext(base,findings),{
+    nextRevisionId:'behavior-rev-2',reason:'expand capability',edits:[{kind:'set-capability-intent',entityId:'box',capabilities:['pickup','place']}]
+  });
+  const rt=behaviorRuntime();
+  recordInteractionEvidence(rt,{targetId:'box',capability:'PICKUP',verified:true,source:'test'});
+  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
+  expect(result).toMatchObject({
+    status:'world-rejected',rolledBack:true,reason:'WORLD_ACCEPTANCE_FAILED',
+    admission:{status:'rejected',acceptance:{status:'world-incomplete'}},
+    recompile:{mode:'incremental-behavior',freshVerification:true,committed:false}
+  });
+  expect(rt.currentWorldRevision).toMatchObject({revision:{id:'behavior-rev-1'}});
 });

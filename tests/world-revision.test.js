@@ -115,9 +115,29 @@ it('classifies only pure semantic initial-state edits as incrementally recompila
   expect(classifyWorldRevisionImpact({edits:[
     {kind:'set-initial-state',entityId:'box',state:{enabled:false}},
     {kind:'set-initial-state',entityId:'table',state:{mode:'safe'}}
-  ]})).toEqual({mode:'incremental-state',affectedEntityIds:['box','table']});
+  ]})).toEqual({
+    mode:'incremental-state',editKinds:['set-initial-state'],affectedEntityIds:['box','table'],domains:['state','acceptance']
+  });
   expect(classifyWorldRevisionImpact({edits:[
     {kind:'set-initial-state',entityId:'box',state:{enabled:false}},
     {kind:'set-position',entityId:'box',position:[0,.2,0]}
-  ]})).toEqual({mode:'full',affectedEntityIds:['box']});
+  ]})).toEqual({
+    mode:'full',editKinds:['set-initial-state','set-position'],affectedEntityIds:['box'],
+    domains:['state','acceptance','transform','layout','spatial','physics','navigation']
+  });
+});
+
+
+it('maps every typed revision edit to explicit compiler/runtime impact domains',()=>{
+  const cases={
+    'set-generation':['asset','generation','layout','behavior','physics','acceptance'],
+    'replace-asset':['asset','generation','layout','behavior','physics','spatial','navigation','acceptance'],
+    'set-capability-intent':['behavior','acceptance'],
+    'set-physics-requirement':['physics','acceptance']
+  };
+  for(const [kind,domains] of Object.entries(cases)){
+    expect(classifyWorldRevisionImpact({edits:[{kind,entityId:'box'}]})).toMatchObject({
+      mode:kind==='set-capability-intent'?'incremental-behavior':'full',editKinds:[kind],affectedEntityIds:['box'],domains
+    });
+  }
 });

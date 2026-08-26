@@ -152,13 +152,23 @@ export function createWorldRevisionProposal(context,{nextRevisionId,reason='boun
 }
 
 
+const REVISION_EDIT_DOMAINS={
+  'set-initial-state':['state','acceptance'],
+  'set-position':['transform','layout','spatial','physics','navigation','acceptance'],
+  'set-generation':['asset','generation','layout','behavior','physics','acceptance'],
+  'replace-asset':['asset','generation','layout','behavior','physics','spatial','navigation','acceptance'],
+  'set-capability-intent':['behavior','acceptance'],
+  'set-physics-requirement':['physics','acceptance']
+};
+
 export function classifyWorldRevisionImpact(proposal={}){
   const edits=Array.isArray(proposal.edits)?proposal.edits:[];
+  const editKinds=[...new Set(edits.map((edit)=>clean(edit.kind)).filter(Boolean))];
   const affectedEntityIds=[...new Set(edits.map((edit)=>clean(edit.entityId)).filter(Boolean))];
-  return {
-    mode:edits.length&&edits.every((edit)=>edit.kind==='set-initial-state')?'incremental-state':'full',
-    affectedEntityIds
-  };
+  const domains=[...new Set(editKinds.flatMap((kind)=>REVISION_EDIT_DOMAINS[kind]||['unknown']))];
+  const stateOnly=edits.length>0 && domains.every((domain)=>['state','acceptance'].includes(domain));
+  const behaviorOnly=edits.length>0 && domains.every((domain)=>['behavior','acceptance'].includes(domain));
+  return {mode:stateOnly?'incremental-state':behaviorOnly?'incremental-behavior':'full',editKinds,affectedEntityIds,domains};
 }
 
 export function applyWorldRevisionProposal(worldIR,proposal,{acceptChangedPlan=false}={}){
