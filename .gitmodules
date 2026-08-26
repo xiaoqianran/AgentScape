@@ -1,3 +1,15 @@
 [submodule "providers/modal/image-runtime"]
 	path = providers/modal/image-runtime
 	url = https://github.com/xiaoqianran/modal-2D
+[submodule "providers/modal/image-agent"]
+	path = providers/modal/image-agent
+	url = https://github.com/xiaoqianran/modal-2D-client
+[submodule "providers/modal/connector"]
+	path = providers/modal/connector
+	url = https://github.com/xiaoqianran/modal-gen-client
+[submodule "providers/modal/object3d-runtime"]
+	path = providers/modal/object3d-runtime
+	url = https://github.com/xiaoqianran/modal-3D
+[submodule "providers/modal/object3d-agent"]
+	path = providers/modal/object3d-agent
+	url = https://github.com/xiaoqianran/modal-3D-client
