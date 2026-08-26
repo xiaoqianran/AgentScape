@@ -48,6 +48,38 @@ export function compileValidationFindings(report,{worldRevisionId=null}={}){
   });
 }
 
+
+const admissionCode=(stage,item,report)=>{
+  const explicit=clean(item?.code||item?.reason||report?.reason);
+  if(explicit) return explicit.toUpperCase().replace(/[^A-Z0-9_]+/g,'_');
+  const status=clean(item?.status);
+  if(stage==='asset'&&status) return `ASSET_${status.toUpperCase().replace(/[^A-Z0-9_]+/g,'_')}`;
+  return `${clean(stage).toUpperCase()||'WORLD'}_ADMISSION_REJECTED`;
+};
+
+const admissionAffectedObjects=(item)=>[item?.entityId,item?.targetId,item?.supportId,item?.subject,item?.object,item?.instanceId,item?.id]
+  .map(clean).filter(Boolean);
+
+export function compileAdmissionFindings(report,{stage='world',worldRevisionId=null}={}){
+  if(report?.status!=='rejected') return [];
+  const issues=Array.isArray(report.issues)&&report.issues.length ? report.issues
+    : Array.isArray(report.unresolved)&&report.unresolved.length ? report.unresolved
+    : [{}];
+  return issues.map((item,index)=>{
+    const code=admissionCode(stage,item,report);
+    const affectedObjects=[...new Set(admissionAffectedObjects(item))];
+    return normalizeFinding({
+      schema:FINDING_SCHEMA,schemaVersion:FINDING_VERSION,
+      id:`${clean(stage)||'world'}:hard:${code}:${affectedObjects.join('+')||'$world'}:${index}`,
+      source:`world-${clean(stage)||'world'}-admission`,severity:'hard',code,
+      ...(worldRevisionId?{worldRevisionId}:{}),affectedObjects,
+      message:`${clean(stage)||'world'} admission rejected: ${code}`,
+      evidence:{stage:clean(stage)||'world',...clone(item),...(report?.reason?{admissionReason:report.reason}:{})},
+      repair:{eligible:false}
+    },{index});
+  });
+}
+
 export function compileAcceptanceFindings(result,{worldRevisionId=null}={}){
   return (result?.checks||[]).filter((check)=>check?.verified===false).map((check,index)=>normalizeFinding({
     schema:FINDING_SCHEMA,schemaVersion:FINDING_VERSION,

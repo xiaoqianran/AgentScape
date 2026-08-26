@@ -81,6 +81,11 @@ describe('generated world pipeline',()=>{
     expect(result.state.artifacts.spawned).toEqual([]);
     expect(result.state.reports.assetAdmission).toMatchObject({status:'rejected',unresolved:[{id:'missing_01',query:'rare lab machine',status:'generator_not_configured'}]});
     expect(result.state.reports.worldAdmission).toMatchObject({status:'rejected',reasons:['ASSET_UNRESOLVED','ASSET_ADMISSION_REJECTED']});
+    expect(result.state.artifacts.revisionContext).toMatchObject({
+      baseRevisionId:'legacy-root',affected:{seedEntityIds:['missing_01'],editableEntityIds:['missing_01']},
+      findings:[{source:'world-asset-admission',code:'ASSET_GENERATOR_NOT_CONFIGURED',affectedObjects:['missing_01']}]
+    });
+    expect(result.state.artifacts.revisionContext.findings).toHaveLength(1);
   });
 
   it('auto-composes a missing asset position before spawning and records deterministic layout evidence',async()=>{
@@ -198,6 +203,23 @@ describe('generated world pipeline',()=>{
   });
 
 
+  it('emits bounded revision scope from a behavior admission rejection before instantiation',async()=>{
+    const assets=new AssetManager();
+    assets.registerManifest({id:'static-door',type:'fixture',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.4,.8,.1]}]}});
+    const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:0,relations:0}};
+    const runtime={events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}};
+    const result=await createWorldPipeline(runtime).run({
+      schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-behavior-reject'},provenance:{source:'planner'},intent:{name:'Behavior Reject'},
+      entities:[{id:'door_01',asset:{assetId:'static-door'},capabilityIntent:['open']}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]
+    });
+    expect(result.state.reports.behaviorAdmission).toMatchObject({status:'rejected',issues:[{code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',targetId:'door_01'}]});
+    expect(result.state.artifacts.revisionContext).toMatchObject({
+      baseRevisionId:'rev-behavior-reject',affected:{seedEntityIds:['door_01'],editableEntityIds:['door_01']},
+      findings:[{source:'world-behavior-admission',code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',affectedObjects:['door_01']}]
+    });
+    expect(runtime.spawn).not.toHaveBeenCalled();
+  });
+
   it('admits backend-neutral PhysicsRequirement before world instantiation',async()=>{
     const assets=new AssetManager();
     assets.registerManifest({id:'physics-crate',type:'container',source:{kind:'builtin'},actions:['move'],physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.4,.4,.4]}]}});
@@ -221,6 +243,10 @@ describe('generated world pipeline',()=>{
     const result=await createWorldPipeline(runtime).run({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-soft'},provenance:{source:'planner'},intent:{name:'Soft World'},entities:[{id:'soft_01',asset:{assetId:'soft-fixture'},physicsRequirement:{bodyClass:'soft',executionMode:'realtime'}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]});
     expect(result.state.reports.physicsAdmission).toMatchObject({status:'rejected',issues:[{code:'PHYSICS_BACKEND_CAPABILITY_MISSING',entityId:'soft_01',capability:'soft-body'}]});
     expect(result.state.reports.worldAdmission).toMatchObject({status:'rejected',reasons:['PHYSICS_BACKEND_CAPABILITY_MISSING']});
+    expect(result.state.artifacts.revisionContext).toMatchObject({
+      baseRevisionId:'rev-soft',affected:{seedEntityIds:['soft_01'],editableEntityIds:['soft_01']},
+      findings:[{source:'world-physics-admission',code:'PHYSICS_BACKEND_CAPABILITY_MISSING',affectedObjects:['soft_01']}]
+    });
     expect(runtime.spawn).not.toHaveBeenCalled();
   });
 

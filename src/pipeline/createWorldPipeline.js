@@ -4,6 +4,7 @@ import { assetAdmission } from '../assets/admission.js';
 import { composeNearPlacement, composeWorldLayout } from './WorldComposer.js';
 import { buildAcceptanceEvidenceBundle, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
 import { buildWorldRevisionContext } from './WorldRevision.js';
+import { compileAdmissionFindings } from '../validation/Finding.js';
 import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
 import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
 
@@ -209,8 +210,14 @@ const createPipeline=(runtime,compileInput)=>{
       relations:structuredClone(relationAdmission),
       ...(worldAcceptance?{acceptance:structuredClone(worldAcceptance)}:{})
     };
+    const admissionFindingOptions={worldRevisionId:worldIR?.revision?.id || null};
     const revisionFindings=[
       ...(validation.findings||[]).filter((finding)=>finding.severity==='hard'),
+      ...compileAdmissionFindings(assetAdmission,{stage:'asset',...admissionFindingOptions}),
+      ...(layoutAdmission.reason==='ASSET_ADMISSION_REJECTED'?[]:compileAdmissionFindings(layoutAdmission,{stage:'layout',...admissionFindingOptions})),
+      ...(behaviorAdmission.reason==='ASSET_ADMISSION_REJECTED'?[]:compileAdmissionFindings(behaviorAdmission,{stage:'behavior',...admissionFindingOptions})),
+      ...(physicsAdmission.reason==='ASSET_ADMISSION_REJECTED'?[]:compileAdmissionFindings(physicsAdmission,{stage:'physics',...admissionFindingOptions})),
+      ...compileAdmissionFindings(relationAdmission,{stage:'relation',...admissionFindingOptions}),
       ...(state.artifacts.acceptanceEvidence?.findings||[])
     ];
     if(status==='rejected'&&revisionFindings.length) state.artifacts.revisionContext=buildWorldRevisionContext(worldIR,revisionFindings);
