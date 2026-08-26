@@ -131,7 +131,7 @@ const worldAdmission=(validation,acceptance,{behaviorAdmission=null,physicsAdmis
 const verifyIncrementalRevision=(runtime,{compilation,nextIR,revisionId,source,behaviorAdmission=null,physicsAdmission=null,layoutAdmission=null,timelineName,started})=>{
   const validation=runtime.validator.run();
   const acceptance=compilation.acceptanceGraph
-    ? evaluateWorldAcceptance(runtime,compilation.acceptanceGraph,{unresolvedMutations:undefined})
+    ? evaluateWorldAcceptance(runtime,compilation.acceptanceGraph,{unresolvedMutations:undefined,worldRevisionId:revisionId,validationEvidence:validation})
     : null;
   const acceptanceEvidence=acceptance
     ? buildAcceptanceEvidenceBundle(compilation.acceptanceGraph,acceptance,{worldRevisionId:revisionId,source,provenance:nextIR.provenance})

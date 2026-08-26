@@ -203,7 +203,7 @@ const createPipeline=(runtime,compileInput)=>{
         worldAcceptance={status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED'};
         state.reports.worldAcceptance=structuredClone(worldAcceptance);
       } else {
-        worldAcceptance=evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined,worldRevisionId:worldIR?.revision?.id || null});
+        worldAcceptance=evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined,worldRevisionId:worldIR?.revision?.id || null,validationEvidence:validation});
         state.reports.worldAcceptance=worldAcceptance;
         const bundle=buildAcceptanceEvidenceBundle(acceptanceGraph,worldAcceptance,{worldRevisionId:worldIR?.revision?.id || null,source:'world-pipeline',provenance:worldIR?.provenance || null});
         state.artifacts.acceptanceEvidence=structuredClone(bundle);

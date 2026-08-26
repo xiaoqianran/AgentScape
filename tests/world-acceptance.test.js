@@ -36,6 +36,15 @@ describe('WorldAcceptance',()=>{
     expect(result.failedCount).toBe(2);
   });
 
+  it('uses supplied final validation evidence for world-valid without rerunning Validator',()=>{
+    let calls=0;
+    const world={validator:{run:()=>{calls++;return {ok:false,counts:{hard:1}};}}};
+    const validation={ok:true,counts:{hard:0,advisory:0},findings:[]};
+    const result=evaluateWorldAcceptance(world,compileWorldAcceptance([{id:'valid',kind:'world-valid'}]),{validationEvidence:validation});
+    expect(result).toMatchObject({status:'world-accepted',checks:[{id:'valid',verified:true,evidence:{validation:{ok:true}}}]});
+    expect(calls).toBe(0);
+  });
+
   it('builds a serializable acceptance evidence bundle with revision and provenance',()=>{
     const graph=compileWorldAcceptance([{id:'valid',kind:'world-valid'}]);
     const result=evaluateWorldAcceptance(runtime,graph);

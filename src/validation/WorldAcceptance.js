@@ -37,11 +37,11 @@ export function compileWorldAcceptance(criteria=[]){
   return {schema:SCHEMA,schemaVersion:VERSION,checks};
 }
 
-export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undefined,worldRevisionId=null}={}){
+export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undefined,worldRevisionId=null,validationEvidence=null}={}){
   if(graph?.schema!==SCHEMA||graph.schemaVersion!==VERSION) throw new TypeError('Unsupported WorldAcceptance graph');
   const evidence=graph.checks.map(check=>{
     if(check.kind==='world-valid'){
-      const validation=runtime?.validator?.run?.();
+      const validation=validationEvidence || runtime?.validator?.run?.();
       return validation?.ok===true ? {id:check.id,kind:check.kind,verified:true,evidence:{validation:structuredClone(validation)}} : {id:check.id,kind:check.kind,verified:false,reason:'WORLD_VALIDATION_FAILED',evidence:validation?structuredClone(validation):null};
     }
     if(check.kind==='object-exists'){
