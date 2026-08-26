@@ -1,21 +1,21 @@
 # AgentScape-client
 
-把 `modal-2D-client` 的 lossless Text→Image 与 `modal-3D-client` 的 Image→3D 工作流组合成可验证的 3D 资产流水线，并为最终 Unified Connector 保持清晰的契约边界。
+通过 Unified Connector 组合 `modal-2D-client` 的 lossless Text→Image 与 `modal-3D-client` 的 Image→3D，产出可验证、可追踪的 3D 资产流水线。
 
-当前 direct MVP：
+当前默认执行路径：
 
 ```text
 prompt
-  -> modal-2D-client /v1/jobs
+  -> AgentScape-client
+  -> Unified Connector /connector/v1/*
+  -> modal-2d provider
   -> lossless primary-image PNG
-  -> modal-3D-client /v1/projects
-  -> preprocess / canonical RGBA
-  -> modal generation job
+  -> modal-3d provider
   -> primary-glb
   -> manifest.json
 ```
 
-`KaggleImageProvider` 仍保留为 legacy adapter，但 CLI 默认链路已经切换到 `modal-2D-client`。
+`AgentScape-client` 默认不再直连 2D/3D provider-local API。Connector 统一持有 pairing、capability provenance、global Job identity、idempotency、eventSequence 与 Artifact lineage。Direct adapter 仅保留兼容/诊断用途；任意本地图片尚未纳入 Connector Artifact lineage，因此只通过显式 `reconstruct-direct` 命令使用旧直连路径。
 
 ## 安装
 
@@ -28,20 +28,23 @@ pip install -e '.[dev]'
 ## 配置
 
 ```bash
-export AGENTSCAPE_MODAL_2D_AGENT_URL=http://127.0.0.1:3212
-export AGENTSCAPE_MODAL_2D_AGENT_SESSION=...
+export AGENTSCAPE_CONNECTOR_URL=http://127.0.0.1:39000
+export AGENTSCAPE_CONNECTOR_ORIGIN=http://localhost:3000
+export AGENTSCAPE_CONNECTOR_PAIRING_TOKEN=...
+```
+
+`AGENTSCAPE_CONNECTOR_URL` 应指向 `modal-3D-client` 暴露 Unified Connector 的当前本地 Agent 地址；桌面 sidecar 使用随机端口时，应传入实际地址。CLI 为一次性进程，每次运行通过 pairing approval 建立短期 Connector session，approval/token 不写入 manifest、缓存或日志。
+
+仅 `reconstruct-direct` 仍使用：
+
+```bash
 export AGENTSCAPE_MODAL_AGENT_URL=http://127.0.0.1:39000
 export AGENTSCAPE_MODAL_AGENT_SESSION=...
 ```
 
-`modal-2D-client` 默认监听 `127.0.0.1:3212`；只有启用了 `MODAL_2D_AGENT_TOKEN` 时才需要 `AGENTSCAPE_MODAL_2D_AGENT_SESSION`。`modal-3D-client` sidecar 默认绑定随机本地端口，因此 `AGENTSCAPE_MODAL_AGENT_URL` 应指向当前 Agent 地址。两边 Agent 都需要已经连接 Modal，或由桌面客户端恢复凭据。
-
-Direct adapter 只消费 provider-local `/v1/*` 事实，不伪造 Unified Connector 的 pairing、global Job identity、event sequence 或 idempotency。最终 `/connector/v1/*` 仍应由单一统一 Connector 持有。
-
 ## 契约边界
 
-`manifest.json` 是本地流水线结果，不伪造 Connector session、Job identity 或 artifact location。
-其中 `result.artifacts` 直接兼容 AgentScape 的 `GenerationJobProjection.result`，统一 Connector 后只需补 Job identity 与传输 location。
+`manifest.json` 是本地消费结果：Job identity、Artifact identity 与 lineage 均来自 Connector；session credential 不进入 manifest。`result.artifacts` 直接兼容 AgentScape 的 `GenerationJobProjection.result`。
 
 - 最终 GLB role 为 `primary-glb`；
 - `modal-2D-client` direct adapter 的 PNG 标记为 lossless `primary-image`；保留的 Kaggle WebP adapter 仍严格标记为 `legacy-lossy`；
@@ -73,8 +76,8 @@ Direct adapter 只消费 provider-local `/v1/*` 事实，不伪造 Unified Conne
 ```bash
 agentscape probe
 agentscape image "a mossy stone shrine" -o reference.png
-agentscape reconstruct reference.png --concept "stone shrine" --model fastsam3d --output model.glb
+agentscape reconstruct-direct reference.png --concept "stone shrine" --model fastsam3d --output model.glb
 agentscape create "a mossy stone shrine" --model fastsam3d -o artifacts/shrine
 ```
 
-实际模型 ID 以 `modal-3D-client` 的 `/v1/models` 动态 capability 为准，不在 AgentScape 中硬编码。
+默认命令的模型/capability 以 Unified Connector `/connector/v1/capabilities` 为准，不在 AgentScape 中伪造 provider 可用性。`reconstruct-direct` 是唯一显式 legacy 直连入口。

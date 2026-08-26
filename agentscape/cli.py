@@ -5,31 +5,57 @@ from pathlib import Path
 
 import typer
 
-from .pipeline import TextTo3DPipeline
-from .providers import Modal2DProvider, Modal3DProvider
+from .connector_artifacts import ConnectorArtifactTransport
+from .connector_capabilities import ConnectorCapabilityClient
+from .connector_pipeline import ConnectorJobRunner, ConnectorTextTo3DPipeline
+from .connector_session import ConnectorSession
+from .modal2d import Modal2DTextToImageRequestBuilder
+from .modal3d import Modal3DImageTo3DRequestBuilder
+from .providers import Modal3DProvider
 from .settings import Settings
 
-app = typer.Typer(no_args_is_help=True, help="AgentScape provider orchestration client")
+app = typer.Typer(no_args_is_help=True, help="AgentScape Unified Connector client")
 
 
-def _providers() -> tuple[Modal2DProvider, Modal3DProvider]:
+def _connector() -> tuple[ConnectorCapabilityClient, ConnectorJobRunner, ConnectorArtifactTransport]:
     settings = Settings.from_env()
-    return (
-        Modal2DProvider(settings.modal_2d_agent_url, settings.modal_2d_agent_session),
-        Modal3DProvider(settings.modal_agent_url, settings.modal_agent_session),
+    if not settings.connector_pairing_token.strip():
+        raise typer.BadParameter("需要设置 AGENTSCAPE_CONNECTOR_PAIRING_TOKEN")
+    session = ConnectorSession.pair(
+        settings.connector_url,
+        settings.connector_pairing_token,
+        origin=settings.connector_origin,
     )
+    capabilities = ConnectorCapabilityClient(session)
+    return capabilities, ConnectorJobRunner(capabilities), ConnectorArtifactTransport(session)
 
 
 @app.command()
 def probe() -> None:
-    """Probe configured provider endpoints without printing credentials."""
-    modal2d, modal = _providers()
-    result: dict[str, object] = {}
-    for name, provider in (("modal2d", modal2d), ("modal3d", modal)):
-        try:
-            result[name] = {"ok": True, "response": provider.probe()}
-        except Exception as exc:  # CLI diagnostic boundary
-            result[name] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    """Pair with the Unified Connector and print its safe capability summary."""
+    capabilities, _, _ = _connector()
+    snapshot = capabilities.fetch_snapshot()
+    result = {
+        "connector": snapshot.connector,
+        "contract_version": snapshot.contract_version,
+        "revision": snapshot.revision,
+        "hash": snapshot.hash,
+        "providers": [
+            {
+                "id": provider["id"],
+                "health": provider["health"],
+                "status": provider["status"],
+                "operations": [
+                    {
+                        "operation": capability["operation"],
+                        "status": capability["status"],
+                    }
+                    for capability in provider["capabilities"]
+                ],
+            }
+            for provider in snapshot.providers
+        ],
+    }
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
@@ -38,39 +64,69 @@ def image(
     prompt: str,
     output: Path = typer.Option(Path("reference.png"), "--output", "-o"),
     model: str = typer.Option("sana-sprint-1.6b", "--model"),
+    seed: int = typer.Option(42, "--seed"),
+    guidance: float = typer.Option(4.5, "--guidance"),
 ) -> None:
-    modal2d, _ = _providers()
-    result = modal2d.generate(prompt, output, model=model)
-    typer.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+    """Generate one lossless image through the Unified Connector."""
+    _, runner, artifacts = _connector()
+    request = Modal2DTextToImageRequestBuilder(model=model, seed=seed, guidance=guidance)(prompt)
+    job = runner.run(request)
+    summary = artifacts.select_job_artifact(job, role="primary-image")
+    artifact = artifacts.download(summary, output)
+    typer.echo(
+        json.dumps(
+            {
+                "provider": request.provider,
+                "job_id": job.id,
+                "artifact": artifact.to_dict(),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
-@app.command()
-def reconstruct(
+@app.command("reconstruct-direct")
+def reconstruct_direct(
     image_path: Path,
     concept: str = typer.Option(..., "--concept"),
     model: str = typer.Option(..., "--model"),
     output: Path = typer.Option(Path("model.glb"), "--output", "-o"),
     profile: str = typer.Option("recommended", "--profile"),
 ) -> None:
-    _, modal = _providers()
-    result = modal.reconstruct(image_path, output, concept=concept, model=model, profile=profile)
+    """Legacy direct path for an arbitrary local image not owned by Connector lineage."""
+    settings = Settings.from_env()
+    provider = Modal3DProvider(settings.modal_agent_url, settings.modal_agent_session)
+    result = provider.reconstruct(
+        image_path,
+        output,
+        concept=concept,
+        model=model,
+        profile=profile,
+    )
     typer.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
 
 
 @app.command()
 def create(
     prompt: str,
-    model: str = typer.Option(..., "--model", help="modal-3D model id discovered from /v1/models"),
+    model: str = typer.Option(..., "--model", help="modal-3D model id discovered from Connector capabilities"),
     output_dir: Path = typer.Option(Path("artifacts/latest"), "--output-dir", "-o"),
     image_model: str = typer.Option("sana-sprint-1.6b", "--image-model"),
     profile: str = typer.Option("recommended", "--profile"),
+    image_seed: int = typer.Option(42, "--image-seed"),
+    reconstruction_seed: int = typer.Option(42, "--reconstruction-seed"),
 ) -> None:
-    modal2d, modal = _providers()
-    manifest = TextTo3DPipeline(modal2d, modal).run(
-        prompt,
-        output_dir,
-        image_model=image_model,
-        reconstruction_model=model,
-        profile=profile,
-    )
+    """Run Text→Image→3D through one Unified Connector session."""
+    _, runner, artifacts = _connector()
+    manifest = ConnectorTextTo3DPipeline(
+        runner,
+        artifacts,
+        Modal2DTextToImageRequestBuilder(model=image_model, seed=image_seed),
+        Modal3DImageTo3DRequestBuilder(
+            model=model,
+            seed=reconstruction_seed,
+            profile=profile,
+        ),
+    ).run(prompt, output_dir)
     typer.echo(json.dumps(manifest, ensure_ascii=False, indent=2))
