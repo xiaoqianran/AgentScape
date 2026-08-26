@@ -15,11 +15,18 @@ const proposal=()=>{
   return createWorldRevisionProposal(buildWorldRevisionContext(baseIR(),findings),{nextRevisionId:'rev-2',reason:'lift box',edits:[{kind:'set-position',entityId:'box',position:[0,.2,0]}]});
 };
 const runtime=(admission={status:'ready',reasons:[]})=>{
-  const before={scene:'before'};
-  return {
-    snapshot:vi.fn(()=>structuredClone(before)),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
-    worldPipeline:{run:vi.fn(async(ir)=>({state:{artifacts:{worldIR:structuredClone(ir),acceptanceEvidence:{result:{status:'world-accepted'}}},reports:{worldAdmission:structuredClone(admission),worldAcceptance:{status:'world-accepted'}}},timeline:[]}))}
+  const before={scene:'before'},observed=[];
+  let runtimeRef;
+  const value={
+    currentWorldRevision:{revision:{id:'rev-1'},provenance:{source:'planner'}},
+    currentBehaviorBundle:{tag:'old-behavior',ruleGraph:[{id:'old-rule'}]},
+    currentPhysicsRequirements:{tag:'old-physics'},lastAcceptanceBundle:{tag:'old-acceptance'},restoredAcceptanceEvidence:{tag:'old-restored'},
+    snapshot:vi.fn(()=>structuredClone(before)),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),loadRuleGraph:vi.fn(),
+    worldPipeline:{run:vi.fn(async(ir)=>{observed.push({behavior:structuredClone(runtimeRef.currentBehaviorBundle),physics:structuredClone(runtimeRef.currentPhysicsRequirements)});return {state:{artifacts:{worldIR:structuredClone(ir),acceptanceEvidence:{result:{status:'world-accepted'}}},reports:{worldAdmission:structuredClone(admission),worldAcceptance:{status:'world-accepted'}}},timeline:[]};})},
+    _observedAuthority:observed
   };
+  runtimeRef=value;
+  return value;
 };
 
 describe('WorldRecompiler',()=>{
@@ -35,6 +42,8 @@ describe('WorldRecompiler',()=>{
     const compiledIR=rt.worldPipeline.run.mock.calls[0][0];
     expect(compiledIR.revision).toMatchObject({id:'rev-2',parentId:'rev-1',reason:'lift box'});
     expect(compiledIR.provenance).toMatchObject({source:'finding-revision'});
+    expect(rt._observedAuthority).toEqual([{behavior:{tag:'old-behavior',ruleGraph:[{id:'old-rule'}]},physics:{tag:'old-physics'}}]);
+    expect(rt.loadRuleGraph).toHaveBeenCalledWith([]);
     expect(result).toMatchObject({status:'world-ready',rolledBack:false,baseRevisionId:'rev-1',revisionId:'rev-2',recompile:{canonical:true,freshVerification:true,committed:true},pipeline:{state:{reports:{worldAcceptance:{status:'world-accepted'}}}}});
     expect(rt.restore).not.toHaveBeenCalled();
   });

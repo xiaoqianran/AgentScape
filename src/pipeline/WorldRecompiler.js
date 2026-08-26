@@ -330,8 +330,6 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
 
 async function recompileFull(runtime,{nextIR,before,previous,baseRevisionId,revisionId}){
   try{
-    runtime.currentBehaviorBundle=null;
-    runtime.currentPhysicsRequirements=null;
     runtime.loadRuleGraph?.([]);
     await runtime.clearObjects();
     const pipeline=await runtime.worldPipeline.run(nextIR);
