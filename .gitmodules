@@ -13,3 +13,6 @@
 [submodule "providers/modal/object3d-agent"]
 	path = providers/modal/object3d-agent
 	url = https://github.com/xiaoqianran/modal-3D-client
+[submodule "providers/kaggle/runtime"]
+	path = providers/kaggle/runtime
+	url = https://github.com/xiaoqianran/kaggle-inference-hub
