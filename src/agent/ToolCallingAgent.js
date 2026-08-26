@@ -27,6 +27,25 @@ const worldPlanIdentity = (call) => {
   return `runWorldPipeline:${stableValue({plan:semanticPlan})}`;
 };
 
+const worldProposalLineageFromExecution = (call,result) => {
+  const parentRevisionId=call?.args?.plan?.revision?.id || null;
+  if(!parentRevisionId) return null;
+  const rejected=result?.status!=='world-ready';
+  const revisionContext=result?.pipeline?.state?.artifacts?.revisionContext;
+  const acceptanceFindings=result?.pipeline?.state?.artifacts?.acceptanceEvidence?.findings || [];
+  const retryFindings=(result?.attempts || []).flatMap((attempt)=>attempt?.retry?.findings || []);
+  const evidenceRefs=[
+    ...(revisionContext?.findingIds || []),
+    ...acceptanceFindings.map((finding)=>finding?.id),
+    ...retryFindings.map((finding)=>finding?.id)
+  ].filter(Boolean);
+  return {
+    parentRevisionId,
+    ...(rejected?{reason:result?.reason || result?.admission?.reasons?.[0] || 'world-revision'}:{}),
+    ...(evidenceRefs.length?{evidenceRefs:[...new Set(evidenceRefs)]}:{})
+  };
+};
+
 const identityScope = (identity) => {
   const separator=identity?.indexOf(':') ?? -1;
   if (separator < 0) return {};
@@ -92,6 +111,7 @@ export class ToolCallingAgent {
     const toolDefinitions=this.tools.definitions();
     const proposalGateEnabled=toolDefinitions.some((tool)=>tool.name==='proposeWorldIR');
     const issuedWorldRevisions=new Set();
+    let pendingWorldProposalLineage=null;
     let lastMutation = null;
     let recoveryReadRounds = 0;
 
@@ -233,7 +253,11 @@ export class ToolCallingAgent {
         executedTool = true;
         let result;
         try {
-          result = await this.tools.call(call.name, call.args);
+          const internalContext=call.name==='proposeWorldIR' && pendingWorldProposalLineage
+            ? {worldProposalLineage:structuredClone(pendingWorldProposalLineage)} : null;
+          result = internalContext
+            ? await this.tools.call(call.name,call.args,internalContext)
+            : await this.tools.call(call.name,call.args);
         } catch (error) {
           result = { error:error.message, code:error.code || 'TOOL_ERROR' };
         }
@@ -245,7 +269,13 @@ export class ToolCallingAgent {
         const proposalRevisionId=call.name==='proposeWorldIR' && safeResult?.status==='world-proposal-ready'
           ? safeResult.worldIR?.revision?.id : null;
         const proposalBarrier=Boolean(proposalRevisionId);
-        if(proposalRevisionId) issuedWorldRevisions.add(proposalRevisionId);
+        if(proposalRevisionId){
+          issuedWorldRevisions.add(proposalRevisionId);
+          pendingWorldProposalLineage={parentRevisionId:proposalRevisionId};
+        }
+        if(call.name==='runWorldPipeline'){
+          pendingWorldProposalLineage=worldProposalLineageFromExecution(call,safeResult) || pendingWorldProposalLineage;
+        }
         const sequence = policy.barrier || proposalBarrier ? {
           outcome:policy.outcome,
           barrier:Boolean(policy.barrier),

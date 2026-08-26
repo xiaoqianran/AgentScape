@@ -70,3 +70,14 @@ describe('AgentTools registry facade', () => {
   });
 
 });
+
+it('forwards internal planner lineage without allowing it to override actor or profile',async()=>{
+  const r=runtime();
+  const tools=new AgentTools(r,{profile:'builder',actor:'llm-agent'});
+  await tools.call('open',{id:'cabinet_01'},{
+    profile:'viewer',actor:'forged',worldProposalLineage:{parentRevisionId:'world-r1'}
+  });
+  expect(r.skills.invoke).toHaveBeenCalledWith('open',{id:'cabinet_01'}, {
+    profile:'builder',actor:'llm-agent',worldProposalLineage:{parentRevisionId:'world-r1'}
+  });
+});

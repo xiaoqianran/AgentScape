@@ -41,3 +41,14 @@ describe('WorldPlannerProposal',()=>{
     expect(failure).toMatchObject({code:'WORLD_IR_FEATURE_UNSUPPORTED',features:['spatial.constraints']});
   });
 });
+
+it('creates a Runtime-owned child revision with deduplicated rejection evidence',()=>{
+  const result=buildWorldProposal(proposal(),{
+    revisionId:'world-rev-2',parentRevisionId:'world-rev-1',reason:'ASSET_UNRESOLVED',
+    evidenceRefs:['finding-1','finding-1','retry-1']
+  });
+  expect(result.worldIR).toMatchObject({
+    revision:{id:'world-rev-2',parentId:'world-rev-1',reason:'ASSET_UNRESOLVED'},
+    provenance:{source:'agent-world-planner',evidenceRefs:['finding-1','retry-1']}
+  });
+});

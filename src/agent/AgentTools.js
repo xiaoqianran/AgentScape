@@ -14,9 +14,9 @@ export class AgentTools {
     this.runtime.events.emit('agent.sequence', payload);
     this.runtime.trace?.emit('agent.sequence', payload, { actor:this.actor });
   }
-  async call(name, args = {}) {
+  async call(name, args = {}, internalContext = {}) {
     this.runtime.events.emit('tool.called', { name, args });
-    const response = await this.runtime.skills.invoke(name, args, { profile: this.profile, actor: this.actor });
+    const response = await this.runtime.skills.invoke(name, args, { ...internalContext, profile:this.profile, actor:this.actor });
     if (!response.success) throw Object.assign(new Error(response.error.message), { code: response.error.code });
     return response.result;
   }

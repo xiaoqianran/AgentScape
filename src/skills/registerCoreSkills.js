@@ -304,8 +304,14 @@ export function registerCoreSkills(registry, runtime) {
   });
 
 
-  add('proposeWorldIR', meta('把 Planner 的世界语义提案封装为 Runtime-issued revision/provenance，并执行 strict normalize/reference/canonical compile 预检；不修改 Scene。只有 status=world-proposal-ready 的 worldIR 才应提交 runWorldPipeline。模型不能自行指定 revision/provenance。', [], ['proposal'], { proposal:WORLD_PLANNER_PROPOSAL_SCHEMA }), (a) => {
-    return buildWorldProposal(a.proposal,{revisionId:newWorldRevisionId()});
+  add('proposeWorldIR', meta('把 Planner 的世界语义提案封装为 Runtime-issued revision/provenance，并执行 strict normalize/reference/canonical compile 预检；不修改 Scene。只有 status=world-proposal-ready 的 worldIR 才应提交 runWorldPipeline。模型不能自行指定 revision/provenance/parent lineage。', [], ['proposal'], { proposal:WORLD_PLANNER_PROPOSAL_SCHEMA }), (a,{context}) => {
+    const lineage=context?.worldProposalLineage || {};
+    return buildWorldProposal(a.proposal,{
+      revisionId:newWorldRevisionId(),
+      parentRevisionId:lineage.parentRevisionId,
+      reason:lineage.reason,
+      evidenceRefs:lineage.evidenceRefs
+    });
   });
 
   add('runWorldPipeline', { ...meta('提交 strict World IR v1 到 canonical compiler：统一解析资产、Behavior、Physics、Acceptance，再实例化、校验、修复并序列化。Agent 只执行 proposeWorldIR 已颁发的 revision/provenance；不支持的语义 fail-closed。若唯一 rejection 是可生成的 search miss，Runtime 最多自动重跑一次，只为缺失 asset 开启 generation。world-ready 才视为 verified；world-provisional 不冒充验证；world-rejected 恢复调用前 scene。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: WORLD_IR_TOOL_SCHEMA }), mutates: true }, async (a) => {

@@ -504,3 +504,44 @@ it('deduplicates World IR by semantic plan rather than Runtime-issued revision i
   expect(pipelineCalls).toBe(1);
   expect(result.execution.find((entry)=>entry.reason==='WORLD_PIPELINE_PLAN_ALREADY_ATTEMPTED')).toMatchObject({executed:false});
 });
+
+it('carries rejected World IR revision and finding evidence into the next Runtime-issued proposal',async()=>{
+  let round=0;
+  const firstBody={intent:{name:'Lab v1'},entities:[],spatial:{relations:[]},interactions:[],rules:[],acceptance:[]};
+  const secondBody={intent:{name:'Lab v2'},entities:[],spatial:{relations:[]},interactions:[],rules:[],acceptance:[]};
+  const first={schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'world-r1'},provenance:{source:'agent-world-planner'},...firstBody};
+  const second={schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'world-r2',parentId:'world-r1',reason:'ASSET_UNRESOLVED'},provenance:{source:'agent-world-planner',evidenceRefs:['finding-1','retry-1']},...secondBody};
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'p1',name:'proposeWorldIR',args:{proposal:firstBody}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'w1',name:'runWorldPipeline',args:{plan:first}}]};
+    if(round===3) return {message:'',toolCalls:[{id:'p2',name:'proposeWorldIR',args:{proposal:secondBody}}]};
+    return {message:'revised proposal prepared',toolCalls:[]};
+  })};
+  const contexts=[];
+  const tools=makeTools({});
+  tools.definitions=()=>[{name:'proposeWorldIR'},{name:'runWorldPipeline'}];
+  tools.call=vi.fn(async(name,args,context={})=>{
+    if(name==='listObjects') return [];
+    if(name==='proposeWorldIR'){
+      contexts.push(structuredClone(context));
+      return contexts.length===1
+        ? {status:'world-proposal-ready',worldIR:first,summary:{worldRevisionId:'world-r1'}}
+        : {status:'world-proposal-ready',worldIR:second,summary:{worldRevisionId:'world-r2'}};
+    }
+    if(name==='runWorldPipeline') return {
+      status:'world-rejected',reason:'ASSET_UNRESOLVED',admission:{status:'rejected',reasons:['ASSET_UNRESOLVED']},
+      pipeline:{state:{artifacts:{revisionContext:{findingIds:['finding-1']}}}},
+      attempts:[{retry:{findings:[{id:'retry-1'}]}}]
+    };
+    throw new Error(`unexpected tool ${name}`);
+  });
+
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:5}).run('build then revise lab');
+  expect(contexts).toEqual([
+    {},
+    {worldProposalLineage:{parentRevisionId:'world-r1',reason:'ASSET_UNRESOLVED',evidenceRefs:['finding-1','retry-1']}}
+  ]);
+  expect(result.taskStatus).toBe('incomplete');
+  expect(result.unresolvedMutations).toHaveLength(1);
+});

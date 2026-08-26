@@ -19,18 +19,20 @@ const assertProposalBody=(body)=>{
   return body;
 };
 
-export function buildWorldProposal(body,{revisionId,parentRevisionId=null,reason=null,source='agent-world-planner',sourceId=null,createdBy='agent'}={}){
+export function buildWorldProposal(body,{revisionId,parentRevisionId=null,reason=null,source='agent-world-planner',sourceId=null,createdBy='agent',evidenceRefs=[]}={}){
   assertProposalBody(body);
   const id=clean(revisionId);
   if(!id){const error=new TypeError('World proposal requires Runtime-issued revisionId');error.code='WORLD_PROPOSAL_REVISION_REQUIRED';throw error;}
   const parent=clean(parentRevisionId),revisionReason=clean(reason);
   const provenanceSource=clean(source);
   if(!provenanceSource){const error=new TypeError('World proposal requires provenance source');error.code='WORLD_PROPOSAL_PROVENANCE_REQUIRED';throw error;}
+  if(!Array.isArray(evidenceRefs)){const error=new TypeError('World proposal evidenceRefs must be an array');error.code='WORLD_PROPOSAL_EVIDENCE_INVALID';throw error;}
+  const refs=[...new Set(evidenceRefs.map(clean).filter(Boolean))];
 
   const worldIR={
     schema:'agentscape.world-ir',schemaVersion:1,
     revision:{id,...(parent?{parentId:parent}:{}),...(revisionReason?{reason:revisionReason}:{})},
-    provenance:{source:provenanceSource,...(clean(sourceId)?{sourceId:clean(sourceId)}:{}),...(clean(createdBy)?{createdBy:clean(createdBy)}:{})},
+    provenance:{source:provenanceSource,...(clean(sourceId)?{sourceId:clean(sourceId)}:{}),...(clean(createdBy)?{createdBy:clean(createdBy)}:{}),...(refs.length?{evidenceRefs:refs}:{})},
     ...structuredClone(body)
   };
   const compilation=compileWorldIR(worldIR);
