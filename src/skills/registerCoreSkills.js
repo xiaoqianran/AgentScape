@@ -329,20 +329,36 @@ export function registerCoreSkills(registry, runtime) {
     });
   });
 
-  add('runWorldPipeline', { ...meta('提交 strict World IR v1 到 canonical compiler：统一解析资产、Behavior、Physics、Acceptance，再实例化、校验、修复并序列化。Agent 只执行 proposeWorldIR 已颁发的 revision/provenance；不支持的语义 fail-closed。若唯一 rejection 是可生成的 search miss，Runtime 最多自动重跑一次，只为缺失 asset 开启 generation。world-ready 才视为 verified；world-provisional 不冒充验证；world-rejected 恢复调用前 scene。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: WORLD_IR_TOOL_SCHEMA }), mutates: true }, async (a) => {
+  add('runWorldPipeline', { ...meta('提交 strict World IR v1 到 canonical compiler：替换当前 world，而不是在旧 Scene 上追加；先暂停旧规则并清空旧 Scene，再统一解析资产、Behavior、Physics、Acceptance、实例化与验证。Agent 只执行 proposeWorldIR 已颁发的 revision/provenance；不支持的语义 fail-closed。若唯一 rejection 是可生成的 search miss，Runtime 最多自动重跑一次，只为缺失 asset 开启 generation。world-ready 才视为 verified；world-provisional 不冒充验证；world-rejected 精确恢复调用前 Scene 与 committed authority。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: WORLD_IR_TOOL_SCHEMA }), mutates: true }, async (a) => {
     const before=runtime.snapshot();
+    const authorityBefore=runtime.captureWorldAuthority?.() || null;
+    const restoreBefore=async()=>{
+      await runtime.restore(before);
+      if(authorityBefore) runtime.restoreWorldAuthority?.(authorityBefore);
+      else runtime.loadRuleGraph?.(runtime.currentBehaviorBundle?.ruleGraph || []);
+    };
+    const prepareCandidate=async()=>{
+      runtime.loadRuleGraph?.([]);
+      await runtime.clearObjects();
+    };
     const budget=2,attempts=[];
     let plan=a.plan;
     for (let attempt=1;attempt<=budget;attempt++) {
+      await prepareCandidate();
       const pipeline=await runtime.worldPipeline.run(plan);
       const admission=pipeline.state?.reports?.worldAdmission;
-      if (!admission) return pipeline;
+      if (!admission) {
+        await restoreBefore();
+        const error=new Error('Canonical world pipeline produced no world admission');
+        error.code='WORLD_PIPELINE_ADMISSION_MISSING';
+        throw error;
+      }
       const record={attempt,admission:structuredClone(admission)};
       attempts.push(record);
       if (admission.status!=='rejected') {
         return {status:`world-${admission.status}`,admission,pipeline,attempts,retry:attempts.length>1?attempts.at(-2).retry:null};
       }
-      await runtime.restore(before);
+      await restoreBefore();
       const retry=buildWorldRetryPlan(pipeline,{
         generatorConfigured:runtime.assetLibrary?.generator?.isConfigured?.()===true,
         attempt,budget

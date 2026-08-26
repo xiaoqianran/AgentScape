@@ -113,3 +113,44 @@ it('releases the mutation owner if creating the before snapshot fails', async ()
   expect(runtime.history.begin).not.toHaveBeenCalled();
   expect(runtime.mutationOwner).toBeNull();
 });
+
+
+it('restores committed world authority and interaction evidence when a mutation throws', async () => {
+  let pending=false;
+  const oldEvidence={worldRevisionId:'rev-old',targetId:'door',capability:'OPEN',verified:true};
+  const runtime={
+    mutationOwner:null,
+    currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},
+    currentBehaviorBundle:{ruleGraph:[{id:'old-rule'}]},
+    currentPhysicsRequirements:{worldRevisionId:'rev-old',requirements:[{entityId:'door'}]},
+    lastAcceptanceBundle:{worldRevisionId:'rev-old',result:{status:'world-accepted'}},
+    restoredAcceptanceEvidence:{worldRevisionId:'rev-restored'},
+    interactionEvidence:new Map([['old-key',oldEvidence]]),
+    history:{
+      suspended:false,
+      begin:vi.fn(()=>{if(pending)return false;pending=true;return true;}),
+      commit:vi.fn(()=>{pending=false;return true;}),
+      cancel:vi.fn(()=>{pending=false;})
+    },
+    snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),
+    loadRuleGraph:vi.fn(),sceneGraph:{batch:async(operation)=>operation(),changed:vi.fn()}
+  };
+  const failure=new Error('candidate failed');
+  const mutation=WorldRuntime.prototype.mutate.call(runtime,'skill:candidate',async()=>{
+    runtime.currentWorldRevision={revision:{id:'rev-candidate'},provenance:{source:'candidate'}};
+    runtime.currentBehaviorBundle={ruleGraph:[{id:'candidate-rule'}]};
+    runtime.currentPhysicsRequirements={worldRevisionId:'rev-candidate',requirements:[]};
+    runtime.lastAcceptanceBundle={worldRevisionId:'rev-candidate'};
+    runtime.restoredAcceptanceEvidence=null;
+    runtime.interactionEvidence.clear();
+    throw failure;
+  });
+  await expect(mutation).rejects.toBe(failure);
+  expect(runtime.currentWorldRevision).toEqual({revision:{id:'rev-old'},provenance:{source:'existing'}});
+  expect(runtime.currentBehaviorBundle).toEqual({ruleGraph:[{id:'old-rule'}]});
+  expect(runtime.currentPhysicsRequirements).toEqual({worldRevisionId:'rev-old',requirements:[{entityId:'door'}]});
+  expect(runtime.lastAcceptanceBundle).toEqual({worldRevisionId:'rev-old',result:{status:'world-accepted'}});
+  expect(runtime.restoredAcceptanceEvidence).toEqual({worldRevisionId:'rev-restored'});
+  expect([...runtime.interactionEvidence.entries()]).toEqual([['old-key',oldEvidence]]);
+  expect(runtime.loadRuleGraph).toHaveBeenCalledWith([{id:'old-rule'}]);
+});

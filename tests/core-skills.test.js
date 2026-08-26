@@ -13,6 +13,7 @@ function runtime() {
     snapshot: vi.fn(() => ({ value })),
     restore: vi.fn(async (scene) => { value = scene.value; }),
     mutate: vi.fn(async (_label, fn) => fn()),
+    clearObjects:vi.fn(async()=>{}),loadRuleGraph:vi.fn(),
     assetLibrary: { list:()=>[], search:()=>[], resolve:()=>({}), generate:()=>({}), summary:(x)=>x },
     assets: {
       registerManifest:vi.fn(),has:()=>true,
@@ -518,4 +519,49 @@ it('keeps bounded WorldRevision scope Runtime-owned and removes baseWorldIR from
 
   const missingBase=await registry.invoke('recompileWorldRevision',{proposal:proposed.result.proposal,acceptChangedPlan:true},{profile:'builder',actor:'planner-test'});
   expect(missingBase).toMatchObject({success:false,error:{code:'WORLD_REVISION_BASE_REQUIRED'}});
+});
+
+
+it('replaces the current world before candidate execution and restores committed authority after rejection',async()=>{
+  const r=runtime();
+  const order=[];
+  const oldAuthority={
+    currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},
+    currentBehaviorBundle:{ruleGraph:[{id:'old-rule'}]},
+    currentPhysicsRequirements:{worldRevisionId:'rev-old',requirements:[{entityId:'door'}]},
+    lastAcceptanceBundle:{worldRevisionId:'rev-old',result:{status:'world-accepted'}},
+    restoredAcceptanceEvidence:null,
+    interactionEvidence:[['old-key',{worldRevisionId:'rev-old',targetId:'door',capability:'OPEN',verified:true}]]
+  };
+  r.currentWorldRevision=structuredClone(oldAuthority.currentWorldRevision);
+  r.currentBehaviorBundle=structuredClone(oldAuthority.currentBehaviorBundle);
+  r.currentPhysicsRequirements=structuredClone(oldAuthority.currentPhysicsRequirements);
+  r.lastAcceptanceBundle=structuredClone(oldAuthority.lastAcceptanceBundle);
+  r.interactionEvidence=new Map(oldAuthority.interactionEvidence);
+  r.captureWorldAuthority=vi.fn(()=>structuredClone(oldAuthority));
+  r.restoreWorldAuthority=vi.fn((authority)=>{
+    order.push('restore-authority');
+    r.currentWorldRevision=structuredClone(authority.currentWorldRevision);
+    r.currentBehaviorBundle=structuredClone(authority.currentBehaviorBundle);
+    r.currentPhysicsRequirements=structuredClone(authority.currentPhysicsRequirements);
+    r.lastAcceptanceBundle=structuredClone(authority.lastAcceptanceBundle);
+    r.interactionEvidence=new Map(authority.interactionEvidence);
+  });
+  r.loadRuleGraph=vi.fn((graph)=>order.push(graph.length?'load-rules':'pause-rules'));
+  r.clearObjects=vi.fn(async()=>{order.push('clear-world');r.interactionEvidence.clear();});
+  r.restore=vi.fn(async()=>{order.push('restore-scene');});
+  r.worldPipeline.run=vi.fn(async()=>{
+    order.push('candidate-pipeline');
+    expect(r.interactionEvidence.size).toBe(0);
+    return {state:{artifacts:{},reports:{worldAdmission:{status:'rejected',reasons:['VALIDATION_HARD']}}},timeline:[]};
+  });
+  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+  const result=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
+  expect(result).toMatchObject({success:true,result:{status:'world-rejected',rolledBack:true,reason:'VALIDATION_HARD'}});
+  expect(order).toEqual(['pause-rules','clear-world','candidate-pipeline','restore-scene','restore-authority']);
+  expect(r.currentWorldRevision).toEqual(oldAuthority.currentWorldRevision);
+  expect(r.currentBehaviorBundle).toEqual(oldAuthority.currentBehaviorBundle);
+  expect(r.currentPhysicsRequirements).toEqual(oldAuthority.currentPhysicsRequirements);
+  expect(r.lastAcceptanceBundle).toEqual(oldAuthority.lastAcceptanceBundle);
+  expect([...r.interactionEvidence.entries()]).toEqual(oldAuthority.interactionEvidence);
 });

@@ -34,6 +34,28 @@ THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
+const cloneAuthorityValue=(value)=>value==null?value:structuredClone(value);
+const captureWorldAuthority=(runtime)=>({
+  currentWorldRevision:cloneAuthorityValue(runtime.currentWorldRevision) || null,
+  currentBehaviorBundle:cloneAuthorityValue(runtime.currentBehaviorBundle) || null,
+  currentPhysicsRequirements:cloneAuthorityValue(runtime.currentPhysicsRequirements) || null,
+  lastAcceptanceBundle:cloneAuthorityValue(runtime.lastAcceptanceBundle) || null,
+  restoredAcceptanceEvidence:cloneAuthorityValue(runtime.restoredAcceptanceEvidence) || null,
+  interactionEvidence:runtime.interactionEvidence instanceof Map
+    ? [...runtime.interactionEvidence.entries()].map(([key,value])=>[key,cloneAuthorityValue(value)])
+    : null
+});
+const restoreWorldAuthority=(runtime,authority={})=>{
+  runtime.currentWorldRevision=cloneAuthorityValue(authority.currentWorldRevision) || null;
+  runtime.currentBehaviorBundle=cloneAuthorityValue(authority.currentBehaviorBundle) || null;
+  runtime.currentPhysicsRequirements=cloneAuthorityValue(authority.currentPhysicsRequirements) || null;
+  runtime.lastAcceptanceBundle=cloneAuthorityValue(authority.lastAcceptanceBundle) || null;
+  runtime.restoredAcceptanceEvidence=cloneAuthorityValue(authority.restoredAcceptanceEvidence) || null;
+  if(authority.interactionEvidence===null) delete runtime.interactionEvidence;
+  else runtime.interactionEvidence=new Map((authority.interactionEvidence||[]).map(([key,value])=>[key,cloneAuthorityValue(value)]));
+  runtime.loadRuleGraph?.(authority.currentBehaviorBundle?.ruleGraph || []);
+};
+
 export class WorldRuntime {
   constructor(container, { environmentFactory } = {}) {
     this.version = '1.34.2';
@@ -147,6 +169,9 @@ export class WorldRuntime {
     return scene;
   }
 
+  captureWorldAuthority() { return captureWorldAuthority(this); }
+  restoreWorldAuthority(authority) { return restoreWorldAuthority(this,authority); }
+
   async mutate(label, operation, meta = {}) {
     if (this.history?.suspended) return operation();
     if (this.mutationOwner) {
@@ -156,6 +181,7 @@ export class WorldRuntime {
     }
     this.mutationOwner = label;
     try {
+      const authorityBefore=captureWorldAuthority(this);
       const before = this.snapshot();
       if (!this.history.begin(label, before)) {
         const error = new Error('World history transaction unavailable');
@@ -174,6 +200,7 @@ export class WorldRuntime {
         this.history.cancel();
         try {
           await this.restore(before);
+          restoreWorldAuthority(this,authorityBefore);
         } catch (rollbackError) {
           const failure = new AggregateError(
             [error, rollbackError],

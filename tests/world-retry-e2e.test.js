@@ -30,13 +30,18 @@ describe('bounded generated-world retry',()=>{
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>({ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:spawned.length,relations:0}}))},
       repair:{repair:vi.fn()},serialize:vi.fn(({name})=>({schema:'agentscape.scene',name,objects:spawned.map((x)=>x.id)})),
-      store:{get:vi.fn()},snapshot:vi.fn(()=>structuredClone(snapshot)),restore:vi.fn(async()=>{}),mutate:vi.fn(async(_label,fn)=>fn())
+      store:{get:vi.fn()},snapshot:vi.fn(()=>structuredClone(snapshot)),restore:vi.fn(async()=>{}),mutate:vi.fn(async(_label,fn)=>fn()),
+      clearObjects:vi.fn(async()=>{spawned.length=0;}),loadRuleGraph:vi.fn()
     };
     runtime.worldPipeline=createWorldPipeline(runtime);
     const registry=registerCoreSkills(new SkillRegistry({policy:runtime.policy,trace:runtime.trace,runtime}),runtime);
 
     const result=await registry.invoke('runWorldPipeline',{
-      plan:{name:'Retry Lab',assets:[{id:'fixture_01',query:'qx9 generated retry fixture'}]}
+      plan:{
+        schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'retry-rev-1'},provenance:{source:'test'},intent:{name:'Retry Lab'},
+        entities:[{id:'fixture_01',asset:{query:'qx9 generated retry fixture',generate:false}}],
+        spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]
+      }
     },{profile:'builder',actor:'test'});
 
     expect(result).toMatchObject({success:true,result:{
@@ -52,6 +57,8 @@ describe('bounded generated-world retry',()=>{
     expect(runtime.spawn).toHaveBeenCalledOnce();
     expect(runtime.spawn).toHaveBeenCalledWith('retry_fixture_qx9',expect.objectContaining({id:'fixture_01'}));
     expect(runtime.restore).toHaveBeenCalledOnce();
+    expect(runtime.clearObjects).toHaveBeenCalledTimes(2);
+    expect(runtime.loadRuleGraph).toHaveBeenCalledWith([]);
     expect(registry.executionPolicy('runWorldPipeline',result.result).outcome).toMatchObject({state:'verified',verified:true,status:'world-ready'});
   });
 });
