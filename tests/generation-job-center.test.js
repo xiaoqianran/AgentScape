@@ -32,6 +32,8 @@ describe('Generation Job Center view model',()=>{
     expect(markup).toContain('id="generation-job-spawn"');
     expect(markup).toContain('id="generation-job-worldspec"');
     expect(markup).toContain('id="generation-cost-confirm"');
+    expect(markup).toContain('id="generation-connector-approval"');
+    expect(markup).toContain('type="password"');
     expect(markup).toMatch(/generation-job-worldspec[^>]*disabled/);
   });
 

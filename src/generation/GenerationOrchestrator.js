@@ -126,15 +126,12 @@ export class GenerationOrchestrator {
     this.now=now;
   }
 
-  async initialize({pair=false,pairingId=null}={}) {
+  async initialize({pair=false,approval=null}={}) {
     if (!this.connectorClient) return {status:"connection-required",reason:"CONNECTOR_NOT_CONFIGURED"};
     try {
       if (!this.connectorClient.isPaired?.()) {
         if (!pair) return {status:"connection-required",reason:"PAIRING_REQUIRED"};
-        const paired=await this.connectorClient.pair({pairingId});
-        if (paired.status==="approval_required") {
-          return {status:"connection-required",reason:"APPROVAL_REQUIRED",pairingId:paired.pairingId};
-        }
+        await this.connectorClient.pair({approval});
       }
       const refreshed=await this.capabilityAdapter.refresh(this.connectorClient,this.providerRegistry);
       const bootstrapped=this.jobReconciler ? await this.jobReconciler.bootstrap() : {state:"ready",jobs:[]};
@@ -144,7 +141,9 @@ export class GenerationOrchestrator {
         jobs:bootstrapped.jobs?.length||0
       };
     } catch (error) {
-      if (error?.code==="CONNECTION_REQUIRED") return {status:"connection-required",reason:error.code};
+      if (["CONNECTION_REQUIRED","PAIRING_REQUIRED"].includes(error?.code)) {
+        return {status:"connection-required",reason:error.code};
+      }
       throw error;
     }
   }
@@ -175,8 +174,8 @@ export class GenerationOrchestrator {
     };
   }
 
-  async pairConnector({pairingId=null}={}) {
-    const state=await this.initialize({pair:true,pairingId});
+  async pairConnector({approval=null}={}) {
+    const state=await this.initialize({pair:true,approval});
     this.events?.emit?.("generation.state",clone(state));
     return state;
   }

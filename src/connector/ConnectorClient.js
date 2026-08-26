@@ -43,28 +43,10 @@ async function fetchConnector(fetchImpl, url, options) {
   }
 }
 
-function normalizeApprovalRequired(payload, expectedContractVersion) {
-  const pairingId = String(payload.pairingId || '').trim();
-  if (!pairingId) throw new ConnectorContractError('CONNECTOR_RESPONSE_INVALID', 'Connector approval response requires pairingId');
-  const contractVersion = String(payload.contractVersion || '').trim();
-  if (!contractVersion || contractVersion !== String(expectedContractVersion)) {
-    throw new ConnectorContractError('CONNECTOR_CONTRACT_MISMATCH', 'Connector approval response has an incompatible contract version', {
-      expected:String(expectedContractVersion), actual:contractVersion || null
-    });
-  }
-  const connector = payload.connector;
-  if (!connector || typeof connector !== 'object' || Array.isArray(connector)) {
-    throw new ConnectorContractError('CONNECTOR_RESPONSE_INVALID', 'Connector approval response requires connector identity');
-  }
-  const normalizedConnector = {
-    id:String(connector.id || '').trim(),
-    instance:String(connector.instance || '').trim(),
-    version:String(connector.version || '').trim()
-  };
-  if (!normalizedConnector.id || !normalizedConnector.instance || !normalizedConnector.version) {
-    throw new ConnectorContractError('CONNECTOR_RESPONSE_INVALID', 'Connector approval response requires connector id, instance, and version');
-  }
-  return { status:'approval_required', pairingId, connector:normalizedConnector, contractVersion };
+function connectorHeaders(headers, origin) {
+  // Browser fetch owns the forbidden Origin header. Node/E2E has no location,
+  // so inject the bound origin explicitly to exercise the same server contract.
+  return globalThis.location?.origin ? headers : { ...headers, Origin:origin };
 }
 
 function normalizeCallerHeaders(headers = {}) {
@@ -118,32 +100,32 @@ export class ConnectorClient {
 
   isPaired() { return this.state() === 'paired'; }
 
-  async pair({ pairingId = null } = {}) {
+  async pair({ approval } = {}) {
+    const pairingApproval=String(approval||'').trim();
+    if (!pairingApproval) {
+      throw new ConnectorContractError('PAIRING_REQUIRED','Connector pairing approval is required');
+    }
     const body = {
       clientIdentity: this.clientIdentity,
       contractVersion: this.contractVersion,
       origin: this.origin,
-      scopes: [...this.scopes],
-      ...(pairingId ? { pairingId:String(pairingId) } : {})
+      scopes: [...this.scopes]
     };
     const response = await fetchConnector(this.fetchImpl, `${this.endpoint}${CONNECTOR_SESSION_PATH}`, {
       method:'POST',
-      headers:{ 'content-type':'application/json', accept:'application/json' },
+      headers:connectorHeaders({
+        'content-type':'application/json',accept:'application/json',
+        'X-Connector-Pairing':pairingApproval
+      },this.origin),
       body:JSON.stringify(body),
-      credentials:'omit'
+      credentials:'omit',
+      redirect:'error'
     });
     const payload = await readJson(response);
     if (!response.ok) {
       throw new ConnectorContractError(payload.code || 'CONNECTOR_HTTP_ERROR', payload.message || `Connector HTTP ${response.status}`, {
         status:response.status
       });
-    }
-    if (payload.status === 'approval_required') {
-      this.#session = null;
-      return normalizeApprovalRequired(payload, this.contractVersion);
-    }
-    if (payload.status !== 'paired') {
-      throw new ConnectorContractError('CONNECTOR_RESPONSE_INVALID', 'Connector session response must be paired or approval_required');
     }
     const normalized = normalizeConnectorSessionResponse(payload, {
       origin:this.origin,
@@ -164,7 +146,7 @@ export class ConnectorClient {
     const authorization = this.#session.authorizationValue(scope, this.now());
     return fetchConnector(this.fetchImpl, `${this.endpoint}${normalizedPath}`, {
       method,
-      headers:{ ...callerHeaders, authorization },
+      headers:connectorHeaders({ ...callerHeaders, authorization },this.origin),
       ...(body === undefined ? {} : { body }),
       credentials:'omit',
       redirect:'error'
@@ -176,7 +158,7 @@ export class ConnectorClient {
     const authorization = this.#session.authorizationValue(null, this.now());
     const response = await fetchConnector(this.fetchImpl, `${this.endpoint}${CONNECTOR_SESSION_PATH}`, {
       method:'DELETE',
-      headers:{ authorization, accept:'application/json' },
+      headers:connectorHeaders({ authorization, accept:'application/json' },this.origin),
       credentials:'omit'
     });
     const payload = await readJson(response);
