@@ -274,3 +274,99 @@ it('falls back to full canonical rebuild when incremental physics authority cann
   expect(rt.worldPipeline.run).toHaveBeenCalledOnce();
   expect(result.recompile).toMatchObject({mode:'full',canonical:true,committed:true});
 });
+
+
+const positionManifest=(id)=>({
+  id,actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.5,.5,.5],translation:[0,.5,0]}]}
+});
+const positionRevision=({withRelation=false}={})=>({
+  schema:'agentscape.world-ir',schemaVersion:1,
+  revision:{id:'position-rev-1'},provenance:{source:'planner',evidenceRefs:[]},intent:{name:'Position Lab'},
+  entities:[
+    {id:'box',asset:{assetId:'crate'},transform:{position:[0,.01,0]},initialState:{},capabilityIntent:[]},
+    {id:'table',asset:{assetId:'table'},transform:{position:[3,.01,0]},initialState:{},capabilityIntent:[]}
+  ],
+  spatial:{relations:withRelation?[{subject:'box',predicate:'NEAR',object:'table'}]:[],constraints:[]},
+  interactions:[],rules:[],acceptance:[{id:'box-exists',kind:'object-exists',targetId:'box'}]
+});
+const positionProposal=(base=positionRevision(),position=[-2,.01,0])=>{
+  const findings=compileValidationFindings({hard:[{code:'G_BELOW_GROUND',object:'box'}],advisory:[]},{worldRevisionId:'position-rev-1'});
+  return createWorldRevisionProposal(buildWorldRevisionContext(base,findings),{
+    nextRevisionId:'position-rev-2',reason:'move box',edits:[{kind:'set-position',entityId:'box',position}]
+  });
+};
+const vector=(initial)=>{
+  let value=[...initial];
+  return {toArray:()=>[...value],fromArray:(next)=>{value=[...next];}};
+};
+const positionRuntime=({revisionId='position-rev-1',boxPosition=[0,.01,0],poseClear=()=>({checked:true,clear:true,blockedBy:[]}),validation={ok:true,counts:{hard:0,advisory:0},findings:[]}}={})=>{
+  const records={
+    box:{id:'box',assetId:'crate',state:{},manifest:positionManifest('crate'),object:{position:vector(boxPosition)}},
+    table:{id:'table',assetId:'table',state:{},manifest:positionManifest('table'),object:{position:vector([3,.01,0])}}
+  };
+  const interactions={move:vi.fn((id,position)=>{records[id].object.position.fromArray(position);})};
+  return {
+    currentWorldRevision:{revision:{id:revisionId},provenance:{source:'planner'}},
+    currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{requirements:[]},lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
+    snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
+    worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
+    store:{get:vi.fn((id)=>records[id])},assets:{getManifest:vi.fn((id)=>positionManifest(id))},interactions,
+    physics:{manifestPoseClear:vi.fn(poseClear)},environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
+    validator:{run:vi.fn(()=>structuredClone(validation))},sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},
+    loadRuleGraph:vi.fn(),trace:{emit:vi.fn()}
+  };
+};
+
+it('incrementally moves one relation-free entity only after shared layout/Physics preflight',async()=>{
+  const rt=positionRuntime();
+  const base=positionRevision(),patch=positionProposal(base);
+  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
+  expect(rt.interactions.move).toHaveBeenCalledWith('box',[-2,.01,0]);
+  expect(rt.physics.manifestPoseClear).toHaveBeenCalledWith(expect.objectContaining({id:'crate'}),[-2,.01,0],{excludeIds:['box']});
+  expect(rt.clearObjects).not.toHaveBeenCalled();
+  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+  expect(result).toMatchObject({
+    status:'world-ready',rolledBack:false,admission:{status:'ready',layout:{status:'ready'}},
+    recompile:{mode:'incremental-position',freshVerification:true,committed:true,affectedEntityIds:['box']}
+  });
+});
+
+it('rejects an incrementally moved pose before mutation when layout or Physics preflight blocks it',async()=>{
+  const rt=positionRuntime({poseClear:()=>({checked:true,clear:false,blockedBy:['wall']})});
+  const base=positionRevision(),patch=positionProposal(base,[-2,.01,0]);
+  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
+  expect(result).toMatchObject({
+    status:'world-rejected',rolledBack:false,reason:'WORLD_POSE_BLOCKED',
+    admission:{status:'rejected',layout:{status:'rejected',issues:[{blockedBy:['wall']}]}},
+    recompile:{mode:'incremental-position',freshVerification:false,committed:false}
+  });
+  expect(rt.interactions.move).not.toHaveBeenCalled();
+  expect(rt.currentWorldRevision).toMatchObject({revision:{id:'position-rev-1'}});
+});
+
+it('falls back to full rebuild when a position patch participates in spatial relations',async()=>{
+  const base=positionRevision({withRelation:true});
+  const rt=positionRuntime();
+  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:positionProposal(base),acceptChangedPlan:true});
+  expect(rt.interactions.move).not.toHaveBeenCalled();
+  expect(rt.clearObjects).toHaveBeenCalledOnce();
+  expect(rt.worldPipeline.run).toHaveBeenCalledOnce();
+  expect(result.recompile).toMatchObject({mode:'full',committed:true});
+});
+
+it('falls back to full rebuild when the target has drifted from an explicit base position',async()=>{
+  const base=positionRevision(),rt=positionRuntime({boxPosition:[.5,.01,0]});
+  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:positionProposal(base),acceptChangedPlan:true});
+  expect(rt.interactions.move).not.toHaveBeenCalled();
+  expect(rt.clearObjects).toHaveBeenCalledOnce();
+  expect(result.recompile).toMatchObject({mode:'full'});
+});
+
+it('restores scene and authority when fresh validation rejects an incremental position change',async()=>{
+  const base=positionRevision();
+  const rt=positionRuntime({validation:{ok:false,counts:{hard:1,advisory:0},findings:[]}});
+  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:positionProposal(base),acceptChangedPlan:true});
+  expect(result).toMatchObject({status:'world-rejected',rolledBack:true,reason:'VALIDATION_HARD:1',recompile:{mode:'incremental-position',committed:false}});
+  expect(rt.restore).toHaveBeenCalledOnce();
+  expect(rt.currentWorldRevision).toMatchObject({revision:{id:'position-rev-1'}});
+});

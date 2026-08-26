@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { composeNearPlacement, composeWorldLayout, manifestFootprint } from '../src/pipeline/WorldComposer.js';
+import { composeNearPlacement, composeWorldLayout, manifestFootprint, preflightWorldPosition } from '../src/pipeline/WorldComposer.js';
 
 const box=(id,h=[.5,.5,.5])=>({id,physics:{body:'fixed',colliders:[{shape:'box',halfExtents:h,translation:[0,h[1],0]}]}});
 
@@ -66,4 +66,18 @@ describe('WorldComposer',()=>{
     expect(result).toMatchObject({checked:false,reason:'NEAR_DISTANCE_TOO_SMALL',requestedDistance:1});
   });
 
+});
+
+
+it('preflights an existing object pose against bounds, occupied footprints, and Physics while allowing self exclusion',()=>{
+  const moving=box('moving'),other=box('other');
+  const poseClear=vi.fn(()=>({checked:true,clear:true,blockedBy:[]}));
+  const layout={bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5};
+  expect(preflightWorldPosition(moving,[2,.01,0],{
+    layout,occupied:[{id:'other_01',manifest:other,position:[0,.01,0]}],poseClear,clearance:.25
+  })).toMatchObject({checked:true,clear:true,status:'ready',coverage:'full-root'});
+  expect(preflightWorldPosition(moving,[.5,.01,0],{
+    layout,occupied:[{id:'other_01',manifest:other,position:[0,.01,0]}],poseClear,clearance:.25
+  })).toMatchObject({checked:true,clear:false,status:'rejected',reason:'BATCH_FOOTPRINT_OVERLAP'});
+  expect(preflightWorldPosition(moving,[3.8,.01,0],{layout,occupied:[],poseClear})).toMatchObject({checked:true,clear:false,reason:'OUTSIDE_LAYOUT_BOUNDS'});
 });

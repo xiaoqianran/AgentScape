@@ -52,11 +52,44 @@ const candidatePoints = ({minX,maxX,minZ,maxZ,step=1}) => {
 
 const circlesOverlap=(a,b,clearance)=>Math.hypot(a.x-b.x,a.z-b.z)<a.radius+b.radius+clearance-1e-9;
 
-export function composeWorldLayout(requests,{getManifest,poseClear,layout,clearance=.35}={}) {
-  if (!layout?.bounds || !Number.isFinite(layout.groundY)) return {status:'rejected',reason:'WORLD_LAYOUT_UNAVAILABLE',placements:[],issues:[]};
+const normalizeLayout=(layout)=>{
+  if(!layout?.bounds || !Number.isFinite(layout.groundY)) return {checked:false,reason:'WORLD_LAYOUT_UNAVAILABLE'};
   const [minX,minZ]=layout.bounds.min || [],[maxX,maxZ]=layout.bounds.max || [];
-  if (![minX,minZ,maxX,maxZ].every(Number.isFinite) || minX>=maxX || minZ>=maxZ) return {status:'rejected',reason:'WORLD_LAYOUT_INVALID',placements:[],issues:[]};
-  const margin=Number.isFinite(layout.margin)?Math.max(0,layout.margin):.5;
+  if(![minX,minZ,maxX,maxZ].every(Number.isFinite) || minX>=maxX || minZ>=maxZ) return {checked:false,reason:'WORLD_LAYOUT_INVALID'};
+  return {checked:true,minX,minZ,maxX,maxZ,groundY:layout.groundY,margin:Number.isFinite(layout.margin)?Math.max(0,layout.margin):.5};
+};
+
+const checkPosition=(manifest,footprint,position,{layout,reserved=[],poseClear,clearance=.35}={})=>{
+  const circle={x:position[0],z:position[2],radius:footprint.radius};
+  if(circle.x-footprint.radius<layout.minX+layout.margin || circle.x+footprint.radius>layout.maxX-layout.margin || circle.z-footprint.radius<layout.minZ+layout.margin || circle.z+footprint.radius>layout.maxZ-layout.margin) return {checked:true,clear:false,reason:'OUTSIDE_LAYOUT_BOUNDS',circle};
+  if(reserved.some((other)=>circlesOverlap(circle,other,clearance))) return {checked:true,clear:false,reason:'BATCH_FOOTPRINT_OVERLAP',circle};
+  const physics=poseClear?.(manifest,position);
+  if(!physics?.checked) return {checked:false,clear:false,reason:physics?.reason || 'LAYOUT_PHYSICS_UNAVAILABLE',circle,physics};
+  if(!physics.clear) return {checked:true,clear:false,reason:'WORLD_POSE_BLOCKED',blockedBy:physics.blockedBy || [],circle,physics};
+  return {checked:true,clear:true,circle,physics};
+};
+
+export function preflightWorldPosition(manifest,position,{layout,poseClear,occupied=[],clearance=.35}={}){
+  const normalized=normalizeLayout(layout);
+  if(!normalized.checked) return normalized;
+  if(!Array.isArray(position) || position.length!==3 || !position.every(Number.isFinite)) return {checked:false,reason:'WORLD_POSITION_INVALID'};
+  const footprint=manifestFootprint(manifest);
+  if(!footprint.checked) return footprint;
+  const reserved=[];
+  for(const item of occupied){
+    if(!item?.manifest || !Array.isArray(item.position) || item.position.length!==3) return {checked:false,reason:'OCCUPIED_POSITION_INVALID'};
+    const other=manifestFootprint(item.manifest);
+    if(!other.checked) return {checked:false,reason:other.reason,occupiedId:item.id || null};
+    reserved.push({x:item.position[0],z:item.position[2],radius:other.radius});
+  }
+  const verdict=checkPosition(manifest,footprint,position,{layout:normalized,reserved,poseClear,clearance});
+  return {...verdict,coverage:footprint.coverage,status:verdict.clear?(footprint.coverage==='root-only'?'provisional':'ready'):'rejected'};
+}
+
+export function composeWorldLayout(requests,{getManifest,poseClear,layout,clearance=.35}={}) {
+  const normalized=normalizeLayout(layout);
+  if(!normalized.checked) return {status:'rejected',reason:normalized.reason,placements:[],issues:[]};
+  const {minX,minZ,maxX,maxZ,groundY,margin}=normalized;
   const reserved=[]; const placements=[]; const issues=[];
   let provisional=false;
 
@@ -66,15 +99,10 @@ export function composeWorldLayout(requests,{getManifest,poseClear,layout,cleara
     const footprint=manifestFootprint(manifest);
     if (!footprint.checked) return {status:'rejected',reason:footprint.reason,placements,issues:[...issues,{id:request.id || null,assetId:request.assetId,reason:footprint.reason}]};
     if (footprint.coverage==='root-only') { provisional=true; issues.push({id:request.id || null,assetId:request.assetId,reason:'ARTICULATED_LAYOUT_ROOT_ONLY'}); }
-    const groundPositionY=layout.groundY-footprint.minY+.01;
+    const groundPositionY=groundY-footprint.minY+.01;
     const test=(position)=>{
-      const circle={x:position[0],z:position[2],radius:footprint.radius};
-      if (circle.x-footprint.radius<minX+margin || circle.x+footprint.radius>maxX-margin || circle.z-footprint.radius<minZ+margin || circle.z+footprint.radius>maxZ-margin) return {ok:false,reason:'OUTSIDE_LAYOUT_BOUNDS'};
-      if (reserved.some((other)=>circlesOverlap(circle,other,clearance))) return {ok:false,reason:'BATCH_FOOTPRINT_OVERLAP'};
-      const physics=poseClear(manifest,position);
-      if (!physics?.checked) return {ok:false,reason:physics?.reason || 'LAYOUT_PHYSICS_UNAVAILABLE'};
-      if (!physics.clear) return {ok:false,reason:'WORLD_POSE_BLOCKED',blockedBy:physics.blockedBy || []};
-      return {ok:true,circle,physics};
+      const verdict=checkPosition(manifest,footprint,position,{layout:normalized,reserved,poseClear,clearance});
+      return verdict.clear?{ok:true,circle:verdict.circle,physics:verdict.physics}:{ok:false,reason:verdict.reason,blockedBy:verdict.blockedBy || []};
     };
 
     let position=request.position ? [...request.position] : null;

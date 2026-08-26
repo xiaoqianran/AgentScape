@@ -3,6 +3,7 @@ import { compileWorldIR } from './WorldCompilation.js';
 import { buildAcceptanceEvidenceBundle, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
 import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
 import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
+import { preflightWorldPosition } from './WorldComposer.js';
 
 const clone=(value)=>value==null?value:structuredClone(value);
 const scalarStateEqual=(left={},right={})=>{
@@ -65,17 +66,56 @@ const canIncrementAuthority=(runtime,baseWorldIR,nextIR,impact)=>{
   return Boolean(currentResolvedAssets(runtime,nextIR));
 };
 
-const worldAdmission=(validation,acceptance,{behaviorAdmission=null,physicsAdmission=null}={})=>{
+const vec3Equal=(a,b,tolerance=1e-6)=>Array.isArray(a)&&Array.isArray(b)&&a.length===3&&b.length===3&&a.every((value,index)=>Math.abs(value-b[index])<=tolerance);
+
+const canIncrementPosition=(runtime,baseWorldIR,nextIR,impact)=>{
+  if(impact.mode!=='incremental-position' || impact.affectedEntityIds.length!==1) return false;
+  if(runtime.currentWorldRevision?.revision?.id!==baseWorldIR.revision?.id) return false;
+  if(!runtime.store?.get || !runtime.assets?.getManifest || !runtime.interactions?.move || !runtime.physics?.manifestPoseClear || !runtime.validator?.run) return false;
+  const id=impact.affectedEntityIds[0];
+  if(nextIR.spatial.relations.some((relation)=>relation.subject===id || relation.object===id)) return false;
+  const baseEntity=baseWorldIR.entities.find((entity)=>entity.id===id);
+  if(!baseEntity?.asset?.assetId) return false;
+  let record;
+  try { record=runtime.store.get(id); } catch { return false; }
+  if(!record || record.assetId!==baseEntity.asset.assetId || record.state?.heldBy) return false;
+  let manifest;
+  try { manifest=runtime.assets.getManifest(record.assetId); } catch { return false; }
+  if(!(manifest.actions||[]).includes('move')) return false;
+  const currentPosition=record.object?.position?.toArray?.();
+  if(!Array.isArray(currentPosition)) return false;
+  if(baseEntity.transform?.position && !vec3Equal(currentPosition,baseEntity.transform.position)) return false;
+  return Boolean(currentResolvedAssets(runtime,nextIR));
+};
+
+const occupiedWorldPositions=(runtime,worldIR,excludeId)=>{
+  const occupied=[];
+  for(const entity of worldIR.entities){
+    if(!entity.id || entity.id===excludeId) continue;
+    let record,manifest;
+    try { record=runtime.store.get(entity.id); manifest=runtime.assets.getManifest(record.assetId); } catch { return null; }
+    const position=record.object?.position?.toArray?.();
+    if(!Array.isArray(position) || position.length!==3 || !position.every(Number.isFinite)) return null;
+    occupied.push({id:entity.id,manifest,position});
+  }
+  return occupied;
+};
+
+const worldAdmission=(validation,acceptance,{behaviorAdmission=null,physicsAdmission=null,layoutAdmission=null}={})=>{
   const hard=validation?.counts?.hard || 0;
   const advisory=validation?.counts?.advisory || 0;
   const behaviorRejected=behaviorAdmission?.status==='rejected';
   const physicsRejected=physicsAdmission?.status==='rejected';
+  const layoutRejected=layoutAdmission?.status==='rejected';
+  const layoutProvisional=layoutAdmission?.status==='provisional';
   const acceptanceRejected=acceptance?.status==='world-incomplete';
   return {
-    status:behaviorRejected||physicsRejected||hard||acceptanceRejected?'rejected':advisory?'provisional':'ready',
+    status:behaviorRejected||physicsRejected||layoutRejected||hard||acceptanceRejected?'rejected':layoutProvisional||advisory?'provisional':'ready',
     reasons:[
       ...(behaviorRejected?[behaviorAdmission.reason || behaviorAdmission.issues?.[0]?.code || 'BEHAVIOR_REJECTED']:[]),
       ...(physicsRejected?[physicsAdmission.reason || physicsAdmission.issues?.[0]?.code || 'PHYSICS_REJECTED']:[]),
+      ...(layoutRejected?[layoutAdmission.reason || 'LAYOUT_REJECTED']:[]),
+      ...(layoutProvisional?[layoutAdmission.reason || 'LAYOUT_PROVISIONAL']:[]),
       ...(hard?[`VALIDATION_HARD:${hard}`]:[]),
       ...(advisory?[`VALIDATION_ADVISORY:${advisory}`]:[]),
       ...(acceptanceRejected?['WORLD_ACCEPTANCE_FAILED']:[])
@@ -83,11 +123,12 @@ const worldAdmission=(validation,acceptance,{behaviorAdmission=null,physicsAdmis
     validation:{hard,advisory},
     ...(behaviorAdmission?{behavior:clone(behaviorAdmission)}:{}),
     ...(physicsAdmission?{physics:clone(physicsAdmission)}:{}),
+    ...(layoutAdmission?{layout:clone(layoutAdmission)}:{}),
     ...(acceptance?{acceptance:clone(acceptance)}:{})
   };
 };
 
-const verifyIncrementalRevision=(runtime,{compilation,nextIR,revisionId,source,behaviorAdmission=null,physicsAdmission=null,timelineName,started})=>{
+const verifyIncrementalRevision=(runtime,{compilation,nextIR,revisionId,source,behaviorAdmission=null,physicsAdmission=null,layoutAdmission=null,timelineName,started})=>{
   const validation=runtime.validator.run();
   const acceptance=compilation.acceptanceGraph
     ? evaluateWorldAcceptance(runtime,compilation.acceptanceGraph,{unresolvedMutations:undefined})
@@ -98,7 +139,7 @@ const verifyIncrementalRevision=(runtime,{compilation,nextIR,revisionId,source,b
   runtime.lastAcceptanceBundle=acceptanceEvidence?clone(acceptanceEvidence):null;
   if(acceptanceEvidence) runtime.trace?.emit?.('world.acceptance',{bundle:clone(acceptanceEvidence)},{actor:'world-recompiler'});
 
-  const admission=worldAdmission(validation,acceptance,{behaviorAdmission,physicsAdmission});
+  const admission=worldAdmission(validation,acceptance,{behaviorAdmission,physicsAdmission,layoutAdmission});
   const artifacts={worldIR:clone(nextIR),compilation:clone(compilation),...(acceptanceEvidence?{acceptanceEvidence:clone(acceptanceEvidence)}:{})};
   const revisionFindings=[
     ...(validation?.findings || []).filter((finding)=>finding.severity==='hard'),
@@ -108,7 +149,7 @@ const verifyIncrementalRevision=(runtime,{compilation,nextIR,revisionId,source,b
   return {
     admission,
     pipeline:{
-      state:{artifacts,reports:{validation,...(behaviorAdmission?{behaviorAdmission:clone(behaviorAdmission)}:{}),...(physicsAdmission?{physicsAdmission:clone(physicsAdmission)}:{}),worldAdmission:clone(admission),...(acceptance?{worldAcceptance:clone(acceptance)}:{})}},
+      state:{artifacts,reports:{validation,...(behaviorAdmission?{behaviorAdmission:clone(behaviorAdmission)}:{}),...(physicsAdmission?{physicsAdmission:clone(physicsAdmission)}:{}),...(layoutAdmission?{layoutAdmission:clone(layoutAdmission)}:{}),worldAdmission:clone(admission),...(acceptance?{worldAcceptance:clone(acceptance)}:{})}},
       timeline:[{name:timelineName,elapsedMs:Math.round(performance.now()-started)}]
     }
   };
@@ -215,6 +256,79 @@ async function recompileAuthorityOnly(runtime,{nextIR,compilation,previous,baseR
   }
 }
 
+
+async function recompilePosition(runtime,{nextIR,compilation,before,previous,baseRevisionId,revisionId,impact}){
+  const started=performance.now();
+  const id=impact.affectedEntityIds[0];
+  const entity=nextIR.entities.find((item)=>item.id===id);
+  let record,manifest;
+  try { record=runtime.store.get(id); manifest=runtime.assets.getManifest(record.assetId); }
+  catch { return null; }
+  const occupied=occupiedWorldPositions(runtime,nextIR,id);
+  if(!occupied) return null;
+  const position=entity?.transform?.position;
+  const preflight=preflightWorldPosition(manifest,position,{
+    layout:runtime.environment?.layout,occupied,
+    poseClear:(candidateManifest,candidatePosition)=>runtime.physics.manifestPoseClear(candidateManifest,candidatePosition,{excludeIds:[id]})
+  });
+  const layoutAdmission={
+    status:preflight.clear?(preflight.status || 'ready'):'rejected',
+    ...(preflight.clear&&preflight.status==='provisional'?{reason:'ARTICULATED_LAYOUT_ROOT_ONLY'}:{}),
+    ...(!preflight.clear?{reason:preflight.reason || 'WORLD_POSE_BLOCKED'}:{}),
+    placements:preflight.clear?[{id,assetId:record.assetId,position:[...position],mode:'revision-explicit',coverage:preflight.coverage}]:[],
+    issues:preflight.clear?[]:[{id,assetId:record.assetId,reason:preflight.reason || 'WORLD_POSE_BLOCKED',blockedBy:preflight.blockedBy || []}]
+  };
+  if(layoutAdmission.status==='rejected'){
+    const admission=worldAdmission(null,null,{layoutAdmission});
+    return {
+      status:'world-rejected',reason:admission.reasons[0]||'LAYOUT_REJECTED',rolledBack:false,
+      baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),
+      pipeline:{
+        state:{artifacts:{worldIR:clone(nextIR),compilation:clone(compilation)},reports:{layoutAdmission:clone(layoutAdmission),worldAdmission:clone(admission)}},
+        timeline:[{name:'incremental_position_admission',elapsedMs:Math.round(performance.now()-started)}]
+      },
+      recompile:{canonical:true,mode:'incremental-position',freshVerification:false,committed:false,affectedEntityIds:[id]}
+    };
+  }
+
+  try{
+    runtime.currentWorldRevision={revision:clone(nextIR.revision),provenance:clone(nextIR.provenance)};
+    runtime.restoredAcceptanceEvidence=null;
+    runtime.currentBehaviorBundle=clone(compilation.behaviorBundle);
+    runtime.currentPhysicsRequirements=clone(compilation.physicsRequirements);
+    runtime.loadRuleGraph?.(compilation.behaviorBundle.ruleGraph);
+    runtime.interactions.move(id,position);
+    runtime.sceneGraph?.changed?.();
+    runtime.sceneGraph?.update?.();
+
+    const {admission,pipeline}=verifyIncrementalRevision(runtime,{
+      compilation,nextIR,revisionId,source:'world-incremental-position-recompile',layoutAdmission,
+      timelineName:'incremental_position_revision',started
+    });
+    if(admission.status==='rejected'){
+      await runtime.restore(before);
+      restoreAuthority(runtime,previous);
+      return {
+        status:'world-rejected',reason:admission.reasons[0]||'WORLD_REJECTED',rolledBack:true,
+        baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
+        recompile:{canonical:true,mode:'incremental-position',freshVerification:true,committed:false,affectedEntityIds:[id]}
+      };
+    }
+    return {
+      status:`world-${admission.status}`,rolledBack:false,
+      baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
+      recompile:{canonical:true,mode:'incremental-position',freshVerification:true,committed:true,affectedEntityIds:[id]}
+    };
+  }catch(error){
+    try { await runtime.restore(before); restoreAuthority(runtime,previous); }
+    catch(rollbackError){
+      const failure=new Error(`World revision incremental position failed and rollback failed: ${error.message}; rollback: ${rollbackError.message}`,{cause:error});
+      failure.code='WORLD_RECOMPILE_ROLLBACK_FAILED'; failure.rollbackError=rollbackError; throw failure;
+    }
+    throw error;
+  }
+}
+
 async function recompileFull(runtime,{nextIR,before,previous,baseRevisionId,revisionId}){
   try{
     runtime.currentBehaviorBundle=null;
@@ -270,6 +384,10 @@ export async function recompileWorldRevision(runtime,{baseWorldIR,proposal,accep
   }
   if(canIncrementAuthority(runtime,baseWorldIR,nextIR,impact)){
     const result=await recompileAuthorityOnly(runtime,{nextIR,compilation,previous,baseRevisionId,revisionId,impact});
+    if(result) return result;
+  }
+  if(canIncrementPosition(runtime,baseWorldIR,nextIR,impact)){
+    const result=await recompilePosition(runtime,{nextIR,compilation,before,previous,baseRevisionId,revisionId,impact});
     if(result) return result;
   }
   return recompileFull(runtime,{nextIR,before,previous,baseRevisionId,revisionId});

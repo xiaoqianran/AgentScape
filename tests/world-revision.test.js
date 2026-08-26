@@ -125,6 +125,19 @@ it('classifies only pure semantic initial-state edits as incrementally recompila
     mode:'full',editKinds:['set-initial-state','set-position'],affectedEntityIds:['box'],
     domains:['state','acceptance','transform','layout','spatial','physics','navigation']
   });
+  expect(classifyWorldRevisionImpact({edits:[
+    {kind:'set-position',entityId:'box',position:[1,.2,0]}
+  ]})).toEqual({
+    mode:'incremental-position',editKinds:['set-position'],affectedEntityIds:['box'],
+    domains:['transform','layout','spatial','physics','navigation','acceptance']
+  });
+  expect(classifyWorldRevisionImpact({edits:[
+    {kind:'set-position',entityId:'box',position:[1,.2,0]},
+    {kind:'set-position',entityId:'table',position:[2,.2,0]}
+  ]})).toEqual({
+    mode:'full',editKinds:['set-position'],affectedEntityIds:['box','table'],
+    domains:['transform','layout','spatial','physics','navigation','acceptance']
+  });
 });
 
 
