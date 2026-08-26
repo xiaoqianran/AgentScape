@@ -4,6 +4,7 @@ import { ConnectorArtifactClient } from '../src/connector/ConnectorArtifactClien
 
 const ENDPOINT='http://127.0.0.1:48123';
 const ORIGIN='https://xiaoqianran.github.io';
+const APPROVAL='pairing-approval-secret';
 const NOW=Date.parse('2026-08-24T09:00:00.000Z');
 const response=(payload,status=200)=>({
   ok:status>=200&&status<300,status,redirected:false,
@@ -29,7 +30,7 @@ describe('Connector artifact session boundary',()=>{
       .mockImplementationOnce(async()=>response(paired))
       .mockImplementationOnce(async()=>artifactResponse);
     const connector=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,fetchImpl,now:()=>NOW});
-    await connector.pair();
+    await connector.pair({approval:APPROVAL});
     const artifacts=new ConnectorArtifactClient({connectorClient:connector});
     await expect(artifacts.open('artifact_01',{
       accept:'model/gltf-binary',expectedConnector:{id:'unified-connector',instance:'instance_01'}

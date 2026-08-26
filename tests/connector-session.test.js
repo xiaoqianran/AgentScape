@@ -9,6 +9,7 @@ import {
 const ORIGIN='https://xiaoqianran.github.io';
 const ENDPOINT='http://127.0.0.1:48123';
 const NOW=Date.parse('2026-08-24T06:00:00.000Z');
+const APPROVAL='pairing-approval-secret';
 
 const response = (payload, status=200) => ({
   ok:status>=200&&status<300,
@@ -17,7 +18,6 @@ const response = (payload, status=200) => ({
 });
 
 const pairedPayload = (overrides={}) => ({
-  status:'paired',
   token:'session-secret-value',
   session:{
     connector:{id:'unified-connector',instance:'instance_01',version:'1.0.0'},
@@ -53,7 +53,7 @@ describe('Connector pairing session contract',()=>{
   it('pairs with least-privilege scopes and never exposes the token in the public session snapshot',async()=>{
     const fetchImpl=vi.fn(async(_url,options)=>response(pairedPayload()));
     const client=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,fetchImpl,now:()=>NOW});
-    const result=await client.pair();
+    const result=await client.pair({approval:APPROVAL});
     expect(result.status).toBe('paired');
     expect(client.state()).toBe('paired');
     expect(result.session).toMatchObject({
@@ -69,6 +69,8 @@ describe('Connector pairing session contract',()=>{
     expect(url).toBe(`${ENDPOINT}/connector/v1/session`);
     expect(options.method).toBe('POST');
     expect(options.credentials).toBe('omit');
+    expect(options.headers['X-Connector-Pairing']).toBe(APPROVAL);
+    expect(options.headers.Origin).toBe(ORIGIN);
     const request=JSON.parse(options.body);
     expect(request).toEqual({
       clientIdentity:'agentscape',contractVersion:'1',origin:ORIGIN,scopes:CONNECTOR_SESSION_SCOPES
@@ -76,35 +78,34 @@ describe('Connector pairing session contract',()=>{
     expect(request.scopes.some((scope)=>scope.includes('credential'))).toBe(false);
   });
 
-  it('keeps approval_required distinct from a paired session',async()=>{
-    const fetchImpl=vi.fn(async()=>response({
-      status:'approval_required',pairingId:'pair_01',contractVersion:'1',
-      connector:{id:'unified-connector',instance:'instance_01',version:'1.0.0'}
-    }));
-    const client=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,fetchImpl,now:()=>NOW});
-    await expect(client.pair()).resolves.toMatchObject({status:'approval_required',pairingId:'pair_01'});
-    expect(client.state()).toBe('connection_required');
-    expect(client.session()).toBeNull();
+  it('lets browser fetch own the Origin header while keeping the session origin bound',async()=>{
+    const descriptor=Object.getOwnPropertyDescriptor(globalThis,'location');
+    Object.defineProperty(globalThis,'location',{value:{origin:ORIGIN},configurable:true});
+    try {
+      const fetchImpl=vi.fn(async()=>response(pairedPayload()));
+      const client=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,fetchImpl,now:()=>NOW});
+      await client.pair({approval:APPROVAL});
+      const [,options]=fetchImpl.mock.calls[0];
+      expect(options.headers.Origin).toBeUndefined();
+      expect(JSON.parse(options.body).origin).toBe(ORIGIN);
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis,'location',descriptor);
+      else delete globalThis.location;
+    }
   });
 
-  it('validates approval identity and contract version before asking the user to continue',async()=>{
-    const missingId=new ConnectorClient({
-      endpoint:ENDPOINT,origin:ORIGIN,now:()=>NOW,
-      fetchImpl:vi.fn(async()=>response({
-        status:'approval_required',pairingId:'',contractVersion:'1',
-        connector:{id:'unified-connector',instance:'instance_01',version:'1.0.0'}
-      }))
-    });
-    await expect(missingId.pair()).rejects.toMatchObject({code:'CONNECTOR_RESPONSE_INVALID'});
+  it('requires pairing approval locally and sends it only in the pairing header',async()=>{
+    const fetchImpl=vi.fn(async()=>response(pairedPayload()));
+    const client=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,fetchImpl,now:()=>NOW});
+    await expect(client.pair()).rejects.toMatchObject({code:'PAIRING_REQUIRED'});
+    expect(fetchImpl).not.toHaveBeenCalled();
 
-    const wrongVersion=new ConnectorClient({
-      endpoint:ENDPOINT,origin:ORIGIN,now:()=>NOW,
-      fetchImpl:vi.fn(async()=>response({
-        status:'approval_required',pairingId:'pair_02',contractVersion:'2',
-        connector:{id:'unified-connector',instance:'instance_01',version:'1.0.0'}
-      }))
-    });
-    await expect(wrongVersion.pair()).rejects.toMatchObject({code:'CONNECTOR_CONTRACT_MISMATCH'});
+    await client.pair({approval:APPROVAL});
+    const [,options]=fetchImpl.mock.calls[0];
+    expect(options.headers['X-Connector-Pairing']).toBe(APPROVAL);
+    expect(options.headers.Origin).toBe(ORIGIN);
+    expect(options.redirect).toBe('error');
+    expect(options.body).not.toContain(APPROVAL);
   });
 
   it('rejects scope escalation from the Connector',async()=>{
@@ -112,13 +113,13 @@ describe('Connector pairing session contract',()=>{
       scopes:[...CONNECTOR_SESSION_SCOPES,'credentials.read']
     }})));
     const client=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,fetchImpl,now:()=>NOW});
-    await expect(client.pair()).rejects.toMatchObject({code:'CONNECTOR_SCOPE_ESCALATION'});
+    await expect(client.pair({approval:APPROVAL})).rejects.toMatchObject({code:'CONNECTOR_SCOPE_ESCALATION'});
   });
 
   it('rejects sessions bound to a different origin',async()=>{
     const fetchImpl=vi.fn(async()=>response(pairedPayload({session:{allowedOrigins:['https://evil.example']}})));
     const client=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,fetchImpl,now:()=>NOW});
-    await expect(client.pair()).rejects.toMatchObject({code:'CONNECTOR_ORIGIN_MISMATCH'});
+    await expect(client.pair({approval:APPROVAL})).rejects.toMatchObject({code:'CONNECTOR_ORIGIN_MISMATCH'});
   });
 
   it('rejects incompatible contract versions and already-expired sessions',async()=>{
@@ -126,13 +127,13 @@ describe('Connector pairing session contract',()=>{
       endpoint:ENDPOINT,origin:ORIGIN,now:()=>NOW,
       fetchImpl:vi.fn(async()=>response(pairedPayload({session:{contractVersion:'2'}})))
     });
-    await expect(versionClient.pair()).rejects.toMatchObject({code:'CONNECTOR_CONTRACT_MISMATCH'});
+    await expect(versionClient.pair({approval:APPROVAL})).rejects.toMatchObject({code:'CONNECTOR_CONTRACT_MISMATCH'});
 
     const expiredClient=new ConnectorClient({
       endpoint:ENDPOINT,origin:ORIGIN,now:()=>NOW,
       fetchImpl:vi.fn(async()=>response(pairedPayload({session:{expiresAt:'2026-08-24T05:59:30.000Z'}})))
     });
-    await expect(expiredClient.pair()).rejects.toMatchObject({code:'CONNECTOR_SESSION_EXPIRED'});
+    await expect(expiredClient.pair({approval:APPROVAL})).rejects.toMatchObject({code:'CONNECTOR_SESSION_EXPIRED'});
   });
 
   it('changes the public session state to expired without persisting or exposing the token',async()=>{
@@ -141,7 +142,7 @@ describe('Connector pairing session contract',()=>{
       endpoint:ENDPOINT,origin:ORIGIN,now:()=>now,
       fetchImpl:vi.fn(async()=>response(pairedPayload()))
     });
-    await client.pair();
+    await client.pair({approval:APPROVAL});
     expect(client.session()?.status).toBe('paired');
     now=Date.parse('2026-08-24T06:11:00.000Z');
     expect(client.state()).toBe('connection_required');
@@ -154,7 +155,7 @@ describe('Connector pairing session contract',()=>{
       endpoint:ENDPOINT,origin:ORIGIN,now:()=>NOW,
       fetchImpl:vi.fn(async()=>{ throw new TypeError('network down'); })
     });
-    await expect(client.pair()).rejects.toMatchObject({
+    await expect(client.pair({approval:APPROVAL})).rejects.toMatchObject({
       code:'CONNECTION_REQUIRED',details:{recoverable:true}
     });
     expect(client.state()).toBe('connection_required');
@@ -165,7 +166,7 @@ describe('Connector pairing session contract',()=>{
       .mockImplementationOnce(async()=>response(pairedPayload()))
       .mockImplementationOnce(async()=>response({revision:'caprev_2026_08_24_01',providers:[]}));
     const client=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,fetchImpl,now:()=>NOW});
-    await client.pair();
+    await client.pair({approval:APPROVAL});
     const result=await client.request('/connector/v1/capabilities',{scope:'capabilities.read'});
     expect(result.ok).toBe(true);
     const [url,options]=fetchImpl.mock.calls[1];
@@ -173,6 +174,7 @@ describe('Connector pairing session contract',()=>{
     expect(options.credentials).toBe('omit');
     expect(options.redirect).toBe('error');
     expect(options.headers.authorization).toBe('Bearer session-secret-value');
+    expect(options.headers.Origin).toBe(ORIGIN);
     expect(JSON.stringify(client.session())).not.toContain('session-secret-value');
     await expect(client.request('https://evil.example/connector/v1/capabilities',{scope:'capabilities.read'}))
       .rejects.toMatchObject({code:'CONNECTOR_PATH_INVALID'});
@@ -199,13 +201,14 @@ describe('Connector pairing session contract',()=>{
       .mockImplementationOnce(async()=>response(pairedPayload()))
       .mockImplementationOnce(async(_url,options)=>response({status:'revoked',seenAuthorization:options.headers.authorization}));
     const client=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,fetchImpl,now:()=>NOW});
-    await client.pair();
+    await client.pair({approval:APPROVAL});
     const result=await client.revoke();
     expect(result).toMatchObject({status:'revoked',session:{status:'revoked'}});
     const [url,options]=fetchImpl.mock.calls[1];
     expect(url).toBe(`${ENDPOINT}/connector/v1/session`);
     expect(options.method).toBe('DELETE');
     expect(options.headers.authorization).toBe('Bearer session-secret-value');
+    expect(options.headers.Origin).toBe(ORIGIN);
     expect(client.state()).toBe('connection_required');
     expect(JSON.stringify(client.session())).not.toContain('session-secret-value');
   });
