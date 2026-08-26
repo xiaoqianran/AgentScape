@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWorldRevisionContext, createWorldRevisionProposal, applyWorldRevisionProposal } from '../src/pipeline/WorldRevision.js';
+import { buildWorldRevisionContext, createWorldRevisionProposal, applyWorldRevisionProposal, classifyWorldRevisionImpact } from '../src/pipeline/WorldRevision.js';
 import { compileValidationFindings } from '../src/validation/Finding.js';
 
 const ir=()=>({
@@ -108,4 +108,16 @@ it('rejects empty bounded revision proposals before any changed-plan gate',()=>{
   const finding=compileValidationFindings({hard:[{code:'G_BELOW_GROUND',object:'box'}],advisory:[]},{worldRevisionId:'rev-1'});
   const context=buildWorldRevisionContext(ir(),finding);
   expect(()=>createWorldRevisionProposal(context,{nextRevisionId:'rev-empty',edits:[]})).toThrow(/at least one edit/);
+});
+
+
+it('classifies only pure semantic initial-state edits as incrementally recompilable',()=>{
+  expect(classifyWorldRevisionImpact({edits:[
+    {kind:'set-initial-state',entityId:'box',state:{enabled:false}},
+    {kind:'set-initial-state',entityId:'table',state:{mode:'safe'}}
+  ]})).toEqual({mode:'incremental-state',affectedEntityIds:['box','table']});
+  expect(classifyWorldRevisionImpact({edits:[
+    {kind:'set-initial-state',entityId:'box',state:{enabled:false}},
+    {kind:'set-position',entityId:'box',position:[0,.2,0]}
+  ]})).toEqual({mode:'full',affectedEntityIds:['box']});
 });

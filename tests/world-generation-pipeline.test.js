@@ -240,6 +240,7 @@ it('runs rich World IR without routing semantic fields through legacy WorldSpec'
     repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}
   };
 
+  runtime.restoredAcceptanceEvidence={worldRevisionId:'stale-revision'};
   const result=await createWorldPipeline(runtime).run({
     schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-state'},provenance:{source:'planner'},intent:{name:'Stateful World'},
     entities:[{id:'box_01',asset:{assetId:'stateful-box'},capabilityIntent:['pickup'],initialState:{enabled:true}}],
@@ -250,4 +251,5 @@ it('runs rich World IR without routing semantic fields through legacy WorldSpec'
   expect(runtime.spawn).toHaveBeenCalledWith('stateful-box',{position:expect.any(Array),id:'box_01',initialState:{enabled:true}});
   expect(result.state.artifacts).not.toHaveProperty('worldSpec');
   expect(result.state.reports.worldAdmission.status).toBe('ready');
+  expect(runtime.restoredAcceptanceEvidence).toBeNull();
 });

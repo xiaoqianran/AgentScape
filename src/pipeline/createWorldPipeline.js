@@ -19,6 +19,7 @@ const createPipeline=(runtime,compileInput)=>{
     state.artifacts.behaviorBundle = structuredClone(compilation.behaviorBundle);
     state.artifacts.physicsRequirements = structuredClone(compilation.physicsRequirements);
     runtime.currentWorldRevision={revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)};
+    runtime.restoredAcceptanceEvidence=null;
     return state;
   });
 

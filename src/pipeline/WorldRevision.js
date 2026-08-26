@@ -151,6 +151,16 @@ export function createWorldRevisionProposal(context,{nextRevisionId,reason='boun
   };
 }
 
+
+export function classifyWorldRevisionImpact(proposal={}){
+  const edits=Array.isArray(proposal.edits)?proposal.edits:[];
+  const affectedEntityIds=[...new Set(edits.map((edit)=>clean(edit.entityId)).filter(Boolean))];
+  return {
+    mode:edits.length&&edits.every((edit)=>edit.kind==='set-initial-state')?'incremental-state':'full',
+    affectedEntityIds
+  };
+}
+
 export function applyWorldRevisionProposal(worldIR,proposal,{acceptChangedPlan=false}={}){
   const ir=normalizeWorldIR(worldIR);
   if(proposal?.schema!==WORLD_REVISION_PROPOSAL_SCHEMA||proposal.schemaVersion!==WORLD_REVISION_VERSION) throw new TypeError('Unsupported WorldRevision proposal');
