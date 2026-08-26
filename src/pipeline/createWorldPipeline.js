@@ -175,14 +175,23 @@ const createPipeline=(runtime,compileInput)=>{
     const physicsAdmission=state.reports.physicsAdmission || {status:'ready',backend:null,requirements:[],issues:[]};
     const worldIR=state.artifacts.worldIR;
     const acceptanceGraph=state.artifacts.compilation?.acceptanceGraph || null;
-    if(!acceptanceGraph) runtime.lastAcceptanceBundle=null;
-    const worldAcceptance=acceptanceGraph ? evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined}) : null;
-    if(worldAcceptance){
-      state.reports.worldAcceptance=worldAcceptance;
-      const bundle=buildAcceptanceEvidenceBundle(acceptanceGraph,worldAcceptance,{worldRevisionId:worldIR?.revision?.id || null,source:'world-pipeline',provenance:worldIR?.provenance || null});
-      state.artifacts.acceptanceEvidence=structuredClone(bundle);
-      runtime.lastAcceptanceBundle=structuredClone(bundle);
-      runtime.trace?.emit?.('world.acceptance',{bundle:structuredClone(bundle)},{actor:'world-pipeline'});
+    const upstreamAdmissionRejected=[assetAdmission,layoutAdmission,behaviorAdmission,physicsAdmission,relationAdmission]
+      .some((admission)=>admission.status==='rejected');
+    let worldAcceptance=null;
+    runtime.lastAcceptanceBundle=null;
+    delete state.artifacts.acceptanceEvidence;
+    if(acceptanceGraph){
+      if(upstreamAdmissionRejected){
+        worldAcceptance={status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED'};
+        state.reports.worldAcceptance=structuredClone(worldAcceptance);
+      } else {
+        worldAcceptance=evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined});
+        state.reports.worldAcceptance=worldAcceptance;
+        const bundle=buildAcceptanceEvidenceBundle(acceptanceGraph,worldAcceptance,{worldRevisionId:worldIR?.revision?.id || null,source:'world-pipeline',provenance:worldIR?.provenance || null});
+        state.artifacts.acceptanceEvidence=structuredClone(bundle);
+        runtime.lastAcceptanceBundle=structuredClone(bundle);
+        runtime.trace?.emit?.('world.acceptance',{bundle:structuredClone(bundle)},{actor:'world-pipeline'});
+      }
     }
     const acceptanceRejected=worldAcceptance?.status==='world-incomplete';
     const status=validation.counts.hard || assetAdmission.status==='rejected' || layoutAdmission.status==='rejected' || behaviorAdmission.status==='rejected' || physicsAdmission.status==='rejected' || relationAdmission.status==='rejected' || acceptanceRejected ? 'rejected'
