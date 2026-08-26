@@ -209,3 +209,29 @@ describe('generated world pipeline',()=>{
   });
 
 });
+
+
+it('runs rich World IR without routing semantic fields through legacy WorldSpec',async()=>{
+  const assets=new AssetManager();
+  assets.registerManifest({id:'stateful-box',type:'container',source:{kind:'builtin'},actions:['pickup','move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.5,.5,.5]}]}});
+  const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:1,relations:0}};
+  const runtime={
+    events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},
+    environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
+    physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+    spawn:vi.fn(async(_assetId,{id})=>id),interactions:{place:vi.fn(),move:vi.fn()},
+    sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},
+    repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}
+  };
+
+  const result=await createWorldPipeline(runtime).run({
+    schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-state'},provenance:{source:'planner'},intent:{name:'Stateful World'},
+    entities:[{id:'box_01',asset:{assetId:'stateful-box'},capabilityIntent:['pickup'],initialState:{enabled:true}}],
+    spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]
+  });
+
+  expect(result.state.artifacts.compilation).toMatchObject({schema:'agentscape.world-compilation',worldRevisionId:'rev-state'});
+  expect(runtime.spawn).toHaveBeenCalledWith('stateful-box',{position:expect.any(Array),id:'box_01',initialState:{enabled:true}});
+  expect(result.state.artifacts.worldSpec.assets[0]).not.toHaveProperty('initialState');
+  expect(result.state.reports.worldAdmission.status).toBe('ready');
+});

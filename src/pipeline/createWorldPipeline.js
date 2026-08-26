@@ -1,35 +1,29 @@
 import { PipelineEngine } from './PipelineEngine.js';
-import { normalizeWorldIR, worldIRToWorldSpec } from './WorldIR.js';
+import { compileWorldIR } from './WorldCompilation.js';
 import { assetAdmission } from '../assets/admission.js';
 import { composeNearPlacement, composeWorldLayout } from './WorldComposer.js';
-import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
+import { buildAcceptanceEvidenceBundle, evaluateWorldAcceptance } from '../validation/WorldAcceptance.js';
 import { buildWorldRevisionContext } from './WorldRevision.js';
-import { admitWorldBehavior, compileWorldBehaviorBundle } from './WorldBehaviorCompiler.js';
-import { admitWorldPhysics, compileWorldPhysicsRequirements } from './WorldPhysicsAdmission.js';
+import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
+import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
 
 export function createWorldPipeline(runtime) {
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
 
   pipeline.register('normalize_spec', async (state) => {
-    const worldIR = normalizeWorldIR(state.input);
+    const compilation = compileWorldIR(state.input);
+    const worldIR = compilation.worldIR;
+    state.artifacts.compilation = compilation;
     state.artifacts.worldIR = structuredClone(worldIR);
+    state.artifacts.worldSpec = structuredClone(compilation.worldSpec);
+    state.artifacts.behaviorBundle = structuredClone(compilation.behaviorBundle);
+    state.artifacts.physicsRequirements = structuredClone(compilation.physicsRequirements);
     runtime.currentWorldRevision={revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)};
-    const behaviorBundle=compileWorldBehaviorBundle(worldIR);
-    state.artifacts.behaviorBundle=structuredClone(behaviorBundle);
-    const physicsRequirements=compileWorldPhysicsRequirements(worldIR);
-    state.artifacts.physicsRequirements=structuredClone(physicsRequirements);
-    const executableProjection=structuredClone(worldIR);
-    executableProjection.interactions=[];
-    executableProjection.rules=[];
-    executableProjection.policy.physics={};
-    for(const entity of executableProjection.entities) delete entity.physicsRequirement;
-    state.input = worldIRToWorldSpec(executableProjection);
-    state.artifacts.worldSpec = structuredClone(state.input);
     return state;
   });
 
   pipeline.register('resolve_assets', async (state) => {
-    const requests = state.input.assets || [];
+    const requests = state.artifacts.compilation?.entities || [];
     const resolved = [];
     for (const request of requests) {
       if (request.assetId && runtime.assets.has(request.assetId)) {
@@ -114,7 +108,9 @@ export function createWorldPipeline(runtime) {
     }
     for (const request of state.artifacts.assets || []) {
       if (!request.assetId) continue;
-      const id = await runtime.spawn(request.assetId, { position: request.position || [0, 0, 0], id: request.id });
+      const options={position:request.position || [0,0,0],id:request.id};
+      if(request.initialState && Object.keys(request.initialState).length) options.initialState=structuredClone(request.initialState);
+      const id = await runtime.spawn(request.assetId, options);
       spawned.push(id);
     }
     state.artifacts.spawned = spawned;
@@ -125,7 +121,7 @@ export function createWorldPipeline(runtime) {
     if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected' || state.reports.behaviorAdmission?.status==='rejected' || state.reports.physicsAdmission?.status==='rejected') return state;
     const applied=[],issues=[];
     state.reports.relationAdmission={status:'ready',applied,issues};
-    for (const relation of state.input.relations || []) {
+    for (const relation of state.artifacts.compilation?.relations || []) {
       if (relation.predicate === 'ON') {
         const result=runtime.interactions.place(relation.subject,relation.object,{surfaceId:relation.surfaceId});
         applied.push({...relation,result});
@@ -176,7 +172,7 @@ export function createWorldPipeline(runtime) {
     const behaviorAdmission=state.reports.behaviorAdmission || {status:'ready',issues:[]};
     const physicsAdmission=state.reports.physicsAdmission || {status:'ready',backend:null,requirements:[],issues:[]};
     const worldIR=state.artifacts.worldIR;
-    const acceptanceGraph=worldIR?.acceptance?.length ? compileWorldAcceptance(worldIR.acceptance) : null;
+    const acceptanceGraph=state.artifacts.compilation?.acceptanceGraph || null;
     if(!acceptanceGraph) runtime.lastAcceptanceBundle=null;
     const worldAcceptance=acceptanceGraph ? evaluateWorldAcceptance(runtime,acceptanceGraph,{unresolvedMutations:undefined}) : null;
     if(worldAcceptance){
@@ -222,7 +218,7 @@ export function createWorldPipeline(runtime) {
       runtime.currentPhysicsRequirements=structuredClone(state.artifacts.physicsRequirements);
       runtime.loadRuleGraph?.(state.artifacts.behaviorBundle.ruleGraph);
     }
-    state.artifacts.scene = runtime.serialize({ name: state.input.name || 'Generated World' });
+    state.artifacts.scene = runtime.serialize({ name: worldIR?.intent?.name || 'Generated World' });
     return state;
   });
 

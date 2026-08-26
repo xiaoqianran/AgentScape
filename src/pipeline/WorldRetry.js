@@ -1,4 +1,4 @@
-import { worldIRToWorldSpec } from './WorldIR.js';
+import { projectWorldIRToWorldSpec } from './WorldCompilation.js';
 
 const publicWorldSpec = (spec = {}) => ({
   ...(spec.name ? { name:spec.name } : {}),
@@ -78,7 +78,7 @@ export function buildWorldRetryPlan(pipeline,{generatorConfigured=false,attempt=
       const request=nextIR.entities.find((item)=>(action.instanceId && item.id===action.instanceId) || (!action.instanceId && item.asset?.query===action.query));
       if (request) request.asset.generate=true;
     }
-    return {...base,status:'retry-proposed',retriable:true,nextPlan:worldIRToWorldSpec(nextIR),nextIR};
+    return {...base,status:'retry-proposed',retriable:true,nextPlan:projectWorldIRToWorldSpec(nextIR),nextIR};
   }
   const nextPlan=publicWorldSpec(spec);
   for (const action of actions) {

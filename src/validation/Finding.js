@@ -54,7 +54,7 @@ export function compileAcceptanceFindings(result,{worldRevisionId=null}={}){
     id:`acceptance:hard:${check.id||check.kind||'check'}:${index}`,
     source:'world-acceptance',severity:'hard',code:`A_${check.reason||'NOT_VERIFIED'}`,
     ...(worldRevisionId?{worldRevisionId}:{}),
-    affectedObjects:[check.targetId].filter(Boolean),
+    affectedObjects:[check.targetId,check.subject,check.object].filter(Boolean),
     message:`Acceptance criterion not verified: ${check.id||check.kind||'unknown'}`,
     evidence:clone(check),repair:{eligible:false}
   },{index}));

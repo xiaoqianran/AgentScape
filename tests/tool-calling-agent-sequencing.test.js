@@ -459,3 +459,48 @@ it('allows final completion when required world acceptance is accepted and reset
   const result=await new ToolCallingAgent({tools,gateway,maxSteps:4}).run('build accepted world');
   expect(result).toMatchObject({taskStatus:'completed',message:'verified',acceptanceBundle:{required:true,result:{status:'world-accepted'}}});
 });
+
+
+it('requires a Runtime-issued World IR proposal before Agent execution and forces a fresh planning round',async()=>{
+  let round=0;
+  const proposalBody={intent:{name:'Lab'},entities:[],spatial:{relations:[]},interactions:[],rules:[],acceptance:[]};
+  const issued={schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'world-r1'},provenance:{source:'agent-world-planner'},...proposalBody};
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'bad',name:'runWorldPipeline',args:{plan:{...issued,revision:{id:'forged'}}}}]};
+    if(round===2) return {message:'',toolCalls:[
+      {id:'proposal',name:'proposeWorldIR',args:{proposal:proposalBody}},
+      {id:'premature',name:'runWorldPipeline',args:{plan:issued}}
+    ]};
+    if(round===3) return {message:'',toolCalls:[{id:'run',name:'runWorldPipeline',args:{plan:issued}}]};
+    return {message:'world ready',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    proposeWorldIR:async()=>({status:'world-proposal-ready',worldIR:issued,summary:{worldRevisionId:'world-r1'}}),
+    runWorldPipeline:async()=>({status:'world-ready',admission:{status:'ready'}})
+  });
+  tools.definitions=()=>[{name:'proposeWorldIR'},{name:'runWorldPipeline'}];
+
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:6}).run('build lab');
+  expect(tools.call.mock.calls.filter(([name])=>name!=='listObjects').map(([name])=>name)).toEqual(['proposeWorldIR','runWorldPipeline']);
+  expect(result).toMatchObject({taskStatus:'completed',lastMutation:{tool:'runWorldPipeline',outcome:{state:'verified'}}});
+  expect(result.execution.find((entry)=>entry.reason==='WORLD_PIPELINE_PROPOSAL_REQUIRED')).toMatchObject({tool:'runWorldPipeline',executed:false});
+  expect(result.execution.find((entry)=>entry.reason==='REPLAN_REQUIRED_AFTER_WORLD_PROPOSAL')).toMatchObject({tool:'runWorldPipeline',executed:false});
+});
+
+it('deduplicates World IR by semantic plan rather than Runtime-issued revision identity',async()=>{
+  let round=0,pipelineCalls=0;
+  const semantic={schema:'agentscape.world-ir',schemaVersion:1,intent:{name:'Lab'},entities:[],spatial:{relations:[]},interactions:[],rules:[],acceptance:[]};
+  const first={...semantic,revision:{id:'world-r1'},provenance:{source:'agent-world-planner'}};
+  const second={...structuredClone(semantic),revision:{id:'world-r2'},provenance:{source:'agent-world-planner'}};
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'w1',name:'runWorldPipeline',args:{plan:first}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'w2',name:'runWorldPipeline',args:{plan:second}}]};
+    return {message:'cannot retry unchanged semantics',toolCalls:[]};
+  })};
+  const tools=makeTools({runWorldPipeline:async()=>{pipelineCalls++;return {status:'world-rejected',reason:'ASSET_UNRESOLVED'};}});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:5}).run('build lab');
+  expect(pipelineCalls).toBe(1);
+  expect(result.execution.find((entry)=>entry.reason==='WORLD_PIPELINE_PLAN_ALREADY_ATTEMPTED')).toMatchObject({executed:false});
+});

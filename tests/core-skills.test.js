@@ -90,7 +90,15 @@ describe('core skills', () => {
     const r=runtime();
     const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
     const def=registry.definitions().find((item)=>item.name==='runWorldPipeline');
-    expect(def.parameters.properties.plan).toMatchObject({type:'object',additionalProperties:false,properties:{assets:{type:'array'},relations:{type:'array'},generation:{type:'object'}}});
+    expect(def.parameters.properties.plan).toMatchObject({
+      type:'object',additionalProperties:false,
+      required:['schema','schemaVersion','revision','provenance','intent','entities','spatial','interactions','rules','acceptance'],
+      properties:{
+        schema:{enum:['agentscape.world-ir']},schemaVersion:{enum:[1]},revision:{type:'object'},provenance:{type:'object'},
+        entities:{type:'array'},spatial:{type:'object'},interactions:{type:'array'},rules:{type:'array'},acceptance:{type:'array'}
+      }
+    });
+    expect(def.parameters.properties.plan.properties.spatial.properties).not.toHaveProperty('constraints');
     r.worldPipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}));
     await registry.invoke('runWorldPipeline',{plan:{},stages:['instantiate']},{profile:'builder',actor:'test'});
     expect(r.worldPipeline.run).toHaveBeenCalledWith({});
@@ -433,4 +441,29 @@ describe('core skills', () => {
     expect(registry.executionPolicy('replayWorldAcceptance',result.result).outcome).toMatchObject({state:'verified',verified:true,status:'world-accepted'});
   });
 
+});
+
+
+it('exposes a semantic-only World Planner proposal contract and seals identity inside Runtime',async()=>{
+  const r=runtime();
+  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+  const definition=registry.definitions().find((item)=>item.name==='proposeWorldIR');
+  expect(definition.parameters).toMatchObject({
+    type:'object',additionalProperties:false,required:['proposal'],
+    properties:{proposal:{type:'object',additionalProperties:false}}
+  });
+  expect(definition.parameters.properties.proposal.properties).not.toHaveProperty('revision');
+  expect(definition.parameters.properties.proposal.properties).not.toHaveProperty('provenance');
+  expect(definition.parameters.properties.proposal.properties).not.toHaveProperty('schema');
+
+  const result=await registry.invoke('proposeWorldIR',{proposal:{
+    intent:{name:'Planner Lab'},entities:[],spatial:{relations:[]},interactions:[],rules:[],acceptance:[]
+  }},{profile:'viewer',actor:'planner-test'});
+  expect(result).toMatchObject({success:true,result:{
+    status:'world-proposal-ready',worldIR:{schema:'agentscape.world-ir',schemaVersion:1,provenance:{source:'agent-world-planner'},intent:{name:'Planner Lab'}},
+    summary:{entities:0,interactions:0,rules:0,physicsRequirements:0,acceptanceChecks:0}
+  }});
+  expect(result.result.worldIR.revision.id).toMatch(/^world-/);
+  expect(registry.executionPolicy('proposeWorldIR',result.result)).toMatchObject({mutates:false,barrier:false,outcome:{state:'accepted'}});
+  expect(r.mutate).not.toHaveBeenCalledWith('skill:proposeWorldIR',expect.any(Function),expect.anything());
 });

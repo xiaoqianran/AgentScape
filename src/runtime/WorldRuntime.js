@@ -26,6 +26,7 @@ import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider
 import { disposeObject3D } from './disposeObject3D.js';
 import { ArticulationVerifier } from '../validation/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
+import { clearInteractionEvidenceForTarget } from '../validation/InteractionEvidence.js';
 
 import { ConnectorClient } from "../connector/ConnectorClient.js";
 import { GenerationOrchestrator } from "../generation/GenerationOrchestrator.js";
@@ -116,7 +117,7 @@ export class WorldRuntime {
     this.controls.target.fromArray(this.environment.camera.target);
     this.controls.update();
   }
-  async spawn(assetId, { position = [0, 0, 0], id = `${assetId}_${crypto.randomUUID()}` } = {}) {
+  async spawn(assetId, { position = [0, 0, 0], id = `${assetId}_${crypto.randomUUID()}`, initialState = null } = {}) {
     const { object, manifest } = await this.assets.instantiate(assetId);
     object.position.fromArray(position);
     object.userData.instanceId = id;
@@ -126,6 +127,8 @@ export class WorldRuntime {
       this.store.add(id, { id, assetId, object, manifest, state: {} });
       stored = true;
       this.physics.attach(id, manifest, object);
+      clearInteractionEvidenceForTarget(this,id);
+      if (initialState && Object.keys(initialState).length) this.restoreObjectState(id, initialState);
       this.navigation?.invalidateIfStatic(this.store.get(id), 'object.spawned');
       this.sceneGraph?.changed();
       this.events.emit('object.spawned', { id, assetId, position });
@@ -255,6 +258,7 @@ export class WorldRuntime {
     this.scene.remove(record.object);
     disposeObject3D(record.object);
     this.store.delete(id);
+    clearInteractionEvidenceForTarget(this,id);
     this.sceneGraph?.removeObject(id); this.sceneGraph?.changed();
     this.events.emit('object.removed', { id, assetId: record.assetId });
     return true;

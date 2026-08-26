@@ -80,3 +80,30 @@ it('preserves WorldIR revision/provenance and projects the revised IR into nextP
   expect(plan.nextIR).toMatchObject({revision:{id:'rev-1:retry-2',parentId:'rev-1'},provenance:{source:'world-retry',sourceId:'rev-1'}});
   expect(plan.nextIR.provenance.evidenceRefs).toEqual(expect.arrayContaining(['trace-1','asset-1']));
 });
+
+
+it('preserves rich World IR semantics across a missing-asset retry',()=>{
+  const pipeline={state:{
+    input:{},
+    artifacts:{
+      worldIR:{
+        schema:'agentscape.world-ir',schemaVersion:1,
+        revision:{id:'rev-rich-retry'},provenance:{source:'planner',evidenceRefs:[]},
+        intent:{name:'Retry Behavior World'},policy:{generation:{generate:false},physics:{fallbackPolicy:'deny'}},
+        entities:[{id:'door_01',asset:{assetId:'missing-door',query:'cabinet',generate:false},transform:{},physicsRequirement:{bodyClass:'articulated'},capabilityIntent:['OPEN'],initialState:{locked:false}}],
+        spatial:{relations:[],constraints:[]},
+        interactions:[{id:'open-door',targetId:'door_01',capability:'OPEN'}],rules:[],
+        acceptance:[{id:'door-exists',kind:'object-exists',targetId:'door_01'}]
+      },
+      worldSpec:{schema:1,name:'Retry Behavior World',generation:{generate:false},assets:[{id:'door_01',assetId:'missing-door',query:'cabinet',generate:false}],relations:[]}
+    },
+    reports:{assetAdmission:{status:'rejected',unresolved:[{id:'door_01',query:'cabinet',status:'missing'}]}}
+  }};
+
+  const retry=buildWorldRetryPlan(pipeline,{generatorConfigured:true,attempt:1,budget:2});
+  expect(retry).toMatchObject({status:'retry-proposed',nextIR:{revision:{parentId:'rev-rich-retry'}}});
+  expect(retry.nextIR.entities[0]).toMatchObject({asset:{generate:true},physicsRequirement:{bodyClass:'articulated'},capabilityIntent:['OPEN'],initialState:{locked:false}});
+  expect(retry.nextIR.interactions).toHaveLength(1);
+  expect(retry.nextIR.acceptance).toHaveLength(1);
+  expect(retry.nextPlan).toMatchObject({schema:1,assets:[{id:'door_01',generate:true}]});
+});

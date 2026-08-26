@@ -47,8 +47,8 @@ export function buildWorldRevisionContext(worldIR,findings=[]){
         relations:ir.spatial.relations.filter((relation)=>contextEntityIds.has(relation.subject)||contextEntityIds.has(relation.object)).map((relation)=>structuredClone(relation)),
         constraints:ir.spatial.constraints.filter((constraint)=>contextEntityIds.has(constraint.subject)||contextEntityIds.has(constraint.object)).map((constraint)=>structuredClone(constraint))
       },
-      interactions:ir.interactions.filter((item)=>contextEntityIds.has(item.targetId)||contextEntityIds.has(item.actorId)).map((item)=>structuredClone(item)),
-      acceptance:ir.acceptance.filter((item)=>item.targetId&&contextEntityIds.has(item.targetId)).map((item)=>structuredClone(item))
+      interactions:ir.interactions.filter((item)=>[item.actorId,item.targetId,item.supportId].some((id)=>id&&contextEntityIds.has(id))).map((item)=>structuredClone(item)),
+      acceptance:ir.acceptance.filter((item)=>[item.targetId,item.subject,item.object].some((id)=>id&&contextEntityIds.has(id))).map((item)=>structuredClone(item))
     },
     rulesReviewRequired:Boolean(ir.rules.length&&contextEntityIds.size)
   };

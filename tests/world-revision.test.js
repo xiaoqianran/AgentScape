@@ -48,3 +48,14 @@ describe('WorldRevision handoff',()=>{
     expect(()=>buildWorldRevisionContext(ir(),finding)).toThrow(/revision mismatch/);
   });
 });
+
+
+it('keeps relational acceptance and PLACE support context inside the affected revision subgraph',()=>{
+  const world=ir();
+  world.interactions.push({id:'place-box',supportId:'table',capability:'PLACE'});
+  world.acceptance.push({id:'box-on-table',kind:'relation-exists',subject:'box',predicate:'ON',object:'table'});
+  const finding=compileValidationFindings({hard:[{code:'P_OVERLAP',object:'box',other:'table'}],advisory:[]},{worldRevisionId:'rev-1'});
+  const context=buildWorldRevisionContext(world,finding);
+  expect(context.subgraph.interactions.map((item)=>item.id)).toEqual(expect.arrayContaining(['pick-box','place-box']));
+  expect(context.subgraph.acceptance.map((item)=>item.id)).toEqual(expect.arrayContaining(['box-exists','box-on-table']));
+});

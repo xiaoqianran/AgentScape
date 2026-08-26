@@ -38,3 +38,16 @@ describe('WorldBehaviorCompiler',()=>{
     expect(admitWorldBehavior(bundle,{resolvedAssets,getManifest:id=>manifests[id]})).toMatchObject({status:'rejected',issues:[{code:'BEHAVIOR_CAPABILITY_UNSUPPORTED',targetId:'door',capability:'OPEN'}]});
   });
 });
+
+it('admits capabilityIntent only when the resolved asset exposes every requested capability',()=>{
+  const world=normalizeWorldIR({
+    schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-intent'},provenance:{source:'planner'},intent:{name:'Intent World'},
+    entities:[{id:'door',asset:{assetId:'cabinet'},capabilityIntent:['open','close']}]
+  });
+  const bundle=compileWorldBehaviorBundle(world);
+  expect(bundle.capabilityIntents).toEqual([{entityId:'door',capabilities:['OPEN','CLOSE']}]);
+  expect(admitWorldBehavior(bundle,{resolvedAssets:[{id:'door',assetId:'cabinet'}],getManifest:()=>({actions:['open','close','move']})})).toEqual({status:'ready',issues:[]});
+  expect(admitWorldBehavior(bundle,{resolvedAssets:[{id:'door',assetId:'cabinet'}],getManifest:()=>({actions:['open','move']})})).toMatchObject({
+    status:'rejected',issues:[{code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',targetId:'door',capability:'CLOSE',assetId:'cabinet'}]
+  });
+});

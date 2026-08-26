@@ -1,17 +1,35 @@
 import { EmbodiedGenAdapter } from '../adapters/EmbodiedGenAdapter.js';
 import { assetAdmission } from '../assets/admission.js';
-import { WORLD_SPEC_SCHEMA } from '../pipeline/WorldSpec.js';
+import { WORLD_IR_TOOL_SCHEMA, WORLD_PLANNER_PROPOSAL_SCHEMA } from '../pipeline/WorldIRToolSchema.js';
+import { buildWorldProposal } from '../pipeline/WorldPlannerProposal.js';
 import { buildWorldRetryPlan } from '../pipeline/WorldRetry.js';
 import { recompileWorldRevision } from '../pipeline/WorldRecompiler.js';
 import { buildRecoveryProposals } from '../agent/buildRecoveryProposals.js';
 import { compileInteractionIntent, executeBehaviorCommand, verifyBehaviorCommand } from '../runtime/behavior/BehaviorCompiler.js';
 import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance, replayAcceptanceEvidence } from '../validation/WorldAcceptance.js';
+import { recordInteractionEvidence } from '../validation/InteractionEvidence.js';
 import { sanitizeJobData } from '../jobs/GenerationJobProjection.js';
 
 const string = { type: 'string' };
 const number = { type: 'number' };
 const vec3 = { type: 'array', items: number, minItems: 3, maxItems: 3 };
 const meta = (description, permissions, required = [], properties = {}) => ({ description, permissions, required, properties });
+
+const newWorldRevisionId=()=>{
+  const id=globalThis.crypto?.randomUUID?.();
+  if(!id){const error=new Error('Secure revision identity is unavailable');error.code='WORLD_PROPOSAL_ID_UNAVAILABLE';throw error;}
+  return `world-${id}`;
+};
+
+const recordBehaviorEvidence = (runtime, command, result, source) => {
+  const verification=verifyBehaviorCommand(command,result);
+  const targetId=command.capability==='PLACE' ? command.supportId : command.targetId;
+  recordInteractionEvidence(runtime,{
+    targetId,capability:command.capability,verified:verification.verified===true,
+    source,commandId:command.commandId,result
+  });
+  return verification;
+};
 
 const syncLiveVerification = (runtime, assetId, manifest) => {
   for (const record of runtime.store?.values?.() || []) {
@@ -129,11 +147,17 @@ export function registerCoreSkills(registry, runtime) {
   add('navigateTo', { ...meta('纯坐标导航：让 Agent Body 沿 Detour 路径真实行走到明确世界坐标；Rapier CharacterController 负责碰撞/台阶，直到 arrived 或 blocked 才返回。若目的是靠近对象并 open/close，不要把对象中心当终点，应直接使用 approachAndInteract。', ['world.write', 'spatial.read', 'physics.read'], ['id', 'end'], { id:string, end:vec3, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, (a) => runtime.locomotion.navigate(a.id, a.end, { speed:a.speed }));
   add('getLocomotionStatus', meta('读取 Agent Body 当前或最近一次 locomotion 状态。', ['world.read', 'physics.read'], ['id'], { id:string }), (a) => runtime.locomotion.status(a.id));
   add('findInteractionPose', meta('只读诊断/预览：按 Runtime 固定 1.5m 交互距离，为 Agent 与目标寻找满足 Detour 可达和 Rapier 视线的交互位；可选 action/partName 时排除 Agent 阻挡 articulation sweep 的位姿。若目标是实际走过去并 open/close，应直接调用 approachAndInteract，不要手工拆链。', ['spatial.read', 'physics.read'], ['actorId','targetId'], { actorId:string, targetId:string, action:{type:'string',enum:['open','close']}, partName:string }), (a) => runtime.interactions.findInteractionPose(a.actorId, a.targetId, { action:a.action, partName:a.partName }));
-  add('approachAndInteract', { ...meta('具身 open/close 的首选单一工具：内部完成交互位搜索、真实 navigate、距离/物理视线/action-sweep 二次验证，再请求 motor target 并等待 live joint completion。只有 status=action-completed 且 targetReached=true/settled=true 才表示动作最终完成；STALL 返回 action-failed，TIMEOUT 返回 action-unverified。整个任务是一个 mutation。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','action'], { actorId:string, targetId:string, action:{type:'string',enum:['open','close']}, partName:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, (a) => runtime.interactions.approachAndInteract(a.actorId, a.targetId, a.action, { partName:a.partName, speed:a.speed }));
+  add('approachAndInteract', { ...meta('具身 open/close 的首选单一工具：内部完成交互位搜索、真实 navigate、距离/物理视线/action-sweep 二次验证，再请求 motor target 并等待 live joint completion。只有 status=action-completed 且 targetReached=true/settled=true 才表示动作最终完成；STALL 返回 action-failed，TIMEOUT 返回 action-unverified。整个任务是一个 mutation。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','action'], { actorId:string, targetId:string, action:{type:'string',enum:['open','close']}, partName:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, async (a) => {
+    const command=compileInteractionIntent({id:`direct-${a.action}`,actorId:a.actorId,targetId:a.targetId,capability:a.action},{worldRevisionId:runtime.currentWorldRevision?.revision?.id});
+    const result=await runtime.interactions.approachAndInteract(a.actorId,a.targetId,a.action,{partName:a.partName,speed:a.speed});
+    recordBehaviorEvidence(runtime,command,result,'approachAndInteract');
+    return result;
+  });
   add('executeBehaviorCommand', { ...meta('执行由 BehaviorCompiler 编译出的 typed RuntimeCommand。当前纵向切片只允许 OPEN/CLOSE interaction；命令必须包含 actorId/targetId，并且最终结果仍需 action-completed + targetReached + settled 才算验证完成。', ['world.write','spatial.read','physics.read'], ['command'], { command:{type:'object'} }), batchable:false, mutates:true }, async (a) => {
     const command=compileInteractionIntent(a.command?.source ? { id:a.command.source.interactionId, actorId:a.command.actorId, targetId:a.command.targetId, capability:a.command.capability } : a.command?.intent || a.command, { worldRevisionId:a.command?.source?.worldRevisionId });
     const result=await executeBehaviorCommand(runtime,command);
-    return {...result,behaviorCommand:command,verification:verifyBehaviorCommand(command,result)};
+    const verification=recordBehaviorEvidence(runtime,command,result,'executeBehaviorCommand');
+    return {...result,behaviorCommand:command,verification};
   });
   add('evaluateWorldAcceptance', { ...meta('对当前世界执行显式 world-level acceptance criteria。只读；返回逐项证据和最终 world-accepted/world-incomplete。', ['world.read','physics.read'], ['criteria'], { criteria:{type:'array'} }), batchable:true, mutates:false }, async (a) => {
     const graph=compileWorldAcceptance(a.criteria || []);
@@ -232,8 +256,18 @@ export function registerCoreSkills(registry, runtime) {
     return result;
   });
   add('suggestRecoveryActions', meta('针对最近一次 articulated STALL 只读生成恢复候选。对当前仍接触的 blocker 做 typed recovery eligibility：Dynamic root Object 可走 pickup recovery，具有 verified current state 且唯一 alternate open/close 的 articulated Part 可走 articulated recovery；Environment、stale/ambiguous/Policy denied 均明确拒绝。Recovery proposal 不是成功，执行后必须 retry 原始 action 并重新验证 post-condition。', ['world.read','physics.read'], ['actorId','targetId'], { actorId:string,targetId:string,partName:string }), (a,{registry,context}) => buildRecoveryProposals(runtime,registry,{actorId:a.actorId,targetId:a.targetId,partName:a.partName,profile:context.profile || 'builder'}));
-  add('approachAndPickup', { ...meta('具身 pickup：Agent 先走到固定 1.5m 交互位并复核 Rapier LOS，再对对象到 hold anchor 做 shape-sweep；成功后记录 heldBy 并以 kinematic anchor 携带。不是 grasp force verification。', ['world.write','spatial.read','physics.read'], ['actorId','targetId'], { actorId:string, targetId:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, (a) => runtime.interactions.approachAndPickup(a.actorId,a.targetId,{speed:a.speed}));
-  add('approachAndPlace', { ...meta('具身 place 的首选单一工具：被放置物由 actor 当前 held ownership 自动推导，不要传 held object id。supportId 是接收物体的支撑对象 ID（例如 table_01）；surfaceId 只是该支撑对象 Manifest 中可选的 surface 名（例如 top），绝不是对象 ID。内部完成 carry-aware approach、三段 Rapier shape-cast release、Dynamic settle 与 ON/SUPPORTS post-condition。只有 status=placed 且 supportVerified=true 才表示最终放置成功。', ['world.write','spatial.read','physics.read'], ['actorId','supportId'], { actorId:{type:'string',description:'持有物体的 Agent ID，例如 agent_01'}, supportId:{type:'string',description:'接收放置物的支撑对象 ID，例如 table_01；不要填 cup_01'}, surfaceId:{type:'string',description:'可选 surface 名，例如 top；不要填对象 ID'}, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, (a) => runtime.interactions.approachAndPlace(a.actorId,a.supportId,{surfaceId:a.surfaceId,speed:a.speed}));
+  add('approachAndPickup', { ...meta('具身 pickup：Agent 先走到固定 1.5m 交互位并复核 Rapier LOS，再对对象到 hold anchor 做 shape-sweep；成功后记录 heldBy 并以 kinematic anchor 携带。不是 grasp force verification。', ['world.write','spatial.read','physics.read'], ['actorId','targetId'], { actorId:string, targetId:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, async (a) => {
+    const command=compileInteractionIntent({id:'direct-pickup',actorId:a.actorId,targetId:a.targetId,capability:'PICKUP'},{worldRevisionId:runtime.currentWorldRevision?.revision?.id});
+    const result=await runtime.interactions.approachAndPickup(a.actorId,a.targetId,{speed:a.speed});
+    recordBehaviorEvidence(runtime,command,result,'approachAndPickup');
+    return result;
+  });
+  add('approachAndPlace', { ...meta('具身 place 的首选单一工具：被放置物由 actor 当前 held ownership 自动推导，不要传 held object id。supportId 是接收物体的支撑对象 ID（例如 table_01）；surfaceId 只是该支撑对象 Manifest 中可选的 surface 名（例如 top），绝不是对象 ID。内部完成 carry-aware approach、三段 Rapier shape-cast release、Dynamic settle 与 ON/SUPPORTS post-condition。只有 status=placed 且 supportVerified=true 才表示最终放置成功。', ['world.write','spatial.read','physics.read'], ['actorId','supportId'], { actorId:{type:'string',description:'持有物体的 Agent ID，例如 agent_01'}, supportId:{type:'string',description:'接收放置物的支撑对象 ID，例如 table_01；不要填 cup_01'}, surfaceId:{type:'string',description:'可选 surface 名，例如 top；不要填对象 ID'}, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, async (a) => {
+    const command=compileInteractionIntent({id:'direct-place',actorId:a.actorId,supportId:a.supportId,capability:'PLACE'},{worldRevisionId:runtime.currentWorldRevision?.revision?.id});
+    const result=await runtime.interactions.approachAndPlace(a.actorId,a.supportId,{surfaceId:a.surfaceId,speed:a.speed});
+    recordBehaviorEvidence(runtime,command,result,'approachAndPlace');
+    return result;
+  });
   add('dropHeld', { ...meta('释放 Agent 当前 kinematic-anchor held object，恢复其原始 Physics body type。', ['world.write','physics.read'], ['actorId'], { actorId:string }), batchable:false, mutates:true }, (a) => runtime.interactions.dropHeld(a.actorId));
   add('getCarryStatus', meta('读取 Agent 当前 held-object ownership；held 只表示 kinematic-anchor attachment，不等于 graspVerified。', ['world.read','physics.read'], ['actorId'], { actorId:string }), (a) => runtime.interactions.carryStatus(a.actorId));
   add('getNavigationStatus', meta('读取 NavMesh 派生状态、构建版本与 Agent 导航配置。', ['spatial.read']), () => runtime.navigation.status());
@@ -269,7 +303,12 @@ export function registerCoreSkills(registry, runtime) {
     return recompileWorldRevision(runtime,{baseWorldIR:a.baseWorldIR,proposal:a.proposal,acceptChangedPlan:a.acceptChangedPlan===true});
   });
 
-  add('runWorldPipeline', { ...meta('规范化 WorldSpec，解析/生成资产，经 admission 后实例化、应用关系、校验、修复并最终序列化。Agent 调用始终执行完整 canonical pipeline。若唯一 rejection 是可生成的 search miss，Runtime 最多自动重跑一次，只为缺失 asset 开启 generation；其它 rejection 不自动放宽约束。world-ready 才视为 verified；world-provisional 保留但不冒充验证；最终 world-rejected 会恢复调用前 scene。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: WORLD_SPEC_SCHEMA }), mutates: true }, async (a) => {
+
+  add('proposeWorldIR', meta('把 Planner 的世界语义提案封装为 Runtime-issued revision/provenance，并执行 strict normalize/reference/canonical compile 预检；不修改 Scene。只有 status=world-proposal-ready 的 worldIR 才应提交 runWorldPipeline。模型不能自行指定 revision/provenance。', [], ['proposal'], { proposal:WORLD_PLANNER_PROPOSAL_SCHEMA }), (a) => {
+    return buildWorldProposal(a.proposal,{revisionId:newWorldRevisionId()});
+  });
+
+  add('runWorldPipeline', { ...meta('提交 strict World IR v1 到 canonical compiler：统一解析资产、Behavior、Physics、Acceptance，再实例化、校验、修复并序列化。Agent 只执行 proposeWorldIR 已颁发的 revision/provenance；不支持的语义 fail-closed。若唯一 rejection 是可生成的 search miss，Runtime 最多自动重跑一次，只为缺失 asset 开启 generation。world-ready 才视为 verified；world-provisional 不冒充验证；world-rejected 恢复调用前 scene。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: WORLD_IR_TOOL_SCHEMA }), mutates: true }, async (a) => {
     const before=runtime.snapshot();
     const budget=2,attempts=[];
     let plan=a.plan;
@@ -291,7 +330,7 @@ export function registerCoreSkills(registry, runtime) {
       if (retry.status!=='retry-proposed') {
         return {status:'world-rejected',reason:admission.reasons?.[0] || 'WORLD_REJECTED',rolledBack:true,admission,pipeline,attempts,retry};
       }
-      plan=retry.nextPlan;
+      plan=retry.nextIR || retry.nextPlan;
     }
     throw new Error('World retry loop exceeded its fixed budget');
   });

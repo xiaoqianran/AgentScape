@@ -15,6 +15,9 @@ export function compileWorldBehaviorBundle(worldIR){
       }
     }
   }
+  const capabilityIntents=(worldIR?.entities||[])
+    .filter((entity)=>entity.id && entity.capabilityIntent?.length)
+    .map((entity)=>({entityId:entity.id,capabilities:[...entity.capabilityIntent]}));
   const ruleGraph=compileRuleGraph(worldIR?.rules||[]);
   for(const rule of ruleGraph.rules){
     const refs=[rule.condition?.targetId,rule.effect?.targetId].filter(Boolean);
@@ -25,13 +28,22 @@ export function compileWorldBehaviorBundle(worldIR){
       }
     }
   }
-  return {schema:WORLD_BEHAVIOR_BUNDLE_SCHEMA,schemaVersion:WORLD_BEHAVIOR_BUNDLE_VERSION,worldRevisionId:worldIR?.revision?.id || null,behaviorGraph,ruleGraph};
+  return {schema:WORLD_BEHAVIOR_BUNDLE_SCHEMA,schemaVersion:WORLD_BEHAVIOR_BUNDLE_VERSION,worldRevisionId:worldIR?.revision?.id || null,capabilityIntents,behaviorGraph,ruleGraph};
 }
 
 export function admitWorldBehavior(bundle,{resolvedAssets=[],getManifest}={}){
   if(bundle?.schema!==WORLD_BEHAVIOR_BUNDLE_SCHEMA||bundle.schemaVersion!==WORLD_BEHAVIOR_BUNDLE_VERSION) throw new TypeError('Unsupported WorldBehavior bundle');
   const byId=new Map((resolvedAssets||[]).filter((item)=>item.id).map((item)=>[item.id,item]));
   const issues=[];
+  for(const intent of bundle.capabilityIntents||[]){
+    const target=byId.get(intent.entityId);
+    if(!target){issues.push({code:'BEHAVIOR_INTENT_TARGET_MISSING',targetId:intent.entityId});continue;}
+    if(!target.assetId){issues.push({code:'BEHAVIOR_INTENT_TARGET_UNRESOLVED',targetId:intent.entityId});continue;}
+    const actions=new Set((getManifest?.(target.assetId)?.actions||[]).map((action)=>String(action).toUpperCase()));
+    for(const capability of intent.capabilities){
+      if(!actions.has(capability)) issues.push({code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',targetId:intent.entityId,capability,assetId:target.assetId});
+    }
+  }
   for(const command of bundle.behaviorGraph.commands){
     const targetId=command.targetId;
     const target=targetId?byId.get(targetId):null;
