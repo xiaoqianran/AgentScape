@@ -133,7 +133,9 @@ describe('generated world pipeline',()=>{
       spawn:vi.fn(async(assetId,{position:at,id})=>{records.set(id,{id,assetId,manifest:assets.getManifest(assetId),object:{position:position(at)}});return id;}),
       interactions:{place:vi.fn(),move},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),
-      store:{get:(id)=>records.get(id)}
+      store:{get:(id)=>records.get(id)},
+      currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},
+      lastAcceptanceBundle:{worldRevisionId:'rev-old',result:{status:'world-accepted'}}
     };
     const result=await createWorldPipeline(runtime).run({
       name:'Near Layout',assets:[{id:'table_01',assetId:'near_table'},{id:'cabinet_01',assetId:'near_cabinet'}],
@@ -159,7 +161,9 @@ describe('generated world pipeline',()=>{
       spawn:vi.fn(async(assetId,{id})=>{records.set(id,{id,assetId,state:{enabled:false}});return id;}),
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),
-      store:{get:(id)=>records.get(id)}
+      store:{get:(id)=>records.get(id)},
+      currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},
+      lastAcceptanceBundle:{worldRevisionId:'rev-old',result:{status:'world-accepted'}}
     };
     const result=await createWorldPipeline(runtime).run({
       schema:'agentscape.world-ir',schemaVersion:1,
@@ -175,6 +179,9 @@ describe('generated world pipeline',()=>{
       findings:[{source:'world-acceptance',code:'A_STATE_MISMATCH',worldRevisionId:'rev-accept'}]
     });
     expect(result.state.artifacts.revisionContext.subgraph.entities.map((entity)=>entity.id)).toEqual(['box_01']);
+    expect(result.state.artifacts.acceptanceEvidence).toMatchObject({worldRevisionId:'rev-accept',result:{status:'world-incomplete'}});
+    expect(runtime.currentWorldRevision).toEqual({revision:{id:'rev-old'},provenance:{source:'existing'}});
+    expect(runtime.lastAcceptanceBundle).toEqual({worldRevisionId:'rev-old',result:{status:'world-accepted'}});
   });
 
 
@@ -211,7 +218,7 @@ describe('generated world pipeline',()=>{
     const assets=new AssetManager();
     assets.registerManifest({id:'static-door',type:'fixture',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.4,.8,.1]}]}});
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:0,relations:0}};
-    const runtime={events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()},currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},restoredAcceptanceEvidence:{worldRevisionId:'rev-old'}};
+    const runtime={events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()},currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},restoredAcceptanceEvidence:{worldRevisionId:'rev-old'},lastAcceptanceBundle:{worldRevisionId:'rev-old',result:{status:'world-accepted'}}};
     const result=await createWorldPipeline(runtime).run({
       schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-behavior-reject'},provenance:{source:'planner'},intent:{name:'Behavior Reject'},
       entities:[{id:'door_01',asset:{assetId:'static-door'},capabilityIntent:['open']}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[{id:'door-exists',kind:'object-exists',targetId:'door_01'}]
@@ -224,7 +231,7 @@ describe('generated world pipeline',()=>{
     expect(result.state.reports.worldAcceptance).toEqual({status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED'});
     expect(result.state.reports.worldAdmission.acceptance).toEqual({status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED'});
     expect(result.state.artifacts).not.toHaveProperty('acceptanceEvidence');
-    expect(runtime.lastAcceptanceBundle).toBeNull();
+    expect(runtime.lastAcceptanceBundle).toEqual({worldRevisionId:'rev-old',result:{status:'world-accepted'}});
     expect(result.state.artifacts.revisionContext).toMatchObject({
       baseRevisionId:'rev-behavior-reject',affected:{seedEntityIds:['door_01'],editableEntityIds:['door_01']},
       findings:[{source:'world-behavior-admission',code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',affectedObjects:['door_01']}]
@@ -246,6 +253,8 @@ describe('generated world pipeline',()=>{
     expect(result.state.reports.physicsAdmission).toMatchObject({status:'ready',backend:{identity:'test'}});
     expect(result.state.reports.worldAdmission).toMatchObject({status:'ready',physics:{status:'ready'}});
     expect(result.state.reports.worldAcceptance.checks[0].evidence.validation).toEqual(result.state.reports.validationAfterRepair);
+    expect(runtime.lastAcceptanceBundle).toEqual(result.state.artifacts.acceptanceEvidence);
+    expect(runtime.lastAcceptanceBundle).toMatchObject({worldRevisionId:'rev-physics',result:{status:'world-accepted'}});
     expect(runtime.validator.run).toHaveBeenCalledOnce();
     expect(runtime.spawn).toHaveBeenCalledOnce();
     expect(runtime.currentPhysicsRequirements).toEqual(result.state.artifacts.physicsRequirements);
@@ -256,7 +265,7 @@ describe('generated world pipeline',()=>{
     assets.registerManifest({id:'soft-fixture',type:'object',source:{kind:'builtin'},actions:['move'],physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.4,.4,.4]}]}});
     const backend=new PhysicsBackend('rigid-only',['rigid-body','collision'],{executionModes:['realtime'],qualities:{realtime:true,deterministic:true}});
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:0,relations:0}};
-    const runtime={events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{backend,manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}};
+    const runtime={events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{backend,manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()},currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},lastAcceptanceBundle:{worldRevisionId:'rev-old',result:{status:'world-accepted'}}};
     const result=await createWorldPipeline(runtime).run({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-soft'},provenance:{source:'planner'},intent:{name:'Soft World'},entities:[{id:'soft_01',asset:{assetId:'soft-fixture'},physicsRequirement:{bodyClass:'soft',executionMode:'realtime'}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[{id:'soft-exists',kind:'object-exists',targetId:'soft_01'}]});
     expect(result.state.reports.physicsAdmission).toMatchObject({status:'rejected',issues:[{code:'PHYSICS_BACKEND_CAPABILITY_MISSING',entityId:'soft_01',capability:'soft-body'}]});
     expect(result.state.reports.relationAdmission).toMatchObject({status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED'});
@@ -266,7 +275,7 @@ describe('generated world pipeline',()=>{
     expect(result.state.reports.worldAdmission).toMatchObject({status:'rejected',reasons:['PHYSICS_BACKEND_CAPABILITY_MISSING'],acceptance:{status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED'}});
     expect(result.state.reports.worldAcceptance).toEqual({status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED'});
     expect(result.state.artifacts).not.toHaveProperty('acceptanceEvidence');
-    expect(runtime.lastAcceptanceBundle).toBeNull();
+    expect(runtime.lastAcceptanceBundle).toEqual({worldRevisionId:'rev-old',result:{status:'world-accepted'}});
     expect(result.state.artifacts.revisionContext).toMatchObject({
       baseRevisionId:'rev-soft',affected:{seedEntityIds:['soft_01'],editableEntityIds:['soft_01']},
       findings:[{source:'world-physics-admission',code:'PHYSICS_BACKEND_CAPABILITY_MISSING',affectedObjects:['soft_01']}]

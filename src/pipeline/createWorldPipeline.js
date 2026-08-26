@@ -198,7 +198,6 @@ const createPipeline=(runtime,compileInput)=>{
     const upstreamAdmissionRejected=[assetAdmission,layoutAdmission,behaviorAdmission,physicsAdmission,relationAdmission]
       .some((admission)=>admission.status==='rejected');
     let worldAcceptance=null;
-    runtime.lastAcceptanceBundle=null;
     delete state.artifacts.acceptanceEvidence;
     if(acceptanceGraph){
       if(upstreamAdmissionRejected){
@@ -209,7 +208,6 @@ const createPipeline=(runtime,compileInput)=>{
         state.reports.worldAcceptance=worldAcceptance;
         const bundle=buildAcceptanceEvidenceBundle(acceptanceGraph,worldAcceptance,{worldRevisionId:worldIR?.revision?.id || null,source:'world-pipeline',provenance:worldIR?.provenance || null});
         state.artifacts.acceptanceEvidence=structuredClone(bundle);
-        runtime.lastAcceptanceBundle=structuredClone(bundle);
         runtime.trace?.emit?.('world.acceptance',{bundle:structuredClone(bundle)},{actor:'world-pipeline'});
       }
     }
@@ -253,6 +251,7 @@ const createPipeline=(runtime,compileInput)=>{
     if(status!=='rejected'){
       runtime.currentWorldRevision={revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)};
       runtime.restoredAcceptanceEvidence=null;
+      runtime.lastAcceptanceBundle=state.artifacts.acceptanceEvidence?structuredClone(state.artifacts.acceptanceEvidence):null;
       runtime.currentBehaviorBundle=structuredClone(state.artifacts.behaviorBundle);
       runtime.currentPhysicsRequirements=structuredClone(state.artifacts.physicsRequirements);
       runtime.loadRuleGraph?.(state.artifacts.behaviorBundle.ruleGraph);
