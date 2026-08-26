@@ -19,3 +19,9 @@
 [submodule "sdk/python"]
 	path = sdk/python
 	url = https://github.com/xiaoqianran/AgentScape-client
+[submodule "providers/embodied/runtime"]
+	path = providers/embodied/runtime
+	url = https://github.com/xiaoqianran/modal-build
+[submodule "upstream/EmbodiedGen"]
+	path = upstream/EmbodiedGen
+	url = https://github.com/HorizonRobotics/EmbodiedGen
