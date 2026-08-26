@@ -8,6 +8,19 @@ import { compileAdmissionFindings } from '../validation/Finding.js';
 import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
 import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
 
+const executionAdmissionRejected=(state)=>[
+  state.reports.assetAdmission,
+  state.reports.layoutAdmission,
+  state.reports.behaviorAdmission,
+  state.reports.physicsAdmission,
+  state.reports.relationAdmission
+].some((admission)=>admission?.status==='rejected');
+
+const validationNotEvaluated=()=>({
+  status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED',
+  counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[]
+});
+
 const createPipeline=(runtime,compileInput)=>{
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
 
@@ -150,24 +163,24 @@ const createPipeline=(runtime,compileInput)=>{
   });
 
   pipeline.register('validate', async (state) => {
-    state.reports.validation = runtime.validator.run();
+    state.reports.validation=executionAdmissionRejected(state)?validationNotEvaluated():runtime.validator.run();
     return state;
   });
 
   pipeline.register('repair', async (state) => {
-    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected' || state.reports.behaviorAdmission?.status==='rejected' || state.reports.physicsAdmission?.status==='rejected' || state.reports.relationAdmission?.status==='rejected') {
-      state.reports.validationAfterRepair=state.reports.validation || runtime.validator.run();
+    if(executionAdmissionRejected(state)){
+      state.reports.validationAfterRepair=state.reports.validation || validationNotEvaluated();
       return state;
     }
-    const report = state.reports.validation || runtime.validator.run();
-    if (report.counts.hard) state.reports.repair = await runtime.repair.repair(report);
-    state.reports.validationAfterRepair = runtime.validator.run();
+    const report=state.reports.validation || runtime.validator.run();
+    if(report.counts.hard) state.reports.repair=await runtime.repair.repair(report);
+    state.reports.validationAfterRepair=runtime.validator.run();
     return state;
   });
 
   pipeline.register('finalize', async (state) => {
     runtime.sceneGraph.update();
-    const validation=state.reports.validationAfterRepair || state.reports.validation || runtime.validator.run();
+    const validation=state.reports.validationAfterRepair || state.reports.validation || (executionAdmissionRejected(state)?validationNotEvaluated():runtime.validator.run());
     const assetAdmission=state.reports.assetAdmission || { status:'ready', unresolved:[], provisional:[] };
     const layoutAdmission=state.reports.layoutAdmission || {status:'ready',placements:[],issues:[]};
     const relationAdmission=state.reports.relationAdmission || {status:'ready',applied:[],issues:[]};
