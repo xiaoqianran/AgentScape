@@ -1,4 +1,4 @@
-import { normalizeWorldIR } from './WorldIR.js';
+import { normalizeWorldIR, upgradeLegacyWorldSpec } from './WorldIR.js';
 import { normalizeWorldSpec } from './WorldSpec.js';
 import { compileWorldBehaviorBundle } from './WorldBehaviorCompiler.js';
 import { compileWorldPhysicsRequirements } from './WorldPhysicsAdmission.js';
@@ -93,6 +93,12 @@ const compatibilityWorldSpec = (worldIR) => normalizeWorldSpec({
 
 export function projectWorldIRToWorldSpec(input) {
   return compatibilityWorldSpec(assertWorldIRReferences(normalizeWorldIR(input)));
+}
+
+export function compileWorldInput(input) {
+  return input?.schema==='agentscape.world-ir'
+    ? compileWorldIR(input)
+    : compileWorldIR(upgradeLegacyWorldSpec(input));
 }
 
 export function compileWorldIR(input) {

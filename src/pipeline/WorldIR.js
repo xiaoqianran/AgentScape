@@ -90,11 +90,19 @@ const fromWorldSpec=(input)=>{
   };
 };
 
+export function upgradeLegacyWorldSpec(input={}){
+  if(!input||typeof input!=='object'||Array.isArray(input)) throw new TypeError('Legacy WorldSpec must be an object');
+  const legacy=input.schema===1?{...input}:input;
+  if(legacy!==input) delete legacy.schema;
+  return fromWorldSpec(legacy);
+}
+
 export function normalizeWorldIR(input={}){
   if(!input||typeof input!=='object'||Array.isArray(input)) throw new TypeError('WorldIR must be an object');
   if(input.schema!==WORLD_IR_SCHEMA){
-    if(input.schema===1){ const legacy={...input}; delete legacy.schema; return fromWorldSpec(legacy); }
-    return fromWorldSpec(input);
+    const error=new TypeError(`WorldIR schema must be ${WORLD_IR_SCHEMA}`);
+    error.code='WORLD_IR_SCHEMA_REQUIRED';
+    throw error;
   }
   assertKnownKeys(input,TOP_LEVEL_KEYS,'WorldIR');
   if(input.schemaVersion!==WORLD_IR_VERSION) throw new TypeError(`Unsupported WorldIR version: ${input.schemaVersion}`);

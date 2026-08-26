@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeWorldSpec } from '../src/pipeline/WorldSpec.js';
-import { WORLD_IR_SCHEMA, WORLD_IR_VERSION, normalizeWorldIR, parseWorldIR, serializeWorldIR } from '../src/pipeline/WorldIR.js';
-import { compileWorldIR, projectWorldIRToWorldSpec } from '../src/pipeline/WorldCompilation.js';
+import { WORLD_IR_SCHEMA, WORLD_IR_VERSION, normalizeWorldIR, parseWorldIR, serializeWorldIR, upgradeLegacyWorldSpec } from '../src/pipeline/WorldIR.js';
+import { compileWorldIR, compileWorldInput, projectWorldIRToWorldSpec } from '../src/pipeline/WorldCompilation.js';
 
 describe('WorldIR',()=>{
-  it('normalizes legacy WorldSpec and round-trips the executable plan',()=>{
+  it('keeps legacy WorldSpec behind an explicit compatibility upgrade',()=>{
     const legacy={name:'AI Lab',description:'Move the cup',generation:{provider:'embodiedgen',generate:true},assets:[{id:'bench_01',type:'workbench',position:[1,0,2]},{id:'cup_01',assetId:'cup',generate:false}],relations:[{subject:'cup_01',predicate:'on',object:'bench_01',surfaceId:'top'}]};
-    const ir=normalizeWorldIR(legacy);
+    let failure; try{normalizeWorldIR(legacy);}catch(error){failure=error;}
+    expect(failure).toMatchObject({code:'WORLD_IR_SCHEMA_REQUIRED'});
+    const ir=upgradeLegacyWorldSpec(legacy);
     expect(ir).toMatchObject({schema:WORLD_IR_SCHEMA,schemaVersion:WORLD_IR_VERSION,revision:{id:'legacy-root'},provenance:{source:'legacy-world-spec',evidenceRefs:[]},intent:{name:'AI Lab',description:'Move the cup'}});
+    expect(compileWorldInput(legacy).worldIR).toEqual(normalizeWorldIR(ir));
     expect(projectWorldIRToWorldSpec(ir)).toEqual(normalizeWorldSpec(legacy));
   });
   it('normalizes revision, provenance, physics requirements, capability intent, rules and acceptance',()=>{
