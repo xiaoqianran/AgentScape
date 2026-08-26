@@ -21,6 +21,10 @@ const validationNotEvaluated=()=>({
   counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[]
 });
 
+const admissionNotEvaluated=(reason='UPSTREAM_ADMISSION_REJECTED',extra={})=>({
+  status:'not-evaluated',reason,...extra
+});
+
 const createPipeline=(runtime,compileInput)=>{
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
 
@@ -78,7 +82,7 @@ const createPipeline=(runtime,compileInput)=>{
 
   pipeline.register('compose_layout', async (state) => {
     if (state.reports.assetAdmission?.status==='rejected') {
-      state.reports.layoutAdmission={status:'rejected',reason:'ASSET_ADMISSION_REJECTED',placements:[],issues:[]};
+      state.reports.layoutAdmission=admissionNotEvaluated('UPSTREAM_ASSET_ADMISSION_REJECTED',{placements:[],issues:[]});
       return state;
     }
     const report=composeWorldLayout(state.artifacts.assets || [],{
@@ -99,7 +103,7 @@ const createPipeline=(runtime,compileInput)=>{
 
   pipeline.register('behavior_admission', async (state) => {
     if(state.reports.assetAdmission?.status==='rejected'){
-      state.reports.behaviorAdmission={status:'rejected',reason:'ASSET_ADMISSION_REJECTED',issues:[]};
+      state.reports.behaviorAdmission=admissionNotEvaluated('UPSTREAM_ASSET_ADMISSION_REJECTED',{issues:[]});
       return state;
     }
     state.reports.behaviorAdmission=admitWorldBehavior(state.artifacts.behaviorBundle,{resolvedAssets:state.artifacts.assets||[],getManifest:(assetId)=>runtime.assets.getManifest(assetId)});
@@ -108,7 +112,7 @@ const createPipeline=(runtime,compileInput)=>{
 
   pipeline.register('physics_admission', async (state) => {
     if(state.reports.assetAdmission?.status==='rejected'){
-      state.reports.physicsAdmission={status:'rejected',reason:'ASSET_ADMISSION_REJECTED',backend:null,requirements:structuredClone(state.artifacts.physicsRequirements?.requirements||[]),issues:[]};
+      state.reports.physicsAdmission=admissionNotEvaluated('UPSTREAM_ASSET_ADMISSION_REJECTED',{backend:null,requirements:structuredClone(state.artifacts.physicsRequirements?.requirements||[]),issues:[]});
       return state;
     }
     state.reports.physicsAdmission=admitWorldPhysics(state.artifacts.physicsRequirements,{backend:runtime.physics?.backend||null,resolvedAssets:state.artifacts.assets||[],getManifest:(assetId)=>runtime.assets.getManifest(assetId)});
@@ -133,7 +137,10 @@ const createPipeline=(runtime,compileInput)=>{
   });
 
   pipeline.register('apply_relations', async (state) => {
-    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected' || state.reports.behaviorAdmission?.status==='rejected' || state.reports.physicsAdmission?.status==='rejected') return state;
+    if (state.reports.assetAdmission?.status==='rejected' || state.reports.layoutAdmission?.status==='rejected' || state.reports.behaviorAdmission?.status==='rejected' || state.reports.physicsAdmission?.status==='rejected') {
+      state.reports.relationAdmission=admissionNotEvaluated('UPSTREAM_ADMISSION_REJECTED',{applied:[],issues:[]});
+      return state;
+    }
     const applied=[],issues=[];
     state.reports.relationAdmission={status:'ready',applied,issues};
     for (const relation of state.artifacts.compilation?.relations || []) {
@@ -183,7 +190,7 @@ const createPipeline=(runtime,compileInput)=>{
     const validation=state.reports.validationAfterRepair || state.reports.validation || (executionAdmissionRejected(state)?validationNotEvaluated():runtime.validator.run());
     const assetAdmission=state.reports.assetAdmission || { status:'ready', unresolved:[], provisional:[] };
     const layoutAdmission=state.reports.layoutAdmission || {status:'ready',placements:[],issues:[]};
-    const relationAdmission=state.reports.relationAdmission || {status:'ready',applied:[],issues:[]};
+    const relationAdmission=state.reports.relationAdmission || admissionNotEvaluated('RELATION_STAGE_NOT_RUN',{applied:[],issues:[]});
     const behaviorAdmission=state.reports.behaviorAdmission || {status:'ready',issues:[]};
     const physicsAdmission=state.reports.physicsAdmission || {status:'ready',backend:null,requirements:[],issues:[]};
     const worldIR=state.artifacts.worldIR;
@@ -219,8 +226,8 @@ const createPipeline=(runtime,compileInput)=>{
         ...(assetAdmission.status==='provisional'?['ASSET_PROVISIONAL']:[]),
         ...(layoutAdmission.status==='rejected'?[layoutAdmission.reason || 'LAYOUT_REJECTED']:[]),
         ...(layoutAdmission.status==='provisional'?['LAYOUT_PROVISIONAL']:[]),
-        ...(behaviorAdmission.status==='rejected'&&behaviorAdmission.reason!=='ASSET_ADMISSION_REJECTED'?[behaviorAdmission.reason || behaviorAdmission.issues?.[0]?.code || 'BEHAVIOR_REJECTED']:[]),
-        ...(physicsAdmission.status==='rejected'&&physicsAdmission.reason!=='ASSET_ADMISSION_REJECTED'?[physicsAdmission.reason || physicsAdmission.issues?.[0]?.code || 'PHYSICS_REJECTED']:[]),
+        ...(behaviorAdmission.status==='rejected'?[behaviorAdmission.reason || behaviorAdmission.issues?.[0]?.code || 'BEHAVIOR_REJECTED']:[]),
+        ...(physicsAdmission.status==='rejected'?[physicsAdmission.reason || physicsAdmission.issues?.[0]?.code || 'PHYSICS_REJECTED']:[]),
         ...(relationAdmission.status==='rejected'?[relationAdmission.reason || 'RELATION_REJECTED']:[]),
         ...(acceptanceRejected?['WORLD_ACCEPTANCE_FAILED']:[])
       ],
@@ -236,9 +243,9 @@ const createPipeline=(runtime,compileInput)=>{
     const revisionFindings=[
       ...(validation.findings||[]).filter((finding)=>finding.severity==='hard'),
       ...compileAdmissionFindings(assetAdmission,{stage:'asset',...admissionFindingOptions}),
-      ...(layoutAdmission.reason==='ASSET_ADMISSION_REJECTED'?[]:compileAdmissionFindings(layoutAdmission,{stage:'layout',...admissionFindingOptions})),
-      ...(behaviorAdmission.reason==='ASSET_ADMISSION_REJECTED'?[]:compileAdmissionFindings(behaviorAdmission,{stage:'behavior',...admissionFindingOptions})),
-      ...(physicsAdmission.reason==='ASSET_ADMISSION_REJECTED'?[]:compileAdmissionFindings(physicsAdmission,{stage:'physics',...admissionFindingOptions})),
+      ...compileAdmissionFindings(layoutAdmission,{stage:'layout',...admissionFindingOptions}),
+      ...compileAdmissionFindings(behaviorAdmission,{stage:'behavior',...admissionFindingOptions}),
+      ...compileAdmissionFindings(physicsAdmission,{stage:'physics',...admissionFindingOptions}),
       ...compileAdmissionFindings(relationAdmission,{stage:'relation',...admissionFindingOptions}),
       ...(state.artifacts.acceptanceEvidence?.findings||[])
     ];
