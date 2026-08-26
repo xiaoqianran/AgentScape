@@ -133,16 +133,20 @@ const behaviorProposal=()=>{
 };
 const behaviorRuntime=({revisionId='behavior-rev-1',actions=['pickup','place','move'],assetId='crate'}={})=>{
   const record={id:'box',assetId,state:{},object:{position:{toArray:()=>[0,0,0]}}};
-  return {
+  const observedRevisions=[];
+  let runtimeRef;
+  const runtime={
     currentWorldRevision:{revision:{id:revisionId},provenance:{source:'planner'}},
     currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{requirements:[]},lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
     worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
     store:{get:vi.fn(()=>record)},assets:{getManifest:vi.fn(()=>({id:'crate',actions}))},
-    validator:{run:vi.fn(()=>({ok:true,counts:{hard:0,advisory:0},findings:[]}))},
+    validator:{run:vi.fn(()=>{observedRevisions.push(runtimeRef.currentWorldRevision?.revision?.id || null);return {ok:true,counts:{hard:0,advisory:0},findings:[]};})},
     sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},
-    loadRuleGraph:vi.fn(),trace:{emit:vi.fn()}
+    loadRuleGraph:vi.fn(),trace:{emit:vi.fn()},_observedRevisions:observedRevisions
   };
+  runtimeRef=runtime;
+  return runtime;
 };
 
 it('incrementally recompiles capability intent when current assets prove the new behavior contract',async()=>{
@@ -152,6 +156,7 @@ it('incrementally recompiles capability intent when current assets prove the new
   expect(rt.worldPipeline.run).not.toHaveBeenCalled();
   expect(rt.currentWorldRevision).toMatchObject({revision:{id:'behavior-rev-2',parentId:'behavior-rev-1'}});
   expect(rt.currentBehaviorBundle.capabilityIntents).toEqual([{entityId:'box',capabilities:['PICKUP','PLACE']}]);
+  expect(rt._observedRevisions).toEqual(['behavior-rev-1']);
   expect(rt.restoredAcceptanceEvidence).toBeNull();
   expect(result).toMatchObject({
     status:'world-ready',rolledBack:false,
@@ -195,7 +200,7 @@ it('does not carry interaction verification evidence across an incremental behav
   recordInteractionEvidence(rt,{targetId:'box',capability:'PICKUP',verified:true,source:'test'});
   const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
   expect(result).toMatchObject({
-    status:'world-rejected',rolledBack:true,reason:'WORLD_ACCEPTANCE_FAILED',
+    status:'world-rejected',rolledBack:false,reason:'WORLD_ACCEPTANCE_FAILED',
     admission:{status:'rejected',acceptance:{status:'world-incomplete'}},
     recompile:{mode:'incremental-behavior',freshVerification:true,committed:false}
   });
@@ -221,20 +226,24 @@ const physicsProposal=()=>{
 };
 const physicsRuntime=({revisionId='physics-rev-1',capabilities=['rigid-body','collision'],deterministic=true}={})=>{
   const record={id:'box',assetId:'crate',state:{},object:{position:{toArray:()=>[0,0,0]}}};
+  const observedRevisions=[];
+  let runtimeRef;
   const backend={
     identity:'mock-physics',capabilities:[...capabilities],executionModes:['realtime'],qualities:{realtime:true,deterministic},
     hasCapability:vi.fn((capability)=>capabilities.includes(capability)),supportsExecutionMode:vi.fn((mode)=>mode==='realtime')
   };
-  return {
+  const runtime={
     currentWorldRevision:{revision:{id:revisionId},provenance:{source:'planner'}},
     currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{worldRevisionId:'physics-rev-1',requirements:[{entityId:'box',bodyClass:'rigid'}]},
     lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
     worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
     store:{get:vi.fn(()=>record)},assets:{getManifest:vi.fn(()=>({id:'crate',actions:['move'],physics:{body:'dynamic'}}))},
-    physics:{backend},validator:{run:vi.fn(()=>({ok:true,counts:{hard:0,advisory:0},findings:[]}))},
-    sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},loadRuleGraph:vi.fn(),trace:{emit:vi.fn()}
+    physics:{backend},validator:{run:vi.fn(()=>{observedRevisions.push(runtimeRef.currentWorldRevision?.revision?.id || null);return {ok:true,counts:{hard:0,advisory:0},findings:[]};})},
+    sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},loadRuleGraph:vi.fn(),trace:{emit:vi.fn()},_observedRevisions:observedRevisions
   };
+  runtimeRef=runtime;
+  return runtime;
 };
 
 it('incrementally admits a physics requirement when current backend and asset evidence already satisfy it',async()=>{
@@ -246,6 +255,7 @@ it('incrementally admits a physics requirement when current backend and asset ev
   expect(rt.currentPhysicsRequirements).toMatchObject({
     worldRevisionId:'physics-rev-2',requirements:[{entityId:'box',bodyClass:'rigid',requiredCapabilities:['rigid-body','collision']}]
   });
+  expect(rt._observedRevisions).toEqual(['physics-rev-1']);
   expect(result).toMatchObject({
     status:'world-ready',rolledBack:false,
     admission:{status:'ready',physics:{status:'ready',backend:{identity:'mock-physics'}}},
@@ -300,29 +310,36 @@ const vector=(initial)=>{
   return {toArray:()=>[...value],fromArray:(next)=>{value=[...next];}};
 };
 const positionRuntime=({revisionId='position-rev-1',boxPosition=[0,.01,0],poseClear=()=>({checked:true,clear:true,blockedBy:[]}),validation={ok:true,counts:{hard:0,advisory:0},findings:[]}}={})=>{
+  const observedRevisions=[];
+  let runtimeRef;
   const records={
     box:{id:'box',assetId:'crate',state:{},manifest:positionManifest('crate'),object:{position:vector(boxPosition)}},
     table:{id:'table',assetId:'table',state:{},manifest:positionManifest('table'),object:{position:vector([3,.01,0])}}
   };
   const interactions={move:vi.fn((id,position)=>{records[id].object.position.fromArray(position);})};
-  return {
+  const runtime={
     currentWorldRevision:{revision:{id:revisionId},provenance:{source:'planner'}},
     currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{requirements:[]},lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
     worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
     store:{get:vi.fn((id)=>records[id])},assets:{getManifest:vi.fn((id)=>positionManifest(id))},interactions,
-    physics:{manifestPoseClear:vi.fn(poseClear)},environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
-    validator:{run:vi.fn(()=>structuredClone(validation))},sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},
-    loadRuleGraph:vi.fn(),trace:{emit:vi.fn()}
+    physics:{manifestPoseClear:vi.fn(poseClear),setPosition:vi.fn()},navigation:{invalidateIfStatic:vi.fn()},environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
+    validator:{run:vi.fn(()=>{observedRevisions.push(runtimeRef.currentWorldRevision?.revision?.id || null);return structuredClone(validation);})},sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},
+    loadRuleGraph:vi.fn(),trace:{emit:vi.fn()},_observedRevisions:observedRevisions
   };
+  runtimeRef=runtime;
+  return runtime;
 };
 
 it('incrementally moves one relation-free entity only after shared layout/Physics preflight',async()=>{
   const rt=positionRuntime();
   const base=positionRevision(),patch=positionProposal(base);
   const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
-  expect(rt.interactions.move).toHaveBeenCalledWith('box',[-2,.01,0]);
+  expect(rt.interactions.move).not.toHaveBeenCalled();
+  expect(rt.physics.setPosition).toHaveBeenCalledWith('box',[-2,.01,0]);
+  expect(rt.navigation.invalidateIfStatic).toHaveBeenCalledWith(expect.objectContaining({id:'box'}),'world.revision.position');
   expect(rt.physics.manifestPoseClear).toHaveBeenCalledWith(expect.objectContaining({id:'crate'}),[-2,.01,0],{excludeIds:['box']});
+  expect(rt._observedRevisions).toEqual(['position-rev-1']);
   expect(rt.clearObjects).not.toHaveBeenCalled();
   expect(rt.worldPipeline.run).not.toHaveBeenCalled();
   expect(result).toMatchObject({

@@ -28,6 +28,15 @@ const restoreAuthority=(runtime,previous)=>{
   runtime.loadRuleGraph?.(previous.behavior?.ruleGraph || []);
 };
 
+const commitAuthority=(runtime,nextIR,compilation,pipeline)=>{
+  runtime.currentWorldRevision={revision:clone(nextIR.revision),provenance:clone(nextIR.provenance)};
+  runtime.restoredAcceptanceEvidence=null;
+  runtime.lastAcceptanceBundle=clone(pipeline?.state?.artifacts?.acceptanceEvidence) || null;
+  runtime.currentBehaviorBundle=clone(compilation.behaviorBundle);
+  runtime.currentPhysicsRequirements=clone(compilation.physicsRequirements);
+  runtime.loadRuleGraph?.(compilation.behaviorBundle.ruleGraph);
+};
+
 const canIncrementState=(runtime,baseWorldIR,impact)=>{
   if(impact.mode!=='incremental-state') return false;
   if(runtime.currentWorldRevision?.revision?.id!==baseWorldIR.revision?.id) return false;
@@ -71,7 +80,7 @@ const vec3Equal=(a,b,tolerance=1e-6)=>Array.isArray(a)&&Array.isArray(b)&&a.leng
 const canIncrementPosition=(runtime,baseWorldIR,nextIR,impact)=>{
   if(impact.mode!=='incremental-position' || impact.affectedEntityIds.length!==1) return false;
   if(runtime.currentWorldRevision?.revision?.id!==baseWorldIR.revision?.id) return false;
-  if(!runtime.store?.get || !runtime.assets?.getManifest || !runtime.interactions?.move || !runtime.physics?.manifestPoseClear || !runtime.validator?.run) return false;
+  if(!runtime.store?.get || !runtime.assets?.getManifest || !runtime.physics?.manifestPoseClear || !runtime.physics?.setPosition || !runtime.validator?.run) return false;
   const id=impact.affectedEntityIds[0];
   if(nextIR.spatial.relations.some((relation)=>relation.subject===id || relation.object===id)) return false;
   const baseEntity=baseWorldIR.entities.find((entity)=>entity.id===id);
@@ -99,6 +108,15 @@ const occupiedWorldPositions=(runtime,worldIR,excludeId)=>{
     occupied.push({id:entity.id,manifest,position});
   }
   return occupied;
+};
+
+const applyCandidatePosition=(runtime,id,position)=>{
+  const record=runtime.store.get(id);
+  record.object.position.fromArray(position);
+  runtime.physics.setPosition(id,position);
+  runtime.navigation?.invalidateIfStatic?.(record,'world.revision.position');
+  runtime.sceneGraph?.changed?.();
+  runtime.sceneGraph?.update?.();
 };
 
 const worldAdmission=(validation,acceptance,{behaviorAdmission=null,physicsAdmission=null,layoutAdmission=null}={})=>{
@@ -136,7 +154,6 @@ const verifyIncrementalRevision=(runtime,{compilation,nextIR,revisionId,source,b
   const acceptanceEvidence=acceptance
     ? buildAcceptanceEvidenceBundle(compilation.acceptanceGraph,acceptance,{worldRevisionId:revisionId,source,provenance:nextIR.provenance})
     : null;
-  runtime.lastAcceptanceBundle=acceptanceEvidence?clone(acceptanceEvidence):null;
   if(acceptanceEvidence) runtime.trace?.emit?.('world.acceptance',{bundle:clone(acceptanceEvidence)},{actor:'world-recompiler'});
 
   const admission=worldAdmission(validation,acceptance,{behaviorAdmission,physicsAdmission,layoutAdmission});
@@ -158,12 +175,6 @@ const verifyIncrementalRevision=(runtime,{compilation,nextIR,revisionId,source,b
 async function recompileInitialState(runtime,{nextIR,compilation,before,previous,baseRevisionId,revisionId,impact}){
   const started=performance.now();
   try{
-    runtime.currentWorldRevision={revision:clone(nextIR.revision),provenance:clone(nextIR.provenance)};
-    runtime.restoredAcceptanceEvidence=null;
-    runtime.currentBehaviorBundle=clone(compilation.behaviorBundle);
-    runtime.currentPhysicsRequirements=clone(compilation.physicsRequirements);
-    runtime.loadRuleGraph?.(compilation.behaviorBundle.ruleGraph);
-
     for(const edit of impact.affectedEntityIds){
       const entity=nextIR.entities.find((item)=>item.id===edit);
       runtime.restoreObjectState(edit,entity.initialState || {});
@@ -184,6 +195,7 @@ async function recompileInitialState(runtime,{nextIR,compilation,before,previous
         recompile:{canonical:true,mode:'incremental-state',freshVerification:true,committed:false,affectedEntityIds:[...impact.affectedEntityIds]}
       };
     }
+    commitAuthority(runtime,nextIR,compilation,pipeline);
     return {
       status:`world-${admission.status}`,rolledBack:false,
       baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
@@ -200,7 +212,7 @@ async function recompileInitialState(runtime,{nextIR,compilation,before,previous
 }
 
 
-async function recompileAuthorityOnly(runtime,{nextIR,compilation,previous,baseRevisionId,revisionId,impact}){
+async function recompileAuthorityOnly(runtime,{nextIR,compilation,baseRevisionId,revisionId,impact}){
   const started=performance.now();
   const resolvedAssets=currentResolvedAssets(runtime,nextIR);
   if(!resolvedAssets) return null;
@@ -227,31 +239,24 @@ async function recompileAuthorityOnly(runtime,{nextIR,compilation,previous,baseR
   }
 
   try{
-    runtime.currentWorldRevision={revision:clone(nextIR.revision),provenance:clone(nextIR.provenance)};
-    runtime.restoredAcceptanceEvidence=null;
-    runtime.currentBehaviorBundle=clone(compilation.behaviorBundle);
-    runtime.currentPhysicsRequirements=clone(compilation.physicsRequirements);
-    runtime.loadRuleGraph?.(compilation.behaviorBundle.ruleGraph);
-
     const {admission,pipeline}=verifyIncrementalRevision(runtime,{
       compilation,nextIR,revisionId,source:`world-${impact.mode}-recompile`,...admissionContext,
       timelineName:`incremental_${label}_revision`,started
     });
     if(admission.status==='rejected'){
-      restoreAuthority(runtime,previous);
       return {
-        status:'world-rejected',reason:admission.reasons[0]||'WORLD_REJECTED',rolledBack:true,
+        status:'world-rejected',reason:admission.reasons[0]||'WORLD_REJECTED',rolledBack:false,
         baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
         recompile:{canonical:true,mode:impact.mode,freshVerification:true,committed:false,affectedEntityIds:[...impact.affectedEntityIds]}
       };
     }
+    commitAuthority(runtime,nextIR,compilation,pipeline);
     return {
       status:`world-${admission.status}`,rolledBack:false,
       baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
       recompile:{canonical:true,mode:impact.mode,freshVerification:true,committed:true,affectedEntityIds:[...impact.affectedEntityIds]}
     };
   }catch(error){
-    restoreAuthority(runtime,previous);
     throw error;
   }
 }
@@ -292,14 +297,7 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
   }
 
   try{
-    runtime.currentWorldRevision={revision:clone(nextIR.revision),provenance:clone(nextIR.provenance)};
-    runtime.restoredAcceptanceEvidence=null;
-    runtime.currentBehaviorBundle=clone(compilation.behaviorBundle);
-    runtime.currentPhysicsRequirements=clone(compilation.physicsRequirements);
-    runtime.loadRuleGraph?.(compilation.behaviorBundle.ruleGraph);
-    runtime.interactions.move(id,position);
-    runtime.sceneGraph?.changed?.();
-    runtime.sceneGraph?.update?.();
+    applyCandidatePosition(runtime,id,position);
 
     const {admission,pipeline}=verifyIncrementalRevision(runtime,{
       compilation,nextIR,revisionId,source:'world-incremental-position-recompile',layoutAdmission,
@@ -314,6 +312,7 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
         recompile:{canonical:true,mode:'incremental-position',freshVerification:true,committed:false,affectedEntityIds:[id]}
       };
     }
+    commitAuthority(runtime,nextIR,compilation,pipeline);
     return {
       status:`world-${admission.status}`,rolledBack:false,
       baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
@@ -383,7 +382,7 @@ export async function recompileWorldRevision(runtime,{baseWorldIR,proposal,accep
     return recompileInitialState(runtime,{nextIR,compilation,before,previous,baseRevisionId,revisionId,impact});
   }
   if(canIncrementAuthority(runtime,baseWorldIR,nextIR,impact)){
-    const result=await recompileAuthorityOnly(runtime,{nextIR,compilation,previous,baseRevisionId,revisionId,impact});
+    const result=await recompileAuthorityOnly(runtime,{nextIR,compilation,baseRevisionId,revisionId,impact});
     if(result) return result;
   }
   if(canIncrementPosition(runtime,baseWorldIR,nextIR,impact)){
