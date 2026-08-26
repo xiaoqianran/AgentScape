@@ -13,12 +13,49 @@ import { SkillRegistry } from '../src/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../src/skills/registerCoreSkills.js';
 import { AgentTools } from '../src/agent/AgentTools.js';
 import { ToolCallingAgent } from '../src/agent/ToolCallingAgent.js';
-import { LocalPlannerGateway } from '../src/agent/gateway/LocalPlannerGateway.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
 
 const floorMesh=()=>{const m=new THREE.Mesh(new THREE.BoxGeometry(14,.2,10));m.position.y=-.1;m.updateMatrixWorld(true);return m;};
 const cupVisual=()=>{const g=new THREE.Group();const m=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.32,16));m.position.y=.16;g.add(m);return g;};
 const tableVisual=()=>{const g=new THREE.Group();const top=new THREE.Mesh(new THREE.BoxGeometry(2.4,.16,1.25));top.position.y=1;g.add(top);g.updateMatrixWorld(true);return g;};
+const scriptedGateway={
+  isConfigured:()=>true,
+  async complete({messages}){
+    const user=[...messages].reverse().find((message)=>message.role==='user');
+    const q=String(user?.content||'');
+    const toolMessages=messages.filter((message)=>message.role==='tool');
+    const latest=toolMessages.at(-1);
+    if(latest){
+      let value=null;
+      try { value=JSON.parse(latest.content||'null'); } catch {}
+      const state=value?._sequence?.outcome?.state;
+      if(state && !['verified','accepted'].includes(state)) return {message:'stopped after adverse outcome',toolCalls:[]};
+    }
+    const sequence=q.includes('先拿起 cup_01，再打开')
+      ? [
+          ['approachAndPickup',{actorId:'agent_01',targetId:'cup_01'}],
+          ['dropHeld',{actorId:'agent_01'}],
+          ['approachAndInteract',{actorId:'agent_01',targetId:'cabinet_01',action:'open'}],
+          ['approachAndPickup',{actorId:'agent_01',targetId:'cup_01'}],
+          ['approachAndPlace',{actorId:'agent_01',supportId:'table_01'}]
+        ]
+      : q.includes('让 agent_01 先拿起')
+        ? [
+            ['approachAndPickup',{actorId:'agent_01',targetId:'cup_01'}],
+            ['approachAndPlace',{actorId:'agent_01',supportId:'table_01'}]
+          ]
+        : [
+            ['approachAndInteract',{actorId:'agent_01',targetId:'cabinet_01',action:'open'}],
+            ['approachAndPickup',{actorId:'agent_01',targetId:'cup_01'}],
+            ['approachAndPlace',{actorId:'agent_01',supportId:'table_01'}]
+          ];
+    const next=sequence[toolMessages.length];
+    return next
+      ? {message:'',toolCalls:[{id:`script_${toolMessages.length}`,name:next[0],args:next[1]}]}
+      : {message:'done',toolCalls:[]};
+  }
+};
+
 const cabinetVisual=()=>{
   const root=new THREE.Group();
   const body=new THREE.Mesh(new THREE.BoxGeometry(1.7,2,.64)); body.position.set(0,1,-.04); body.name='Body'; root.add(body);
@@ -59,7 +96,7 @@ async function setup({blockedDoor=false}={}){
   };
   runtime.skills=registerCoreSkills(new SkillRegistry({policy,trace,runtime}),runtime);
   const tools=new AgentTools(runtime,{profile:'builder',actor:'agent_01'});
-  const agent=new ToolCallingAgent({tools,gateway:null,fallbackGateway:new LocalPlannerGateway(),maxSteps:8});
+  const agent=new ToolCallingAgent({tools,gateway:scriptedGateway,maxSteps:8});
   return {runtime,store,physics,spatial,navigation,locomotion,interactions,trace,mutate,tools,agent};
 }
 

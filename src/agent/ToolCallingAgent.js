@@ -97,24 +97,23 @@ function annotateResult(result, sequence) {
 }
 
 export class ToolCallingAgent {
-  constructor({ tools, gateway, fallbackGateway, log = () => {}, maxSteps = 8, maxRecoveryReadRounds = 4 }) {
+  constructor({ tools, gateway, log = () => {}, maxSteps = 8, maxRecoveryReadRounds = 4 }) {
     this.tools = tools;
     this.gateway = gateway;
-    this.fallbackGateway = fallbackGateway;
     this.log = log;
     this.maxSteps = maxSteps;
     this.maxRecoveryReadRounds = maxRecoveryReadRounds;
   }
 
-  get mode() { return this.gateway?.isConfigured() ? 'llm' : this.fallbackGateway ? 'fallback' : 'unconfigured'; }
+  get mode() { return this.gateway?.isConfigured() ? 'llm' : 'unconfigured'; }
 
-  async run(text, { forceFallback = false } = {}) {
+  async run(text) {
     this.log(`goal: ${text}`, 'goal');
     const messages = [
       { role:'system', content:SYSTEM_PROMPT },
       { role:'user', content:text }
     ];
-    const gateway = !forceFallback && this.gateway?.isConfigured() ? this.gateway : this.fallbackGateway;
+    const gateway = this.gateway?.isConfigured() ? this.gateway : null;
     if (!gateway) { const error=new Error('No agent gateway configured'); error.code='AGENT_GATEWAY_UNAVAILABLE'; throw error; }
 
     const execution = [];

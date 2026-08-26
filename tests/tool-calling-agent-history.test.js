@@ -12,7 +12,7 @@ it('carries assistant toolCalls into the next provider-neutral planning round', 
     })
   };
   const tools={definitions:()=>[{name:'listObjects',description:'list',parameters:{type:'object',properties:{}}}],call:vi.fn(async()=>[{id:'agent_01'}])};
-  const agent=new ToolCallingAgent({tools,gateway,fallbackGateway:null});
+  const agent=new ToolCallingAgent({tools,gateway});
   await expect(agent.run('inspect')).resolves.toMatchObject({message:'done',steps:2});
   expect(requests[1].messages).toEqual(expect.arrayContaining([
     {role:'assistant',content:'',toolCalls:[{id:'call_1',name:'listObjects',args:{}}]},
