@@ -545,3 +545,62 @@ it('carries rejected World IR revision and finding evidence into the next Runtim
   expect(result.taskStatus).toBe('incomplete');
   expect(result.unresolvedMutations).toHaveLength(1);
 });
+
+
+it('requires a Runtime-issued bounded revision proposal, rejects tampering, and resolves the base rejected world only after verified recompile',async()=>{
+  let round=0;
+  const semantic={intent:{name:'Repair Lab'},entities:[{id:'box',asset:{assetId:'crate'},transform:{position:[0,0,0]}}],spatial:{relations:[]},interactions:[],rules:[],acceptance:[]};
+  const worldIR={schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'world-r1'},provenance:{source:'agent-world-planner'},...semantic};
+  const revisionContext={
+    schema:'agentscape.world-revision-context',schemaVersion:1,baseRevisionId:'world-r1',findingIds:['finding-1'],findings:[],
+    affected:{seedEntityIds:['box'],contextEntityIds:['box'],editableEntityIds:['box'],missingEntityIds:[]},
+    subgraph:{entities:[{id:'box',asset:{assetId:'crate',query:'crate',generate:false},transform:{position:[0,0,0]},capabilityIntent:[],initialState:{}}],spatial:{relations:[],constraints:[]},interactions:[],acceptance:[]},rulesReviewRequired:false
+  };
+  const revisionProposal={
+    schema:'agentscape.world-revision-proposal',schemaVersion:1,status:'changed-plan-required',baseRevisionId:'world-r1',nextRevisionId:'world-r2',
+    findingIds:['finding-1'],affectedEntityIds:['box'],reason:'lift box',edits:[{kind:'set-position',entityId:'box',position:[0,.2,0]}]
+  };
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'p1',name:'proposeWorldIR',args:{proposal:semantic}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'w1',name:'runWorldPipeline',args:{plan:worldIR}}]};
+    if(round===3) return {message:'',toolCalls:[{id:'rp',name:'proposeWorldRevision',args:{request:{reason:'lift box',edits:[{kind:'set-position',entityId:'box',position:[0,.2,0]}]}}}]};
+    if(round===4) return {message:'',toolCalls:[{id:'tamper',name:'recompileWorldRevision',args:{proposal:{...revisionProposal,affectedEntityIds:['box','other']},acceptChangedPlan:true}}]};
+    if(round===5) return {message:'',toolCalls:[{id:'rc',name:'recompileWorldRevision',args:{proposal:revisionProposal,acceptChangedPlan:true}}]};
+    return {message:'world repaired',toolCalls:[]};
+  })};
+  const contexts=[];
+  const tools=makeTools({});
+  tools.definitions=()=>[
+    {name:'proposeWorldIR'},{name:'runWorldPipeline'},{name:'proposeWorldRevision'},{name:'recompileWorldRevision'}
+  ];
+  tools.executionPolicy=(name,result)=>({
+    mutates:['runWorldPipeline','recompileWorldRevision'].includes(name),
+    barrier:['runWorldPipeline','recompileWorldRevision'].includes(name),batchable:false,batchAcceptable:true,
+    outcome:classify(result)
+  });
+  tools.call=vi.fn(async(name,args,context)=>{
+    if(name==='listObjects') return [];
+    if(name==='proposeWorldIR') return {status:'world-proposal-ready',worldIR,summary:{worldRevisionId:'world-r1'}};
+    if(name==='runWorldPipeline') return {
+      status:'world-rejected',reason:'VALIDATION_HARD',admission:{status:'rejected',reasons:['VALIDATION_HARD']},
+      pipeline:{state:{artifacts:{worldIR,revisionContext}}}
+    };
+    if(name==='proposeWorldRevision'){
+      contexts.push({name,context:structuredClone(context)});
+      return {status:'world-revision-proposal-ready',proposal:revisionProposal};
+    }
+    if(name==='recompileWorldRevision'){
+      contexts.push({name,context:structuredClone(context)});
+      return {status:'world-ready',admission:{status:'ready'},worldIR:{...worldIR,revision:{id:'world-r2',parentId:'world-r1'}},pipeline:{state:{reports:{worldAdmission:{status:'ready'}}}}};
+    }
+    throw new Error(`unexpected tool ${name}`);
+  });
+
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:7}).run('build and repair lab');
+  expect(result.execution.find((entry)=>entry.reason==='WORLD_REVISION_PROPOSAL_TAMPERED')).toMatchObject({tool:'recompileWorldRevision',executed:false});
+  expect(contexts[0]).toMatchObject({name:'proposeWorldRevision',context:{worldRevisionRepair:{baseWorldIR:{revision:{id:'world-r1'}},revisionContext:{baseRevisionId:'world-r1',affected:{editableEntityIds:['box']}}}}});
+  expect(contexts[1]).toMatchObject({name:'recompileWorldRevision',context:{worldRevisionBaseIR:{revision:{id:'world-r1'}}}});
+  expect(tools.call.mock.calls.filter(([name])=>name==='recompileWorldRevision')).toHaveLength(1);
+  expect(result).toMatchObject({taskStatus:'completed',unresolvedMutations:[],lastMutation:{tool:'recompileWorldRevision',outcome:{state:'verified'}}});
+});

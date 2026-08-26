@@ -467,3 +467,36 @@ it('exposes a semantic-only World Planner proposal contract and seals identity i
   expect(registry.executionPolicy('proposeWorldIR',result.result)).toMatchObject({mutates:false,barrier:false,outcome:{state:'accepted'}});
   expect(r.mutate).not.toHaveBeenCalledWith('skill:proposeWorldIR',expect.any(Function),expect.anything());
 });
+
+
+it('keeps bounded WorldRevision scope Runtime-owned and removes baseWorldIR from the Agent contract',async()=>{
+  const r=runtime();
+  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+  const proposalDef=registry.definitions().find((item)=>item.name==='proposeWorldRevision');
+  const recompileDef=registry.definitions().find((item)=>item.name==='recompileWorldRevision');
+  expect(proposalDef.parameters).toMatchObject({required:['request'],properties:{request:{type:'object',required:['edits']}}});
+  expect(proposalDef.parameters.properties.request.properties).not.toHaveProperty('baseRevisionId');
+  expect(proposalDef.parameters.properties.request.properties).not.toHaveProperty('affectedEntityIds');
+  expect(recompileDef.parameters.required).toEqual(['proposal','acceptChangedPlan']);
+  expect(recompileDef.parameters.properties).not.toHaveProperty('baseWorldIR');
+
+  const baseWorldIR={
+    schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-1'},provenance:{source:'planner'},intent:{name:'Lab'},
+    entities:[{id:'box',asset:{assetId:'crate'},transform:{position:[0,0,0]}}],
+    spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]
+  };
+  const revisionContext={
+    schema:'agentscape.world-revision-context',schemaVersion:1,baseRevisionId:'rev-1',findingIds:['finding-1'],findings:[],
+    affected:{seedEntityIds:['box'],contextEntityIds:['box'],editableEntityIds:['box'],missingEntityIds:[]},
+    subgraph:{entities:[{id:'box',asset:{assetId:'crate',query:'crate',generate:false},transform:{position:[0,0,0]},capabilityIntent:[],initialState:{}}],spatial:{relations:[],constraints:[]},interactions:[],acceptance:[]},
+    rulesReviewRequired:false
+  };
+  const proposed=await registry.invoke('proposeWorldRevision',{request:{reason:'lift box',edits:[{kind:'set-position',entityId:'box',position:[0,.2,0]}]}},{
+    profile:'builder',actor:'planner-test',worldRevisionRepair:{baseWorldIR,revisionContext}
+  });
+  expect(proposed).toMatchObject({success:true,result:{status:'world-revision-proposal-ready',proposal:{baseRevisionId:'rev-1',affectedEntityIds:['box'],findingIds:['finding-1'],edits:[{kind:'set-position',entityId:'box',position:[0,.2,0]}]}}});
+  expect(proposed.result.proposal.nextRevisionId).toMatch(/^world-/);
+
+  const missingBase=await registry.invoke('recompileWorldRevision',{proposal:proposed.result.proposal,acceptChangedPlan:true},{profile:'builder',actor:'planner-test'});
+  expect(missingBase).toMatchObject({success:false,error:{code:'WORLD_REVISION_BASE_REQUIRED'}});
+});

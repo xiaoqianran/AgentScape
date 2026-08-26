@@ -8,6 +8,33 @@ export const WORLD_REVISION_VERSION=1;
 const clean=v=>typeof v==='string'?v.trim():'';
 const finiteVec3=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite)?v.map(Number):null;
 
+const text={type:'string',minLength:1};
+const scalar={anyOf:[{type:'string'},{type:'number'},{type:'boolean'},{type:'null'}]};
+const strict=(properties,required=[])=>({type:'object',additionalProperties:false,properties,required});
+const assetSchema=strict({assetId:text,query:text,prompt:text,type:text,generate:{type:'boolean'},provider:text});
+assetSchema.anyOf=[{required:['assetId']},{required:['query']},{required:['prompt']},{required:['type']}];
+const physicsRequirementSchema=strict({
+  bodyClass:{type:'string',enum:['rigid','articulated','character','soft','cloth']},
+  requiredCapabilities:{type:'array',items:text,uniqueItems:true},
+  executionMode:{type:'string',enum:['realtime','validation-only']},
+  qualityPolicy:strict({deterministicRequired:{type:'boolean'},realtimeRequired:{type:'boolean'},fallbackPolicy:{type:'string',enum:['deny']}})
+});
+export const WORLD_REVISION_EDIT_TOOL_SCHEMA={oneOf:[
+  strict({kind:{type:'string',enum:['set-position']},entityId:text,position:{type:'array',items:{type:'number'},minItems:3,maxItems:3}},['kind','entityId','position']),
+  strict({kind:{type:'string',enum:['set-generation']},entityId:text,generate:{type:'boolean'}},['kind','entityId','generate']),
+  strict({kind:{type:'string',enum:['replace-asset']},entityId:text,asset:assetSchema},['kind','entityId','asset']),
+  strict({kind:{type:'string',enum:['set-initial-state']},entityId:text,state:{type:'object',additionalProperties:scalar}},['kind','entityId','state']),
+  strict({kind:{type:'string',enum:['set-capability-intent']},entityId:text,capabilities:{type:'array',items:text,uniqueItems:true}},['kind','entityId','capabilities']),
+  strict({kind:{type:'string',enum:['set-physics-requirement']},entityId:text,requirement:{anyOf:[physicsRequirementSchema,{type:'null'}]}},['kind','entityId','requirement'])
+]};
+export const WORLD_REVISION_REQUEST_TOOL_SCHEMA=strict({reason:{type:'string'},edits:{type:'array',items:WORLD_REVISION_EDIT_TOOL_SCHEMA,minItems:1}},['edits']);
+export const WORLD_REVISION_PROPOSAL_TOOL_SCHEMA=strict({
+  schema:{type:'string',enum:[WORLD_REVISION_PROPOSAL_SCHEMA]},schemaVersion:{type:'integer',enum:[WORLD_REVISION_VERSION]},
+  status:{type:'string',enum:['changed-plan-required']},baseRevisionId:text,nextRevisionId:text,
+  findingIds:{type:'array',items:text,uniqueItems:true},affectedEntityIds:{type:'array',items:text,uniqueItems:true},
+  reason:text,edits:{type:'array',items:WORLD_REVISION_EDIT_TOOL_SCHEMA,minItems:1}
+},['schema','schemaVersion','status','baseRevisionId','nextRevisionId','findingIds','affectedEntityIds','reason','edits']);
+
 export function buildWorldRevisionContext(worldIR,findings=[]){
   const ir=normalizeWorldIR(worldIR);
   const normalized=(findings||[]).map((finding,index)=>normalizeFinding(finding,{index}));
@@ -54,11 +81,25 @@ export function buildWorldRevisionContext(worldIR,findings=[]){
   };
 }
 
+
+const normalizeEditedEntity=(context,entityId,mutate)=>{
+  const source=context.subgraph?.entities?.find((entity)=>entity.id===entityId);
+  if(!source){const error=new Error(`World revision context entity missing: ${entityId}`);error.code='WORLD_REVISION_CONTEXT_ENTITY_MISSING';throw error;}
+  const candidate=structuredClone(source);
+  mutate(candidate);
+  return normalizeWorldIR({
+    schema:'agentscape.world-ir',schemaVersion:1,
+    revision:{id:context.baseRevisionId},provenance:{source:'world-revision-normalization'},intent:{name:'World Revision'},
+    entities:[candidate],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]
+  }).entities[0];
+};
+
 export function createWorldRevisionProposal(context,{nextRevisionId,reason='bounded finding repair',edits=[]}={}){
   if(context?.schema!==WORLD_REVISION_CONTEXT_SCHEMA||context.schemaVersion!==WORLD_REVISION_VERSION) throw new TypeError('Unsupported WorldRevision context');
   const nextId=clean(nextRevisionId);
   if(!nextId||nextId===context.baseRevisionId) throw new TypeError('World revision proposal requires a new nextRevisionId');
   if(!Array.isArray(edits)) throw new TypeError('World revision edits must be an array');
+  if(!edits.length) throw new TypeError('World revision proposal requires at least one edit');
   const editable=new Set(context.affected?.editableEntityIds||[]);
   const seen=new Set();
   const normalized=edits.map((edit,index)=>{
@@ -76,6 +117,29 @@ export function createWorldRevisionProposal(context,{nextRevisionId,reason='boun
     if(kind==='set-generation'){
       if(typeof edit.generate!=='boolean') throw new TypeError(`World revision edit[${index}] requires boolean generate`);
       return {kind,entityId,generate:edit.generate};
+    }
+    if(kind==='replace-asset'){
+      if(!edit.asset||typeof edit.asset!=='object'||Array.isArray(edit.asset)) throw new TypeError(`World revision edit[${index}] requires asset object`);
+      const entity=normalizeEditedEntity(context,entityId,(candidate)=>{candidate.asset=structuredClone(edit.asset);});
+      return {kind,entityId,asset:structuredClone(entity.asset)};
+    }
+    if(kind==='set-initial-state'){
+      if(!edit.state||typeof edit.state!=='object'||Array.isArray(edit.state)) throw new TypeError(`World revision edit[${index}] requires state object`);
+      const entity=normalizeEditedEntity(context,entityId,(candidate)=>{candidate.initialState=structuredClone(edit.state);});
+      return {kind,entityId,state:structuredClone(entity.initialState)};
+    }
+    if(kind==='set-capability-intent'){
+      if(!Array.isArray(edit.capabilities)) throw new TypeError(`World revision edit[${index}] requires capabilities array`);
+      const entity=normalizeEditedEntity(context,entityId,(candidate)=>{candidate.capabilityIntent=structuredClone(edit.capabilities);});
+      return {kind,entityId,capabilities:[...entity.capabilityIntent]};
+    }
+    if(kind==='set-physics-requirement'){
+      if(edit.requirement!==null&&(!edit.requirement||typeof edit.requirement!=='object'||Array.isArray(edit.requirement))) throw new TypeError(`World revision edit[${index}] requires requirement object or null`);
+      const entity=normalizeEditedEntity(context,entityId,(candidate)=>{
+        if(edit.requirement===null) delete candidate.physicsRequirement;
+        else candidate.physicsRequirement=structuredClone(edit.requirement);
+      });
+      return {kind,entityId,requirement:entity.physicsRequirement?structuredClone(entity.physicsRequirement):null};
     }
     const error=new TypeError(`Unsupported world revision edit kind: ${kind}`); error.code='WORLD_REVISION_EDIT_UNSUPPORTED'; throw error;
   });
@@ -105,6 +169,27 @@ export function applyWorldRevisionProposal(worldIR,proposal,{acceptChangedPlan=f
     }
     if(edit.kind==='set-generation'){
       if(entity.asset.generate!==edit.generate){ entity.asset.generate=edit.generate; changed=true; }
+      continue;
+    }
+    if(edit.kind==='replace-asset'){
+      if(JSON.stringify(entity.asset)!==JSON.stringify(edit.asset)){ entity.asset=structuredClone(edit.asset); changed=true; }
+      continue;
+    }
+    if(edit.kind==='set-initial-state'){
+      if(JSON.stringify(entity.initialState)!==JSON.stringify(edit.state)){ entity.initialState=structuredClone(edit.state); changed=true; }
+      continue;
+    }
+    if(edit.kind==='set-capability-intent'){
+      if(JSON.stringify(entity.capabilityIntent)!==JSON.stringify(edit.capabilities)){ entity.capabilityIntent=[...edit.capabilities]; changed=true; }
+      continue;
+    }
+    if(edit.kind==='set-physics-requirement'){
+      const current=entity.physicsRequirement||null;
+      if(JSON.stringify(current)!==JSON.stringify(edit.requirement)){
+        if(edit.requirement===null) delete entity.physicsRequirement;
+        else entity.physicsRequirement=structuredClone(edit.requirement);
+        changed=true;
+      }
       continue;
     }
     const error=new TypeError(`Unsupported world revision edit kind: ${edit.kind}`); error.code='WORLD_REVISION_EDIT_UNSUPPORTED'; throw error;

@@ -4,6 +4,7 @@ import { WORLD_IR_TOOL_SCHEMA, WORLD_PLANNER_PROPOSAL_SCHEMA } from '../pipeline
 import { buildWorldProposal } from '../pipeline/WorldPlannerProposal.js';
 import { buildWorldRetryPlan } from '../pipeline/WorldRetry.js';
 import { recompileWorldRevision } from '../pipeline/WorldRecompiler.js';
+import { createWorldRevisionProposal, WORLD_REVISION_PROPOSAL_TOOL_SCHEMA, WORLD_REVISION_REQUEST_TOOL_SCHEMA } from '../pipeline/WorldRevision.js';
 import { buildRecoveryProposals } from '../agent/buildRecoveryProposals.js';
 import { compileInteractionIntent, executeBehaviorCommand, verifyBehaviorCommand } from '../runtime/behavior/BehaviorCompiler.js';
 import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance, replayAcceptanceEvidence } from '../validation/WorldAcceptance.js';
@@ -299,8 +300,22 @@ export function registerCoreSkills(registry, runtime) {
     return { committed:true, rolledBack:false, results };
   });
 
-  add('recompileWorldRevision', { ...meta('接受一个 bounded WorldRevision proposal，并在显式 acceptChangedPlan=true 后替换当前 world、重新执行完整 canonical pipeline 与 fresh verification/acceptance。proposal/gate 在任何 Runtime mutation 前校验；新 revision rejected 或执行异常时恢复原 scene。', ['world.write','asset.read','asset.write','physics.read'], ['baseWorldIR','proposal','acceptChangedPlan'], { baseWorldIR:{type:'object'}, proposal:{type:'object'}, acceptChangedPlan:{type:'boolean'} }), batchable:false, mutates:true }, async (a) => {
-    return recompileWorldRevision(runtime,{baseWorldIR:a.baseWorldIR,proposal:a.proposal,acceptChangedPlan:a.acceptChangedPlan===true});
+  add('proposeWorldRevision', meta('针对最近一次 world-rejected 的 Runtime-issued revision context 提交 bounded typed edits。Runtime 决定 base/next revision、Finding scope 和 affectedEntityIds；本工具只生成 proposal，不修改 Scene。成功后必须 fresh-replan，再把返回 proposal 原样提交 recompileWorldRevision。', [], ['request'], { request:WORLD_REVISION_REQUEST_TOOL_SCHEMA }), (a,{context}) => {
+    const repair=context?.worldRevisionRepair;
+    if(!repair?.revisionContext){const error=new Error('No Runtime-issued world revision context is available');error.code='WORLD_REVISION_CONTEXT_REQUIRED';throw error;}
+    const request=a.request || {};
+    return {
+      status:'world-revision-proposal-ready',
+      proposal:createWorldRevisionProposal(repair.revisionContext,{
+        nextRevisionId:newWorldRevisionId(),reason:request.reason,edits:request.edits
+      })
+    };
+  });
+
+  add('recompileWorldRevision', { ...meta('执行本次 Agent run 内由 proposeWorldRevision 刚刚颁发的 bounded proposal。base World IR 由 Runtime 隐藏持有，模型不能提供或替换；acceptChangedPlan=true 后才进入 canonical recompile + fresh verification，失败自动恢复原 scene。', ['world.write','asset.read','asset.write','physics.read'], ['proposal','acceptChangedPlan'], { proposal:WORLD_REVISION_PROPOSAL_TOOL_SCHEMA, acceptChangedPlan:{type:'boolean'} }), batchable:false, mutates:true }, async (a,{context}) => {
+    const baseWorldIR=context?.worldRevisionBaseIR;
+    if(!baseWorldIR){const error=new Error('No Runtime-issued base World IR is available');error.code='WORLD_REVISION_BASE_REQUIRED';throw error;}
+    return recompileWorldRevision(runtime,{baseWorldIR,proposal:a.proposal,acceptChangedPlan:a.acceptChangedPlan===true});
   });
 
 
