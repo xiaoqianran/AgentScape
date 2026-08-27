@@ -10,6 +10,7 @@ const expected=new Map([
   ['providers/modal/image-agent','https://github.com/xiaoqianran/modal-2D-client'],
   ['providers/modal/connector','https://github.com/xiaoqianran/modal-gen-client'],
   ['providers/modal/object3d-runtime','https://github.com/xiaoqianran/modal-3D'],
+  ['providers/modal/inference-hub','https://github.com/xiaoqianran/modal-inference-hub'],
   ['providers/modal/object3d-agent','https://github.com/xiaoqianran/modal-3D-client'],
   ['providers/kaggle/runtime','https://github.com/xiaoqianran/kaggle-inference-hub'],
   ['providers/embodied/runtime','https://github.com/xiaoqianran/modal-build'],
@@ -36,7 +37,7 @@ for(const p of actual.keys()) if(!expected.has(p)) failures.push(`${p}: unexpect
 
 const providerPaths=[...actual.keys()].filter((p)=>p.startsWith('providers/'));
 for(const p of providerPaths){
-  if(!/^providers\/(modal\/(image-runtime|image-agent|connector|object3d-runtime|object3d-agent)|kaggle\/runtime|embodied\/runtime)$/.test(p)){
+  if(!/^providers\/(modal\/(image-runtime|image-agent|connector|object3d-runtime|object3d-agent|inference-hub)|kaggle\/runtime|embodied\/runtime)$/.test(p)){
     failures.push(`${p}: provider repository is outside the converged provider ownership tree`);
   }
 }

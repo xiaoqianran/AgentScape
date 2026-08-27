@@ -1,3 +1,5 @@
+> **Historical migration note (2026-08-27):** 本文记录的是仓库拆分前的 Provider 集成状态，不再是目标架构权威。原 `modal-3D-client` 已重命名为 `modal-inference-hub`（Human Caller），新的独立 `modal-3D-client` 是纯 Reference Sidecar。当前目标架构以 `AgentScape-plan` 的 System Landscape / Repository Cards / Integration Ledger 为准。
+
 # AgentScape Provider 集成计划
 
 ## 1. 当前状态
@@ -13,7 +15,8 @@ AgentScape.git
 │   │   ├── image-runtime/            # modal-2D
 │   │   ├── image-agent/              # modal-2D-client
 │   │   ├── object3d-runtime/         # modal-3D
-│   │   └── object3d-agent/           # modal-3D-client
+│   │   ├── inference-hub/            # modal-inference-hub (Human Caller)
+│   │   └── object3d-agent/           # new modal-3D-client Reference Sidecar
 │   ├── kaggle/runtime/               # kaggle-inference-hub
 │   └── embodied/runtime/             # modal-build
 ├── sdk/python/                        # AgentScape-client

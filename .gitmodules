@@ -10,9 +10,6 @@
 [submodule "providers/modal/object3d-runtime"]
 	path = providers/modal/object3d-runtime
 	url = https://github.com/xiaoqianran/modal-3D
-[submodule "providers/modal/object3d-agent"]
-	path = providers/modal/object3d-agent
-	url = https://github.com/xiaoqianran/modal-3D-client
 [submodule "providers/kaggle/runtime"]
 	path = providers/kaggle/runtime
 	url = https://github.com/xiaoqianran/kaggle-inference-hub
@@ -28,3 +25,11 @@
 [submodule "research/modal-lab"]
 	path = research/modal-lab
 	url = https://github.com/xiaoqianran/modal-lab
+[submodule "providers/modal/inference-hub"]
+	path = providers/modal/inference-hub
+	url = https://github.com/xiaoqianran/modal-inference-hub
+	branch = master
+[submodule "providers/modal/object3d-agent"]
+	path = providers/modal/object3d-agent
+	url = https://github.com/xiaoqianran/modal-3D-client
+	branch = main
