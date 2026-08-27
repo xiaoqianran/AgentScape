@@ -3,6 +3,8 @@ import { AssetManager } from '../src/runtime/AssetManager.js';
 import { AssetLibrary } from '../src/assets/library/AssetLibrary.js';
 import { createCanonicalWorldPipeline, createWorldPipeline } from '../src/pipeline/createWorldPipeline.js';
 import { PhysicsBackend } from '../src/runtime/physics/PhysicsBackend.js';
+import { createDefaultProviderRegistry } from '../src/providers/ProviderRegistry.js';
+import { createLegacyAssetGenerationPort } from '../src/authoring/LegacyAuthoringShell.js';
 
 describe('generated world pipeline',()=>{
 
@@ -31,7 +33,9 @@ describe('generated world pipeline',()=>{
         requestEcho:request
       }))
     };
-    const assetLibrary=new AssetLibrary({assetManager:assets,generator});
+    const providerRegistry=createDefaultProviderRegistry({generator});
+    const generationPort=createLegacyAssetGenerationPort({providerRegistry,generation:null,assetManager:assets});
+    const assetLibrary=new AssetLibrary({assetManager:assets,generationPort});
     const spawned=[];
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:1,relations:0}};
     const runtime={
@@ -54,7 +58,7 @@ describe('generated world pipeline',()=>{
     expect(result.state.artifacts.worldIR).toMatchObject({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'legacy-root'},provenance:{source:'legacy-world-spec'}});
     expect(result.state.reports.assetAdmission).toEqual({
       status:'provisional',unresolved:[],
-      provisional:[{assetId:'eg-workbench',reasons:['FALLBACK_BOX_COLLIDER','UNVERIFIED_PROVIDER_SEMANTICS']}]
+      provisional:[{assetId:'eg-workbench',reasons:['FALLBACK_BOX_COLLIDER','UNVERIFIED_PROVIDER_SEMANTICS','COMPILER_UNVERIFIED']}]
     });
     expect(result.state.reports.worldAdmission).toMatchObject({
       status:'provisional',reasons:['ASSET_PROVISIONAL'],validation:{hard:0,advisory:0},assets:{status:'provisional'}

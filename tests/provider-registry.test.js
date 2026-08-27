@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ProviderRegistry, createDefaultProviderRegistry } from '../src/providers/ProviderRegistry.js';
+import { createLegacyAssetGenerationPort } from '../src/authoring/LegacyAuthoringShell.js';
+import { AssetLibrary } from '../src/assets/library/AssetLibrary.js';
+import { AssetManager } from '../src/runtime/AssetManager.js';
 
 describe('ProviderRegistry', () => {
   it('publishes the first provider batch without pretending disabled providers are available', () => {
@@ -79,7 +82,9 @@ it('lets AssetLibrary consume a new provider without provider-specific branches'
       provenance: { provider: 'custom-3d' }
     })
   });
-  const assets = new AssetLibrary({ assetManager: new AssetManager(), providerRegistry: registry });
+  const assetManager = new AssetManager();
+  const generationPort = createLegacyAssetGenerationPort({ providerRegistry: registry, generation: null, assetManager });
+  const assets = new AssetLibrary({ assetManager, generationPort });
   const result = await assets.generate('custom widget', { provider: 'custom-3d' });
   expect(result).toMatchObject({ id: 'custom_widget', admission: { status: 'provisional' } });
   expect(assets.assetManager.getManifest('custom_widget')).toMatchObject({ provenance: { provider: 'custom-3d' } });

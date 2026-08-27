@@ -10,16 +10,16 @@ import { TraceRecorder } from '../src/observability/TraceRecorder.js';
 describe('bounded generated-world retry',()=>{
   it('turns only a first-attempt search miss into generation, then reruns the canonical pipeline once',async()=>{
     const assets=new AssetManager();
-    const generator={
-      isConfigured:()=>true,
+    const generationPort={
+      canGenerate:vi.fn(()=>true),
       generate:vi.fn(async()=>({manifest:{
         id:'retry_fixture_qx9',type:'fixture',label:'Retry Fixture',
         source:{kind:'glb',url:'https://assets.test/retry-fixture.glb'},
         actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.4,.4,.4],translation:[0,.4,0]}]},
         compiler:{quality:{status:'ready'}}
-      } }))
+      }}))
     };
-    const assetLibrary=new AssetLibrary({assetManager:assets,generator});
+    const assetLibrary=new AssetLibrary({assetManager:assets,generationPort});
     const spawned=[];
     const snapshot={name:'before'};
     const runtime={
@@ -51,8 +51,8 @@ describe('bounded generated-world retry',()=>{
         {attempt:2,admission:{status:'ready'}}
       ]
     }});
-    expect(generator.generate).toHaveBeenCalledOnce();
-    expect(generator.generate).toHaveBeenCalledWith(expect.objectContaining({prompt:'qx9 generated retry fixture'}));
+    expect(generationPort.generate).toHaveBeenCalledOnce();
+    expect(generationPort.generate).toHaveBeenCalledWith('qx9 generated retry fixture',expect.objectContaining({assetId:'generated_fixture_01'}));
     expect(assets.has('retry_fixture_qx9')).toBe(true);
     expect(runtime.spawn).toHaveBeenCalledOnce();
     expect(runtime.spawn).toHaveBeenCalledWith('retry_fixture_qx9',expect.objectContaining({id:'fixture_01'}));
