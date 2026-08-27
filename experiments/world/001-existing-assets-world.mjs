@@ -86,6 +86,13 @@ const worldIR = {
 };
 
 const result = await createCanonicalWorldPipeline(runtime).run(worldIR);
+const executionEntities = result.state.artifacts.compilation?.entities || [];
+if (!executionEntities.length || executionEntities.some((entity) => !entity.assetRef?.assetId)) {
+  throw new Error('World compilation did not project entities through AssetRef');
+}
+if (executionEntities.some((entity) => 'query' in entity || 'generate' in entity || 'provider' in entity)) {
+  throw new Error('Authoring asset request fields leaked into World execution entities');
+}
 if (result.state.reports.worldAdmission.status !== 'ready') {
   throw new Error(`World experiment did not reach ready: ${JSON.stringify(result.state.reports.worldAdmission)}`);
 }
@@ -101,5 +108,6 @@ console.log(JSON.stringify({
   assetIds: [...new Set([...objects.values()].map((entry) => entry.assetId))],
   instances: [...objects.keys()],
   relations,
-  worldAdmission: result.state.reports.worldAdmission.status
+  worldAdmission: result.state.reports.worldAdmission.status,
+  executionAssetRefs: executionEntities.map((entity) => entity.assetRef)
 }, null, 2));

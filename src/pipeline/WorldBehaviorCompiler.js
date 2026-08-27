@@ -1,3 +1,4 @@
+import { assetIdFromRef } from '../assets/AssetRef.js';
 import { compileBehaviorGraph } from '../runtime/behavior/BehaviorCompiler.js';
 import { compileRuleGraph } from '../runtime/behavior/RuleGraph.js';
 
@@ -38,21 +39,23 @@ export function admitWorldBehavior(bundle,{resolvedAssets=[],getManifest}={}){
   for(const intent of bundle.capabilityIntents||[]){
     const target=byId.get(intent.entityId);
     if(!target){issues.push({code:'BEHAVIOR_INTENT_TARGET_MISSING',targetId:intent.entityId});continue;}
-    if(!target.assetId){issues.push({code:'BEHAVIOR_INTENT_TARGET_UNRESOLVED',targetId:intent.entityId});continue;}
-    const actions=new Set((getManifest?.(target.assetId)?.actions||[]).map((action)=>String(action).toUpperCase()));
+    const assetId=assetIdFromRef(target.assetRef);
+    if(!assetId){issues.push({code:'BEHAVIOR_INTENT_TARGET_UNRESOLVED',targetId:intent.entityId});continue;}
+    const actions=new Set((getManifest?.(assetId)?.actions||[]).map((action)=>String(action).toUpperCase()));
     for(const capability of intent.capabilities){
-      if(!actions.has(capability)) issues.push({code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',targetId:intent.entityId,capability,assetId:target.assetId});
+      if(!actions.has(capability)) issues.push({code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',targetId:intent.entityId,capability,assetId});
     }
   }
   for(const command of bundle.behaviorGraph.commands){
     const targetId=command.targetId;
     const target=targetId?byId.get(targetId):null;
     if(targetId&&!target){issues.push({code:'BEHAVIOR_TARGET_MISSING',commandId:command.commandId,targetId});continue;}
-    if(targetId&&!target?.assetId){issues.push({code:'BEHAVIOR_TARGET_UNRESOLVED',commandId:command.commandId,targetId});continue;}
+    const assetId=assetIdFromRef(target?.assetRef);
+    if(targetId&&!assetId){issues.push({code:'BEHAVIOR_TARGET_UNRESOLVED',commandId:command.commandId,targetId});continue;}
     if(['OPEN','CLOSE','PICKUP'].includes(command.capability)){
-      const manifest=getManifest?.(target.assetId);
+      const manifest=getManifest?.(assetId);
       const action=command.capability.toLowerCase();
-      if(!manifest?.actions?.includes(action)) issues.push({code:'BEHAVIOR_CAPABILITY_UNSUPPORTED',commandId:command.commandId,targetId,capability:command.capability,assetId:target.assetId});
+      if(!manifest?.actions?.includes(action)) issues.push({code:'BEHAVIOR_CAPABILITY_UNSUPPORTED',commandId:command.commandId,targetId,capability:command.capability,assetId});
     }
   }
   return {status:issues.length?'rejected':'ready',issues};

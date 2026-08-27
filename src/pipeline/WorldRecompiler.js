@@ -4,6 +4,7 @@ import { buildAcceptanceEvidenceBundle, evaluateWorldAcceptance } from '../valid
 import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
 import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
 import { preflightWorldPosition } from './WorldComposer.js';
+import { createAssetRef } from '../assets/AssetRef.js';
 
 const clone=(value)=>value==null?value:structuredClone(value);
 const scalarStateEqual=(left={},right={})=>{
@@ -62,7 +63,7 @@ const currentResolvedAssets=(runtime,worldIR)=>{
     if(!record?.assetId) return null;
     if(entity.asset?.assetId && entity.asset.assetId!==record.assetId) return null;
     try { runtime.assets.getManifest(record.assetId); } catch { return null; }
-    resolved.push({id:entity.id,assetId:record.assetId});
+    resolved.push({id:entity.id,assetRef:createAssetRef(record.assetId)});
   }
   return resolved;
 };

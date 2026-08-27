@@ -33,11 +33,14 @@ describe('WorldCompilation', () => {
 
     expect(compilation).toMatchObject({
       schema:WORLD_COMPILATION_SCHEMA,
-      schemaVersion:1,
+      schemaVersion:2,
       worldRevisionId:'rev-rich',
       worldIR:{revision:{id:'rev-rich'}},
+      assetRequests:[{
+        id:'cabinet_01',assetId:'cabinet',query:'cabinet',generate:false
+      }],
       entities:[{
-        id:'cabinet_01',assetId:'cabinet',
+        id:'cabinet_01',assetRef:{assetId:'cabinet'},
         capabilityIntent:['OPEN','CLOSE'],initialState:{locked:false}
       }],
       behaviorBundle:{worldRevisionId:'rev-rich',behaviorGraph:{commands:[{capability:'OPEN'}]}},
@@ -47,6 +50,9 @@ describe('WorldCompilation', () => {
 
     expect(compilation).not.toHaveProperty('worldSpec');
     expect(compilation).not.toHaveProperty('compatibility');
+    expect(compilation.entities[0]).not.toHaveProperty('query');
+    expect(compilation.entities[0]).not.toHaveProperty('generate');
+    expect(compilation.entities[0]).not.toHaveProperty('provider');
   });
 
   it('keeps legacy WorldSpec as an explicit compatibility projection, not an executability gate', () => {

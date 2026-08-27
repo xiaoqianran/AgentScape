@@ -11,7 +11,7 @@ describe('WorldComposer',()=>{
   it('places missing positions deterministically without batch overlap',()=>{
     const manifests={a:box('a'),b:box('b'),c:box('c')};
     const run=()=>composeWorldLayout([
-      {id:'a1',assetId:'a'},{id:'b1',assetId:'b'},{id:'c1',assetId:'c'}
+      {id:'a1',assetRef:{assetId:'a'}},{id:'b1',assetRef:{assetId:'b'}},{id:'c1',assetRef:{assetId:'c'}}
     ],{
       getManifest:(id)=>manifests[id],poseClear:()=>({checked:true,clear:true,blockedBy:[]}),
       layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5},clearance:.25
@@ -29,12 +29,12 @@ describe('WorldComposer',()=>{
     const poseClear=vi.fn((_m,p)=>Math.abs(p[0])<.1 && Math.abs(p[2])<.1
       ? {checked:true,clear:false,blockedBy:['environment:monument']}
       : {checked:true,clear:true,blockedBy:[]});
-    const auto=composeWorldLayout([{id:'a1',assetId:'a'}],{
+    const auto=composeWorldLayout([{id:'a1',assetRef:{assetId:'a'}}],{
       getManifest:()=>manifest,poseClear,layout:{bounds:{min:[-3,-3],max:[3,3]},groundY:0,margin:.5}
     });
     expect(auto.status).toBe('ready');
     expect(auto.placements[0].position.slice(0,3)).not.toEqual([0,.01,0]);
-    const explicit=composeWorldLayout([{id:'a1',assetId:'a',position:[0,.01,0]}],{
+    const explicit=composeWorldLayout([{id:'a1',assetRef:{assetId:'a'},position:[0,.01,0]}],{
       getManifest:()=>manifest,poseClear,layout:{bounds:{min:[-3,-3],max:[3,3]},groundY:0,margin:.5}
     });
     expect(explicit).toMatchObject({status:'rejected',reason:'WORLD_POSE_BLOCKED'});
@@ -42,7 +42,7 @@ describe('WorldComposer',()=>{
 
   it('marks articulated root-only layout coverage provisional',()=>{
     const manifest={...box('cabinet'),parts:{door:{physics:{colliders:[{shape:'box',halfExtents:[.2,.5,.05]}]}}}};
-    const result=composeWorldLayout([{id:'c1',assetId:'cabinet'}],{
+    const result=composeWorldLayout([{id:'c1',assetRef:{assetId:'cabinet'}}],{
       getManifest:()=>manifest,poseClear:()=>({checked:true,clear:true}),layout:{bounds:{min:[-3,-3],max:[3,3]},groundY:0,margin:.5}
     });
     expect(result).toMatchObject({status:'provisional',reason:'ARTICULATED_LAYOUT_ROOT_ONLY',issues:[{reason:'ARTICULATED_LAYOUT_ROOT_ONLY'}]});

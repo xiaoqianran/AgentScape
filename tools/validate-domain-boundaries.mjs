@@ -28,6 +28,7 @@ const assetCore = allJs.filter((file) => {
   const name = relative(file);
   return [
     'src/assets/AssetCatalog.js',
+    'src/assets/AssetRef.js',
     'src/assets/admission.js',
     'src/assets/schema.js',
     'src/assets/parts.js'
@@ -77,6 +78,21 @@ assertNoImports('World Core boundary violation', worldCore, [
   /^src\/assets\/gateway\//,
   /^src\/compiler\/providers\//
 ]);
+
+const WORLD_ASSET_IMPORTS = new Set([
+  'src/assets/AssetRef.js',
+  'src/assets/AssetCatalog.js',
+  'src/assets/parts.js',
+  'src/assets/storage/CompiledAssetStore.js'
+]);
+for (const file of worldCore) {
+  for (const specifier of imports(file)) {
+    const target = resolveImport(file, specifier);
+    if (target?.startsWith('src/assets/') && !WORLD_ASSET_IMPORTS.has(target)) {
+      failures.push(`World Core Asset boundary violation: ${relative(file)} -> ${target}`);
+    }
+  }
+}
 
 if (failures.length) {
   console.error('domain architecture validation failed');

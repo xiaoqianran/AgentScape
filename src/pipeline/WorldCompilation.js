@@ -3,9 +3,10 @@ import { normalizeWorldSpec } from './WorldSpec.js';
 import { compileWorldBehaviorBundle } from './WorldBehaviorCompiler.js';
 import { compileWorldPhysicsRequirements } from './WorldPhysicsAdmission.js';
 import { compileWorldAcceptance } from '../validation/WorldAcceptance.js';
+import { createAssetRef } from '../assets/AssetRef.js';
 
 export const WORLD_COMPILATION_SCHEMA = 'agentscape.world-compilation';
-export const WORLD_COMPILATION_VERSION = 1;
+export const WORLD_COMPILATION_VERSION = 2;
 
 const clone = (value) => structuredClone(value);
 const hasState = (entity) => Object.keys(entity.initialState || {}).length > 0;
@@ -71,9 +72,14 @@ export function assertWorldIRReferences(worldIR) {
   return worldIR;
 }
 
+const assetRequests = (worldIR) => worldIR.entities.map((entity) => ({
+  ...(entity.id ? { id:entity.id } : {}),
+  ...clone(entity.asset)
+}));
+
 const executionEntities = (worldIR) => worldIR.entities.map((entity) => ({
   ...(entity.id ? { id:entity.id } : {}),
-  ...clone(entity.asset),
+  ...(entity.asset.assetId ? { assetRef:createAssetRef(entity.asset.assetId) } : {}),
   ...(entity.transform.position ? { position:[...entity.transform.position] } : {}),
   ...(entity.capabilityIntent.length ? { capabilityIntent:[...entity.capabilityIntent] } : {}),
   ...(hasState(entity) ? { initialState:clone(entity.initialState) } : {})
@@ -115,6 +121,7 @@ export function compileWorldIR(input) {
     schemaVersion:WORLD_COMPILATION_VERSION,
     worldRevisionId:worldIR.revision.id,
     worldIR:clone(worldIR),
+    assetRequests:assetRequests(worldIR),
     entities:executionEntities(worldIR),
     relations:worldIR.spatial.relations.map(clone),
     behaviorBundle,

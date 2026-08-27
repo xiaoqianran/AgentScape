@@ -1,4 +1,4 @@
-const executionRequests=(state,worldIR)=>state.artifacts?.compilation?.entities || worldIR.entities.map((entity)=>({
+const authoringRequests=(state,worldIR)=>state.artifacts?.compilation?.assetRequests || worldIR.entities.map((entity)=>({
   ...(entity.id?{id:entity.id}:{}),...structuredClone(entity.asset)
 }));
 
@@ -13,7 +13,7 @@ export function buildWorldRetryPlan(pipeline,{generatorConfigured=false,attempt=
     };
   }
 
-  const requests=executionRequests(state,worldIR);
+  const requests=authoringRequests(state,worldIR);
   const findings=[];
   const actions=[];
 

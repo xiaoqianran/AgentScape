@@ -74,8 +74,14 @@ describe('Canonical World asset boundary', () => {
     expect(r.assetLibrary.resolve).not.toHaveBeenCalled();
     expect(r.spawn).not.toHaveBeenCalled();
     expect(result.state.artifacts.assets[0]).toMatchObject({
-      status: 'generation_outside_world',
-      resolution: { status: 'generation_outside_world' }
+      status: 'generation_outside_world'
+    });
+    expect(result.state.artifacts.assets[0]).not.toHaveProperty('resolution');
+    expect(result.state.artifacts.assets[0]).not.toHaveProperty('query');
+    expect(result.state.artifacts.assetResolutions[0]).toMatchObject({
+      id: 'entity_01',
+      query: 'missing red apple',
+      status: 'generation_outside_world'
     });
     expect(result.state.reports.assetAdmission.status).toBe('rejected');
   });

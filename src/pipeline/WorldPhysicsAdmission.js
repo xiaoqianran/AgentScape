@@ -1,3 +1,5 @@
+import { assetIdFromRef } from '../assets/AssetRef.js';
+
 export const WORLD_PHYSICS_REQUIREMENTS_SCHEMA='agentscape.world-physics-requirements';
 export const WORLD_PHYSICS_REQUIREMENTS_VERSION=1;
 
@@ -40,7 +42,8 @@ export function admitWorldPhysics(bundle,{backend,resolvedAssets=[],getManifest}
   const issues=[];
   for(const requirement of bundle.requirements){
     const resolved=byId.get(requirement.entityId);
-    if(!resolved?.assetId){issues.push({code:'PHYSICS_TARGET_UNRESOLVED',entityId:requirement.entityId});continue;}
+    const assetId=assetIdFromRef(resolved?.assetRef);
+    if(!assetId){issues.push({code:'PHYSICS_TARGET_UNRESOLVED',entityId:requirement.entityId});continue;}
     for(const capability of requirement.requiredCapabilities){
       if(!backend.hasCapability?.(capability)) issues.push({code:'PHYSICS_BACKEND_CAPABILITY_MISSING',entityId:requirement.entityId,capability,backend:backend.identity});
     }
@@ -48,9 +51,9 @@ export function admitWorldPhysics(bundle,{backend,resolvedAssets=[],getManifest}
     if(requirement.qualityPolicy?.realtimeRequired===true&&backend.qualities?.realtime!==true) issues.push({code:'PHYSICS_REALTIME_QUALITY_UNMET',entityId:requirement.entityId,backend:backend.identity});
     if(requirement.qualityPolicy?.deterministicRequired===true&&backend.qualities?.deterministic!==true) issues.push({code:'PHYSICS_DETERMINISM_QUALITY_UNMET',entityId:requirement.entityId,backend:backend.identity});
     if(requirement.bodyClass==='articulated'){
-      const manifest=getManifest?.(resolved.assetId);
+      const manifest=getManifest?.(assetId);
       const parts=Object.values(manifest?.parts||{});
-      if(!parts.some((part)=>part?.joint)) issues.push({code:'PHYSICS_ASSET_ARTICULATION_MISSING',entityId:requirement.entityId,assetId:resolved.assetId});
+      if(!parts.some((part)=>part?.joint)) issues.push({code:'PHYSICS_ASSET_ARTICULATION_MISSING',entityId:requirement.entityId,assetId});
     }
   }
   return {

@@ -1,3 +1,5 @@
+import { assetIdFromRef } from '../assets/AssetRef.js';
+
 const rootColliderExtent = (spec) => {
   const t=spec.translation || [0,0,0];
   if (spec.shape==='box' && spec.halfExtents?.length===3) {
@@ -94,11 +96,12 @@ export function composeWorldLayout(requests,{getManifest,poseClear,layout,cleara
   let provisional=false;
 
   for(const request of requests) {
-    if (!request.assetId) continue;
-    const manifest=getManifest(request.assetId);
+    const assetId=assetIdFromRef(request.assetRef);
+    if (!assetId) continue;
+    const manifest=getManifest(assetId);
     const footprint=manifestFootprint(manifest);
-    if (!footprint.checked) return {status:'rejected',reason:footprint.reason,placements,issues:[...issues,{id:request.id || null,assetId:request.assetId,reason:footprint.reason}]};
-    if (footprint.coverage==='root-only') { provisional=true; issues.push({id:request.id || null,assetId:request.assetId,reason:'ARTICULATED_LAYOUT_ROOT_ONLY'}); }
+    if (!footprint.checked) return {status:'rejected',reason:footprint.reason,placements,issues:[...issues,{id:request.id || null,assetId,reason:footprint.reason}]};
+    if (footprint.coverage==='root-only') { provisional=true; issues.push({id:request.id || null,assetId,reason:'ARTICULATED_LAYOUT_ROOT_ONLY'}); }
     const groundPositionY=groundY-footprint.minY+.01;
     const test=(position)=>{
       const verdict=checkPosition(manifest,footprint,position,{layout:normalized,reserved,poseClear,clearance});
@@ -117,9 +120,9 @@ export function composeWorldLayout(requests,{getManifest,poseClear,layout,cleara
         if (result.ok) { position=candidate; verdict=result; break; }
       }
     }
-    if (!position || !verdict?.ok) return {status:'rejected',reason:verdict?.reason || 'NO_LAYOUT_POSITION',placements,issues:[...issues,{id:request.id || null,assetId:request.assetId,reason:verdict?.reason || 'NO_LAYOUT_POSITION',blockedBy:verdict?.blockedBy || []}]};
+    if (!position || !verdict?.ok) return {status:'rejected',reason:verdict?.reason || 'NO_LAYOUT_POSITION',placements,issues:[...issues,{id:request.id || null,assetId,reason:verdict?.reason || 'NO_LAYOUT_POSITION',blockedBy:verdict?.blockedBy || []}]};
     reserved.push(verdict.circle);
-    placements.push({id:request.id || null,assetId:request.assetId,position,mode,radius:Number(footprint.radius.toFixed(4)),coverage:footprint.coverage});
+    placements.push({id:request.id || null,assetId,position,mode,radius:Number(footprint.radius.toFixed(4)),coverage:footprint.coverage});
   }
   return {status:provisional?'provisional':'ready',reason:provisional?'ARTICULATED_LAYOUT_ROOT_ONLY':null,placements,issues};
 }

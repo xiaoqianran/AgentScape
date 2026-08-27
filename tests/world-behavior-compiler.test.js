@@ -31,7 +31,7 @@ describe('WorldBehaviorCompiler',()=>{
   });
   it('admits behavior only when resolved manifests support executable capabilities',()=>{
     const bundle=compileWorldBehaviorBundle(ir());
-    const resolvedAssets=[{id:'door',assetId:'cabinet'},{id:'cup',assetId:'cup'},{id:'table',assetId:'table'},{id:'light',assetId:'light'}];
+    const resolvedAssets=[{id:'door',assetRef:{assetId:'cabinet'}},{id:'cup',assetRef:{assetId:'cup'}},{id:'table',assetRef:{assetId:'table'}},{id:'light',assetRef:{assetId:'light'}}];
     const manifests={cabinet:{actions:['open','close','move']},cup:{actions:['pickup','drop','place','move']},table:{actions:['move']},light:{actions:['move']}};
     expect(admitWorldBehavior(bundle,{resolvedAssets,getManifest:id=>manifests[id]})).toEqual({status:'ready',issues:[]});
     manifests.cabinet={actions:['move']};
@@ -46,8 +46,8 @@ it('admits capabilityIntent only when the resolved asset exposes every requested
   });
   const bundle=compileWorldBehaviorBundle(world);
   expect(bundle.capabilityIntents).toEqual([{entityId:'door',capabilities:['OPEN','CLOSE']}]);
-  expect(admitWorldBehavior(bundle,{resolvedAssets:[{id:'door',assetId:'cabinet'}],getManifest:()=>({actions:['open','close','move']})})).toEqual({status:'ready',issues:[]});
-  expect(admitWorldBehavior(bundle,{resolvedAssets:[{id:'door',assetId:'cabinet'}],getManifest:()=>({actions:['open','move']})})).toMatchObject({
+  expect(admitWorldBehavior(bundle,{resolvedAssets:[{id:'door',assetRef:{assetId:'cabinet'}}],getManifest:()=>({actions:['open','close','move']})})).toEqual({status:'ready',issues:[]});
+  expect(admitWorldBehavior(bundle,{resolvedAssets:[{id:'door',assetRef:{assetId:'cabinet'}}],getManifest:()=>({actions:['open','move']})})).toMatchObject({
     status:'rejected',issues:[{code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',targetId:'door',capability:'CLOSE',assetId:'cabinet'}]
   });
 });

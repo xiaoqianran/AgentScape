@@ -7,6 +7,7 @@ import { buildWorldRevisionContext } from './WorldRevision.js';
 import { compileAdmissionFindings } from '../validation/Finding.js';
 import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
 import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
+import { assetIdFromRef, createAssetRef } from '../assets/AssetRef.js';
 
 const executionAdmissionRejected=(state)=>[
   state.reports.assetAdmission,
@@ -67,31 +68,45 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
   });
 
   pipeline.register('resolve_assets', async (state) => {
-    const requests = state.artifacts.compilation?.entities || [];
+    const requests = state.artifacts.compilation?.assetRequests || [];
+    const entities = state.artifacts.compilation?.entities || [];
     const resolved = [];
-    for (const request of requests) {
-      if (request.assetId && runtime.assets.has(request.assetId)) {
-        resolved.push({ ...request, assetId: request.assetId, status: 'found' });
+    const resolutions = [];
+    for (let index=0; index<entities.length; index++) {
+      const request = requests[index] || {};
+      const entity = entities[index] || {};
+      const existingAssetId = assetIdFromRef(entity.assetRef);
+      if (existingAssetId && runtime.assets.has(existingAssetId)) {
+        resolved.push({ ...entity, assetRef:createAssetRef(existingAssetId), status:'found' });
+        resolutions.push({ id:entity.id || null, query:request.query || existingAssetId, status:'found', assetId:existingAssetId });
         continue;
       }
       const result = await resolveAsset(runtime, request);
       const match = result.assets?.[0];
-      resolved.push({ ...request, assetId: match?.id, status: result.status, resolution: result });
+      const assetId = match?.id || null;
+      resolved.push({ ...entity, ...(assetId ? { assetRef:createAssetRef(assetId) } : {}), status:result.status });
+      resolutions.push({ id:entity.id || null, query:request.query || request.type || request.assetId || '', status:result.status, ...(assetId ? { assetId } : {}) });
     }
     state.artifacts.assets = resolved;
+    state.artifacts.assetResolutions = resolutions;
     return state;
   });
 
   pipeline.register('asset_admission', async (state) => {
     const assets=state.artifacts.assets || [];
-    const unresolved=assets.filter((item)=>!item.assetId);
+    const resolutions=state.artifacts.assetResolutions || [];
+    const unresolved=resolutions.filter((item)=>!item.assetId);
     const provisional=[];
     for (const item of assets) {
-      if (!item.assetId || !runtime.assets.has(item.assetId)) continue;
-      const manifest=runtime.assets.getManifest(item.assetId);
+      const assetId=assetIdFromRef(item.assetRef);
+      if (!assetId || !runtime.assets.has(assetId)) continue;
+      const manifest=runtime.assets.getManifest(assetId);
       const admission=assetAdmission(manifest);
-      if (admission.status==='provisional') provisional.push({ assetId:item.assetId, reasons:[...admission.reasons] });
-      if (admission.status==='rejected') unresolved.push({ ...item, status:'asset_rejected' });
+      if (admission.status==='provisional') provisional.push({ assetId, reasons:[...admission.reasons] });
+      if (admission.status==='rejected') {
+        const resolution=resolutions.find((entry)=>entry.id===item.id) || {id:item.id || null,query:'',status:'asset_rejected'};
+        unresolved.push({...resolution,status:'asset_rejected'});
+      }
     }
     state.reports.assetAdmission={
       status:unresolved.length?'rejected':provisional.length?'provisional':'ready',
@@ -147,10 +162,11 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
       return state;
     }
     for (const request of state.artifacts.assets || []) {
-      if (!request.assetId) continue;
+      const assetId=assetIdFromRef(request.assetRef);
+      if (!assetId) continue;
       const options={position:request.position || [0,0,0],id:request.id};
       if(request.initialState && Object.keys(request.initialState).length) options.initialState=structuredClone(request.initialState);
-      const id = await runtime.spawn(request.assetId, options);
+      const id = await runtime.spawn(assetId, options);
       spawned.push(id);
     }
     state.artifacts.spawned = spawned;
