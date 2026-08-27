@@ -1,5 +1,4 @@
-import { AssetCatalog } from '../../src/assets/AssetCatalog.js';
-import { AssetManager } from '../../src/runtime/AssetManager.js';
+import { createAssetModule } from '../../src/assets/createAssetModule.js';
 import { createCanonicalWorldPipeline } from '../../src/pipeline/createWorldPipeline.js';
 
 const manifest = (id, type, halfExtents) => ({
@@ -15,10 +14,11 @@ const manifest = (id, type, halfExtents) => ({
   compiler: { quality: { status: 'ready' } }
 });
 
-const assets = new AssetManager({ manifests: {} });
+const assetModule = createAssetModule({ manifests: {} });
+const assets = assetModule.manager;
 assets.registerManifest(manifest('experiment_table', 'table', [1.2, .5, .7]));
 assets.registerManifest(manifest('experiment_cup', 'cup', [.16, .16, .16]));
-const assetCatalog = new AssetCatalog({ assetManager: assets });
+const assetCatalog = assetModule.catalog;
 const objects = new Map();
 const relations = [];
 

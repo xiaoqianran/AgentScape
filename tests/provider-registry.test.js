@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProviderRegistry, createDefaultProviderRegistry } from '../src/providers/ProviderRegistry.js';
 import { createLegacyAssetGenerationPort } from '../src/authoring/LegacyAuthoringShell.js';
 import { AssetLibrary } from '../src/assets/library/AssetLibrary.js';
-import { AssetManager } from '../src/runtime/AssetManager.js';
+import { AssetManager } from '../src/assets/AssetManager.js';
 
 describe('ProviderRegistry', () => {
   it('publishes the first provider batch without pretending disabled providers are available', () => {
@@ -62,7 +62,7 @@ describe('ProviderRegistry', () => {
 
 it('lets AssetLibrary consume a new provider without provider-specific branches', async () => {
   const { AssetLibrary } = await import('../src/assets/library/AssetLibrary.js');
-  const { AssetManager } = await import('../src/runtime/AssetManager.js');
+  const { AssetManager } = await import('../src/assets/AssetManager.js');
   const registry = new ProviderRegistry();
   registry.registerProvider({
     id: 'custom-3d', version: '7', status: 'available', health: 'healthy',

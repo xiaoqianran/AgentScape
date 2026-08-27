@@ -2,14 +2,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import { EventBus } from '../core/EventBus.js';
-import { AssetManager } from './AssetManager.js';
 import { ObjectStore } from './ObjectStore.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
 import { SpatialSystem } from './systems/SpatialSystem.js';
 import { NavigationSystem } from './systems/NavigationSystem.js';
 import { LocomotionSystem } from './systems/LocomotionSystem.js';
-import { AssetCatalog } from '../assets/AssetCatalog.js';
 import { SceneSerializer } from '../persistence/SceneSerializer.js';
 import { CommandHistory } from '../history/CommandHistory.js';
 import { SceneGraph } from './graph/SceneGraph.js';
@@ -18,7 +16,6 @@ import { TraceRecorder } from '../observability/TraceRecorder.js';
 import { WorldValidator } from '../validation/WorldValidator.js';
 import { RepairEngine } from '../validation/RepairEngine.js';
 import { createCanonicalWorldPipeline } from '../pipeline/createWorldPipeline.js';
-import { CompiledAssetStore } from '../assets/storage/CompiledAssetStore.js';
 import { disposeObject3D } from './disposeObject3D.js';
 import { ArticulationVerifier } from '../validation/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
@@ -56,13 +53,17 @@ const mutationResultCommitted=(result)=>!(
 );
 
 export class WorldRuntime {
-  constructor(container, { environmentFactory } = {}) {
+  constructor(container, { environmentFactory, assetModule } = {}) {
+    if (!assetModule?.manager || !assetModule?.catalog || !assetModule?.compiledStore) {
+      throw new TypeError('WorldRuntime requires an Asset module');
+    }
     this.version = '1.34.2';
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
-    this.compiledAssetStore = new CompiledAssetStore();
-    this.assets = new AssetManager({ compiledStore: this.compiledAssetStore });
-    this.assetCatalog = new AssetCatalog({ assetManager: this.assets });
+    this.assetModule = assetModule;
+    this.compiledAssetStore = assetModule.compiledStore;
+    this.assets = assetModule.manager;
+    this.assetCatalog = assetModule.catalog;
     this.articulationVerifier = new ArticulationVerifier({ assets: this.assets }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
   }
   async init() {

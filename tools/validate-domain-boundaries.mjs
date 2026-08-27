@@ -29,6 +29,8 @@ const assetCore = allJs.filter((file) => {
   return [
     'src/assets/AssetCatalog.js',
     'src/assets/AssetRef.js',
+    'src/assets/AssetManager.js',
+    'src/assets/createAssetModule.js',
     'src/assets/admission.js',
     'src/assets/schema.js',
     'src/assets/parts.js'
@@ -81,9 +83,7 @@ assertNoImports('World Core boundary violation', worldCore, [
 
 const WORLD_ASSET_IMPORTS = new Set([
   'src/assets/AssetRef.js',
-  'src/assets/AssetCatalog.js',
-  'src/assets/parts.js',
-  'src/assets/storage/CompiledAssetStore.js'
+  'src/assets/parts.js'
 ]);
 for (const file of worldCore) {
   for (const specifier of imports(file)) {
@@ -91,6 +91,13 @@ for (const file of worldCore) {
     if (target?.startsWith('src/assets/') && !WORLD_ASSET_IMPORTS.has(target)) {
       failures.push(`World Core Asset boundary violation: ${relative(file)} -> ${target}`);
     }
+  }
+}
+
+for (const file of allJs) {
+  if (relative(file) === 'src/assets/createAssetModule.js') continue;
+  if (/new\s+AssetManager\s*\(/.test(fs.readFileSync(file, 'utf8'))) {
+    failures.push(`Asset state ownership violation: ${relative(file)} constructs AssetManager outside createAssetModule`);
   }
 }
 

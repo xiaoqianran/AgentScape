@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { expect, it, vi } from 'vitest';
 import { AssetCompiler } from '../src/compiler/AssetCompiler.js';
-import { AssetManager } from '../src/runtime/AssetManager.js';
+import { AssetManager } from '../src/assets/AssetManager.js';
 import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { disposeObject3D } from '../src/runtime/disposeObject3D.js';

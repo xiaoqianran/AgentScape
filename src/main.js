@@ -1,5 +1,6 @@
 import './style.css';
 import { WorldRuntime } from './runtime/WorldRuntime.js';
+import { createAssetModule } from './assets/createAssetModule.js';
 import { attachLegacyAuthoring } from './authoring/LegacyAuthoringShell.js';
 import { SkillRegistry } from './skills/SkillRegistry.js';
 import { registerCoreSkills } from './skills/registerCoreSkills.js';
@@ -213,7 +214,7 @@ async function main() {
     requestAnimationFrame(() => { logEl.scrollTop = logEl.scrollHeight; });
   });
 
-  const world = new WorldRuntime(document.querySelector('#viewport'), { environmentFactory });
+  const world = new WorldRuntime(document.querySelector('#viewport'), { environmentFactory, assetModule:createAssetModule() });
   const authoring = attachLegacyAuthoring(world);
   world.skills = registerCoreSkills(new SkillRegistry({ policy: world.policy, trace: world.trace, runtime: world }), world);
   await authoring.initialize({ pair: true });

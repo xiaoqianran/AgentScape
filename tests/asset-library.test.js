@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AssetManager } from '../src/runtime/AssetManager.js';
+import { AssetManager } from '../src/assets/AssetManager.js';
 import { AssetLibrary } from '../src/assets/library/AssetLibrary.js';
 
 const manifest = (overrides = {}) => ({

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ArtifactRegistry } from '../src/artifacts/ArtifactRegistry.js';
 import { MemoryArtifactByteStore } from '../src/artifacts/MemoryArtifactByteStore.js';
 import { AssetCompiler } from '../src/compiler/AssetCompiler.js';
-import { AssetManager } from '../src/runtime/AssetManager.js';
+import { AssetManager } from '../src/assets/AssetManager.js';
 import { VerifiedArtifactAssetPipeline } from '../src/pipeline/VerifiedArtifactAssetPipeline.js';
 
 const NOW=Date.parse('2026-08-24T10:00:00.000Z');

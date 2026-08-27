@@ -7,9 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 import { ArtifactRegistry } from '../../src/artifacts/ArtifactRegistry.js';
 import { MemoryArtifactByteStore } from '../../src/artifacts/MemoryArtifactByteStore.js';
-import { AssetCatalog } from '../../src/assets/AssetCatalog.js';
 import { AssetCompiler } from '../../src/compiler/AssetCompiler.js';
-import { AssetManager } from '../../src/runtime/AssetManager.js';
+import { createAssetModule } from '../../src/assets/createAssetModule.js';
 import { VerifiedArtifactAssetPipeline } from '../../src/pipeline/VerifiedArtifactAssetPipeline.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -80,7 +79,8 @@ registry.verifyIntegrity(artifactId, {
 });
 
 const compilerStore = new MemoryCompilerStore();
-const assets = new AssetManager({ manifests: {}, compiledStore: compilerStore });
+const assetModule = createAssetModule({ manifests: {}, compiledStore: compilerStore });
+const assets = assetModule.manager;
 const compiler = new AssetCompiler({ store: compilerStore, version: 'asset-experiment-001' });
 const pipeline = new VerifiedArtifactAssetPipeline({
   artifactRegistry: registry,
@@ -93,7 +93,7 @@ const pipeline = new VerifiedArtifactAssetPipeline({
 const result = await pipeline.produce({ artifactId, assetId, label: 'Experiment Red Apple' });
 if (result.status === 'asset-rejected') throw new Error(`Asset experiment rejected: ${JSON.stringify(result.admission)}`);
 
-const catalog = new AssetCatalog({ assetManager: assets });
+const catalog = assetModule.catalog;
 const found = catalog.search('apple', { limit: 3 });
 if (!found.some((asset) => asset.id === assetId)) throw new Error('Published Asset is not searchable through AssetCatalog');
 if (result.artifactId === result.assetId) throw new Error('Artifact and Asset identities must remain distinct');

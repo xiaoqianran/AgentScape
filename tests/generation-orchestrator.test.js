@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AssetCompiler } from "../src/compiler/AssetCompiler.js";
 import { GenerationOrchestrator } from "../src/generation/GenerationOrchestrator.js";
 import { createDefaultProviderRegistry } from "../src/providers/ProviderRegistry.js";
-import { AssetManager } from "../src/runtime/AssetManager.js";
+import { AssetManager } from "../src/assets/AssetManager.js";
 
 const operation="modal-3d.asset.text_to_3d.v1";
 const capabilityHash="sha256:cap01";

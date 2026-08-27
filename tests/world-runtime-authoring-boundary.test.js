@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { attachLegacyAuthoring } from '../src/authoring/LegacyAuthoringShell.js';
+import { createAssetModule } from '../src/assets/createAssetModule.js';
 import { WorldRuntime } from '../src/runtime/WorldRuntime.js';
 
-const createRuntime = () => new WorldRuntime({ appendChild() {} }, { environmentFactory: () => null });
+const createRuntime = () => new WorldRuntime({ appendChild() {} }, { environmentFactory: () => null, assetModule:createAssetModule() });
 
 describe('WorldRuntime authoring boundary', () => {
   it('constructs a provider-neutral World core', () => {

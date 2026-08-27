@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { ConnectorClient } from "../src/connector/ConnectorClient.js";
 import { attachLegacyAuthoring } from "../src/authoring/LegacyAuthoringShell.js";
+import { createAssetModule } from "../src/assets/createAssetModule.js";
 import { SpatialSystem } from "../src/runtime/systems/SpatialSystem.js";
 import { NavigationSystem } from "../src/runtime/systems/NavigationSystem.js";
 import { LocomotionSystem } from "../src/runtime/systems/LocomotionSystem.js";
@@ -40,7 +41,7 @@ async function createHeadlessRuntime(){
   globalThis.localStorage ||= {getItem:()=>null,setItem:()=>{},removeItem:()=>{}};
   globalThis.ProgressEvent ||= class ProgressEvent { constructor(type,init={}){this.type=type;Object.assign(this,init);} };
   const { WorldRuntime }=await import("../src/runtime/WorldRuntime.js");
-  const runtime=new WorldRuntime({appendChild(){}},{environmentFactory:null});
+  const runtime=new WorldRuntime({appendChild(){}},{environmentFactory:null,assetModule:createAssetModule()});
   await runtime.physics.init();
   runtime.scene=new THREE.Scene();
   runtime.camera=new THREE.PerspectiveCamera(45,1,.05,120);

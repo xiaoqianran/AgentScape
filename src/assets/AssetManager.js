@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { assetManifests } from '../assets/manifests/index.js';
-import { validateAssetManifest } from '../assets/schema.js';
+import { assetManifests } from './manifests/index.js';
+import { validateAssetManifest } from './schema.js';
 import { Errors } from '../core/errors.js';
-import { disposeObject3D } from './disposeObject3D.js';
+import { disposeObject3D } from '../runtime/disposeObject3D.js';
 
 const canonical = (value) => {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
