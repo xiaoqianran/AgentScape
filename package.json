@@ -10,10 +10,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run architecture:validate && npm run assets:validate && npm run test && npm run build",
-    "architecture:validate": "node tools/validate-repository-architecture.mjs",
+    "architecture:validate": "node tools/validate-repository-architecture.mjs && node tools/validate-domain-boundaries.mjs",
     "assets:validate": "node tools/validate-assets.mjs",
     "agent:gateway": "node scripts/openai-compatible-agent-gateway.mjs",
-    "agent:probe": "node scripts/probe-test-agent.mjs"
+    "agent:probe": "node scripts/probe-test-agent.mjs",
+    "test:asset": "vitest run tests/artifact-*.test.js tests/asset-*.test.js tests/compiled-asset-store.test.js tests/verified-artifact-asset-pipeline.test.js",
+    "test:world": "vitest run tests/world-*.test.js tests/bootstrap-world.test.js tests/interaction-*.test.js tests/rule-runtime.test.js",
+    "experiment:asset": "node experiments/asset/001-real-glb-admission.mjs",
+    "experiment:world": "node experiments/world/001-existing-assets-world.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",

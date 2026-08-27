@@ -25,7 +25,34 @@ const admissionNotEvaluated=(reason='UPSTREAM_ADMISSION_REJECTED',extra={})=>({
   status:'not-evaluated',reason,...extra
 });
 
-const createPipeline=(runtime,compileInput)=>{
+const resolveCanonicalAsset = async (runtime, request) => {
+  const query = request.query || request.type || request.assetId || '';
+  if (request.generate || request.provider) {
+    return {
+      status: 'generation_outside_world',
+      query,
+      assets: [],
+      hint: 'Generate and publish the Asset before compiling canonical WorldIR.'
+    };
+  }
+  if (request.assetId && runtime.assets.has(request.assetId)) {
+    const manifest = runtime.assets.getManifest(request.assetId);
+    return { status: 'found', query, assets: [runtime.assetCatalog?.summary?.(manifest) || { id: manifest.id }] };
+  }
+  if (runtime.assetCatalog?.resolveExisting) {
+    return runtime.assetCatalog.resolveExisting(query, { assetId: request.assetId || null, limit: 5 });
+  }
+  return { status: 'missing', query, assets: [] };
+};
+
+const resolveLegacyAsset = (runtime, request) => runtime.assetLibrary.resolve(request.query || request.type || '', {
+  generate: request.generate ?? false,
+  ...(request.id ? { instanceId: request.id } : {}),
+  ...(request.provider ? { provider: request.provider } : {}),
+  ...(request.assetId ? { id: request.assetId } : {})
+});
+
+const createPipeline=(runtime,compileInput,resolveAsset)=>{
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });
 
   pipeline.register('normalize_spec', async (state) => {
@@ -47,12 +74,7 @@ const createPipeline=(runtime,compileInput)=>{
         resolved.push({ ...request, assetId: request.assetId, status: 'found' });
         continue;
       }
-      const result = await runtime.assetLibrary.resolve(request.query || request.type || '', {
-        generate: request.generate ?? false,
-        ...(request.id ? { instanceId:request.id } : {}),
-        ...(request.provider ? { provider:request.provider } : {}),
-        ...(request.assetId ? { id:request.assetId } : {})
-      });
+      const result = await resolveAsset(runtime, request);
       const match = result.assets?.[0];
       resolved.push({ ...request, assetId: match?.id, status: result.status, resolution: result });
     }
@@ -264,7 +286,7 @@ const createPipeline=(runtime,compileInput)=>{
   return pipeline;
 };
 
-export function createCanonicalWorldPipeline(runtime){return createPipeline(runtime,compileWorldIR);}
+export function createCanonicalWorldPipeline(runtime){return createPipeline(runtime,compileWorldIR,resolveCanonicalAsset);}
 
 // Backward-compatible boundary for direct callers that still submit WorldSpec.
-export function createWorldPipeline(runtime){return createPipeline(runtime,compileWorldInput);}
+export function createWorldPipeline(runtime){return createPipeline(runtime,compileWorldInput,resolveLegacyAsset);}

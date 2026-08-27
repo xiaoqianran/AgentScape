@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   base: '/AgentScape/',
+  test: {
+    include: ['tests/**/*.test.js']
+  },
   server: {
     watch: {
       ignored: ['**/.venv/**', '**/__pycache__/**', '**/.git/**', '**/dist/**']

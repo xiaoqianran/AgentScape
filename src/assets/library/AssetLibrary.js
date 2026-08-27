@@ -1,12 +1,8 @@
 import { validateAssetManifest } from '../schema.js';
+import { AssetCatalog } from '../AssetCatalog.js';
 import { createDefaultProviderRegistry } from '../../providers/ProviderRegistry.js';
 import { assetAdmission } from '../admission.js';
 
-const normalize = (value = '') => String(value).trim().toLowerCase();
-const SEARCH_STOPWORDS=new Set(['a','an','the','of','to','for','in','on','with','and','or']);
-const tokens = (value = '') => normalize(value)
-  .split(/[^a-z0-9\u4e00-\u9fff]+/)
-  .filter((token)=>token && !SEARCH_STOPWORDS.has(token) && (/[^a-z0-9]/.test(token) || token.length>=2));
 const SAFE_ASSET_CHARS=/[^A-Za-z0-9_-]+/g;
 const generatedAssetId=(prompt,instanceId='')=>{
   const base=String(instanceId || prompt || 'asset').trim().replace(SAFE_ASSET_CHARS,'_').replace(/^_+|_+$/g,'').slice(0,145) || 'asset';
@@ -14,8 +10,9 @@ const generatedAssetId=(prompt,instanceId='')=>{
 };
 
 export class AssetLibrary {
-  constructor({ assetManager, generator = null, generationOrchestrator = null, events = null, providerRegistry = null, embodiedGenAdapter } = {}) {
+  constructor({ assetManager, catalog = null, generator = null, generationOrchestrator = null, events = null, providerRegistry = null, embodiedGenAdapter } = {}) {
     this.assetManager = assetManager;
+    this.catalog = catalog || new AssetCatalog({ assetManager });
     this.generator = generator;
     this.generation = generationOrchestrator;
     this.events = events;
@@ -33,40 +30,9 @@ export class AssetLibrary {
     return Boolean(this.providerRegistry.resolveCapability({provider:options.provider||undefined,operation:options.operation||undefined,input:'text',output:'asset'}));
   }
 
-  list() {
-    return [...this.assetManager.manifests.values()].map((manifest) => this.summary(manifest));
-  }
-
-  summary(manifest) {
-    return {
-      id: manifest.id,
-      type: manifest.type,
-      label: manifest.label || manifest.id,
-      description: manifest.description || '',
-      tags: [...(manifest.tags || [])],
-      actions: [...manifest.actions],
-      source: manifest.source.kind
-    };
-  }
-
-  search(query, { limit = 8 } = {}) {
-    const q = normalize(query);
-    if (!q) return this.list().slice(0, limit);
-    const qTokens = tokens(q);
-    const scored = [];
-    for (const manifest of this.assetManager.manifests.values()) {
-      const fields = [manifest.id, manifest.type, manifest.label, manifest.description, ...(manifest.tags || []), ...(manifest.aliases || [])]
-        .filter(Boolean).map(normalize);
-      let score = 0;
-      for (const field of fields) {
-        if (field === q) score += 12;
-        else if (field.includes(q)) score += 6;
-        for (const token of qTokens) if (field.includes(token)) score += 2;
-      }
-      if (score > 0) scored.push({ score, asset: this.summary(manifest) });
-    }
-    return scored.sort((a, b) => b.score - a.score || a.asset.id.localeCompare(b.asset.id)).slice(0, limit).map((x) => x.asset);
-  }
+  list() { return this.catalog.list(); }
+  summary(manifest) { return this.catalog.summary(manifest); }
+  search(query, options) { return this.catalog.search(query, options); }
 
   async resolve(query, options = {}) {
     const found = this.search(query, { limit: options.limit ?? 5 });

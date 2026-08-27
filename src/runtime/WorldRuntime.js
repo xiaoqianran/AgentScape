@@ -9,6 +9,7 @@ import { InteractionSystem } from './systems/InteractionSystem.js';
 import { SpatialSystem } from './systems/SpatialSystem.js';
 import { NavigationSystem } from './systems/NavigationSystem.js';
 import { LocomotionSystem } from './systems/LocomotionSystem.js';
+import { AssetCatalog } from '../assets/AssetCatalog.js';
 import { AssetLibrary } from '../assets/library/AssetLibrary.js';
 import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
 import { SceneSerializer } from '../persistence/SceneSerializer.js';
@@ -71,8 +72,9 @@ export class WorldRuntime {
     this.assets = new AssetManager({ compiledStore: this.compiledAssetStore });
     this.compilerProvider = new HttpCompilerProvider({ endpoint: localStorage.getItem('agentscape.compilerEndpoint') || '' });
     this.assetCompiler = null;
+    this.assetCatalog = new AssetCatalog({ assetManager: this.assets });
     this.assetGenerator = new HttpAssetGenerator({ endpoint: localStorage.getItem('agentscape.assetGeneratorEndpoint') || '' });
-    this.assetLibrary = new AssetLibrary({ assetManager: this.assets, generator: this.assetGenerator, events: this.events });
+    this.assetLibrary = new AssetLibrary({ assetManager: this.assets, catalog: this.assetCatalog, generator: this.assetGenerator, events: this.events });
     const connectorEndpoint = localStorage.getItem("agentscape.connectorEndpoint") || "";
     let generationConnector = null;
     this.generationConnectorError = null;
