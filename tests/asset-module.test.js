@@ -11,6 +11,10 @@ describe('createAssetModule', () => {
     const module=createAssetModule({manifests:{fixture_asset:manifest}});
     expect(module.manager.compiledStore).toBe(module.compiledStore);
     expect(module.catalog.assetManager).toBe(module.manager);
+    expect(module.artifactRegistry).toBeTruthy();
+    expect(module.byteStore).toBeTruthy();
+    expect(typeof module.publishAsset).toBe('function');
+    expect(typeof module.configurePublication).toBe('function');
     expect(module.catalog.resolveExisting('fixture')).toMatchObject({status:'found',assets:[{id:'fixture_asset'}]});
   });
 

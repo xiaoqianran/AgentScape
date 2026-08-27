@@ -36,6 +36,9 @@ describe('WorldRuntime authoring boundary', () => {
     expect(runtime.compilerProvider).toBe(authoring.compilerProvider);
     expect(runtime.generation).toBe(authoring.generation);
     expect(runtime.getAssetCompiler).toBe(authoring.getAssetCompiler);
+    expect(runtime.generation.artifactRegistry).toBe(runtime.assetModule.artifactRegistry);
+    expect(runtime.generation.byteStore).toBe(runtime.assetModule.byteStore);
+    expect(runtime.generation.publishAsset).toBe(runtime.assetModule.publishAsset);
     expect(runtime.generationConnectorError).toBeNull();
 
     const state = await authoring.initialize();

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AssetCompiler } from "../src/compiler/AssetCompiler.js";
 import { GenerationOrchestrator } from "../src/generation/GenerationOrchestrator.js";
 import { createDefaultProviderRegistry } from "../src/providers/ProviderRegistry.js";
-import { AssetManager } from "../src/assets/AssetManager.js";
+import { createAssetModule } from "../src/assets/createAssetModule.js";
 
 const operation="modal-3d.asset.text_to_3d.v1";
 const capabilityHash="sha256:cap01";
@@ -99,14 +99,17 @@ async function harness({remoteStatus="succeeded"}={}) {
     request,
     session:()=>({status:"paired",connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"}})
   };
-  const assets=new AssetManager({manifests:{},compiledStore:new CompilerStore()});
   const compilerStore=new CompilerStore();
   const compiler=new AssetCompiler({store:compilerStore,version:"as09-test"});
+  const now=()=>Date.parse("2026-08-25T00:01:00.000Z");
+  const assetModule=createAssetModule({manifests:{},compiledStore:compilerStore,now});
+  assetModule.configurePublication({getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_01"});
   const orchestrator=new GenerationOrchestrator({
-    providerRegistry:providerRegistry(),connectorClient,assetManager:assets,getAssetCompiler:async()=>compiler,
-    now:()=>Date.parse("2026-08-25T00:01:00.000Z")
+    providerRegistry:providerRegistry(),connectorClient,
+    artifactRegistry:assetModule.artifactRegistry,byteStore:assetModule.byteStore,publishAsset:assetModule.publishAsset,
+    now
   });
-  return {orchestrator,request,assets,artifactHash};
+  return {orchestrator,request,assets:assetModule.manager,assetModule,artifactHash};
 }
 
 const generationRequest=()=>({
@@ -191,9 +194,16 @@ describe("GenerationOrchestrator",()=>{
       throw new Error(`unexpected request ${path}`);
     });
     const connectorClient={request,session:()=>({status:"paired",connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"}})};
-    const assets=new AssetManager({manifests:{},compiledStore:new CompilerStore()});
-    const compiler=new AssetCompiler({store:new CompilerStore(),version:"p19-test"});
-    const orchestrator=new GenerationOrchestrator({providerRegistry:composedProviderRegistry(),connectorClient,assetManager:assets,getAssetCompiler:async()=>compiler,pollIntervalMs:0});
+    const compilerStore=new CompilerStore();
+    const compiler=new AssetCompiler({store:compilerStore,version:"p19-test"});
+    const assetModule=createAssetModule({manifests:{},compiledStore:compilerStore});
+    assetModule.configurePublication({getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_composed"});
+    const assets=assetModule.manager;
+    const orchestrator=new GenerationOrchestrator({
+      providerRegistry:composedProviderRegistry(),connectorClient,
+      artifactRegistry:assetModule.artifactRegistry,byteStore:assetModule.byteStore,publishAsset:assetModule.publishAsset,
+      pollIntervalMs:0
+    });
 
     expect(orchestrator.canGenerateTextAsset()).toBe(true);
     const produced=await orchestrator.generateTextAsset({prompt:"a red apple",assetId:"generated_apple_01",label:"Red Apple"});

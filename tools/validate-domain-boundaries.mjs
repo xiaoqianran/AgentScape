@@ -31,6 +31,7 @@ const assetCore = allJs.filter((file) => {
     'src/assets/AssetRef.js',
     'src/assets/AssetManager.js',
     'src/assets/createAssetModule.js',
+    'src/assets/publishAsset.js',
     'src/assets/admission.js',
     'src/assets/schema.js',
     'src/assets/parts.js'
@@ -95,9 +96,23 @@ for (const file of worldCore) {
 }
 
 for (const file of allJs) {
-  if (relative(file) === 'src/assets/createAssetModule.js') continue;
-  if (/new\s+AssetManager\s*\(/.test(fs.readFileSync(file, 'utf8'))) {
-    failures.push(`Asset state ownership violation: ${relative(file)} constructs AssetManager outside createAssetModule`);
+  const name = relative(file);
+  const source = fs.readFileSync(file, 'utf8');
+  if (name !== 'src/assets/createAssetModule.js') {
+    if (/new\s+AssetManager\s*\(/.test(source)) {
+      failures.push(`Asset state ownership violation: ${name} constructs AssetManager outside createAssetModule`);
+    }
+    if (/new\s+ArtifactRegistry\s*\(/.test(source)) {
+      failures.push(`Artifact state ownership violation: ${name} constructs ArtifactRegistry outside createAssetModule`);
+    }
+    if (/new\s+MemoryArtifactByteStore\s*\(/.test(source)) {
+      failures.push(`Artifact state ownership violation: ${name} constructs MemoryArtifactByteStore outside createAssetModule`);
+    }
+    for (const specifier of imports(file)) {
+      if (resolveImport(file, specifier) === 'src/assets/publishAsset.js') {
+        failures.push(`Asset publication boundary violation: ${name} imports publication internals directly`);
+      }
+    }
   }
 }
 

@@ -1,13 +1,10 @@
 import { ArtifactImporter } from "../artifacts/ArtifactImporter.js";
-import { ArtifactRegistry } from "../artifacts/ArtifactRegistry.js";
-import { MemoryArtifactByteStore } from "../artifacts/MemoryArtifactByteStore.js";
 import { IncrementalSha256 } from "../artifacts/IncrementalSha256.js";
 import { ConnectorArtifactClient } from "../connector/ConnectorArtifactClient.js";
 import { ConnectorCapabilityAdapter } from "../connector/ConnectorCapabilityAdapter.js";
 import { ConnectorJobClient } from "../connector/ConnectorJobClient.js";
 import { GenerationJobReconciler } from "../jobs/GenerationJobReconciler.js";
 import { connectorJobStatusIsRemoteTerminal, sanitizeJobData } from "../jobs/GenerationJobProjection.js";
-import { VerifiedArtifactAssetPipeline } from "../pipeline/VerifiedArtifactAssetPipeline.js";
 
 const clone=(value)=>value==null?value:structuredClone(value);
 const GENERATION_CATEGORY=/generation/i;
@@ -162,7 +159,7 @@ export class GenerationOrchestrator {
   constructor({
     providerRegistry,connectorClient=null,capabilityAdapter=new ConnectorCapabilityAdapter(),
     jobClient=null,jobReconciler=null,artifactRegistry=null,byteStore=null,
-    artifactImporter=null,assetPipeline=null,assetManager=null,getAssetCompiler=null,
+    artifactImporter=null,publishAsset=null,
     events=null,now=()=>Date.now(),monotonic=()=>globalThis.performance?.now?.() ?? Date.now(),
     sleep=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms)),pollIntervalMs=DEFAULT_POLL_INTERVAL_MS,
     generationTimeoutMs=DEFAULT_GENERATION_TIMEOUT_MS
@@ -175,15 +172,13 @@ export class GenerationOrchestrator {
     this.capabilityAdapter=capabilityAdapter;
     this.jobClient=jobClient || (connectorClient ? new ConnectorJobClient({connectorClient,providerRegistry}) : null);
     this.jobReconciler=jobReconciler || (this.jobClient ? new GenerationJobReconciler({jobClient:this.jobClient}) : null);
-    this.artifactRegistry=artifactRegistry || artifactImporter?.registry || new ArtifactRegistry({now});
-    this.byteStore=byteStore || artifactImporter?.byteStore || new MemoryArtifactByteStore();
-    this.artifactImporter=artifactImporter || (connectorClient ? new ArtifactImporter({
+    this.artifactRegistry=artifactRegistry || artifactImporter?.registry || null;
+    this.byteStore=byteStore || artifactImporter?.byteStore || null;
+    this.artifactImporter=artifactImporter || (connectorClient && this.artifactRegistry && this.byteStore ? new ArtifactImporter({
       registry:this.artifactRegistry,byteStore:this.byteStore,
       connectorArtifactClient:new ConnectorArtifactClient({connectorClient}),now
     }) : null);
-    this.assetPipeline=assetPipeline;
-    this.assetManager=assetManager;
-    this.getAssetCompiler=getAssetCompiler;
+    this.publishAsset=publishAsset;
     this.events=events;
     this.now=now;
     this.monotonic=monotonic;
@@ -445,7 +440,7 @@ export class GenerationOrchestrator {
   }
 
   async importGenerationResult(jobId,{artifactId=null,role=null}={}) {
-    if (!this.artifactImporter) throw new GenerationOrchestrationError("CONNECTION_REQUIRED","Generation Artifact importer is not configured");
+    if (!this.artifactImporter || !this.artifactRegistry) throw new GenerationOrchestrationError("ARTIFACT_IMPORTER_UNAVAILABLE","Generation Artifact importer is not configured with AgentScape Artifact state");
     const client=requireJobClient(this.jobClient);
     let job;
     try { job=await client.get(jobId); }
@@ -480,19 +475,6 @@ export class GenerationOrchestrator {
     };
   }
 
-  async #pipeline() {
-    if (this.assetPipeline) return this.assetPipeline;
-    if (!this.assetManager || typeof this.getAssetCompiler!=="function") {
-      throw new GenerationOrchestrationError("ASSET_PIPELINE_UNAVAILABLE","Generation asset compile pipeline is not configured");
-    }
-    const assetCompiler=await this.getAssetCompiler();
-    this.assetPipeline=new VerifiedArtifactAssetPipeline({
-      artifactRegistry:this.artifactRegistry,byteStore:this.byteStore,assetCompiler,
-      assetManager:this.assetManager,events:this.events,now:this.now
-    });
-    return this.assetPipeline;
-  }
-
   async generateAndCompileAsset(request={}) {
     const assetId=String(request.assetId||"").trim();
     if (!assetId) throw new GenerationOrchestrationError("ASSET_ID_REQUIRED","generateAndCompileAsset requires assetId");
@@ -507,8 +489,10 @@ export class GenerationOrchestrator {
     if (imported.artifact.mime!=="model/gltf-binary" || imported.artifact.format!=="glb") {
       throw new GenerationOrchestrationError("ARTIFACT_FORMAT_UNSUPPORTED","Asset compilation requires a verified GLB generation artifact",{artifactId:imported.artifact.id});
     }
-    const pipeline=await this.#pipeline();
-    const produced=await pipeline.produce({artifactId:imported.artifact.id,assetId,label:request.label});
+    if (typeof this.publishAsset!=="function") {
+      throw new GenerationOrchestrationError("ASSET_PUBLISHER_UNAVAILABLE","Generation asset publication is not configured");
+    }
+    const produced=await this.publishAsset({artifactId:imported.artifact.id,assetId,label:request.label});
     return {...produced,jobId:view.jobId,providerStatus:"provider-succeeded",artifactStatus:"artifact-imported"};
   }
 }

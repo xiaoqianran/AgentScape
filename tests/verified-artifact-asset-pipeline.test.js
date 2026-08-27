@@ -5,7 +5,7 @@ import { ArtifactRegistry } from '../src/artifacts/ArtifactRegistry.js';
 import { MemoryArtifactByteStore } from '../src/artifacts/MemoryArtifactByteStore.js';
 import { AssetCompiler } from '../src/compiler/AssetCompiler.js';
 import { AssetManager } from '../src/assets/AssetManager.js';
-import { VerifiedArtifactAssetPipeline } from '../src/pipeline/VerifiedArtifactAssetPipeline.js';
+import { VerifiedArtifactAssetPipeline } from '../src/assets/publishAsset.js';
 
 const NOW=Date.parse('2026-08-24T10:00:00.000Z');
 const sha=(bytes)=>`sha256:${createHash('sha256').update(bytes).digest('hex')}`;

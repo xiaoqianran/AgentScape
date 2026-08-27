@@ -107,7 +107,7 @@ export function attachLegacyAuthoring(runtime, {
   providerRegistry = null,
   generationOptions = {}
 } = {}) {
-  if (!runtime?.assets || !runtime?.assetCatalog || !runtime?.compiledAssetStore || !runtime?.events) {
+  if (!runtime?.assetModule?.configurePublication || typeof runtime.assetModule.publishAsset !== 'function' || !runtime?.assets || !runtime?.assetCatalog || !runtime?.compiledAssetStore || !runtime?.events) {
     throw new TypeError('Legacy authoring requires a WorldRuntime domain shell');
   }
   if (runtime.authoring) return runtime.authoring;
@@ -150,11 +150,16 @@ export function attachLegacyAuthoring(runtime, {
     return assetCompiler;
   };
 
+  runtime.assetModule.configurePublication({
+    getAssetCompiler,
+    events: runtime.events
+  });
   const generation = new GenerationOrchestrator({
     providerRegistry: providers,
     connectorClient: connector,
-    assetManager: runtime.assets,
-    getAssetCompiler,
+    artifactRegistry: runtime.assetModule.artifactRegistry,
+    byteStore: runtime.assetModule.byteStore,
+    publishAsset: runtime.assetModule.publishAsset,
     events: runtime.events,
     ...generationOptions
   });

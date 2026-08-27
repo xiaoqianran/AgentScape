@@ -1,7 +1,6 @@
 import { ArtifactContractError, requireSafeArtifactId } from './ArtifactDescriptor.js';
 import { artifactContentNeedsFullBytes, validateArtifactContent } from './ArtifactContentGate.js';
 import { IncrementalSha256 } from './IncrementalSha256.js';
-import { MemoryArtifactByteStore } from './MemoryArtifactByteStore.js';
 
 let fallbackId=0;
 const defaultIdFactory=(kind)=>{
@@ -37,7 +36,7 @@ export class ArtifactImporter {
   constructor({
     registry,
     connectorArtifactClient,
-    byteStore=new MemoryArtifactByteStore(),
+    byteStore,
     maxBytes=256*1024*1024,
     maxStructuredBytes=16*1024*1024,
     maxJsonDepth=64,

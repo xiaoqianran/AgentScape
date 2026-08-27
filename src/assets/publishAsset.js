@@ -1,6 +1,7 @@
-import { assetAdmission } from '../assets/admission.js';
-import { validateAssetManifest } from '../assets/schema.js';
+import { assetAdmission } from './admission.js';
+import { validateAssetManifest } from './schema.js';
 import { requireSafeArtifactId } from '../artifacts/ArtifactDescriptor.js';
+import { createAssetRef } from './AssetRef.js';
 
 const SAFE_ASSET_ID=/^[A-Za-z0-9_-]{1,160}$/;
 const CONTROL_RE=/[\u0000-\u001f\u007f]/;
@@ -235,4 +236,28 @@ export class VerifiedArtifactAssetPipeline {
       if (leaseHeld) this.artifactRegistry.releaseLease(leaseId);
     }
   }
+}
+
+
+export function createAssetPublisher({
+  artifactRegistry, byteStore, getAssetCompiler, assetManager, events = null,
+  now = () => Date.now(), idFactory = defaultIdFactory
+} = {}) {
+  if (typeof getAssetCompiler !== 'function') {
+    throw new AssetProductionError('ASSET_PUBLISHER_INVALID', 'Asset publisher requires getAssetCompiler()');
+  }
+  let pipeline = null;
+  return async function publishAsset(request = {}) {
+    if (!pipeline) {
+      const assetCompiler = await getAssetCompiler();
+      pipeline = new VerifiedArtifactAssetPipeline({
+        artifactRegistry, byteStore, assetCompiler, assetManager, events, now, idFactory
+      });
+    }
+    const result = await pipeline.produce(request);
+    if (result.status === 'asset-ready' || result.status === 'asset-provisional') {
+      return { ...result, assetRef: createAssetRef(result.assetId) };
+    }
+    return result;
+  };
 }
