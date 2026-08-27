@@ -37,7 +37,8 @@ const assetCore = allJs.filter((file) => {
 });
 const worldCore = allJs.filter((file) => {
   const name = relative(file);
-  return /^src\/pipeline\/World[^/]*\.js$/.test(name)
+  return name === 'src/runtime/WorldRuntime.js'
+    || /^src\/pipeline\/World[^/]*\.js$/.test(name)
     || name.startsWith('src/runtime/systems/')
     || name.startsWith('src/runtime/physics/')
     || name.startsWith('src/runtime/graph/')
@@ -62,6 +63,7 @@ assertNoImports('Asset Core boundary violation', assetCore, [
   /^src\/generation\//,
   /^src\/connector\//,
   /^src\/providers\//,
+  /^src\/authoring\//,
   /^src\/pipeline\/World/,
   /^src\/runtime\/WorldRuntime\.js$/
 ]);
@@ -70,6 +72,7 @@ assertNoImports('World Core boundary violation', worldCore, [
   /^src\/generation\//,
   /^src\/connector\//,
   /^src\/providers\//,
+  /^src\/authoring\//,
   /^src\/assets\/library\//,
   /^src\/assets\/gateway\//,
   /^src\/compiler\/providers\//
@@ -82,4 +85,4 @@ if (failures.length) {
 }
 
 console.log(`domain architecture validation passed (asset core ${assetCore.length} files, world core ${worldCore.length} files)`);
-console.log('compatibility shells intentionally excluded: src/assets/library/AssetLibrary.js, src/runtime/WorldRuntime.js');
+console.log('compatibility shell intentionally excluded: src/assets/library/AssetLibrary.js; authoring lives under src/authoring/.');

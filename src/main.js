@@ -1,5 +1,8 @@
 import './style.css';
 import { WorldRuntime } from './runtime/WorldRuntime.js';
+import { attachLegacyAuthoring } from './authoring/LegacyAuthoringShell.js';
+import { SkillRegistry } from './skills/SkillRegistry.js';
+import { registerCoreSkills } from './skills/registerCoreSkills.js';
 import { AgentTools } from './agent/AgentTools.js';
 import { ToolCallingAgent } from './agent/ToolCallingAgent.js';
 import { HttpLLMGateway } from './agent/gateway/HttpLLMGateway.js';
@@ -211,6 +214,9 @@ async function main() {
   });
 
   const world = new WorldRuntime(document.querySelector('#viewport'), { environmentFactory });
+  const authoring = attachLegacyAuthoring(world);
+  world.skills = registerCoreSkills(new SkillRegistry({ policy: world.policy, trace: world.trace, runtime: world }), world);
+  await authoring.initialize({ pair: true });
   await world.init();
   const tools = new AgentTools(world, { profile:'builder', actor:'agent_01' });
   const gateway = new HttpLLMGateway({ endpoint: localStorage.getItem('agentscape.gatewayEndpoint') || '' });

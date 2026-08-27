@@ -78,8 +78,8 @@ export function registerCoreSkills(registry, runtime) {
     return { ...report, readiness: admission.status, admission };
   });
   add('inspectCompiledAsset', meta('读取已编译资产的编译报告。', ['asset.read'], ['assetId'], { assetId: string }), (a) => runtime.assets.getManifest(a.assetId).compiler || null);
-  add('listAssets', meta('列出资产库。', ['asset.read']), () => runtime.assetLibrary.list());
-  add('searchAssets', meta('按名称、类型、标签或别名搜索可复用资产。', ['asset.read'], ['query'], { query: string, limit: { type: 'integer', minimum: 1, maximum: 20 } }), (a) => runtime.assetLibrary.search(a.query, { limit: a.limit ?? 8 }));
+  add('listAssets', meta('列出资产库。', ['asset.read']), () => runtime.assetCatalog.list());
+  add('searchAssets', meta('按名称、类型、标签或别名搜索可复用资产。', ['asset.read'], ['query'], { query: string, limit: { type: 'integer', minimum: 1, maximum: 20 } }), (a) => runtime.assetCatalog.search(a.query, { limit: a.limit ?? 8 }));
   add('generateAsset', meta('使用已配置的生成后端创建并注册缺失资产；调用前应先搜索。生成结果可能是 asset-provisional，不能因此假定世界已验证。', ['asset.write'], ['prompt'], { prompt: string }), async (a) => {
     const result=await runtime.assetLibrary.generate(a.prompt);
     const status=result.admission?.status || 'provisional';
@@ -114,7 +114,7 @@ export function registerCoreSkills(registry, runtime) {
     runtime.assets.registerManifest(manifest);
     const admission=assetAdmission(manifest);
     runtime.events.emit('asset.registered', { assetId: manifest.id, provider: 'embodiedgen', admission:admission.status });
-    return { ...runtime.assetLibrary.summary(manifest), admission, status:`asset-${admission.status}` };
+    return { ...runtime.assetCatalog.summary(manifest), admission, status:`asset-${admission.status}` };
   });
 
   add('listObjects', meta('列出当前世界中的对象及其位置和能力。', ['world.read']), () => runtime.listObjects());

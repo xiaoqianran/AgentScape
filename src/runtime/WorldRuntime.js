@@ -10,27 +10,19 @@ import { SpatialSystem } from './systems/SpatialSystem.js';
 import { NavigationSystem } from './systems/NavigationSystem.js';
 import { LocomotionSystem } from './systems/LocomotionSystem.js';
 import { AssetCatalog } from '../assets/AssetCatalog.js';
-import { AssetLibrary } from '../assets/library/AssetLibrary.js';
-import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
 import { SceneSerializer } from '../persistence/SceneSerializer.js';
 import { CommandHistory } from '../history/CommandHistory.js';
 import { SceneGraph } from './graph/SceneGraph.js';
 import { PolicyEngine } from '../policy/PolicyEngine.js';
 import { TraceRecorder } from '../observability/TraceRecorder.js';
-import { SkillRegistry } from '../skills/SkillRegistry.js';
-import { registerCoreSkills } from '../skills/registerCoreSkills.js';
 import { WorldValidator } from '../validation/WorldValidator.js';
 import { RepairEngine } from '../validation/RepairEngine.js';
 import { createCanonicalWorldPipeline } from '../pipeline/createWorldPipeline.js';
 import { CompiledAssetStore } from '../assets/storage/CompiledAssetStore.js';
-import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider.js';
 import { disposeObject3D } from './disposeObject3D.js';
 import { ArticulationVerifier } from '../validation/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../validation/InteractionEvidence.js';
-
-import { ConnectorClient } from "../connector/ConnectorClient.js";
-import { GenerationOrchestrator } from "../generation/GenerationOrchestrator.js";
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -70,37 +62,9 @@ export class WorldRuntime {
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.compiledAssetStore = new CompiledAssetStore();
     this.assets = new AssetManager({ compiledStore: this.compiledAssetStore });
-    this.compilerProvider = new HttpCompilerProvider({ endpoint: localStorage.getItem('agentscape.compilerEndpoint') || '' });
-    this.assetCompiler = null;
     this.assetCatalog = new AssetCatalog({ assetManager: this.assets });
-    this.assetGenerator = new HttpAssetGenerator({ endpoint: localStorage.getItem('agentscape.assetGeneratorEndpoint') || '' });
-    this.assetLibrary = new AssetLibrary({ assetManager: this.assets, catalog: this.assetCatalog, generator: this.assetGenerator, events: this.events });
-    const connectorEndpoint = localStorage.getItem("agentscape.connectorEndpoint") || "";
-    let generationConnector = null;
-    this.generationConnectorError = null;
-    if (connectorEndpoint) {
-      try { generationConnector = new ConnectorClient({ endpoint:connectorEndpoint }); }
-      catch (error) { this.generationConnectorError = { code:error.code || "CONNECTOR_ENDPOINT_INVALID", message:error.message }; }
-    }
-    this.generation = new GenerationOrchestrator({
-      providerRegistry:this.assetLibrary.providerRegistry,
-      connectorClient:generationConnector,
-      assetManager:this.assets,
-      getAssetCompiler:()=>this.getAssetCompiler(),
-      events:this.events
-    });
-    this.assetLibrary.attachGeneration(this.generation);
-    this.generationState = { status:"connection-required", reason:generationConnector ? "PAIRING_REQUIRED" : "CONNECTOR_NOT_CONFIGURED" };
     this.articulationVerifier = new ArticulationVerifier({ assets: this.assets }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
   }
-  async getAssetCompiler() {
-    if (!this.assetCompiler) {
-      const { AssetCompiler } = await import('../compiler/AssetCompiler.js');
-      this.assetCompiler = new AssetCompiler({ store: this.compiledAssetStore, provider: this.compilerProvider, events: this.events, version: this.version });
-    }
-    return this.assetCompiler;
-  }
-
   async init() {
     await this.physics.init();
     this.scene = new THREE.Scene();
@@ -121,12 +85,6 @@ export class WorldRuntime {
     this.navigation = new NavigationSystem({ store: this.store, physics: this.physics, environmentRoots: [this.environment.root], events: this.events });
     this.locomotion = new LocomotionSystem({ store:this.store, physics:this.physics, navigation:this.navigation, events:this.events });
     this.interactions = new InteractionSystem({ store:this.store, physics:this.physics, spatial:this.spatial, navigation:this.navigation, locomotion:this.locomotion, events:this.events });
-    if (this.generation.connectorClient) {
-      try { this.generationState = await this.generation.initialize({ pair:true }); }
-      catch (error) { this.generationState = { status:"connection-required", reason:error.code || "CONNECTOR_INITIALIZATION_FAILED" }; }
-      this.events.emit("generation.state", structuredClone(this.generationState));
-    }
-    this.skills = registerCoreSkills(new SkillRegistry({ policy: this.policy, trace: this.trace, runtime: this }), this);
     this.ruleRuntime.start();
     this.worldPipeline = createCanonicalWorldPipeline(this);
     this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;
