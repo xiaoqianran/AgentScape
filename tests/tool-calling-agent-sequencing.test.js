@@ -513,6 +513,26 @@ it('requires a Runtime-issued World IR proposal before Agent execution and force
   expect(result.execution.find((entry)=>entry.reason==='REPLAN_REQUIRED_AFTER_WORLD_PROPOSAL')).toMatchObject({tool:'runWorldPipeline',executed:false});
 });
 
+it('skips redundant read-only confirmation after a verified world build but still allows a fresh planning round',async()=>{
+  let round=0;
+  const plan={schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'world-r1'},provenance:{source:'test'},intent:{name:'Lab'},entities:[],spatial:{relations:[]},interactions:[],rules:[],acceptance:[]};
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'run',name:'runWorldPipeline',args:{plan}}]};
+    if(round===2) return {message:'',toolCalls:[
+      {id:'space',name:'findFreeSpace',args:{id:'cup',targetId:'table'}},
+      {id:'relations',name:'listRelations',args:{}}
+    ]};
+    return {message:'world ready',toolCalls:[]};
+  })};
+  const tools=makeTools({runWorldPipeline:async()=>({status:'world-ready',admission:{status:'ready'}})});
+
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:5}).run('build lab');
+  expect(tools.call.mock.calls.filter(([name])=>name!=='listObjects').map(([name])=>name)).toEqual(['runWorldPipeline']);
+  expect(result.execution.filter((entry)=>entry.reason==='WORLD_READY_REDUNDANT_READ').map((entry)=>entry.tool)).toEqual(['findFreeSpace','listRelations']);
+  expect(result).toMatchObject({taskStatus:'completed',lastMutation:{tool:'runWorldPipeline',outcome:{state:'verified'}}});
+});
+
 it('deduplicates World IR by semantic plan rather than Runtime-issued revision identity',async()=>{
   let round=0,pipelineCalls=0;
   const semantic={schema:'agentscape.world-ir',schemaVersion:1,intent:{name:'Lab'},entities:[],spatial:{relations:[]},interactions:[],rules:[],acceptance:[]};

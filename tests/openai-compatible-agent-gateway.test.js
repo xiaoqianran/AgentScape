@@ -52,6 +52,25 @@ describe('OpenAI-compatible local test gateway', () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
+  it('falls back across configured models only for retryable upstream failures', async () => {
+    const seen=[];
+    const fetchImpl=vi.fn(async(_url,options)=>{
+      const body=JSON.parse(options.body); seen.push(body.model);
+      if(seen.length===1) return new Response(JSON.stringify({error:{message:'temporary'}}),{status:502,headers:{'content-type':'application/json'}});
+      return new Response(JSON.stringify({choices:[{message:{content:'ok'}}]}),{status:200,headers:{'content-type':'application/json'}});
+    });
+    const complete=createAgentGateway({baseUrl:'https://upstream.test/v1',apiKey:'secret',models:['primary','fallback'],fetchImpl});
+    await expect(complete({messages:[{role:'user',content:'hi'}],tools:[]})).resolves.toMatchObject({message:'ok',final:true});
+    expect(seen).toEqual(['primary','fallback']);
+  });
+
+  it('does not hide non-retryable upstream contract/auth failures behind model fallback', async () => {
+    const fetchImpl=vi.fn(async()=>new Response(JSON.stringify({error:{message:'bad request'}}),{status:400,headers:{'content-type':'application/json'}}));
+    const complete=createAgentGateway({baseUrl:'https://upstream.test/v1',apiKey:'secret',models:['primary','fallback'],fetchImpl});
+    await expect(complete({messages:[],tools:[]})).rejects.toThrow(/bad request/);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it('creates a deterministic payload and preserves the current provider-neutral world context', () => {
     const payload=createUpstreamPayload({
       messages:[{role:'system',content:'system'},{role:'user',content:'x'}], tools:[],

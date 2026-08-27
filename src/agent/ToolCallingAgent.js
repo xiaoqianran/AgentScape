@@ -166,6 +166,24 @@ export class ToolCallingAgent {
         this.log(final, 'result');
         return { message:final, steps:step + 1, taskStatus, lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved, execution:structuredClone(execution), ...(acceptanceBundle?{acceptanceBundle}:{}) };
       }
+      const worldBuildVerified=lastMutation
+        && ['runWorldPipeline','recompileWorldRevision'].includes(lastMutation.tool)
+        && COMPLETE_OUTCOMES.has(lastMutation.outcome?.state)
+        && !unresolved.length;
+      const redundantPostWorldReads=worldBuildVerified
+        && response.toolCalls.every((call)=>!this.tools.executionPolicy?.(call.name,undefined)?.mutates);
+      if(redundantPostWorldReads){
+        messages.push({role:'assistant',content:response.message || '',toolCalls:response.toolCalls});
+        const instruction='The world build is already Runtime-verified and current task context is fresh. Do not issue read-only confirmation calls. Either perform the next required world mutation from current context or finalize.';
+        for(const call of response.toolCalls){
+          const skipped={status:'not-executed',reason:'WORLD_READY_REDUNDANT_READ',instruction,_sequence:{outcome:{state:'skipped',verified:false},barrier:false,replanRequired:true}};
+          messages.push({role:'tool',toolCallId:call.id,name:call.name,content:JSON.stringify(skipped)});
+          execution.push({planningStep:step+1,tool:call.name,args:structuredClone(call.args || {}),executed:false,outcome:{state:'skipped',verified:false},reason:skipped.reason});
+          this.tools.recordSequence?.({planningStep:step+1,tool:call.name,executed:false,reason:skipped.reason,replanRequired:true});
+        }
+        this.log('skip: redundant read-only confirmation after verified world build','plan');
+        continue;
+      }
       const readOnlyRecovery = unresolved.length && recoveryReadRounds >= this.maxRecoveryReadRounds
         && response.toolCalls.every((call)=>!this.tools.executionPolicy?.(call.name,undefined)?.mutates);
       if (readOnlyRecovery) {

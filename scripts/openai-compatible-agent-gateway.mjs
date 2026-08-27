@@ -1,11 +1,25 @@
 import http from 'node:http';
 import fs from 'node:fs';
 
-export const DEFAULT_BASE_URL = 'https://nim.202820.xyz/v1';
+export const DEFAULT_BASE_URL = 'https://newapi-jp1.202820.xyz/v1';
 export const DEFAULT_HOST = '127.0.0.1';
 export const DEFAULT_PORT = 8788;
-export const DEFAULT_MODEL = 'nvidia/nemotron-3.5-lightning-30b-a3b';
-export const ALTERNATE_MODEL = 'meta/muse-glimmer-30b';
+export const DEFAULT_MODELS = Object.freeze([
+  'openai/gpt-oss-120b',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
+  'stepfun-ai/step-3.7-flash'
+]);
+export const DEFAULT_MODEL = DEFAULT_MODELS[0];
+export const ALTERNATE_MODEL = DEFAULT_MODELS[1];
+
+const normalizeModels = ({ model, models } = {}) => {
+  const values = Array.isArray(models) ? models : typeof models === 'string' ? models.split(',') : model ? [model] : DEFAULT_MODELS;
+  const normalized = [...new Set(values.flatMap((value) => String(value || '').split(',')).map((value) => value.trim()).filter(Boolean))];
+  if (!normalized.length) throw new Error('At least one LLM model is required');
+  return normalized;
+};
+
+const retryableUpstreamStatus = (status) => status === 408 || status === 425 || status === 429 || status >= 500;
 
 export function loadEnvFile(path = '.env.local', target = process.env) {
   if (!fs.existsSync(path)) return false;
@@ -133,23 +147,38 @@ const readJson = async (request, maxBytes = 2 * 1024 * 1024) => {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 };
 
-export function createAgentGateway({ baseUrl, apiKey, model = DEFAULT_MODEL, fetchImpl = fetch } = {}) {
-  if (!baseUrl) throw new Error('AGENTSCAPE_TEST_LLM_BASE_URL is required');
-  if (!apiKey) throw new Error('AGENTSCAPE_TEST_LLM_API_KEY is required');
+export function createAgentGateway({ baseUrl, apiKey, model, models, fetchImpl = fetch } = {}) {
+  if (!baseUrl) throw new Error('AGENTSCAPE_LLM_BASE_URL is required');
+  if (!apiKey) throw new Error('AGENTSCAPE_LLM_API_KEY is required');
   const chatUrl = `${String(baseUrl).replace(/\/$/, '')}/chat/completions`;
+  const modelChain = normalizeModels({ model, models });
 
   return async (request) => {
-    const upstream = await fetchImpl(chatUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(createUpstreamPayload(request, model))
-    });
-    const payload = await upstream.json().catch(() => ({}));
-    if (!upstream.ok) {
-      const detail = payload.error?.message || `HTTP ${upstream.status}`;
-      throw new Error(`OpenAI-compatible upstream failed: ${detail}`);
+    let lastError = null;
+    for (let index = 0; index < modelChain.length; index++) {
+      const currentModel = modelChain[index];
+      let upstream;
+      try {
+        upstream = await fetchImpl(chatUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify(createUpstreamPayload(request, currentModel))
+        });
+      } catch (error) {
+        lastError = new Error(`OpenAI-compatible upstream transport failed for ${currentModel}: ${error.message}`);
+        if (index + 1 < modelChain.length) continue;
+        throw lastError;
+      }
+      const payload = await upstream.json().catch(() => ({}));
+      if (!upstream.ok) {
+        const detail = payload.error?.message || `HTTP ${upstream.status}`;
+        lastError = new Error(`OpenAI-compatible upstream failed for ${currentModel}: ${detail}`);
+        if (retryableUpstreamStatus(upstream.status) && index + 1 < modelChain.length) continue;
+        throw lastError;
+      }
+      return fromOpenAIResponse(payload);
     }
-    return fromOpenAIResponse(payload);
+    throw lastError || new Error('OpenAI-compatible upstream failed');
   };
 }
 
@@ -163,7 +192,8 @@ export function startServer(options = {}) {
     if (!isAllowedOrigin(origin, extraOrigins)) return json(response, 403, { error:'Origin not allowed' });
     if (request.method === 'OPTIONS') return json(response, 204, {}, origin);
     if (request.method === 'GET' && request.url === '/health') {
-      return json(response, 200, { ok:true, model:options.model || DEFAULT_MODEL }, origin);
+      const models=normalizeModels(options);
+      return json(response, 200, { ok:true, model:models[0], models }, origin);
     }
     if (request.method !== 'POST' || request.url !== '/agent') return json(response, 404, { error:'Not found' }, origin);
     try {
@@ -174,7 +204,7 @@ export function startServer(options = {}) {
     }
   });
   server.listen(port, host, () => {
-    if (!options.quiet) console.log(`AgentScape test LLM gateway · http://${host}:${server.address().port}/agent · model=${options.model || DEFAULT_MODEL}`);
+    if (!options.quiet) console.log(`AgentScape LLM gateway · http://${host}:${server.address().port}/agent · models=${normalizeModels(options).join(',')}`);
   });
   return server;
 }
@@ -182,11 +212,12 @@ export function startServer(options = {}) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   loadEnvFile();
   startServer({
-    baseUrl: process.env.AGENTSCAPE_TEST_LLM_BASE_URL || DEFAULT_BASE_URL,
-    apiKey: process.env.AGENTSCAPE_TEST_LLM_API_KEY,
-    model: process.env.AGENTSCAPE_TEST_LLM_MODEL || DEFAULT_MODEL,
-    host: process.env.AGENTSCAPE_TEST_LLM_HOST || DEFAULT_HOST,
-    port: process.env.AGENTSCAPE_TEST_LLM_PORT || DEFAULT_PORT,
+    baseUrl: process.env.AGENTSCAPE_LLM_BASE_URL || process.env.AGENTSCAPE_TEST_LLM_BASE_URL || DEFAULT_BASE_URL,
+    apiKey: process.env.AGENTSCAPE_LLM_API_KEY || process.env.AGENTSCAPE_TEST_LLM_API_KEY,
+    models: process.env.AGENTSCAPE_LLM_MODELS || process.env.AGENTSCAPE_TEST_LLM_MODELS || undefined,
+    model: process.env.AGENTSCAPE_LLM_MODEL || process.env.AGENTSCAPE_TEST_LLM_MODEL || undefined,
+    host: process.env.AGENTSCAPE_LLM_HOST || process.env.AGENTSCAPE_TEST_LLM_HOST || DEFAULT_HOST,
+    port: process.env.AGENTSCAPE_LLM_PORT || process.env.AGENTSCAPE_TEST_LLM_PORT || DEFAULT_PORT,
     allowedOrigins:(process.env.AGENTSCAPE_ALLOWED_ORIGINS ?? process.env.AGENTSCAPE_TEST_LLM_ALLOWED_ORIGINS ?? '').split(',').map((value)=>value.trim()).filter(Boolean)
   });
 }
