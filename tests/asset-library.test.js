@@ -21,6 +21,22 @@ describe('AssetLibrary', () => {
     expect(generator.generate).not.toHaveBeenCalled();
   });
 
+  it('delegates generated assets to the unified GenerationOrchestrator when a Connector route is available', async () => {
+    const assetManager=new AssetManager();
+    const generation={
+      canGenerateTextAsset:vi.fn(()=>true),
+      generateTextAsset:vi.fn(async({assetId,label})=>{
+        const manifest={id:assetId,type:'object',label,source:{kind:'glb',url:'https://assets.test/generated.glb'},actions:['move'],physics:{body:'fixed',colliders:[]},compiler:{quality:{status:'ready'}},provenance:{assetProduction:{sourceArtifact:{producer:{provider:'modal-3d'}}}}};
+        assetManager.registerManifest(manifest);
+        return {status:'asset-ready',assetId,manifest,admission:{status:'ready',reasons:[]},route:{kind:'text-image-3d'},jobs:{image:'job_image',asset:'job_asset'}};
+      })
+    };
+    const assets=new AssetLibrary({assetManager,generationOrchestrator:generation});
+    const result=await assets.resolve('a red apple',{generate:true,instanceId:'apple_01'});
+    expect(result).toMatchObject({status:'generated',assets:[{id:'generated_apple_01',admission:{status:'ready'},generation:{route:{kind:'text-image-3d'}}}]});
+    expect(generation.generateTextAsset).toHaveBeenCalledWith(expect.objectContaining({prompt:'a red apple',assetId:'generated_apple_01'}));
+  });
+
   it('reports a missing generator explicitly', async () => {
     const result = await library().resolve('spaceship toaster', { generate: true });
     expect(result.status).toBe('generator_not_configured');

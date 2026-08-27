@@ -49,6 +49,7 @@ const createPipeline=(runtime,compileInput)=>{
       }
       const result = await runtime.assetLibrary.resolve(request.query || request.type || '', {
         generate: request.generate ?? false,
+        ...(request.id ? { instanceId:request.id } : {}),
         ...(request.provider ? { provider:request.provider } : {}),
         ...(request.assetId ? { id:request.assetId } : {})
       });

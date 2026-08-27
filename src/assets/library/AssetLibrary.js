@@ -3,14 +3,34 @@ import { createDefaultProviderRegistry } from '../../providers/ProviderRegistry.
 import { assetAdmission } from '../admission.js';
 
 const normalize = (value = '') => String(value).trim().toLowerCase();
-const tokens = (value = '') => normalize(value).split(/[^a-z0-9\u4e00-\u9fff]+/).filter(Boolean);
+const SEARCH_STOPWORDS=new Set(['a','an','the','of','to','for','in','on','with','and','or']);
+const tokens = (value = '') => normalize(value)
+  .split(/[^a-z0-9\u4e00-\u9fff]+/)
+  .filter((token)=>token && !SEARCH_STOPWORDS.has(token) && (/[^a-z0-9]/.test(token) || token.length>=2));
+const SAFE_ASSET_CHARS=/[^A-Za-z0-9_-]+/g;
+const generatedAssetId=(prompt,instanceId='')=>{
+  const base=String(instanceId || prompt || 'asset').trim().replace(SAFE_ASSET_CHARS,'_').replace(/^_+|_+$/g,'').slice(0,145) || 'asset';
+  return `generated_${base}`;
+};
 
 export class AssetLibrary {
-  constructor({ assetManager, generator = null, events = null, providerRegistry = null, embodiedGenAdapter } = {}) {
+  constructor({ assetManager, generator = null, generationOrchestrator = null, events = null, providerRegistry = null, embodiedGenAdapter } = {}) {
     this.assetManager = assetManager;
     this.generator = generator;
+    this.generation = generationOrchestrator;
     this.events = events;
     this.providerRegistry = providerRegistry || createDefaultProviderRegistry({ generator, embodiedGenAdapter });
+  }
+
+  attachGeneration(orchestrator) {
+    if (orchestrator != null && typeof orchestrator.generateTextAsset !== 'function') throw new Error('AssetLibrary generation orchestrator must implement generateTextAsset');
+    this.generation=orchestrator || null;
+    return this;
+  }
+
+  canGenerate(options={}) {
+    if (this.generation?.canGenerateTextAsset?.({provider:options.provider||null,imageProvider:options.imageProvider||null})) return true;
+    return Boolean(this.providerRegistry.resolveCapability({provider:options.provider||undefined,operation:options.operation||undefined,input:'text',output:'asset'}));
   }
 
   list() {
@@ -59,6 +79,24 @@ export class AssetLibrary {
   }
 
   async generate(prompt, options = {}) {
+    if (this.generation?.canGenerateTextAsset?.({provider:options.provider||null,imageProvider:options.imageProvider||null})) {
+      const assetId=String(options.assetId || options.id || generatedAssetId(prompt,options.instanceId)).trim();
+      const produced=await this.generation.generateTextAsset({
+        prompt,assetId,label:options.label || prompt,
+        ...(options.provider?{provider:options.provider}:{}),
+        ...(options.imageProvider?{imageProvider:options.imageProvider}:{}),
+        ...(options.timeoutMs!=null?{timeoutMs:options.timeoutMs}:{}),
+        ...(options.pollIntervalMs!=null?{pollIntervalMs:options.pollIntervalMs}:{}),
+        ...(options.options?{options:options.options}:{}),
+        ...(options.imageOptions?{imageOptions:options.imageOptions}:{})
+      });
+      if (produced.status==='asset-rejected') return {status:'rejected',id:assetId,admission:produced.admission,generation:produced};
+      const manifest=produced.manifest || (this.assetManager.has(assetId) ? this.assetManager.getManifest(assetId) : null);
+      if (!manifest) throw new Error('GenerationOrchestrator completed without registering a runtime Asset manifest');
+      const admission=produced.admission || assetAdmission(manifest,{generated:true});
+      this.events?.emit('asset.registered',{assetId,generated:true,provider:manifest.provenance?.assetProduction?.sourceArtifact?.producer?.provider || null,admission:admission.status});
+      return {...this.summary(manifest),admission,generation:{route:produced.route||null,jobs:produced.jobs||null,artifactId:produced.artifactId||null}};
+    }
     if (options.provider && !this.providerRegistry.hasProvider(options.provider)) {
       throw new Error(`Asset Generator response requires manifest or a recognized provider payload contract; unknown provider: ${options.provider}`);
     }

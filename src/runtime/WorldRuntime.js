@@ -87,6 +87,7 @@ export class WorldRuntime {
       getAssetCompiler:()=>this.getAssetCompiler(),
       events:this.events
     });
+    this.assetLibrary.attachGeneration(this.generation);
     this.generationState = { status:"connection-required", reason:generationConnector ? "PAIRING_REQUIRED" : "CONNECTOR_NOT_CONFIGURED" };
     this.articulationVerifier = new ArticulationVerifier({ assets: this.assets }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
   }

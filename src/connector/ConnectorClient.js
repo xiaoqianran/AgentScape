@@ -49,6 +49,24 @@ function connectorHeaders(headers, origin) {
   return globalThis.location?.origin ? headers : { ...headers, Origin:origin };
 }
 
+function normalizeApprovalRequired(payload, expectedContractVersion) {
+  const pairingId=String(payload.pairingId||'').trim();
+  if (!pairingId) throw new ConnectorContractError('CONNECTOR_RESPONSE_INVALID','Connector approval response requires pairingId');
+  const contractVersion=String(payload.contractVersion||'').trim();
+  if (!contractVersion || contractVersion!==String(expectedContractVersion)) {
+    throw new ConnectorContractError('CONNECTOR_CONTRACT_MISMATCH','Connector approval response has an incompatible contract version',{expected:String(expectedContractVersion),actual:contractVersion||null});
+  }
+  const connector=payload.connector;
+  if (!connector || typeof connector!=='object' || Array.isArray(connector)) {
+    throw new ConnectorContractError('CONNECTOR_RESPONSE_INVALID','Connector approval response requires connector identity');
+  }
+  const normalized={id:String(connector.id||'').trim(),instance:String(connector.instance||'').trim(),version:String(connector.version||'').trim()};
+  if (!normalized.id || !normalized.instance || !normalized.version) {
+    throw new ConnectorContractError('CONNECTOR_RESPONSE_INVALID','Connector approval response requires connector id, instance, and version');
+  }
+  return {status:'approval_required',pairingId,connector:normalized,contractVersion};
+}
+
 function normalizeCallerHeaders(headers = {}) {
   if (!headers || typeof headers !== 'object' || Array.isArray(headers)) {
     throw new ConnectorContractError('CONNECTOR_REQUEST_INVALID', 'Connector request headers must be an object');
@@ -100,42 +118,37 @@ export class ConnectorClient {
 
   isPaired() { return this.state() === 'paired'; }
 
-  async pair({ approval } = {}) {
-    const pairingApproval=String(approval||'').trim();
-    if (!pairingApproval) {
-      throw new ConnectorContractError('PAIRING_REQUIRED','Connector pairing approval is required');
-    }
-    const body = {
-      clientIdentity: this.clientIdentity,
-      contractVersion: this.contractVersion,
-      origin: this.origin,
-      scopes: [...this.scopes]
+  async pair({ pairingId = null } = {}) {
+    const body={
+      clientIdentity:this.clientIdentity,
+      contractVersion:this.contractVersion,
+      origin:this.origin,
+      scopes:[...this.scopes],
+      ...(pairingId ? {pairingId:String(pairingId)} : {})
     };
-    const response = await fetchConnector(this.fetchImpl, `${this.endpoint}${CONNECTOR_SESSION_PATH}`, {
+    const response=await fetchConnector(this.fetchImpl,`${this.endpoint}${CONNECTOR_SESSION_PATH}`,{
       method:'POST',
-      headers:connectorHeaders({
-        'content-type':'application/json',accept:'application/json',
-        'X-Connector-Pairing':pairingApproval
-      },this.origin),
+      headers:connectorHeaders({'content-type':'application/json',accept:'application/json'},this.origin),
       body:JSON.stringify(body),
       credentials:'omit',
       redirect:'error'
     });
-    const payload = await readJson(response);
+    const payload=await readJson(response);
     if (!response.ok) {
-      throw new ConnectorContractError(payload.code || 'CONNECTOR_HTTP_ERROR', payload.message || `Connector HTTP ${response.status}`, {
-        status:response.status
-      });
+      throw new ConnectorContractError(payload.code||'CONNECTOR_HTTP_ERROR',payload.message||`Connector HTTP ${response.status}`,{status:response.status});
     }
-    const normalized = normalizeConnectorSessionResponse(payload, {
-      origin:this.origin,
-      requestedScopes:this.scopes,
-      contractVersion:this.contractVersion,
-      clientIdentity:this.clientIdentity,
-      now:this.now()
+    if (payload.status==='approval_required') {
+      this.#session=null;
+      return normalizeApprovalRequired(payload,this.contractVersion);
+    }
+    if (payload.status!=='paired') {
+      throw new ConnectorContractError('CONNECTOR_RESPONSE_INVALID','Connector session response must be paired or approval_required');
+    }
+    const normalized=normalizeConnectorSessionResponse(payload,{
+      origin:this.origin,requestedScopes:this.scopes,contractVersion:this.contractVersion,clientIdentity:this.clientIdentity,now:this.now()
     });
-    this.#session = new ConnectorSession(normalized);
-    return { status:'paired', session:this.#session.snapshot(this.now()) };
+    this.#session=new ConnectorSession(normalized);
+    return {status:'paired',session:this.#session.snapshot(this.now())};
   }
 
   async request(path, { scope, method='GET', headers={}, body } = {}) {

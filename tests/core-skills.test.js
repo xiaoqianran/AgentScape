@@ -14,7 +14,7 @@ function runtime() {
     restore: vi.fn(async (scene) => { value = scene.value; }),
     mutate: vi.fn(async (_label, fn) => fn()),
     clearObjects:vi.fn(async()=>{}),loadRuleGraph:vi.fn(),
-    assetLibrary: { list:()=>[], search:()=>[], resolve:()=>({}), generate:()=>({}), summary:(x)=>x },
+    assetLibrary: { list:()=>[], search:()=>[], resolve:()=>({}), generate:()=>({}), canGenerate:()=>false, summary:(x)=>x },
     assets: {
       registerManifest:vi.fn(),has:()=>true,
       getManifest:vi.fn((id)=>({id,type:'object',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[]}}))
@@ -131,7 +131,7 @@ describe('core skills', () => {
 
   it('retries one canonical world pipeline attempt by enabling generation only for search-missing assets', async () => {
     const r=runtime();
-    r.assetLibrary.generator={isConfigured:()=>true};
+    r.assetLibrary.canGenerate=()=>true;
     const plan={
       schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-1'},provenance:{source:'planner'},intent:{name:'Lab'},
       entities:[{id:'machine_01',asset:{query:'rare machine',generate:false}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]
@@ -167,7 +167,7 @@ describe('core skills', () => {
 
   it('never exceeds the fixed two-attempt world generation budget', async () => {
     const r=runtime();
-    r.assetLibrary.generator={isConfigured:()=>true};
+    r.assetLibrary.canGenerate=()=>true;
     const basePlan={
       schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-1'},provenance:{source:'planner'},intent:{name:'Lab'},
       entities:[{id:'machine_01',asset:{query:'rare machine',generate:false}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]

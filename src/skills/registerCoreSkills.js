@@ -360,7 +360,7 @@ export function registerCoreSkills(registry, runtime) {
       }
       await restoreBefore();
       const retry=buildWorldRetryPlan(pipeline,{
-        generatorConfigured:runtime.assetLibrary?.generator?.isConfigured?.()===true,
+        generatorConfigured:runtime.assetLibrary?.canGenerate?.()===true,
         attempt,budget
       });
       record.retry=retry;

@@ -11,7 +11,15 @@ import { VerifiedArtifactAssetPipeline } from "../pipeline/VerifiedArtifactAsset
 
 const clone=(value)=>value==null?value:structuredClone(value);
 const GENERATION_CATEGORY=/generation/i;
+const IMAGE_GENERATION_CATEGORY=/image-generation/i;
+const ASSET_GENERATION_CATEGORY=/asset-generation/i;
 const SAFE_ROLE=/^[a-z0-9][a-z0-9._-]{0,95}$/i;
+const PNG_MIME="image/png";
+const GLB_MIME="model/gltf-binary";
+const DEFAULT_POLL_INTERVAL_MS=1000;
+const DEFAULT_GENERATION_TIMEOUT_MS=30*60*1000;
+const PENDING_GENERATION_STATUSES=new Set(["generation-pending","generation-cancelling"]);
+const FAILED_GENERATION_STATUSES=new Set(["generation-failed","generation-cancelled","generation-expired"]);
 const MIME_DESCRIPTOR=Object.freeze({
   "model/gltf-binary":{type:"asset-bundle",format:"glb"},
   "application/json":{type:"metadata",format:"json"},
@@ -88,6 +96,58 @@ function requireJobClient(client) {
   return client;
 }
 
+function capabilityDefault(capability,key) {
+  const property=capability?.input?.schema?.properties?.[key];
+  if (property?.default!==undefined) return clone(property.default);
+  if (Array.isArray(property?.enum) && property.enum.length) return clone(property.enum[0]);
+  return undefined;
+}
+
+function preferredProfile(capability) {
+  const profiles=capability?.profiles || {};
+  if (Object.prototype.hasOwnProperty.call(profiles,"recommended")) return "recommended";
+  return Object.keys(profiles)[0] || null;
+}
+
+function requiredOutputRoles(capability) {
+  const required=capability?.output?.required || [];
+  return required.length ? [...required] : [...(capability?.output?.roles || [])];
+}
+
+function textInputs(capability,prompt) {
+  const inputs={prompt};
+  for (const key of capability?.input?.schema?.required || []) {
+    if (key==="prompt") continue;
+    const value=capabilityDefault(capability,key);
+    if (value===undefined) {
+      throw new GenerationOrchestrationError("GENERATION_CAPABILITY_INCOMPLETE",`Capability ${capability.operation} requires unsupported input ${key}`,{provider:capability.provider,operation:capability.operation,input:key});
+    }
+    inputs[key]=value;
+  }
+  return inputs;
+}
+
+function selectTextAssetRoute(providerRegistry,{provider=null,imageProvider=null}={}) {
+  const capabilities=providerRegistry.findCapabilities({availableOnly:true})
+    .filter((capability)=>GENERATION_CATEGORY.test(capability.category||""))
+    .sort((a,b)=>`${a.provider}:${a.operation}`.localeCompare(`${b.provider}:${b.operation}`));
+  const finalFilter=(capability)=>!provider || capability.provider===provider;
+  const direct=capabilities.find((capability)=>finalFilter(capability)
+    && ASSET_GENERATION_CATEGORY.test(capability.category||"")
+    && capability.input?.types?.includes("text")
+    && capability.output?.roles?.length);
+  if (direct) return {kind:"direct",asset:direct};
+  const asset=capabilities.find((capability)=>finalFilter(capability)
+    && ASSET_GENERATION_CATEGORY.test(capability.category||"")
+    && capability.input?.types?.includes("image")
+    && capability.output?.roles?.length);
+  const image=capabilities.find((capability)=>(!imageProvider || capability.provider===imageProvider)
+    && IMAGE_GENERATION_CATEGORY.test(capability.category||"")
+    && capability.input?.types?.includes("text")
+    && capability.output?.roles?.length);
+  return asset && image ? {kind:"composed",image,asset} : null;
+}
+
 function descriptorShapeForArtifact(summary) {
   const mime=String(summary?.mime||"").trim().toLowerCase();
   const shape=MIME_DESCRIPTOR[mime];
@@ -103,7 +163,9 @@ export class GenerationOrchestrator {
     providerRegistry,connectorClient=null,capabilityAdapter=new ConnectorCapabilityAdapter(),
     jobClient=null,jobReconciler=null,artifactRegistry=null,byteStore=null,
     artifactImporter=null,assetPipeline=null,assetManager=null,getAssetCompiler=null,
-    events=null,now=()=>Date.now()
+    events=null,now=()=>Date.now(),monotonic=()=>globalThis.performance?.now?.() ?? Date.now(),
+    sleep=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms)),pollIntervalMs=DEFAULT_POLL_INTERVAL_MS,
+    generationTimeoutMs=DEFAULT_GENERATION_TIMEOUT_MS
   }={}) {
     if (!providerRegistry?.listProviders || !providerRegistry?.findCapabilities) {
       throw new GenerationOrchestrationError("GENERATION_ORCHESTRATOR_INVALID","GenerationOrchestrator requires ProviderRegistry");
@@ -124,14 +186,100 @@ export class GenerationOrchestrator {
     this.getAssetCompiler=getAssetCompiler;
     this.events=events;
     this.now=now;
+    this.monotonic=monotonic;
+    this.sleep=sleep;
+    this.pollIntervalMs=Math.max(0,Number(pollIntervalMs)||0);
+    this.generationTimeoutMs=Math.max(1,Number(generationTimeoutMs)||DEFAULT_GENERATION_TIMEOUT_MS);
   }
 
-  async initialize({pair=false,approval=null}={}) {
+  canGenerateTextAsset(options={}) {
+    return Boolean(this.jobClient && selectTextAssetRoute(this.providerRegistry,options));
+  }
+
+  async #runJobToSuccess(request,{timeoutMs=this.generationTimeoutMs,pollIntervalMs=this.pollIntervalMs}={}) {
+    const timeout=Math.max(1,Number(timeoutMs)||this.generationTimeoutMs);
+    const interval=Math.max(0,Number(pollIntervalMs)||0);
+    const deadline=this.monotonic()+timeout;
+    let view=await this.submitGenerationJob(request);
+    while (PENDING_GENERATION_STATUSES.has(view.status)) {
+      if (this.monotonic()>=deadline) {
+        throw new GenerationOrchestrationError("GENERATION_TIMEOUT","Generation Job did not reach provider success before timeout",{jobId:view.jobId,provider:view.provider,operation:view.operation,timeoutMs:timeout});
+      }
+      if (interval) await this.sleep(Math.min(interval,Math.max(0,deadline-this.monotonic())));
+      view=await this.getGenerationJob(view.jobId);
+    }
+    if (view.status==="provider-succeeded") return view;
+    if (view.status==="connection-required") {
+      throw new GenerationOrchestrationError("CONNECTION_REQUIRED","Generation Connector became unavailable while waiting for a Job",{jobId:view.jobId,provider:view.provider,operation:view.operation});
+    }
+    if (FAILED_GENERATION_STATUSES.has(view.status)) {
+      throw new GenerationOrchestrationError("GENERATION_JOB_FAILED","Generation Job ended without a usable Artifact",{jobId:view.jobId,provider:view.provider,operation:view.operation,status:view.status,error:view.error||null});
+    }
+    throw new GenerationOrchestrationError("GENERATION_JOB_INVALID","Generation Job reached an unsupported orchestration state",{jobId:view.jobId,status:view.status});
+  }
+
+  async generateTextAsset(request={}) {
+    const prompt=String(request.prompt||"").trim();
+    const assetId=String(request.assetId||"").trim();
+    if (!prompt) throw new GenerationOrchestrationError("GENERATION_PROMPT_REQUIRED","generateTextAsset requires prompt");
+    if (!assetId) throw new GenerationOrchestrationError("ASSET_ID_REQUIRED","generateTextAsset requires assetId");
+    const route=selectTextAssetRoute(this.providerRegistry,{provider:request.provider||null,imageProvider:request.imageProvider||null});
+    if (!this.jobClient || !route) {
+      throw new GenerationOrchestrationError("GENERATION_ROUTE_UNAVAILABLE","No available Connector route can produce a 3D asset from text",{provider:request.provider||null,imageProvider:request.imageProvider||null});
+    }
+    const wait={timeoutMs:request.timeoutMs??this.generationTimeoutMs,pollIntervalMs:request.pollIntervalMs??this.pollIntervalMs};
+    if (route.kind==="direct") {
+      const job=await this.#runJobToSuccess({
+        provider:route.asset.provider,operation:route.asset.operation,inputs:textInputs(route.asset,prompt),
+        profile:preferredProfile(route.asset),options:request.options||{},outputRoles:requiredOutputRoles(route.asset),
+        metadata:{purpose:"world-asset",assetId}
+      },wait);
+      const produced=await this.generateAndCompileAsset({jobId:job.jobId,assetId,label:request.label||prompt});
+      return {...produced,route:{kind:"direct",provider:route.asset.provider,operation:route.asset.operation},jobs:{asset:job.jobId}};
+    }
+
+    const imageJob=await this.#runJobToSuccess({
+      provider:route.image.provider,operation:route.image.operation,inputs:textInputs(route.image,prompt),
+      profile:preferredProfile(route.image),options:request.imageOptions||{},outputRoles:requiredOutputRoles(route.image),
+      metadata:{purpose:"world-reference-image",assetId}
+    },wait);
+    const sourceRole=requiredOutputRoles(route.image)[0];
+    const source=imageJob.artifacts.find((artifact)=>artifact.role===sourceRole && artifact.mime===PNG_MIME)
+      || imageJob.artifacts.find((artifact)=>artifact.mime===PNG_MIME);
+    if (!source?.id || !source.hash) {
+      throw new GenerationOrchestrationError("GENERATION_SOURCE_ARTIFACT_INVALID","Text-to-image Job produced no lossless PNG Artifact suitable for 3D reconstruction",{jobId:imageJob.jobId,provider:imageJob.provider});
+    }
+    const assetInputs={sourceArtifact:{id:source.id,role:source.role,mime:source.mime,hash:source.hash}};
+    for (const key of route.asset.input?.schema?.required || []) {
+      if (key==="sourceArtifact") continue;
+      const value=capabilityDefault(route.asset,key);
+      if (value===undefined) {
+        throw new GenerationOrchestrationError("GENERATION_CAPABILITY_INCOMPLETE",`Capability ${route.asset.operation} requires unsupported input ${key}`,{provider:route.asset.provider,operation:route.asset.operation,input:key});
+      }
+      assetInputs[key]=value;
+    }
+    const assetJob=await this.#runJobToSuccess({
+      provider:route.asset.provider,operation:route.asset.operation,inputs:assetInputs,
+      profile:preferredProfile(route.asset),options:request.options||{},outputRoles:requiredOutputRoles(route.asset),
+      parent:{jobId:imageJob.jobId},metadata:{purpose:"world-asset",assetId}
+    },wait);
+    const produced=await this.generateAndCompileAsset({jobId:assetJob.jobId,assetId,label:request.label||prompt});
+    return {
+      ...produced,
+      route:{kind:"text-image-3d",image:{provider:route.image.provider,operation:route.image.operation},asset:{provider:route.asset.provider,operation:route.asset.operation}},
+      jobs:{image:imageJob.jobId,asset:assetJob.jobId},sourceArtifact:{id:source.id,role:source.role,mime:source.mime,hash:source.hash}
+    };
+  }
+
+  async initialize({pair=false,pairingId=null}={}) {
     if (!this.connectorClient) return {status:"connection-required",reason:"CONNECTOR_NOT_CONFIGURED"};
     try {
       if (!this.connectorClient.isPaired?.()) {
         if (!pair) return {status:"connection-required",reason:"PAIRING_REQUIRED"};
-        await this.connectorClient.pair({approval});
+        const pairing=await this.connectorClient.pair({pairingId});
+        if (pairing.status==='approval_required') {
+          return {status:"connection-required",reason:"APPROVAL_REQUIRED",pairingId:pairing.pairingId,connector:pairing.connector};
+        }
       }
       const refreshed=await this.capabilityAdapter.refresh(this.connectorClient,this.providerRegistry);
       const bootstrapped=this.jobReconciler ? await this.jobReconciler.bootstrap() : {state:"ready",jobs:[]};
@@ -174,8 +322,8 @@ export class GenerationOrchestrator {
     };
   }
 
-  async pairConnector({approval=null}={}) {
-    const state=await this.initialize({pair:true,approval});
+  async pairConnector({pairingId=null}={}) {
+    const state=await this.initialize({pair:true,pairingId});
     this.events?.emit?.("generation.state",clone(state));
     return state;
   }
