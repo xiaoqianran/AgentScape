@@ -19,6 +19,7 @@ import { ObjectInspector } from './ui/inspect/ObjectInspector.js';
 import { RunsPanel } from './ui/runs/RunsPanel.js';
 import { DeveloperSettings } from './ui/developer/DeveloperSettings.js';
 import { bindSceneControls } from './ui/bindSceneControls.js';
+import { bindRuntimeEvents } from './ui/bindRuntimeEvents.js';
 
 async function main() {
   const app = document.querySelector('#app');
@@ -92,26 +93,6 @@ async function main() {
   taskPanel.log(`scene ready · ${world.listObjects().length} objects`, 'result');
 }
 
-function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui }) {
-  const log = (text, kind) => taskPanel.log(text, kind);
-  world.events.on('tool.called', (event) => log(`tool: ${event.name} ${JSON.stringify(event.args)}`, 'tool'));
-  world.events.on('interaction', (event) => log(`action: ${event.action} ${event.id}`, 'tool'));
-  world.events.on('locomotion.started', ({ id, waypoints, pathCost }) => log(`walk: ${id} · ${waypoints} waypoints · ${pathCost ?? '?'}m`, 'tool'));
-  world.events.on('locomotion.arrived', ({ id, elapsed }) => log(`arrived: ${id} · ${elapsed}s`, 'result'));
-  world.events.on('locomotion.blocked', ({ id, reason }) => log(`blocked: ${id} · ${reason}`, 'error'));
-  world.events.on('editor.selection', ({ id }) => {
-    inspector.render(id);
-    if (id) ui.setView('inspect');
-  });
-  world.events.on('editor.transform', ({ id }) => inspector.render(id));
-  world.events.on('object.removed', ({ id }) => log(`removed: ${id}`, 'tool'));
-  world.events.on('object.duplicated', ({ sourceId, id }) => log(`duplicate: ${sourceId} → ${id}`, 'tool'));
-  world.events.on('history.recorded', ({ label }) => log(`history: ${label}`, 'history'));
-  world.events.on('history.applied', ({ direction, label }) => log(`${direction}: ${label}`, 'history'));
-  world.events.on('sceneGraph.updated', ({ edges }) => log(`scene graph · ${edges} relations`, 'graph'));
-  world.events.on('scene.autosaved', ({ objects }) => log(`autosaved · ${objects} objects`, 'autosave'));
-}
-
 async function restoreOrBootstrap({ world, tools, sceneStore, environmentDefinition, taskPanel }) {
   if (!sceneStore.has()) {
     await bootstrapWorld(tools, environmentDefinition.bootstrap);
@@ -133,5 +114,16 @@ async function restoreOrBootstrap({ world, tools, sceneStore, environmentDefinit
 
 main().catch((error) => {
   console.error(error);
-  document.body.innerHTML = `<main class="startup-error"><strong>AgentScape failed to start</strong><p>${error.message}</p><button onclick="location.reload()">Reload</button></main>`;
+  const panel = document.createElement('main');
+  panel.className = 'startup-error';
+  const heading = document.createElement('strong');
+  heading.textContent = 'AgentScape failed to start';
+  const detail = document.createElement('p');
+  detail.textContent = error?.message || 'Unknown startup error';
+  const reload = document.createElement('button');
+  reload.type = 'button';
+  reload.textContent = 'Reload';
+  reload.addEventListener('click', () => location.reload());
+  panel.append(heading, detail, reload);
+  document.body.replaceChildren(panel);
 });

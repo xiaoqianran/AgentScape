@@ -19,6 +19,7 @@ export const runsPanelMarkup = () => `
           <option value="success">Completed</option>
           <option value="partial">Partial</option>
           <option value="error">Failed</option>
+          <option value="cancelled">Cancelled</option>
         </select>
       </label>
     </header>
@@ -73,7 +74,13 @@ export class RunsPanel {
       row.setAttribute('role', 'button');
       const [label, icon] = STATUS_LABELS[run.status] || [run.status, '•'];
       const status = document.createElement('td');
-      status.innerHTML = `<span class="run-status" data-state="${run.status}"><i>${icon}</i>${label}</span>`;
+      const statusBadge = document.createElement('span');
+      statusBadge.className = 'run-status';
+      statusBadge.dataset.state = run.status;
+      const statusIcon = document.createElement('i');
+      statusIcon.textContent = icon;
+      statusBadge.append(statusIcon, document.createTextNode(label));
+      status.append(statusBadge);
       const title = document.createElement('td');
       title.textContent = run.title;
       title.title = run.title;
@@ -103,7 +110,9 @@ export class RunsPanel {
     detail.textContent = run.detail || 'No additional detail.';
     const prompt = document.createElement('details');
     prompt.className = 'disclosure';
-    prompt.innerHTML = '<summary>Original task</summary>';
+    const summary = document.createElement('summary');
+    summary.textContent = 'Original task';
+    prompt.append(summary);
     const code = document.createElement('div');
     code.className = 'run-prompt';
     code.textContent = run.prompt;

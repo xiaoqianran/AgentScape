@@ -136,7 +136,7 @@ export class DeveloperSettings {
     try {
       this.lastValidation = await this.tools.call('validateWorld', {});
       const report = this.lastValidation;
-      this.engineReport.innerHTML = `<strong>${report.ok ? 'PASS' : 'FAIL'}</strong> · hard ${report.counts.hard} · advisory ${report.counts.advisory} · ${report.coverage.objects} objects · ${report.coverage.relations} relations`;
+      renderTechnicalReport(this.engineReport, report.ok ? 'PASS' : 'FAIL', `hard ${report.counts.hard} · advisory ${report.counts.advisory} · ${report.coverage.objects} objects · ${report.coverage.relations} relations`);
       this.log(`validate · hard ${report.counts.hard} advisory ${report.counts.advisory}`, report.ok ? 'result' : 'error');
     } catch (error) {
       this.engineReport.textContent = `Validation failed: ${error.message}`;
@@ -149,7 +149,7 @@ export class DeveloperSettings {
       const result = await this.tools.call('repairWorld', { report: this.lastValidation || undefined });
       this.lastValidation = await this.tools.call('validateWorld', {});
       const report = this.lastValidation;
-      this.engineReport.innerHTML = `<strong>${report.ok ? 'PASS' : 'FAIL'}</strong> · hard ${report.counts.hard} · advisory ${report.counts.advisory}`;
+      renderTechnicalReport(this.engineReport, report.ok ? 'PASS' : 'FAIL', `hard ${report.counts.hard} · advisory ${report.counts.advisory}`);
       this.log(`repair · ${result.accepted ? 'accepted' : 'rejected'} · ${result.applied?.length || 0} changes`, result.accepted ? 'result' : 'error');
     } catch (error) {
       this.log(`repair error: ${error.message}`, 'error');
@@ -173,7 +173,7 @@ export class DeveloperSettings {
       const result = response.result;
       const manifest = result.manifest;
       const inspection = result.inspection.stats;
-      this.compilerReport.innerHTML = `<strong>${manifest.id}</strong> · ${result.quality.status} · ${manifest.type} · ${inspection.nodes} nodes · ${inspection.meshes} meshes · collider ${manifest.compiler.collisionStrategy}`;
+      renderTechnicalReport(this.compilerReport, manifest.id, `${result.quality.status} · ${manifest.type} · ${inspection.nodes} nodes · ${inspection.meshes} meshes · collider ${manifest.compiler.collisionStrategy}`);
       this.log(`compiled asset: ${manifest.id}`, 'result');
       this.renderAssetResults(this.world.assetCatalog.list().slice(0, 8));
     } catch (error) {
@@ -218,4 +218,10 @@ export class DeveloperSettings {
       this.assetResults.append(empty);
     }
   }
+}
+
+function renderTechnicalReport(container, heading, detail) {
+  const strong = document.createElement('strong');
+  strong.textContent = String(heading ?? '');
+  container.replaceChildren(strong, document.createTextNode(` · ${String(detail ?? '')}`));
 }

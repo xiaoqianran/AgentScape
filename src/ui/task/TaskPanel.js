@@ -164,6 +164,15 @@ export class TaskPanel {
     }
   }
 
+
+  recordRun(run) {
+    try {
+      this.onRun(run);
+    } catch (error) {
+      try { this.log(`run history error: ${error?.message || 'unknown error'}`, 'error'); } catch {}
+    }
+  }
+
   async execute(prompt, label = 'Task', sourceButton = null) {
     if (this.busy) return null;
     if (!this.available || !this.agent) {
@@ -188,12 +197,12 @@ export class TaskPanel {
         this.setState('partial', 'Partially completed', `${label} · ${tool} → ${outcome}`);
         this.log(`task status: incomplete · ${tool} → ${outcome}`, 'error');
       }
-      this.onRun({ id: runId, title: label, prompt, status: completed ? 'success' : 'partial', durationMs: performance.now() - startedAt, detail: completed ? 'Runtime verification passed.' : `${tool} → ${outcome}` });
+      this.recordRun({ id: runId, title: label, prompt, status: completed ? 'success' : 'partial', durationMs: performance.now() - startedAt, detail: completed ? 'Runtime verification passed.' : `${tool} → ${outcome}` });
       return result;
     } catch (error) {
       this.setState('error', 'Task failed', error.message);
       this.log(`error: ${error.message}`, 'error');
-      this.onRun({ id: runId, title: label, prompt, status: 'error', durationMs: performance.now() - startedAt, detail: error.message });
+      this.recordRun({ id: runId, title: label, prompt, status: 'error', durationMs: performance.now() - startedAt, detail: error.message });
       return null;
     } finally {
       this.setBusy(false);
