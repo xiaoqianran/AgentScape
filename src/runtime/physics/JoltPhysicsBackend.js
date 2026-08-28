@@ -177,7 +177,7 @@ function destroyQueryFilters(Jolt,filters){
 
 export class JoltPhysicsBackend extends PhysicsBackend {
   constructor({gravity={x:0,y:-9.81,z:0}}={}){
-    super('jolt',['rigid-body','collision','scene-query','articulated-body','joints'],{
+    super('jolt',['rigid-body','collision','scene-query','articulated-body','joints','character-controller'],{
       executionModes:['realtime','validation-only'],
       qualities:{realtime:true,deterministic:true}
     });
@@ -216,8 +216,13 @@ export class JoltPhysicsBackend extends PhysicsBackend {
   }
 
   step(world,dt){
+    for(const body of world.bodies.values()){
+      if(!body.nextPose) continue;
+      const pose=body.nextPose;
+      body.nextPose=null;
+      this.setBodyPose(body,{position:pose.position,rotation:pose.rotation,next:false,wake:true});
+    }
     world.jolt.Step(dt,1);
-    for(const body of world.bodies.values()) body.nextPose=null;
   }
 
   dispose(world){
@@ -315,15 +320,16 @@ export class JoltPhysicsBackend extends PhysicsBackend {
 
   setBodyPose(body,{position=null,rotation=null,next=false,wake=true}={}){
     if(!body) return false;
-    const current=this.bodyPose(body);
-    const target={position:position ? (Array.isArray(position)?[...position]:[position.x,position.y,position.z]) : current.position,
-      rotation:rotation ? (Array.isArray(rotation)?[...rotation]:[rotation.x,rotation.y,rotation.z,rotation.w]) : current.rotation};
+    const current=next&&body.nextPose ? body.nextPose : this.bodyPose(body);
+    const target={position:position ? (Array.isArray(position)?[...position]:[position.x,position.y,position.z]) : [...current.position],
+      rotation:rotation ? (Array.isArray(rotation)?[...rotation]:[rotation.x,rotation.y,rotation.z,rotation.w]) : [...current.rotation]};
+    if(next){ body.nextPose=target; return true; }
     const Jolt=this.Jolt;
     const p=new Jolt.RVec3(...target.position);
     const q=new Jolt.Quat(...target.rotation);
     try { body.world.bodyInterface.SetPositionAndRotation(body.native.GetID(),p,q,activation(Jolt,wake)); }
     finally { Jolt.destroy(q); Jolt.destroy(p); }
-    body.nextPose=next ? target : null;
+    body.nextPose=null;
     return true;
   }
 
@@ -449,6 +455,120 @@ export class JoltPhysicsBackend extends PhysicsBackend {
     else joint.native.SetTargetPosition(target);
     this.wakeBody(joint.parentBody); this.wakeBody(joint.childBody);
     return true;
+  }
+
+  createCharacterController(world,{
+    offset=.02,autostepHeight=.3,autostepMinWidth=.2,snapToGround=.3,
+    maxSlopeClimbAngle=Math.PI/4,minSlopeSlideAngle=Math.PI/6
+  }={}){
+    return {
+      kind:'jolt-character-controller',world,
+      offset,autostepHeight,autostepMinWidth,snapToGround,maxSlopeClimbAngle,minSlopeSlideAngle
+    };
+  }
+
+  removeCharacterController(){ /* Stateless adapter: CharacterVirtual instances are per-move. */ }
+
+  cancelCharacterMovement(body){
+    const pose=this.bodyPose(body);
+    if(!pose) return false;
+    return this.setBodyPose(body,{...pose,next:true});
+  }
+
+  _characterSupportRadius(collider){
+    const shape=collider?.spec;
+    if(!shape) return .1;
+    if(shape.shape==='capsule'||shape.shape==='cylinder') return Math.max(.01,shape.radius||.1);
+    if(shape.shape==='box') return Math.max(.01,Math.min(shape.halfExtents?.[0]||.1,shape.halfExtents?.[2]||.1));
+    if(shape.shape==='convexHull'&&shape.vertices?.length){
+      let radius=Infinity;
+      for(let i=0;i<shape.vertices.length;i+=3) radius=Math.min(radius,Math.hypot(shape.vertices[i],shape.vertices[i+2]));
+      return Number.isFinite(radius)&&radius>1e-3?radius:.1;
+    }
+    return .1;
+  }
+
+  moveCharacter(controller,body,desiredTranslation,{predicate=null}={}){
+    if(!controller||controller.world!==body?.world||this.bodyType(body)!=='kinematic'){
+      return {success:false,code:'CHARACTER_BODY_UNAVAILABLE',movement:[0,0,0],grounded:false,collisions:[]};
+    }
+    const colliders=this.colliders(body);
+    if(colliders.length!==1){
+      return {success:false,code:'CHARACTER_BODY_UNAVAILABLE',movement:[0,0,0],grounded:false,collisions:[]};
+    }
+
+    const Jolt=this.Jolt,world=body.world,pose=this.bodyPose(body);
+    const settings=new Jolt.CharacterVirtualSettings();
+    settings.mMass=1000;
+    settings.mMaxSlopeAngle=controller.maxSlopeClimbAngle;
+    settings.mMaxStrength=100;
+    settings.mShape=body.native.GetShape();
+    settings.mCharacterPadding=controller.offset;
+    settings.mPredictiveContactDistance=Math.max(.05,controller.offset*2);
+    const up=new Jolt.Vec3(0,1,0);
+    const supportingVolume=new Jolt.Plane(up,-this._characterSupportRadius(colliders[0]));
+    settings.mSupportingVolume=supportingVolume;
+    const position=new Jolt.RVec3(...pose.position);
+    const rotation=new Jolt.Quat(...pose.rotation);
+    const character=new Jolt.CharacterVirtual(settings,position,rotation,world.physicsSystem);
+    Jolt.destroy(rotation); Jolt.destroy(position); Jolt.destroy(supportingVolume); Jolt.destroy(up); Jolt.destroy(settings);
+
+    const update=new Jolt.ExtendedUpdateSettings();
+    update.mStickToFloorStepDown.Set(0,-controller.snapToGround,0);
+    update.mWalkStairsStepUp.Set(0,controller.autostepHeight,0);
+    update.mWalkStairsMinStepForward=controller.autostepMinWidth;
+    update.mWalkStairsStepForwardTest=Math.max(.05,controller.autostepMinWidth);
+    update.mWalkStairsStepDownExtra.Set(0,-Math.min(controller.snapToGround,.1),0);
+
+    const bpFilter=new Jolt.DefaultBroadPhaseLayerFilter(world.jolt.GetObjectVsBroadPhaseLayerFilter(),LAYER);
+    const objectFilter=new Jolt.DefaultObjectLayerFilter(world.jolt.GetObjectLayerPairFilter(),LAYER);
+    const bodyFilter=new Jolt.IgnoreMultipleBodiesFilter();
+    bodyFilter.IgnoreBody(body.native.GetID());
+    if(predicate){
+      for(const otherBody of world.bodies.values()){
+        if(otherBody===body||!otherBody.colliders.length) continue;
+        if(otherBody.colliders.every((collider)=>!predicate(collider))) bodyFilter.IgnoreBody(otherBody.native.GetID());
+      }
+    }
+    const shapeFilter=new Jolt.ShapeFilter();
+    const zeroGravity=new Jolt.Vec3(0,0,0);
+    const velocity=new Jolt.Vec3(...tuple3(desiredTranslation));
+    character.SetLinearVelocity(velocity);
+    Jolt.destroy(velocity);
+
+    try {
+      character.ExtendedUpdate(1,zeroGravity,update,bpFilter,objectFilter,bodyFilter,shapeFilter,world.jolt.GetTempAllocator());
+      if(controller.snapToGround>0){
+        const stepDown=new Jolt.Vec3(0,-controller.snapToGround,0);
+        try { character.StickToFloor(stepDown,bpFilter,objectFilter,bodyFilter,shapeFilter,world.jolt.GetTempAllocator()); }
+        finally { Jolt.destroy(stepDown); }
+      }
+      character.RefreshContacts(bpFilter,objectFilter,bodyFilter,shapeFilter,world.jolt.GetTempAllocator());
+      const resultPosition=character.GetPosition();
+      const next=[resultPosition.GetX(),resultPosition.GetY(),resultPosition.GetZ()];
+      const movement=[next[0]-pose.position[0],next[1]-pose.position[1],next[2]-pose.position[2]];
+      const collisions=[];
+      const contacts=character.GetActiveContacts();
+      for(let index=0;index<contacts.size();index++){
+        const contact=contacts.at(index);
+        const collider=this._colliderFromHit(world,contact.mBodyB,contact.mSubShapeIDB);
+        if(!collider||collider.body===body||(predicate&&!predicate(collider))) continue;
+        const normal=contact.mContactNormal;
+        collisions.push({
+          collider,colliderKey:this.colliderKey(collider),
+          toi:Number.isFinite(contact.mFraction)?contact.mFraction:0,
+          normal:[normal.GetX(),normal.GetY(),normal.GetZ()]
+        });
+      }
+      this.setBodyPose(body,{position:next,rotation:pose.rotation,next:true});
+      return {
+        success:true,movement,
+        grounded:character.GetGroundState()===Jolt.EGroundState_OnGround,
+        collisions
+      };
+    } finally {
+      Jolt.destroy(zeroGravity); Jolt.destroy(shapeFilter); Jolt.destroy(bodyFilter); Jolt.destroy(objectFilter); Jolt.destroy(bpFilter); Jolt.destroy(update); character.Release();
+    }
   }
 
   syncSceneQueries(){ /* Jolt BodyInterface updates broadphase on pose/shape changes. */ }

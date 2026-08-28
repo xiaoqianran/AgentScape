@@ -9,9 +9,9 @@ import { compileWorldPhysicsRequirements,admitWorldPhysics } from '../src/pipeli
 describe('JoltPhysicsBackend',()=>{
   it('formally declares the implemented rigid, collision, query and articulation slice',()=>{
     const backend=new JoltPhysicsBackend();
-    expect(backend.capabilities).toEqual(['rigid-body','collision','scene-query','articulated-body','joints']);
+    expect(backend.capabilities).toEqual(['rigid-body','collision','scene-query','articulated-body','joints','character-controller']);
     expect(backend.hasCapability('joints')).toBe(true);
-    expect(backend.hasCapability('character-controller')).toBe(false);
+    expect(backend.hasCapability('character-controller')).toBe(true);
     expect(declaredCapabilityMethodGaps(backend)).toEqual([]);
   });
 
@@ -121,9 +121,9 @@ describe('JoltPhysicsBackend',()=>{
     ]});
     expect(admitWorldPhysics(articulated,{profile,resolvedAssets,getManifest}).status).toBe('ready');
 
-    const unsupported=compileWorldPhysicsRequirements({entities:[
+    const character=compileWorldPhysicsRequirements({entities:[
       {id:'actor_01',assetRef:{assetId:'actor'},physicsRequirement:{bodyClass:'character'}}
     ]});
-    expect(admitWorldPhysics(unsupported,{profile,resolvedAssets,getManifest}).issues.map((issue)=>issue.capability)).toEqual(['character-controller']);
+    expect(admitWorldPhysics(character,{profile,resolvedAssets,getManifest}).status).toBe('ready');
   });
 });

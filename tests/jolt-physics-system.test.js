@@ -30,7 +30,7 @@ describe('PhysicsSystem + JoltPhysicsBackend',()=>{
       expect(obstacles.items.some((item)=>item.objectId==='box'&&item.sourceShape==='box')).toBe(true);
       expect(physics.profile()).toMatchObject({
         identity:'jolt',
-        backendCapabilities:['rigid-body','collision','scene-query','articulated-body','joints'],
+        backendCapabilities:['rigid-body','collision','scene-query','articulated-body','joints','character-controller'],
         runtimeCapabilities:expect.arrayContaining(['transform-state','articulation-pose','counterfactual-query'])
       });
     } finally { physics.dispose(); }
