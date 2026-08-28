@@ -77,16 +77,23 @@ export class PhysicsSystem {
   hasCapability(capability) {
     return this.backend.hasCapability(capability) || this.runtimeCapabilities().includes(capability);
   }
-  supportsExecutionMode(mode) { return this.backend.supportsExecutionMode(mode); }
+  runtimeExecutionModes() { return ['render-only']; }
+  supportsExecutionMode(mode) {
+    return this.backend.supportsExecutionMode(mode) || this.runtimeExecutionModes().includes(mode);
+  }
   profile() {
     const backendCapabilities=[...this.backend.capabilities];
     const runtimeCapabilities=this.runtimeCapabilities();
+    const backendExecutionModes=[...this.backend.executionModes];
+    const runtimeExecutionModes=this.runtimeExecutionModes();
     return {
       identity:this.backend.identity,
       backendCapabilities,
       runtimeCapabilities,
       capabilities:[...new Set([...backendCapabilities,...runtimeCapabilities])],
-      executionModes:[...this.backend.executionModes],
+      backendExecutionModes,
+      runtimeExecutionModes,
+      executionModes:[...new Set([...backendExecutionModes,...runtimeExecutionModes])],
       qualities:{...this.backend.qualities},
       solverEnabled:this.solverEnabled
     };

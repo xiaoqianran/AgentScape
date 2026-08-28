@@ -10,6 +10,12 @@ describe('JoltPhysicsBackend',()=>{
   it('formally declares the implemented rigid, collision, query and articulation slice',()=>{
     const backend=new JoltPhysicsBackend();
     expect(backend.capabilities).toEqual(['rigid-body','collision','scene-query','articulated-body','joints','character-controller']);
+    expect(backend.supportsExecutionMode('render-only')).toBe(false);
+    expect(new PhysicsSystem({backend}).profile()).toMatchObject({
+      backendExecutionModes:['realtime','validation-only'],
+      runtimeExecutionModes:['render-only'],
+      executionModes:['realtime','validation-only','render-only']
+    });
     expect(backend.hasCapability('joints')).toBe(true);
     expect(backend.hasCapability('character-controller')).toBe(true);
     expect(declaredCapabilityMethodGaps(backend)).toEqual([]);
@@ -113,7 +119,8 @@ describe('JoltPhysicsBackend',()=>{
     const resolvedAssets=[
       {id:'rigid_01',assetRef:{assetId:'crate'}},
       {id:'door_01',assetRef:{assetId:'door'}},
-      {id:'actor_01',assetRef:{assetId:'actor'}}
+      {id:'actor_01',assetRef:{assetId:'actor'}},
+      {id:'preview_01',assetRef:{assetId:'preview'}}
     ];
     const getManifest=(id)=>id==='door'?{parts:{door:{joint:{type:'revolute'}}}}:{};
 
@@ -129,5 +136,17 @@ describe('JoltPhysicsBackend',()=>{
       {id:'actor_01',assetRef:{assetId:'actor'},physicsRequirement:{bodyClass:'character'}}
     ]});
     expect(admitWorldPhysics(character,{profile,resolvedAssets,getManifest}).status).toBe('ready');
+
+    const mixed=compileWorldPhysicsRequirements({entities:[
+      {id:'rigid_01',assetRef:{assetId:'crate'},physicsRequirement:{bodyClass:'rigid'}},
+      {id:'preview_01',assetRef:{assetId:'preview'},physicsRequirement:{bodyClass:'transform'}}
+    ]});
+    expect(admitWorldPhysics(mixed,{profile,resolvedAssets,getManifest})).toMatchObject({
+      status:'ready',issues:[],backend:{
+        backendExecutionModes:['realtime','validation-only'],
+        runtimeExecutionModes:['render-only'],
+        executionModes:['realtime','validation-only','render-only']
+      }
+    });
   });
 });

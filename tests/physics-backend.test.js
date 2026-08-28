@@ -23,15 +23,19 @@ describe('PhysicsBackend contract',()=>{
     expect(backend.hasCapability('character-controller')).toBe(true);
     expect(backend.hasCapability('snapshot-restore')).toBe(false);
     expect(backend.hasCapability('counterfactual-query')).toBe(false);
-    expect(backend.supportsExecutionMode('render-only')).toBe(true);
+    expect(backend.supportsExecutionMode('render-only')).toBe(false);
     expect(backend.supportsExecutionMode('validation-only')).toBe(true);
     expect(backend.qualities).toEqual({realtime:true,deterministic:true});
     const physics=new PhysicsSystem({backend});
     expect(physics.profile()).toMatchObject({
       backendCapabilities:expect.arrayContaining(['rigid-body','collision','scene-query']),
       runtimeCapabilities:expect.arrayContaining(['transform-state','articulation-pose','counterfactual-query']),
-      capabilities:expect.arrayContaining(['rigid-body','transform-state','counterfactual-query'])
+      capabilities:expect.arrayContaining(['rigid-body','transform-state','counterfactual-query']),
+      backendExecutionModes:['realtime','validation-only'],
+      runtimeExecutionModes:['render-only'],
+      executionModes:['realtime','validation-only','render-only']
     });
+    expect(physics.supportsExecutionMode('render-only')).toBe(true);
     expect(physics.profile().capabilities).not.toContain('snapshot-restore');
     expect(world).toBeTruthy(); backend.step(world,1/60); backend.dispose(world);
   });
@@ -45,6 +49,8 @@ describe('PhysicsBackend contract',()=>{
     expect(physics.profile()).toMatchObject({
       identity:'transform', solverEnabled:false,
       capabilities:['transform-state','articulation-pose'],
+      backendExecutionModes:['render-only'],
+      runtimeExecutionModes:['render-only'],
       executionModes:['render-only']
     });
     expect(backend.hasCapability('collision')).toBe(false);

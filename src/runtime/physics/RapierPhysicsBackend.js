@@ -55,7 +55,7 @@ const createQueryShape=(spec)=>{
 export class RapierPhysicsBackend extends PhysicsBackend {
   constructor({ gravity={x:0,y:-9.81,z:0} } = {}) {
     super('rapier', PHYSICS_BACKEND_CAPABILITIES, {
-      executionModes:['render-only','realtime','validation-only'],
+      executionModes:['realtime','validation-only'],
       qualities:{realtime:true,deterministic:true}
     });
     this.gravity=gravity;

@@ -50,6 +50,32 @@ describe('WorldPhysicsAdmission',()=>{
       expect.objectContaining({code:'PHYSICS_EXECUTION_MODE_UNSUPPORTED',executionMode:'realtime'})
     ]));
   });
+
+  it('admits mixed rigid and render-only entities through one effective runtime profile',()=>{
+    const mixed={
+      revision:{id:'rev-mixed'},policy:{physics:{fallbackPolicy:'deny'}},entities:[
+        {id:'crate',physicsRequirement:{bodyClass:'rigid'}},
+        {id:'preview',physicsRequirement:{bodyClass:'transform'}}
+      ]
+    };
+    const bundle=compileWorldPhysicsRequirements(mixed);
+    const result=admitWorldPhysics(bundle,{
+      profile:profileOf(backend(['rigid-body'])),
+      resolvedAssets:[
+        {id:'crate',assetRef:{assetId:'crate'}},
+        {id:'preview',assetRef:{assetId:'preview'}}
+      ],
+      getManifest:()=>({})
+    });
+    expect(result).toMatchObject({
+      status:'ready',issues:[],
+      backend:{
+        backendExecutionModes:['realtime','validation-only'],
+        runtimeExecutionModes:['render-only'],
+        executionModes:['realtime','validation-only','render-only']
+      }
+    });
+  });
   it('admits an empty requirement set even without a backend',()=>{
     expect(admitWorldPhysics(compileWorldPhysicsRequirements({revision:{id:'r'},policy:{physics:{}},entities:[]}),{profile:null})).toMatchObject({status:'ready',issues:[]});
   });

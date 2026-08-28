@@ -66,6 +66,8 @@ export function admitWorldPhysics(bundle,{profile,resolvedAssets=[],getManifest}
       backendCapabilities:[...(profile.backendCapabilities||[])],
       runtimeCapabilities:[...(profile.runtimeCapabilities||[])],
       capabilities:[...(profile.capabilities||[])],
+      backendExecutionModes:[...(profile.backendExecutionModes||[])],
+      runtimeExecutionModes:[...(profile.runtimeExecutionModes||[])],
       executionModes:[...(profile.executionModes||[])],
       qualities:{...(profile.qualities||{})}
     },
