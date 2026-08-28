@@ -23,6 +23,10 @@ const cylinderAabbHalfExtents = (radius, halfHeight, q) => {
   const axis = [2 * (q.x * q.y - q.z * q.w), 1 - 2 * (q.x * q.x + q.z * q.z), 2 * (q.y * q.z + q.x * q.w)];
   return axis.map((component) => radius * Math.sqrt(Math.max(0, 1 - component * component)) + halfHeight * Math.abs(component));
 };
+const capsuleAabbHalfExtents = (radius, halfHeight, q) => {
+  const axis = [2 * (q.x * q.y - q.z * q.w), 1 - 2 * (q.x * q.x + q.z * q.z), 2 * (q.y * q.z + q.x * q.w)];
+  return axis.map((component) => radius + halfHeight * Math.abs(component));
+};
 const convexAabb = (vertices, position, rotation) => {
   const q = new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
   const v = new THREE.Vector3();
@@ -64,12 +68,24 @@ export class PhysicsSystem {
     return this;
   }
 
-  hasCapability(capability) { return this.backend.hasCapability(capability); }
+  runtimeCapabilities() {
+    const capabilities=['transform-state','articulation-pose'];
+    if (this.backend.hasCapability('collision') && this.backend.hasCapability('scene-query')) capabilities.push('counterfactual-query');
+    return capabilities;
+  }
+
+  hasCapability(capability) {
+    return this.backend.hasCapability(capability) || this.runtimeCapabilities().includes(capability);
+  }
   supportsExecutionMode(mode) { return this.backend.supportsExecutionMode(mode); }
   profile() {
+    const backendCapabilities=[...this.backend.capabilities];
+    const runtimeCapabilities=this.runtimeCapabilities();
     return {
       identity:this.backend.identity,
-      capabilities:[...this.backend.capabilities],
+      backendCapabilities,
+      runtimeCapabilities,
+      capabilities:[...new Set([...backendCapabilities,...runtimeCapabilities])],
       executionModes:[...this.backend.executionModes],
       qualities:{...this.backend.qualities},
       solverEnabled:this.solverEnabled
@@ -915,7 +931,7 @@ export class PhysicsSystem {
     const part = this.entries.get(id)?.parts.get(partName);
     if (!part || !Number.isFinite(target)) return false;
     if (!part.joint || !part.body) {
-      if (!this.backend.hasCapability('articulation-pose')) return false;
+      if (!this.hasCapability('articulation-pose')) return false;
       const limits = part.spec.joint.limits || [];
       if (limits.length === 2 && (target < limits[0] || target > limits[1])) return false;
       const state = this.articulationState(id, partName);
@@ -942,7 +958,7 @@ export class PhysicsSystem {
     const part = this.entries.get(id)?.parts.get(partName);
     const state = this.articulationState(id,partName);
     if (!part || !state) return false;
-    if (!part.joint || !part.body) return this.backend.hasCapability('articulation-pose');
+    if (!part.joint || !part.body) return this.hasCapability('articulation-pose');
     const motor=part.spec.joint.motor || {};
     this.backend.setJointTarget(part.joint,state.coordinate,motor);
     this.backend.wakeBody(part.body);
@@ -973,6 +989,13 @@ export class PhysicsSystem {
             items.push({id,objectId,part:partName,collider:i,shape:'cylinder',sourceShape:'cylinder',quality:'exact-upright',position:[position.x,position.y-shape.halfHeight,position.z],radius:shape.radius,height:shape.halfHeight*2});
           } else {
             items.push({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'cylinder',quality:'conservative-aabb',position:array3(position),halfExtents:cylinderAabbHalfExtents(shape.radius,shape.halfHeight,rotation),angle:0});
+          }
+        } else if(shape.kind==='capsule') {
+          const extentY=shape.halfHeight+shape.radius;
+          if(upright(rotation)) {
+            items.push({id,objectId,part:partName,collider:i,shape:'cylinder',sourceShape:'capsule',quality:'conservative-upright',position:[position.x,position.y-extentY,position.z],radius:shape.radius,height:extentY*2});
+          } else {
+            items.push({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'capsule',quality:'conservative-aabb',position:array3(position),halfExtents:capsuleAabbHalfExtents(shape.radius,shape.halfHeight,rotation),angle:0});
           }
         } else if(shape.kind==='convexHull' && shape.vertices?.length) {
           const box=convexAabb(shape.vertices,new THREE.Vector3(position.x,position.y,position.z),rotation);

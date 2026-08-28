@@ -222,7 +222,7 @@ async function recompileAuthorityOnly(runtime,{nextIR,compilation,baseRevisionId
   const reportKey=isBehavior?'behaviorAdmission':'physicsAdmission';
   const admissionResult=isBehavior
     ? admitWorldBehavior(compilation.behaviorBundle,{resolvedAssets,getManifest:(assetId)=>runtime.assets.getManifest(assetId)})
-    : admitWorldPhysics(compilation.physicsRequirements,{backend:runtime.physics.backend,resolvedAssets,getManifest:(assetId)=>runtime.assets.getManifest(assetId)});
+    : admitWorldPhysics(compilation.physicsRequirements,{profile:runtime.physics?.profile?.()||null,resolvedAssets,getManifest:(assetId)=>runtime.assets.getManifest(assetId)});
   const admissionContext=isBehavior?{behaviorAdmission:admissionResult}:{physicsAdmission:admissionResult};
   const label=isBehavior?'behavior':'physics';
 

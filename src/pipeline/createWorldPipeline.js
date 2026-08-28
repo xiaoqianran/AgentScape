@@ -158,7 +158,7 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
       state.reports.physicsAdmission=admissionNotEvaluated('UPSTREAM_ASSET_ADMISSION_REJECTED',{backend:null,requirements:structuredClone(state.artifacts.physicsRequirements?.requirements||[]),issues:[]});
       return state;
     }
-    state.reports.physicsAdmission=admitWorldPhysics(state.artifacts.physicsRequirements,{backend:runtime.physics?.backend||null,resolvedAssets:state.artifacts.assets||[],getManifest:(assetId)=>runtime.assets.getManifest(assetId)});
+    state.reports.physicsAdmission=admitWorldPhysics(state.artifacts.physicsRequirements,{profile:runtime.physics?.profile?.()||null,resolvedAssets:state.artifacts.assets||[],getManifest:(assetId)=>runtime.assets.getManifest(assetId)});
     return state;
   });
 

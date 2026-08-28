@@ -1,5 +1,5 @@
 export const PHYSICS_BACKEND_CAPABILITIES = Object.freeze([
-  'transform-state','articulation-pose','rigid-body','articulated-body','character-controller','collision','joints','scene-query','snapshot-restore','counterfactual-query'
+  'rigid-body','articulated-body','character-controller','collision','joints','scene-query'
 ]);
 
 const missing=(identity,method)=>{ throw new Error(`Physics backend ${identity} ${method}() must be implemented`); };
@@ -60,7 +60,7 @@ export class PhysicsBackend {
 
 export class TransformPhysicsBackend extends PhysicsBackend {
   constructor({ identity='transform' } = {}) {
-    super(identity, ['transform-state','articulation-pose'], {
+    super(identity, [], {
       executionModes:['render-only'],
       qualities:{realtime:true,deterministic:true}
     });

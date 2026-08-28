@@ -248,7 +248,14 @@ const physicsRuntime=({revisionId='physics-rev-1',capabilities=['rigid-body','co
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
     worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
     store:{get:vi.fn(()=>record)},assets:{getManifest:vi.fn(()=>({id:'crate',actions:['move'],physics:{body:'dynamic'}}))},
-    physics:{backend},validator:{run:vi.fn(()=>{observedRevisions.push(runtimeRef.currentWorldRevision?.revision?.id || null);return {ok:true,counts:{hard:0,advisory:0},findings:[]};})},
+    physics:{
+      backend,
+      profile:()=>({
+        identity:backend.identity,
+        backendCapabilities:[...capabilities],runtimeCapabilities:[],capabilities:[...capabilities],
+        executionModes:[...backend.executionModes],qualities:{...backend.qualities}
+      })
+    },validator:{run:vi.fn(()=>{observedRevisions.push(runtimeRef.currentWorldRevision?.revision?.id || null);return {ok:true,counts:{hard:0,advisory:0},findings:[]};})},
     sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},loadRuleGraph:vi.fn(),trace:{emit:vi.fn()},_observedRevisions:observedRevisions
   };
   runtimeRef=runtime;

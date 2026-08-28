@@ -34,11 +34,13 @@ export function compileWorldPhysicsRequirements(worldIR){
   };
 }
 
-export function admitWorldPhysics(bundle,{backend,resolvedAssets=[],getManifest}={}){
+export function admitWorldPhysics(bundle,{profile,resolvedAssets=[],getManifest}={}){
   if(bundle?.schema!==WORLD_PHYSICS_REQUIREMENTS_SCHEMA||bundle.schemaVersion!==WORLD_PHYSICS_REQUIREMENTS_VERSION) throw new TypeError('Unsupported WorldPhysics requirements');
-  if(!backend){
+  if(!profile){
     return {status:bundle.requirements.length?'rejected':'ready',backend:null,requirements:structuredClone(bundle.requirements),issues:bundle.requirements.length?[{code:'PHYSICS_BACKEND_UNAVAILABLE'}]:[]};
   }
+  const capabilities=new Set(profile.capabilities||[]);
+  const executionModes=new Set(profile.executionModes||[]);
   const byId=new Map((resolvedAssets||[]).filter((item)=>item.id).map((item)=>[item.id,item]));
   const issues=[];
   for(const requirement of bundle.requirements){
@@ -46,11 +48,11 @@ export function admitWorldPhysics(bundle,{backend,resolvedAssets=[],getManifest}
     const assetId=assetIdFromRef(resolved?.assetRef);
     if(!assetId){issues.push({code:'PHYSICS_TARGET_UNRESOLVED',entityId:requirement.entityId});continue;}
     for(const capability of requirement.requiredCapabilities){
-      if(!backend.hasCapability?.(capability)) issues.push({code:'PHYSICS_BACKEND_CAPABILITY_MISSING',entityId:requirement.entityId,capability,backend:backend.identity});
+      if(!capabilities.has(capability)) issues.push({code:'PHYSICS_BACKEND_CAPABILITY_MISSING',entityId:requirement.entityId,capability,backend:profile.identity});
     }
-    if(!backend.supportsExecutionMode?.(requirement.executionMode)) issues.push({code:'PHYSICS_EXECUTION_MODE_UNSUPPORTED',entityId:requirement.entityId,executionMode:requirement.executionMode,backend:backend.identity});
-    if(requirement.qualityPolicy?.realtimeRequired===true&&backend.qualities?.realtime!==true) issues.push({code:'PHYSICS_REALTIME_QUALITY_UNMET',entityId:requirement.entityId,backend:backend.identity});
-    if(requirement.qualityPolicy?.deterministicRequired===true&&backend.qualities?.deterministic!==true) issues.push({code:'PHYSICS_DETERMINISM_QUALITY_UNMET',entityId:requirement.entityId,backend:backend.identity});
+    if(!executionModes.has(requirement.executionMode)) issues.push({code:'PHYSICS_EXECUTION_MODE_UNSUPPORTED',entityId:requirement.entityId,executionMode:requirement.executionMode,backend:profile.identity});
+    if(requirement.qualityPolicy?.realtimeRequired===true&&profile.qualities?.realtime!==true) issues.push({code:'PHYSICS_REALTIME_QUALITY_UNMET',entityId:requirement.entityId,backend:profile.identity});
+    if(requirement.qualityPolicy?.deterministicRequired===true&&profile.qualities?.deterministic!==true) issues.push({code:'PHYSICS_DETERMINISM_QUALITY_UNMET',entityId:requirement.entityId,backend:profile.identity});
     if(requirement.bodyClass==='articulated'){
       const manifest=getManifest?.(assetId);
       const parts=Object.values(manifest?.parts||{});
@@ -59,7 +61,14 @@ export function admitWorldPhysics(bundle,{backend,resolvedAssets=[],getManifest}
   }
   return {
     status:issues.length?'rejected':'ready',
-    backend:{identity:backend.identity,capabilities:[...(backend.capabilities||[])],executionModes:[...(backend.executionModes||[])],qualities:{...(backend.qualities||{})}},
+    backend:{
+      identity:profile.identity,
+      backendCapabilities:[...(profile.backendCapabilities||[])],
+      runtimeCapabilities:[...(profile.runtimeCapabilities||[])],
+      capabilities:[...(profile.capabilities||[])],
+      executionModes:[...(profile.executionModes||[])],
+      qualities:{...(profile.qualities||{})}
+    },
     requirements:structuredClone(bundle.requirements),issues
   };
 }

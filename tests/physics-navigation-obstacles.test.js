@@ -44,4 +44,23 @@ describe('PhysicsSystem navigation obstacle snapshots',()=>{
     expect(snapshot.items.every((item)=>item.halfExtents.every((value)=>Number.isFinite(value)&&value>0))).toBe(true);
     physics.dispose();
   });
+
+  it('projects upright and tilted capsules conservatively instead of skipping them',async()=>{
+    const physics=createRapierPhysicsSystem(); await physics.init();
+    const uprightRoot=new THREE.Group(); uprightRoot.updateMatrixWorld(true);
+    const capsuleManifest={physics:{body:'dynamic',colliders:[{shape:'capsule',halfHeight:.5,radius:.2}]}};
+    physics.attach('upright',capsuleManifest,uprightRoot);
+    const upright=physics.navigationObstacles().items.find((item)=>item.objectId==='upright');
+    expect(upright).toMatchObject({sourceShape:'capsule',shape:'cylinder',quality:'conservative-upright',radius:.2,height:1.4});
+
+    const tiltedRoot=new THREE.Group(); tiltedRoot.rotation.z=Math.PI/4; tiltedRoot.position.x=2; tiltedRoot.updateMatrixWorld(true);
+    physics.attach('tilted',capsuleManifest,tiltedRoot);
+    const snapshot=physics.navigationObstacles();
+    const tilted=snapshot.items.find((item)=>item.objectId==='tilted');
+    expect(tilted).toMatchObject({sourceShape:'capsule',shape:'box',quality:'conservative-aabb'});
+    expect(tilted.halfExtents.every((value)=>Number.isFinite(value)&&value>0)).toBe(true);
+    expect(snapshot.skipped.some((item)=>item.shapeType==='capsule')).toBe(false);
+    physics.dispose();
+  });
+
 });

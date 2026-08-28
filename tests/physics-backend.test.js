@@ -16,7 +16,23 @@ describe('PhysicsBackend contract',()=>{
   });
   it('Rapier backend satisfies capability and lifecycle parity',async()=>{
     const backend=new RapierPhysicsBackend(); await backend.init(); const world=backend.createWorld();
-    expect(backend.identity).toBe('rapier'); expect(backend.hasCapability('transform-state')).toBe(true); expect(backend.hasCapability('rigid-body')).toBe(true); expect(backend.hasCapability('articulated-body')).toBe(true); expect(backend.hasCapability('character-controller')).toBe(true); expect(backend.supportsExecutionMode('render-only')).toBe(true); expect(backend.supportsExecutionMode('validation-only')).toBe(true); expect(backend.qualities).toEqual({realtime:true,deterministic:true});
+    expect(backend.identity).toBe('rapier');
+    expect(backend.hasCapability('transform-state')).toBe(false);
+    expect(backend.hasCapability('rigid-body')).toBe(true);
+    expect(backend.hasCapability('articulated-body')).toBe(true);
+    expect(backend.hasCapability('character-controller')).toBe(true);
+    expect(backend.hasCapability('snapshot-restore')).toBe(false);
+    expect(backend.hasCapability('counterfactual-query')).toBe(false);
+    expect(backend.supportsExecutionMode('render-only')).toBe(true);
+    expect(backend.supportsExecutionMode('validation-only')).toBe(true);
+    expect(backend.qualities).toEqual({realtime:true,deterministic:true});
+    const physics=new PhysicsSystem({backend});
+    expect(physics.profile()).toMatchObject({
+      backendCapabilities:expect.arrayContaining(['rigid-body','collision','scene-query']),
+      runtimeCapabilities:expect.arrayContaining(['transform-state','articulation-pose','counterfactual-query']),
+      capabilities:expect.arrayContaining(['rigid-body','transform-state','counterfactual-query'])
+    });
+    expect(physics.profile().capabilities).not.toContain('snapshot-restore');
     expect(world).toBeTruthy(); backend.step(world,1/60); backend.dispose(world);
   });
 
