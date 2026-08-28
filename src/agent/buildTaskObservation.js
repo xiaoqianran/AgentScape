@@ -107,7 +107,8 @@ export function buildTaskObservation(runtime, {
               blockerCandidates:(part.last.attribution.blockerCandidates || []).map((item)=>structuredClone(item)),
               contactEvidence:(part.last.attribution.contactEvidence || []).slice(0,4).map((item)=>({
                 source:structuredClone(item.source),target:structuredClone(item.target),
-                contactCount:item.contactCount,activeContactCount:item.activeContactCount,minDistance:round(item.minDistance),totalImpulse:round(item.totalImpulse),normal:roundVec(item.normal)
+                contactCount:item.contactCount,activeContactCount:item.activeContactCount,minDistance:round(item.minDistance),totalImpulse:round(item.totalImpulse),
+                evidenceKind:item.evidenceKind || 'contact',impulseAvailable:item.impulseAvailable===true,normal:roundVec(item.normal)
               }))
             } } : {})
           } } : {})

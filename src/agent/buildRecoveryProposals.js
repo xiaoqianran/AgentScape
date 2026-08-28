@@ -10,14 +10,18 @@ const currentExternalEvidence = (runtime,targetId,partName) => {
     if (!['object','environment'].includes(target.kind)) continue;
     const key=candidateKey(target);
     const current=evidence.get(key) || {
-      pairCount:0,contactCount:0,activeContactCount:0,minDistance:null,totalImpulse:0,colliderIndices:new Set()
+      pairCount:0,contactCount:0,activeContactCount:0,minDistance:null,totalImpulse:0,
+      impulseAvailable:true,evidenceKinds:new Set(),colliderIndices:new Set()
     };
     current.pairCount+=1;
     current.contactCount+=Number(contact.contactCount) || 0;
     current.activeContactCount+=Number(contact.activeContactCount) || 0;
     if (Number.isFinite(contact.minDistance)) current.minDistance=current.minDistance == null
       ? contact.minDistance : Math.min(current.minDistance,contact.minDistance);
-    current.totalImpulse+=Number(contact.totalImpulse) || 0;
+    const impulseAvailable=contact.impulseAvailable!==false && Number.isFinite(contact.totalImpulse);
+    if(impulseAvailable) current.totalImpulse+=contact.totalImpulse;
+    else current.impulseAvailable=false;
+    current.evidenceKinds.add(contact.evidenceKind || 'contact');
     if (target.colliderIndex != null) current.colliderIndices.add(target.colliderIndex);
     evidence.set(key,current);
   }
@@ -26,7 +30,9 @@ const currentExternalEvidence = (runtime,targetId,partName) => {
     contactCount:value.contactCount,
     activeContactCount:value.activeContactCount,
     minDistance:value.minDistance,
-    totalImpulse:value.totalImpulse,
+    totalImpulse:value.impulseAvailable ? value.totalImpulse : null,
+    impulseAvailable:value.impulseAvailable,
+    evidenceKinds:[...value.evidenceKinds].sort(),
     colliderIndices:[...value.colliderIndices].sort((a,b)=>a-b)
   }]));
 };
@@ -445,8 +451,8 @@ export async function buildRecoveryProposals(runtime,registry,{
         continue;
       }
       currentContact={
-        source:'current-action-sweep-overlap',pairCount:0,contactCount:0,activeContactCount:0,minDistance:null,totalImpulse:0,colliderIndices:[],
-        persistence
+        source:'current-action-sweep-overlap',pairCount:0,contactCount:0,activeContactCount:0,minDistance:null,totalImpulse:null,
+        impulseAvailable:false,evidenceKinds:['geometric-sweep'],colliderIndices:[],persistence
       };
     }
     if ((candidate.partName || '$root')!=='$root') {

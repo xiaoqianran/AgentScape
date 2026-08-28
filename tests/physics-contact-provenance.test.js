@@ -41,12 +41,15 @@ describe('Physics collider contact provenance',()=>{
     expect(hit).toMatchObject({
       source:{kind:'object',objectId:'cabinet',partName:'door',colliderIndex:0},
       target:{kind:'environment',environmentId:'stall-fixture',colliderIndex:0},
-      external:true,manifoldCount:expect.any(Number),contactCount:expect.any(Number),normal:expect.any(Array)
+      external:true,manifoldCount:expect.any(Number),contactCount:expect.any(Number),
+      evidenceKind:'solver-contact',impulseAvailable:true,normal:expect.any(Array)
     });
     expect(hit.manifoldCount).toBeGreaterThan(0);
     expect(hit.contactCount).toBeGreaterThan(0);
     expect(hit.activeContactCount).toBeGreaterThan(0);
     expect(Number.isFinite(hit.minDistance)).toBe(true);
+    expect(Number.isFinite(hit.totalImpulse)).toBe(true);
+    expect(hit.totalImpulse).toBeGreaterThanOrEqual(0);
     expect(JSON.stringify(hit)).not.toMatch(/handle/);
     physics.dispose();
   });

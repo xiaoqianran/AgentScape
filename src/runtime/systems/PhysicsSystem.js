@@ -1032,7 +1032,9 @@ export class PhysicsSystem {
           contactCount:pair.contactCount,
           activeContactCount:pair.activeContactCount,
           minDistance:pair.minDistance,
-          totalImpulse:pair.totalImpulse,
+          totalImpulse:Number.isFinite(pair.totalImpulse)?pair.totalImpulse:null,
+          evidenceKind:pair.evidenceKind || 'contact',
+          impulseAvailable:pair.impulseAvailable===true,
           normal:pair.normal
         });
       }

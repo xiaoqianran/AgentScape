@@ -298,7 +298,8 @@ export class RapierPhysicsBackend extends PhysicsBackend {
       });
       if(manifoldCount && activeContactCount) pairs.push({
         other,manifoldCount,contactCount,activeContactCount,
-        minDistance:Number.isFinite(minDistance)?minDistance:null,totalImpulse,normal
+        minDistance:Number.isFinite(minDistance)?minDistance:null,totalImpulse,normal,
+        evidenceKind:'solver-contact',impulseAvailable:true
       });
     });
     return pairs;

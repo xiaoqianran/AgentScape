@@ -64,7 +64,11 @@ describe('JoltPhysicsBackend',()=>{
       } finally { backend.disposeQueryShape(query); }
 
       backend.setBodyPose(sourceBody,{position:[0,0,0]});
-      expect(backend.contactPairs(world,source).some((pair)=>pair.other===target)).toBe(true);
+      const contact=backend.contactPairs(world,source).find((pair)=>pair.other===target);
+      expect(contact).toMatchObject({
+        evidenceKind:'geometric-contact',impulseAvailable:false,totalImpulse:null,
+        contactCount:1,activeContactCount:1
+      });
       expect(backend.penetrations(world,source).some((hit)=>hit.other===target&&hit.distance<0)).toBe(true);
     } finally { backend.dispose(world); }
   });

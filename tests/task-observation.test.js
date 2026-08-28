@@ -36,7 +36,7 @@ function runtimeFixture(){
               contactEvidence:[{
                 source:{kind:'object',objectId:'cabinet_01',partName:'door',colliderIndex:0},
                 target:{kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0},
-                external:true,contactCount:2,activeContactCount:2,minDistance:-.004321,totalImpulse:3.14159,normal:[1,0,0]
+                external:true,contactCount:2,activeContactCount:2,minDistance:-.004321,totalImpulse:3.14159,evidenceKind:'solver-contact',impulseAvailable:true,normal:[1,0,0]
               }]
             }
           }
@@ -78,7 +78,7 @@ describe('compact task observation',()=>{
           attribution:{
             status:'contact-evidence',evidence:'current-contact-at-failure',
             blockerCandidates:[{kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0}],
-            contactEvidence:[{contactCount:2,activeContactCount:2,minDistance:-.004,totalImpulse:3.142,normal:[1,0,0]}]
+            contactEvidence:[{contactCount:2,activeContactCount:2,minDistance:-.004,totalImpulse:3.142,evidenceKind:'solver-contact',impulseAvailable:true,normal:[1,0,0]}]
           }
         }
       }]
@@ -88,6 +88,24 @@ describe('compact task observation',()=>{
       expect.objectContaining({tool:'suggestRecoveryActions',status:'provisional',basedOn:'current-contact-at-failure',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door'}})
     ]);
     expect(JSON.stringify(observation).length).toBeLessThan(3500);
+  });
+
+  it('preserves unavailable geometric contact impulse as null instead of fabricating zero',()=>{
+    const runtime=runtimeFixture();
+    const status=runtime.interactions.articulationStatus();
+    status.parts[0].last.attribution.contactEvidence[0]={
+      ...status.parts[0].last.attribution.contactEvidence[0],
+      totalImpulse:null,evidenceKind:'geometric-contact',impulseAvailable:false
+    };
+    runtime.interactions.articulationStatus.mockReturnValue(status);
+    const lastMutation={
+      tool:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'},
+      outcome:{state:'failed',status:'action-failed',reason:'STALL'}
+    };
+    const observation=buildTaskObservation(runtime,{actor:'agent_01',lastMutation,unresolvedMutations:[lastMutation]});
+    expect(observation.articulation[0].parts[0].last.attribution.contactEvidence[0]).toMatchObject({
+      totalImpulse:null,evidenceKind:'geometric-contact',impulseAvailable:false
+    });
   });
 
   it('focuses recovery hints on an unresolved adverse mutation when the most recent mutation already verified',()=>{

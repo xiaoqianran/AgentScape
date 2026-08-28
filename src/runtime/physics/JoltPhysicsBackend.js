@@ -705,7 +705,8 @@ export class JoltPhysicsBackend extends PhysicsBackend {
     }
     return [...byCollider.values()].map((hit)=>({
       other:hit.collider,manifoldCount:1,contactCount:1,activeContactCount:1,
-      minDistance:hit.penetrationDepth>0 ? -hit.penetrationDepth : 0,totalImpulse:0,normal:hit.normal
+      minDistance:hit.penetrationDepth>0 ? -hit.penetrationDepth : 0,totalImpulse:null,normal:hit.normal,
+      evidenceKind:'geometric-contact',impulseAvailable:false
     }));
   }
 

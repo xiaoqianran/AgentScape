@@ -120,6 +120,20 @@ describe('verified recovery proposals',()=>{
     expect(result.proposals.at(-1)).toMatchObject({candidateType:'environment-collider',eligible:false,reason:'ENVIRONMENT_IMMOVABLE'});
   });
 
+
+  it('preserves unavailable impulse evidence as null instead of coercing it to zero',async()=>{
+    const current=[{
+      external:true,target:blockerCandidate,contactCount:2,activeContactCount:2,minDistance:-.01,
+      totalImpulse:null,impulseAvailable:false,evidenceKind:'geometric-contact'
+    }];
+    const {runtime,registry}=setup({current});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.proposals[0].currentContact).toMatchObject({
+      pairCount:1,contactCount:2,activeContactCount:2,minDistance:-.01,
+      totalImpulse:null,impulseAvailable:false,evidenceKinds:['geometric-contact']
+    });
+  });
+
   it('uses a stable blocker key only as a deterministic tie-break when pickup route costs are equal',async()=>{
     const blocker2={kind:'object',objectId:'blocker_02',partName:'$root',colliderIndex:0};
     const {runtime,registry}=setup({candidates:[blocker2,blockerCandidate],current:[blocker2,blockerCandidate],planCosts:{blocker_01:3,blocker_02:3}});
