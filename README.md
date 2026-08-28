@@ -272,3 +272,33 @@ AgentScape 的架构是在实际阅读与对比成熟项目后收敛，而不是
 ## 当前边界
 
 AgentScape 不把启发式语义、节点名关节候选、Provider affordance、fallback collider 或 LLM 文本当成 verified world truth。Generated-world orchestration 已经能够规范化、准入、确定性布局、验证，并对“search miss + generator available”执行一次 Runtime-owned bounded regeneration；更复杂的 layout/relation/validation 约束修订、全局空间优化与动态第三体未来运动预测仍在继续推进。
+
+
+## Submodule audit and safe synchronization
+
+AgentScape treats the superproject gitlink as the integration truth, but never overwrites a submodule that contains uncommitted local state.
+
+```bash
+npm run repos:audit
+npm run repos:sync-safe
+npm run repos:check
+npm run repos:check-recursive   # optional: also require nested third-party submodules
+```
+
+`repos:audit` classifies every top-level submodule before any synchronization:
+
+```text
+CLEAN_MATCH      checkout already equals the root gitlink; keep it
+CLEAN_MISMATCH   clean checkout at another commit; safe to checkout the gitlink
+UNINITIALIZED    no independent submodule worktree yet; safe to initialize
+PARTIAL_INIT     submodule gitdir exists but has no valid HEAD; safe to finish initialization
+DIRTY_INDEX      staged changes exist inside the submodule; DO NOT TOUCH
+DIRTY_WORKTREE   unstaged tracked changes exist; DO NOT TOUCH
+UNTRACKED        untracked files exist; DO NOT TOUCH
+DIRTY_OTHER      any other local state; DO NOT TOUCH
+PIN_MISSING      root gitlink is unavailable; DO NOT TOUCH
+```
+
+`repos:sync-safe` only acts on `CLEAN_MISMATCH`, `UNINITIALIZED`, and `PARTIAL_INIT`. All dirty states are skipped. `repos:check` validates only AgentScape's top-level integration submodules; `repos:check-recursive` additionally requires nested third-party submodules such as `upstream/EmbodiedGen/thirdparty/*`. This is intentionally conservative: a root/submodule synchronization command must never erase ongoing provider, research, or Kaggle work merely to make `git status` look clean.
+
+For submodules, detached HEAD at the exact root gitlink is expected and healthy. Updating a submodule to its remote `main` is a separate integration change and must be reviewed and committed by updating the root gitlink.
