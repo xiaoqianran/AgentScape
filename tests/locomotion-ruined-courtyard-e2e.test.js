@@ -2,7 +2,7 @@ import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.j
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
 import { createRuinedCourtyard } from '../src/content/ruinedCourtyard.js';
@@ -13,7 +13,7 @@ it('walks a real kinematic Agent Body up the Ruined Courtyard stairs to the 1.2m
   const store=new ObjectStore();
   const physics=createRapierPhysicsSystem(); await physics.init();
   physics.addEnvironment(world.colliders);
-  const navigation=new NavigationSystem({store,physics,environmentRoots:[world.root]});
+  const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[world.root]});
   // Prebuild navigation before starting the real-time locomotion task.
   expect((await navigation.findPath([0,0,12],[12,1.2,4.8])).reachable).toBe(true);
 

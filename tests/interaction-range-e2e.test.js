@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { EventBus } from '../src/core/EventBus.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
 import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
@@ -45,7 +45,7 @@ async function setup({ wall=null }={}) {
 
   const spatial=new SpatialSystem({store,scene});
   const events=new EventBus();
-  const navigation=new NavigationSystem({store,physics,environmentRoots:[ground],events});
+  const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[ground],events});
   const locomotion=new LocomotionSystem({store,physics,navigation,events});
   const interactions=new InteractionSystem({store,physics,spatial,navigation,locomotion,events});
   return {store,scene,ground,physics,spatial,navigation,locomotion,interactions};

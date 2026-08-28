@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 
 const floor = () => {
   const mesh=new THREE.Mesh(new THREE.BoxGeometry(10,.2,8));
@@ -18,7 +18,7 @@ describe('NavigationSystem dynamic obstacles',()=>{
   it('updates TileCache from current physics obstacles without rebuilding the static NavMesh',async()=>{
     let items=[barrier(0)];
     const physics={navigationObstacles:()=>({items:structuredClone(items),skipped:[]})};
-    const navigation=new NavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()]});
+    const navigation=createRecastNavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()]});
 
     const blocked=await navigation.findPath([-4,0,0],[4,0,0]);
     expect(blocked).toMatchObject({reachable:false,scope:'current',reason:'PARTIAL_PATH',buildVersion:1});
@@ -40,7 +40,7 @@ describe('NavigationSystem dynamic obstacles',()=>{
 
   it('reports partial dynamic coverage when PhysicsSystem skips an unsupported collider',async()=>{
     const physics={navigationObstacles:()=>({items:[],skipped:[{id:'x:$root:0',reason:'unsupported-shape',shapeType:99}]})};
-    const navigation=new NavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()]});
+    const navigation=createRecastNavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()]});
     const result=await navigation.findPath([-4,0,0],[4,0,0]);
     expect(result.reachable).toBe(true);
     expect(result.scope).toBe('current');
@@ -56,7 +56,7 @@ describe('NavigationSystem dynamic obstacles',()=>{
       position:[-4+(i%14)*.6,0,-3+Math.floor(i/14)*1.2],radius:.05,height:.5
     }));
     const physics={navigationObstacles:()=>({items,skipped:[]})};
-    const navigation=new NavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()],config:{maxObstacles:96}});
+    const navigation=createRecastNavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()],config:{maxObstacles:96}});
     const result=await navigation.findPath([-4,0,3],[4,0,3]);
     expect(result.dynamicObstacles).toMatchObject({coverage:'complete',tracked:70,changed:70,operations:70});
     expect(result.dynamicObstacles.updates).toBeGreaterThan(1);

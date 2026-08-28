@@ -4,7 +4,7 @@ import { EventBus } from '../src/core/EventBus.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
 import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
 import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
 import { SceneGraph } from '../src/runtime/graph/SceneGraph.js';
@@ -56,7 +56,7 @@ async function setup({ withNav = true } = {}) {
   const spatial = new SpatialSystem({ store, scene });
   const events = new EventBus();
   const navigation = withNav
-    ? new NavigationSystem({ store, physics, environmentRoots: [ground], events })
+    ? createRecastNavigationSystem({ store, physics, environmentRoots: [ground], events })
     : null;
   const locomotion = new LocomotionSystem({ store, physics, navigation, events });
   const interactions = new InteractionSystem({ store, physics, spatial, navigation, locomotion, events });

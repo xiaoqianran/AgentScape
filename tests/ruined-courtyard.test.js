@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 import { createRuinedCourtyard, RUINED_COURTYARD_COLLIDERS } from '../src/content/ruinedCourtyard.js';
 import { disposeObject3D } from '../src/runtime/disposeObject3D.js';
 
@@ -27,7 +27,7 @@ describe('Ruined Courtyard environment pack', () => {
   it('builds a navigable path onto both raised terraces using real 0.2m steps', async () => {
     const scene = new THREE.Scene();
     const world = createRuinedCourtyard({ scene, loadAssets:false });
-    const navigation = new NavigationSystem({ store:new ObjectStore(), environmentRoots:[world.root] });
+    const navigation = createRecastNavigationSystem({ store:new ObjectStore(), environmentRoots:[world.root] });
 
     const east = await navigation.findPath([0,0,12], [12,1.2,4.8]);
     const west = await navigation.findPath([0,0,12], [-12,.8,-6.2]);
@@ -43,7 +43,7 @@ describe('Ruined Courtyard environment pack', () => {
   it('routes around the physical dry fountain on the courtyard main axis', async () => {
     const scene = new THREE.Scene();
     const world = createRuinedCourtyard({ scene, loadAssets:false });
-    const navigation = new NavigationSystem({ store:new ObjectStore(), environmentRoots:[world.root] });
+    const navigation = createRecastNavigationSystem({ store:new ObjectStore(), environmentRoots:[world.root] });
     const result = await navigation.findPath([0,0,12], [0,0,-11]);
     expect(result.reachable).toBe(true);
     expect(result.path.length).toBeGreaterThan(2);

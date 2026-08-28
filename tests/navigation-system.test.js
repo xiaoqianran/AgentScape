@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { EventBus } from '../src/core/EventBus.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 
 const floor = () => {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(10, .2, 8));
@@ -28,7 +28,7 @@ describe('NavigationSystem', () => {
   it('builds one lazy Recast NavMesh and finds a Detour path around fixed geometry', async () => {
     const store = new ObjectStore();
     addRecord(store, 'wall', wall(), 'fixed');
-    const navigation = new NavigationSystem({ store, environmentRoots:[floor()] });
+    const navigation = createRecastNavigationSystem({ store, environmentRoots:[floor()] });
 
     const [path, reachability] = await Promise.all([
       navigation.findPath([-4,0,0], [4,0,0]),
@@ -51,7 +51,7 @@ describe('NavigationSystem', () => {
   it('reports a disconnected static world as unreachable instead of confusing it with free space', async () => {
     const store = new ObjectStore();
     addRecord(store, 'barrier', wall({ depth:8 }), 'fixed');
-    const navigation = new NavigationSystem({ store, environmentRoots:[floor()] });
+    const navigation = createRecastNavigationSystem({ store, environmentRoots:[floor()] });
     const result = await navigation.findPath([-4,0,0], [4,0,0]);
 
     expect(result.reachable).toBe(false);
@@ -65,7 +65,7 @@ describe('NavigationSystem', () => {
     const dynamic = addRecord(store, 'dynamic_wall', wall({ depth:8 }), 'dynamic');
     const fixed = addRecord(store, 'fixed_box', wall({ z:20, depth:1 }), 'fixed');
     // Keep the fixed object outside the floor bounds so it does not affect this path.
-    const navigation = new NavigationSystem({ store, environmentRoots:[floor()] });
+    const navigation = createRecastNavigationSystem({ store, environmentRoots:[floor()] });
     const result = await navigation.findPath([-4,0,0], [4,0,0]);
 
     expect(result.reachable).toBe(true);
@@ -78,7 +78,7 @@ describe('NavigationSystem', () => {
   }, 15000);
 
   it('distinguishes an off-navmesh endpoint from a disconnected path', async () => {
-    const navigation = new NavigationSystem({ store:new ObjectStore(), environmentRoots:[floor()] });
+    const navigation = createRecastNavigationSystem({ store:new ObjectStore(), environmentRoots:[floor()] });
     const result = await navigation.findPath([0,0,0], [100,0,100], { maxSnapDistance:.5 });
     expect(result).toMatchObject({ reachable:false, reason:'END_OFF_NAVMESH', sameIsland:null, path:[] });
     navigation.dispose();
@@ -95,7 +95,7 @@ describe('NavigationSystem', () => {
       id:'cabinet', assetId:'cabinet', object:root,
       manifest:{ physics:{body:'fixed'}, parts:{door:{node:'DoorPart',physics:{body:'dynamic'},joint:{type:'revolute'}}} }, state:{}
     });
-    const navigation = new NavigationSystem({ store, environmentRoots:[floor()] });
+    const navigation = createRecastNavigationSystem({ store, environmentRoots:[floor()] });
     const result = await navigation.findPath([-4,0,0], [4,0,0]);
     expect(result.reachable).toBe(true);
     expect(result.scope).toBe('static');
@@ -107,7 +107,7 @@ describe('NavigationSystem', () => {
 
 
   it('reports dynamic obstacle capability from the injected physics backend instead of assuming Rapier', () => {
-    const renderOnly = new NavigationSystem({
+    const renderOnly = createRecastNavigationSystem({
       store:new ObjectStore(),
       physics:{hasCapability:(name)=>name==='transform-state',profile:()=>({identity:'transform'})},
       environmentRoots:[]
@@ -115,7 +115,7 @@ describe('NavigationSystem', () => {
     expect(renderOnly.status().capabilities).toMatchObject({dynamicObstacles:false,obstacleSource:'none'});
     renderOnly.dispose();
 
-    const solver = new NavigationSystem({
+    const solver = createRecastNavigationSystem({
       store:new ObjectStore(),
       physics:{hasCapability:(name)=>name==='collision',profile:()=>({identity:'rapier'})},
       environmentRoots:[]
@@ -129,7 +129,7 @@ describe('NavigationSystem', () => {
     const fixed=addRecord(store,'fixed',wall({z:20,depth:1}),'fixed');
     const dynamic=addRecord(store,'dynamic',wall({z:20,depth:1}),'dynamic');
     const events=new EventBus();
-    const navigation=new NavigationSystem({store,environmentRoots:[floor()],events});
+    const navigation=createRecastNavigationSystem({store,environmentRoots:[floor()],events});
     await navigation.findPath([-4,0,0],[4,0,0]);
     events.emit('interaction',{action:'move',id:dynamic.id});
     expect(navigation.status().dirty).toBe(false);

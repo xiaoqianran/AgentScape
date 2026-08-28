@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { EventBus } from '../src/core/EventBus.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
 import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
@@ -28,7 +28,7 @@ async function setup({agent=[0,0,3],cup=[0,0,0],table=null,wall=null}={}){
   const cm=structuredClone(assetManifests.cup); store.add('cup_01',{id:'cup_01',assetId:'cup',object:c,manifest:cm,state:{}}); physics.attach('cup_01',cm,c);
   for(let i=0;i<(table?120:10);i++) physics.step(1/60,store);
   const spatial=new SpatialSystem({store,scene}); const events=new EventBus();
-  const navigation=new NavigationSystem({store,physics,environmentRoots:[ground],events});
+  const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[ground],events});
   const locomotion=new LocomotionSystem({store,physics,navigation,events});
   const interactions=new InteractionSystem({store,physics,spatial,navigation,locomotion,events});
   return {store,scene,ground,physics,spatial,navigation,locomotion,interactions};

@@ -2,7 +2,7 @@ import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.j
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 
 it('derives current-world reachability from live Rapier dynamic colliders without rebuilding static Recast geometry',async()=>{
   const store=new ObjectStore();
@@ -13,7 +13,7 @@ it('derives current-world reachability from live Rapier dynamic colliders withou
   physics.attach('barrier',manifest,barrier);
 
   const floor=new THREE.Mesh(new THREE.BoxGeometry(10,.2,8)); floor.position.y=-.1; floor.updateMatrixWorld(true);
-  const navigation=new NavigationSystem({store,physics,environmentRoots:[floor]});
+  const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[floor]});
 
   const blocked=await navigation.findPath([-4,0,0],[4,0,0]);
   expect(blocked).toMatchObject({reachable:false,scope:'current',reason:'PARTIAL_PATH',buildVersion:1});

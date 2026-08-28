@@ -2,7 +2,7 @@ import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.j
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
 
@@ -15,7 +15,7 @@ it('returns blocked when Rapier sees a wall that the planned NavMesh did not inc
     {shape:'box',halfExtents:[4,.1,3],translation:[0,-.1,0]},
     {shape:'box',halfExtents:[.1,1.5,2.8],translation:[0,1.5,0]}
   ]);
-  const navigation=new NavigationSystem({store,physics,environmentRoots:[floor]});
+  const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[floor]});
   expect((await navigation.findPath([-3,0,0],[3,0,0])).reachable).toBe(true);
 
   const object=new THREE.Group(); object.position.set(-3,0,0); object.updateMatrixWorld(true);

@@ -80,4 +80,16 @@ describe('WorldRuntime authoring boundary', () => {
     expect(runtime.articulationVerifier.physicsFactory).toBe(physicsFactory);
   });
 
+
+  it('accepts a navigation backend factory without binding World core to Recast', () => {
+    const backend={identity:'custom-navigation-backend'};
+    const navigationBackendFactory=()=>backend;
+    const runtime=new WorldRuntime(
+      { appendChild() {} },
+      { environmentFactory:()=>null, assetModule:createAssetModule(), navigationBackendFactory }
+    );
+    expect(runtime.navigationBackendFactory).toBe(navigationBackendFactory);
+    expect(runtime.navigationBackendFactory()).toBe(backend);
+  });
+
 });

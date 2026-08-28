@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 
 const floor=()=>{
   const mesh=new THREE.Mesh(new THREE.BoxGeometry(10,.2,8));
@@ -24,7 +24,7 @@ const setup=(recordManifest,state={parts:{door:'close'}})=>{
   const store=new ObjectStore();
   store.add('cabinet',{id:'cabinet',assetId:'cabinet',object:new THREE.Group(),manifest:recordManifest,state});
   const physics={navigationObstacles:()=>({items:[doorObstacle()],skipped:[]})};
-  const navigation=new NavigationSystem({store,physics,environmentRoots:[floor()]});
+  const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[floor()]});
   return {store,navigation};
 };
 
@@ -85,15 +85,15 @@ describe('action-aware navigation diagnosis',()=>{
   it('heals current-world obstacles from Rapier after a transient counterfactual restore failure',async()=>{
     const {navigation}=setup(manifest());
     expect((await navigation.findPath([-4,0,0],[4,0,0])).reachable).toBe(false);
-    const original=navigation.queueObstacle.bind(navigation);
+    const original=navigation.backend.queueObstacle.bind(navigation.backend);
     let failOnce=true;
-    navigation.queueObstacle=(descriptor)=>{
+    navigation.backend.queueObstacle=(descriptor)=>{
       if(failOnce){ failOnce=false; return {success:false}; }
       return original(descriptor);
     };
     const diagnosis=await navigation.suggestActions([-4,0,0],[4,0,0]);
     expect(diagnosis.status).toBe('blocked');
-    expect(diagnosis.candidates[0].counterfactual).toMatchObject({reachable:false,reason:'TILECACHE_COUNTERFACTUAL_RESTORE_FAILED'});
+    expect(diagnosis.candidates[0].counterfactual).toMatchObject({reachable:false,reason:'NAVIGATION_COUNTERFACTUAL_RESTORE_FAILED'});
     expect(navigation.status().dynamicObstacles.tracked).toBe(1);
     const current=await navigation.findPath([-4,0,0],[4,0,0]);
     expect(current).toMatchObject({reachable:false,reason:'PARTIAL_PATH',scope:'current'});

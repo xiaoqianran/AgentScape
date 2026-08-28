@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { expect, it } from 'vitest';
 import { AssetManager } from '../src/assets/AssetManager.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
 import { disposeObject3D } from '../src/runtime/disposeObject3D.js';
 
@@ -19,7 +19,7 @@ it('builds static navigation from the real cabinet GLB while excluding the artic
   const store=new ObjectStore();
   store.add('cabinet_1',{id:'cabinet_1',assetId:'cabinet',object,manifest:cabinet,state:{}});
   const floor=new THREE.Mesh(new THREE.BoxGeometry(10,.2,8)); floor.position.y=-.1; floor.updateMatrixWorld(true);
-  const navigation=new NavigationSystem({store,environmentRoots:[floor]});
+  const navigation=createRecastNavigationSystem({store,environmentRoots:[floor]});
   const result=await navigation.findPath([-4,0,0],[4,0,0]);
 
   expect(result.reachable).toBe(true);

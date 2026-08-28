@@ -15,7 +15,7 @@ const LAYER_LABELS = Object.freeze({
   bounds: { label: '包围盒', hint: '世界空间 AABB' },
   relations: { label: '空间关系', hint: 'ON / NEAR 等语义关系连线' },
   interaction: { label: '交互与持有', hint: '持有锚点、携带连线与 1.5 米交互圈' },
-  navmesh: { label: '导航网格', hint: 'Recast NavMesh 顶点云' }
+  navmesh: { label: '导航网格', hint: '当前 Navigation Backend 的可行走几何顶点云' }
 });
 
 const UNAVAILABLE_REASON = Object.freeze({

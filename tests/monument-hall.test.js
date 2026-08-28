@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 import { createMonumentHall, MONUMENT_HALL_COLLIDERS } from '../src/content/monumentHall.js';
 import { disposeObject3D } from '../src/runtime/disposeObject3D.js';
 
@@ -24,7 +24,7 @@ describe('Monument Hall environment pack', () => {
   it('builds a real Recast path around the central monument instead of walking through it', async () => {
     const scene = new THREE.Scene();
     const hall = createMonumentHall({ scene, loadAssets:false });
-    const navigation = new NavigationSystem({ store:new ObjectStore(), environmentRoots:[hall.root] });
+    const navigation = createRecastNavigationSystem({ store:new ObjectStore(), environmentRoots:[hall.root] });
     const result = await navigation.findPath([0,0,10], [0,0,-9]);
     expect(result.reachable).toBe(true);
     expect(result.path.length).toBeGreaterThan(2);

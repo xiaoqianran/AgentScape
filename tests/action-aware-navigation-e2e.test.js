@@ -4,7 +4,7 @@ import { expect, it } from 'vitest';
 import { EventBus } from '../src/core/EventBus.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 
 it('closes the loop from a real Rapier door recommendation to current-world replanning after opening',async()=>{
   const store=new ObjectStore();
@@ -24,7 +24,7 @@ it('closes the loop from a real Rapier door recommendation to current-world repl
   physics.attach('gate',manifest,root);
 
   const floor=new THREE.Mesh(new THREE.BoxGeometry(10,.2,8)); floor.position.y=-.1; floor.updateMatrixWorld(true);
-  const navigation=new NavigationSystem({store,physics,environmentRoots:[floor],events});
+  const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[floor],events});
   const interactions=new InteractionSystem({store,physics,spatial:{},events});
 
   const suggestion=await navigation.suggestActions([-4,0,0],[4,0,0]);

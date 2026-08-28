@@ -8,6 +8,7 @@ import { RapierPhysicsBackend } from './physics/RapierPhysicsBackend.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
 import { SpatialSystem } from './systems/SpatialSystem.js';
 import { NavigationSystem } from './systems/NavigationSystem.js';
+import { RecastNavigationBackend } from './navigation/RecastNavigationBackend.js';
 import { LocomotionSystem } from './systems/LocomotionSystem.js';
 import { SceneSerializer } from '../persistence/SceneSerializer.js';
 import { CommandHistory } from '../history/CommandHistory.js';
@@ -54,11 +55,12 @@ const mutationResultCommitted=(result)=>!(
 );
 
 export class WorldRuntime {
-  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }) } = {}) {
+  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend() } = {}) {
     if (!assetModule?.manager || !assetModule?.catalog || !assetModule?.compiledStore) {
       throw new TypeError('WorldRuntime requires an Asset module');
     }
     if (typeof physicsFactory !== 'function') throw new TypeError('WorldRuntime physicsFactory must be a function');
+    if (typeof navigationBackendFactory !== 'function') throw new TypeError('WorldRuntime navigationBackendFactory must be a function');
     this.version = '1.34.2';
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
@@ -67,6 +69,7 @@ export class WorldRuntime {
     this.assets = assetModule.manager;
     this.assetCatalog = assetModule.catalog;
     this.physicsFactory = physicsFactory;
+    this.navigationBackendFactory = navigationBackendFactory;
     this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
   }
   async init() {
@@ -86,7 +89,10 @@ export class WorldRuntime {
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
     this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);
     this.addEnvironment();
-    this.navigation = new NavigationSystem({ store: this.store, physics: this.physics, environmentRoots: [this.environment.root], events: this.events });
+    this.navigation = new NavigationSystem({
+      store:this.store,physics:this.physics,environmentRoots:[this.environment.root],events:this.events,
+      backend:this.navigationBackendFactory()
+    });
     this.locomotion = new LocomotionSystem({ store:this.store, physics:this.physics, navigation:this.navigation, events:this.events });
     this.interactions = new InteractionSystem({ store:this.store, physics:this.physics, spatial:this.spatial, navigation:this.navigation, locomotion:this.locomotion, events:this.events });
     this.ruleRuntime.start();

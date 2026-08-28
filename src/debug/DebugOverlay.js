@@ -325,8 +325,7 @@ export class DebugOverlay {
   buildNavmesh(group) {
     const navigation = this.runtime?.navigation;
     if (!navigation) return;
-    const mesh = navigation.navMesh;
-    const positions = mesh?.getPositions?.();
+    const positions = navigation.debugGeometry?.();
     if (!positions?.length) return;
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));

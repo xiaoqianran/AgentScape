@@ -60,7 +60,7 @@ async function createHeadlessRuntime(){
   runtime.history=new CommandHistory({apply:(scene)=>runtime.restore(scene),events:runtime.events});
   runtime.validator=new WorldValidator(runtime);
   runtime.repair=new RepairEngine(runtime);
-  runtime.navigation=new NavigationSystem({store:runtime.store,physics:runtime.physics,environmentRoots:[ground],events:runtime.events});
+  runtime.navigation=new NavigationSystem({store:runtime.store,physics:runtime.physics,environmentRoots:[ground],events:runtime.events,backend:new RecastNavigationBackend()});
   runtime.locomotion=new LocomotionSystem({store:runtime.store,physics:runtime.physics,navigation:runtime.navigation,events:runtime.events});
   runtime.interactions=new InteractionSystem({store:runtime.store,physics:runtime.physics,spatial:runtime.spatial,navigation:runtime.navigation,locomotion:runtime.locomotion,events:runtime.events});
   runtime.worldPipeline=createCanonicalWorldPipeline(runtime);

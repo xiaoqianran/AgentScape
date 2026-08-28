@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
+import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 import { createGrandUrbanBlock, GRAND_URBAN_BLOCK_COLLIDERS } from '../src/content/grandUrbanBlock.js';
 import { disposeObject3D } from '../src/runtime/disposeObject3D.js';
 
@@ -31,7 +31,7 @@ describe('Grand Urban Block environment pack',()=>{
   it('builds long-range Recast paths across the district and routes around the civic beacon',async()=>{
     const scene=new THREE.Scene();
     const world=createGrandUrbanBlock({scene,loadAssets:false});
-    const navigation=new NavigationSystem({store:new ObjectStore(),environmentRoots:[world.root]});
+    const navigation=createRecastNavigationSystem({store:new ObjectStore(),environmentRoots:[world.root]});
 
     const boulevard=await navigation.findPath([0,0,-33],[0,0,33]);
     const diagonal=await navigation.findPath([-44,0,-31],[44,0,31]);
