@@ -112,6 +112,14 @@ if (fs.existsSync(legacyGenerationDir)) {
 for (const file of allJs) {
   const name = relative(file);
   const source = fs.readFileSync(file, 'utf8');
+  if (name === 'src/runtime/systems/InteractionSystem.js') {
+    for (const field of ['articulationTasks', 'articulationResults', 'settleTasks']) {
+      const directMapOwner = new RegExp(String.raw`\bthis\.${field}\s*=\s*new\s+Map\s*\(`);
+      if (directMapOwner.test(source)) {
+        failures.push(`Interaction lifecycle ownership violation: ${field} must be owned by an interaction task runtime`);
+      }
+    }
+  }
   if (name !== 'src/assets/createAssetModule.js') {
     if (/new\s+AssetManager\s*\(/.test(source)) {
       failures.push(`Asset state ownership violation: ${name} constructs AssetManager outside createAssetModule`);
