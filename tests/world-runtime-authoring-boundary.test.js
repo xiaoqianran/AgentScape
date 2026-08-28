@@ -45,6 +45,22 @@ describe('WorldRuntime authoring boundary', () => {
     expect(runtime.generationState).toEqual(state);
   });
 
+  it('reports generation-ready when a direct asset adapter is executable without a local connector', async () => {
+    const runtime = createRuntime();
+    const generator = {
+      isConfigured: () => true,
+      generate: async () => ({ manifest: {
+        id:'generated_direct', type:'prop', version:'1', source:{kind:'procedural'},
+        render:{kind:'primitive',primitive:'box',size:[1,1,1]},
+        physics:{mode:'static',collider:{type:'box',size:[1,1,1]}}
+      } })
+    };
+    const authoring = attachLegacyAuthoring(runtime, { connectorClient:null, assetGenerator:generator });
+    const state = await authoring.initialize({ pair:false });
+    expect(state).toEqual({ status:'generation-ready', transport:'direct', localAdapter:{status:'optional'} });
+    expect(authoring.canGenerateAsset()).toBe(true);
+  });
+
   it('is idempotent for one runtime', () => {
     const runtime = createRuntime();
     const first = attachLegacyAuthoring(runtime, { storage: null, connectorClient: null });

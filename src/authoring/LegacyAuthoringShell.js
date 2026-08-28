@@ -5,11 +5,7 @@ import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider
 import { ConnectorClient } from '../connector/ConnectorClient.js';
 import { GenerationOrchestrator } from './GenerationOrchestrator.js';
 import { createDefaultProviderRegistry } from '../providers/ProviderRegistry.js';
-
-const readSetting = (storage, key) => {
-  try { return storage?.getItem?.(key) || ''; }
-  catch { return ''; }
-};
+import { CAPABILITY_API, LOCAL_ADAPTER_HOST } from '../config/capabilityEntry.js';
 
 const SAFE_ASSET_CHARS=/[^A-Za-z0-9_-]+/g;
 const generatedAssetId=(prompt,instanceId='')=>{
@@ -29,7 +25,7 @@ export function createLegacyAssetAuthoring({ assetManager, catalog, generationPo
         status:'generator_not_configured',prompt,provider:options.provider || null,
         hint:options.provider
           ? `Provider ${options.provider} has no available text-to-asset capability.`
-          : 'Configure an Asset Generator before requesting missing assets.'
+          : 'Asset generation capability is unavailable; configure a deployment adapter.'
       };
     }
     const assetId=String(options.assetId || options.id || generatedAssetId(prompt,options.instanceId)).trim();
@@ -131,7 +127,7 @@ export function createLegacyAssetGenerationPort({ providerRegistry, generation, 
           status: 'unavailable',
           hint: options.provider
             ? `Provider ${options.provider} has no available text-to-asset capability.`
-            : 'Configure an Asset Generator endpoint before requesting missing assets.'
+            : 'Asset generation capability is unavailable; configure a deployment adapter.'
         };
       }
 
@@ -159,7 +155,7 @@ export function createLegacyAssetGenerationPort({ providerRegistry, generation, 
 }
 
 export function attachLegacyAuthoring(runtime, {
-  storage = globalThis.localStorage ?? null,
+  capabilityStatus = null,
   compilerProvider = null,
   assetGenerator = null,
   connectorClient = undefined,
@@ -172,10 +168,10 @@ export function attachLegacyAuthoring(runtime, {
   if (runtime.authoring) return runtime.authoring;
 
   const compiler = compilerProvider || new HttpCompilerProvider({
-    endpoint: readSetting(storage, 'agentscape.compilerEndpoint')
+    endpoint: capabilityStatus?.assetCompile?.available ? CAPABILITY_API.assetCompile : ''
   });
   const generator = assetGenerator || new HttpAssetGenerator({
-    endpoint: readSetting(storage, 'agentscape.assetGeneratorEndpoint')
+    endpoint: capabilityStatus?.assetGenerate?.available ? CAPABILITY_API.assetGenerate : ''
   });
   const providers = providerRegistry || createDefaultProviderRegistry({ generator });
 
@@ -183,15 +179,12 @@ export function attachLegacyAuthoring(runtime, {
   let connectorError = null;
   if (connector === undefined) {
     connector = null;
-    const endpoint = readSetting(storage, 'agentscape.connectorEndpoint');
-    if (endpoint) {
-      try { connector = new ConnectorClient({ endpoint }); }
-      catch (error) {
-        connectorError = {
-          code: error.code || 'CONNECTOR_ENDPOINT_INVALID',
-          message: error.message
-        };
-      }
+    try { connector = new ConnectorClient({ endpoint: LOCAL_ADAPTER_HOST.connector }); }
+    catch (error) {
+      connectorError = {
+        code: error.code || 'CONNECTOR_ENDPOINT_INVALID',
+        message: error.message
+      };
     }
   }
 
@@ -227,6 +220,10 @@ export function attachLegacyAuthoring(runtime, {
     generation,
     assetManager: runtime.assets
   });
+  const directGenerationAvailable = () => Boolean(providers.resolveCapability({ input: 'text', output: 'asset' }));
+  const baseGenerationState = () => directGenerationAvailable()
+    ? { status: 'generation-ready', transport: 'direct', localAdapter: { status: connector?.isPaired?.() ? 'paired' : 'optional' } }
+    : { status: 'connection-required', reason: connector ? 'PAIRING_REQUIRED' : 'CONNECTOR_NOT_CONFIGURED' };
   const assetAuthoring = createLegacyAssetAuthoring({
     assetManager: runtime.assets,
     catalog: runtime.assetCatalog,
@@ -245,17 +242,19 @@ export function attachLegacyAuthoring(runtime, {
     connectorError,
     getAssetCompiler,
     async initialize({ pair = true, pairingId = null } = {}) {
-      let state = {
-        status: 'connection-required',
-        reason: connector ? 'PAIRING_REQUIRED' : 'CONNECTOR_NOT_CONFIGURED'
-      };
-      if (connector) {
-        try { state = await generation.initialize({ pair, pairingId }); }
-        catch (error) {
-          state = {
-            status: 'connection-required',
-            reason: error.code || 'CONNECTOR_INITIALIZATION_FAILED'
-          };
+      let state = baseGenerationState();
+      if (connector && pair) {
+        try {
+          const localState = await generation.initialize({ pair, pairingId });
+          state = localState.status === 'generation-ready'
+            ? { ...localState, transport: 'local-adapter', directAvailable: directGenerationAvailable() }
+            : directGenerationAvailable()
+              ? { status: 'generation-ready', transport: 'direct', localAdapter: structuredClone(localState) }
+              : localState;
+        } catch (error) {
+          if (!directGenerationAvailable()) {
+            state = { status: 'connection-required', reason: error.code || 'LOCAL_ADAPTER_INITIALIZATION_FAILED' };
+          }
         }
       }
       runtime.generationState = state;
@@ -269,10 +268,7 @@ export function attachLegacyAuthoring(runtime, {
   runtime.assetGenerator = generator;
   runtime.generation = generation;
   runtime.generationConnectorError = connectorError;
-  runtime.generationState = {
-    status: 'connection-required',
-    reason: connector ? 'PAIRING_REQUIRED' : 'CONNECTOR_NOT_CONFIGURED'
-  };
+  runtime.generationState = baseGenerationState();
   runtime.getAssetCompiler = getAssetCompiler;
   return authoring;
 }

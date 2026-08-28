@@ -24,5 +24,5 @@ it('reports an unconfigured planner instead of silently implying a local product
   expect(agent.mode).toBe('unconfigured');
   let failure;
   try { await agent.run('build a world'); } catch (error) { failure=error; }
-  expect(failure).toMatchObject({code:'AGENT_GATEWAY_UNAVAILABLE'});
+  expect(failure).toMatchObject({code:'AGENT_CAPABILITY_UNAVAILABLE'});
 });

@@ -21,25 +21,29 @@ import { DeveloperSettings } from './ui/developer/DeveloperSettings.js';
 import { bindSceneControls } from './ui/bindSceneControls.js';
 import { bindRuntimeEvents } from './ui/bindRuntimeEvents.js';
 import { bindDebugLayers } from './debug/bindDebugLayers.js';
+import { CAPABILITY_API, applyCapabilityStatus, clearLegacyEndpointOverrides, readCapabilityStatus } from './config/capabilityEntry.js';
 
 async function main() {
   const app = document.querySelector('#app');
+  clearLegacyEndpointOverrides();
+  const capabilityStatusPromise = readCapabilityStatus();
   const environmentDefinition = resolveEnvironment(new URLSearchParams(location.search).get('world'));
   const environmentFactory = await environmentDefinition.load();
   const ui = createAppShell({ app, environmentDefinition, environments: ENVIRONMENTS });
   ui.setRuntimeStatus('loading', '启动中');
+  const capabilityStatus = await capabilityStatusPromise;
 
   const world = new WorldRuntime(ui.viewport, {
     environmentFactory,
     assetModule: createAssetModule()
   });
-  const authoring = attachLegacyAuthoring(world);
+  const authoring = attachLegacyAuthoring(world, { capabilityStatus });
   world.skills = registerCoreSkills(new SkillRegistry({ policy: world.policy, trace: world.trace, runtime: world }), world);
-  await authoring.initialize({ pair: true });
+  await authoring.initialize({ pair: false });
   await world.init();
 
   const tools = new AgentTools(world, { profile: 'builder', actor: 'agent_01' });
-  const gateway = new HttpLLMGateway({ endpoint: localStorage.getItem('agentscape.gatewayEndpoint') || '' });
+  const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });
   const editor = new EditorController(world);
   const runsPanel = new RunsPanel({ root: ui.panel });
   const taskPanel = new TaskPanel({
@@ -52,6 +56,7 @@ async function main() {
   });
   const agent = new ToolCallingAgent({ tools, gateway, log: (text, kind) => taskPanel.log(text, kind) });
   taskPanel.attachAgent({ agent, gateway });
+  taskPanel.setAvailability(capabilityStatus.agent.available);
 
   const inspector = new ObjectInspector({ root: ui.panel, world, tools, log: (text, kind) => taskPanel.log(text, kind) });
   const developer = new DeveloperSettings({
@@ -59,8 +64,12 @@ async function main() {
     world,
     tools,
     gateway,
+    initialCapabilityStatus: capabilityStatus,
     log: (text, kind) => taskPanel.log(text, kind),
-    onGatewayChange: (available) => taskPanel.setAvailability(available)
+    onCapabilityStatusChange: (status) => {
+      applyCapabilityStatus({ gateway, compilerProvider: world.compilerProvider, assetGenerator: world.assetGenerator }, status);
+      taskPanel.setAvailability(status.agent.available);
+    }
   }).init();
   taskPanel.setOpenSettingsHandler(() => developer.open());
   ui.developerButton.addEventListener('click', () => developer.open());

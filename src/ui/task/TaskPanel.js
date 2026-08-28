@@ -118,7 +118,7 @@ export class TaskPanel {
     this.available = Boolean(available);
     if (!this.busy) {
       if (this.available) this.setState('ready', '就绪', '选择常用任务，或在下方描述你自己的目标。');
-      else this.setState('offline', '智能体不可用', '请先配置智能体网关，再执行智能体任务。', { action: '配置' });
+      else this.setState('offline', '智能体不可用', '智能体能力当前不可用；由部署适配器提供，无需在浏览器填写地址。', { action: '配置' });
     }
     this.updateControls();
   }
@@ -176,7 +176,7 @@ export class TaskPanel {
   async execute(prompt, label = '任务', sourceButton = null) {
     if (this.busy) return null;
     if (!this.available || !this.agent) {
-      this.setState('offline', '智能体不可用', '请先配置智能体网关，再执行智能体任务。', { action: '配置' });
+      this.setState('offline', '智能体不可用', '智能体能力当前不可用；由部署适配器提供，无需在浏览器填写地址。', { action: '配置' });
       return null;
     }
 

@@ -114,7 +114,7 @@ export class ToolCallingAgent {
       { role:'user', content:text }
     ];
     const gateway = this.gateway?.isConfigured() ? this.gateway : null;
-    if (!gateway) { const error=new Error('No agent gateway configured'); error.code='AGENT_GATEWAY_UNAVAILABLE'; throw error; }
+    if (!gateway) { const error=new Error('智能体能力不可用'); error.code='AGENT_CAPABILITY_UNAVAILABLE'; throw error; }
 
     const execution = [];
     let taskAcceptanceBundle=null;

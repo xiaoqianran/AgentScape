@@ -205,7 +205,7 @@ export class GenerationOrchestrator {
     }
     if (view.status==="provider-succeeded") return view;
     if (view.status==="connection-required") {
-      throw new GenerationOrchestrationError("CONNECTION_REQUIRED","Generation Connector became unavailable while waiting for a Job",{jobId:view.jobId,provider:view.provider,operation:view.operation});
+      throw new GenerationOrchestrationError("CONNECTION_REQUIRED","Local generation adapter became unavailable while waiting for a Job",{jobId:view.jobId,provider:view.provider,operation:view.operation});
     }
     if (FAILED_GENERATION_STATUSES.has(view.status)) {
       throw new GenerationOrchestrationError("GENERATION_JOB_FAILED","Generation Job ended without a usable Artifact",{jobId:view.jobId,provider:view.provider,operation:view.operation,status:view.status,error:view.error||null});
@@ -220,7 +220,7 @@ export class GenerationOrchestrator {
     if (!assetId) throw new GenerationOrchestrationError("ASSET_ID_REQUIRED","generateTextAsset requires assetId");
     const route=selectTextAssetRoute(this.providerRegistry,{provider:request.provider||null,imageProvider:request.imageProvider||null});
     if (!this.jobClient || !route) {
-      throw new GenerationOrchestrationError("GENERATION_ROUTE_UNAVAILABLE","No available Connector route can produce a 3D asset from text",{provider:request.provider||null,imageProvider:request.imageProvider||null});
+      throw new GenerationOrchestrationError("GENERATION_ROUTE_UNAVAILABLE","No available capability route can produce a 3D asset from text",{provider:request.provider||null,imageProvider:request.imageProvider||null});
     }
     const wait={timeoutMs:request.timeoutMs??this.generationTimeoutMs,pollIntervalMs:request.pollIntervalMs??this.pollIntervalMs};
     if (route.kind==="direct") {
