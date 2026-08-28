@@ -60,6 +60,18 @@ const semanticMotionType=(Jolt,type)=>type===Jolt.EMotionType_Dynamic ? 'dynamic
 
 const activation=(Jolt,wake=true)=>wake ? Jolt.EActivation_Activate : Jolt.EActivation_DontActivate;
 
+const pairKey=(a,b)=>a<b?`${a}:${b}`:`${b}:${a}`;
+const normalized3=(value)=>{
+  const [x,y,z]=tuple3(value); const length=Math.hypot(x,y,z);
+  if(length<=1e-12) throw new TypeError('Joint axis must be non-zero');
+  return [x/length,y/length,z/length];
+};
+const perpendicular3=(axis)=>{
+  const [x,y,z]=normalized3(axis);
+  const basis=Math.abs(x)<=Math.abs(y)&&Math.abs(x)<=Math.abs(z)?[1,0,0]:Math.abs(y)<=Math.abs(z)?[0,1,0]:[0,0,1];
+  return normalized3([y*basis[2]-z*basis[1],z*basis[0]-x*basis[2],x*basis[1]-y*basis[0]]);
+};
+
 const withVec3=(Jolt,value,fn)=>{
   const v=new Jolt.Vec3(value[0],value[1],value[2]);
   try{return fn(v);}finally{Jolt.destroy(v);}
@@ -165,7 +177,7 @@ function destroyQueryFilters(Jolt,filters){
 
 export class JoltPhysicsBackend extends PhysicsBackend {
   constructor({gravity={x:0,y:-9.81,z:0}}={}){
-    super('jolt',['rigid-body','collision','scene-query'],{
+    super('jolt',['rigid-body','collision','scene-query','articulated-body','joints'],{
       executionModes:['realtime','validation-only'],
       qualities:{realtime:true,deterministic:true}
     });
@@ -197,7 +209,9 @@ export class JoltPhysicsBackend extends PhysicsBackend {
     Jolt.destroy(gravity);
     return {
       jolt,physicsSystem,bodyInterface:physicsSystem.GetBodyInterface(),
-      bodies:new Map(),colliders:new Map(),nextColliderKey:1
+      bodies:new Map(),colliders:new Map(),joints:new Map(),
+      nextColliderKey:1,nextJointKey:1,nextSubGroupId:1,disabledJointPairs:new Map(),
+      jointFilter:null,jointFilterCapacity:0
     };
   }
 
@@ -208,9 +222,11 @@ export class JoltPhysicsBackend extends PhysicsBackend {
 
   dispose(world){
     if(!world) return;
+    for(const joint of [...world.joints.values()]) this._removeJoint(world,joint);
     for(const body of [...world.bodies.values()]) this.removeBody(world,body);
     this.Jolt.destroy(world.jolt);
-    world.bodies.clear(); world.colliders.clear();
+    world.bodies.clear(); world.colliders.clear(); world.joints.clear(); world.disabledJointPairs.clear();
+    world.jointFilter=null; world.jointFilterCapacity=0;
   }
 
   createBody(world,{type='fixed',position=ZERO,rotation=IDENTITY}={}){
@@ -219,17 +235,23 @@ export class JoltPhysicsBackend extends PhysicsBackend {
     const p=new Jolt.RVec3(...position);
     const q=new Jolt.Quat(...rotation);
     const settings=new Jolt.BodyCreationSettings(empty,p,q,motionType(Jolt,type),LAYER);
+    const subGroupId=world.nextSubGroupId++;
     Jolt.destroy(p); Jolt.destroy(q);
     const native=world.bodyInterface.CreateBody(settings);
     Jolt.destroy(settings);
     world.bodyInterface.AddBody(native.GetID(),activation(Jolt,type!=='fixed'));
-    const body={kind:'jolt-body',world,native,key:native.GetID().GetIndexAndSequenceNumber(),colliders:[],nextPose:null};
+    const body={kind:'jolt-body',world,native,key:native.GetID().GetIndexAndSequenceNumber(),subGroupId,colliders:[],nextPose:null};
     world.bodies.set(body.key,body);
+    if(world.jointFilter){
+      this._ensureJointFilter(world,subGroupId+1);
+      this._assignJointCollisionGroup(world,body);
+    }
     return body;
   }
 
   removeBody(world,body){
     if(!body || !world.bodies.has(body.key)) return;
+    for(const joint of [...world.joints.values()]) if(joint.parentBody===body||joint.childBody===body) this._removeJoint(world,joint);
     for(const collider of body.colliders) {
       destroyOwnedShape(collider.nativeShape);
       world.colliders.delete(collider.key);
@@ -331,6 +353,103 @@ export class JoltPhysicsBackend extends PhysicsBackend {
     };
   }
   wakeBody(body){ body?.world.bodyInterface.ActivateBody(body.native.GetID()); return Boolean(body); }
+
+  _assignJointCollisionGroup(world,body){
+    if(!world.jointFilter||!body) return;
+    const group=new this.Jolt.CollisionGroup(world.jointFilter,1,body.subGroupId);
+    try { world.bodyInterface.SetCollisionGroup(body.native.GetID(),group); }
+    finally { this.Jolt.destroy(group); }
+  }
+
+  _ensureJointFilter(world,requiredCapacity){
+    if(world.jointFilter&&world.jointFilterCapacity>=requiredCapacity) return;
+    let capacity=Math.max(16,world.jointFilterCapacity||0);
+    while(capacity<requiredCapacity) capacity*=2;
+    const filter=new this.Jolt.GroupFilterTable(capacity);
+    for(const key of world.disabledJointPairs.keys()){
+      const [left,right]=key.split(':').map(Number);
+      filter.DisableCollision(left,right);
+    }
+    world.jointFilter=filter;
+    world.jointFilterCapacity=capacity;
+    for(const body of world.bodies.values()) this._assignJointCollisionGroup(world,body);
+  }
+
+  _jointWorldFrame(parentBody,childBody,part){
+    const parentPose=this.bodyPose(parentBody);
+    const childPose=this.bodyPose(childBody);
+    const parentAnchor=tuple3(part.joint.parentAnchor||ZERO);
+    const childAnchor=tuple3(part.joint.childAnchor||ZERO);
+    const parentOffset=rotateVector(parentPose.rotation,parentAnchor);
+    const childOffset=rotateVector(childPose.rotation,childAnchor);
+    const axis=normalized3(rotateVector(parentPose.rotation,part.joint.axis||[1,0,0]));
+    return {
+      parentPoint:[parentPose.position[0]+parentOffset[0],parentPose.position[1]+parentOffset[1],parentPose.position[2]+parentOffset[2]],
+      childPoint:[childPose.position[0]+childOffset[0],childPose.position[1]+childOffset[1],childPose.position[2]+childOffset[2]],
+      axis,normal:perpendicular3(axis)
+    };
+  }
+
+  createJoint(world,part,parentBody,childBody){
+    const Jolt=this.Jolt;
+    const frame=this._jointWorldFrame(parentBody,childBody,part);
+    let settings,native,type;
+    if(part.joint.type==='revolute'){
+      settings=new Jolt.HingeConstraintSettings(); type='revolute';
+      settings.mSpace=Jolt.EConstraintSpace_WorldSpace;
+      settings.mPoint1.Set(...frame.parentPoint); settings.mPoint2.Set(...frame.childPoint);
+      settings.mHingeAxis1.Set(...frame.axis); settings.mHingeAxis2.Set(...frame.axis);
+      settings.mNormalAxis1.Set(...frame.normal); settings.mNormalAxis2.Set(...frame.normal);
+      if(part.joint.limits){ settings.mLimitsMin=part.joint.limits[0]; settings.mLimitsMax=part.joint.limits[1]; }
+      native=Jolt.castObject(settings.Create(parentBody.native,childBody.native),Jolt.HingeConstraint);
+    } else if(part.joint.type==='prismatic'){
+      settings=new Jolt.SliderConstraintSettings(); type='prismatic';
+      settings.mSpace=Jolt.EConstraintSpace_WorldSpace;
+      settings.mAutoDetectPoint=false;
+      settings.mPoint1.Set(...frame.parentPoint); settings.mPoint2.Set(...frame.childPoint);
+      settings.mSliderAxis1.Set(...frame.axis); settings.mSliderAxis2.Set(...frame.axis);
+      settings.mNormalAxis1.Set(...frame.normal); settings.mNormalAxis2.Set(...frame.normal);
+      if(part.joint.limits){ settings.mLimitsMin=part.joint.limits[0]; settings.mLimitsMax=part.joint.limits[1]; }
+      native=Jolt.castObject(settings.Create(parentBody.native,childBody.native),Jolt.SliderConstraint);
+    } else {
+      throw new TypeError(`JoltPhysicsBackend unsupported joint type: ${part.joint.type}`);
+    }
+    Jolt.destroy(settings);
+    world.physicsSystem.AddConstraint(native);
+    const joint={kind:'jolt-joint',key:world.nextJointKey++,type,native,parentBody,childBody,pair:pairKey(parentBody.subGroupId,childBody.subGroupId)};
+    world.joints.set(joint.key,joint);
+    const pairCount=world.disabledJointPairs.get(joint.pair)||0;
+    world.disabledJointPairs.set(joint.pair,pairCount+1);
+    this._ensureJointFilter(world,Math.max(parentBody.subGroupId,childBody.subGroupId)+1);
+    if(pairCount===0) world.jointFilter.DisableCollision(parentBody.subGroupId,childBody.subGroupId);
+    return joint;
+  }
+
+  _removeJoint(world,joint){
+    if(!joint || !world.joints.has(joint.key)) return;
+    world.physicsSystem.RemoveConstraint(joint.native);
+    joint.native.Release();
+    world.joints.delete(joint.key);
+    const count=(world.disabledJointPairs.get(joint.pair)||1)-1;
+    if(count<=0){
+      world.disabledJointPairs.delete(joint.pair);
+      world.jointFilter?.EnableCollision(joint.parentBody.subGroupId,joint.childBody.subGroupId);
+    } else world.disabledJointPairs.set(joint.pair,count);
+  }
+
+  setJointTarget(joint,target,{stiffness=40,damping=8}={}){
+    if(!joint) return false;
+    const Jolt=this.Jolt;
+    const motor=joint.native.GetMotorSettings();
+    motor.mSpringSettings.mMode=Jolt.ESpringMode_StiffnessAndDamping;
+    motor.mSpringSettings.mStiffness=stiffness;
+    motor.mSpringSettings.mDamping=damping;
+    joint.native.SetMotorState(Jolt.EMotorState_Position);
+    if(joint.type==='revolute') joint.native.SetTargetAngle(target);
+    else joint.native.SetTargetPosition(target);
+    this.wakeBody(joint.parentBody); this.wakeBody(joint.childBody);
+    return true;
+  }
 
   syncSceneQueries(){ /* Jolt BodyInterface updates broadphase on pose/shape changes. */ }
 
@@ -460,6 +579,7 @@ export class JoltPhysicsBackend extends PhysicsBackend {
     for(const hit of hits){
       const other=hit.collider;
       if(!other || other.body.key===source.body.key || other.key===source.key) continue;
+      if(source.body.world.disabledJointPairs.has(pairKey(source.body.subGroupId,other.body.subGroupId))) continue;
       const previous=byCollider.get(other.key);
       if(!previous || hit.penetrationDepth>previous.penetrationDepth) byCollider.set(other.key,hit);
     }

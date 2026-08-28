@@ -7,10 +7,10 @@ import {
 import { compileWorldPhysicsRequirements,admitWorldPhysics } from '../src/pipeline/WorldPhysicsAdmission.js';
 
 describe('JoltPhysicsBackend',()=>{
-  it('formally declares only the implemented minimum solver slice',()=>{
+  it('formally declares the implemented rigid, collision, query and articulation slice',()=>{
     const backend=new JoltPhysicsBackend();
-    expect(backend.capabilities).toEqual(['rigid-body','collision','scene-query']);
-    expect(backend.hasCapability('joints')).toBe(false);
+    expect(backend.capabilities).toEqual(['rigid-body','collision','scene-query','articulated-body','joints']);
+    expect(backend.hasCapability('joints')).toBe(true);
     expect(backend.hasCapability('character-controller')).toBe(false);
     expect(declaredCapabilityMethodGaps(backend)).toEqual([]);
   });
@@ -116,10 +116,14 @@ describe('JoltPhysicsBackend',()=>{
     const rigid=compileWorldPhysicsRequirements({entities:[{id:'rigid_01',assetRef:{assetId:'crate'},physicsRequirement:{bodyClass:'rigid',requiredCapabilities:['collision','scene-query']}}]});
     expect(admitWorldPhysics(rigid,{profile,resolvedAssets,getManifest}).status).toBe('ready');
 
+    const articulated=compileWorldPhysicsRequirements({entities:[
+      {id:'door_01',assetRef:{assetId:'door'},physicsRequirement:{bodyClass:'articulated'}}
+    ]});
+    expect(admitWorldPhysics(articulated,{profile,resolvedAssets,getManifest}).status).toBe('ready');
+
     const unsupported=compileWorldPhysicsRequirements({entities:[
-      {id:'door_01',assetRef:{assetId:'door'},physicsRequirement:{bodyClass:'articulated'}},
       {id:'actor_01',assetRef:{assetId:'actor'},physicsRequirement:{bodyClass:'character'}}
     ]});
-    expect(admitWorldPhysics(unsupported,{profile,resolvedAssets,getManifest}).issues.map((issue)=>issue.capability)).toEqual(expect.arrayContaining(['articulated-body','joints','character-controller']));
+    expect(admitWorldPhysics(unsupported,{profile,resolvedAssets,getManifest}).issues.map((issue)=>issue.capability)).toEqual(['character-controller']);
   });
 });
