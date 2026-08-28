@@ -18,9 +18,9 @@ describe('Generation Job Center view model',()=>{
 
   it('renders declared capability hints without inventing price or duration',()=>{
     const hint=capabilityHint({operation:'modal-3d.asset.text_to_3d.v1',input:{types:['text']},execution:{durationClass:'long',costClass:'gpu'},connectionRequired:true});
-    expect(hint).toContain('duration long');
-    expect(hint).toContain('cost gpu');
-    expect(hint).toContain('Connector session required');
+    expect(hint).toContain('时长等级 长');
+    expect(hint).toContain('成本等级 gpu');
+    expect(hint).toContain('需要连接器会话');
     expect(hint).not.toMatch(/\$|USD|minutes/i);
   });
 
@@ -38,6 +38,6 @@ describe('Generation Job Center view model',()=>{
 
   it('uses human labels without upgrading truth',()=>{
     expect(generationStatusLabel('generation-pending')).toBe('生成中');
-    expect(generationStatusLabel('provider-succeeded')).toBe('Provider 已完成');
+    expect(generationStatusLabel('provider-succeeded')).toBe('提供方已完成');
   });
 });

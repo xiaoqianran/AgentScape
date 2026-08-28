@@ -1,18 +1,18 @@
 const QUICK_TASK_GROUPS = [
   {
-    label: 'Common tasks',
+    label: '常用任务',
     tasks: [
-      { title: 'Pick up the cup', detail: 'Walk to the cup and pick it up safely', prompt: '让 agent_01 走到 cup_01 前并拿起杯子' },
-      { title: 'Put cup on table', detail: 'Place the cup on the table and verify stability', prompt: '让 agent_01 先拿起 cup_01，再把它放到 table_01 上并确认稳定' },
-      { title: 'Open cabinet', detail: 'Walk to the cabinet and verify it opened', prompt: '让 agent_01 走到 cabinet_01 前并打开柜门' },
-      { title: 'Drop held object', detail: 'Release the currently held object', prompt: '让 agent_01 放下当前拿着的物体' }
+      { title: '拿起杯子', detail: '走到杯子前并安全拿起', prompt: '让 agent_01 走到 cup_01 前并拿起杯子' },
+      { title: '把杯子放到桌上', detail: '放到桌面并确认稳定', prompt: '让 agent_01 先拿起 cup_01，再把它放到 table_01 上并确认稳定' },
+      { title: '打开柜门', detail: '走到柜子前并确认打开', prompt: '让 agent_01 走到 cabinet_01 前并打开柜门' },
+      { title: '放下手中物体', detail: '释放当前手持物体', prompt: '让 agent_01 放下当前拿着的物体' }
     ]
   },
   {
-    label: 'Workflows',
+    label: '流程任务',
     tasks: [
-      { title: 'Complete embodied task', detail: 'Open → pick → place → verify', prompt: '让 agent_01 打开 cabinet_01，确认柜门完成打开后拿起 cup_01，再把杯子放到 table_01 上；每一步失败都不要继续后续动作', wide: true },
-      { title: 'Build a coffee corner', detail: 'Let the Agent plan the scene workflow', prompt: '建立一个咖啡角', wide: true }
+      { title: '完成具身任务', detail: '打开 → 拿起 → 放置 → 验证', prompt: '让 agent_01 打开 cabinet_01，确认柜门完成打开后拿起 cup_01，再把杯子放到 table_01 上；每一步失败都不要继续后续动作', wide: true },
+      { title: '建立咖啡角', detail: '让智能体规划完整场景流程', prompt: '建立一个咖啡角', wide: true }
     ]
   }
 ];
@@ -28,27 +28,27 @@ const quickTaskMarkup = () => QUICK_TASK_GROUPS.map((group) => `
   </section>`).join('');
 
 export const taskPanelMarkup = () => `
-  <section class="task-console" aria-label="Task">
+  <section class="task-console" aria-label="任务">
     <header class="screen-heading">
-      <div class="eyebrow">Task</div>
-      <h1>Make something happen</h1>
-      <p>Describe the outcome. AgentScape will plan, act, and verify the world state.</p>
+      <div class="eyebrow">任务</div>
+      <h1>让世界发生变化</h1>
+      <p>描述目标结果，AgentScape 会规划、执行并验证世界状态。</p>
     </header>
 
     <div id="task-state" class="task-state" data-state="ready" role="status" aria-live="polite">
       <span class="task-state-dot"></span>
       <div class="task-state-copy">
-        <strong id="task-state-label">Ready</strong>
-        <span id="task-state-detail">Use a common task or describe your own below.</span>
+        <strong id="task-state-label">就绪</strong>
+        <span id="task-state-detail">选择常用任务，或在下方描述你自己的目标。</span>
       </div>
-      <button id="task-state-action" class="text-button hidden" type="button">Configure</button>
+      <button id="task-state-action" class="text-button hidden" type="button">配置</button>
     </div>
 
     <div class="task-scroll">
       <div class="quick-tasks">${quickTaskMarkup()}</div>
       <details class="activity-panel">
-        <summary><span>Run details</span><small id="activity-count">0</small></summary>
-        <div id="log" class="log" aria-label="Task activity log"></div>
+        <summary><span>执行详情</span><small id="activity-count">0</small></summary>
+        <div id="log" class="log" aria-label="任务活动日志"></div>
       </details>
     </div>
   </section>`;
@@ -92,7 +92,7 @@ export class TaskPanel {
     this.stateAction.addEventListener('click', () => this.onOpenSettings());
     this.taskButtons.forEach((button) => button.addEventListener('click', () => {
       this.setView('task');
-      this.execute(button.dataset.prompt, button.querySelector('strong')?.textContent || 'Task', button);
+      this.execute(button.dataset.prompt, button.querySelector('strong')?.textContent || '任务', button);
     }));
     this.commandForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -117,8 +117,8 @@ export class TaskPanel {
   setAvailability(available) {
     this.available = Boolean(available);
     if (!this.busy) {
-      if (this.available) this.setState('ready', 'Ready', 'Use a common task or describe your own below.');
-      else this.setState('offline', 'Agent unavailable', 'Configure an LLM Gateway to run Agent tasks.', { action: 'Configure' });
+      if (this.available) this.setState('ready', '就绪', '选择常用任务，或在下方描述你自己的目标。');
+      else this.setState('offline', '智能体不可用', '请先配置智能体网关，再执行智能体任务。', { action: '配置' });
     }
     this.updateControls();
   }
@@ -136,7 +136,7 @@ export class TaskPanel {
     this.commandInput.disabled = !this.available;
     this.commandInput.readOnly = this.busy;
     this.commandButton.disabled = this.busy || !this.available;
-    this.commandButtonLabel.textContent = this.busy ? 'Running…' : 'Run Task';
+    this.commandButtonLabel.textContent = this.busy ? '执行中…' : '执行任务';
     this.state.setAttribute('aria-busy', this.busy ? 'true' : 'false');
   }
 
@@ -169,21 +169,21 @@ export class TaskPanel {
     try {
       this.onRun(run);
     } catch (error) {
-      try { this.log(`run history error: ${error?.message || 'unknown error'}`, 'error'); } catch {}
+      try { this.log(`执行记录错误：${error?.message || '未知错误'}`, 'error'); } catch {}
     }
   }
 
-  async execute(prompt, label = 'Task', sourceButton = null) {
+  async execute(prompt, label = '任务', sourceButton = null) {
     if (this.busy) return null;
     if (!this.available || !this.agent) {
-      this.setState('offline', 'Agent unavailable', 'Configure an LLM Gateway to run Agent tasks.', { action: 'Configure' });
+      this.setState('offline', '智能体不可用', '请先配置智能体网关，再执行智能体任务。', { action: '配置' });
       return null;
     }
 
     const startedAt = performance.now();
     const runId = `run_${Date.now().toString(36)}`;
     this.setBusy(true, sourceButton);
-    this.setState('running', 'Running task', label);
+    this.setState('running', '正在执行任务', label);
 
     try {
       const result = await this.agent.run(prompt);
@@ -191,17 +191,17 @@ export class TaskPanel {
       const tool = result.lastMutation?.tool || 'mutation';
       const outcome = result.lastMutation?.outcome?.state || 'unknown';
       if (completed) {
-        this.setState('success', 'Task completed', `${label} · Runtime verification passed.`);
-        this.log('task status: completed · mutation chain verified', 'result');
+        this.setState('success', '任务已完成', `${label} · 运行时验证通过。`);
+        this.log('任务状态：已完成 · 变更链已验证', 'result');
       } else {
-        this.setState('partial', 'Partially completed', `${label} · ${tool} → ${outcome}`);
-        this.log(`task status: incomplete · ${tool} → ${outcome}`, 'error');
+        this.setState('partial', '任务部分完成', `${label} · ${tool} → ${outcome}`);
+        this.log(`任务状态：未完成 · ${tool} → ${outcome}`, 'error');
       }
-      this.recordRun({ id: runId, title: label, prompt, status: completed ? 'success' : 'partial', durationMs: performance.now() - startedAt, detail: completed ? 'Runtime verification passed.' : `${tool} → ${outcome}` });
+      this.recordRun({ id: runId, title: label, prompt, status: completed ? 'success' : 'partial', durationMs: performance.now() - startedAt, detail: completed ? '运行时验证通过。' : `${tool} → ${outcome}` });
       return result;
     } catch (error) {
-      this.setState('error', 'Task failed', error.message);
-      this.log(`error: ${error.message}`, 'error');
+      this.setState('error', '任务执行失败', error.message);
+      this.log(`错误：${error.message}`, 'error');
       this.recordRun({ id: runId, title: label, prompt, status: 'error', durationMs: performance.now() - startedAt, detail: error.message });
       return null;
     } finally {

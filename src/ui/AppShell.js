@@ -19,36 +19,40 @@ export function createAppShell({ app, environmentDefinition, environments }) {
         </div>
         <div class="brand-actions">
           <label class="world-control">
-            <span>World</span>
-            <select id="world-select" class="world-select" aria-label="Current world">${environmentOptions}</select>
+            <span>世界</span>
+            <select id="world-select" class="world-select" aria-label="当前世界">${environmentOptions}</select>
           </label>
           <div id="runtime-status" class="runtime-status" data-state="loading" role="status" aria-live="polite">
-            <i></i><span>Starting</span>
+            <i></i><span>启动中</span>
           </div>
-          <button id="cinematic-toggle" class="header-button" type="button">Immersive</button>
-          <button id="open-developer" class="icon-button" type="button" aria-label="Open developer settings" title="Developer settings">⋯</button>
+          <button id="cinematic-toggle" class="header-button" type="button">沉浸模式</button>
+          <button id="open-developer" class="icon-button" type="button" aria-label="打开开发者设置" title="开发者设置">⋯</button>
         </div>
       </header>
 
       <section class="workspace">
         <div id="viewport" class="viewport">
-          <div class="editor-toolbar" aria-label="Scene editor tools">
-            <button data-mode="translate" class="active" type="button">Move <kbd>W</kbd></button>
-            <button data-mode="rotate" type="button">Rotate <kbd>E</kbd></button>
+          <div class="editor-toolbar" aria-label="场景编辑工具">
+            <button data-mode="translate" class="active" type="button">移动 <kbd>W</kbd></button>
+            <button data-mode="rotate" type="button">旋转 <kbd>E</kbd></button>
             <span class="toolbar-divider"></span>
-            <button id="duplicate" type="button">Duplicate</button>
-            <button id="delete" class="danger" type="button">Delete</button>
+            <button id="duplicate" type="button">复制</button>
+            <button id="delete" class="danger" type="button">删除</button>
             <details class="toolbar-more">
-              <summary>Scene</summary>
+              <summary>场景</summary>
               <div class="toolbar-menu">
-                <button id="undo" type="button" disabled>Undo <kbd>⌘Z</kbd></button>
-                <button id="redo" type="button" disabled>Redo</button>
-                <button id="save-scene" type="button">Save locally</button>
-                <button id="load-scene" type="button">Load local</button>
-                <button id="export-scene" type="button">Export JSON</button>
-                <button id="import-scene" type="button">Import JSON</button>
-                <button id="reset-world" class="danger" type="button">Reset world</button>
+                <button id="undo" type="button" disabled>撤销 <kbd>⌘Z</kbd></button>
+                <button id="redo" type="button" disabled>重做</button>
+                <button id="save-scene" type="button">保存到本机</button>
+                <button id="load-scene" type="button">加载本机存档</button>
+                <button id="export-scene" type="button">导出 JSON</button>
+                <button id="import-scene" type="button">导入 JSON</button>
+                <button id="reset-world" class="danger" type="button">重置世界</button>
               </div>
+            </details>
+            <details class="toolbar-more debug-overlay-menu">
+              <summary>调试图层</summary>
+              <div class="toolbar-menu debug-layer-menu" id="debug-layer-menu"></div>
             </details>
             <input id="import-scene-file" type="file" accept="application/json,.json" hidden />
           </div>
@@ -59,15 +63,15 @@ export function createAppShell({ app, environmentDefinition, environments }) {
             <p>${environmentDefinition.description}</p>
             <div class="world-facts">${environmentDefinition.facts.map((fact) => `<span>${fact}</span>`).join('')}</div>
           </div>
-          <div class="hint">Click to select · W move · E rotate · Del delete</div>
+          <div class="hint">点击选择 · W 移动 · E 旋转 · Del 删除</div>
         </div>
 
-        <aside class="panel" data-view="task" aria-label="Context panel">
-          <nav class="panel-tabs" aria-label="Workspace views">
-            <button type="button" data-panel-view="task" class="active" aria-selected="true">Task</button>
-            <button type="button" data-panel-view="create" aria-selected="false">Create</button>
-            <button type="button" data-panel-view="inspect" aria-selected="false">Inspect</button>
-            <button type="button" data-panel-view="runs" aria-selected="false">Runs</button>
+        <aside class="panel" data-view="task" aria-label="上下文面板">
+          <nav class="panel-tabs" aria-label="工作区视图">
+            <button type="button" data-panel-view="task" class="active" aria-selected="true">任务</button>
+            <button type="button" data-panel-view="create" aria-selected="false">创建</button>
+            <button type="button" data-panel-view="inspect" aria-selected="false">检查</button>
+            <button type="button" data-panel-view="runs" aria-selected="false">记录</button>
           </nav>
           ${taskPanelMarkup()}
           ${generationJobCenterMarkup()}
@@ -79,9 +83,9 @@ export function createAppShell({ app, environmentDefinition, environments }) {
       <form id="command" class="command-bar" autocomplete="off">
         <div class="command-field">
           <span class="command-prefix" aria-hidden="true">›</span>
-          <input id="input" placeholder="Describe what you want to happen in the world…" aria-label="Agent task" />
+          <input id="input" placeholder="描述你希望这个世界发生什么…" aria-label="智能体任务" />
         </div>
-        <button type="submit"><span>Run Task</span></button>
+        <button type="submit"><span>执行任务</span></button>
       </form>
 
       ${developerSettingsMarkup()}
@@ -121,7 +125,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
   });
   cinematicButton.addEventListener('click', () => {
     const enabled = shell.classList.toggle('cinematic');
-    cinematicButton.textContent = enabled ? 'Edit' : 'Immersive';
+    cinematicButton.textContent = enabled ? '返回编辑' : '沉浸模式';
     requestAnimationFrame(() => onLayoutChange());
   });
 

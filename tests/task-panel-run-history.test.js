@@ -17,6 +17,6 @@ describe('TaskPanel run history isolation', () => {
     panel.onRun = vi.fn(() => { throw new Error('runs panel unavailable'); });
     panel.log = vi.fn();
     expect(() => panel.recordRun({ id: 'run_1', status: 'success' })).not.toThrow();
-    expect(panel.log).toHaveBeenCalledWith('run history error: runs panel unavailable', 'error');
+    expect(panel.log).toHaveBeenCalledWith('执行记录错误：runs panel unavailable', 'error');
   });
 });

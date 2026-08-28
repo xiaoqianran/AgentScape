@@ -21,7 +21,7 @@ describe('UI runtime event lifecycle', () => {
     f.handlers.get('object.removed')({ id: 'cup_01' });
     expect(f.editor.select).toHaveBeenCalledWith(null);
     expect(f.editor.selectedId).toBe(null);
-    expect(f.taskPanel.log).toHaveBeenCalledWith('removed: cup_01', 'tool');
+    expect(f.taskPanel.log).toHaveBeenCalledWith('已删除：cup_01', 'tool');
   });
 
   it('does not disturb selection when another object is removed', () => {
@@ -35,7 +35,7 @@ describe('UI runtime event lifecycle', () => {
     const f = fixture();
     f.handlers.get('sceneGraph.updated')({ edges: 12 });
     expect(f.inspector.render).toHaveBeenCalledWith('cup_01');
-    expect(f.taskPanel.log).toHaveBeenCalledWith('scene graph · 12 relations', 'graph');
+    expect(f.taskPanel.log).toHaveBeenCalledWith('场景图 · 12 条关系', 'graph');
   });
 
   it('does not refresh a stale selected id after it vanished from the store', () => {

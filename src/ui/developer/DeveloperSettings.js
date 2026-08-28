@@ -5,55 +5,55 @@ export const developerSettingsMarkup = () => `
     <form method="dialog" class="dialog-shell">
       <header class="dialog-heading">
         <div>
-          <div class="eyebrow">Developer</div>
-          <h2 id="developer-title">Runtime settings</h2>
-          <p>Advanced configuration is available when you need it, not required for normal world tasks.</p>
+          <div class="eyebrow">开发者</div>
+          <h2 id="developer-title">运行时设置</h2>
+          <p>高级配置按需提供，正常执行世界任务时无需处理这些设置。</p>
         </div>
-        <button class="icon-button" value="close" aria-label="Close developer settings">×</button>
+        <button class="icon-button" value="close" aria-label="关闭开发者设置">×</button>
       </header>
 
       <div class="dialog-scroll">
         <section class="settings-section">
-          <h3>Agent Gateway</h3>
-          <label>Endpoint<input id="gateway-endpoint" type="url" placeholder="https://your-server.example/agent" /></label>
-          <p class="settings-help">Only the Gateway URL is stored. Model API keys are never stored in the browser.</p>
+          <h3>智能体网关</h3>
+          <label>网关地址<input id="gateway-endpoint" type="url" placeholder="https://your-server.example/agent" /></label>
+          <p class="settings-help">这里只保存网关地址；模型 API Key 不会保存在浏览器中。</p>
         </section>
 
         <details class="settings-section disclosure" open>
-          <summary>World validation</summary>
+          <summary>世界验证</summary>
           <div class="settings-body">
             <div class="button-row">
-              <button id="validate-world" type="button">Validate</button>
-              <button id="repair-world" type="button">Repair</button>
-              <button id="verify-trace" type="button">Verify trace</button>
+              <button id="validate-world" type="button">验证</button>
+              <button id="repair-world" type="button">修复</button>
+              <button id="verify-trace" type="button">验证追踪链</button>
             </div>
-            <div id="engine-report" class="technical-report">Engine ready.</div>
+            <div id="engine-report" class="technical-report">引擎已就绪。</div>
           </div>
         </details>
 
         <details class="settings-section disclosure">
-          <summary>Asset compiler</summary>
+          <summary>资产编译器</summary>
           <div class="settings-body">
-            <label>Compiler Endpoint<input id="compiler-endpoint" type="url" placeholder="https://your-server.example/compile" /></label>
-            <div class="inline-input"><input id="compiler-url" type="url" placeholder="https://…/model.glb" /><button id="compile-url-button" type="button">Compile URL</button></div>
-            <div class="inline-input"><input id="compiler-file" type="file" accept=".glb,model/gltf-binary" /><button id="compile-file-button" type="button">Compile file</button></div>
-            <p class="settings-help">Without a remote compiler, AgentScape uses local browser checks. Heavy collision and semantic processing stays behind the Compiler Provider boundary.</p>
-            <div id="compiler-report" class="technical-report">No asset compiled yet.</div>
+            <label>编译器地址<input id="compiler-endpoint" type="url" placeholder="https://your-server.example/compile" /></label>
+            <div class="inline-input"><input id="compiler-url" type="url" placeholder="https://…/model.glb" /><button id="compile-url-button" type="button">编译 URL</button></div>
+            <div class="inline-input"><input id="compiler-file" type="file" accept=".glb,model/gltf-binary" /><button id="compile-file-button" type="button">编译文件</button></div>
+            <p class="settings-help">未配置远程编译器时，AgentScape 使用浏览器本地检查；重型碰撞与语义处理仍位于编译器提供方边界之后。</p>
+            <div id="compiler-report" class="technical-report">尚未编译资产。</div>
           </div>
         </details>
 
         <details class="settings-section disclosure">
-          <summary>Asset library</summary>
+          <summary>资产库</summary>
           <div class="settings-body">
-            <div class="inline-input"><input id="asset-query" placeholder="Search chair / cup / asset id" /><button id="asset-search-button" type="button">Search</button></div>
+            <div class="inline-input"><input id="asset-query" placeholder="搜索椅子 / 杯子 / 资产 ID" /><button id="asset-search-button" type="button">搜索</button></div>
             <div id="asset-results" class="asset-results"></div>
-            <label>Generator Endpoint<input id="asset-generator-endpoint" type="url" placeholder="https://your-server.example/generate-3d" /></label>
-            <p class="settings-help">Search reusable Assets first. Generation is the fallback, not the default.</p>
+            <label>生成器地址<input id="asset-generator-endpoint" type="url" placeholder="https://your-server.example/generate-3d" /></label>
+            <p class="settings-help">优先复用已有资产；生成只作为回退方案，而不是默认路径。</p>
           </div>
         </details>
       </div>
 
-      <footer class="dialog-footer"><button class="secondary-button" value="close">Done</button></footer>
+      <footer class="dialog-footer"><button class="secondary-button" value="close">完成</button></footer>
     </form>
   </dialog>`;
 
@@ -83,7 +83,7 @@ export class DeveloperSettings {
       if (this.gateway.endpoint) localStorage.setItem('agentscape.gatewayEndpoint', this.gateway.endpoint);
       else localStorage.removeItem('agentscape.gatewayEndpoint');
       this.onGatewayChange(this.gateway.isConfigured());
-      this.log(this.gateway.isConfigured() ? `LLM gateway configured` : 'LLM gateway disabled; Agent planning is unavailable', 'result');
+      this.log(this.gateway.isConfigured() ? `大模型网关已配置` : '大模型网关已禁用；智能体规划不可用', 'result');
     });
 
     this.dialog.querySelector('#validate-world').addEventListener('click', () => this.validate());
@@ -95,7 +95,7 @@ export class DeveloperSettings {
       this.world.compilerProvider.setEndpoint(this.compilerEndpointInput.value);
       if (this.world.compilerProvider.endpoint) localStorage.setItem('agentscape.compilerEndpoint', this.world.compilerProvider.endpoint);
       else localStorage.removeItem('agentscape.compilerEndpoint');
-      this.log(this.world.compilerProvider.isConfigured() ? 'compiler provider enabled' : 'compiler provider disabled; using local passes', 'result');
+      this.log(this.world.compilerProvider.isConfigured() ? '编译器提供方已启用' : '编译器提供方已禁用；使用本地检查', 'result');
     });
     this.dialog.querySelector('#compile-url-button').addEventListener('click', () => {
       const url = this.dialog.querySelector('#compiler-url').value.trim();
@@ -105,7 +105,7 @@ export class DeveloperSettings {
       const file = this.dialog.querySelector('#compiler-file').files?.[0];
       if (!file) return;
       if (file.size > RESOURCE_BUDGET.maxInputBytes) {
-        this.compilerReport.textContent = `File too large: ${Math.ceil(file.size / 1024 / 1024)} MiB. Limit ${Math.ceil(RESOURCE_BUDGET.maxInputBytes / 1024 / 1024)} MiB.`;
+        this.compilerReport.textContent = `文件过大：${Math.ceil(file.size / 1024 / 1024)} MiB；上限 ${Math.ceil(RESOURCE_BUDGET.maxInputBytes / 1024 / 1024)} MiB。`;
         return;
       }
       await this.compileAndRegister({ bytes: new Uint8Array(await file.arrayBuffer()), sourceName: file.name });
@@ -116,7 +116,7 @@ export class DeveloperSettings {
       this.world.assetGenerator.setEndpoint(this.assetGeneratorInput.value);
       if (this.world.assetGenerator.endpoint) localStorage.setItem('agentscape.assetGeneratorEndpoint', this.world.assetGenerator.endpoint);
       else localStorage.removeItem('agentscape.assetGeneratorEndpoint');
-      this.log(this.world.assetGenerator.isConfigured() ? 'asset generator enabled' : 'asset generator disabled', 'result');
+      this.log(this.world.assetGenerator.isConfigured() ? '资产生成器已启用' : '资产生成器已禁用', 'result');
     });
     this.dialog.querySelector('#asset-search-button').addEventListener('click', () => this.searchAssets());
     this.assetQuery.addEventListener('keydown', (event) => {
@@ -136,11 +136,11 @@ export class DeveloperSettings {
     try {
       this.lastValidation = await this.tools.call('validateWorld', {});
       const report = this.lastValidation;
-      renderTechnicalReport(this.engineReport, report.ok ? 'PASS' : 'FAIL', `hard ${report.counts.hard} · advisory ${report.counts.advisory} · ${report.coverage.objects} objects · ${report.coverage.relations} relations`);
-      this.log(`validate · hard ${report.counts.hard} advisory ${report.counts.advisory}`, report.ok ? 'result' : 'error');
+      renderTechnicalReport(this.engineReport, report.ok ? '通过' : '失败', `严重问题 ${report.counts.hard} · 建议项 ${report.counts.advisory} · ${report.coverage.objects} 个对象 · ${report.coverage.relations} 条关系`);
+      this.log(`验证 · 严重问题 ${report.counts.hard} · 建议项 ${report.counts.advisory}`, report.ok ? 'result' : 'error');
     } catch (error) {
-      this.engineReport.textContent = `Validation failed: ${error.message}`;
-      this.log(`validate error: ${error.message}`, 'error');
+      this.engineReport.textContent = `验证失败：${error.message}`;
+      this.log(`验证错误：${error.message}`, 'error');
     }
   }
 
@@ -149,36 +149,36 @@ export class DeveloperSettings {
       const result = await this.tools.call('repairWorld', { report: this.lastValidation || undefined });
       this.lastValidation = await this.tools.call('validateWorld', {});
       const report = this.lastValidation;
-      renderTechnicalReport(this.engineReport, report.ok ? 'PASS' : 'FAIL', `hard ${report.counts.hard} · advisory ${report.counts.advisory}`);
-      this.log(`repair · ${result.accepted ? 'accepted' : 'rejected'} · ${result.applied?.length || 0} changes`, result.accepted ? 'result' : 'error');
+      renderTechnicalReport(this.engineReport, report.ok ? '通过' : '失败', `严重问题 ${report.counts.hard} · 建议项 ${report.counts.advisory}`);
+      this.log(`修复 · ${result.accepted ? '已接受' : '已拒绝'} · ${result.applied?.length || 0} 项变更`, result.accepted ? 'result' : 'error');
     } catch (error) {
-      this.log(`repair error: ${error.message}`, 'error');
+      this.log(`修复错误：${error.message}`, 'error');
     }
   }
 
   async verifyTrace() {
     try {
       const result = await this.tools.call('verifyTrace', {});
-      this.engineReport.textContent = `Trace ${result.ok ? 'PASS' : 'FAIL'} · ${result.entries ?? 0} events · ${result.lastHash || 'no hash'}`;
+      this.engineReport.textContent = `追踪链 ${result.ok ? '通过' : '失败'} · ${result.entries ?? 0} 个事件 · ${result.lastHash || '无哈希'}`;
     } catch (error) {
-      this.log(`trace error: ${error.message}`, 'error');
+      this.log(`追踪链错误：${error.message}`, 'error');
     }
   }
 
   async compileAndRegister(input) {
     try {
-      this.compilerReport.textContent = 'Compiling…';
+      this.compilerReport.textContent = '编译中…';
       const response = await this.world.skills.invoke('compileAsset', input, { profile: 'builder', actor: 'human' });
       if (!response.success) throw new Error(response.error.message);
       const result = response.result;
       const manifest = result.manifest;
       const inspection = result.inspection.stats;
-      renderTechnicalReport(this.compilerReport, manifest.id, `${result.quality.status} · ${manifest.type} · ${inspection.nodes} nodes · ${inspection.meshes} meshes · collider ${manifest.compiler.collisionStrategy}`);
-      this.log(`compiled asset: ${manifest.id}`, 'result');
+      renderTechnicalReport(this.compilerReport, manifest.id, `${result.quality.status} · ${manifest.type} · ${inspection.nodes} 个节点 · ${inspection.meshes} 个网格 · 碰撞体 ${manifest.compiler.collisionStrategy}`);
+      this.log(`资产已编译：${manifest.id}`, 'result');
       this.renderAssetResults(this.world.assetCatalog.list().slice(0, 8));
     } catch (error) {
-      this.compilerReport.textContent = `Compile failed: ${error.message}`;
-      this.log(`compile error: ${error.message}`, 'error');
+      this.compilerReport.textContent = `编译失败：${error.message}`;
+      this.log(`编译错误：${error.message}`, 'error');
     }
   }
 
@@ -194,18 +194,18 @@ export class DeveloperSettings {
       const meta = document.createElement('div');
       const title = document.createElement('strong');
       const detail = document.createElement('small');
-      title.textContent = asset.label;
+      title.textContent = assetDisplayLabel(asset);
       detail.textContent = `${asset.id} · ${asset.source}`;
       meta.append(title, detail);
       const spawn = document.createElement('button');
       spawn.type = 'button';
-      spawn.textContent = 'Add to world';
+      spawn.textContent = '加入世界';
       spawn.addEventListener('click', async () => {
         try {
           const id = await this.tools.call('spawnAsset', { assetId: asset.id, position: [1.5, 0, 1.2] });
-          this.log(`spawned ${id}`, 'result');
+          this.log(`已加入世界：${id}`, 'result');
         } catch (error) {
-          this.log(`error: ${error.message}`, 'error');
+          this.log(`错误：${error.message}`, 'error');
         }
       });
       row.append(meta, spawn);
@@ -214,10 +214,15 @@ export class DeveloperSettings {
     if (!assets.length) {
       const empty = document.createElement('span');
       empty.className = 'muted-copy';
-      empty.textContent = 'No reusable asset found.';
+      empty.textContent = '没有找到可复用资产。';
       this.assetResults.append(empty);
     }
   }
+}
+
+function assetDisplayLabel(asset) {
+  const byId = { agent: '智能体', chair: '椅子', cup: '杯子', table: '桌子', cabinet: '柜子' };
+  return byId[asset?.id] || asset?.label || asset?.id || '未命名资产';
 }
 
 function renderTechnicalReport(container, heading, detail) {

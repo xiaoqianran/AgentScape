@@ -20,13 +20,14 @@ import { RunsPanel } from './ui/runs/RunsPanel.js';
 import { DeveloperSettings } from './ui/developer/DeveloperSettings.js';
 import { bindSceneControls } from './ui/bindSceneControls.js';
 import { bindRuntimeEvents } from './ui/bindRuntimeEvents.js';
+import { bindDebugLayers } from './debug/bindDebugLayers.js';
 
 async function main() {
   const app = document.querySelector('#app');
   const environmentDefinition = resolveEnvironment(new URLSearchParams(location.search).get('world'));
   const environmentFactory = await environmentDefinition.load();
   const ui = createAppShell({ app, environmentDefinition, environments: ENVIRONMENTS });
-  ui.setRuntimeStatus('loading', 'Starting');
+  ui.setRuntimeStatus('loading', '启动中');
 
   const world = new WorldRuntime(ui.viewport, {
     environmentFactory,
@@ -75,6 +76,7 @@ async function main() {
   new AutosaveController({ runtime: world, store: sceneStore, delayMs: 600 }).start();
 
   bindRuntimeEvents({ world, editor, inspector, taskPanel, ui });
+  bindDebugLayers(world, { log: (text, kind) => taskPanel.log(text, kind) });
   await restoreOrBootstrap({ world, tools, sceneStore, environmentDefinition, taskPanel });
   bindSceneControls({
     root: app,
@@ -89,8 +91,8 @@ async function main() {
 
   inspector.render(null);
   world.history.clear();
-  ui.setRuntimeStatus('ready', 'Ready');
-  taskPanel.log(`scene ready · ${world.listObjects().length} objects`, 'result');
+  ui.setRuntimeStatus('ready', '就绪');
+  taskPanel.log(`场景已就绪 · ${world.listObjects().length} 个对象`, 'result');
 }
 
 async function restoreOrBootstrap({ world, tools, sceneStore, environmentDefinition, taskPanel }) {
@@ -100,14 +102,14 @@ async function restoreOrBootstrap({ world, tools, sceneStore, environmentDefinit
   }
   try {
     await world.restore(sceneStore.load());
-    taskPanel.log('autosave restored', 'result');
+    taskPanel.log('已恢复自动保存', 'result');
     const hasAgent = world.store.list().some(([, record]) => record.manifest.type === 'agent');
     if (!hasAgent && environmentDefinition.bootstrap.agent) {
       await tools.call('spawnAsset', { assetId: 'agent', position: environmentDefinition.bootstrap.agent, instanceId: 'agent_01' });
-      taskPanel.log('legacy autosave upgraded · agent_01 added', 'result');
+      taskPanel.log('旧版自动保存已升级 · 已加入 agent_01', 'result');
     }
   } catch (error) {
-    taskPanel.log(`autosave restore failed: ${error.message}`, 'error');
+    taskPanel.log(`恢复自动保存失败：${error.message}`, 'error');
     await bootstrapWorld(tools, environmentDefinition.bootstrap);
   }
 }
@@ -117,12 +119,12 @@ main().catch((error) => {
   const panel = document.createElement('main');
   panel.className = 'startup-error';
   const heading = document.createElement('strong');
-  heading.textContent = 'AgentScape failed to start';
+  heading.textContent = 'AgentScape 启动失败';
   const detail = document.createElement('p');
-  detail.textContent = error?.message || 'Unknown startup error';
+  detail.textContent = error?.message || '未知启动错误';
   const reload = document.createElement('button');
   reload.type = 'button';
-  reload.textContent = 'Reload';
+  reload.textContent = '重新加载';
   reload.addEventListener('click', () => location.reload());
   panel.append(heading, detail, reload);
   document.body.replaceChildren(panel);

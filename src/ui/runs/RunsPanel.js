@@ -1,37 +1,37 @@
 const STATUS_LABELS = {
-  success: ['Completed', '✓'],
-  partial: ['Partial', '!'],
-  error: ['Failed', '×'],
-  cancelled: ['Cancelled', '–']
+  success: ['已完成', '✓'],
+  partial: ['部分完成', '!'],
+  error: ['失败', '×'],
+  cancelled: ['已取消', '–']
 };
 
 export const runsPanelMarkup = () => `
-  <section class="runs-console" aria-label="Runs">
+  <section class="runs-console" aria-label="执行记录">
     <header class="screen-heading split-heading">
       <div>
-        <div class="eyebrow">Runs</div>
-        <h1>Review task history</h1>
-        <p>See what happened in this browser session and where a task stopped.</p>
+        <div class="eyebrow">执行记录</div>
+        <h1>查看任务历史</h1>
+        <p>查看本次浏览器会话中任务发生了什么，以及任务停在了哪里。</p>
       </div>
-      <label class="compact-filter">Status
+      <label class="compact-filter">状态
         <select id="runs-filter">
-          <option value="all">All</option>
-          <option value="success">Completed</option>
-          <option value="partial">Partial</option>
-          <option value="error">Failed</option>
-          <option value="cancelled">Cancelled</option>
+          <option value="all">全部</option>
+          <option value="success">已完成</option>
+          <option value="partial">部分完成</option>
+          <option value="error">失败</option>
+          <option value="cancelled">已取消</option>
         </select>
       </label>
     </header>
 
     <div class="runs-scroll">
       <div id="runs-empty" class="empty-state">
-        <strong>No runs yet</strong>
-        <span>Completed, partial, and failed Agent tasks will appear here.</span>
+        <strong>暂无执行记录</strong>
+        <span>已完成、部分完成、失败和取消的智能体任务会显示在这里。</span>
       </div>
       <div id="runs-table-wrap" class="runs-table-wrap hidden">
         <table class="runs-table">
-          <thead><tr><th>Status</th><th>Task</th><th>Time</th></tr></thead>
+          <thead><tr><th>状态</th><th>任务</th><th>耗时</th></tr></thead>
           <tbody id="runs-body"></tbody>
         </table>
       </div>
@@ -107,11 +107,11 @@ export class RunsPanel {
     duration.textContent = formatDuration(run.durationMs);
     heading.append(title, duration);
     const detail = document.createElement('p');
-    detail.textContent = run.detail || 'No additional detail.';
+    detail.textContent = run.detail || '暂无更多详情。';
     const prompt = document.createElement('details');
     prompt.className = 'disclosure';
     const summary = document.createElement('summary');
-    summary.textContent = 'Original task';
+    summary.textContent = '原始任务';
     prompt.append(summary);
     const code = document.createElement('div');
     code.className = 'run-prompt';
@@ -122,7 +122,7 @@ export class RunsPanel {
 }
 
 function formatDuration(ms = 0) {
-  if (ms < 1000) return `${Math.round(ms)} ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)} s`;
-  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
+  if (ms < 1000) return `${Math.round(ms)} 毫秒`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)} 秒`;
+  return `${Math.floor(ms / 60000)} 分 ${Math.round((ms % 60000) / 1000)} 秒`;
 }

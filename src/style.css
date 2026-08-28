@@ -287,3 +287,11 @@ kbd { margin-left:4px; color:var(--text-muted); font:inherit; }
 @media (prefers-reduced-motion:reduce) {
   *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.01ms !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; }
 }
+
+.debug-overlay-menu .toolbar-menu { width:186px; }
+.debug-layer-menu { gap:2px; }
+.debug-layer-row { display:flex; align-items:center; gap:7px; padding:5px 6px; border-radius:var(--radius-sm); font-size:10px; color:var(--text-secondary); cursor:pointer; }
+.debug-layer-row:hover { background:var(--bg-hover); }
+.debug-layer-row input { width:12px; height:12px; accent-color:var(--accent); cursor:pointer; margin:0; flex:none; }
+.debug-layer-row input:disabled { cursor:not-allowed; opacity:.45; }
+.debug-layer-row input:disabled + span { color:var(--text-muted); text-decoration:line-through; }
