@@ -13,7 +13,7 @@ import { AutosaveController } from './persistence/AutosaveController.js';
 import { RESOURCE_BUDGET } from './compiler/resourceBudget.js';
 import { EditorController } from './editor/EditorController.js';
 import { ENVIRONMENTS, resolveEnvironment } from './content/environments.js';
-import { GenerationJobCenter, generationJobCenterMarkup } from './generation/GenerationJobCenter.js';
+import { GenerationJobCenter, generationJobCenterMarkup } from './authoring/GenerationJobCenter.js';
 
 const QUICK_TASK_GROUPS = [
   {

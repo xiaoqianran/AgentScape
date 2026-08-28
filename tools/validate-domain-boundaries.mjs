@@ -100,6 +100,14 @@ if (fs.existsSync(legacyOrchestratorPath)) {
   failures.push('Authoring ownership violation: GenerationOrchestrator must live under src/authoring/');
 }
 
+const legacyGenerationDir = path.join(root, 'src/generation');
+if (fs.existsSync(legacyGenerationDir)) {
+  const productionFiles = walk(legacyGenerationDir).filter((file) => file.endsWith('.js'));
+  if (productionFiles.length) {
+    failures.push(`Authoring ownership violation: src/generation/ must not own production modules (${productionFiles.map(relative).join(', ')})`);
+  }
+}
+
 for (const file of allJs) {
   const name = relative(file);
   const source = fs.readFileSync(file, 'utf8');
@@ -128,4 +136,4 @@ if (failures.length) {
 }
 
 console.log(`domain architecture validation passed (asset core ${assetCore.length} files, world core ${worldCore.length} files)`);
-console.log('AssetCatalog is the single Asset read facade; GenerationOrchestrator and generation compatibility live under src/authoring/.');
+console.log('AssetCatalog is the single Asset read facade; generation orchestration and Job Center live under src/authoring/.');
