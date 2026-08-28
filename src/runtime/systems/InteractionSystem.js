@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Errors } from '../../core/errors.js';
 import { compileInteractionContract, getInteractionContract } from '../interaction/InteractionContract.js';
+import { ArticulationTaskRuntime } from '../interaction/ArticulationTaskRuntime.js';
+import { SettleTaskRuntime } from '../interaction/SettleTaskRuntime.js';
 import { DEFAULT_WAYPOINT_TOLERANCE } from './LocomotionSystem.js';
 
 export const DEFAULT_INTERACTION_DISTANCE = 1.5;
@@ -17,12 +19,26 @@ export class InteractionSystem {
     this.humanHeldId = null;
     this.agentHeld = new Map();
     this.recoveryHeld = new Map();
-    this.settleTasks = new Map();
-    this.articulationTasks = new Map();
-    this.articulationResults = new Map();
+    this.articulationRuntime = new ArticulationTaskRuntime({
+      getStore:() => this.store,
+      getPhysics:() => this.physics,
+      getEvents:() => this.events
+    });
+    this.settleRuntime = new SettleTaskRuntime({
+      getStore:() => this.store,
+      getPhysics:() => this.physics,
+      getSpatial:() => this.spatial,
+      getEvents:() => this.events,
+      heldByAgent:(actorId) => this.heldByAgent(actorId),
+      actionSweepBounds:(targetId, action, partName) => this.actionSweepBounds(targetId, action, partName)
+    });
   }
 
   get heldId() { return this.humanHeldId; }
+  // Compatibility views: the runtime owns these maps; existing observers may still inspect/mutate their contents.
+  get articulationTasks() { return this.articulationRuntime.tasks; }
+  get articulationResults() { return this.articulationRuntime.results; }
+  get settleTasks() { return this.settleRuntime.tasks; }
 
   isHeld(id) { return Boolean(this.store.has(id) && this.store.get(id).state?.heldBy); }
 
@@ -155,33 +171,16 @@ export class InteractionSystem {
 
   beforeRemove(id,{silent=false}={}) {
     for (const [actorId,recovery] of [...this.recoveryHeld]) if (actorId===id || recovery.blockerId===id || recovery.targetId===id) this.recoveryHeld.delete(actorId);
-    for (const key of [...this.articulationResults.keys()]) if (key.startsWith(`${id}:`)) this.articulationResults.delete(key);
-    for (const task of [...this.articulationTasks.values()]) if (task.id === id) {
-      this.finishArticulationTask(task,{status:'action-unverified',reason:'OBJECT_REMOVED',targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
-    }
-    for (const settle of [...this.settleTasks.values()]) if (settle.objectId===id || settle.targetId===id) {
-      this.finishPlacementSettle(settle,settle.kind==='recovery-cleanup'
-        ? this.recoveryCleanupSettleResult(settle,null,{settled:false,reason:'OBJECT_REMOVED'})
-        : settle.kind==='drop'
-          ? this.dropSettleResult(settle,null,{settled:false,reason:'OBJECT_REMOVED'})
-          : {status:'place-unverified',reason:'OBJECT_REMOVED',supportVerified:false,settled:false,elapsed:Number(settle.elapsed.toFixed(3))});
-    }
+    this.articulationRuntime.beforeRemove(id);
+    this.settleRuntime.beforeRemove(id);
     if (this.store.has(id) && this.store.get(id).state?.heldBy) this.releaseHeld(id, 'OBJECT_REMOVED',{silent});
     const carried = this.agentHeld.get(id);
     if (carried && this.store.has(carried)) this.releaseHeld(carried, 'OWNER_REMOVED',{silent});
   }
 
   cancelPending(reason = 'RUNTIME_DISPOSED') {
-    for (const task of [...this.settleTasks.values()]) {
-      this.finishPlacementSettle(task,task.kind==='recovery-cleanup'
-        ? this.recoveryCleanupSettleResult(task,null,{settled:false,reason})
-        : task.kind==='drop'
-          ? this.dropSettleResult(task,null,{settled:false,reason})
-          : {status:'place-unverified',reason,supportVerified:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
-    }
-    for (const task of [...this.articulationTasks.values()]) {
-      this.finishArticulationTask(task,{status:'action-unverified',reason,targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
-    }
+    this.settleRuntime.cancelAll(reason);
+    this.articulationRuntime.cancelAll(reason);
   }
 
   supports(record, action) { return record.manifest.actions.includes(action); }
@@ -559,147 +558,23 @@ export class InteractionSystem {
     };
   }
 
-  articulationTaskKey(id, partName) { return `${id}:${partName}`; }
+  articulationTaskKey(id, partName) { return this.articulationRuntime.taskKey(id, partName); }
 
-  finishArticulationTask(task, result) {
-    const key = this.articulationTaskKey(task.id,task.partName);
-    if (this.articulationTasks.get(key) !== task) return;
-    this.articulationTasks.delete(key);
-    const report = { ...result, id:task.id, partName:task.partName, action:task.action, target:task.target };
-    this.articulationResults.set(key,report);
-    this.events.emit('interaction', { ...report, action:'articulation-completion', articulationAction:report.action });
-    task.resolve(report);
+  finishArticulationTask(task, result) { return this.articulationRuntime.finish(task, result); }
+
+  promoteArticulationCompletion(report) { return this.articulationRuntime.promoteCompletion(report); }
+
+  finalizeArticulationAttempt(report) { return this.articulationRuntime.finalizeAttempt(report); }
+
+  articulationStatus(id, partName = null) { return this.articulationRuntime.status(id, partName); }
+
+  waitForArticulationCompletion(id, partName, action, target, options = {}) {
+    return this.articulationRuntime.waitForCompletion(id, partName, action, target, options);
   }
 
-  promoteArticulationCompletion(report) {
-    if (report?.status !== 'action-completed' || !report.targetReached || !this.store.has(report.id)) return false;
-    const record = this.store.get(report.id);
-    if (record.state.partTargets?.[report.partName] !== report.action) return false;
-    record.state.parts ||= {};
-    record.state.parts[report.partName] = report.action;
-    delete record.state.partTargets[report.partName];
-    if (!Object.keys(record.state.partTargets).length) delete record.state.partTargets;
-    return true;
-  }
+  articulationFailureAttribution(id, partName) { return this.articulationRuntime.failureAttribution(id, partName); }
 
-  finalizeArticulationAttempt(report) {
-    if (!report || !['action-failed','action-unverified'].includes(report.status) || !this.store.has(report.id)) return false;
-    const record = this.store.get(report.id);
-    if (record.state.partTargets?.[report.partName] !== report.action) return false;
-    this.physics.holdArticulationCurrent?.(report.id,report.partName);
-    delete record.state.partTargets[report.partName];
-    if (!Object.keys(record.state.partTargets).length) delete record.state.partTargets;
-    return true;
-  }
-
-  articulationStatus(id, partName = null) {
-    const record = this.store.get(id);
-    const entries = Object.entries(record.manifest.parts || {}).filter(([name,part]) =>
-      (!partName || name === partName) && part.joint && part.physics && Object.keys(part.targets || {}).length
-    );
-    if (!entries.length) throw Errors.actionUnsupported(id, partName ? `status:${partName}` : 'articulation-status');
-    const parts = entries.map(([name,part]) => {
-      const key = this.articulationTaskKey(id,name);
-      const pending = this.articulationTasks.get(key);
-      const last = this.articulationResults.get(key) || null;
-      const requestedAction = record.state.partTargets?.[name] || null;
-      const verifiedAction = record.state.parts?.[name] || null;
-      const targetAction = pending?.action || requestedAction || verifiedAction;
-      const target = targetAction && Number.isFinite(part.targets?.[targetAction]) ? part.targets[targetAction] : null;
-      const live = this.physics.articulationState(id,name,{target});
-      return {
-        partName:name,
-        status:pending ? 'moving' : (last?.status || (verifiedAction ? 'verified-state' : 'idle')),
-        requestedAction,verifiedAction,
-        ...(pending ? { pending:{action:pending.action,target:pending.target,elapsed:Number(pending.elapsed.toFixed(3))} } : {}),
-        ...(last ? { last:structuredClone(last) } : {}),
-        ...(live ? { live:{coordinate:live.coordinate,target:live.target,error:live.error,tolerance:live.tolerance,coordinateReference:live.coordinateReference} } : {})
-      };
-    });
-    return { id, parts };
-  }
-
-  waitForArticulationCompletion(id, partName, action, target, {
-    timeout = 4, stableDuration = .18, stallWindow = .5, stallTolerance = .004
-  } = {}) {
-    const key = this.articulationTaskKey(id,partName);
-    const existing = this.articulationTasks.get(key);
-    if (existing && existing.action === action && Math.abs(existing.target-target) <= 1e-9) return existing.promise;
-    if (existing) this.finishArticulationTask(existing,{status:'action-unverified',reason:'SUPERSEDED',targetReached:false,settled:false,elapsed:Number(existing.elapsed.toFixed(3))});
-    const state = this.physics.articulationState(id,partName,{target});
-    if (!state) return Promise.resolve({status:'action-unverified',reason:'JOINT_STATE_UNAVAILABLE',id,partName,action,target,targetReached:false,settled:false,elapsed:0});
-    let resolveTask;
-    const task = {
-      id,partName,action,target,timeout,stableDuration,stallWindow,stallTolerance,
-      elapsed:0,stable:0,initialCoordinate:state.coordinate,samples:[{time:0,coordinate:state.coordinate}],
-      resolve:null,promise:null
-    };
-    task.promise = new Promise((resolve) => { resolveTask=resolve; });
-    task.resolve = resolveTask;
-    this.articulationTasks.set(key,task);
-    return task.promise;
-  }
-
-  articulationFailureAttribution(id, partName) {
-    const contacts=(this.physics.articulationContacts?.(id,partName) || []).filter((item)=>item.external);
-    const blockerMap=new Map();
-    for (const item of contacts) {
-      const target=item.target || {};
-      if (!['object','environment'].includes(target.kind)) continue;
-      const key=target.kind==='object'
-        ? `object:${target.objectId}:${target.partName || '$root'}`
-        : `environment:${target.environmentId}:${target.colliderIndex ?? -1}`;
-      if (!blockerMap.has(key)) blockerMap.set(key,structuredClone(target));
-    }
-    return {
-      status:contacts.length ? 'contact-evidence' : 'unattributed',
-      evidence:'current-contact-at-failure',
-      contactEvidence:contacts,
-      blockerCandidates:[...blockerMap.values()]
-    };
-  }
-
-  updateArticulationTasks(dt) {
-    const wrap = (jointType,value) => jointType === 'revolute' ? Math.atan2(Math.sin(value),Math.cos(value)) : value;
-    for (const task of [...this.articulationTasks.values()]) {
-      task.elapsed += dt;
-      const state = this.physics.articulationState(task.id,task.partName,{target:task.target});
-      if (!state || !Number.isFinite(state.coordinate) || !Number.isFinite(state.error)) {
-        this.finishArticulationTask(task,{status:'action-unverified',reason:'JOINT_STATE_UNAVAILABLE',targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
-        continue;
-      }
-      const limits = state.limits;
-      if (limits?.length === 2 && (state.coordinate < limits[0]-state.tolerance || state.coordinate > limits[1]+state.tolerance)) {
-        this.finishArticulationTask(task,{status:'action-failed',reason:'LIMIT_VIOLATION',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,limits,elapsed:Number(task.elapsed.toFixed(3))});
-        continue;
-      }
-      const reached = state.error <= state.tolerance;
-      task.stable = reached ? task.stable + dt : 0;
-      task.samples.push({time:task.elapsed,coordinate:state.coordinate});
-      const cutoff = task.elapsed-task.stallWindow;
-      while (task.samples.length > 2 && task.samples[1].time <= cutoff) task.samples.shift();
-      const oldest = task.samples[0];
-      const recentMovement = Math.abs(wrap(state.jointType,state.coordinate-oldest.coordinate));
-      const observedWindow = task.elapsed-oldest.time;
-      const stableCutoff = task.elapsed-task.stableDuration;
-      const stableReference = task.samples.find((sample)=>sample.time >= stableCutoff) || oldest;
-      const settleMovement = Math.abs(wrap(state.jointType,state.coordinate-stableReference.coordinate));
-      const settleTolerance = state.tolerance*.25;
-      const progress = Math.abs(wrap(state.jointType,task.initialCoordinate-task.target)) - state.error;
-      if (task.stable >= task.stableDuration && settleMovement <= settleTolerance) {
-        this.finishArticulationTask(task,{status:'action-completed',targetReached:true,settled:true,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,settleMovement:Number(settleMovement.toFixed(6)),settleTolerance:Number(settleTolerance.toFixed(6)),progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference});
-        continue;
-      }
-      if (!reached && task.elapsed >= task.stallWindow && observedWindow >= task.stallWindow*.8 && recentMovement < task.stallTolerance) {
-        const attribution=this.articulationFailureAttribution(task.id,task.partName);
-        this.finishArticulationTask(task,{status:'action-failed',reason:'STALL',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,recentMovement:Number(recentMovement.toFixed(6)),stallWindow:task.stallWindow,progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference,attribution});
-        continue;
-      }
-      if (task.elapsed >= task.timeout) {
-        this.finishArticulationTask(task,{status:'action-unverified',reason:'TIMEOUT',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,recentMovement:Number(recentMovement.toFixed(6)),progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference});
-      }
-    }
-  }
+  updateArticulationTasks(dt) { return this.articulationRuntime.update(dt); }
 
   transferHeldToRelease(actorId, heldId, release) {
     const originalPosition=this.physics.getPosition(heldId);
@@ -726,124 +601,25 @@ export class InteractionSystem {
     return {clear:true,originalPosition,rotation,transfer,release:[...point]};
   }
 
-  waitForObjectSettle(objectId, { kind='place', targetId=null, surfaceId=null, actorId=null, partName=null, action=null, timeout=4, stableDuration=.35, linearSpeed=.04, angularSpeed=.12 } = {}) {
-    if (this.settleTasks.has(objectId)) throw Errors.placeUnavailable(actorId || 'runtime',targetId || objectId,'SETTLE_ALREADY_ACTIVE',{objectId});
-    return new Promise((resolve)=>this.settleTasks.set(objectId,{
-      kind,objectId,targetId,surfaceId,actorId,partName,action,timeout,stableDuration,linearSpeed,angularSpeed,elapsed:0,stable:0,resolve
-    }));
-  }
+  waitForObjectSettle(objectId, options = {}) { return this.settleRuntime.waitForObjectSettle(objectId, options); }
 
-  waitForPlacementSettle(objectId, targetId, surfaceId, { timeout = 4, stableDuration = 0.35, linearSpeed = 0.04, angularSpeed = 0.12 } = {}) {
-    return this.waitForObjectSettle(objectId,{kind:'place',targetId,surfaceId,timeout,stableDuration,linearSpeed,angularSpeed});
+  waitForPlacementSettle(objectId, targetId, surfaceId, options = {}) {
+    return this.settleRuntime.waitForPlacementSettle(objectId, targetId, surfaceId, options);
   }
 
   waitForRecoveryCleanupSettle(actorId, objectId, targetId, partName, action, options = {}) {
-    return this.waitForObjectSettle(objectId,{kind:'recovery-cleanup',actorId,targetId,partName,action,...options});
+    return this.settleRuntime.waitForRecoveryCleanupSettle(actorId, objectId, targetId, partName, action, options);
   }
 
+  placementSettleResult(task, motion, options = {}) { return this.settleRuntime.placementResult(task, motion, options); }
 
-  placementSettleResult(task,motion,{settled,reason=null}={}) {
-    const support=this.spatial.supportStatus(task.objectId,task.targetId,{surfaceId:task.surfaceId});
-    if (!settled) return {
-      status:'place-unverified',reason:reason || 'SETTLE_TIMEOUT',supportVerified:false,support,settled:false,
-      elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-    return {
-      status:support.on?'placed':'place-failed',...(support.on?{}:{reason:'SUPPORT_NOT_REACHED'}),
-      supportVerified:support.on,support,settled:true,elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-  }
+  dropSettleResult(task, motion, options = {}) { return this.settleRuntime.dropResult(task, motion, options); }
 
+  recoveryCleanupSettleResult(task, motion, options = {}) { return this.settleRuntime.recoveryCleanupResult(task, motion, options); }
 
-  dropSettleResult(task,motion,{settled,reason=null}={}) {
-    const held=this.store.has(task.objectId) ? this.store.get(task.objectId).state?.heldBy : null;
-    const released=!held && this.heldByAgent(task.actorId)!==task.objectId;
-    const position=this.physics.getPosition(task.objectId);
-    if (!settled) return {
-      status:reason==='BODY_UNAVAILABLE'?'drop-failed':'drop-unverified',reason:reason || 'SETTLE_TIMEOUT',
-      actorId:task.actorId,targetId:task.objectId,released,settled:false,stillHeld:!released,
-      position:position ? [...position] : null,elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-    if (!released) return {
-      status:'drop-failed',reason:'STILL_HELD',actorId:task.actorId,targetId:task.objectId,
-      released:false,settled:true,stillHeld:true,position:position ? [...position] : null,
-      elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-    return {
-      status:'dropped',actorId:task.actorId,targetId:task.objectId,released:true,settled:true,stillHeld:false,
-      position:position ? [...position] : null,elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-  }
+  finishPlacementSettle(task, result) { return this.settleRuntime.finish(task, result); }
 
-  recoveryCleanupSettleResult(task,motion,{settled,reason=null}={}) {
-    const held=this.store.has(task.objectId) ? this.store.get(task.objectId).state?.heldBy : null;
-    const sweep=this.store.has(task.targetId) ? this.actionSweepBounds(task.targetId,task.action,task.partName) : {checked:false,reason:'TARGET_UNAVAILABLE'};
-    const bounds=this.store.has(task.objectId) ? this.spatial.getBounds(task.objectId) : null;
-    const box=bounds ? new THREE.Box3(new THREE.Vector3(...bounds.min),new THREE.Vector3(...bounds.max)) : null;
-    const sweepClear=Boolean(sweep.checked && box && !sweep.box.intersectsBox(box));
-    const contacts=sweep.checked ? (this.physics.articulationContacts?.(task.targetId,sweep.partName) || []) : [];
-    const contactClear=!contacts.some((contact)=>contact.external && contact.target?.kind==='object' && contact.target.objectId===task.objectId);
-    const released=!held && this.heldByAgent(task.actorId)!==task.objectId;
-    const verified=Boolean(settled && released && sweepClear && contactClear);
-    let failureReason=reason;
-    if (!failureReason && !released) failureReason='STILL_HELD';
-    else if (!failureReason && !sweep.checked) failureReason='ACTION_SWEEP_UNAVAILABLE';
-    else if (!failureReason && !sweepClear) failureReason='ACTION_SWEEP_OCCUPIED';
-    else if (!failureReason && !contactClear) failureReason='CONTACT_STILL_ACTIVE';
-    return {
-      status:verified?'recovery-cleaned':(settled?'recovery-cleanup-failed':'recovery-cleanup-unverified'),
-      ...(verified?{}:{reason:failureReason || 'RECOVERY_CLEANUP_UNVERIFIED'}),
-      actorId:task.actorId,targetId:task.targetId,blockerId:task.objectId,partName:sweep.partName || task.partName,action:task.action,
-      released,settled:Boolean(settled),sweepClear,contactClear,
-      actionSweep:sweep.checked?{checked:true,partName:sweep.partName,bounds:sweep.bounds}:{checked:false,reason:sweep.reason,partName:sweep.partName || task.partName},
-      elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-  }
-
-  finishPlacementSettle(task, result) {
-    if (!this.settleTasks.has(task.objectId)) return;
-    this.settleTasks.delete(task.objectId);
-    const eventAction=task.kind==='recovery-cleanup'?'recovery-cleanup':task.kind==='drop'?'drop':'place';
-    this.events.emit('interaction',{action:eventAction,id:task.objectId,targetId:task.targetId,...result});
-    task.resolve(result);
-  }
-
-  updatePlacementSettles(dt) {
-    for (const task of [...this.settleTasks.values()]) {
-      task.elapsed+=dt;
-      const motionState=this.physics.bodyMotionState(task.objectId);
-      if (!motionState) {
-        const motion=null;
-        const result=task.kind==='recovery-cleanup'
-          ? this.recoveryCleanupSettleResult(task,motion,{settled:false,reason:'BODY_UNAVAILABLE'})
-          : task.kind==='drop'
-            ? this.dropSettleResult(task,motion,{settled:false,reason:'BODY_UNAVAILABLE'})
-            : {status:'place-failed',reason:'BODY_UNAVAILABLE',supportVerified:false,elapsed:Number(task.elapsed.toFixed(3))};
-        this.finishPlacementSettle(task,result);
-        continue;
-      }
-      const motion={sleeping:motionState.sleeping,linearSpeed:Number(motionState.linearSpeed.toFixed(4)),angularSpeed:Number(motionState.angularSpeed.toFixed(4))};
-      const slow=motionState.sleeping || (motionState.linearSpeed<=task.linearSpeed && motionState.angularSpeed<=task.angularSpeed);
-      task.stable=slow ? task.stable+dt : 0;
-      if (task.stable>=task.stableDuration) {
-        const result=task.kind==='recovery-cleanup'
-          ? this.recoveryCleanupSettleResult(task,motion,{settled:true})
-          : task.kind==='drop'
-            ? this.dropSettleResult(task,motion,{settled:true})
-            : this.placementSettleResult(task,motion,{settled:true});
-        this.finishPlacementSettle(task,result);
-        continue;
-      }
-      if (task.elapsed>=task.timeout) {
-        const result=task.kind==='recovery-cleanup'
-          ? this.recoveryCleanupSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'})
-          : task.kind==='drop'
-            ? this.dropSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'})
-            : this.placementSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'});
-        this.finishPlacementSettle(task,result);
-      }
-    }
-  }
+  updatePlacementSettles(dt) { return this.settleRuntime.update(dt); }
 
   async approachAndPlace(actorId, targetId, { surfaceId = null, speed, clearance = 0.03 } = {}) {
     const heldId = this.heldByAgent(actorId);
@@ -1059,7 +835,7 @@ export class InteractionSystem {
     if (!this.physics.setArticulationTarget(id, name, part.targets[action])) throw Errors.actionUnsupported(id, action);
     record.state.partTargets ||= {};
     record.state.partTargets[name] = action;
-    this.articulationResults.delete(this.articulationTaskKey(id,name));
+    this.articulationRuntime.clearResult(id,name);
     this.waitForArticulationCompletion(id,name,action,part.targets[action]);
     this.events.emit('interaction', { action, id, part:name, target:part.targets[action] });
     return { id, part:name, action, capability:contract.capability, target:part.targets[action], requested:true, interactionContractId:contract.id, verifierTarget:structuredClone(contract.verifierTarget) };

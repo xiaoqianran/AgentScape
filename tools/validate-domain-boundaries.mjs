@@ -45,6 +45,7 @@ const worldCore = allJs.filter((file) => {
     || /^src\/pipeline\/World[^/]*\.js$/.test(name)
     || name.startsWith('src/runtime/systems/')
     || name.startsWith('src/runtime/physics/')
+    || name.startsWith('src/runtime/interaction/')
     || name.startsWith('src/runtime/graph/')
     || name.startsWith('src/runtime/behavior/')
     || /^src\/validation\/World[^/]*\.js$/.test(name);
