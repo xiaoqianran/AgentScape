@@ -1,31 +1,9 @@
-[submodule "providers/modal/image-runtime"]
-	path = providers/modal/image-runtime
-	url = https://github.com/xiaoqianran/modal-2D
 [submodule "providers/modal/image-agent"]
 	path = providers/modal/image-agent
 	url = https://github.com/xiaoqianran/modal-2D-client
 [submodule "providers/modal/connector"]
 	path = providers/modal/connector
 	url = https://github.com/xiaoqianran/modal-gen-client
-[submodule "providers/modal/object3d-runtime"]
-	path = providers/modal/object3d-runtime
-	url = https://github.com/xiaoqianran/modal-3D
-[submodule "providers/kaggle/runtime"]
-	path = providers/kaggle/runtime
-	url = https://github.com/xiaoqianran/kaggle-inference-hub
-[submodule "providers/embodied/runtime"]
-	path = providers/embodied/runtime
-	url = https://github.com/xiaoqianran/modal-build
-[submodule "upstream/EmbodiedGen"]
-	path = upstream/EmbodiedGen
-	url = https://github.com/HorizonRobotics/EmbodiedGen
-[submodule "research/modal-lab"]
-	path = research/modal-lab
-	url = https://github.com/xiaoqianran/modal-lab
-[submodule "providers/modal/inference-hub"]
-	path = providers/modal/inference-hub
-	url = https://github.com/xiaoqianran/modal-inference-hub
-	branch = master
 [submodule "providers/modal/object3d-agent"]
 	path = providers/modal/object3d-agent
 	url = https://github.com/xiaoqianran/modal-3D-client
