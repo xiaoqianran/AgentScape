@@ -1,0 +1,17 @@
+{
+  "deployment": "github-pages",
+  "status": "retired",
+  "retiredAt": "2026-08-28",
+  "pagesUrl": "https://xiaoqianran.github.io/AgentScape/",
+  "sourceCommit": "b7a550de92afc0eabcaad89c39e5503b3fac8d98",
+  "workflowRunId": 33165620800,
+  "workflowName": "Deploy to GitHub Pages",
+  "artifact": {
+    "name": "github-pages",
+    "file": "artifact.tar",
+    "bytes": 16025600,
+    "sha256": "1943b996df5729cacd7342350ac590d07fa6e4e3d9445a90cc914e3ede69ad0c"
+  },
+  "viteBase": "/AgentScape/",
+  "releaseTag": "github-pages-retired-2026-08-28"
+}

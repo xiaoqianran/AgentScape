@@ -1,0 +1,25 @@
+name: Production Smoke Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vercel-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify public Vercel production
+        env:
+          URL: https://agentscape-virid.vercel.app/
+        run: |
+          set -euo pipefail
+          html="$(mktemp)"
+          curl --fail --location --silent --show-error             --retry 6 --retry-delay 2 --retry-all-errors             --connect-timeout 10 --max-time 30             "$URL" -o "$html"
+          grep -q '<title>AgentScape</title>' "$html"
+          asset="$(grep -oE '(src|href)="/assets/[^"]+"' "$html" | head -1 | cut -d'"' -f2)"
+          test -n "$asset"
+          curl --fail --location --silent --show-error             --retry 4 --retry-delay 2 --retry-all-errors             --connect-timeout 10 --max-time 30             "${URL%/}${asset}" -o /dev/null
+          echo "Vercel production smoke passed: $URL"
