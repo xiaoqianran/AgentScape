@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AssetManager } from '../src/assets/AssetManager.js';
-import { AssetLibrary } from '../src/assets/library/AssetLibrary.js';
+import { AssetCatalog } from '../src/assets/AssetCatalog.js';
 import { createCanonicalWorldPipeline, createWorldPipeline } from '../src/pipeline/createWorldPipeline.js';
 import { PhysicsBackend } from '../src/runtime/physics/PhysicsBackend.js';
 import { createDefaultProviderRegistry } from '../src/providers/ProviderRegistry.js';
-import { createLegacyAssetGenerationPort } from '../src/authoring/LegacyAuthoringShell.js';
+import { createLegacyAssetAuthoring, createLegacyAssetGenerationPort } from '../src/authoring/LegacyAuthoringShell.js';
 
 describe('generated world pipeline',()=>{
 
@@ -13,7 +13,7 @@ describe('generated world pipeline',()=>{
     await expect(createCanonicalWorldPipeline(runtime).run({name:'legacy'})).rejects.toMatchObject({code:'WORLD_IR_SCHEMA_REQUIRED'});
     const compatible=await createWorldPipeline({
       events:null,trace:null,
-      assets:{has:()=>false},assetLibrary:{resolve:async()=>({status:'missing',assets:[]})},
+      assets:{has:()=>false},assetCatalog:{resolveExisting:(query)=>({status:'missing',query,assets:[]})},
       environment:{layout:{}},physics:{manifestPoseClear:()=>({checked:true,clear:true,blockedBy:[]})},
       spawn:async()=>null,interactions:{place:()=>{},move:()=>{}},sceneGraph:{changed:()=>{},update:()=>{}},
       validator:{run:()=>({counts:{hard:0,advisory:0},findings:[]})},repair:{repair:async()=>{}},serialize:()=>({}),store:{get:()=>null}
@@ -35,11 +35,12 @@ describe('generated world pipeline',()=>{
     };
     const providerRegistry=createDefaultProviderRegistry({generator});
     const generationPort=createLegacyAssetGenerationPort({providerRegistry,generation:null,assetManager:assets});
-    const assetLibrary=new AssetLibrary({assetManager:assets,generationPort});
+    const assetCatalog=new AssetCatalog({assetManager:assets});
+    const authoring=createLegacyAssetAuthoring({assetManager:assets,catalog:assetCatalog,generationPort});
     const spawned=[];
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:1,relations:0}};
     const runtime={
-      events:null,trace:null,assets,assetLibrary,
+      events:null,trace:null,assets,assetCatalog,authoring,
       environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(assetId,{position,id})=>{spawned.push({assetId,position,id}); return id || `${assetId}_1`; }),
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
@@ -69,10 +70,11 @@ describe('generated world pipeline',()=>{
 
   it('marks a world rejected when a required generated asset cannot be resolved',async()=>{
     const assets=new AssetManager();
-    const assetLibrary={resolve:vi.fn(async()=>({status:'generator_not_configured',assets:[],hint:'configure generator'}))};
+    const assetCatalog=new AssetCatalog({assetManager:assets});
+    const authoring={resolveAssetRequest:vi.fn(async(request)=>({status:'generator_not_configured',query:request.query || request.type || '',assets:[],hint:'configure generator'}))};
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:0,relations:0}};
     const runtime={
-      events:null,trace:null,assets,assetLibrary,spawn:vi.fn(),
+      events:null,trace:null,assets,assetCatalog,authoring,spawn:vi.fn(),
       environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({})),store:{get:vi.fn()}
@@ -102,7 +104,7 @@ describe('generated world pipeline',()=>{
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:1,relations:0}};
     const spawned=[];
     const runtime={
-      events:null,trace:null,assets,assetLibrary:{resolve:vi.fn()},
+      events:null,trace:null,assets,assetCatalog:new AssetCatalog({assetManager:assets}),
       environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
       physics:{manifestPoseClear:vi.fn((_manifest,position)=>Math.abs(position[0])<.1&&Math.abs(position[2])<.1
         ? {checked:true,clear:false,blockedBy:['environment:center-obstacle']}

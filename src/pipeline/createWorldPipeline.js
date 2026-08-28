@@ -46,12 +46,19 @@ const resolveCanonicalAsset = async (runtime, request) => {
   return { status: 'missing', query, assets: [] };
 };
 
-const resolveLegacyAsset = (runtime, request) => runtime.assetLibrary.resolve(request.query || request.type || '', {
-  generate: request.generate ?? false,
-  ...(request.id ? { instanceId: request.id } : {}),
-  ...(request.provider ? { provider: request.provider } : {}),
-  ...(request.assetId ? { id: request.assetId } : {})
-});
+const resolveLegacyAsset = (runtime, request) => {
+  if (typeof runtime.authoring?.resolveAssetRequest !== 'function') {
+    const query=request.query || request.type || request.assetId || '';
+    return Promise.resolve(runtime.assetCatalog.resolveExisting(query,{assetId:request.assetId || null,limit:5}));
+  }
+  return runtime.authoring.resolveAssetRequest({
+    query:request.query || request.type || '',
+    generate:request.generate ?? false,
+    ...(request.id ? {instanceId:request.id} : {}),
+    ...(request.provider ? {provider:request.provider} : {}),
+    ...(request.assetId ? {assetId:request.assetId} : {})
+  });
+};
 
 const createPipeline=(runtime,compileInput,resolveAsset)=>{
   const pipeline = new PipelineEngine({ events: runtime.events, trace: runtime.trace });

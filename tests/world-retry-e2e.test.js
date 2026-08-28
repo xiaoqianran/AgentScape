@@ -1,6 +1,7 @@
 import { describe,expect,it,vi } from 'vitest';
 import { AssetManager } from '../src/assets/AssetManager.js';
-import { AssetLibrary } from '../src/assets/library/AssetLibrary.js';
+import { AssetCatalog } from '../src/assets/AssetCatalog.js';
+import { createLegacyAssetAuthoring } from '../src/authoring/LegacyAuthoringShell.js';
 import { createWorldPipeline } from '../src/pipeline/createWorldPipeline.js';
 import { SkillRegistry } from '../src/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../src/skills/registerCoreSkills.js';
@@ -19,11 +20,12 @@ describe('bounded generated-world retry',()=>{
         compiler:{quality:{status:'ready'}}
       }}))
     };
-    const assetLibrary=new AssetLibrary({assetManager:assets,generationPort});
+    const assetCatalog=new AssetCatalog({assetManager:assets});
+    const authoring=createLegacyAssetAuthoring({assetManager:assets,catalog:assetCatalog,generationPort});
     const spawned=[];
     const snapshot={name:'before'};
     const runtime={
-      events:null,trace:new TraceRecorder(),policy:new PolicyEngine(),assets,assetLibrary,
+      events:null,trace:new TraceRecorder(),policy:new PolicyEngine(),assets,assetCatalog,authoring,
       environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
       physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(assetId,{position,id})=>{spawned.push({assetId,position,id});return id;}),

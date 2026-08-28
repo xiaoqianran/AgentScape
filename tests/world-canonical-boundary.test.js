@@ -16,14 +16,14 @@ const runtime = () => {
   const assets = new AssetManager({ manifests: {} });
   assets.registerManifest(readyManifest('table_fixture', 'table'));
   const assetCatalog = new AssetCatalog({ assetManager: assets });
-  const assetLibrary = { resolve: vi.fn(() => { throw new Error('canonical World must not call legacy AssetLibrary'); }) };
+  const authoring = { resolveAssetRequest: vi.fn(() => { throw new Error('canonical World must not call legacy authoring'); }) };
   const spawned = [];
   return {
     events: null,
     trace: null,
     assets,
     assetCatalog,
-    assetLibrary,
+    authoring,
     environment: { layout: { bounds: { min: [-4, -4], max: [4, 4] }, groundY: 0, margin: .5 } },
     physics: {
       backend: { capabilities: new Set() },
@@ -58,7 +58,7 @@ describe('Canonical World asset boundary', () => {
     const r = runtime();
     const result = await createCanonicalWorldPipeline(r).run(worldIR({ assetId: 'table_fixture' }));
 
-    expect(r.assetLibrary.resolve).not.toHaveBeenCalled();
+    expect(r.authoring.resolveAssetRequest).not.toHaveBeenCalled();
     expect(r.spawn).toHaveBeenCalledWith('table_fixture', expect.objectContaining({ id: 'entity_01' }));
     expect(result.state.reports.assetAdmission.status).toBe('ready');
   });
@@ -71,7 +71,7 @@ describe('Canonical World asset boundary', () => {
       provider: 'modal-3d'
     }));
 
-    expect(r.assetLibrary.resolve).not.toHaveBeenCalled();
+    expect(r.authoring.resolveAssetRequest).not.toHaveBeenCalled();
     expect(r.spawn).not.toHaveBeenCalled();
     expect(result.state.artifacts.assets[0]).toMatchObject({
       status: 'generation_outside_world'

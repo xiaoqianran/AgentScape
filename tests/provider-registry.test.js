@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ProviderRegistry, createDefaultProviderRegistry } from '../src/providers/ProviderRegistry.js';
-import { createLegacyAssetGenerationPort } from '../src/authoring/LegacyAuthoringShell.js';
-import { AssetLibrary } from '../src/assets/library/AssetLibrary.js';
+import { createLegacyAssetAuthoring, createLegacyAssetGenerationPort } from '../src/authoring/LegacyAuthoringShell.js';
+import { AssetCatalog } from '../src/assets/AssetCatalog.js';
 import { AssetManager } from '../src/assets/AssetManager.js';
 
 describe('ProviderRegistry', () => {
@@ -60,9 +60,7 @@ describe('ProviderRegistry', () => {
   });
 });
 
-it('lets AssetLibrary consume a new provider without provider-specific branches', async () => {
-  const { AssetLibrary } = await import('../src/assets/library/AssetLibrary.js');
-  const { AssetManager } = await import('../src/assets/AssetManager.js');
+it('lets legacy authoring consume a new provider without provider-specific branches', async () => {
   const registry = new ProviderRegistry();
   registry.registerProvider({
     id: 'custom-3d', version: '7', status: 'available', health: 'healthy',
@@ -83,9 +81,10 @@ it('lets AssetLibrary consume a new provider without provider-specific branches'
     })
   });
   const assetManager = new AssetManager();
+  const catalog = new AssetCatalog({ assetManager });
   const generationPort = createLegacyAssetGenerationPort({ providerRegistry: registry, generation: null, assetManager });
-  const assets = new AssetLibrary({ assetManager, generationPort });
-  const result = await assets.generate('custom widget', { provider: 'custom-3d' });
+  const authoring = createLegacyAssetAuthoring({ assetManager, catalog, generationPort });
+  const result = await authoring.generateAsset('custom widget', { provider: 'custom-3d' });
   expect(result).toMatchObject({ id: 'custom_widget', admission: { status: 'provisional' } });
-  expect(assets.assetManager.getManifest('custom_widget')).toMatchObject({ provenance: { provider: 'custom-3d' } });
+  expect(assetManager.getManifest('custom_widget')).toMatchObject({ provenance: { provider: 'custom-3d' } });
 });

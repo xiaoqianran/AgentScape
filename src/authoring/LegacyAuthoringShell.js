@@ -1,4 +1,6 @@
 import { AssetLibrary } from '../assets/library/AssetLibrary.js';
+import { assetAdmission } from '../assets/admission.js';
+import { validateAssetManifest } from '../assets/schema.js';
 import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
 import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider.js';
 import { ConnectorClient } from '../connector/ConnectorClient.js';
@@ -9,6 +11,64 @@ const readSetting = (storage, key) => {
   try { return storage?.getItem?.(key) || ''; }
   catch { return ''; }
 };
+
+const SAFE_ASSET_CHARS=/[^A-Za-z0-9_-]+/g;
+const generatedAssetId=(prompt,instanceId='')=>{
+  const base=String(instanceId || prompt || 'asset').trim().replace(SAFE_ASSET_CHARS,'_').replace(/^_+|_+$/g,'').slice(0,145) || 'asset';
+  return `generated_${base}`;
+};
+
+export function createLegacyAssetAuthoring({ assetManager, catalog, generationPort, events = null }) {
+  if (!assetManager?.registerManifest || !catalog?.search || !generationPort?.generate) {
+    throw new TypeError('Legacy Asset authoring requires Asset state, Catalog, and generation port');
+  }
+
+  const canGenerateAsset=(options={})=>Boolean(generationPort.canGenerate?.(options));
+  const generateAsset=async(prompt,options={})=>{
+    if(!canGenerateAsset(options)){
+      return {
+        status:'generator_not_configured',prompt,provider:options.provider || null,
+        hint:options.provider
+          ? `Provider ${options.provider} has no available text-to-asset capability.`
+          : 'Configure an Asset Generator before requesting missing assets.'
+      };
+    }
+    const assetId=String(options.assetId || options.id || generatedAssetId(prompt,options.instanceId)).trim();
+    const produced=await generationPort.generate(prompt,{...options,assetId,label:options.label || prompt});
+    if(produced?.status==='unavailable'){
+      return {
+        status:'generator_not_configured',prompt,provider:options.provider || null,
+        hint:produced.hint || 'No compatible Asset generation capability is available.'
+      };
+    }
+    if(!produced?.manifest) throw new Error('Asset generation completed without a manifest');
+    const manifest=validateAssetManifest(structuredClone(produced.manifest));
+    const admission=produced.admission || assetAdmission(manifest,{generated:true});
+    manifest.provenance={...(manifest.provenance || {}),admission};
+    if(admission.status==='rejected') return {status:'rejected',id:manifest.id,admission};
+    if(!assetManager.has(manifest.id)) assetManager.registerManifest(manifest);
+    events?.emit('asset.registered',{
+      assetId:manifest.id,generated:true,
+      provider:manifest.provenance?.assetProduction?.sourceArtifact?.producer?.provider || manifest.provenance?.provider || null,
+      admission:admission.status
+    });
+    return {
+      ...catalog.summary(manifest),admission,
+      ...(produced.generation ? {generation:produced.generation} : {})
+    };
+  };
+  const resolveAssetRequest=async(request={})=>{
+    const query=request.query || request.type || request.assetId || '';
+    const found=catalog.resolveExisting(query,{assetId:request.assetId || null,limit:request.limit ?? 5});
+    if(found.status==='found') return found;
+    if(!request.generate) return found;
+    const generated=await generateAsset(query,request);
+    if(generated.status==='generator_not_configured') return {status:generated.status,query,assets:[],hint:generated.hint};
+    if(generated.status==='rejected') return {status:'rejected',query,assets:[],admission:generated.admission,assetId:generated.id};
+    return {status:'generated',query,assets:[generated]};
+  };
+  return { canGenerateAsset, generateAsset, resolveAssetRequest };
+}
 
 export function createLegacyAssetGenerationPort({ providerRegistry, generation, assetManager }) {
   if (!providerRegistry?.resolveCapability || !providerRegistry?.execute || !providerRegistry?.consume) {
@@ -170,6 +230,10 @@ export function attachLegacyAuthoring(runtime, {
   });
   const library = new AssetLibrary({
     assetManager: runtime.assets,
+    catalog: runtime.assetCatalog
+  });
+  const assetAuthoring = createLegacyAssetAuthoring({
+    assetManager: runtime.assets,
     catalog: runtime.assetCatalog,
     generationPort,
     events: runtime.events
@@ -182,6 +246,7 @@ export function attachLegacyAuthoring(runtime, {
     providerRegistry: providers,
     generation,
     generationPort,
+    ...assetAuthoring,
     connectorError,
     getAssetCompiler,
     async initialize({ pair = true, pairingId = null } = {}) {

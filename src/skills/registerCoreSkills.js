@@ -81,9 +81,12 @@ export function registerCoreSkills(registry, runtime) {
   add('listAssets', meta('列出资产库。', ['asset.read']), () => runtime.assetCatalog.list());
   add('searchAssets', meta('按名称、类型、标签或别名搜索可复用资产。', ['asset.read'], ['query'], { query: string, limit: { type: 'integer', minimum: 1, maximum: 20 } }), (a) => runtime.assetCatalog.search(a.query, { limit: a.limit ?? 8 }));
   add('generateAsset', meta('使用已配置的生成后端创建并注册缺失资产；调用前应先搜索。生成结果可能是 asset-provisional，不能因此假定世界已验证。', ['asset.write'], ['prompt'], { prompt: string }), async (a) => {
-    const result=await runtime.assetLibrary.generate(a.prompt);
-    const status=result.admission?.status || 'provisional';
-    return { ...result, status:`asset-${status}` };
+    if(typeof runtime.authoring?.generateAsset!=='function'){
+      return {status:'generator_not_configured',prompt:a.prompt,hint:'Asset authoring is not configured.'};
+    }
+    const result=await runtime.authoring.generateAsset(a.prompt);
+    const status=result.admission?.status || (result.status==='generator_not_configured'?'not-configured':'provisional');
+    return { ...result, status:result.status==='generator_not_configured'?result.status:`asset-${status}` };
   });
   const requireGeneration=()=>{
     if (!runtime.generation) {
@@ -360,7 +363,7 @@ export function registerCoreSkills(registry, runtime) {
       }
       await restoreBefore();
       const retry=buildWorldRetryPlan(pipeline,{
-        generatorConfigured:runtime.assetLibrary?.canGenerate?.()===true,
+        generatorConfigured:runtime.authoring?.canGenerateAsset?.()===true,
         attempt,budget
       });
       record.retry=retry;
