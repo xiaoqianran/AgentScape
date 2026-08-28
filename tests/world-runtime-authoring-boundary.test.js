@@ -51,4 +51,17 @@ describe('WorldRuntime authoring boundary', () => {
     const second = attachLegacyAuthoring(runtime, { storage: null, connectorClient: null });
     expect(second).toBe(first);
   });
+
+  it('accepts a physics factory without binding World core to Rapier', () => {
+    const physics={ identity:'custom-physics-runtime' };
+    const physicsFactory=()=>physics;
+    const runtime=new WorldRuntime(
+      { appendChild() {} },
+      { environmentFactory:()=>null, assetModule:createAssetModule(), physicsFactory }
+    );
+    expect(runtime.physics).toBe(physics);
+    expect(runtime.physicsFactory).toBe(physicsFactory);
+    expect(runtime.articulationVerifier.physicsFactory).toBe(physicsFactory);
+  });
+
 });

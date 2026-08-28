@@ -1,5 +1,5 @@
 export const PHYSICS_BACKEND_CAPABILITIES = Object.freeze([
-  'rigid-body','articulated-body','character-controller','collision','joints','scene-query','snapshot-restore','counterfactual-query'
+  'transform-state','articulation-pose','rigid-body','articulated-body','character-controller','collision','joints','scene-query','snapshot-restore','counterfactual-query'
 ]);
 
 export class PhysicsBackend {
@@ -27,4 +27,18 @@ export class PhysicsBackend {
   setDynamicType() { throw new Error('PhysicsBackend.setDynamicType() must be implemented'); }
   captureBodyType() { throw new Error('PhysicsBackend.captureBodyType() must be implemented'); }
   restoreBodyType() { throw new Error('PhysicsBackend.restoreBodyType() must be implemented'); }
+}
+
+
+export class TransformPhysicsBackend extends PhysicsBackend {
+  constructor({ identity='transform' } = {}) {
+    super(identity, ['transform-state','articulation-pose'], {
+      executionModes:['render-only'],
+      qualities:{realtime:true,deterministic:true}
+    });
+  }
+  async init() { return this; }
+  createWorld() { return null; }
+  step() { return false; }
+  dispose() {}
 }

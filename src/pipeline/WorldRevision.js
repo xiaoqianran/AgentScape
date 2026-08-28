@@ -14,9 +14,9 @@ const strict=(properties,required=[])=>({type:'object',additionalProperties:fals
 const assetSchema=strict({assetId:text,query:text,prompt:text,type:text,generate:{type:'boolean'},provider:text});
 assetSchema.anyOf=[{required:['assetId']},{required:['query']},{required:['prompt']},{required:['type']}];
 const physicsRequirementSchema=strict({
-  bodyClass:{type:'string',enum:['rigid','articulated','character','soft','cloth']},
+  bodyClass:{type:'string',enum:['transform','rigid','articulated','character','soft','cloth']},
   requiredCapabilities:{type:'array',items:text,uniqueItems:true},
-  executionMode:{type:'string',enum:['realtime','validation-only']},
+  executionMode:{type:'string',enum:['render-only','realtime','validation-only']},
   qualityPolicy:strict({deterministicRequired:{type:'boolean'},realtimeRequired:{type:'boolean'},fallbackPolicy:{type:'string',enum:['deny']}})
 });
 export const WORLD_REVISION_EDIT_TOOL_SCHEMA={oneOf:[

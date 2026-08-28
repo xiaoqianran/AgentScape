@@ -9,9 +9,9 @@ const asset=strict({
 asset.anyOf=[{required:['assetId']},{required:['query']},{required:['prompt']},{required:['type']}];
 
 const physicsRequirement=strict({
-  bodyClass:{type:'string',enum:['rigid','articulated','character','soft','cloth']},
+  bodyClass:{type:'string',enum:['transform','rigid','articulated','character','soft','cloth']},
   requiredCapabilities:{type:'array',items:text,uniqueItems:true},
-  executionMode:{type:'string',enum:['realtime','validation-only']},
+  executionMode:{type:'string',enum:['render-only','realtime','validation-only']},
   qualityPolicy:strict({
     deterministicRequired:{type:'boolean'},realtimeRequired:{type:'boolean'},fallbackPolicy:{type:'string',enum:['deny']}
   })

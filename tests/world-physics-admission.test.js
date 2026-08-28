@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { PhysicsBackend } from '../src/runtime/physics/PhysicsBackend.js';
+import { PhysicsBackend, TransformPhysicsBackend } from '../src/runtime/physics/PhysicsBackend.js';
 import { compileWorldPhysicsRequirements,admitWorldPhysics } from '../src/pipeline/WorldPhysicsAdmission.js';
 
 const ir=(physicsRequirement)=>({revision:{id:'rev-p'},policy:{physics:{fallbackPolicy:'deny'}},entities:[{id:'door',physicsRequirement}]});
@@ -21,6 +21,32 @@ describe('WorldPhysicsAdmission',()=>{
     const bundle=compileWorldPhysicsRequirements(ir({bodyClass:'articulated',executionMode:'realtime',qualityPolicy:{deterministicRequired:true}}));
     const result=admitWorldPhysics(bundle,{backend:b,resolvedAssets:[{id:'door',assetRef:{assetId:'cabinet'}}],getManifest:()=>({parts:{}})});
     expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({code:'PHYSICS_DETERMINISM_QUALITY_UNMET'}),expect.objectContaining({code:'PHYSICS_ASSET_ARTICULATION_MISSING'})]));
+  });
+
+  it('admits transform-only worlds on the render backend and rejects solver requirements',()=>{
+    const renderBackend=new TransformPhysicsBackend();
+    const transformBundle=compileWorldPhysicsRequirements(ir({bodyClass:'transform'}));
+    expect(transformBundle.requirements[0]).toMatchObject({
+      bodyClass:'transform',requiredCapabilities:['transform-state'],executionMode:'render-only'
+    });
+    expect(admitWorldPhysics(transformBundle,{
+      backend:renderBackend,
+      resolvedAssets:[{id:'door',assetRef:{assetId:'preview'}}],
+      getManifest:()=>({})
+    })).toMatchObject({status:'ready',backend:{identity:'transform'},issues:[]});
+
+    const rigidBundle=compileWorldPhysicsRequirements(ir({bodyClass:'rigid',requiredCapabilities:['collision']}));
+    const rejected=admitWorldPhysics(rigidBundle,{
+      backend:renderBackend,
+      resolvedAssets:[{id:'door',assetRef:{assetId:'crate'}}],
+      getManifest:()=>({})
+    });
+    expect(rejected.status).toBe('rejected');
+    expect(rejected.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({code:'PHYSICS_BACKEND_CAPABILITY_MISSING',capability:'rigid-body'}),
+      expect.objectContaining({code:'PHYSICS_BACKEND_CAPABILITY_MISSING',capability:'collision'}),
+      expect.objectContaining({code:'PHYSICS_EXECUTION_MODE_UNSUPPORTED',executionMode:'realtime'})
+    ]));
   });
   it('admits an empty requirement set even without a backend',()=>{
     expect(admitWorldPhysics(compileWorldPhysicsRequirements({revision:{id:'r'},policy:{physics:{}},entities:[]}),{backend:null})).toMatchObject({status:'ready',issues:[]});

@@ -105,6 +105,25 @@ describe('NavigationSystem', () => {
   }, 15000);
 
 
+
+  it('reports dynamic obstacle capability from the injected physics backend instead of assuming Rapier', () => {
+    const renderOnly = new NavigationSystem({
+      store:new ObjectStore(),
+      physics:{hasCapability:(name)=>name==='transform-state',profile:()=>({identity:'transform'})},
+      environmentRoots:[]
+    });
+    expect(renderOnly.status().capabilities).toMatchObject({dynamicObstacles:false,obstacleSource:'none'});
+    renderOnly.dispose();
+
+    const solver = new NavigationSystem({
+      store:new ObjectStore(),
+      physics:{hasCapability:(name)=>name==='collision',profile:()=>({identity:'rapier'})},
+      environmentRoots:[]
+    });
+    expect(solver.status().capabilities).toMatchObject({dynamicObstacles:true,obstacleSource:'physics:rapier:colliders'});
+    solver.dispose();
+  });
+
   it('owns interaction invalidation and unsubscribes on dispose', async () => {
     const store=new ObjectStore();
     const fixed=addRecord(store,'fixed',wall({z:20,depth:1}),'fixed');

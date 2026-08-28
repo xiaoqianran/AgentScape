@@ -53,10 +53,11 @@ const mutationResultCommitted=(result)=>!(
 );
 
 export class WorldRuntime {
-  constructor(container, { environmentFactory, assetModule } = {}) {
+  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem() } = {}) {
     if (!assetModule?.manager || !assetModule?.catalog || !assetModule?.compiledStore) {
       throw new TypeError('WorldRuntime requires an Asset module');
     }
+    if (typeof physicsFactory !== 'function') throw new TypeError('WorldRuntime physicsFactory must be a function');
     this.version = '1.34.2';
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
@@ -64,7 +65,8 @@ export class WorldRuntime {
     this.compiledAssetStore = assetModule.compiledStore;
     this.assets = assetModule.manager;
     this.assetCatalog = assetModule.catalog;
-    this.articulationVerifier = new ArticulationVerifier({ assets: this.assets }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = new PhysicsSystem(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
+    this.physicsFactory = physicsFactory;
+    this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
   }
   async init() {
     await this.physics.init();

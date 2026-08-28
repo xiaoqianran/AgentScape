@@ -3,7 +3,7 @@ import { PHYSICS_BACKEND_CAPABILITIES, PhysicsBackend } from './PhysicsBackend.j
 
 export class RapierPhysicsBackend extends PhysicsBackend {
   constructor({ gravity={x:0,y:-9.81,z:0} } = {}) {
-    super('rapier', PHYSICS_BACKEND_CAPABILITIES, { executionModes:['realtime','validation-only'], qualities:{realtime:true,deterministic:true} });
+    super('rapier', PHYSICS_BACKEND_CAPABILITIES, { executionModes:['render-only','realtime','validation-only'], qualities:{realtime:true,deterministic:true} });
     this.gravity=gravity;
   }
   async init() { await RAPIER.init(); return this; }

@@ -102,6 +102,7 @@ const convexAabb = (vertices, position, rotation) => {
 export class PhysicsSystem {
   constructor({ backend = new RapierPhysicsBackend() } = {}) {
     this.backend = backend;
+    this.solverEnabled = backend.hasCapability?.('rigid-body') === true;
     this.world = null;
     this.entries = new Map();
     this.colliderProvenance = new Map();
@@ -121,15 +122,33 @@ export class PhysicsSystem {
   async init() {
     await this.backend.init();
     this.world = this.backend.createWorld();
+    if (!this.solverEnabled || !this.backend.hasCapability('character-controller')) return this;
+    if (!this.world?.createCharacterController) {
+      throw new Error(`Physics backend ${this.backend.identity} declares character-controller without a runtime implementation`);
+    }
     this.characterController = this.world.createCharacterController(0.02);
     this.characterController.enableAutostep(0.3, 0.2, false);
     this.characterController.enableSnapToGround(0.3);
     this.characterController.setMaxSlopeClimbAngle(Math.PI / 4);
     this.characterController.setMinSlopeSlideAngle(Math.PI / 6);
     this.characterController.setApplyImpulsesToDynamicBodies(false);
+    return this;
+  }
+
+  hasCapability(capability) { return this.backend.hasCapability(capability); }
+  supportsExecutionMode(mode) { return this.backend.supportsExecutionMode(mode); }
+  profile() {
+    return {
+      identity:this.backend.identity,
+      capabilities:[...this.backend.capabilities],
+      executionModes:[...this.backend.executionModes],
+      qualities:{...this.backend.qualities},
+      solverEnabled:this.solverEnabled
+    };
   }
 
   addEnvironment(colliders = [], { id = '$environment' } = {}) {
+    if (!this.solverEnabled) return null;
     const body = this.world.createRigidBody(this.backend.createFixedBodyDesc());
     this.addColliders(body, colliders, undefined, undefined, { kind:'environment', environmentId:id });
     return body;
@@ -144,6 +163,7 @@ export class PhysicsSystem {
   }
 
   addColliders(body, colliders = [], mass, friction, provenance = null) {
+    if (!this.solverEnabled || !body || !this.backend.hasCapability('collision')) return [];
     const colliderMass = mass != null && colliders.length ? mass / colliders.length : null;
     const created = [];
     for (let colliderIndex=0; colliderIndex<colliders.length; colliderIndex++) {
@@ -173,6 +193,7 @@ export class PhysicsSystem {
   }
 
   attach(id, manifest, object) {
+    if (!this.solverEnabled) return this.attachTransformState(id, manifest, object);
     const createdBodies = [];
     try {
       const worldPos = new THREE.Vector3();
@@ -218,10 +239,55 @@ export class PhysicsSystem {
     }
   }
 
+  attachTransformState(id, manifest, object) {
+    object.updateMatrixWorld(true);
+    const worldPos = new THREE.Vector3();
+    const worldRot = new THREE.Quaternion();
+    object.getWorldPosition(worldPos);
+    object.getWorldQuaternion(worldRot);
+    const entry = {
+      body:null,
+      root:object,
+      rootSpec:manifest.physics || {},
+      parts:new Map(),
+      lastPosition:worldPos.clone(),
+      lastRotation:worldRot.clone(),
+      held:false,
+      transformOnly:true
+    };
+    for (const [partName, part] of orderParts(manifest.parts || {})) {
+      if (!part.joint) continue;
+      const node = object.getObjectByName(part.node);
+      if (!node) continue;
+      entry.parts.set(partName, {
+        body:null,
+        joint:null,
+        node,
+        spec:part,
+        parentName:part.parent || ROOT_PART,
+        restLocalRotation:node.quaternion.clone(),
+        restLocalPosition:node.position.clone(),
+        lastLocalRotation:node.quaternion.clone(),
+        lastLocalPosition:node.position.clone()
+      });
+    }
+    this.entries.set(id, entry);
+    return entry;
+  }
+
   setPosition(id, position) {
     const entry = this.entries.get(id);
     if (!entry) return;
     const next = new THREE.Vector3(...position);
+    if (!entry.body) {
+      if (entry.root.parent) {
+        entry.root.parent.updateWorldMatrix(true, false);
+        entry.root.position.copy(entry.root.parent.worldToLocal(next.clone()));
+      } else entry.root.position.copy(next);
+      entry.root.updateMatrixWorld(true);
+      entry.lastPosition.copy(next);
+      return true;
+    }
     const delta = next.clone().sub(entry.lastPosition);
     entry.body.setTranslation(vec(position), true);
     entry.body.setLinvel?.({ x: 0, y: 0, z: 0 }, true);
@@ -237,6 +303,7 @@ export class PhysicsSystem {
   beginTransform(id) {
     const entry = this.entries.get(id);
     if (!entry) return;
+    if (!entry.body) { entry.transforming = true; return true; }
     entry.originalType = entry.body.bodyType();
     this.backend.setKinematicType(entry.body);
     for (const part of entry.parts.values()) {
@@ -253,6 +320,15 @@ export class PhysicsSystem {
     const q = new THREE.Quaternion();
     object.getWorldPosition(p);
     object.getWorldQuaternion(q);
+    if (!entry.body) {
+      entry.lastPosition.copy(p);
+      entry.lastRotation.copy(q);
+      for (const part of entry.parts.values()) {
+        part.lastLocalPosition.copy(part.node.position);
+        part.lastLocalRotation.copy(part.node.quaternion);
+      }
+      return true;
+    }
     entry.body.setTranslation({ x: p.x, y: p.y, z: p.z }, true);
     entry.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
     entry.lastPosition.copy(p);
@@ -270,6 +346,7 @@ export class PhysicsSystem {
   endTransform(id) {
     const entry = this.entries.get(id);
     if (!entry) return;
+    if (!entry.body) { delete entry.transforming; return true; }
     if (entry.originalType != null) this.backend.restoreBodyType(entry.body, entry.originalType);
     delete entry.originalType;
     for (const part of entry.parts.values()) {
@@ -282,6 +359,7 @@ export class PhysicsSystem {
   remove(id) {
     const entry = this.entries.get(id);
     if (!entry) return false;
+    if (!entry.body) { this.entries.delete(id); return true; }
     for (const part of entry.parts.values()) {
       this.unregisterBodyColliders(part.body);
       this.world.removeRigidBody(part.body);
@@ -295,6 +373,7 @@ export class PhysicsSystem {
   setHeld(id, held) {
     const entry = this.entries.get(id);
     if (!entry) return false;
+    if (!entry.body) { entry.held = Boolean(held); return true; }
     if (held) {
       if (entry.heldOriginalType == null) entry.heldOriginalType = this.backend.captureBodyType(entry.body);
       entry.held = true;
@@ -313,8 +392,10 @@ export class PhysicsSystem {
   }
 
   setHeldTarget(id, target, rotation = null) {
-    const body = this.entries.get(id)?.body;
-    if (!body) return false;
+    const entry = this.entries.get(id);
+    const body = entry?.body;
+    if (!entry) return false;
+    if (!body) return this.setHeldPose(id, target, rotation);
     body.setNextKinematicTranslation(vec(target));
     if (rotation) body.setNextKinematicRotation({x:rotation[0],y:rotation[1],z:rotation[2],w:rotation[3]});
     return true;
@@ -323,9 +404,14 @@ export class PhysicsSystem {
   setHeldPose(id, position, rotation = null) {
     const entry = this.entries.get(id);
     if (!entry) return false;
-    entry.body.setTranslation(vec(position), true);
-    if (rotation) entry.body.setRotation({x:rotation[0],y:rotation[1],z:rotation[2],w:rotation[3]}, true);
-    entry.root.position.fromArray(position);
+    if (entry.body) {
+      entry.body.setTranslation(vec(position), true);
+      if (rotation) entry.body.setRotation({x:rotation[0],y:rotation[1],z:rotation[2],w:rotation[3]}, true);
+    }
+    if (entry.root.parent) {
+      entry.root.parent.updateWorldMatrix(true, false);
+      entry.root.position.copy(entry.root.parent.worldToLocal(new THREE.Vector3(...position)));
+    } else entry.root.position.fromArray(position);
     entry.lastPosition.fromArray(position);
     if (rotation) {
       entry.root.quaternion.fromArray(rotation);
@@ -336,19 +422,32 @@ export class PhysicsSystem {
   }
 
   anchorPose(id, anchor, { next = false } = {}) {
-    const body = this.entries.get(id)?.body;
-    if (!body || !anchor?.translation) return null;
-    const p = next ? body.nextTranslation() : body.translation();
-    const q = next ? body.nextRotation() : body.rotation();
-    const rotation = new THREE.Quaternion(q.x,q.y,q.z,q.w);
+    const entry = this.entries.get(id);
+    const body = entry?.body;
+    if (!entry || !anchor?.translation) return null;
+    let position;
+    let rotation;
+    if (body) {
+      const p = next ? body.nextTranslation() : body.translation();
+      const q = next ? body.nextRotation() : body.rotation();
+      position = new THREE.Vector3(p.x,p.y,p.z);
+      rotation = new THREE.Quaternion(q.x,q.y,q.z,q.w);
+    } else {
+      entry.root.updateWorldMatrix(true, false);
+      position = new THREE.Vector3();
+      rotation = new THREE.Quaternion();
+      entry.root.getWorldPosition(position);
+      entry.root.getWorldQuaternion(rotation);
+    }
     const local = new THREE.Vector3(...anchor.translation).applyQuaternion(rotation);
-    const position = new THREE.Vector3(p.x,p.y,p.z).add(local);
+    const anchorPosition = position.clone().add(local);
     const localRotation = new THREE.Quaternion(...(anchor.rotation || [0,0,0,1]));
     const worldRotation = rotation.clone().multiply(localRotation).normalize();
-    return { position:position.toArray(), rotation:worldRotation.toArray() };
+    return { position:anchorPosition.toArray(), rotation:worldRotation.toArray() };
   }
 
   manifestPoseClear(manifest, targetPosition, { excludeIds = [] } = {}) {
+    if (!this.backend.hasCapability('collision')) return {checked:false,clear:false,reason:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision'};
     const colliders=manifest?.physics?.colliders || [];
     if (!colliders.length) return {checked:false,clear:false,reason:'ROOT_COLLIDER_UNAVAILABLE'};
     const excluded=new Set(excludeIds);
@@ -377,6 +476,7 @@ export class PhysicsSystem {
   }
 
   bodyPoseClear(id, targetPosition, targetRotation = null, { excludeIds = [] } = {}) {
+    if (!this.backend.hasCapability('collision')) return {clear:false,code:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision'};
     const entry = this.entries.get(id);
     if (!entry || entry.parts.size) return { clear:false, code:'CARRY_BODY_UNSUPPORTED' };
     const bodyRotationRaw = entry.body.rotation();
@@ -411,6 +511,7 @@ export class PhysicsSystem {
   }
 
   bodyMotionClear(id, targetPosition, targetRotation = null, { excludeIds = [] } = {}) {
+    if (!this.backend.hasCapability('collision')) return {clear:false,code:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision'};
     const entry = this.entries.get(id);
     if (!entry || entry.parts.size) return { clear:false, code:'CARRY_BODY_UNSUPPORTED' };
     const bodyRotationRaw = entry.body.rotation();
@@ -452,6 +553,7 @@ export class PhysicsSystem {
   }
 
   cancelCharacterMovement(id) {
+    if (!this.backend.hasCapability('character-controller')) return false;
     const body = this.entries.get(id)?.body;
     if (!body) return false;
     const p = body.translation(), q = body.rotation();
@@ -461,18 +563,39 @@ export class PhysicsSystem {
   }
 
   getPosition(id) {
-    const p = this.entries.get(id)?.body?.translation();
-    return p ? [p.x, p.y, p.z] : null;
+    const entry = this.entries.get(id);
+    const p = entry?.body?.translation();
+    if (p) return [p.x, p.y, p.z];
+    if (!entry?.root) return null;
+    entry.root.updateWorldMatrix(true, false);
+    const world = new THREE.Vector3();
+    entry.root.getWorldPosition(world);
+    return world.toArray();
   }
 
   getRotation(id) {
-    const q = this.entries.get(id)?.body?.rotation();
-    return q ? [q.x,q.y,q.z,q.w] : null;
+    const entry = this.entries.get(id);
+    const q = entry?.body?.rotation();
+    if (q) return [q.x,q.y,q.z,q.w];
+    if (!entry?.root) return null;
+    entry.root.updateWorldMatrix(true, false);
+    const world = new THREE.Quaternion();
+    entry.root.getWorldQuaternion(world);
+    return world.toArray();
   }
 
   bodyMotionState(id) {
-    const body = this.entries.get(id)?.body;
-    if (!body) return null;
+    const entry = this.entries.get(id);
+    const body = entry?.body;
+    if (!entry) return null;
+    if (!body) return {
+      sleeping:true,
+      linearVelocity:[0,0,0],
+      angularVelocity:[0,0,0],
+      linearSpeed:0,
+      angularSpeed:0,
+      source:'transform-state'
+    };
     const linear = body.linvel(), angular = body.angvel();
     const linearSpeed = Math.hypot(linear.x,linear.y,linear.z);
     const angularSpeed = Math.hypot(angular.x,angular.y,angular.z);
@@ -530,6 +653,7 @@ export class PhysicsSystem {
   }
 
   articulationColliderPoses(id, partName, coordinate) {
+    if (!this.backend.hasCapability('collision')) return {checked:false,reason:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision',id,partName,coordinate};
     const entry=this.entries.get(id);
     const part=entry?.parts.get(partName);
     if (!entry || !part?.node?.parent || !Number.isFinite(coordinate)) return {checked:false,reason:'PART_POSE_UNAVAILABLE',id,partName,coordinate};
@@ -806,13 +930,14 @@ export class PhysicsSystem {
 
   ownerOfBodyHandle(handle) {
     for (const [id, entry] of this.entries) {
-      if (entry.body.handle === handle) return { id, part: '$root' };
-      for (const [part, value] of entry.parts) if (value.body.handle === handle) return { id, part };
+      if (entry.body?.handle === handle) return { id, part: '$root' };
+      for (const [part, value] of entry.parts) if (value.body?.handle === handle) return { id, part };
     }
     return null;
   }
 
   raycast(origin, target, { excludeId = null, excludeIds = [] } = {}) {
+    if (!this.backend.hasCapability('scene-query')) return null;
     const direction = [target[0] - origin[0], target[1] - origin[1], target[2] - origin[2]];
     const distance = Math.hypot(...direction);
     if (!Number.isFinite(distance) || distance < 1e-8 || !this.world) return null;
@@ -843,21 +968,26 @@ export class PhysicsSystem {
 
   faceCharacter(id, direction) {
     const entry = this.entries.get(id);
-    if (!entry?.body?.isKinematic?.()) return false;
+    if (!entry) return false;
     const length = Math.hypot(direction[0], direction[2]);
     if (length < 1e-8) return false;
     const yaw = Math.atan2(-direction[0], -direction[2]);
+    if (!entry.body) return this.setCharacterYaw(id, yaw);
+    if (!entry.body.isKinematic?.()) return false;
     entry.body.setNextKinematicRotation({ x:0, y:Math.sin(yaw / 2), z:0, w:Math.cos(yaw / 2) });
     return true;
   }
 
   setCharacterYaw(id, yaw) {
     const entry = this.entries.get(id);
-    if (!entry?.body?.isKinematic?.() || !Number.isFinite(yaw)) return false;
+    if (!entry || !Number.isFinite(yaw)) return false;
     const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),yaw);
     const q = {x:rotation.x,y:rotation.y,z:rotation.z,w:rotation.w};
-    entry.body.setRotation(q,true);
-    entry.body.setNextKinematicRotation(q);
+    if (entry.body) {
+      if (!entry.body.isKinematic?.()) return false;
+      entry.body.setRotation(q,true);
+      entry.body.setNextKinematicRotation(q);
+    }
     entry.root.quaternion.copy(rotation);
     entry.lastRotation.copy(rotation);
     entry.root.updateMatrixWorld(true);
@@ -865,6 +995,9 @@ export class PhysicsSystem {
   }
 
   moveCharacter(id, desiredTranslation, { ignoreIds = [] } = {}) {
+    if (!this.backend.hasCapability('character-controller')) {
+      return { success:false, code:'PHYSICS_CAPABILITY_UNAVAILABLE', capability:'character-controller', movement:[0,0,0], grounded:false, collisions:[] };
+    }
     const entry = this.entries.get(id);
     if (!entry?.body?.isKinematic?.() || entry.body.numColliders() !== 1 || !this.characterController) {
       return { success:false, code:'CHARACTER_BODY_UNAVAILABLE', movement:[0,0,0], grounded:false, collisions:[] };
@@ -890,7 +1023,25 @@ export class PhysicsSystem {
 
   setArticulationTarget(id, partName, target) {
     const part = this.entries.get(id)?.parts.get(partName);
-    if (!part) return false;
+    if (!part || !Number.isFinite(target)) return false;
+    if (!part.joint || !part.body) {
+      if (!this.backend.hasCapability('articulation-pose')) return false;
+      const limits = part.spec.joint.limits || [];
+      if (limits.length === 2 && (target < limits[0] || target > limits[1])) return false;
+      const state = this.articulationState(id, partName);
+      if (!state) return false;
+      const axis = new THREE.Vector3(...state.localAxis).normalize();
+      if (part.spec.joint.type === 'prismatic') {
+        part.node.position.copy(part.restLocalPosition).addScaledVector(axis, target);
+      } else if (part.spec.joint.type === 'revolute') {
+        const rotation = new THREE.Quaternion().setFromAxisAngle(axis, target);
+        part.node.quaternion.copy(part.restLocalRotation).premultiply(rotation).normalize();
+      } else return false;
+      part.node.updateMatrixWorld(true);
+      part.lastLocalPosition.copy(part.node.position);
+      part.lastLocalRotation.copy(part.node.quaternion);
+      return true;
+    }
     const motor = part.spec.joint.motor || {};
     part.joint.configureMotorPosition(target, motor.stiffness ?? 40, motor.damping ?? 8);
     part.body.wakeUp();
@@ -901,6 +1052,7 @@ export class PhysicsSystem {
     const part = this.entries.get(id)?.parts.get(partName);
     const state = this.articulationState(id,partName);
     if (!part || !state) return false;
+    if (!part.joint || !part.body) return this.backend.hasCapability('articulation-pose');
     const motor = part.spec.joint.motor || {};
     part.joint.configureMotorPosition(state.coordinate,motor.stiffness ?? 40,motor.damping ?? 8);
     part.body.wakeUp();
@@ -908,6 +1060,7 @@ export class PhysicsSystem {
   }
 
   navigationObstacles() {
+    if (!this.backend.hasCapability('collision')) return {items:[],skipped:[{reason:'physics-capability-unavailable',capability:'collision'}]};
     syncColliderPoses(this.world);
     const items = [];
     const skipped = [];
@@ -950,6 +1103,7 @@ export class PhysicsSystem {
   }
 
   articulationContacts(id, partName) {
+    if (!this.backend.hasCapability('collision')) return [];
     const entry=this.entries.get(id);
     const part=entry?.parts.get(partName);
     if (!entry || !part || !this.world) return [];
@@ -995,6 +1149,7 @@ export class PhysicsSystem {
   }
 
   articulationPenetrations(id, partName, { refresh = false } = {}) {
+    if (!this.backend.hasCapability('collision')) return [];
     if (refresh) syncColliderPoses(this.world);
     const entry = this.entries.get(id);
     const part = entry?.parts.get(partName);
@@ -1037,6 +1192,26 @@ export class PhysicsSystem {
   step(dt, store) {
     this.backend.step(this.world, dt);
     let changed = false;
+    if (!this.solverEnabled) {
+      for (const [id, entry] of this.entries) {
+        const record = store.has(id) ? store.get(id) : null;
+        if (!record) continue;
+        record.object.updateMatrixWorld(true);
+        const p = new THREE.Vector3();
+        const q = new THREE.Quaternion();
+        record.object.getWorldPosition(p);
+        record.object.getWorldQuaternion(q);
+        if (p.distanceToSquared(entry.lastPosition) > 1e-10 || 1 - Math.abs(q.dot(entry.lastRotation)) > 1e-10) changed = true;
+        entry.lastPosition.copy(p);
+        entry.lastRotation.copy(q);
+        for (const part of entry.parts.values()) {
+          if (part.node.position.distanceToSquared(part.lastLocalPosition) > 1e-10 || 1 - Math.abs(part.node.quaternion.dot(part.lastLocalRotation)) > 1e-10) changed = true;
+          part.lastLocalPosition.copy(part.node.position);
+          part.lastLocalRotation.copy(part.node.quaternion);
+        }
+      }
+      return changed;
+    }
 
     for (const [id, entry] of this.entries) {
       const record = store.has(id) ? store.get(id) : null;

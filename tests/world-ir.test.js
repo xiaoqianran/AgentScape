@@ -28,6 +28,15 @@ describe('WorldIR',()=>{
     expect(compilation.behaviorBundle).toMatchObject({capabilityIntents:[{entityId:'door_01',capabilities:['OPEN']}],behaviorGraph:{commands:[{targetId:'door_01',capability:'OPEN'}]}});
     expect(projectWorldIRToWorldSpec(ir)).toMatchObject({schema:1,assets:[{id:'door_01',assetId:'cabinet'}]});
   });
+
+  it('normalizes render-only transform physics requirements',()=>{
+    const ir=normalizeWorldIR({
+      schema:WORLD_IR_SCHEMA,schemaVersion:1,revision:{id:'render-rev'},provenance:{source:'planner'},intent:{name:'Preview'},
+      entities:[{id:'preview_01',asset:{assetId:'preview'},physicsRequirement:{bodyClass:'transform',executionMode:'render-only'}}],
+      spatial:{relations:[]},interactions:[],rules:[],acceptance:[]
+    });
+    expect(ir.entities[0].physicsRequirement).toEqual({bodyClass:'transform',executionMode:'render-only'});
+  });
   it('rejects malformed identities and unknown fields',()=>{
     expect(()=>normalizeWorldIR({schema:WORLD_IR_SCHEMA,schemaVersion:1,revision:{id:'same',parentId:'same'},provenance:{source:'planner'}})).toThrow(/parentId/);
     expect(()=>normalizeWorldIR({schema:WORLD_IR_SCHEMA,schemaVersion:1,revision:{id:'r1'},provenance:{source:'planner'},unexpected:true})).toThrow('WorldIR unknown field: unexpected');

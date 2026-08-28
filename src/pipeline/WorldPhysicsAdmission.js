@@ -4,6 +4,7 @@ export const WORLD_PHYSICS_REQUIREMENTS_SCHEMA='agentscape.world-physics-require
 export const WORLD_PHYSICS_REQUIREMENTS_VERSION=1;
 
 const BODY_CAPABILITIES={
+  transform:['transform-state'],
   rigid:['rigid-body'],
   articulated:['articulated-body','joints'],
   character:['character-controller'],
@@ -22,7 +23,7 @@ export function compileWorldPhysicsRequirements(worldIR){
       entityId:entity.id,
       ...(requirement.bodyClass?{bodyClass:requirement.bodyClass}:{}),
       requiredCapabilities,
-      executionMode:requirement.executionMode||'realtime',
+      executionMode:requirement.executionMode||(requirement.bodyClass==='transform'?'render-only':'realtime'),
       qualityPolicy:structuredClone(requirement.qualityPolicy||{})
     });
   }

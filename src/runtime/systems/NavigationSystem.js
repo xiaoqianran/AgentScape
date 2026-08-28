@@ -135,7 +135,17 @@ export class NavigationSystem {
       buildVersion: this.buildVersion,
       lastInvalidation: this.lastInvalidation,
       config: { ...this.config },
-      capabilities: { staticNavMesh:true, dynamicObstacles:Boolean(this.physics?.navigationObstacles), tileCache:true, obstacleSource:'rapier-colliders', synchronization:'query-time', actionAwareDiagnostics:true, counterfactual:'single-obstacle-suppression' },
+      capabilities: {
+        staticNavMesh:true,
+        dynamicObstacles:this.physics?.hasCapability?.('collision') === true,
+        tileCache:true,
+        obstacleSource:this.physics?.hasCapability?.('collision') === true
+          ? `physics:${this.physics.profile?.().identity || 'unknown'}:colliders`
+          : 'none',
+        synchronization:'query-time',
+        actionAwareDiagnostics:true,
+        counterfactual:'single-obstacle-suppression'
+      },
       dynamicObstacles:{ tracked:this.obstacles.size, syncVersion:this.obstacleSyncVersion, lastSync:this.lastObstacleSync ? structuredClone(this.lastObstacleSync) : null },
       lastBuild: this.lastBuild ? structuredClone(this.lastBuild) : null
     };

@@ -50,9 +50,9 @@ const normalizePhysicsRequirement=(value,label)=>{
   if(value==null) return null;
   assertObject(value,label); assertKnownKeys(value,PHYSICS_REQUIREMENT_KEYS,label);
   const bodyClass=clean(value.bodyClass).toLowerCase();
-  if(bodyClass&&!['rigid','articulated','character','soft','cloth'].includes(bodyClass)) throw new TypeError(`${label} unsupported bodyClass: ${bodyClass}`);
+  if(bodyClass&&!['transform','rigid','articulated','character','soft','cloth'].includes(bodyClass)) throw new TypeError(`${label} unsupported bodyClass: ${bodyClass}`);
   const executionMode=clean(value.executionMode).toLowerCase();
-  if(executionMode&&!['realtime','validation-only'].includes(executionMode)) throw new TypeError(`${label} unsupported executionMode: ${executionMode}`);
+  if(executionMode&&!['render-only','realtime','validation-only'].includes(executionMode)) throw new TypeError(`${label} unsupported executionMode: ${executionMode}`);
   const requiredCapabilities=uniqueStrings(value.requiredCapabilities,`${label} requiredCapabilities`);
   let qualityPolicy={};
   if(value.qualityPolicy!=null){
