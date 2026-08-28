@@ -19,7 +19,7 @@ AgentScape.git
 │   │   └── object3d-agent/           # new modal-3D-client Reference Sidecar
 │   ├── kaggle/runtime/               # kaggle-inference-hub
 │   └── embodied/runtime/             # modal-build
-├── sdk/python/                        # AgentScape-client
+├── sdk/python/                        # in-repo AgentScape Python SDK package
 ├── upstream/EmbodiedGen/              # EmbodiedGen
 └── research/modal-lab/                # modal-lab
 ```

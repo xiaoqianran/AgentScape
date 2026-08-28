@@ -2,6 +2,8 @@
 
 Captured: 2026-08-26 (Asia/Shanghai)
 
+> **2026-08-28 migration note:** `AgentScape-client` was merged into `AgentScape/sdk/python` with its full Git history. The standalone repository is retired; this table is retained only as a historical 2026-08-26 snapshot.
+
 | Repository | Absolute path | Origin | Branch | HEAD | Dirty files | Untracked files | Stash | Tags |
 |---|---|---|---|---|---|---|---|---|
 | AgentScape | `D:\a_programming_list\A-Python-Project\2026\AgentScape` | `https://github.com/xiaoqianran/AgentScape` | `main` | `aa90c85e51ab8166cbc8288ea2018dc3d3ef36c3` | none | none | none | none |

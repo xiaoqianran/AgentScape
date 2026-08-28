@@ -14,7 +14,6 @@ const expected=new Map([
   ['providers/modal/object3d-agent','https://github.com/xiaoqianran/modal-3D-client'],
   ['providers/kaggle/runtime','https://github.com/xiaoqianran/kaggle-inference-hub'],
   ['providers/embodied/runtime','https://github.com/xiaoqianran/modal-build'],
-  ['sdk/python','https://github.com/xiaoqianran/AgentScape-client'],
   ['upstream/EmbodiedGen','https://github.com/HorizonRobotics/EmbodiedGen'],
   ['research/modal-lab','https://github.com/xiaoqianran/modal-lab']
 ]);
@@ -29,7 +28,12 @@ for(const [,name,body] of sections){
   actual.set(p,url);
 }
 
+const pythonSdkPyproject=path.join(root,'sdk','python','pyproject.toml');
+
 const failures=[];
+if(!fs.existsSync(pythonSdkPyproject)) failures.push('sdk/python: in-repo Python SDK package is missing pyproject.toml');
+if(actual.has('sdk/python')) failures.push('sdk/python: Python SDK must be owned by the AgentScape monorepo, not pinned as a submodule');
+
 for(const [p,url] of expected){
   if(actual.get(p)!==url) failures.push(`${p}: expected ${url}, got ${actual.get(p) || '<missing>'}`);
 }

@@ -1,4 +1,4 @@
-# AgentScape-client
+# AgentScape Python SDK
 
 通过 Unified Connector 组合 `modal-2D-client` 的 lossless Text→Image 与 `modal-3D-client` 的 Image→3D，产出可验证、可追踪的 3D 资产流水线。
 
@@ -6,7 +6,7 @@
 
 ```text
 prompt
-  -> AgentScape-client
+  -> AgentScape Python SDK (`sdk/python`)
   -> Unified Connector /connector/v1/*
   -> modal-2d provider
   -> lossless primary-image PNG
@@ -15,7 +15,19 @@ prompt
   -> manifest.json
 ```
 
-`AgentScape-client` 默认不再直连 2D/3D provider-local API。Connector 统一持有 pairing、capability provenance、global Job identity、idempotency、eventSequence 与 Artifact lineage。Direct adapter 仅保留兼容/诊断用途；任意本地图片尚未纳入 Connector Artifact lineage，因此只通过显式 `reconstruct-direct` 命令使用旧直连路径。
+`sdk/python` 是 AgentScape monorepo 内的第一方 Python SDK；PyPI distribution 名仍保留 `agentscape-client` 以兼容现有安装与 schema。SDK 默认不再直连 2D/3D provider-local API。Connector 统一持有 pairing、capability provenance、global Job identity、idempotency、eventSequence 与 Artifact lineage。Direct adapter 仅保留兼容/诊断用途；任意本地图片尚未纳入 Connector Artifact lineage，因此只通过显式 `reconstruct-direct` 命令使用旧直连路径。
+
+## Monorepo ownership
+
+```text
+AgentScape
+└── sdk/python/
+    ├── pyproject.toml
+    ├── agentscape/
+    └── tests/
+```
+
+源码、测试、构建与发布都以 `AgentScape/sdk/python` 为唯一真相源；不再维护独立 `AgentScape-client` 源码仓库。发布 tag 使用 `python-sdk-v*`，由 AgentScape 根仓 workflow 构建并发布该目录中的 package。
 
 ## 安装
 

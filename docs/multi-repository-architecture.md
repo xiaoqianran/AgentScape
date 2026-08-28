@@ -1,12 +1,12 @@
 # Multi-repository architecture convergence
 
-AgentScape is the integration root. External runtimes and clients are pinned Git submodules rather than copied source trees. The stable ownership tree is:
+AgentScape is the integration root. External provider runtimes/clients are pinned Git submodules; the first-party Python SDK is owned directly by the monorepo under `sdk/python`. The stable ownership tree is:
 
 - `providers/modal/*`: Modal image runtime/client, unified connector, and object-3D runtime/client.
 - `providers/kaggle/runtime`: Kaggle compatibility/runtime baseline.
 - `providers/embodied/runtime`: `modal-build`, which owns deployable EmbodiedGen-facing runtime integration.
 - `upstream/EmbodiedGen`: read-only upstream source pin.
-- `sdk/python`: AgentScape Python SDK/client.
+- `sdk/python`: first-party AgentScape Python SDK package, versioned and published from this monorepo (distribution name remains `agentscape-client` for compatibility).
 - `research/modal-lab`: research-only Modal experiments.
 
 The runtime support plane converges on one `ProviderRegistry` and one paired Connector capability snapshot. Modal 2D, Modal 3D, and EmbodiedGen therefore publish provider-scoped operation IDs through the same capability contract instead of being hard-wired to repository paths. Repository topology never becomes runtime truth: provider results still flow through AgentScape Job/Artifact/Compiler/Admission boundaries before becoming world assets.
