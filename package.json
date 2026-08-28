@@ -30,11 +30,11 @@
     "@gltf-transform/functions": "^4.4.2",
     "@recast-navigation/core": "^0.43.1",
     "@recast-navigation/generators": "^0.43.1",
+    "jolt-physics": "1.1.0",
     "three": "^0.185.1",
     "three-mesh-bvh": "^0.9.1"
   },
   "devDependencies": {
-    "jolt-physics": "1.1.0",
     "sharp": "^0.35.3",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
