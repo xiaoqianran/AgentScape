@@ -1,10 +1,10 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 
 it('uses Environment Pack colliders as real fixed Rapier geometry', async () => {
-  const physics = new PhysicsSystem();
+  const physics = createRapierPhysicsSystem();
   await physics.init();
   physics.addEnvironment([
     { shape:'box', halfExtents:[3,.1,3], translation:[0,-.1,0] },
@@ -27,7 +27,7 @@ it('uses Environment Pack colliders as real fixed Rapier geometry', async () => 
 });
 
 it('applies quaternion rotation to Environment Pack colliders', async () => {
-  const physics=new PhysicsSystem();
+  const physics=createRapierPhysicsSystem();
   await physics.init();
   const angle=Math.PI/2;
   physics.addEnvironment([{shape:'box',halfExtents:[2,1,.1],translation:[0,1,0],rotation:[0,Math.sin(angle/2),0,Math.cos(angle/2)]}]);
@@ -40,7 +40,7 @@ it('applies quaternion rotation to Environment Pack colliders', async () => {
 });
 
 it('preflights a manifest collider pose against live Environment geometry without attaching an object', async () => {
-  const physics=new PhysicsSystem();
+  const physics=createRapierPhysicsSystem();
   await physics.init();
   physics.addEnvironment([
     {shape:'box',halfExtents:[4,.1,4],translation:[0,-.1,0]},

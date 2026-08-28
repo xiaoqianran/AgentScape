@@ -1,7 +1,7 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
@@ -9,7 +9,7 @@ import { assetManifests } from '../src/assets/manifests/index.js';
 it('returns blocked when Rapier sees a wall that the planned NavMesh did not include', async () => {
   const floor=new THREE.Mesh(new THREE.BoxGeometry(8,.2,6)); floor.position.y=-.1; floor.updateMatrixWorld(true);
   const store=new ObjectStore();
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   // The wall is physical truth but intentionally omitted from the Recast environment root.
   physics.addEnvironment([
     {shape:'box',halfExtents:[4,.1,3],translation:[0,-.1,0]},

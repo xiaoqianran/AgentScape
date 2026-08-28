@@ -1,7 +1,7 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
@@ -11,7 +11,7 @@ import { disposeObject3D } from '../src/runtime/disposeObject3D.js';
 it('walks a real kinematic Agent Body up the Ruined Courtyard stairs to the 1.2m east terrace',async()=>{
   const world=createRuinedCourtyard({loadAssets:false});
   const store=new ObjectStore();
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   physics.addEnvironment(world.colliders);
   const navigation=new NavigationSystem({store,physics,environmentRoots:[world.root]});
   // Prebuild navigation before starting the real-time locomotion task.

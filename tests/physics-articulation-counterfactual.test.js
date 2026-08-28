@@ -1,7 +1,7 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
 
 const cabinetObject=()=>{
@@ -14,7 +14,7 @@ const cabinetObject=()=>{
 
 describe('Rapier articulated counterfactual geometry',()=>{
   it('compares hypothetical collider trajectories without mutating live bodies',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const store=new ObjectStore();
     physics.addEnvironment([{shape:'box',halfExtents:[7,.1,6],translation:[0,-.1,0]}],{id:'floor'});
     const add=(id,position,yaw=0,manifest=assetManifests.cabinet)=>{
@@ -63,7 +63,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
   });
 
   it('matches a non-zero childAnchor hypothetical revolute pose against the real Rapier motor result',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const store=new ObjectStore();
     const manifest={
       id:'pivot-door',type:'cabinet',source:{kind:'builtin'},actions:['open','close'],
@@ -104,7 +104,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
 
 
   it('adapts sample density to joint travel and collider extent while preserving a fixed override',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const store=new ObjectStore();
     const manifest={
       id:'adaptive-drawer',type:'drawer',source:{kind:'builtin'},actions:['open','close'],
@@ -133,7 +133,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
 
 
   it('predicts and matches a real prismatic blocker moving out of an original prismatic trajectory',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const store=new ObjectStore();
     const sliderManifest=(axis,target)=>({
       id:'slider',type:'drawer',source:{kind:'builtin'},actions:['open','close'],physics:{body:'fixed',colliders:[]},
@@ -178,7 +178,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
 
 
   it('matches a nested child hypothetical pose after its articulated parent has already moved',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const store=new ObjectStore();
     const manifest={
       id:'nested-frame',type:'cabinet',source:{kind:'builtin'},actions:['open','close'],physics:{body:'fixed',colliders:[]},
@@ -249,7 +249,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
 
 
   it('detects third-object and environment collisions introduced by a hypothetical articulated action without moving the live body',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const store=new ObjectStore();
     const manifest={
       id:'world-query-slider',type:'drawer',source:{kind:'builtin'},actions:['open','close'],physics:{body:'fixed',colliders:[]},

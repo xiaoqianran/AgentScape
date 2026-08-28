@@ -1,7 +1,7 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
 
 const cabinetObject=()=>{
@@ -18,7 +18,7 @@ const blockerManifest={
 };
 
 async function cabinetPhysics(){
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   const store=new ObjectStore();
   const object=cabinetObject(); const manifest=structuredClone(assetManifests.cabinet);
   store.add('cabinet',{id:'cabinet',assetId:'cabinet',object,manifest,state:{}});
@@ -70,7 +70,7 @@ describe('Physics collider contact provenance',()=>{
   });
 
   it('unregisterBodyColliders removes collider-level provenance without mutating the body',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const body=physics.addEnvironment([{shape:'box',halfExtents:[.2,.2,.2]}],{id:'temporary-env'});
     const collider=body.collider(0);
     expect(physics.provenanceOfCollider(collider)).toEqual({kind:'environment',environmentId:'temporary-env',colliderIndex:0});

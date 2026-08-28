@@ -1,7 +1,7 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
 import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
@@ -19,7 +19,7 @@ const drawerManifest={
 async function setup(manifest=drawerManifest){
   const store=new ObjectStore();
   const scene=new THREE.Scene();
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   const agent=new THREE.Group(); agent.position.set(0,0,2); scene.add(agent); agent.updateMatrixWorld(true);
   const agentManifest=structuredClone(assetManifests.agent);
   store.add('agent_01',{id:'agent_01',assetId:'agent',object:agent,manifest:agentManifest,state:{}});

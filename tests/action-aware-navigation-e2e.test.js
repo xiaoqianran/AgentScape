@@ -1,14 +1,14 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
 import { EventBus } from '../src/core/EventBus.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
 import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
 
 it('closes the loop from a real Rapier door recommendation to current-world replanning after opening',async()=>{
   const store=new ObjectStore();
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   const events=new EventBus();
   const root=new THREE.Group();
   const door=new THREE.Group(); door.name='Door'; root.add(door); root.updateMatrixWorld(true);

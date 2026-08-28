@@ -1,9 +1,9 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { orderParts } from '../src/assets/parts.js';
 import { validateAssetManifest } from '../src/assets/schema.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 
 const joint = (type, axis, limits) => ({ type, axis, limits, parentAnchor:[0,0,0], childAnchor:[0,0,0], motor:{stiffness:80,damping:12} });
 const collider = { shape:'box', halfExtents:[.1,.1,.1] };
@@ -31,7 +31,7 @@ describe('part hierarchy', () => {
     validateAssetManifest(manifest);
     const root=new THREE.Group(); const door=new THREE.Group(); door.name='Door'; const slider=new THREE.Group(); slider.name='Slider'; door.add(slider); root.add(door); root.updateMatrixWorld(true);
     const store=new ObjectStore(); store.add('n',{id:'n',assetId:'nested',object:root,manifest,state:{}});
-    const physics=new PhysicsSystem(); await physics.init(); physics.attach('n',manifest,root);
+    const physics=createRapierPhysicsSystem(); await physics.init(); physics.attach('n',manifest,root);
     const entry=physics.entries.get('n');
     expect(entry.parts.get('slider').parentName).toBe('door');
     expect(entry.parts.get('slider').joint.body1().handle).toBe(entry.parts.get('door').body.handle);

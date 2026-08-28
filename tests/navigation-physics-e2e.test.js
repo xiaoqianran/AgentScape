@@ -1,12 +1,12 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 
 it('derives current-world reachability from live Rapier dynamic colliders without rebuilding static Recast geometry',async()=>{
   const store=new ObjectStore();
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   const barrier=new THREE.Group(); barrier.position.set(0,1,0); barrier.updateMatrixWorld(true);
   const manifest={physics:{body:'dynamic',mass:1,colliders:[{shape:'box',halfExtents:[.25,1,4]}]}};
   store.add('barrier',{id:'barrier',assetId:'barrier',object:barrier,manifest,state:{}});

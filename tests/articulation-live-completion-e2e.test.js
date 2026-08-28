@@ -1,7 +1,7 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
 import { assetManifests } from '../src/assets/manifests/index.js';
 
@@ -14,7 +14,7 @@ const cabinetObject=()=>{
 };
 
 async function setup({blocker=false}={}){
-  const store=new ObjectStore(); const physics=new PhysicsSystem(); await physics.init();
+  const store=new ObjectStore(); const physics=createRapierPhysicsSystem(); await physics.init();
   if(blocker) physics.addEnvironment([{shape:'box',halfExtents:[.18,1,.18],translation:[-.64,1,1.08]}],{id:'door-stall-blocker'});
   const object=cabinetObject(); const manifest=structuredClone(assetManifests.cabinet);
   store.add('cabinet',{id:'cabinet',assetId:'cabinet',object,manifest,state:{parts:{door:'close'}}});

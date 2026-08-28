@@ -1,3 +1,4 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
@@ -9,7 +10,7 @@ const manifest={
 };
 
 async function setup(){
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   const store=new ObjectStore();
   const object=new THREE.Group(); object.position.set(0,0,1); object.updateMatrixWorld(true);
   store.add('cup',{id:'cup',assetId:'cup-test',object,manifest,state:{}});

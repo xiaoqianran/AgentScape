@@ -1,3 +1,4 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
@@ -13,7 +14,7 @@ const cabinetManifest={
 
 describe('PhysicsSystem navigation obstacle snapshots',()=>{
   it('reports dynamic roots and articulated Parts from current Rapier collider poses',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const root=new THREE.Group(); const door=new THREE.Group(); door.name='Door'; root.add(door); root.updateMatrixWorld(true);
     const store=new ObjectStore(); store.add('cab',{id:'cab',assetId:'cab',object:root,manifest:cabinetManifest,state:{}});
     physics.attach('cab',cabinetManifest,root);
@@ -32,7 +33,7 @@ describe('PhysicsSystem navigation obstacle snapshots',()=>{
   });
 
   it('uses conservative collider-derived AABBs for tilted cylinders and convex hulls',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const root=new THREE.Group(); root.rotation.z=Math.PI/4; root.updateMatrixWorld(true);
     const manifest={physics:{body:'dynamic',colliders:[{shape:'cylinder',halfHeight:.5,radius:.2},{shape:'convexHull',vertices:[-1,-.1,-.1,1,-.1,-.1,0,.1,.1,0,.1,-.1]}]}};
     physics.attach('x',manifest,root);

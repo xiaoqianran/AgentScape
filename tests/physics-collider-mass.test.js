@@ -1,9 +1,9 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 
 it('treats manifest mass as rigid-body total mass instead of duplicating it per collider', async () => {
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   const object=new THREE.Group(); object.updateMatrixWorld(true);
   const manifest={physics:{body:'dynamic',mass:4,colliders:[
     {shape:'box',halfExtents:[.5,.5,.5],translation:[-1,0,0]},

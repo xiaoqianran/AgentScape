@@ -4,6 +4,7 @@ import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-
 import { EventBus } from '../core/EventBus.js';
 import { ObjectStore } from './ObjectStore.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
+import { RapierPhysicsBackend } from './physics/RapierPhysicsBackend.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
 import { SpatialSystem } from './systems/SpatialSystem.js';
 import { NavigationSystem } from './systems/NavigationSystem.js';
@@ -53,7 +54,7 @@ const mutationResultCommitted=(result)=>!(
 );
 
 export class WorldRuntime {
-  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem() } = {}) {
+  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }) } = {}) {
     if (!assetModule?.manager || !assetModule?.catalog || !assetModule?.compiledStore) {
       throw new TypeError('WorldRuntime requires an Asset module');
     }

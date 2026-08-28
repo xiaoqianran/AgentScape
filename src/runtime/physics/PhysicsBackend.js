@@ -2,6 +2,8 @@ export const PHYSICS_BACKEND_CAPABILITIES = Object.freeze([
   'transform-state','articulation-pose','rigid-body','articulated-body','character-controller','collision','joints','scene-query','snapshot-restore','counterfactual-query'
 ]);
 
+const missing=(identity,method)=>{ throw new Error(`Physics backend ${identity} ${method}() must be implemented`); };
+
 export class PhysicsBackend {
   constructor(identity, capabilities = [], { executionModes=['realtime'], qualities={} } = {}) {
     if (!identity) throw new TypeError('PhysicsBackend identity is required');
@@ -12,23 +14,49 @@ export class PhysicsBackend {
   }
   hasCapability(capability) { return this.capabilities.includes(capability); }
   supportsExecutionMode(mode) { return this.executionModes.includes(mode); }
-  async init() { throw new Error('PhysicsBackend.init() must be implemented'); }
-  createWorld() { throw new Error('PhysicsBackend.createWorld() must be implemented'); }
-  step() { throw new Error('PhysicsBackend.step() must be implemented'); }
-  dispose() { throw new Error('PhysicsBackend.dispose() must be implemented'); }
-  createBodyDesc() { throw new Error('PhysicsBackend.createBodyDesc() must be implemented'); }
-  createFixedBodyDesc() { throw new Error('PhysicsBackend.createFixedBodyDesc() must be implemented'); }
-  createColliderDesc() { throw new Error('PhysicsBackend.createColliderDesc() must be implemented'); }
-  createImpulseJoint() { throw new Error('PhysicsBackend.createImpulseJoint() must be implemented'); }
-  createShape() { throw new Error('PhysicsBackend.createShape() must be implemented'); }
-  createRay() { throw new Error('PhysicsBackend.createRay() must be implemented'); }
-  isShapeType() { throw new Error('PhysicsBackend.isShapeType() must be implemented'); }
-  setKinematicType() { throw new Error('PhysicsBackend.setKinematicType() must be implemented'); }
-  setDynamicType() { throw new Error('PhysicsBackend.setDynamicType() must be implemented'); }
-  captureBodyType() { throw new Error('PhysicsBackend.captureBodyType() must be implemented'); }
-  restoreBodyType() { throw new Error('PhysicsBackend.restoreBodyType() must be implemented'); }
-}
+  async init() { missing(this.identity,'init'); }
+  createWorld() { missing(this.identity,'createWorld'); }
+  step() { missing(this.identity,'step'); }
+  dispose() { missing(this.identity,'dispose'); }
 
+  // Deep runtime contract. Handles returned here are opaque to PhysicsSystem.
+  createBody() { missing(this.identity,'createBody'); }
+  removeBody() { missing(this.identity,'removeBody'); }
+  createColliders() { missing(this.identity,'createColliders'); }
+  colliders() { missing(this.identity,'colliders'); }
+  bodyKey() { missing(this.identity,'bodyKey'); }
+  colliderKey() { missing(this.identity,'colliderKey'); }
+  colliderParent() { missing(this.identity,'colliderParent'); }
+  colliderSnapshot() { missing(this.identity,'colliderSnapshot'); }
+  bodyType() { missing(this.identity,'bodyType'); }
+  setBodyType() { missing(this.identity,'setBodyType'); }
+  bodyPose() { missing(this.identity,'bodyPose'); }
+  setBodyPose() { missing(this.identity,'setBodyPose'); }
+  translateBody() { missing(this.identity,'translateBody'); }
+  clearBodyMotion() { missing(this.identity,'clearBodyMotion'); }
+  bodyMotion() { missing(this.identity,'bodyMotion'); }
+  wakeBody() { missing(this.identity,'wakeBody'); }
+  createJoint() { missing(this.identity,'createJoint'); }
+  setJointTarget() { missing(this.identity,'setJointTarget'); }
+
+  createCharacterController() { missing(this.identity,'createCharacterController'); }
+  removeCharacterController() { missing(this.identity,'removeCharacterController'); }
+  cancelCharacterMovement() { missing(this.identity,'cancelCharacterMovement'); }
+  moveCharacter() { missing(this.identity,'moveCharacter'); }
+
+  syncSceneQueries() { missing(this.identity,'syncSceneQueries'); }
+  createQueryShape() { missing(this.identity,'createQueryShape'); }
+  disposeQueryShape() { missing(this.identity,'disposeQueryShape'); }
+  intersectionsWithShape() { missing(this.identity,'intersectionsWithShape'); }
+  castCollider() { missing(this.identity,'castCollider'); }
+  raycast() { missing(this.identity,'raycast'); }
+  contactPairs() { missing(this.identity,'contactPairs'); }
+  penetrations() { missing(this.identity,'penetrations'); }
+  shapesIntersect() { missing(this.identity,'shapesIntersect'); }
+  evidenceGeometry(kind) { return `${this.identity}-${kind}`; }
+
+
+}
 
 export class TransformPhysicsBackend extends PhysicsBackend {
   constructor({ identity='transform' } = {}) {

@@ -1,8 +1,8 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import { readFile } from 'node:fs/promises';
 import { expect, it, vi } from 'vitest';
 import { AssetCompiler } from '../src/compiler/AssetCompiler.js';
 import { AssetManager } from '../src/assets/AssetManager.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { disposeObject3D } from '../src/runtime/disposeObject3D.js';
 import { ArticulationVerifier } from '../src/validation/ArticulationVerifier.js';
@@ -47,7 +47,7 @@ it('loads a materialized articulated compile result and attaches distinct root/P
   const {object,manifest}=await assets.instantiate(result.manifest.id);
   expect(object.getObjectByName('Door__part_door')).toBeTruthy();
 
-  const physics=new PhysicsSystem();
+  const physics=createRapierPhysicsSystem();
   await physics.init();
   const entry=physics.attach('cabinet_1',manifest,object);
   expect(entry.parts.has('door')).toBe(true);

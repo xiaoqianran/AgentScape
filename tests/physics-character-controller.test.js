@@ -1,7 +1,7 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { validateAssetManifest } from '../src/assets/schema.js';
 
 const agentManifest={
@@ -16,7 +16,7 @@ describe('Rapier character controller integration',()=>{
   });
 
   it('stops a kinematic capsule at a fixed wall instead of tunneling through it',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     physics.addEnvironment([
       {shape:'box',halfExtents:[4,.1,3],translation:[0,-.1,0]},
       {shape:'box',halfExtents:[.1,1.5,2.5],translation:[0,1.5,0]}
@@ -38,7 +38,7 @@ describe('Rapier character controller integration',()=>{
 });
 
 it('turns the symmetric kinematic capsule toward the walking direction', async () => {
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   physics.addEnvironment([{shape:'box',halfExtents:[2,.1,2],translation:[0,-.1,0]}]);
   const object=new THREE.Group(); object.updateMatrixWorld(true);
   const store=new ObjectStore(); store.add('agent',{id:'agent',assetId:'agent',object,manifest:agentManifest,state:{}});
@@ -50,7 +50,7 @@ it('turns the symmetric kinematic capsule toward the walking direction', async (
 });
 
 it('sets an explicit kinematic character yaw in both Rapier and the Three root', async () => {
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   const object=new THREE.Group(); object.updateMatrixWorld(true);
   const store=new ObjectStore(); store.add('agent',{id:'agent',assetId:'agent',object,manifest:agentManifest,state:{}});
   physics.attach('agent',agentManifest,object);

@@ -1,3 +1,4 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
@@ -17,7 +18,7 @@ const manifest = {
 
 describe('PhysicsSystem articulation', () => {
   it('drives a revolute part toward the requested target', async () => {
-    const physics = new PhysicsSystem();
+    const physics = createRapierPhysicsSystem();
     await physics.init();
     const root = new THREE.Group();
     const hinge = new THREE.Group();
@@ -44,7 +45,7 @@ describe('PhysicsSystem articulation', () => {
   });
 
   it('observes a prismatic joint in the same rest-zero-pose coordinate contract', async () => {
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const root=new THREE.Group();
     const slide=new THREE.Group(); slide.name='Slide'; root.add(slide); root.updateMatrixWorld(true);
     const prismatic={

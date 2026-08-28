@@ -1,6 +1,6 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 
 it('disables parent-child contacts so a prismatic joint can open and close through overlapping colliders', async () => {
@@ -22,7 +22,7 @@ it('disables parent-child contacts so a prismatic joint can open and close throu
   root.updateMatrixWorld(true);
   const store = new ObjectStore();
   store.add('d',{id:'d',assetId:'drawer',object:root,manifest,state:{}});
-  const physics = new PhysicsSystem();
+  const physics = createRapierPhysicsSystem();
   await physics.init();
   physics.attach('d',manifest,root);
   const joint = physics.entries.get('d').parts.get('drawer').joint;

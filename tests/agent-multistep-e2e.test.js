@@ -1,8 +1,8 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../src/core/EventBus.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
 import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
@@ -66,7 +66,7 @@ const cabinetVisual=()=>{
 
 async function setup({blockedDoor=false}={}){
   const store=new ObjectStore(),scene=new THREE.Scene(),ground=floorMesh(); scene.add(ground);
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   const env=[{shape:'box',halfExtents:[7,.1,5],translation:[0,-.1,0]}];
   if(blockedDoor) env.push({shape:'box',halfExtents:[.18,1,.18],translation:[-3.14,1,1.08]});
   physics.addEnvironment(env,{id:blockedDoor?'sequence-stall-environment':'sequence-environment'});

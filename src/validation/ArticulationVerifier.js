@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ObjectStore } from '../runtime/ObjectStore.js';
 import { PhysicsSystem } from '../runtime/systems/PhysicsSystem.js';
+import { RapierPhysicsBackend } from '../runtime/physics/RapierPhysicsBackend.js';
 import { disposeObject3D } from '../runtime/disposeObject3D.js';
 
 const finiteVec3 = (v) => [v.x, v.y, v.z].every(Number.isFinite);
@@ -26,7 +27,7 @@ function penetrationMap(physics, instanceId, partName, refresh = false) {
 export class ArticulationVerifier {
   constructor({
     assets,
-    physicsFactory = () => new PhysicsSystem(),
+    physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }),
     steps = 180,
     dt = 1 / 60,
     prismaticTolerance = 0.03,

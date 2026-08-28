@@ -6,6 +6,9 @@ import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { RapierPhysicsBackend } from '../src/runtime/physics/RapierPhysicsBackend.js';
 
 describe('PhysicsBackend contract',()=>{
+  it('requires an explicit backend at the runtime state-owner boundary',()=>{
+    expect(()=>new PhysicsSystem()).toThrow(/requires a physics backend/);
+  });
   it('declares the minimum backend boundary without exposing a concrete solver contract',()=>{
     const backend=new PhysicsBackend('test',['rigid-body']);
     expect(backend.identity).toBe('test'); expect(backend.hasCapability('rigid-body')).toBe(true); expect(backend.hasCapability('soft-body')).toBe(false); expect(backend.supportsExecutionMode('realtime')).toBe(true);

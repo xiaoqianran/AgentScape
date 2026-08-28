@@ -1,9 +1,9 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { EventBus } from '../src/core/EventBus.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
 import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
@@ -27,7 +27,7 @@ async function setup({ wall=null }={}) {
   const store=new ObjectStore();
   const scene=new THREE.Scene();
   const ground=floor(); scene.add(ground);
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   const colliders=[{shape:'box',halfExtents:[5,.1,5],translation:[0,-.1,0]}];
   if(wall) colliders.push(wall);
   physics.addEnvironment(colliders);

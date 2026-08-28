@@ -1,9 +1,9 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { EventBus } from '../src/core/EventBus.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
 import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
 import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
@@ -15,7 +15,7 @@ const tableVisual=()=>{const g=new THREE.Group();const top=new THREE.Mesh(new TH
 
 async function setup({tablePhysics=true, blocker=null}={}){
   const store=new ObjectStore(), scene=new THREE.Scene(), ground=floor(); scene.add(ground);
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   const env=[{shape:'box',halfExtents:[6,.1,6],translation:[0,-.1,0]}]; if(blocker) env.push(blocker); physics.addEnvironment(env);
   const agent=new THREE.Group(); agent.position.set(0,0,3.2); scene.add(agent); agent.updateMatrixWorld(true);
   const am=structuredClone(assetManifests.agent); store.add('agent_01',{id:'agent_01',assetId:'agent',object:agent,manifest:am,state:{}}); physics.attach('agent_01',am,agent);

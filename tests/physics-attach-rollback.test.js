@@ -1,9 +1,9 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 
 it('removes temporary rigid bodies when attachment fails mid-construction', async () => {
-  const physics = new PhysicsSystem();
+  const physics = createRapierPhysicsSystem();
   await physics.init();
   const object = new THREE.Group();
   const manifest = {

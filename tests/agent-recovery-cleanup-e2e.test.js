@@ -1,8 +1,8 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../src/core/EventBus.js';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
 import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
 import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
 import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
@@ -31,7 +31,7 @@ const blockerManifest={
 
 async function setup(){
   const store=new ObjectStore(),scene=new THREE.Scene(),ground=floorMesh(); scene.add(ground);
-  const physics=new PhysicsSystem(); await physics.init();
+  const physics=createRapierPhysicsSystem(); await physics.init();
   physics.addEnvironment([{shape:'box',halfExtents:[7,.1,6],translation:[0,-.1,0]}],{id:'cleanup-floor'});
   const add=(id,assetId,object,manifest,position,state={})=>{
     object.position.fromArray(position); scene.add(object); object.updateMatrixWorld(true);

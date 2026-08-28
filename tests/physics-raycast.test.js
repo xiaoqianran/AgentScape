@@ -1,3 +1,4 @@
+import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../src/runtime/ObjectStore.js';
@@ -7,7 +8,7 @@ const manifest=(id)=>({id,type:'prop',source:{kind:'builtin'},actions:[],physics
 
 describe('PhysicsSystem ray ownership filters',()=>{
   it('ignores only requested object ids and still hits the next physical target',async()=>{
-    const physics=new PhysicsSystem(); await physics.init();
+    const physics=createRapierPhysicsSystem(); await physics.init();
     const store=new ObjectStore();
     for(const [id,x] of [['near',-1],['far',1]]){
       const object=new THREE.Group(); object.position.set(x,0,0); object.updateMatrixWorld(true);
