@@ -56,7 +56,7 @@ describe('NavigationSystem dynamic obstacles',()=>{
       position:[-4+(i%14)*.6,0,-3+Math.floor(i/14)*1.2],radius:.05,height:.5
     }));
     const physics={navigationObstacles:()=>({items,skipped:[]})};
-    const navigation=createRecastNavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()],config:{maxObstacles:96}});
+    const navigation=createRecastNavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()],backendOptions:{maxObstacles:96}});
     const result=await navigation.findPath([-4,0,3],[4,0,3]);
     expect(result.dynamicObstacles).toMatchObject({coverage:'complete',tracked:70,changed:70,operations:70});
     expect(result.dynamicObstacles.updates).toBeGreaterThan(1);

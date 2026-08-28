@@ -1,14 +1,11 @@
 import * as THREE from 'three';
 const DEFAULT_CONFIG = Object.freeze({
-  cellSize: 0.15,
-  cellHeight: 0.1,
   agentRadius: 0.3,
   agentHeight: 1.7,
   maxClimb: 0.3,
   maxSlope: 45,
   maxSnapDistance: 0.75,
-  tileSize: 32,
-  maxObstacles: 128
+  endTolerance: 0.3
 });
 
 const round = (value) => Number(value.toFixed(3));
@@ -101,8 +98,27 @@ export class NavigationSystem {
     return true;
   }
 
-  status() {
+  runtimeCapabilities() {
+    const capabilities=['action-aware-diagnostics'];
+    const hasObstacleSource=typeof this.physics?.navigationObstacles==='function';
+    if(hasObstacleSource&&this.backend.hasCapability?.('dynamic-obstacles')&&this.backend.hasCapability?.('obstacle-suppression')) capabilities.push('counterfactual-routing');
+    return capabilities;
+  }
+
+  profile() {
     const backendProfile=this.backend.profile?.()||{identity:'unknown',capabilities:[]};
+    const backendCapabilities=[...(backendProfile.capabilities||[])];
+    const runtimeCapabilities=this.runtimeCapabilities();
+    return {
+      identity:backendProfile.identity,
+      backendCapabilities,
+      runtimeCapabilities,
+      capabilities:[...new Set([...backendCapabilities,...runtimeCapabilities])]
+    };
+  }
+
+  status() {
+    const backendProfile=this.profile();
     const backendReady=this.backend.isReady?.()===true;
     const hasObstacleSource=typeof this.physics?.navigationObstacles==='function'||this.physics?.hasCapability?.('collision')===true;
     const dynamicObstacles=this.backend.hasCapability?.('dynamic-obstacles')===true&&hasObstacleSource;
@@ -114,7 +130,7 @@ export class NavigationSystem {
       config: { ...this.config },
       backend:backendProfile,
       capabilities: {
-        staticNavMesh:this.backend.hasCapability?.('static-navmesh')===true,
+        staticRouting:this.backend.hasCapability?.('static-routing')===true,
         dynamicObstacles,
         routeQuery:this.backend.hasCapability?.('route-query')===true,
         obstacleSuppression:this.backend.hasCapability?.('obstacle-suppression')===true,
@@ -123,7 +139,8 @@ export class NavigationSystem {
           : 'none',
         synchronization:'query-time',
         actionAwareDiagnostics:true,
-        counterfactual:'single-obstacle-suppression'
+        actionAwareDiagnostics:this.runtimeCapabilities().includes('action-aware-diagnostics'),
+        counterfactual:this.runtimeCapabilities().includes('counterfactual-routing')?'single-obstacle-suppression':'none'
       },
       dynamicObstacles:{ tracked:this.obstacles.size, syncVersion:this.obstacleSyncVersion, lastSync:this.lastObstacleSync ? structuredClone(this.lastObstacleSync) : null },
       lastBuild: this.lastBuild ? structuredClone(this.lastBuild) : null
@@ -256,7 +273,7 @@ export class NavigationSystem {
   }
 
   queryHalfExtents(maxSnapDistance) {
-    const horizontal=Math.max(maxSnapDistance,this.config.agentRadius*2,this.config.cellSize*2);
+    const horizontal=Math.max(maxSnapDistance,this.config.agentRadius*2);
     return {x:horizontal,y:Math.max(this.config.agentHeight,maxSnapDistance),z:horizontal};
   }
 
@@ -303,7 +320,7 @@ export class NavigationSystem {
     };
   }
 
-  async findPath(start, end, { maxSnapDistance = this.config.maxSnapDistance, endTolerance = Math.max(this.config.cellSize * 2, 0.05) } = {}) {
+  async findPath(start, end, { maxSnapDistance = this.config.maxSnapDistance, endTolerance = this.config.endTolerance } = {}) {
     const scope = this.physics?.navigationObstacles ? 'current' : 'static';
     if (!finitePoint(start) || !finitePoint(end) || !Number.isFinite(maxSnapDistance) || maxSnapDistance < 0) {
       return { reachable:false, scope, reason:'INVALID_INPUT', path:[], cost:null, sameIsland:null };
@@ -344,7 +361,7 @@ export class NavigationSystem {
   }
 
   async suggestActions(start, end, { maxSnapDistance = this.config.maxSnapDistance, maxCandidates = 6 } = {}) {
-    const endTolerance = Math.max(this.config.cellSize * 2, 0.05);
+    const endTolerance = this.config.endTolerance;
     const current = await this.findPath(start, end, { maxSnapDistance, endTolerance });
     if (current.reachable) return { status:'reachable', current, candidates:[], recommendation:null };
     if (!['PARTIAL_PATH','NO_PATH'].includes(current.reason)) return { status:'unresolved', current, candidates:[], recommendation:null };

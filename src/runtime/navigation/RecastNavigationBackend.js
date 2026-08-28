@@ -11,20 +11,22 @@ const sameObstacle=(a,b)=>a?.shape===b?.shape&&a?.sourceShape===b?.sourceShape&&
     : near(a?.radius||0,b?.radius||0,.002)&&near(a?.height||0,b?.height||0,.002)
 );
 
-const recastConfig=({cellSize,cellHeight,agentRadius,agentHeight,maxClimb,maxSlope,tileSize,maxObstacles})=>({
-  cs:cellSize,
-  ch:cellHeight,
-  walkableSlopeAngle:maxSlope,
-  walkableHeight:Math.max(3,voxelCeil(agentHeight,cellHeight)),
-  walkableClimb:Math.max(0,voxelFloor(maxClimb,cellHeight)),
-  walkableRadius:Math.max(0,voxelCeil(agentRadius,cellSize)),
-  tileSize,
-  maxObstacles
+const DEFAULT_RECAST_TUNING=Object.freeze({cellSize:.15,cellHeight:.1,tileSize:32,maxObstacles:128});
+const recastConfig=(semantic,tuning)=>({
+  cs:tuning.cellSize,
+  ch:tuning.cellHeight,
+  walkableSlopeAngle:semantic.maxSlope,
+  walkableHeight:Math.max(3,voxelCeil(semantic.agentHeight,tuning.cellHeight)),
+  walkableClimb:Math.max(0,voxelFloor(semantic.maxClimb,tuning.cellHeight)),
+  walkableRadius:Math.max(0,voxelCeil(semantic.agentRadius,tuning.cellSize)),
+  tileSize:tuning.tileSize,
+  maxObstacles:tuning.maxObstacles
 });
 
 export class RecastNavigationBackend extends NavigationBackend {
-  constructor(){
-    super('recast-detour',{capabilities:['static-navmesh','route-query','dynamic-obstacles','obstacle-suppression','debug-geometry']});
+  constructor(tuning={}){
+    super('recast-detour',{capabilities:['static-routing','route-query','dynamic-obstacles','obstacle-suppression','debug-geometry']});
+    this.tuning={...DEFAULT_RECAST_TUNING,...tuning};
     this.navMesh=null;
     this.tileCache=null;
     this.query=null;
@@ -71,7 +73,7 @@ export class RecastNavigationBackend extends NavigationBackend {
     try{
       const {NavMeshQuery,generateTileCache,mergePositionsAndIndices}=await this.loadLibrary();
       const [positions,indices]=mergePositionsAndIndices(staticGeometry);
-      const built=generateTileCache(positions,indices,recastConfig(config));
+      const built=generateTileCache(positions,indices,recastConfig(config,this.tuning));
       if(!built.success){
         this.clear();
         return {success:false,code:'NAVMESH_BUILD_FAILED',error:built.error||'Navigation backend build failed'};
