@@ -1,5 +1,5 @@
 import { describe,expect,it,vi } from 'vitest';
-import { GenerationOrchestrator } from '../src/generation/GenerationOrchestrator.js';
+import { GenerationOrchestrator } from '../src/authoring/GenerationOrchestrator.js';
 import { createDefaultProviderRegistry } from '../src/providers/ProviderRegistry.js';
 
 const job={

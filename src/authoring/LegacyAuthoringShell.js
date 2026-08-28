@@ -3,7 +3,7 @@ import { validateAssetManifest } from '../assets/schema.js';
 import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
 import { HttpCompilerProvider } from '../compiler/providers/HttpCompilerProvider.js';
 import { ConnectorClient } from '../connector/ConnectorClient.js';
-import { GenerationOrchestrator } from '../generation/GenerationOrchestrator.js';
+import { GenerationOrchestrator } from './GenerationOrchestrator.js';
 import { createDefaultProviderRegistry } from '../providers/ProviderRegistry.js';
 
 const readSetting = (storage, key) => {

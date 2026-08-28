@@ -95,6 +95,11 @@ for (const file of worldCore) {
   }
 }
 
+const legacyOrchestratorPath = path.join(root, 'src/generation/GenerationOrchestrator.js');
+if (fs.existsSync(legacyOrchestratorPath)) {
+  failures.push('Authoring ownership violation: GenerationOrchestrator must live under src/authoring/');
+}
+
 for (const file of allJs) {
   const name = relative(file);
   const source = fs.readFileSync(file, 'utf8');
@@ -123,4 +128,4 @@ if (failures.length) {
 }
 
 console.log(`domain architecture validation passed (asset core ${assetCore.length} files, world core ${worldCore.length} files)`);
-console.log('AssetCatalog is the single Asset read facade; generation compatibility lives only under src/authoring/.');
+console.log('AssetCatalog is the single Asset read facade; GenerationOrchestrator and generation compatibility live under src/authoring/.');

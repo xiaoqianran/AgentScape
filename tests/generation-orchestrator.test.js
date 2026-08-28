@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import { AssetCompiler } from "../src/compiler/AssetCompiler.js";
-import { GenerationOrchestrator } from "../src/generation/GenerationOrchestrator.js";
+import { GenerationOrchestrator } from "../src/authoring/GenerationOrchestrator.js";
 import { createDefaultProviderRegistry } from "../src/providers/ProviderRegistry.js";
 import { createAssetModule } from "../src/assets/createAssetModule.js";
 
