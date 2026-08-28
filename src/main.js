@@ -372,7 +372,7 @@ async function main() {
       if (!response.success) throw new Error(response.error.message);
       renderCompileResult(response.result);
       log(`compiled asset: ${response.result.manifest.id}`, 'result');
-      renderAssetResults(world.assetLibrary.list().slice(0, 8));
+      renderAssetResults(world.assetCatalog.list().slice(0, 8));
     } catch (error) {
       compilerReport.textContent = `Compile failed: ${error.message}`;
       log(`compile error: ${error.message}`, 'error');
@@ -417,10 +417,10 @@ async function main() {
     }
     if (!assets.length) assetResults.textContent = 'No reusable asset found.';
   };
-  const searchAssets = () => renderAssetResults(world.assetLibrary.search(assetQuery.value, { limit: 6 }));
+  const searchAssets = () => renderAssetResults(world.assetCatalog.search(assetQuery.value, { limit: 6 }));
   document.querySelector('#asset-search-button').addEventListener('click', searchAssets);
   assetQuery.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); searchAssets(); } });
-  renderAssetResults(world.assetLibrary.list().slice(0, 4));
+  renderAssetResults(world.assetCatalog.list().slice(0, 4));
 
   const gatewayInput = document.querySelector('#gateway-endpoint');
   const modeBadge = document.querySelector('#agent-mode');

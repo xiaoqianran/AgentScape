@@ -1,4 +1,3 @@
-import { AssetLibrary } from '../assets/library/AssetLibrary.js';
 import { assetAdmission } from '../assets/admission.js';
 import { validateAssetManifest } from '../assets/schema.js';
 import { HttpAssetGenerator } from '../assets/gateway/HttpAssetGenerator.js';
@@ -228,10 +227,6 @@ export function attachLegacyAuthoring(runtime, {
     generation,
     assetManager: runtime.assets
   });
-  const library = new AssetLibrary({
-    assetManager: runtime.assets,
-    catalog: runtime.assetCatalog
-  });
   const assetAuthoring = createLegacyAssetAuthoring({
     assetManager: runtime.assets,
     catalog: runtime.assetCatalog,
@@ -242,7 +237,7 @@ export function attachLegacyAuthoring(runtime, {
   const authoring = {
     compilerProvider: compiler,
     assetGenerator: generator,
-    assetLibrary: library,
+    assetCatalog: runtime.assetCatalog,
     providerRegistry: providers,
     generation,
     generationPort,
@@ -272,7 +267,6 @@ export function attachLegacyAuthoring(runtime, {
   runtime.authoring = authoring;
   runtime.compilerProvider = compiler;
   runtime.assetGenerator = generator;
-  runtime.assetLibrary = library;
   runtime.generation = generation;
   runtime.generationConnectorError = connectorError;
   runtime.generationState = {

@@ -14,7 +14,6 @@ describe('WorldRuntime authoring boundary', () => {
     expect(runtime.compiledAssetStore).toBeTruthy();
     for (const key of [
       'authoring',
-      'assetLibrary',
       'assetGenerator',
       'compilerProvider',
       'generation',
@@ -31,7 +30,7 @@ describe('WorldRuntime authoring boundary', () => {
     const authoring = attachLegacyAuthoring(runtime, { storage: null, connectorClient: null });
 
     expect(runtime.authoring).toBe(authoring);
-    expect(runtime.assetLibrary).toBe(authoring.assetLibrary);
+    expect(authoring.assetCatalog).toBe(runtime.assetCatalog);
     expect(runtime.assetGenerator).toBe(authoring.assetGenerator);
     expect(runtime.compilerProvider).toBe(authoring.compilerProvider);
     expect(runtime.generation).toBe(authoring.generation);

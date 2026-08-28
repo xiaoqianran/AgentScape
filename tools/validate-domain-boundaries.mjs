@@ -34,8 +34,7 @@ const assetCore = allJs.filter((file) => {
     'src/assets/publishAsset.js',
     'src/assets/admission.js',
     'src/assets/schema.js',
-    'src/assets/parts.js',
-    'src/assets/library/AssetLibrary.js'
+    'src/assets/parts.js'
   ].includes(name)
     || name.startsWith('src/assets/storage/')
     || (name.startsWith('src/compiler/') && !name.startsWith('src/compiler/providers/'));
@@ -96,14 +95,6 @@ for (const file of worldCore) {
   }
 }
 
-const assetLibraryPath = path.join(root, 'src/assets/library/AssetLibrary.js');
-const assetLibrarySource = fs.readFileSync(assetLibraryPath, 'utf8');
-for (const forbidden of ['generationPort', 'attachGeneration', 'canGenerate(', 'generate(', 'providerRegistry', 'GenerationOrchestrator']) {
-  if (assetLibrarySource.includes(forbidden)) {
-    failures.push(`AssetLibrary read-facade violation: forbidden generation surface ${forbidden}`);
-  }
-}
-
 for (const file of allJs) {
   const name = relative(file);
   const source = fs.readFileSync(file, 'utf8');
@@ -132,4 +123,4 @@ if (failures.length) {
 }
 
 console.log(`domain architecture validation passed (asset core ${assetCore.length} files, world core ${worldCore.length} files)`);
-console.log('AssetLibrary validated as read-only Asset Core facade; generation compatibility lives only under src/authoring/.');
+console.log('AssetCatalog is the single Asset read facade; generation compatibility lives only under src/authoring/.');
