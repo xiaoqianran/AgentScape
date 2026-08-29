@@ -2,7 +2,9 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SimulationClock } from "../../core/SimulationClock.js";
 import { ScenarioRunner } from "../../core/ScenarioRunner.js";
+import { FrameCadence } from "../../core/FrameCadence.js";
 import { PhysicsScenarioContext } from "./PhysicsScenarioContext.js";
+import { compareManifestToPhysics } from "./ManifestColliderSnapshot.js";
 import { PhysicsDebugRenderer } from "./visualizers/PhysicsDebugRenderer.js";
 import { NormalizedColliderRenderer } from "./visualizers/NormalizedColliderRenderer.js";
 import { ManifestColliderRenderer } from "./visualizers/ManifestColliderRenderer.js";
@@ -11,10 +13,12 @@ import { PhysicsVectorRenderer } from "./visualizers/PhysicsVectorRenderer.js";
 import { createPhysicsBackend } from "./backends.js";
 
 export class PhysicsLab {
-  constructor({ viewport, onTelemetry, backendId = "rapier" }) {
+  constructor({ viewport, onTelemetry, backendId = "rapier", autoAnimate = true }) {
     this.viewport = viewport;
     this.backendId = backendId;
     this.onTelemetry = onTelemetry;
+    this.autoAnimate = autoAnimate;
+    this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x11161d);
@@ -22,8 +26,8 @@ export class PhysicsLab {
     this.camera.position.set(7.5, 5.5, 8.5);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -41,8 +45,7 @@ export class PhysicsLab {
     this.scene.add(new THREE.HemisphereLight(0xd8e6ff, 0x20252c, 1.5));
     const key = new THREE.DirectionalLight(0xffffff, 3.2);
     key.position.set(5, 9, 4);
-    key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.castShadow = false;
     this.scene.add(key);
 
     this.debugRenderer = new PhysicsDebugRenderer(this.scene);
@@ -63,14 +66,13 @@ export class PhysicsLab {
       createContext: async () => {
         const backend = await createPhysicsBackend(this.backendId);
         return new PhysicsScenarioContext({ scene: this.scene, backend }).init();
-      },
-      onStep: () => this.refreshDebug()
+      }
     });
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(viewport);
     this.resize();
-    this.animation = requestAnimationFrame((timestamp) => this.frame(timestamp));
+    this.animation = this.autoAnimate ? requestAnimationFrame((timestamp) => this.frame(timestamp)) : null;
   }
 
   async load(scenario) {
@@ -179,11 +181,11 @@ export class PhysicsLab {
 
   refreshDebug() {
     const context = this.runner.context;
-    const snapshot = context?.debugSnapshot({ nativeGeometry:this.nativeDebugVisible });
+    const snapshot = context?.debugSnapshot({ nativeGeometry:this.nativeDebugVisible, contacts:this.contactDebugVisible });
     const manifestSnapshot = context?.manifestSnapshot?.() || null;
     this.lastDebugSnapshot = snapshot || null;
     this.lastManifestSnapshot = manifestSnapshot;
-    this.lastTruthComparison = context?.truthComparison?.() || null;
+    this.lastTruthComparison = snapshot && manifestSnapshot ? compareManifestToPhysics(manifestSnapshot, snapshot) : null;
     if (this.nativeDebugVisible) this.debugRenderer.update(snapshot?.nativeGeometry || null);
     if (this.normalizedDebugVisible) this.normalizedColliderRenderer.update(snapshot || null);
     if (this.manifestDebugVisible) this.manifestColliderRenderer.update(manifestSnapshot);
@@ -228,15 +230,17 @@ export class PhysicsLab {
     if (data) this.onTelemetry?.(data);
   }
 
-  frame(timestamp) {
-    const stepped = this.runner.tick(timestamp);
-    if (stepped) {
-      this.refreshDebug();
-      this.emitTelemetry();
-    }
+  renderFrame() {
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
-    this.animation = requestAnimationFrame((next) => this.frame(next));
+  }
+
+  frame(timestamp) {
+    const stepped = this.runner.tick(timestamp);
+    if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
+    if (stepped && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
+    this.renderFrame();
+    if (this.autoAnimate) this.animation = requestAnimationFrame((next) => this.frame(next));
   }
 
   resize() {
@@ -248,7 +252,7 @@ export class PhysicsLab {
   }
 
   async dispose() {
-    cancelAnimationFrame(this.animation);
+    if (this.animation != null) cancelAnimationFrame(this.animation);
     this.resizeObserver.disconnect();
     await this.runner.dispose();
     this.debugRenderer.dispose();

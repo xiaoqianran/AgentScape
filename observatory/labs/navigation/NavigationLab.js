@@ -3,10 +3,10 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SimulationClock } from "../../core/SimulationClock.js";
 import { ScenarioRunner } from "../../core/ScenarioRunner.js";
 import { FrameCadence } from "../../core/FrameCadence.js";
-import { SpatialScenarioContext } from "./SpatialScenarioContext.js";
-import { SpatialDebugRenderer } from "./visualizers/SpatialDebugRenderer.js";
+import { NavigationScenarioContext } from "./NavigationScenarioContext.js";
+import { NavigationDebugRenderer } from "./visualizers/NavigationDebugRenderer.js";
 
-export class SpatialLab {
+export class NavigationLab {
   constructor({ viewport, onTelemetry }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
@@ -17,7 +17,7 @@ export class SpatialLab {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x11161d);
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.05, 200);
-    this.camera.position.set(7, 5.5, 8);
+    this.camera.position.set(8, 6.5, 9);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
@@ -27,12 +27,12 @@ export class SpatialLab {
     viewport.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 1.2, 0);
+    this.controls.target.set(0, 0.6, 0);
     this.controls.enableDamping = true;
 
-    this.grid = new THREE.GridHelper(12, 24, 0x566171, 0x2a323d);
+    this.grid = new THREE.GridHelper(14, 28, 0x566171, 0x2a323d);
     this.axes = new THREE.AxesHelper(1.25);
-    this.axes.position.set(-5, 0.02, 3.5);
+    this.axes.position.set(-6, 0.02, 4.5);
     this.scene.add(this.grid, this.axes);
     this.scene.add(new THREE.HemisphereLight(0xd8e6ff, 0x20252c, 1.5));
     const key = new THREE.DirectionalLight(0xffffff, 3);
@@ -40,10 +40,10 @@ export class SpatialLab {
     key.castShadow = false;
     this.scene.add(key);
 
-    this.debugRenderer = new SpatialDebugRenderer(this.scene);
+    this.debugRenderer = new NavigationDebugRenderer(this.scene);
     this.runner = new ScenarioRunner({
       clock: this.clock,
-      createContext: async () => new SpatialScenarioContext({ scene: this.scene }).init()
+      createContext: async () => new NavigationScenarioContext({ scene: this.scene }).init()
     });
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -62,15 +62,15 @@ export class SpatialLab {
   }
 
   fitScenario(scenario) {
-    if (scenario.id.includes("raycast")) {
-      this.camera.position.set(4.5, 4.2, 8.5);
-      this.controls.target.set(0.5, 0.7, 0);
-    } else if (scenario.id.includes("support")) {
-      this.camera.position.set(5.5, 4.5, 6.5);
-      this.controls.target.set(0, 1.1, 0);
+    if (scenario.id.includes("disconnected")) {
+      this.camera.position.set(8, 6.8, 9.5);
+      this.controls.target.set(0, 0.2, 0);
+    } else if (scenario.id.includes("gap")) {
+      this.camera.position.set(7.8, 6.2, 8.6);
+      this.controls.target.set(0, 0.8, 0);
     } else {
-      this.camera.position.set(5.5, 4, 6.5);
-      this.controls.target.set(0.8, 0.7, 0);
+      this.camera.position.set(7.5, 5.8, 8.5);
+      this.controls.target.set(0, 0.2, 0);
     }
     this.controls.update();
   }
@@ -110,18 +110,25 @@ export class SpatialLab {
     return frame;
   }
 
-  setBoundsDebug(visible) { this.debugRenderer.setBoundsVisible(visible); }
-  setRayDebug(visible) { this.debugRenderer.setRayVisible(visible); }
-  setSpatialQueryDebug(visible) { this.debugRenderer.setQueryVisible(visible); }
+  setNavMeshDebug(visible) { this.debugRenderer.setNavMeshVisible(visible); }
+  setPathDebug(visible) { this.debugRenderer.setPathVisible(visible); }
+  setEndpointsDebug(visible) { this.debugRenderer.setEndpointsVisible(visible); }
+  setObstaclesDebug(visible) { this.debugRenderer.setObstaclesVisible(visible); }
   setGridVisible(visible) {
     this.grid.visible = Boolean(visible);
     this.axes.visible = Boolean(visible);
   }
 
-  refreshDebug() {
-    const snapshot = this.runner.context?.debugSnapshot?.();
+  refreshDebug({ force = false } = {}) {
+    const context = this.runner.context;
+    if (!context) return false;
+    const revision = context.debugRevision ?? 0;
+    if (!force && revision === this.lastDebugRevision) return false;
+    const snapshot = context.debugSnapshot?.();
+    this.lastDebugRevision = revision;
     this.lastDebugSnapshot = snapshot || null;
     this.debugRenderer.update(snapshot || null);
+    return true;
   }
 
   telemetry() {
@@ -133,15 +140,17 @@ export class SpatialLab {
       scenario,
       clock: this.clock,
       checkpointFrame: this.checkpointFrame,
-      inspector: context.inspect(scenario.inspect),
+      inspector: context.inspect(),
       assertions: this.runner.assertions(),
       metrics: {
-        backend: snapshot.bvh?.raycast || "unknown",
-        objects: snapshot.metrics?.objectCount ?? 0,
-        overlaps: snapshot.metrics?.collisionPairCount ?? 0,
-        "ray hits": snapshot.ray?.hits?.length ?? 0,
-        "free space": snapshot.freeSpace?.point ? snapshot.freeSpace.point.map((value) => Number(value.toFixed(3))).join(", ") : "—",
-        "fixed dt": `${(this.clock.fixedDt * 1000).toFixed(3)} ms`
+        backend: snapshot.status?.backend?.identity || "unknown",
+        state: snapshot.status?.state || "unknown",
+        "nav triangles": snapshot.navMesh?.triangleCount ?? 0,
+        reachable: snapshot.route?.reachable ?? "—",
+        reason: snapshot.route?.reason || "—",
+        waypoints: snapshot.route?.path?.length ?? 0,
+        cost: snapshot.route?.cost ?? "—",
+        "query time": `${context.lastStepMs.toFixed(3)} ms`
       }
     };
   }

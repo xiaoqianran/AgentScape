@@ -1,4 +1,5 @@
 import { SimulationClock } from "../../core/SimulationClock.js";
+import { FrameCadence } from "../../core/FrameCadence.js";
 import { PhysicsLab } from "./PhysicsLab.js";
 import { comparePhysicsSnapshots } from "./PhysicsStateComparator.js";
 
@@ -11,6 +12,7 @@ export class PhysicsCompareLab {
     this.clock = new SimulationClock({ fixedDt:1/60, maxSubSteps:8 });
     this.scenario = null;
     this.checkpointFrame = null;
+    this.cadence = new FrameCadence({ debugHz: 12, telemetryHz: 4 });
 
     this.host = document.createElement("div");
     this.host.className = "obs-compare-host";
@@ -19,8 +21,8 @@ export class PhysicsCompareLab {
     this.host.append(this.leftPane.root, this.rightPane.root);
     viewport.appendChild(this.host);
 
-    this.left = new PhysicsLab({ viewport:this.leftPane.viewport, backendId:"rapier", onTelemetry:()=>{} });
-    this.right = new PhysicsLab({ viewport:this.rightPane.viewport, backendId:"jolt", onTelemetry:()=>{} });
+    this.left = new PhysicsLab({ viewport:this.leftPane.viewport, backendId:"rapier", onTelemetry:()=>{}, autoAnimate:false });
+    this.right = new PhysicsLab({ viewport:this.rightPane.viewport, backendId:"jolt", onTelemetry:()=>{}, autoAnimate:false });
     this.animation = requestAnimationFrame((timestamp)=>this.frame(timestamp));
   }
 
@@ -52,16 +54,18 @@ export class PhysicsCompareLab {
 
   step(count=1) {
     this.clock.pause();
-    this.stepBoth(count);
+    this.stepBoth(count, { refresh:true });
     this.emitTelemetry();
   }
 
-  stepBoth(count) {
+  stepBoth(count, { refresh=false } = {}) {
     this.left.runner.step(count);
     this.right.runner.step(count);
     for(let i=0;i<count;i+=1) this.clock.advance();
-    this.left.refreshDebug();
-    this.right.refreshDebug();
+    if(refresh) {
+      this.left.refreshDebug();
+      this.right.refreshDebug();
+    }
   }
 
   async reset() {
@@ -129,8 +133,8 @@ export class PhysicsCompareLab {
   }
 
   comparison() {
-    const left=this.left.runner.context?.debugSnapshot({nativeGeometry:false});
-    const right=this.right.runner.context?.debugSnapshot({nativeGeometry:false});
+    const left=this.left.lastDebugSnapshot || this.left.runner.context?.debugSnapshot({nativeGeometry:false,contacts:false});
+    const right=this.right.lastDebugSnapshot || this.right.runner.context?.debugSnapshot({nativeGeometry:false,contacts:false});
     return comparePhysicsSnapshots(left,right);
   }
 
@@ -183,10 +187,14 @@ export class PhysicsCompareLab {
 
   frame(timestamp) {
     const count=this.clock.consume(timestamp);
-    if(count) {
-      this.stepBoth(count);
-      this.emitTelemetry();
+    if(count) this.stepBoth(count);
+    if(count && this.cadence.shouldDebug(timestamp)) {
+      this.left.refreshDebug();
+      this.right.refreshDebug();
     }
+    if(count && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
+    this.left.renderFrame();
+    this.right.renderFrame();
     this.animation=requestAnimationFrame((next)=>this.frame(next));
   }
 

@@ -445,6 +445,24 @@ export class NavigationSystem {
 
   debugGeometry() { return this.backend.debugGeometry?.() || []; }
 
+  debugSnapshot() {
+    const mesh = this.backend.debugMesh?.() || { positions:this.debugGeometry(), indices:[] };
+    return {
+      schemaVersion: 1,
+      source: "navigation",
+      status: this.status(),
+      navMesh: {
+        positions: [...(mesh.positions || [])],
+        indices: [...(mesh.indices || [])],
+        vertexCount: Math.floor((mesh.positions?.length || 0) / 3),
+        triangleCount: mesh.indices?.length
+          ? Math.floor(mesh.indices.length / 3)
+          : Math.floor((mesh.positions?.length || 0) / 9)
+      },
+      obstacles: [...this.obstacles.values()].map((descriptor) => structuredClone(descriptor))
+    };
+  }
+
   dispose() {
     this.disposed = true;
     this.revision += 1;

@@ -9,12 +9,14 @@ export default defineConfig({
   },
   server: {
     host: "0.0.0.0",
+    allowedHosts: true,
     watch: {
       ignored: ["**/.venv/**", "**/__pycache__/**", "**/.git/**", "**/dist/**"]
     }
   },
   preview: {
-    host: "0.0.0.0"
+    host: "0.0.0.0",
+    allowedHosts: true
   },
   build: {
     rollupOptions: {

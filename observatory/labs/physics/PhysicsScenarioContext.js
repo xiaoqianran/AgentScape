@@ -117,8 +117,8 @@ export class PhysicsScenarioContext {
     return { title: id, kind: `${this.physics.backend.identity} rigid body`, values: { position: this.position(id), bodyType: body ? this.physics.backend.bodyType(body) : null, sleeping: motion?.sleeping, linearSpeed: motion?.linearSpeed, angularSpeed: motion?.angularSpeed, linearVelocity: motion?.linearVelocity } };
   }
 
-  debugSnapshot({ nativeGeometry = true } = {}) {
-    return this.physics.debugSnapshot({ nativeGeometry });
+  debugSnapshot({ nativeGeometry = true, contacts = true } = {}) {
+    return this.physics.debugSnapshot({ nativeGeometry, contacts });
   }
 
   manifestSnapshot() {

@@ -24,6 +24,39 @@ export class InteractionSystem {
 
   get heldId() { return this.humanHeldId; }
 
+  debugSnapshot({ actorId = null, targetId = null, maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
+    let reach = null;
+    if (actorId && targetId && this.store.has(actorId) && this.store.has(targetId)) {
+      try { reach = this.interactionStatus(actorId, targetId, { maxDistance }); }
+      catch { reach = null; }
+    }
+    return {
+      schemaVersion: 1,
+      source: "interaction",
+      held: {
+        human: this.humanHeldId,
+        agents: [...this.agentHeld.entries()].map(([actor, object]) => ({ actorId: actor, objectId: object })),
+        recovery: [...this.recoveryHeld.entries()].map(([actor, value]) => ({ actorId: actor, ...structuredClone(value) }))
+      },
+      pending: {
+        settle: [...this.settleTasks.values()].map((task) => ({
+          kind: task.kind,
+          actorId: task.actorId || null,
+          objectId: task.objectId || null,
+          targetId: task.targetId || null,
+          elapsed: Number((task.elapsed || 0).toFixed(4))
+        })),
+        articulation: [...this.articulationTasks.values()].map((task) => ({
+          id: task.id,
+          partName: task.partName,
+          action: task.action,
+          elapsed: Number((task.elapsed || 0).toFixed(4))
+        }))
+      },
+      reach
+    };
+  }
+
   isHeld(id) { return Boolean(this.store.has(id) && this.store.get(id).state?.heldBy); }
 
   heldByAgent(actorId) { return this.agentHeld.get(actorId) || null; }

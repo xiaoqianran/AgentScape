@@ -13,6 +13,26 @@ const LABS = [
     id: "spatial",
     title: "Spatial",
     load: () => import("./labs/spatial/index.js")
+  },
+  {
+    id: "navigation",
+    title: "Navigation",
+    load: () => import("./labs/navigation/index.js")
+  },
+  {
+    id: "interaction",
+    title: "Interaction",
+    load: () => import("./labs/interaction/index.js")
+  },
+  {
+    id: "agent",
+    title: "AgentTools",
+    load: () => import("./labs/agent/index.js")
+  },
+  {
+    id: "agent-trace",
+    title: "Agent Trace",
+    load: () => import("./labs/agent/traceIndex.js")
   }
 ];
 
@@ -46,6 +66,14 @@ class ObservatoryApp {
       onBoundsDebug: (visible) => this.lab?.setBoundsDebug?.(visible),
       onRayDebug: (visible) => this.lab?.setRayDebug?.(visible),
       onSpatialQueryDebug: (visible) => this.lab?.setSpatialQueryDebug?.(visible),
+      onNavMeshDebug: (visible) => this.lab?.setNavMeshDebug?.(visible),
+      onPathDebug: (visible) => this.lab?.setPathDebug?.(visible),
+      onEndpointsDebug: (visible) => this.lab?.setEndpointsDebug?.(visible),
+      onObstaclesDebug: (visible) => this.lab?.setObstaclesDebug?.(visible),
+      onInteractionLosDebug: (visible) => this.lab?.setInteractionLosDebug?.(visible),
+      onInteractionSupportDebug: (visible) => this.lab?.setInteractionSupportDebug?.(visible),
+      onInteractionStateDebug: (visible) => this.lab?.setInteractionStateDebug?.(visible),
+      onAgentToolDebug: (visible) => this.lab?.setAgentToolDebug?.(visible),
       onGridDebug: (visible) => this.lab?.setGridVisible?.(visible),
       onLabChange: (labId) => this.activateLab(labId),
       onBackendChange: (backendId) => this.activateLab(this.activeLabId, {
@@ -67,6 +95,7 @@ class ObservatoryApp {
 
   async activateLab(labId, { backendId = null, scenarioId = null } = {}) {
     const version = ++this.activationVersion;
+    this.shell.setBusy(true, `正在加载 ${labId} Lab…`);
     const module = await this.labs.load(labId);
     if (version !== this.activationVersion) return;
     const definition = module.labDefinition;
@@ -86,7 +115,7 @@ class ObservatoryApp {
     this.shell.configureLabs(this.labs.list(), labId);
     this.shell.configureBackends(definition.backends || [], normalizedBackend);
     this.shell.setLabTitle(definition.title);
-    this.shell.configureDebugLayers(definition.debugLayers || ["grid"]);
+    this.shell.configureDebugLayers(definition.debugLayers || ["grid"], definition.defaultDebugLayers || ["grid"]);
 
     this.lab = definition.create({
       viewport: this.shell.refs.viewport,
@@ -106,6 +135,14 @@ class ObservatoryApp {
     this.lab.setBoundsDebug?.(this.shell.refs["bounds-debug"].checked);
     this.lab.setRayDebug?.(this.shell.refs["ray-debug"].checked);
     this.lab.setSpatialQueryDebug?.(this.shell.refs["spatial-query-debug"].checked);
+    this.lab.setNavMeshDebug?.(this.shell.refs["navmesh-debug"].checked);
+    this.lab.setPathDebug?.(this.shell.refs["path-debug"].checked);
+    this.lab.setEndpointsDebug?.(this.shell.refs["endpoints-debug"].checked);
+    this.lab.setObstaclesDebug?.(this.shell.refs["obstacles-debug"].checked);
+    this.lab.setInteractionLosDebug?.(this.shell.refs["interaction-los-debug"].checked);
+    this.lab.setInteractionSupportDebug?.(this.shell.refs["interaction-support-debug"].checked);
+    this.lab.setInteractionStateDebug?.(this.shell.refs["interaction-state-debug"].checked);
+    this.lab.setAgentToolDebug?.(this.shell.refs["agent-tool-debug"].checked);
     this.lab.setGridVisible?.(this.shell.refs["grid-debug"].checked);
 
     const available = this.scenarios.list({ lab: labId });
@@ -121,7 +158,13 @@ class ObservatoryApp {
     const available = this.scenarios.list({ lab: this.activeLabId });
     this.shell.renderScenarios(available, id, (next) => this.selectScenario(next));
     this.updateUrl();
-    await this.lab.load(this.scenarios.get(id));
+    const scenario = this.scenarios.get(id);
+    this.shell.setBusy(true, `正在准备 ${scenario.title}…`);
+    try {
+      await this.lab.load(scenario);
+    } finally {
+      this.shell.setBusy(false);
+    }
   }
 
   updateUrl() {

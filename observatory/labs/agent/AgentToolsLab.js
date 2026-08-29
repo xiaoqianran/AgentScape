@@ -3,21 +3,23 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SimulationClock } from "../../core/SimulationClock.js";
 import { ScenarioRunner } from "../../core/ScenarioRunner.js";
 import { FrameCadence } from "../../core/FrameCadence.js";
-import { SpatialScenarioContext } from "./SpatialScenarioContext.js";
-import { SpatialDebugRenderer } from "./visualizers/SpatialDebugRenderer.js";
+import { AgentToolsScenarioContext } from "./AgentToolsScenarioContext.js";
+import { AgentToolsDebugRenderer } from "./visualizers/AgentToolsDebugRenderer.js";
+import { NormalizedColliderRenderer } from "../physics/visualizers/NormalizedColliderRenderer.js";
 
-export class SpatialLab {
-  constructor({ viewport, onTelemetry }) {
+export class AgentToolsLab {
+  constructor({ viewport, onTelemetry, contextFactory = null }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
     this.checkpointFrame = null;
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
+    this.contextFactory = contextFactory || ((options) => new AgentToolsScenarioContext(options));
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x11161d);
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.05, 200);
-    this.camera.position.set(7, 5.5, 8);
+    this.camera.position.set(6, 4.6, 7);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
@@ -27,7 +29,7 @@ export class SpatialLab {
     viewport.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 1.2, 0);
+    this.controls.target.set(0, 0.8, 0);
     this.controls.enableDamping = true;
 
     this.grid = new THREE.GridHelper(12, 24, 0x566171, 0x2a323d);
@@ -40,10 +42,11 @@ export class SpatialLab {
     key.castShadow = false;
     this.scene.add(key);
 
-    this.debugRenderer = new SpatialDebugRenderer(this.scene);
+    this.debugRenderer = new AgentToolsDebugRenderer(this.scene);
+    this.colliderRenderer = new NormalizedColliderRenderer(this.scene);
     this.runner = new ScenarioRunner({
       clock: this.clock,
-      createContext: async () => new SpatialScenarioContext({ scene: this.scene }).init()
+      createContext: async () => this.contextFactory({ scene: this.scene }).init()
     });
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -63,43 +66,22 @@ export class SpatialLab {
 
   fitScenario(scenario) {
     if (scenario.id.includes("raycast")) {
-      this.camera.position.set(4.5, 4.2, 8.5);
-      this.controls.target.set(0.5, 0.7, 0);
-    } else if (scenario.id.includes("support")) {
-      this.camera.position.set(5.5, 4.5, 6.5);
-      this.controls.target.set(0, 1.1, 0);
+      this.camera.position.set(4.5, 3.6, 7.5);
+      this.controls.target.set(0, 0.5, 0);
+    } else if (scenario.id.includes("free-space")) {
+      this.camera.position.set(5.8, 4.8, 6.8);
+      this.controls.target.set(0, 0.8, 0);
     } else {
-      this.camera.position.set(5.5, 4, 6.5);
-      this.controls.target.set(0.8, 0.7, 0);
+      this.camera.position.set(5.5, 4.5, 6.5);
+      this.controls.target.set(0, 0.7, 0);
     }
     this.controls.update();
   }
 
-  toggleRunning() {
-    this.clock.toggle();
-    this.emitTelemetry();
-    return this.clock.running;
-  }
-
-  step(count = 1) {
-    this.clock.pause();
-    this.runner.step(count);
-    this.refreshDebug();
-    this.emitTelemetry();
-  }
-
-  async reset() {
-    await this.runner.reset();
-    this.refreshDebug();
-    this.emitTelemetry();
-  }
-
-  captureCheckpoint() {
-    this.checkpointFrame = this.clock.frame;
-    this.emitTelemetry();
-    return this.checkpointFrame;
-  }
-
+  toggleRunning() { this.clock.toggle(); this.emitTelemetry(); return this.clock.running; }
+  step(count = 1) { this.clock.pause(); this.runner.step(count); this.refreshDebug(); this.emitTelemetry(); }
+  async reset() { await this.runner.reset(); this.refreshDebug(); this.emitTelemetry(); }
+  captureCheckpoint() { this.checkpointFrame = this.clock.frame; this.emitTelemetry(); return this.checkpointFrame; }
   async restoreCheckpoint() {
     if (!Number.isInteger(this.checkpointFrame) || this.checkpointFrame < 0) return null;
     const frame = this.checkpointFrame;
@@ -110,18 +92,15 @@ export class SpatialLab {
     return frame;
   }
 
-  setBoundsDebug(visible) { this.debugRenderer.setBoundsVisible(visible); }
-  setRayDebug(visible) { this.debugRenderer.setRayVisible(visible); }
-  setSpatialQueryDebug(visible) { this.debugRenderer.setQueryVisible(visible); }
-  setGridVisible(visible) {
-    this.grid.visible = Boolean(visible);
-    this.axes.visible = Boolean(visible);
-  }
+  setAgentToolDebug(visible) { this.debugRenderer.setVisible(visible); }
+  setNormalizedDebug(visible) { this.colliderRenderer.setVisible(visible); }
+  setGridVisible(visible) { this.grid.visible = Boolean(visible); this.axes.visible = Boolean(visible); }
 
   refreshDebug() {
     const snapshot = this.runner.context?.debugSnapshot?.();
     this.lastDebugSnapshot = snapshot || null;
     this.debugRenderer.update(snapshot || null);
+    this.colliderRenderer.update(snapshot?.physics || null);
   }
 
   telemetry() {
@@ -133,24 +112,27 @@ export class SpatialLab {
       scenario,
       clock: this.clock,
       checkpointFrame: this.checkpointFrame,
-      inspector: context.inspect(scenario.inspect),
+      inspector: context.inspect(),
       assertions: this.runner.assertions(),
       metrics: {
-        backend: snapshot.bvh?.raycast || "unknown",
-        objects: snapshot.metrics?.objectCount ?? 0,
-        overlaps: snapshot.metrics?.collisionPairCount ?? 0,
-        "ray hits": snapshot.ray?.hits?.length ?? 0,
-        "free space": snapshot.freeSpace?.point ? snapshot.freeSpace.point.map((value) => Number(value.toFixed(3))).join(", ") : "—",
-        "fixed dt": `${(this.clock.fixedDt * 1000).toFixed(3)} ms`
+        backend: snapshot.agent ? "ToolCallingAgent + AgentTools" : "AgentTools + domain skills",
+        definitions: snapshot.definitions?.length ?? 0,
+        tool: snapshot.lastTool?.name || "—",
+        outcome: snapshot.lastTool?.policy?.outcome?.state || "—",
+        verified: snapshot.lastTool?.policy?.outcome?.verified ?? "—",
+        "tool.called": snapshot.toolCalls?.length ?? 0,
+        "elapsed": snapshot.lastTool?.elapsedMs ? `${snapshot.lastTool.elapsedMs.toFixed(3)} ms` : "—",
+        ...(snapshot.agent ? {
+          "task status": snapshot.agent.taskStatus,
+          "planning steps": snapshot.agent.steps,
+          "gateway rounds": snapshot.gateway?.requests?.length ?? 0,
+          "sequence events": snapshot.sequences?.length ?? 0
+        } : {})
       }
     };
   }
 
-  emitTelemetry() {
-    const data = this.telemetry();
-    if (data) this.onTelemetry?.(data);
-  }
-
+  emitTelemetry() { const data = this.telemetry(); if (data) this.onTelemetry?.(data); }
   frame(timestamp) {
     const stepped = this.runner.tick(timestamp);
     if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
@@ -159,7 +141,6 @@ export class SpatialLab {
     this.renderer.render(this.scene, this.camera);
     this.animation = requestAnimationFrame((next) => this.frame(next));
   }
-
   resize() {
     const width = Math.max(this.viewport.clientWidth, 1);
     const height = Math.max(this.viewport.clientHeight, 1);
@@ -167,12 +148,12 @@ export class SpatialLab {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   }
-
   async dispose() {
     cancelAnimationFrame(this.animation);
     this.resizeObserver.disconnect();
     await this.runner.dispose();
     this.debugRenderer.dispose();
+    this.colliderRenderer.dispose();
     this.controls.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();

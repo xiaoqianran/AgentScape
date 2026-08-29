@@ -7,6 +7,7 @@ export const labDefinition = Object.freeze({
   scenarios: spatialScenarios,
   backends: [Object.freeze({ id: "three-bvh", title: "Three + BVH" })],
   debugLayers: ["bounds", "ray", "spatial-query", "grid"],
+  defaultDebugLayers: ["bounds", "ray", "spatial-query", "grid"],
   normalizeBackend() { return "three-bvh"; },
   create(options) { return new SpatialLab(options); }
 });

@@ -33,6 +33,7 @@ export class RecastNavigationBackend extends NavigationBackend {
     this.obstacles=new Map();
     this.tileCachePending=false;
     this.libraryPromise=null;
+    this.navMeshExtractor=null;
   }
 
   isReady(){ return Boolean(this.query); }
@@ -46,6 +47,7 @@ export class RecastNavigationBackend extends NavigationBackend {
         await core.init();
         return {
           NavMeshQuery:core.NavMeshQuery,
+          getNavMeshPositionsAndIndices:core.getNavMeshPositionsAndIndices,
           generateTileCache:generators.generateTileCache,
           mergePositionsAndIndices:generators.mergePositionsAndIndices
         };
@@ -71,7 +73,7 @@ export class RecastNavigationBackend extends NavigationBackend {
       return {success:false,code:'NAVMESH_EMPTY'};
     }
     try{
-      const {NavMeshQuery,generateTileCache,mergePositionsAndIndices}=await this.loadLibrary();
+      const {NavMeshQuery,getNavMeshPositionsAndIndices,generateTileCache,mergePositionsAndIndices}=await this.loadLibrary();
       const [positions,indices]=mergePositionsAndIndices(staticGeometry);
       const built=generateTileCache(positions,indices,recastConfig(config,this.tuning));
       if(!built.success){
@@ -83,6 +85,7 @@ export class RecastNavigationBackend extends NavigationBackend {
       this.navMesh=built.navMesh;
       this.tileCache=built.tileCache;
       this.query=query;
+      this.navMeshExtractor=getNavMeshPositionsAndIndices;
       return {success:true};
     }catch(error){
       this.clear();
@@ -223,8 +226,13 @@ export class RecastNavigationBackend extends NavigationBackend {
     }
   }
 
+  debugMesh(){
+    if(!this.navMesh||typeof this.navMeshExtractor!=="function") return {positions:[],indices:[]};
+    const [positions,indices]=this.navMeshExtractor(this.navMesh);
+    return {positions:Array.from(positions||[]),indices:Array.from(indices||[])};
+  }
+
   debugGeometry(){
-    const positions=this.navMesh?.getPositions?.();
-    return positions?.length ? Array.from(positions) : [];
+    return this.debugMesh().positions;
   }
 }
