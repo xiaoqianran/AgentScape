@@ -6,6 +6,33 @@ AgentScape 是一个运行在浏览器中的 **Agent-ready 3D Runtime**。它把
 
 AgentScape **不重造 3D 基础模型或大型仿真平台**。EmbodiedGen、Hunyuan3D、TRELLIS、VLM、CoACD 等能力可以作为上游 Provider；AgentScape 负责把它们的输出编译、准入、放置、验证，并变成真正可执行的 Agent World。
 
+## 当前仓库形态
+
+AgentScape 已经从早期的多仓库拼装架构收敛为两个产品代码边界：
+
+```text
+┌─────────────────────────────────────┐
+│             AgentScape              │
+│ Agent / LLM / VLM / Skills         │
+│ Human UI / Runs / Tasks            │
+│ Job / Artifact / Asset / World     │
+│ Runtime / Physics / Verification   │
+└──────────────────┬──────────────────┘
+                   │ Capability / Job / Artifact
+                   ▼
+┌─────────────────────────────────────┐
+│           modal-provider            │
+│ modal-gen-client                    │
+│ modal-2D-client / modal-2D          │
+│ modal-3D-client / modal-3D          │
+│ modal-EmbodiedGen                   │
+└─────────────────────────────────────┘
+```
+
+旧的 `AgentScape-agent`、`modal-inference-hub`、各独立 `modal-*` Provider 仓、`kaggle-inference-hub`、`modal-build`、`modal-lab` 与 AgentScape-owned `EmbodiedGen` checkout 都不再是当前仓库边界。Provider 内部仍可按 package/deployment unit 独立测试和部署，但统一归 `modal-provider` monorepo 管理。
+
+详见 [`docs/multi-repository-architecture.md`](docs/multi-repository-architecture.md) 与 [`docs/provider-integration-plan.md`](docs/provider-integration-plan.md)。
+
 ## 一眼看懂
 
 ```text
@@ -273,32 +300,17 @@ AgentScape 的架构是在实际阅读与对比成熟项目后收敛，而不是
 
 AgentScape 不把启发式语义、节点名关节候选、Provider affordance、fallback collider 或 LLM 文本当成 verified world truth。Generated-world orchestration 已经能够规范化、准入、确定性布局、验证，并对“search miss + generator available”执行一次 Runtime-owned bounded regeneration；更复杂的 layout/relation/validation 约束修订、全局空间优化与动态第三体未来运动预测仍在继续推进。
 
+## Repository boundary
 
-## Submodule audit and safe synchronization
-
-AgentScape treats the superproject gitlink as the integration truth, but never overwrites a submodule that contains uncommitted local state.
-
-```bash
-npm run repos:audit
-npm run repos:sync-safe
-npm run repos:check
-npm run repos:check-recursive   # optional: also require nested third-party submodules
-```
-
-`repos:audit` classifies every top-level submodule before any synchronization:
+AgentScape 不再把 Provider 作为 Git submodule 固定在主仓中。当前产品边界是：
 
 ```text
-CLEAN_MATCH      checkout already equals the root gitlink; keep it
-CLEAN_MISMATCH   clean checkout at another commit; safe to checkout the gitlink
-UNINITIALIZED    no independent submodule worktree yet; safe to initialize
-PARTIAL_INIT     submodule gitdir exists but has no valid HEAD; safe to finish initialization
-DIRTY_INDEX      staged changes exist inside the submodule; DO NOT TOUCH
-DIRTY_WORKTREE   unstaged tracked changes exist; DO NOT TOUCH
-UNTRACKED        untracked files exist; DO NOT TOUCH
-DIRTY_OTHER      any other local state; DO NOT TOUCH
-PIN_MISSING      root gitlink is unavailable; DO NOT TOUCH
+AgentScape
+   │ provider-neutral Capability / Job / Artifact
+   ▼
+modal-provider
 ```
 
-`repos:sync-safe` only acts on `CLEAN_MISMATCH`, `UNINITIALIZED`, and `PARTIAL_INIT`. All dirty states are skipped. `repos:check` validates only AgentScape's top-level integration submodules; `repos:check-recursive` additionally requires nested third-party submodules such as `upstream/EmbodiedGen/thirdparty/*`. This is intentionally conservative: a root/submodule synchronization command must never erase ongoing provider, research, or Kaggle work merely to make `git status` look clean.
+`modal-provider` 内统一维护 `modal-gen-client`、2D/3D Provider 与 Reference Sidecar、以及 `modal-EmbodiedGen` build/runtime integration。它们仍可独立测试和部署，但不是独立系统仓库。
 
-For submodules, detached HEAD at the exact root gitlink is expected and healthy. Updating a submodule to its remote `main` is a separate integration change and must be reviewed and committed by updating the root gitlink.
+`npm run architecture:validate` 会验证这一点：`sdk/python` 必须由 AgentScape 自己拥有，并拒绝任何 `providers/*` Git submodule。详见 [`docs/multi-repository-architecture.md`](docs/multi-repository-architecture.md) 与 [`docs/provider-integration-plan.md`](docs/provider-integration-plan.md)。

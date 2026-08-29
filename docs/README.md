@@ -65,7 +65,13 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - 哪些仍是明显短板？
 - 为什么 Motion Sweep、Navigation Truth、Action-aware Diagnosis 与 Embodied Locomotion 按这个顺序演进？
 
-## 2. 当前协议与实现文档
+## 2. 当前仓库与 Provider 边界
+
+- [`multi-repository-architecture.md`](./multi-repository-architecture.md)：当前已收敛的 `AgentScape + modal-provider` 仓库边界。
+- [`provider-integration-plan.md`](./provider-integration-plan.md)：Provider contract、2D→3D 主链、Gateway 与 EmbodiedGen ownership。
+- [`repository-baseline.md`](./repository-baseline.md)：2026-08-29 当前仓库基线与已退役 standalone inventory。
+
+## 3. 当前协议与实现文档
 
 - [`navigation.md`](./navigation.md)：1.10 Current-world Navigation Truth：Recast/Detour、TileCache、Rapier 动态障碍与查询时同步。
 - [`action-aware-navigation.md`](./action-aware-navigation.md)：1.14 单动作反事实诊断：blocker provenance、verified action eligibility 与动作后重规划。
@@ -100,7 +106,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 
 - [`../services/asset-compiler/README.md`](../services/asset-compiler/README.md)：FastAPI / trimesh / CoACD / URDF / multipart heavy geometry。
 
-## 3. 研究记录
+## 4. 研究记录
 
 这些文档保留“我们参考了什么，以及最终为什么没有照搬”。
 
