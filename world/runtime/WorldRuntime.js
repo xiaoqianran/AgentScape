@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
+import { installThreeBvhRuntime, ensureBoundsTrees } from './spatial/ThreeBvhRuntime.js';
 import { EventBus } from '../../core/EventBus.js';
 import { ObjectStore } from './ObjectStore.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
@@ -22,9 +22,7 @@ import { disposeObject3D } from '../../core/disposeObject3D.js';
 import { ArticulationVerifier } from '../verification/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
-THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
-THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
-THREE.Mesh.prototype.raycast = acceleratedRaycast;
+installThreeBvhRuntime();
 
 const cloneAuthorityValue=(value)=>value==null?value:structuredClone(value);
 const captureWorldAuthority=(runtime)=>({
@@ -120,6 +118,7 @@ export class WorldRuntime {
     const { object, manifest } = await this.assets.instantiate(assetId);
     object.position.fromArray(position);
     object.userData.instanceId = id;
+    ensureBoundsTrees(object);
     let stored = false;
     try {
       this.scene.add(object);

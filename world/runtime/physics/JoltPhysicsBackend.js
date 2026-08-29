@@ -118,8 +118,8 @@ function createOwnedShape(Jolt,spec,userData=0){
     try {
       if(!result.IsValid()) throw new Error(`Jolt rejected ${spec.shape} shape`);
       const shape=result.Get();
-      result.Clear();
       shape.AddRef();
+      result.Clear();
       return shape;
     } finally { Jolt.destroy(result); }
   } finally { Jolt.destroy(settings); }
@@ -147,8 +147,8 @@ function createBodyShape(Jolt,specs){
     try {
       if(!result.IsValid()) throw new Error('Jolt rejected compound collider shape');
       const shape=result.Get();
-      result.Clear();
       shape.AddRef();
+      result.Clear();
       return shape;
     } finally { Jolt.destroy(result); }
   } finally { Jolt.destroy(compound); }
@@ -223,6 +223,18 @@ export class JoltPhysicsBackend extends PhysicsBackend {
       this.setBodyPose(body,{position:pose.position,rotation:pose.rotation,next:false,wake:true});
     }
     world.jolt.Step(dt,1);
+  }
+
+  debugSnapshot(world,{nativeGeometry=true}={}){
+    return {
+      backend:this.identity,
+      // The production Jolt build does not expose its optional DebugRenderer.
+      // Normalized body/collider/joint state is supplied by PhysicsSystem.
+      nativeGeometry:null,
+      metrics:{ bodyCount:world?.bodies?.size ?? 0, colliderCount:world?.colliders?.size ?? 0, jointCount:world?.joints?.size ?? 0 },
+      nativeGeometryAvailable:false,
+      nativeGeometryRequested:Boolean(nativeGeometry)
+    };
   }
 
   dispose(world){
@@ -433,8 +445,10 @@ export class JoltPhysicsBackend extends PhysicsBackend {
 
   _removeJoint(world,joint){
     if(!joint || !world.joints.has(joint.key)) return;
+    // AddConstraint() owns the constraint reference. We never AddRef() here,
+    // so RemoveConstraint() must be the only release path. Calling Release()
+    // again corrupts Jolt ownership and can crash later during DestroyBody().
     world.physicsSystem.RemoveConstraint(joint.native);
-    joint.native.Release();
     world.joints.delete(joint.key);
     const count=(world.disabledJointPairs.get(joint.pair)||1)-1;
     if(count<=0){

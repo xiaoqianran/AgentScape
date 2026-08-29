@@ -4,7 +4,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PRODUCT_ROOTS = ["studio", "agent", "generation", "asset", "world", "core"];
+const PRODUCT_ROOTS = ["studio", "observatory", "agent", "generation", "asset", "world", "core"];
 const LEGACY_ROOTS = ["src", "server", "tools", "scripts", "experiments", "ops"];
 
 const walk = (dir) => {
@@ -60,11 +60,12 @@ const assertNoImports = (label, files, forbidden) => {
 };
 
 assertNoImports("Core boundary violation", coreFiles, [
-  /^(studio|agent|generation|asset|world)\//
+  /^(studio|observatory|agent|generation|asset|world)\//
 ]);
 
 assertNoImports("Asset Core boundary violation", assetCore, [
   /^studio\//,
+  /^observatory\//,
   /^agent\//,
   /^generation\//,
   /^world\//
@@ -72,6 +73,7 @@ assertNoImports("Asset Core boundary violation", assetCore, [
 
 assertNoImports("World Core boundary violation", worldCore, [
   /^studio\//,
+  /^observatory\//,
   /^agent\//,
   /^generation\//,
   /^asset\/gateway\//,
@@ -91,6 +93,11 @@ for (const file of worldCore) {
     }
   }
 }
+
+const productionJs = productJs.filter((file) => !relative(file).startsWith("observatory/"));
+assertNoImports("Observatory ownership violation", productionJs, [
+  /^observatory\//
+]);
 
 const expectedOrchestrator = path.join(root, "generation", "orchestration", "GenerationOrchestrator.js");
 if (!fs.existsSync(expectedOrchestrator)) failures.push("Generation ownership violation: GenerationOrchestrator must live under generation/orchestration/");
@@ -117,4 +124,4 @@ if (failures.length) {
 }
 
 console.log(`domain architecture validation passed (core ${coreFiles.length}, asset core ${assetCore.length}, world core ${worldCore.length})`);
-console.log("Root architecture: studio / agent / generation / asset / world / core; generation owns Job/Artifact/Connector/Provider integration.");
+console.log("Root architecture: studio / observatory / agent / generation / asset / world / core; observatory may inspect product runtime, but product runtime must not depend on observatory.");

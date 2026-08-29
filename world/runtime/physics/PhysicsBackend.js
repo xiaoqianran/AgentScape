@@ -55,8 +55,14 @@ export class PhysicsBackend {
   shapesIntersect() { missing(this.identity,'shapesIntersect'); }
   evidenceGeometry(kind) { return `${this.identity}-${kind}`; }
 
+  // Optional observation contract. Backends may expose native debug geometry/metrics
+  // without leaking solver-private world handles to callers such as Observatory.
+  debugSnapshot(_world, _options = {}) {
+    return { backend:this.identity, nativeGeometry:null, metrics:{} };
+  }
 
 }
+
 
 export class TransformPhysicsBackend extends PhysicsBackend {
   constructor({ identity='transform' } = {}) {

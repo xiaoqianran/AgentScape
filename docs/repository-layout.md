@@ -2,13 +2,14 @@
 
 AgentScape 的目录结构直接表达产品架构。仓库不再使用一个总 `src/` 容器包住所有系统。
 
-## Core product systems
+## Product and developer surfaces
 
 ```text
 AgentScape/
 ├─ studio/       Human-facing application, editor, UI, local persistence
+├─ observatory/  Developer runtime lab; observes production systems only
 ├─ agent/        Agent loop, tools, LLM gateway, skills, recovery
-├─ generation/   Job / Artifact / Connector / Provider-facing orchestration
+├─ generation/   GenerationRuntime / Job / Artifact / Connector projection
 ├─ asset/        Asset truth, manifests, admission, adapters, compiler
 ├─ world/        World spec, compiler, runtime, verification, content
 └─ core/         Small business-neutral primitives only
@@ -21,15 +22,20 @@ studio ───────┬────────► agent
               ├────────► generation ─────► asset
               └──────────────────────────► world
 
+observatory ───────────► production runtime/domain modules
+production modules ─X─► observatory
+
 agent ────────► generation / asset / world
 generation ──► asset
 world ────────► narrow Asset contracts
 
-studio / agent / generation / asset / world ──► core
+studio / observatory / agent / generation / asset / world ──► core
 core ──X──► product domains
 ```
 
 `modal-provider` 不在本仓内；它是 AgentScape 的兄弟仓库。`generation/` 只拥有 provider-neutral consumer/orchestration 语义。
+
+`observatory/` 是 Developer Product Surface：它可以 import 生产 Physics/Spatial/Asset/World contract 做可视化、单步、对照和 replay，但任何生产模块都禁止反向依赖 Observatory。Observatory 不拥有第二套 Physics/Spatial 实现，也不复制生产 Manifest contract。
 
 ## Repository-level boundaries
 
@@ -58,7 +64,9 @@ AssetCompiler                → asset/compiler/AssetCompiler.js
 EmbodiedGenAdapter           → asset/adapters/EmbodiedGenAdapter.js
 ArtifactRegistry             → generation/artifacts/ArtifactRegistry.js
 ConnectorClient              → generation/connector/ConnectorClient.js
-GenerationOrchestrator       → generation/orchestration/GenerationOrchestrator.js
+GenerationRuntime            → generation/orchestration/GenerationRuntime.js
+Observatory Physics Lab       → observatory/labs/physics/PhysicsLab.js
+Observatory Spatial Lab       → observatory/labs/spatial/SpatialLab.js
 ToolCallingAgent             → agent/ToolCallingAgent.js
 SkillRegistry                → agent/skills/SkillRegistry.js
 AppShell                     → studio/ui/AppShell.js
@@ -74,5 +82,6 @@ AppShell                     → studio/ui/AppShell.js
 6. 只有出现真实的独立 package/release lifecycle 时才引入 `packages/`；不能为了“整理目录”而 package 化。
 7. `tooling/` 只放 repository engineering；某个 domain 专属的工具应该留在对应 domain。
 8. unit test 可以逐步靠近 owner；根 `tests/` 主要承担 integration、contract、regression、e2e。
+9. `observatory/` 只能消费生产 Runtime contract；生产代码禁止 import `observatory/`，synthetic fixture 不得复制生产 Manifest/Schema。
 
-`npm run architecture:validate` 会机械拒绝旧的 `src/ server/ tools/ scripts/ experiments/ ops/` 根目录回归，并验证 Core / Asset / World 的关键依赖边界。
+`npm run architecture:validate` 会机械拒绝旧的 `src/ server/ tools/ scripts/ experiments/ ops/` 根目录回归，并验证 Core / Asset / World / Observatory 的关键依赖边界。

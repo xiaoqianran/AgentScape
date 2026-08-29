@@ -44,6 +44,22 @@ export class SpatialSystem {
     return snapshot?.get(id)?.bounds || snapshotEntry(id, this.store.get(id).object).bounds;
   }
 
+  debugSnapshot({ snapshot = this.snapshot(), collisionMargin = 0.01 } = {}) {
+    const bounds = [...snapshot.values()].map((entry) => structuredClone(entry.bounds));
+    const collisionPairs = this.collisionPairs({ margin: collisionMargin, snapshot });
+    return {
+      schemaVersion: 1,
+      source: "spatial",
+      bounds,
+      collisionPairs,
+      metrics: {
+        objectCount: bounds.length,
+        collisionPairCount: collisionPairs.length,
+        collisionMargin
+      }
+    };
+  }
+
   findNearby(id, radius = 2) {
     const source = this.store.get(id);
     const sourcePosition = new THREE.Vector3();
@@ -66,15 +82,21 @@ export class SpatialSystem {
     this.raycaster.far = maxDistance;
     const roots = this.store.list().map(([, r]) => r.object);
     const hits = this.raycaster.intersectObjects(roots, true);
-    return hits.map((hit) => {
+    const results = [];
+    const seen = new Set();
+    for (const hit of hits) {
       let current = hit.object;
       while (current && !current.userData.instanceId) current = current.parent;
-      return {
-        id: current?.userData.instanceId ?? null,
+      const id = current?.userData.instanceId ?? null;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      results.push({
+        id,
         distance: Number(hit.distance.toFixed(3)),
         point: roundVec(hit.point)
-      };
-    }).filter((hit) => hit.id);
+      });
+    }
+    return results;
   }
 
   isColliding(id, { ignore = [], margin = 0.01, snapshot = null } = {}) {

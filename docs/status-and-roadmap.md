@@ -41,6 +41,7 @@
 | Multi-Agent | 10% | 不是当前优先级 |
 | 完整生成式 World Pipeline | 76% | 1.34 已有 missing-asset-only bounded regeneration、fixed attempt budget 与 exact-plan duplicate gate；下一步按新架构先收敛 World IR revision/acceptance contract，再实现 non-retriable finding→受约束修订 |
 | Pages / Art Direction | 78% | Monument Hall + Ruined Courtyard + Grand Urban Block；world pack JS 已按当前选择 lazy load |
+| Developer Observatory | 72% | 独立 Vite 入口；Physics + Spatial Lab、fixed-step replay、Rapier/Jolt normalized comparison、production debug contracts 已通；Navigation/Interaction/Agent Lab 尚未实现 |
 
 ---
 
@@ -121,6 +122,59 @@ runtime-world-usable
 但 canonical world admission 仍为 `provisional`，原因是当前 Asset/Layout evidence 仍带 `ASSET_PROVISIONAL / LAYOUT_PROVISIONAL`。因此“Runtime 可用”和“所有 admission evidence 已 ready”必须继续区分。
 
 本阶段同时补齐：canonical `INSIDE`、Manifest `receptacles`、cabinet shell collider、carry-aware overlap validation、placement clear-endpoint LOS，以及 restore-time Physics World rebuild。详见 [`world-viability.md`](./world-viability.md)。
+
+---
+
+
+## 1.36 Developer Observatory — Production Runtime 可观测面
+
+2026-08-29，`observatory/` 正式成为与 Studio 平级的 Developer Product Surface，但不拥有第二套业务 Runtime：
+
+```text
+Production Runtime
+      │
+      ├──► Studio       完整产品组合
+      ├──► Observatory  人工单步 / 可视化 / 对照
+      └──► Tests        自动验证
+```
+
+当前已经落地：
+
+```text
+Physics Lab
+├─ Rapier
+├─ Jolt
+├─ Rapier ↔ Jolt normalized comparison
+├─ Gravity / Collision / Stack / Hinge
+├─ production Cup / Cabinet truth comparison
+├─ fixed 60 Hz step / checkpoint / replay
+├─ normalized body/collider/joint/contact snapshot
+└─ Rapier native debug geometry
+
+Spatial Lab
+├─ three-mesh-bvh Runtime contract
+├─ Raycast nearest-instance truth
+├─ Bounds / overlap
+├─ Support / free-space
+└─ deterministic query replay
+```
+
+架构约束：
+
+- Observatory 可以 import 生产 Runtime/domain；生产代码禁止反向依赖 Observatory。
+- Debug UI 只消费 `PhysicsSystem.debugSnapshot()` / `SpatialSystem.debugSnapshot()` 等正式 observation contract，不穿透 solver-private world。
+- Synthetic geometry 可以自建，但 production Manifest / Schema / Runtime contract 必须直接复用；synthetic hinge 已改为复用真实 cabinet manifest。
+- BVH ownership 归 World/Spatial；AssetManager 不再依赖 prototype patch 的隐式初始化顺序。
+
+下一阶段顺序：
+
+```text
+Navigation / Recast Lab
+→ Interaction Lab
+→ AgentTools / Run Lab
+```
+
+详见 [`observatory.md`](./observatory.md)。
 
 ---
 

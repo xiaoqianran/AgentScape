@@ -82,6 +82,13 @@ export class RapierPhysicsBackend extends PhysicsBackend {
   createWorld() { return new RAPIER.World(this.gravity); }
   step(world, dt) { world.timestep=dt; world.step(); }
   dispose(world) { world?.free?.(); }
+  debugSnapshot(world,{nativeGeometry=true}={}) {
+    return {
+      backend:this.identity,
+      nativeGeometry:nativeGeometry && world?.debugRender ? world.debugRender() : null,
+      metrics:{}
+    };
+  }
 
   createBody(world,{type='fixed',position=null,rotation=null}={}) {
     const body=world.createRigidBody(createBodyDesc(type,position));

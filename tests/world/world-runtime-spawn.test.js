@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { expect, it, vi } from 'vitest';
 import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
 
@@ -35,4 +36,22 @@ it('applies revision-authored initial state only after physics attachment succee
 
   expect(runtime.physics.attach).toHaveBeenCalledBefore(runtime.restoreObjectState);
   expect(runtime.restoreObjectState).toHaveBeenCalledWith('cabinet_01',{locked:false});
+});
+
+
+it('builds BVH bounds when an object enters WorldRuntime instead of relying on AssetManager side effects', async () => {
+  const object=new THREE.Mesh(new THREE.BoxGeometry(1,1,1));
+  object.userData={};
+  const manifest={id:'box',actions:['move']};
+  const runtime={
+    assets:{instantiate:vi.fn(async()=>({object,manifest}))},
+    scene:{add:vi.fn(),remove:vi.fn()},
+    store:{add:vi.fn(),delete:vi.fn()},
+    physics:{attach:vi.fn(),remove:vi.fn()},
+    sceneGraph:{changed:vi.fn()},events:{emit:vi.fn()}
+  };
+  await WorldRuntime.prototype.spawn.call(runtime,'box',{id:'box_01',position:[0,0,0]});
+  expect(object.geometry.boundsTree).toBeTruthy();
+  object.geometry.disposeBoundsTree?.();
+  object.geometry.dispose();
 });

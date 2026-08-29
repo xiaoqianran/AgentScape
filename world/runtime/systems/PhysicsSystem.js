@@ -114,6 +114,109 @@ export class PhysicsSystem {
     };
   }
 
+  debugSnapshot({ nativeGeometry=true, contacts=true } = {}) {
+    const bodies=[];
+    const colliders=[];
+    const joints=[];
+    const contactPairs=[];
+    const colliderRefs=[];
+    const pushBody=(objectId,partName,body)=>{
+      if(!body) return;
+      const pose=this.backend.bodyPose(body);
+      const motion=this.backend.bodyMotion(body);
+      bodies.push({
+        objectId,partName,
+        bodyType:this.backend.bodyType(body),
+        position:pose?.position ? [...pose.position] : null,
+        rotation:pose?.rotation ? [...pose.rotation] : null,
+        sleeping:motion?.sleeping ?? null,
+        linearVelocity:motion?.linearVelocity ? [...motion.linearVelocity] : null,
+        angularVelocity:motion?.angularVelocity ? [...motion.angularVelocity] : null,
+        linearSpeed:Number.isFinite(motion?.linearSpeed) ? motion.linearSpeed : null,
+        angularSpeed:Number.isFinite(motion?.angularSpeed) ? motion.angularSpeed : null
+      });
+      for(const [colliderIndex,collider] of this.backend.colliders(body).entries()) {
+        const snapshot=this.backend.colliderSnapshot(collider);
+        if(!snapshot) continue;
+        const record={
+          objectId,partName,colliderIndex,
+          position:[snapshot.position.x,snapshot.position.y,snapshot.position.z],
+          rotation:[snapshot.rotation.x,snapshot.rotation.y,snapshot.rotation.z,snapshot.rotation.w],
+          shape:structuredClone(snapshot.shape),
+          provenance:this.provenanceOfCollider(collider)
+        };
+        colliders.push(record);
+        colliderRefs.push({key:this.backend.colliderKey(collider),collider,record});
+      }
+    };
+    for(const [objectId,entry] of this.entries) {
+      pushBody(objectId,ROOT_PART,entry.body);
+      for(const [partName,part] of entry.parts) {
+        pushBody(objectId,partName,part.body);
+        if(part.joint) {
+          const articulation=this.articulationState(objectId,partName);
+          const pose=this.backend.bodyPose(part.body);
+          const localAxis=part.spec?.joint?.axis ? [...part.spec.joint.axis] : null;
+          const localAnchor=part.spec?.joint?.childAnchor ? [...part.spec.joint.childAnchor] : [0,0,0];
+          let worldAxis=null,worldAnchor=null;
+          if(pose?.position && pose?.rotation) {
+            const rotation=new THREE.Quaternion(...pose.rotation);
+            worldAnchor=new THREE.Vector3(...localAnchor).applyQuaternion(rotation).add(new THREE.Vector3(...pose.position)).toArray();
+            if(localAxis) worldAxis=new THREE.Vector3(...localAxis).applyQuaternion(rotation).normalize().toArray();
+          }
+          joints.push({
+            objectId,partName,
+            jointType:part.spec?.joint?.type || articulation?.jointType || null,
+            axis:localAxis,
+            limits:part.spec?.joint?.limits ? [...part.spec.joint.limits] : null,
+            parentAnchor:part.spec?.joint?.parentAnchor ? [...part.spec.joint.parentAnchor] : null,
+            childAnchor:localAnchor,
+            worldAxis,worldAnchor,
+            coordinate:Number.isFinite(articulation?.coordinate) ? articulation.coordinate : null
+          });
+        }
+      }
+    }
+    if(contacts && this.world && this.backend.hasCapability("collision")) {
+      const seen=new Set();
+      for(const source of colliderRefs) {
+        for(const pair of this.backend.contactPairs(this.world,source.collider)) {
+          const targetKey=this.backend.colliderKey(pair.other);
+          const key=[String(source.key),String(targetKey)].sort().join(":");
+          if(seen.has(key)) continue;
+          seen.add(key);
+          const targetSnapshot=this.backend.colliderSnapshot(pair.other);
+          if(!targetSnapshot) continue;
+          const targetPosition=[targetSnapshot.position.x,targetSnapshot.position.y,targetSnapshot.position.z];
+          const anchor=source.record.position.map((value,index)=>(value+targetPosition[index])/2);
+          contactPairs.push({
+            source:source.record.provenance || {kind:"object",objectId:source.record.objectId,partName:source.record.partName,colliderIndex:source.record.colliderIndex},
+            target:this.provenanceOfCollider(pair.other) || {kind:"unknown",colliderIndex:null},
+            sourcePosition:[...source.record.position],
+            targetPosition,
+            anchor,
+            anchorKind:"collider-midpoint",
+            normal:Array.isArray(pair.normal) ? [...pair.normal] : null,
+            minDistance:Number.isFinite(pair.minDistance) ? pair.minDistance : null,
+            totalImpulse:Number.isFinite(pair.totalImpulse) ? pair.totalImpulse : null,
+            evidenceKind:pair.evidenceKind || "contact",
+            impulseAvailable:pair.impulseAvailable===true
+          });
+        }
+      }
+    }
+    const backend=this.backend.debugSnapshot(this.world,{nativeGeometry}) || {};
+    return {
+      schemaVersion:1,
+      source:"physics",
+      backend:this.backend.identity,
+      bodies,colliders,joints,contacts:contactPairs,
+      nativeGeometry:backend.nativeGeometry || null,
+      nativeGeometryAvailable:backend.nativeGeometryAvailable ?? Boolean(backend.nativeGeometry),
+      metrics:{...(backend.metrics || {}),bodyCount:bodies.length,colliderCount:colliders.length,jointCount:joints.length,contactPairCount:contactPairs.length}
+    };
+  }
+
   addEnvironment(colliders = [], { id = '$environment' } = {}) {
     if (!this.solverEnabled) return null;
     const body=this.backend.createBody(this.world,{type:'fixed'});

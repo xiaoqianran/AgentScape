@@ -21,7 +21,8 @@
     "world:viability": "node tooling/experiments/world/002-world-viability.mjs",
     "test:agent": "vitest run tests/agent tests/e2e/agent-*",
     "test:generation": "vitest run tests/generation tests/contracts tests/studio/generation-job-center-*",
-    "test:studio": "vitest run tests/studio"
+    "test:studio": "vitest run tests/studio",
+    "test:observatory": "vitest run tests/observatory"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",

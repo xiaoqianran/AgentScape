@@ -59,8 +59,6 @@ for(const field of ['kaggle_url','kaggle_token','modal_2d_agent_url','modal_agen
 
 const rootTests=walk(path.join(root,'tests')).filter((file)=>path.dirname(file)===path.join(root,'tests') && file.endsWith('.test.js'));
 for(const file of rootTests){
-  // Existing Observatory work is intentionally not moved by this convergence change.
-  if(path.basename(file).startsWith('observatory-')) continue;
   failures.push(`Tests must be grouped by owner/scope, not flat at tests/: ${rel(file)}`);
 }
 

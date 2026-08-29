@@ -87,6 +87,7 @@ Prompt / GLB / EmbodiedGen / External Generator
 | Agent Safety | Policy、Trace、mutation barrier、fresh replan、unresolved ledger、deterministic verification |
 | Persistence | Scene serialization、Autosave、Undo/Redo、world-specific save |
 | Asset Compiler | GLB inspection、Part/Joint、collider、resource budget、quality gate |
+| Observatory | Developer Runtime Lab：Physics/Spatial 单步、replay、Rapier↔Jolt comparison、debug contract |
 
 版本演进细节不再塞在 README；完整历史见 [`docs/evolution.md`](docs/evolution.md)，当前真实状态见 [`docs/status-and-roadmap.md`](docs/status-and-roadmap.md)。
 
@@ -201,6 +202,7 @@ world/compiler/createWorldPipeline.js      Generated-world canonical pipeline
 world/spec/WorldSpec.js                WorldSpec schema + deterministic normalization
 world/compiler/WorldComposer.js            Deterministic placement / relation geometry
 generation/orchestration/GenerationRuntime.js Connector / Job / Artifact / Asset publication composition
+observatory/main.js                         Developer Runtime Observatory entry
 asset/AssetCatalog.js                  Reusable Asset read/search facade
 world/runtime/systems/PhysicsSystem.js     Rapier truth + hypothetical shape queries
 agent/skills/registerCoreSkills.js         Domain skill-pack composition entry

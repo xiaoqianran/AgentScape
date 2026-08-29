@@ -67,7 +67,8 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 
 ## 2. 当前仓库与 Provider 边界
 
-- [`repository-layout.md`](./repository-layout.md)：当前根目录、五大产品系统、真实工程边界与禁止回退规则。
+- [`repository-layout.md`](./repository-layout.md)：当前根目录、产品系统、Observatory Developer Surface、真实工程边界与禁止回退规则。
+- [`observatory.md`](./observatory.md)：Developer Runtime Observatory：Physics/Spatial 单步、replay、backend comparison 与 debug contract。
 - [`world-viability.md`](./world-viability.md)：产品级 World Viability Gate：INSIDE cabinet → OPEN → PICKUP → CARRY → PLACE → Acceptance → Restore。
 - [`multi-repository-architecture.md`](./multi-repository-architecture.md)：当前已收敛的 `AgentScape + modal-provider` 仓库边界。
 - [`provider-integration-plan.md`](./provider-integration-plan.md)：Provider contract、2D→3D 主链、Gateway 与 EmbodiedGen ownership。

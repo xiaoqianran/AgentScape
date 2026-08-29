@@ -91,7 +91,6 @@ export class AssetManager {
       if (node.isMesh) {
         node.castShadow = true;
         node.receiveShadow = true;
-        node.geometry.computeBoundsTree?.();
       }
     });
     return gltf.scene;
