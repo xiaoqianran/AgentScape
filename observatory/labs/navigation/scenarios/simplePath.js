@@ -1,6 +1,6 @@
 export const navigationSimplePathScenario = {
   id: "navigation.path.simple",
-  title: "Simple Path",
+  title: "简单路径",
   subtitle: "单连通地面",
   description: "在单块可行走地面上构建 Recast NavMesh，并查询一条左右直达路径。",
   async setup(ctx) {
@@ -13,8 +13,8 @@ export const navigationSimplePathScenario = {
     return [
       { label: "Recast NavMesh 构建成功", pass: debug.build?.success === true },
       { label: "NavMesh 产生三角形", pass: (debug.navMesh?.triangleCount || 0) > 0 },
-      { label: "左右端点可达", pass: debug.route?.reachable === true, detail: debug.route?.reason || `cost=${debug.route?.cost}` },
-      { label: "路径包含有效 waypoint", pass: (debug.route?.path?.length || 0) >= 2 }
+      { label: "左右端点可达", pass: debug.route?.reachable === true, detail: debug.route?.reason || `代价=${debug.route?.cost}` },
+      { label: "路径包含有效路径点", pass: (debug.route?.path?.length || 0) >= 2 }
     ];
   }
 };

@@ -20,7 +20,7 @@ describe('capability-oriented product UI', () => {
     const html=generationJobCenterMarkup();
     expect(html).not.toContain('generation-connector-endpoint');
     expect(html).not.toContain('generation-save-endpoint');
-    expect(html).toContain('<summary>Connector</summary>');
-    expect(html).toContain('Provider 能力由 Connector 动态发现');
+    expect(html).toContain('<summary>连接器</summary>');
+    expect(html).toContain('提供方能力由连接器动态发现');
   });
 });

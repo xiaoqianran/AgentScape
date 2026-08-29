@@ -24,7 +24,7 @@ describe("Observatory visual system", () => {
         end: { input: [4, 0, 2] }
       }
     });
-    expect(labels.map((item) => item.title)).toEqual(["START", "END"]);
+    expect(labels.map((item) => item.title)).toEqual(["起点", "终点"]);
     expect(labels[1].tone).toBe("pass");
   });
 
@@ -37,7 +37,7 @@ describe("Observatory visual system", () => {
       }
     });
     expect(labels).toHaveLength(1);
-    expect(labels[0]).toMatchObject({ title: "table", detail: "getBounds · accepted", tone: "info" });
+    expect(labels[0]).toMatchObject({ title: "table", detail: "getBounds · 已接受", tone: "info" });
   });
 
   it("can immediately restore a scenario camera composition", () => {

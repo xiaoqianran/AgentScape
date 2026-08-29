@@ -168,3 +168,7 @@ The design system adopts a **Rounded** shape language to reinforce the "gentle" 
 
 ### Lists
 - Separate list items with a subtle 1px divider using the Crust color. Active items should use a vertical 4px "pill" indicator on the left edge in the Primary color.
+## Language & Localization
+- All visible product UI copy in **Studio** and **Observatory** must use **Simplified Chinese** by default.
+- Canonical technical identifiers may retain their original spelling when translation would reduce precision, including API/function names, backend/runtime names, object IDs, file formats, protocol names, and keyboard shortcut keys.
+- When a technical term benefits from explanation, prefer a Chinese label with the canonical identifier in parentheses, for example `获取边界（getBounds）`.

@@ -4,13 +4,13 @@ const clone=(value)=>value==null?value:structuredClone(value);
 
 export const generationJobCenterMarkup=()=>`
 <section class="generation-console" aria-label="生成任务中心">
-  <div class="generation-heading"><div><div class="eyebrow">创建</div><h2>创建资产</h2><p>生成内容、完成验证，然后将资产加入当前世界。</p></div><span id="generation-connector-badge" class="generation-badge">Connector</span></div>
-  <div id="generation-state" class="generation-state" data-state="ready"><strong id="generation-state-label">检查生成能力</strong><span id="generation-state-detail">连接 Connector 后从 capability snapshot 发现生成能力。</span></div>
+  <div class="generation-heading"><div><div class="eyebrow">创建</div><h2>创建资产</h2><p>生成内容、完成验证，然后将资产加入当前世界。</p></div><span id="generation-connector-badge" class="generation-badge">连接器</span></div>
+  <div id="generation-state" class="generation-state" data-state="ready"><strong id="generation-state-label">检查生成能力</strong><span id="generation-state-detail">连接连接器后从能力快照发现生成能力。</span></div>
   <div class="generation-scroll">
-    <details class="generation-section"><summary>Connector</summary><div class="generation-section-body">
+    <details class="generation-section"><summary>连接器</summary><div class="generation-section-body">
       <div class="generation-inline-actions"><button id="generation-pair" type="button">配对 / 恢复</button><button id="generation-revoke" type="button" class="danger">撤销</button></div>
-      <small>Connector 只暴露规范化 capability / Job / Artifact，不向 AgentScape 暴露 Provider 私有凭据。</small>
-      <small id="generation-pairing-hint">Provider 能力由 Connector 动态发现。</small>
+      <small>连接器只暴露规范化能力、任务与产物，不向 AgentScape 暴露提供方私有凭据。</small>
+      <small id="generation-pairing-hint">提供方能力由连接器动态发现。</small>
     </div></details>
     <details class="generation-section" open><summary>创建设置</summary><div class="generation-section-body">
       <label>提供方<select id="generation-provider"></select></label><label>能力<select id="generation-operation"></select></label>
@@ -56,7 +56,7 @@ export function generationJobActions(job,outcome=null) {
 export function capabilityHint(capability) {
   if (!capability) return '暂无可用生成能力。';
   const duration=executionClassLabel(capability.execution?.durationClass||'unspecified'), cost=executionClassLabel(capability.execution?.costClass||'unspecified');
-  const connection=capability.connectionRequired?'需要 Connector':'Connector capability';
+  const connection=capability.connectionRequired?'需要连接器':'连接器能力';
   const auth=executionClassLabel(capability.prerequisites?.authMode||'none');
   const schemaRaw=capability.input?.schema?.id||capability.input?.schema?.title||capability.input?.types?.join(', ')||'通用输入'; const schema=executionClassLabel(schemaRaw);
   const profiles=Object.keys(capability.profiles||{}); const profileText=profiles.length?` · 配置档 ${profiles.join(', ')}`:'';
@@ -94,22 +94,22 @@ this.buttons.pair.addEventListener('click',()=>this.pair());this.buttons.revoke.
     this.badge.classList.toggle('live',paired);
     if(paired){
       const connector=state.connector||connectorState.connector;
-      this.setState('ready','生成能力可用',`Connector ${text(connector?.id,'已连接')} · Provider 能力来自当前 capability snapshot`);
-      this.pairingHint.textContent='Connector 会话已建立；Provider 私有凭据不会进入 AgentScape。';
+      this.setState('ready','生成能力可用',`连接器 ${text(connector?.id,'已连接')} · 提供方能力来自当前能力快照`);
+      this.pairingHint.textContent='连接器会话已建立；提供方私有凭据不会进入 AgentScape。';
     } else if(state.reason==='APPROVAL_REQUIRED'){
       this.pairingId=state.pairingId||this.pairingId;
-      this.setState('approval-required','等待 Connector 批准','生成能力发现需要先完成 Connector 配对。');
+      this.setState('approval-required','等待连接器批准','发现生成能力前需要先完成连接器配对。');
       this.pairingHint.textContent=`配对 ID：${text(this.pairingId)} · 不包含提供方凭据。`;
     } else {
-      this.setState('connection-required','暂无可用生成能力','连接 Connector 后从 capability snapshot 发现 Provider。');
-      this.pairingHint.textContent='AgentScape 不内置远程 Provider 拓扑；生成能力由 Connector 动态声明。';
+      this.setState('connection-required','暂无可用生成能力','连接连接器后从能力快照发现提供方。');
+      this.pairingHint.textContent='AgentScape 不内置远程提供方拓扑；生成能力由连接器动态声明。';
     }
     this.buttons.revoke.disabled=!paired;
     this.renderCapabilityHint?.();
   }
 
-  async pair(){try{this.setState('working','连接中','正在连接 Connector…');const result=await this.world.generation.pairConnector({pairingId:this.pairingId});this.renderConnectorState(result);if(result.status==='generation-ready'){this.pairingId=null;this.world.generationState=clone(result);this.refreshCapabilities();await this.refresh({remote:true});}}catch(error){this.setState('error','Connector 连接失败',error.message);this.log(`Connector 错误：${error.message}`,'error');}}
-  async revoke(){try{const result=await this.world.generation.revokeConnector();this.world.generationState=clone(result);this.renderConnectorState(result);this.log('Connector 会话已撤销','result');}catch(error){this.setState('error','撤销失败',error.message);this.log(`撤销 Connector 会话失败：${error.message}`,'error');}}
+  async pair(){try{this.setState('working','连接中','正在连接连接器…');const result=await this.world.generation.pairConnector({pairingId:this.pairingId});this.renderConnectorState(result);if(result.status==='generation-ready'){this.pairingId=null;this.world.generationState=clone(result);this.refreshCapabilities();await this.refresh({remote:true});}}catch(error){this.setState('error','连接器连接失败',error.message);this.log(`连接器错误：${error.message}`,'error');}}
+  async revoke(){try{const result=await this.world.generation.revokeConnector();this.world.generationState=clone(result);this.renderConnectorState(result);this.log('连接器会话已撤销','result');}catch(error){this.setState('error','撤销失败',error.message);this.log(`撤销连接器会话失败：${error.message}`,'error');}}
   refreshCapabilities(){const providers=this.world.generation.listGenerationProviders({availableOnly:false}).providers;this.provider.replaceChildren();for(const provider of providers)this.provider.append(option(provider.id,`${provider.displayName||provider.id} · ${availabilityLabel(provider.status)}`));this.capabilities=this.world.generation.listGenerationCapabilities({availableOnly:false}).capabilities;this.renderCapabilities();}
   renderCapabilities(){const provider=this.provider.value,matching=this.capabilities.filter((capability)=>!provider||capability.provider===provider);this.operation.replaceChildren();for(const capability of matching)this.operation.append(option(capability.operation,`${capability.displayName||capability.operation} · ${availabilityLabel(capability.status)}`));this.renderCapabilityHint();}
   currentCapability(){return this.capabilities.find((capability)=>capability.operation===this.operation.value)||null;}
@@ -118,7 +118,7 @@ this.buttons.pair.addEventListener('click',()=>this.pair());this.buttons.revoke.
     const capability=this.currentCapability();
     if(!capability)throw new Error('请选择生成能力');
     if(!this.costConfirm.checked)throw new Error('提交前必须确认生成可能产生费用');
-    if(this.world.generation.connectorStatus().status!=='paired')throw new Error('生成能力来自 Connector，请先完成配对');
+    if(this.world.generation.connectorStatus().status!=='paired')throw new Error('生成能力来自连接器，请先完成配对');
     const assetId=this.assetId.value.trim()||`generated_${Date.now().toString(36)}`;
     const inputs=parseGenerationInputs(this.inputs.value);
     this.buttons.submit.disabled=true;
@@ -140,7 +140,7 @@ this.buttons.pair.addEventListener('click',()=>this.pair());this.buttons.revoke.
     this.selectedId.textContent=job?.jobId||'未选择';
     this.jobDetail.replaceChildren();
     if(!job){
-      this.jobDetail.append(el('div','generation-empty','Connector Job 会在这里显示。'));
+      this.jobDetail.append(el('div','generation-empty','连接器任务会在这里显示。'));
     } else {
       for(const [label,value] of [['状态',generationStatusLabel(job.status)],['阶段',job.stage||job.phase],['提供方',job.provider],['操作',job.operation],['尝试次数',job.attempt],['关联任务',(job.relations||[]).map((r)=>`${r.type}:${r.jobId}`).join(', ')||'—']]){const row=el('div','generation-detail-row');row.append(el('span',null,label),el('code',null,text(value)));this.jobDetail.append(row);}
       if(job.error)this.jobDetail.append(el('div','generation-error',`${text(job.error.code)} · ${text(job.error.message)}`));

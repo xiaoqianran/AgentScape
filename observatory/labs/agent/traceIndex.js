@@ -4,7 +4,7 @@ import { agentTraceScenarios } from "./scenarios/traceIndex.js";
 
 export const labDefinition = Object.freeze({
   id: "agent-trace",
-  title: "Agent Trace",
+  title: "智能体轨迹",
   scenarios: agentTraceScenarios,
   backends: [Object.freeze({ id: "scripted-agent", title: "ToolCallingAgent + Scripted Gateway" })],
   debugLayers: ["agent-tool", "normalized", "labels", "grid"],

@@ -1,8 +1,8 @@
 export const gravityScenario = {
   id: "physics.gravity.basic",
-  title: "Gravity",
+  title: "重力",
   subtitle: "自由落体",
-  description: "验证固定 60 Hz 下的重力、碰撞与 settle 基础行为。",
+  description: "验证固定 60 Hz 下的重力、碰撞与稳定基础行为。",
   inspect: "drop-box",
   setup(ctx) {
     ctx.addBox({ id: "floor", type: "fixed", position: [0, -0.1, 0], halfExtents: [5, 0.1, 4], friction: 0.8 });

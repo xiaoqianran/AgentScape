@@ -1,8 +1,8 @@
 export const interactionPickupDropScenario = {
   id: "interaction.carry.pickup-drop",
-  title: "Pickup / Drop",
-  subtitle: "dynamic → held → dynamic",
-  description: "真实 cup 通过 InteractionSystem.pickup/drop 在 dynamic 与 held 状态之间切换，并记录 EventBus 事件。",
+  title: "拿起 / 放下",
+  subtitle: "动态 → 持有 → 动态",
+  description: "真实杯子通过 InteractionSystem.pickup/drop 在动态与持有状态之间切换，并记录 EventBus 事件。",
   inspect: "cup",
   async setup(ctx) {
     await ctx.addAsset({ id: "cup", assetId: "cup", position: [0, 1.4, 0] });
@@ -16,12 +16,12 @@ export const interactionPickupDropScenario = {
   assertions(ctx) {
     const { before, pickup, held, drop, released } = ctx.transition;
     return [
-      { label: "初始 cup 是 dynamic", pass: before?.bodyType === "dynamic" },
-      { label: "pickup 返回 held", pass: pickup?.status === "held" && pickup?.heldBy?.kind === "human" },
-      { label: "held 时 Physics body 变 kinematic", pass: held?.bodyType === "kinematic" },
-      { label: "drop 成功释放", pass: drop === true && ctx.interaction.heldId === null },
-      { label: "释放后恢复 dynamic", pass: released?.bodyType === "dynamic" },
-      { label: "EventBus 记录 pickup/drop", pass: ctx.eventLog.map((event) => event.action).join(",") === "pickup,drop" }
+      { label: "初始杯子为动态刚体", pass: before?.bodyType === "dynamic" },
+      { label: "拿起操作返回持有状态", pass: pickup?.status === "held" && pickup?.heldBy?.kind === "human" },
+      { label: "持有时物理刚体变为运动学刚体", pass: held?.bodyType === "kinematic" },
+      { label: "放下操作成功释放", pass: drop === true && ctx.interaction.heldId === null },
+      { label: "释放后恢复为动态刚体", pass: released?.bodyType === "dynamic" },
+      { label: "EventBus 记录拿起/放下", pass: ctx.eventLog.map((event) => event.action).join(",") === "pickup,drop" }
     ];
   }
 };

@@ -13,8 +13,8 @@ export function worldLabelsForPhysics(snapshot) {
     return label(
       `physics:${body.objectId || index}`,
       [body.position[0], body.position[1] + 0.28, body.position[2]],
-      body.sleeping ? "SLEEPING" : "BODY",
-      body.objectId || `body ${index + 1}`,
+      body.sleeping ? "休眠" : "刚体",
+      body.objectId || `刚体 ${index + 1}`,
       `${compact(speed)} m/s`,
       body.sleeping ? "muted" : speed > 0.08 ? "info" : "neutral"
     );
@@ -28,18 +28,18 @@ export function worldLabelsForSpatial(snapshot) {
     labels.push(label(
       `spatial:hit:${index}`,
       [hit.point[0], hit.point[1] + 0.18, hit.point[2]],
-      index === 0 ? "FIRST HIT" : `HIT ${index + 1}`,
-      hit.id || hit.objectId || "surface",
+      index === 0 ? "首次命中" : `命中 ${index + 1}`,
+      hit.id || hit.objectId || "表面",
       Number.isFinite(hit.distance) ? `${compact(hit.distance)} m` : "",
       index === 0 ? "warn" : "neutral"
     ));
   }
   const free = snapshot?.freeSpace?.point;
-  if (tuple(free)) labels.push(label("spatial:free", [free[0], free[1] + 0.2, free[2]], "QUERY", "free space", "candidate", "pass"));
+  if (tuple(free)) labels.push(label("spatial:free", [free[0], free[1] + 0.2, free[2]], "查询", "自由空间", "候选点", "pass"));
   const support = snapshot?.support;
   if (tuple(support?.surface?.center)) {
     const center = support.surface.center;
-    labels.push(label("spatial:support", [center[0], center[1] + 0.14, center[2]], "SUPPORT", support.on ? "supported" : "unsupported", "surface", support.on ? "pass" : "fail"));
+    labels.push(label("spatial:support", [center[0], center[1] + 0.14, center[2]], "支撑", support.on ? "已支撑" : "未支撑", "表面", support.on ? "pass" : "fail"));
   }
   return labels.slice(0, 6);
 }
@@ -49,11 +49,11 @@ export function worldLabelsForNavigation(snapshot) {
   const route = snapshot?.route;
   const start = route?.start?.input || route?.start?.snapped;
   const end = route?.end?.input || route?.end?.snapped;
-  if (tuple(start)) labels.push(label("nav:start", [start[0], start[1] + 0.22, start[2]], "ROUTE", "START", "input", "info"));
-  if (tuple(end)) labels.push(label("nav:end", [end[0], end[1] + 0.22, end[2]], "ROUTE", "END", route?.reachable ? "reachable" : (route?.reason || "blocked"), route?.reachable ? "pass" : "fail"));
+  if (tuple(start)) labels.push(label("nav:start", [start[0], start[1] + 0.22, start[2]], "路径", "起点", "输入", "info"));
+  if (tuple(end)) labels.push(label("nav:end", [end[0], end[1] + 0.22, end[2]], "路径", "终点", route?.reachable ? "可达" : (route?.reason || "受阻"), route?.reachable ? "pass" : "fail"));
   for (const obstacle of (snapshot?.obstacles || []).slice(0, 3)) {
     if (!tuple(obstacle.position)) continue;
-    labels.push(label(`nav:obstacle:${obstacle.id}`, [obstacle.position[0], obstacle.position[1] + 0.42, obstacle.position[2]], "OBSTACLE", obstacle.id || "dynamic", obstacle.action || obstacle.shape || "", "warn"));
+    labels.push(label(`nav:obstacle:${obstacle.id}`, [obstacle.position[0], obstacle.position[1] + 0.42, obstacle.position[2]], "障碍物", obstacle.id || "动态障碍物", obstacle.action || obstacle.shape || "", "warn"));
   }
   return labels;
 }
@@ -63,10 +63,10 @@ export function worldLabelsForInteraction(snapshot) {
   const reach = snapshot?.reach;
   const eye = reach?.lineOfSight?.eye;
   const aim = reach?.lineOfSight?.aim;
-  if (tuple(eye)) labels.push(label("interaction:actor", [eye[0], eye[1] + 0.2, eye[2]], "ACTOR", "agent", reach?.interactable ? "can interact" : "checking reach", "info"));
-  if (tuple(aim)) labels.push(label("interaction:target", [aim[0], aim[1] + 0.2, aim[2]], "TARGET", "cup", reach?.visible ? "visible" : "occluded", reach?.visible ? "pass" : "fail"));
+  if (tuple(eye)) labels.push(label("interaction:actor", [eye[0], eye[1] + 0.2, eye[2]], "主体", "智能体", reach?.interactable ? "可交互" : "检查交互范围", "info"));
+  if (tuple(aim)) labels.push(label("interaction:target", [aim[0], aim[1] + 0.2, aim[2]], "目标", "杯子", reach?.visible ? "可见" : "被遮挡", reach?.visible ? "pass" : "fail"));
   const surface = snapshot?.supportSurface;
-  if (tuple(surface?.center)) labels.push(label("interaction:support", [surface.center[0], surface.center[1] + 0.16, surface.center[2]], "SUPPORT", snapshot?.support?.on ? "ON" : "surface", "placement", snapshot?.support?.on ? "pass" : "neutral"));
+  if (tuple(surface?.center)) labels.push(label("interaction:support", [surface.center[0], surface.center[1] + 0.16, surface.center[2]], "支撑", snapshot?.support?.on ? "位于其上" : "表面", "放置", snapshot?.support?.on ? "pass" : "neutral"));
   return labels;
 }
 
@@ -74,19 +74,19 @@ export function worldLabelsForAgent(snapshot) {
   const labels = [];
   const tool = snapshot?.lastTool;
   if (tool?.name === "findFreeSpace" && tuple(tool.result)) {
-    labels.push(label("agent:free", [tool.result[0], tool.result[1] + 0.22, tool.result[2]], "TOOL RESULT", "free space", tool.name, "pass"));
+    labels.push(label("agent:free", [tool.result[0], tool.result[1] + 0.22, tool.result[2]], "工具结果", "自由空间", tool.name, "pass"));
   }
   if (tool?.name === "raycast") {
     const hit = Array.isArray(tool.result) ? tool.result[0] : null;
-    if (tuple(hit?.point)) labels.push(label("agent:hit", [hit.point[0], hit.point[1] + 0.22, hit.point[2]], "TOOL RESULT", hit.id || hit.objectId || "first hit", tool.name, "warn"));
+    if (tuple(hit?.point)) labels.push(label("agent:hit", [hit.point[0], hit.point[1] + 0.22, hit.point[2]], "工具结果", hit.id || hit.objectId || "首次命中", tool.name, "warn"));
   }
   if (tool?.name === "getBounds" && tuple(tool.result?.min) && tuple(tool.result?.max)) {
     const center = tool.result.min.map((value, index) => (value + tool.result.max[index]) / 2);
-    labels.push(label("agent:bounds", [center[0], tool.result.max[1] + 0.2, center[2]], "TOOL RESULT", tool.args?.id || tool.args?.objectId || "bounds", tool.name, "info"));
+    labels.push(label("agent:bounds", [center[0], tool.result.max[1] + 0.2, center[2]], "工具结果", tool.args?.id || tool.args?.objectId || "边界", tool.name, "info"));
   }
   const cup = snapshot?.physics?.bodies?.find((body) => body.objectId === "cup");
   if (tool?.name === "getCarryStatus" && tool.result?.status === "empty" && tuple(cup?.position)) {
-    labels.push(label("agent:dropped", [cup.position[0], cup.position[1] + 0.25, cup.position[2]], "VERIFIED", "cup dropped", "settled", "pass"));
+    labels.push(label("agent:dropped", [cup.position[0], cup.position[1] + 0.25, cup.position[2]], "已验证", "杯子已放下", "已稳定", "pass"));
   }
 
   const execution = snapshot?.agent?.execution || [];
@@ -95,12 +95,12 @@ export function worldLabelsForAgent(snapshot) {
     const id = latestExecution.args?.id || latestExecution.args?.objectId;
     const bound = snapshot?.spatial?.bounds?.find((item) => item.id === id);
     if (tuple(bound?.center) && tuple(bound?.max)) {
-      labels.push(label("trace:bounds", [bound.center[0], bound.max[1] + 0.2, bound.center[2]], "PLANNING STEP", id || "bounds", "getBounds · accepted", "info"));
+      labels.push(label("trace:bounds", [bound.center[0], bound.max[1] + 0.2, bound.center[2]], "规划步骤", id || "边界", "getBounds · 已接受", "info"));
     }
   }
   if (snapshot?.agent?.lastMutation?.tool === "dropHeld" && tuple(cup?.position)) {
     const verified = snapshot.agent.lastMutation?.outcome?.verified === true;
-    labels.push(label("trace:mutation", [cup.position[0], cup.position[1] + 0.26, cup.position[2]], verified ? "VERIFIED MUTATION" : "MUTATION", "cup dropped", "replan barrier", verified ? "pass" : "warn"));
+    labels.push(label("trace:mutation", [cup.position[0], cup.position[1] + 0.26, cup.position[2]], verified ? "已验证变更" : "变更", "杯子已放下", "重新规划屏障", verified ? "pass" : "warn"));
   }
   return labels.slice(0, 5);
 }

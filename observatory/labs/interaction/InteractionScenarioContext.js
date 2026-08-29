@@ -132,7 +132,7 @@ export class InteractionScenarioContext {
     const position = id && this.store.has(id) ? this.physics.getPosition(id) : null;
     const state = id && this.store.has(id) ? this.store.get(id).state : null;
     return {
-      title: id || "Interaction Runtime",
+      title: id || "交互运行时",
       kind: "InteractionSystem + Rapier + SpatialSystem",
       values: {
         position,

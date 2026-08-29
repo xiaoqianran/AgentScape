@@ -180,7 +180,7 @@ export class NavigationScenarioContext {
   inspect() {
     const debug = this.debugSnapshot();
     return {
-      title: "Recast Navigation",
+      title: "Recast 导航",
       kind: this.physics ? "PhysicsSystem → NavigationSystem → Recast" : "NavigationSystem + RecastNavigationBackend",
       values: {
         state: debug.status.state,

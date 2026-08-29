@@ -105,7 +105,8 @@ export class ObjectInspector {
       const row = document.createElement('div');
       const predicate = document.createElement('strong');
       const target = document.createElement('span');
-      predicate.textContent = relation.predicate;
+      const relationLabels = { ON: '位于其上', NEAR: '附近', INSIDE: '位于内部' };
+      predicate.textContent = relationLabels[relation.predicate] || relation.predicate;
       target.textContent = relation.object;
       row.append(predicate, target);
       this.relations.append(row);

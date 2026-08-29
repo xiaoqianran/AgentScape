@@ -20,7 +20,7 @@ describe('Generation Job Center view model',()=>{
     const hint=capabilityHint({operation:'modal-3d.asset.text_to_3d.v1',input:{types:['text']},execution:{durationClass:'long',costClass:'gpu'},connectionRequired:true});
     expect(hint).toContain('时长等级 长');
     expect(hint).toContain('成本等级 gpu');
-    expect(hint).toContain('需要 Connector');
+    expect(hint).toContain('需要连接器');
     expect(hint).not.toMatch(/\$|USD|minutes/i);
   });
 
@@ -32,7 +32,7 @@ describe('Generation Job Center view model',()=>{
     expect(markup).toContain('id="generation-job-spawn"');
     expect(markup).toContain('id="generation-cost-confirm"');
     expect(markup).toContain('id="generation-pair"');
-    expect(markup).toContain('<summary>Connector</summary>');
+    expect(markup).toContain('<summary>连接器</summary>');
     expect(markup).not.toContain('generation-connector-approval');
     expect(markup).not.toContain('type="password"');
   });

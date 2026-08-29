@@ -6,32 +6,32 @@ import { ObservatoryShell } from "./ui/ObservatoryShell.js";
 const LABS = [
   {
     id: "physics",
-    title: "Physics",
+    title: "物理",
     load: () => import("./labs/physics/index.js")
   },
   {
     id: "spatial",
-    title: "Spatial",
+    title: "空间",
     load: () => import("./labs/spatial/index.js")
   },
   {
     id: "navigation",
-    title: "Navigation",
+    title: "导航",
     load: () => import("./labs/navigation/index.js")
   },
   {
     id: "interaction",
-    title: "Interaction",
+    title: "交互",
     load: () => import("./labs/interaction/index.js")
   },
   {
     id: "agent",
-    title: "AgentTools",
+    title: "智能体工具",
     load: () => import("./labs/agent/index.js")
   },
   {
     id: "agent-trace",
-    title: "Agent Trace",
+    title: "智能体轨迹",
     load: () => import("./labs/agent/traceIndex.js")
   }
 ];

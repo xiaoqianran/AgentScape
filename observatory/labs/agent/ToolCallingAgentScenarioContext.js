@@ -79,8 +79,8 @@ export class ToolCallingAgentScenarioContext extends AgentToolsScenarioContext {
   inspect() {
     const snapshot = this.debugSnapshot();
     return {
-      title: "ToolCallingAgent Trace",
-      kind: "Scripted Gateway → ToolCallingAgent → AgentTools → Domain Skills",
+      title: "ToolCallingAgent 轨迹",
+      kind: "脚本网关 → ToolCallingAgent → AgentTools → 领域技能",
       values: {
         taskStatus: snapshot.agent?.taskStatus || null,
         steps: snapshot.agent?.steps ?? null,

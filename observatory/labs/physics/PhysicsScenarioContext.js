@@ -110,11 +110,11 @@ export class PhysicsScenarioContext {
     if (!entity) return null;
     if (entity.kind === "articulation") {
       const state = this.articulation(id, entity.partName, entity.target);
-      return { title: `${id} / ${entity.partName}`, kind: `${this.physics.backend.identity} revolute joint`, values: { coordinate: state?.coordinate, target: state?.target, error: state?.error, tolerance: state?.tolerance, jointType: state?.jointType } };
+      return { title: `${id} / ${entity.partName}`, kind: `${this.physics.backend.identity} 旋转关节`, values: { coordinate: state?.coordinate, target: state?.target, error: state?.error, tolerance: state?.tolerance, jointType: state?.jointType } };
     }
     const motion = this.motion(id);
     const body = this.physics.entries.get(id)?.body;
-    return { title: id, kind: `${this.physics.backend.identity} rigid body`, values: { position: this.position(id), bodyType: body ? this.physics.backend.bodyType(body) : null, sleeping: motion?.sleeping, linearSpeed: motion?.linearSpeed, angularSpeed: motion?.angularSpeed, linearVelocity: motion?.linearVelocity } };
+    return { title: id, kind: `${this.physics.backend.identity} 刚体`, values: { position: this.position(id), bodyType: body ? this.physics.backend.bodyType(body) : null, sleeping: motion?.sleeping, linearSpeed: motion?.linearSpeed, angularSpeed: motion?.angularSpeed, linearVelocity: motion?.linearVelocity } };
   }
 
   debugSnapshot({ nativeGeometry = true, contacts = true } = {}) {

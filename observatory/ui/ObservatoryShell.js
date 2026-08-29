@@ -8,11 +8,11 @@ export class ObservatoryShell {
 
         <header class="obs-topbar">
           <div class="obs-topbar-left">
-            <a class="obs-brand" href="/observatory/" aria-label="AgentScape Workbench">
+            <a class="obs-brand" href="/observatory/" aria-label="AgentScape 工作台">
               <span class="obs-brand-dot" aria-hidden="true"></span>
               <div class="obs-brand-copy">
-                <strong>AgentScape Workbench</strong>
-                <span id="obs-lab-title">Observatory · 运行时验证</span>
+                <strong>AgentScape 工作台</strong>
+                <span id="obs-lab-title">观测台 · 运行时验证</span>
               </div>
             </a>
             <div class="obs-context" aria-label="实验上下文">
@@ -29,12 +29,12 @@ export class ObservatoryShell {
           <div class="obs-topbar-right">
             <button id="obs-focus-view" class="obs-top-action" type="button" title="聚焦当前场景" aria-label="聚焦当前场景">
               ${icon("focus")}
-              <span>Focus</span>
+              <span>聚焦</span>
             </button>
-            <a class="obs-studio-link" href="/">${icon("terminal")}<span>Studio</span></a>
+            <a class="obs-studio-link" href="/">${icon("terminal")}<span>工作室</span></a>
             <i class="obs-top-separator" aria-hidden="true"></i>
-            <button class="obs-top-icon" type="button" data-open-right="layers" title="Debug Layers" aria-label="打开 Debug Layers">${icon("settings")}</button>
-            <button class="obs-top-icon" type="button" data-open-right="inspect" title="Runtime Inspect" aria-label="打开运行时检视">${icon("help")}</button>
+            <button class="obs-top-icon" type="button" data-open-right="layers" title="调试图层" aria-label="打开 调试图层">${icon("settings")}</button>
+            <button class="obs-top-icon" type="button" data-open-right="inspect" title="运行时检视" aria-label="打开运行时检视">${icon("help")}</button>
           </div>
         </header>
 
@@ -42,8 +42,8 @@ export class ObservatoryShell {
           <aside class="obs-left-sidebar obs-glass" aria-label="实验场景">
             <button id="obs-scenarios-toggle" class="obs-edge-toggle obs-edge-toggle-right" type="button" aria-label="显示或隐藏场景面板" aria-pressed="true">${icon("chevron-left")}</button>
             <div class="obs-sidebar-head">
-              <strong>Run Graph</strong>
-              <span>LIVE EXECUTION</span>
+              <strong>运行图</strong>
+              <span>实时执行</span>
             </div>
             <div id="obs-scenario-list" class="obs-scenario-list"></div>
           </aside>
@@ -51,11 +51,11 @@ export class ObservatoryShell {
           <section class="obs-center-column" aria-label="运行时视口">
             <div class="obs-center-toolbar">
               <div class="obs-view-tabs" role="tablist" aria-label="视图模式">
-                <button class="obs-view-tab is-active" type="button" data-view="world">${icon("world")}<span>真实世界 <b>WORLD</b></span></button>
-                <button class="obs-view-tab" type="button" data-view="evidence">${icon("evidence")}<span>运行证据 <b>EVIDENCE</b></span></button>
-                <button class="obs-view-tab" type="button" data-view="inspect">${icon("cube")}<span>运行时检视 <b>INSPECT</b></span></button>
+                <button class="obs-view-tab is-active" type="button" data-view="world">${icon("world")}<span>真实世界 <b>世界</b></span></button>
+                <button class="obs-view-tab" type="button" data-view="evidence">${icon("evidence")}<span>运行证据 <b>证据</b></span></button>
+                <button class="obs-view-tab" type="button" data-view="inspect">${icon("cube")}<span>运行时检视 <b>检视</b></span></button>
               </div>
-              <div class="obs-fixed-pill"><i></i><span>SIMULATION · 60 HZ FIXED</span></div>
+              <div class="obs-fixed-pill"><i></i><span>仿真 · 固定 60 HZ</span></div>
             </div>
 
             <section class="obs-stage obs-glass" aria-label="运行时 3D 世界">
@@ -81,7 +81,7 @@ export class ObservatoryShell {
             <div class="obs-right-body">
               <section class="obs-right-panel is-active" data-right-panel="run">
                 <div class="obs-run-summary">
-                  <div><span>VERIFICATION</span><strong>当前执行流</strong></div>
+                  <div><span>验证</span><strong>当前执行流</strong></div>
                   <span id="obs-result-summary" class="obs-result-summary is-neutral">—</span>
                 </div>
                 <div class="obs-run-graph">
@@ -89,7 +89,7 @@ export class ObservatoryShell {
                   <article class="obs-flow-node obs-flow-scenario">
                     <div class="obs-flow-dot">${icon("assignment")}</div>
                     <div class="obs-flow-content">
-                      <span class="obs-flow-kicker">SCENARIO</span>
+                      <span class="obs-flow-kicker">场景</span>
                       <div id="obs-run-scenario-card" class="obs-flow-card"><strong>等待场景</strong><small>选择一个运行时验证任务</small></div>
                     </div>
                   </article>
@@ -98,35 +98,35 @@ export class ObservatoryShell {
               </section>
 
               <section class="obs-right-panel" data-right-panel="layers">
-                <div class="obs-panel-heading"><span>DEBUG VIEW</span><strong>视觉图层</strong><small>只改变观测方式，不改变 Runtime 真值。</small></div>
+                <div class="obs-panel-heading"><span>调试视图</span><strong>视觉图层</strong><small>只改变观测方式，不改变 Runtime 真值。</small></div>
                 <div class="obs-debug-controls">
-                  ${debugToggle("native", "native-debug", "Native Physics")}
-                  ${debugToggle("manifest", "manifest-debug", "Manifest Collider")}
-                  ${debugToggle("difference", "difference-debug", "Truth Difference")}
-                  ${debugToggle("normalized", "normalized-debug", "Normalized Collider")}
-                  ${debugToggle("velocity", "velocity-debug", "Velocity")}
-                  ${debugToggle("joint", "joint-debug", "Joint Frame")}
-                  ${debugToggle("contact", "contact-debug", "Contact Normal")}
-                  ${debugToggle("bounds", "bounds-debug", "Bounds / Overlap")}
-                  ${debugToggle("ray", "ray-debug", "Ray / Hits")}
-                  ${debugToggle("spatial-query", "spatial-query-debug", "Spatial Query")}
+                  ${debugToggle("native", "native-debug", "原生物理")}
+                  ${debugToggle("manifest", "manifest-debug", "清单碰撞体")}
+                  ${debugToggle("difference", "difference-debug", "真值差异")}
+                  ${debugToggle("normalized", "normalized-debug", "归一化碰撞体")}
+                  ${debugToggle("velocity", "velocity-debug", "速度")}
+                  ${debugToggle("joint", "joint-debug", "关节坐标系")}
+                  ${debugToggle("contact", "contact-debug", "接触法线")}
+                  ${debugToggle("bounds", "bounds-debug", "边界 / 重叠")}
+                  ${debugToggle("ray", "ray-debug", "射线 / 命中")}
+                  ${debugToggle("spatial-query", "spatial-query-debug", "空间查询")}
                   ${debugToggle("navmesh", "navmesh-debug", "NavMesh")}
                   ${debugToggle("path", "path-debug", "Path")}
                   ${debugToggle("endpoints", "endpoints-debug", "Start / End")}
-                  ${debugToggle("obstacles", "obstacles-debug", "Dynamic Obstacles")}
-                  ${debugToggle("interaction-los", "interaction-los-debug", "LOS / Hit")}
-                  ${debugToggle("interaction-support", "interaction-support-debug", "Support Surface")}
-                  ${debugToggle("interaction-state", "interaction-state-debug", "Interaction State")}
-                  ${debugToggle("agent-tool", "agent-tool-debug", "Tool Result")}
-                  ${debugToggle("labels", "labels-debug", "World Labels")}
-                  ${debugToggle("grid", "grid-debug", "Grid / Axes")}
+                  ${debugToggle("obstacles", "obstacles-debug", "动态障碍物")}
+                  ${debugToggle("interaction-los", "interaction-los-debug", "视线 / 命中")}
+                  ${debugToggle("interaction-support", "interaction-support-debug", "支撑面")}
+                  ${debugToggle("interaction-state", "interaction-state-debug", "交互状态")}
+                  ${debugToggle("agent-tool", "agent-tool-debug", "工具结果")}
+                  ${debugToggle("labels", "labels-debug", "世界标签")}
+                  ${debugToggle("grid", "grid-debug", "网格 / 坐标轴")}
                 </div>
               </section>
 
               <section class="obs-right-panel" data-right-panel="inspect">
-                <div class="obs-panel-heading"><span>RUNTIME</span><strong>运行时检视</strong><small>关键状态、测量与后端观测值。</small></div>
+                <div class="obs-panel-heading"><span>运行时</span><strong>运行时检视</strong><small>关键状态、测量与后端观测值。</small></div>
                 <div id="obs-inspector" class="obs-inspector"></div>
-                <div class="obs-metrics-title"><span>MEASUREMENTS</span><strong>测量</strong></div>
+                <div class="obs-metrics-title"><span>测量</span><strong>测量数据</strong></div>
                 <div id="obs-metrics" class="obs-metrics"></div>
               </section>
             </div>
@@ -135,7 +135,7 @@ export class ObservatoryShell {
 
         <div class="obs-bottom-dock" aria-label="实验控制">
           <div class="obs-commandbar obs-glass-elevated">
-            <button id="obs-run" class="obs-primary" type="button">${icon("play")}<span>运行</span><small>SPACE</small></button>
+            <button id="obs-run" class="obs-primary" type="button">${icon("play")}<span>运行</span><small>空格</small></button>
             <button id="obs-step" type="button">${icon("step")}<span>单步</span></button>
             <button id="obs-step10" type="button"><b>+10</b><span>帧</span></button>
             <i class="obs-dock-divider" aria-hidden="true"></i>
@@ -143,16 +143,16 @@ export class ObservatoryShell {
             <details class="obs-more">
               <summary aria-label="更多控制">${icon("more")}</summary>
               <div class="obs-more-menu obs-glass-elevated">
-                <button id="obs-checkpoint" type="button">记录 Checkpoint</button>
-                <button id="obs-restore" type="button" disabled>重放到 Checkpoint</button>
+                <button id="obs-checkpoint" type="button">记录检查点</button>
+                <button id="obs-restore" type="button" disabled>重放到检查点</button>
                 <span>记录帧：<b id="obs-checkpoint-frame">—</b></span>
               </div>
             </details>
           </div>
           <div class="obs-sim-strip obs-glass-elevated">
-            <span><small>FRM</small><b id="obs-frame">0</b></span>
+            <span><small>帧</small><b id="obs-frame">0</b></span>
             <i></i>
-            <span><small>SIM</small><b id="obs-time">0.000 s</b></span>
+            <span><small>仿真</small><b id="obs-time">0.000 s</b></span>
             <i></i>
             <span class="obs-active-op"><em></em><b id="obs-active-action">idle</b></span>
           </div>
@@ -258,7 +258,7 @@ export class ObservatoryShell {
   }
 
   setLabTitle(title) {
-    this.refs["lab-title"].textContent = `${title} · Observatory`;
+    this.refs["lab-title"].textContent = `${title} · 观测台`;
   }
 
   setLabIdentity(labId) {
@@ -292,8 +292,8 @@ export class ObservatoryShell {
   setRunning(running) {
     this.refs.run.classList.toggle("is-running", running);
     this.refs.run.innerHTML = running
-      ? `${icon("pause")}<span>暂停</span><small>SPACE</small>`
-      : `${icon("play")}<span>运行</span><small>SPACE</small>`;
+      ? `${icon("pause")}<span>暂停</span><small>空格</small>`
+      : `${icon("play")}<span>运行</span><small>空格</small>`;
   }
 
   update({ scenario, clock, inspector, assertions, metrics, checkpointFrame = null }) {
@@ -304,7 +304,7 @@ export class ObservatoryShell {
     this.refs.restore.disabled = !hasCheckpoint;
 
     const scenarioIndex = this.scenarioIndexById.get(scenario.id) || 1;
-    this.refs["scenario-badge"].innerHTML = `<small>SCENARIO // ${String(scenarioIndex).padStart(3, "0")}</small><b>${escapeHtml(scenario.title)}</b><span>${escapeHtml(scenario.description || scenario.subtitle || "")}</span>`;
+    this.refs["scenario-badge"].innerHTML = `<small>场景 // ${String(scenarioIndex).padStart(3, "0")}</small><b>${escapeHtml(scenario.title)}</b><span>${escapeHtml(scenario.description || scenario.subtitle || "")}</span>`;
     this.refs["run-scenario-card"].innerHTML = `<strong>${escapeHtml(scenario.title)}</strong><small>${escapeHtml(scenario.subtitle || scenario.id)}</small>`;
 
     const normalizedAssertions = assertions || [];
@@ -313,13 +313,13 @@ export class ObservatoryShell {
     const summary = this.refs["result-summary"];
     summary.className = "obs-result-summary";
     if (failures) {
-      summary.textContent = `${failures} FAIL`;
+      summary.textContent = `${failures} 失败`;
       summary.classList.add("is-fail");
     } else if (pending) {
-      summary.textContent = `${pending} PENDING`;
+      summary.textContent = `${pending} 等待`;
       summary.classList.add("is-pending");
     } else if (normalizedAssertions.length) {
-      summary.textContent = "PASS";
+      summary.textContent = "通过";
       summary.classList.add("is-pass");
     } else {
       summary.textContent = "—";
@@ -328,10 +328,10 @@ export class ObservatoryShell {
 
     this.refs.inspector.innerHTML = renderInspector(inspector);
     this.refs.assertions.innerHTML = normalizedAssertions.map(renderAssertion).join("") || `<div class="obs-empty">暂无执行节点</div>`;
-    this.refs.metrics.innerHTML = Object.entries(metrics || {}).map(([key, value]) => `<div><span>${escapeHtml(key)}</span><b>${escapeHtml(String(value))}</b></div>`).join("") || `<div class="obs-empty">暂无测量数据</div>`;
+    this.refs.metrics.innerHTML = Object.entries(metrics || {}).map(([key, value]) => `<div><span>${escapeHtml(displayKey(key))}</span><b>${escapeHtml(formatValue(value))}</b></div>`).join("") || `<div class="obs-empty">暂无测量数据</div>`;
 
     const activeAction = metrics?.tool || metrics?.action || inspector?.values?.lastAction || inspector?.values?.state || (clock.running ? "simulation running" : "idle");
-    this.refs["active-action"].textContent = String(activeAction || "idle");
+    this.refs["active-action"].textContent = formatValue(activeAction || "idle");
   }
 }
 
@@ -343,23 +343,45 @@ const escapeHtml = (value) => String(value)
   .replaceAll(">", "&gt;")
   .replaceAll("\"", "&quot;");
 
+const DISPLAY_KEYS = Object.freeze({
+  position: "位置", heldBy: "持有者", humanHeld: "人工持有", lastAction: "上次动作", lastResult: "上次结果",
+  interactable: "可交互", inRange: "交互距离内", visible: "可见", blocker: "阻挡物", supportOn: "位于支撑面", eventCount: "事件数",
+  backend: "后端", solver: "求解器", bodies: "刚体数", colliders: "碰撞体数", joints: "关节数", contacts: "接触数", entities: "实体数",
+  objects: "对象数", overlaps: "重叠数", reachable: "可达", reason: "原因", waypoints: "路径点", cost: "代价", state: "状态",
+  held: "持有对象", action: "动作", events: "事件数", definitions: "工具定义数", tool: "工具", outcome: "结果", verified: "已验证",
+  elapsed: "耗时", "physics.step": "物理步耗时", "native debug": "原生调试", "manifest colliders": "清单碰撞体数",
+  "manifest→physics pos Δ": "清单→物理 位置 Δ", "manifest→physics rot Δ": "清单→物理 旋转 Δ", "manifest→physics shape Δ": "清单→物理 形状 Δ",
+  "manifest missing": "清单缺失", "manifest shape mismatch": "清单形状不匹配", "fixed dt": "固定步长", "ray hits": "射线命中数",
+  "free space": "自由空间", "nav triangles": "导航网格三角形", "query time": "查询耗时", "support on": "位于支撑面",
+  "tool.called": "工具调用数", "task status": "任务状态", "planning steps": "规划步数", "gateway rounds": "网关轮次", "sequence events": "序列事件数"
+});
+
+const DISPLAY_VALUES = Object.freeze({
+  idle: "空闲", running: "运行中", enabled: "已启用", disabled: "已禁用", available: "可用", unavailable: "不可用",
+  dynamic: "动态", kinematic: "运动学", fixed: "固定", held: "持有", empty: "空", completed: "已完成", "no-mutation": "无变更",
+  verified: "已验证", pass: "通过", fail: "失败", pending: "等待", reachable: "可达", blocked: "受阻", true: "是", false: "否"
+});
+
+const displayKey = (key) => DISPLAY_KEYS[key] || key;
+
 const formatValue = (value) => {
-  if (Array.isArray(value)) return value.map((item) => Number.isFinite(item) ? item.toFixed(3) : item).join(", ");
+  if (Array.isArray(value)) return value.map((item) => Number.isFinite(item) ? item.toFixed(3) : (DISPLAY_VALUES[String(item)] || item)).join(", ");
   if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toFixed(4);
+  if (typeof value === "boolean") return value ? "是" : "否";
   if (value == null) return "—";
   if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  return DISPLAY_VALUES[String(value)] || String(value);
 };
 
 const renderInspector = (inspector) => {
   if (!inspector) return `<div class="obs-empty">运行场景后显示关键 Runtime 状态。</div>`;
-  const rows = Object.entries(inspector.values || {}).map(([key, value]) => `<div class="obs-kv"><span>${escapeHtml(key)}</span><b>${escapeHtml(formatValue(value))}</b></div>`).join("");
-  return `<div class="obs-inspector-head"><span>OBJECT / SYSTEM</span><b>${escapeHtml(inspector.title || "Runtime")}</b><small>${escapeHtml(inspector.kind || "")}</small></div>${rows}`;
+  const rows = Object.entries(inspector.values || {}).map(([key, value]) => `<div class="obs-kv"><span>${escapeHtml(displayKey(key))}</span><b>${escapeHtml(formatValue(value))}</b></div>`).join("");
+  return `<div class="obs-inspector-head"><span>对象 / 系统</span><b>${escapeHtml(inspector.title || "Runtime")}</b><small>${escapeHtml(inspector.kind || "")}</small></div>${rows}`;
 };
 
 const renderAssertion = (assertion, index) => {
   const status = assertionStatus(assertion);
-  const label = status === "pass" ? "VERIFY" : status === "pending" ? "PENDING" : "ISSUE";
+  const label = status === "pass" ? "验证" : status === "pending" ? "等待" : "问题";
   const mark = status === "pass" ? "✓" : status === "pending" ? "·" : "!";
   return `<article class="obs-flow-node is-${status}">
     <div class="obs-flow-dot">${mark}</div>

@@ -81,7 +81,7 @@ export class SpatialScenarioContext {
   inspect(id) {
     const bounds = id && this.store.has(id) ? this.spatial.getBounds(id) : null;
     return {
-      title: id || "Spatial Runtime",
+      title: id || "空间运行时",
       kind: "Three.js + three-mesh-bvh",
       values: {
         bvh: bvhRuntimeStatus().raycast,

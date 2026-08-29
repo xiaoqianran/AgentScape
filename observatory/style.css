@@ -110,7 +110,7 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.55;strok
 .obs-fixed-pill i{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(var(--accent-rgb),.6);animation:obs-pulse 2s ease-in-out infinite}
 
 .obs-stage{position:relative;flex:1;min-height:0;overflow:hidden;border-radius:26px;margin-bottom:52px;background:linear-gradient(145deg,#414559,#303446);box-shadow:var(--shadow-lg);border-color:rgba(81,87,109,.9)}
-.obs-stage::after{content:"WORLD VIEW";position:absolute;right:18px;bottom:14px;z-index:8;color:rgba(198,208,245,.36);font:800 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.16em;pointer-events:none}
+.obs-stage::after{content:"世界视图";position:absolute;right:18px;bottom:14px;z-index:8;color:rgba(198,208,245,.36);font:800 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.16em;pointer-events:none}
 .obs-viewport{position:absolute;inset:0;z-index:1}
 .obs-viewport canvas{display:block;width:100%;height:100%}
 .obs-stage-wash{position:absolute;inset:0;z-index:2;pointer-events:none;background:radial-gradient(circle at 50% 42%,rgba(var(--accent-rgb),.04),transparent 28%),linear-gradient(180deg,rgba(48,52,70,.04),rgba(41,44,60,.12));mix-blend-mode:screen}

@@ -5,7 +5,7 @@ import { PHYSICS_BACKENDS, isPhysicsBackend } from "./backends.js";
 
 export const labDefinition = Object.freeze({
   id: "physics",
-  title: "Physics",
+  title: "物理",
   scenarios: physicsScenarios,
   backends: PHYSICS_BACKENDS,
   debugLayers: ["native", "manifest", "difference", "normalized", "velocity", "joint", "contact", "labels", "grid"],

@@ -95,8 +95,8 @@ export class AgentToolsScenarioContext {
   inspect() {
     const snapshot = this.debugSnapshot();
     return {
-      title: "AgentTools",
-      kind: "AgentTools → SkillRegistry → domain skill pack → Runtime",
+      title: "AgentTools 运行时",
+      kind: "AgentTools → SkillRegistry → 领域技能包 → 运行时",
       values: {
         definitions: snapshot.definitions.length,
         lastTool: snapshot.lastTool?.name || null,

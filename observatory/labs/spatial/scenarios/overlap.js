@@ -1,8 +1,8 @@
 export const spatialOverlapScenario = {
   id: "spatial.bounds.overlap",
-  title: "Bounds / Overlap",
-  subtitle: "AABB collision pairs",
-  description: "观察 SpatialSystem.snapshot() 产生的 world bounds，以及 collisionPairs() 的成对结果。",
+  title: "边界 / 重叠",
+  subtitle: "AABB 碰撞对",
+  description: "观察 SpatialSystem.snapshot() 产生的世界边界，以及 collisionPairs() 的成对结果。",
   inspect: "box-a",
   setup(ctx) {
     ctx.addBox({ id: "box-a", position: [0, 0.5, 0], color: 0xd4a85e });

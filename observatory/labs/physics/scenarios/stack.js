@@ -1,8 +1,8 @@
 export const stackScenario = {
   id: "physics.stack.five",
-  title: "Stack",
+  title: "堆叠",
   subtitle: "五层箱体稳定性",
-  description: "观察接触求解、堆叠稳定性、sleeping 与 native collider。",
+  description: "观察接触求解、堆叠稳定性、休眠状态与原生碰撞体。",
   inspect: "box-5",
   setup(ctx) {
     ctx.addBox({ id: "floor", type: "fixed", position: [0, -0.1, 0], halfExtents: [5, 0.1, 4], friction: 0.9 });
@@ -16,7 +16,7 @@ export const stackScenario = {
     return [
       { label: "所有刚体坐标有限", pass: positions.every((p) => p?.every(Number.isFinite)) },
       { label: "堆叠没有穿过地面", pass: positions.every((p) => p?.[1] > 0.42) },
-      clock.frame < 240 ? { label: "堆叠最终稳定", status: "pending", detail: "等待 240 帧" } : { label: "堆叠最终稳定", pass: topMotion?.sleeping || (topMotion?.linearSpeed ?? 99) < 0.12, detail: `top speed=${(topMotion?.linearSpeed ?? NaN).toFixed(4)}` }
+      clock.frame < 240 ? { label: "堆叠最终稳定", status: "pending", detail: "等待 240 帧" } : { label: "堆叠最终稳定", pass: topMotion?.sleeping || (topMotion?.linearSpeed ?? 99) < 0.12, detail: `顶部速度=${(topMotion?.linearSpeed ?? NaN).toFixed(4)}` }
     ];
   }
 };
