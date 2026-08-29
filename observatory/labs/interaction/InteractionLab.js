@@ -4,6 +4,7 @@ import { SimulationClock } from "../../core/SimulationClock.js";
 import { ScenarioRunner } from "../../core/ScenarioRunner.js";
 import { FrameCadence } from "../../core/FrameCadence.js";
 import { createObservatoryGrid, disposeObservatoryGrid } from "../../visual/ObservatoryGrid.js";
+import { createObservatoryGround, disposeObservatoryGround } from "../../visual/ObservatoryGround.js";
 import { applyObservatorySceneTheme } from "../../visual/ObservatorySceneTheme.js";
 import { resizeObservatoryRenderer } from "../../visual/RendererQuality.js";
 import { WorldLabelLayer, worldLabelsForInteraction } from "../../visual/WorldLabelLayer.js";
@@ -37,8 +38,9 @@ export class InteractionLab {
     this.cameraRig = new CameraRig({ camera: this.camera, controls: this.controls });
     this.worldLabels = new WorldLabelLayer({ scene: this.scene, camera: this.camera, viewport });
 
+    this.ground = createObservatoryGround({ size: 20, accentColor: 0x72d29a });
     this.grid = createObservatoryGrid({ size: 24 });
-    this.scene.add(this.grid);
+    this.scene.add(this.ground, this.grid);
 
     this.debugRenderer = new InteractionDebugRenderer(this.scene);
     this.colliderRenderer = new NormalizedColliderRenderer(this.scene);
@@ -169,6 +171,7 @@ export class InteractionLab {
     this.colliderRenderer.dispose();
     this.worldLabels.dispose();
     this.controls.dispose();
+    disposeObservatoryGround(this.ground);
     disposeObservatoryGrid(this.grid);
     this.renderer.dispose();
     this.renderer.domElement.remove();
