@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
+import { InteractionSystem } from '../world/runtime/systems/InteractionSystem.js';
 
 it('deduplicates object blockers at Object/Part level while preserving distinct Environment collider candidates',()=>{
   const contacts=[

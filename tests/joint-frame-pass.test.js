@@ -1,6 +1,6 @@
 import { Document } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
-import { JointFramePass } from '../src/compiler/passes/JointFramePass.js';
+import { JointFramePass } from '../asset/compiler/passes/JointFramePass.js';
 
 const identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
 const translatedX = (x) => [1,0,0,0, 0,1,0,0, 0,0,1,0, x,0,0,1];

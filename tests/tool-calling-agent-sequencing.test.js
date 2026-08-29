@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { ToolCallingAgent } from '../src/agent/ToolCallingAgent.js';
+import { ToolCallingAgent } from '../agent/ToolCallingAgent.js';
 
 const policies={
   listObjects:{mutates:false,barrier:false,batchable:true,batchAcceptable:true},

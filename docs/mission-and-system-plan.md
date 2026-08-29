@@ -272,8 +272,8 @@ Canonical Pipeline / 标准世界管线
 
 主要已有基础：
 
-- `src/pipeline/WorldSpec.js`
-- `src/pipeline/createWorldPipeline.js`
+- `world/spec/WorldSpec.js`
+- `world/compiler/createWorldPipeline.js`
 - Generated World Admission
 - Deterministic World Composer
 - Bounded World Regeneration
@@ -332,8 +332,8 @@ Executable Manifest / 可执行 Manifest
 
 ### 当前 AgentScape 映射
 
-- `src/compiler/`
-- `src/assets/`
+- `asset/compiler/`
+- `asset/`
 - `services/asset-compiler/`
 - Part proposal / segmentation evidence / joint frame
 - Part collider / CoACD / materialization / quality gate
@@ -427,11 +427,11 @@ Verified State / 已验证状态
 
 已有部分能力散布在：
 
-- `src/skills/`
+- `agent/skills/`
 - Asset Manifest articulation / action descriptors
 - Runtime interaction methods
-- `src/agent/`
-- `src/policy/`
+- `agent/`
+- `core/`
 
 但目前还没有完整独立的“Interaction & Rule Compiler”产品边界。
 
@@ -474,8 +474,8 @@ ObjectStore / 对象库      AssetManager / 资产管理    EventBus / 事件总
 
 ### 当前 AgentScape 映射
 
-- `src/runtime/`
-- `src/core/`
+- `world/runtime/`
+- `core/`
 - Three.js visual scene
 - Rapier physics world
 - Recast / Detour navigation
@@ -835,19 +835,19 @@ Agent / 智能体 ──────────────┘
 
 ## 12. 当前代码如何映射到目标架构
 
-目标架构不要求立刻大规模搬目录。先稳定 contract，再做物理目录整理。
+当前物理目录已经按产品 ownership 完成整理；路径本身就是架构边界，后续变更必须保持这些 ownership。
 
 | Target / 目标模块 | 当前主要实现位置 | 当前判断 |
 |---|---|---|
-| World Planner / 世界规划器 | `src/pipeline/`, `src/agent/`, `src/validation/` | 已有 WorldSpec + canonical pipeline，下一步是 constrained revision 与更完整 IR |
-| Asset Compiler / 资产编译器 | `src/compiler/`, `src/assets/`, `services/asset-compiler/` | 主链成熟；自动 segmentation/semantics/joint inference 仍是明显缺口 |
-| Interaction & Rule Compiler / 交互与规则编译器 | `src/skills/`, manifests, runtime interaction, policy | 能力已有，但 contract 分散；这是目标架构需要显式补齐的一层 |
-| World Runtime / 世界运行时 | `src/runtime/`, `src/core/` | 当前最成熟的事实层之一 |
-| Physics Capability Layer / 物理能力层 | 当前主要在 `src/runtime/systems/PhysicsSystem.js`，且 Recovery/Navigation 仍有 Rapier-specific coupling | 当前默认 Rapier；目标先做 PhysicsBackend contract + Rapier parity adapter，再考虑 validation/multi-backend |
-| Verification & Repair / 验证与修复 | `src/validation/` + verifier/recovery runtime code | 已有强执行验证链；需要统一到世界级 acceptance / finding contract |
-| Provider Infrastructure / Provider 基础设施 | `src/providers/`, `src/connector/`, `src/generation/`, `src/jobs/`, `src/artifacts/` | 作为支撑层继续 provider-neutral |
-| Human/Persistence / 人类编辑与持久化 | `src/editor/`, `src/persistence/`, `src/history/` | 保持同一 Runtime truth，不发展第二状态系统 |
-| Environment / 内容环境 | `src/content/` | 作为 world pack / benchmark / demo 服务核心系统 |
+| World Planner / 世界规划器 | `world/spec/`, `world/compiler/`, `agent/`, `world/verification/` | 已有 WorldSpec + canonical pipeline，下一步是 constrained revision 与更完整 IR |
+| Asset Compiler / 资产编译器 | `asset/compiler/`, `asset/`, `services/asset-compiler/` | 主链成熟；自动 segmentation/semantics/joint inference 仍是明显缺口 |
+| Interaction & Rule Compiler / 交互与规则编译器 | `agent/skills/`, manifests, runtime interaction, policy | 能力已有，但 contract 分散；这是目标架构需要显式补齐的一层 |
+| World Runtime / 世界运行时 | `world/runtime/`, `core/` | 当前最成熟的事实层之一 |
+| Physics Capability Layer / 物理能力层 | 当前主要在 `world/runtime/systems/PhysicsSystem.js`，且 Recovery/Navigation 仍有 Rapier-specific coupling | 当前默认 Rapier；目标先做 PhysicsBackend contract + Rapier parity adapter，再考虑 validation/multi-backend |
+| Verification & Repair / 验证与修复 | `world/verification/` + verifier/recovery runtime code | 已有强执行验证链；需要统一到世界级 acceptance / finding contract |
+| Provider Infrastructure / Provider 基础设施 | `generation/providers/`, `generation/connector/`, `generation/`, `generation/jobs/`, `generation/artifacts/` | 作为支撑层继续 provider-neutral |
+| Human/Persistence / 人类编辑与持久化 | `studio/editor/`, `studio/persistence/`, `world/runtime/` | 保持同一 Runtime truth，不发展第二状态系统 |
+| Environment / 内容环境 | `world/content/` | 作为 world pack / benchmark / demo 服务核心系统 |
 
 ---
 

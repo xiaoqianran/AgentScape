@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { ToolCallingAgent } from '../src/agent/ToolCallingAgent.js';
+import { ToolCallingAgent } from '../agent/ToolCallingAgent.js';
 
 it('carries assistant toolCalls into the next provider-neutral planning round', async () => {
   const requests=[];

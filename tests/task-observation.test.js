@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildTaskObservation } from '../src/agent/buildTaskObservation.js';
+import { buildTaskObservation } from '../agent/buildTaskObservation.js';
 
 const record=(id,type='prop')=>({
   id,assetId:id.replace(/_\d+$/,''),object:{position:{toArray:()=>[0,0,0]}},

@@ -1,19 +1,19 @@
 import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../src/core/EventBus.js';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
+import { EventBus } from '../core/EventBus.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
+import { SpatialSystem } from '../world/runtime/systems/SpatialSystem.js';
 import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
-import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
-import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
-import { PolicyEngine } from '../src/policy/PolicyEngine.js';
-import { TraceRecorder } from '../src/observability/TraceRecorder.js';
-import { SkillRegistry } from '../src/skills/SkillRegistry.js';
-import { registerCoreSkills } from '../src/skills/registerCoreSkills.js';
-import { AgentTools } from '../src/agent/AgentTools.js';
-import { ToolCallingAgent } from '../src/agent/ToolCallingAgent.js';
-import { assetManifests } from '../src/assets/manifests/index.js';
+import { LocomotionSystem } from '../world/runtime/systems/LocomotionSystem.js';
+import { InteractionSystem } from '../world/runtime/systems/InteractionSystem.js';
+import { PolicyEngine } from '../core/PolicyEngine.js';
+import { TraceRecorder } from '../core/TraceRecorder.js';
+import { SkillRegistry } from '../agent/skills/SkillRegistry.js';
+import { registerCoreSkills } from '../agent/skills/registerCoreSkills.js';
+import { AgentTools } from '../agent/AgentTools.js';
+import { ToolCallingAgent } from '../agent/ToolCallingAgent.js';
+import { assetManifests } from '../asset/manifests/index.js';
 
 const floorMesh=()=>{const m=new THREE.Mesh(new THREE.BoxGeometry(12,.2,10));m.position.y=-.1;m.updateMatrixWorld(true);return m;};
 const cabinetObject=()=>{

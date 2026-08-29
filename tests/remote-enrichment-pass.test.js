@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { RemoteEnrichmentPass } from '../src/compiler/passes/RemoteEnrichmentPass.js';
+import { RemoteEnrichmentPass } from '../asset/compiler/passes/RemoteEnrichmentPass.js';
 
 it('upgrades fallback collision and physics when a heavy provider is configured', async () => {
   const provider = { isConfigured:()=>true, endpoint:'x', run:async()=>({ collision:{strategy:'coacd',colliders:[{shape:'convexHull',vertices:[0,0,0,1,0,0,0,1,0,0,0,1]}]}, physics:{mass:3,friction:.7}, geometry:{watertight:false,windingConsistent:true,components:2}, partSegmentation:{version:1,source:'external',faceCount:10,segments:[{id:0,faceCount:10}]} }) };

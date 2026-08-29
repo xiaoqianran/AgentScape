@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AssetManager } from '../src/assets/AssetManager.js';
-import { AssetCatalog } from '../src/assets/AssetCatalog.js';
-import { createCanonicalWorldPipeline, createWorldPipeline } from '../src/pipeline/createWorldPipeline.js';
-import { PhysicsBackend } from '../src/runtime/physics/PhysicsBackend.js';
-import { createDefaultProviderRegistry } from '../src/providers/ProviderRegistry.js';
-import { createLegacyAssetAuthoring, createLegacyAssetGenerationPort } from '../src/authoring/LegacyAuthoringShell.js';
+import { AssetManager } from '../asset/AssetManager.js';
+import { AssetCatalog } from '../asset/AssetCatalog.js';
+import { createCanonicalWorldPipeline, createWorldPipeline } from '../world/compiler/createWorldPipeline.js';
+import { PhysicsBackend } from '../world/runtime/physics/PhysicsBackend.js';
+import { createDefaultProviderRegistry } from '../generation/providers/ProviderRegistry.js';
+import { createLegacyAssetAuthoring, createLegacyAssetGenerationPort } from '../generation/orchestration/LegacyAuthoringShell.js';
 
 const physicsProfile=(backend,{runtimeCapabilities=[]}={})=>({
   identity:backend.identity,

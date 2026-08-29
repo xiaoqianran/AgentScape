@@ -1,6 +1,6 @@
 import { Document } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
-import { PartProposalPass } from '../src/compiler/passes/PartProposalPass.js';
+import { PartProposalPass } from '../asset/compiler/passes/PartProposalPass.js';
 
 const context = (partProposal) => ({
   inspection:{nodes:[{name:'Door'},{name:'Handle'}]},

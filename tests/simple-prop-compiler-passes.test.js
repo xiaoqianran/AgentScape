@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { SemanticHeuristicPass } from '../src/compiler/passes/SemanticHeuristicPass.js';
-import { ColliderFallbackPass } from '../src/compiler/passes/ColliderFallbackPass.js';
+import { SemanticHeuristicPass } from '../asset/compiler/passes/SemanticHeuristicPass.js';
+import { ColliderFallbackPass } from '../asset/compiler/passes/ColliderFallbackPass.js';
 
 describe('simple prop compiler passes',()=>{
   it('uses the caller label as semantic evidence for a generated apple',async()=>{

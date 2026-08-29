@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TaskPanel } from '../src/ui/task/TaskPanel.js';
+import { TaskPanel } from '../studio/ui/task/TaskPanel.js';
 
 describe('TaskPanel run history isolation', () => {
   it('records run history without changing task execution semantics', () => {

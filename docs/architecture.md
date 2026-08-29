@@ -583,7 +583,7 @@ NavMesh 不写入 SceneSerializer，因为它可以从当前 World 重建；这�
 
 ## 14. Curated Environment Pack
 
-1.11 将 Pages 默认环境从测试地面升级为 `Monument Hall`，但没有把美术结构塞进 `WorldRuntime`。新增的 `src/content/monumentHall.js` 是内容层：
+1.11 将 Pages 默认环境从测试地面升级为 `Monument Hall`，但没有把美术结构塞进 `WorldRuntime`。新增的 `world/content/monumentHall.js` 是内容层：
 
 ```text
 MonumentHall pack
@@ -602,7 +602,7 @@ Runtime 只负责挂载这个 pack，并把同一份 collider / geometry 交给 
 
 ## 15. Environment Catalog：第二世界不增加第二 Runtime
 
-1.12 加入 `Ruined Courtyard` 后，`WorldRuntime` 不再 import 具体 Monument Hall，而接收 `environmentFactory`。世界元数据放在 `src/content/environments.js`。
+1.12 加入 `Ruined Courtyard` 后，`WorldRuntime` 不再 import 具体 Monument Hall，而接收 `environmentFactory`。世界元数据放在 `world/content/environments.js`。
 
 ```text
 Pages ?world=...

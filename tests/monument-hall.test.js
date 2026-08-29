@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
-import { createMonumentHall, MONUMENT_HALL_COLLIDERS } from '../src/content/monumentHall.js';
-import { disposeObject3D } from '../src/runtime/disposeObject3D.js';
+import { createMonumentHall, MONUMENT_HALL_COLLIDERS } from '../world/content/monumentHall.js';
+import { disposeObject3D } from '../core/disposeObject3D.js';
 
 describe('Monument Hall environment pack', () => {
   it('keeps visual architecture and fixed physics collider ownership in one content pack', () => {

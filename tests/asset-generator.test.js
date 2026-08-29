@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { HttpAssetGenerator } from '../src/assets/gateway/HttpAssetGenerator.js';
+import { HttpAssetGenerator } from '../asset/gateway/HttpAssetGenerator.js';
 
 it('uses a provider-neutral HTTP generator contract', async () => {
   const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => ({ manifest: { id: 'x' } }) }));

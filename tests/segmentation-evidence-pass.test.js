@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SegmentationEvidencePass } from '../src/compiler/passes/SegmentationEvidencePass.js';
+import { SegmentationEvidencePass } from '../asset/compiler/passes/SegmentationEvidencePass.js';
 
 describe('SegmentationEvidencePass', () => {
   it('keeps compact face-level evidence without pretending it is a node part', async () => {

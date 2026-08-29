@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
-import { createRuinedCourtyard, RUINED_COURTYARD_COLLIDERS } from '../src/content/ruinedCourtyard.js';
-import { disposeObject3D } from '../src/runtime/disposeObject3D.js';
+import { createRuinedCourtyard, RUINED_COURTYARD_COLLIDERS } from '../world/content/ruinedCourtyard.js';
+import { disposeObject3D } from '../core/disposeObject3D.js';
 
 describe('Ruined Courtyard environment pack', () => {
   it('contains split-level architecture, instanced vegetation and collider truth', () => {

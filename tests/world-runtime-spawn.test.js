@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { WorldRuntime } from '../src/runtime/WorldRuntime.js';
+import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 
 it('updates the semantic scene graph immediately after direct spawn', async () => {
   const object = { position:{ fromArray:vi.fn() }, userData:{} };

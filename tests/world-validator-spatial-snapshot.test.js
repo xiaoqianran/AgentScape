@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { expect, it, vi } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
-import { SceneGraph } from '../src/runtime/graph/SceneGraph.js';
-import { WorldValidator } from '../src/validation/WorldValidator.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
+import { SpatialSystem } from '../world/runtime/systems/SpatialSystem.js';
+import { SceneGraph } from '../world/runtime/graph/SceneGraph.js';
+import { WorldValidator } from '../world/verification/WorldValidator.js';
 
 it('builds object bounds once per validation and reuses them for graph and collision checks', () => {
   const store = new ObjectStore();

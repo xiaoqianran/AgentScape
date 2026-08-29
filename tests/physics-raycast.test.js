@@ -1,8 +1,8 @@
 import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
+import { PhysicsSystem } from '../world/runtime/systems/PhysicsSystem.js';
 
 const manifest=(id)=>({id,type:'prop',source:{kind:'builtin'},actions:[],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.25,.5,.5],translation:[0,.5,0]}]}});
 

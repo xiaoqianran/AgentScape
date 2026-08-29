@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { createAssetModule } from '../src/assets/createAssetModule.js';
+import { createAssetModule } from '../generation/orchestration/createAssetModule.js';
 
 const NOW = Date.parse('2026-08-28T00:00:00.000Z');
 const sha = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;

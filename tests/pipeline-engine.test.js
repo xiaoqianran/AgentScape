@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PipelineEngine } from '../src/pipeline/PipelineEngine.js';
+import { PipelineEngine } from '../world/compiler/PipelineEngine.js';
 
 it('runs named stages in deterministic order and carries state', async () => {
   const pipeline = new PipelineEngine();

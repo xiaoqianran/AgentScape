@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { describe,expect,it } from 'vitest';
-import { NavigationBackend } from '../src/runtime/navigation/NavigationBackend.js';
-import { RecastNavigationBackend } from '../src/runtime/navigation/RecastNavigationBackend.js';
-import { NavigationSystem } from '../src/runtime/systems/NavigationSystem.js';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
+import { NavigationBackend } from '../world/runtime/navigation/NavigationBackend.js';
+import { RecastNavigationBackend } from '../world/runtime/navigation/RecastNavigationBackend.js';
+import { NavigationSystem } from '../world/runtime/systems/NavigationSystem.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
 
 import { declaredNavigationCapabilityMethodGaps,expectRouteExecution } from './helpers/navigationBackendConformance.js';
 

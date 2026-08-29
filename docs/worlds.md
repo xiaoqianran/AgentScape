@@ -29,7 +29,7 @@ Agent Tools
 世界注册在：
 
 ```text
-src/content/environments.js
+world/content/environments.js
 ```
 
 1.13 开始 catalog 不再静态 import 所有 pack，而只保留 metadata + `load()`：

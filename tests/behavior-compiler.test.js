@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { compileBehaviorGraph, compileInteractionIntent, executeBehaviorCommand, verifyBehaviorCommand } from '../src/runtime/behavior/BehaviorCompiler.js';
+import { compileBehaviorGraph, compileInteractionIntent, executeBehaviorCommand, verifyBehaviorCommand } from '../world/runtime/behavior/BehaviorCompiler.js';
 
 describe('BehaviorCompiler',()=>{
   it('compiles World IR interaction intent into a typed runtime command',()=>{

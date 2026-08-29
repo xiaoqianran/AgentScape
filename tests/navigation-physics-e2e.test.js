@@ -1,7 +1,7 @@
 import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 
 it('derives current-world reachability from live Rapier dynamic colliders without rebuilding static Recast geometry',async()=>{

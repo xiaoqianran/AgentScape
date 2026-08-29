@@ -1,10 +1,10 @@
 import { describe,expect,it } from 'vitest';
-import { JoltPhysicsBackend } from '../src/runtime/physics/JoltPhysicsBackend.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
+import { JoltPhysicsBackend } from '../world/runtime/physics/JoltPhysicsBackend.js';
+import { PhysicsSystem } from '../world/runtime/systems/PhysicsSystem.js';
 import {
   createConformanceWorld,declaredCapabilityMethodGaps,expectCollisionRoundTrip,expectSemanticBodyRoundTrip
 } from './helpers/physicsBackendConformance.js';
-import { compileWorldPhysicsRequirements,admitWorldPhysics } from '../src/pipeline/WorldPhysicsAdmission.js';
+import { compileWorldPhysicsRequirements,admitWorldPhysics } from '../world/compiler/WorldPhysicsAdmission.js';
 
 describe('JoltPhysicsBackend',()=>{
   it('formally declares the implemented rigid, collision, query and articulation slice',()=>{

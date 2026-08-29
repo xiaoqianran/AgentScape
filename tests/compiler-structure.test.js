@@ -1,7 +1,7 @@
 import { Document, getBounds } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
-import { StructurePass } from '../src/compiler/passes/StructurePass.js';
-import { NormalizeTransformPass } from '../src/compiler/passes/NormalizeTransformPass.js';
+import { StructurePass } from '../asset/compiler/passes/StructurePass.js';
+import { NormalizeTransformPass } from '../asset/compiler/passes/NormalizeTransformPass.js';
 
 function meshNode(doc, name, translation = [0,0,0], scale = [1,1,1]) {
   const buffer = doc.createBuffer();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWorldProposal } from '../src/pipeline/WorldPlannerProposal.js';
+import { buildWorldProposal } from '../world/spec/WorldPlannerProposal.js';
 
 const proposal=()=>({
   intent:{name:'Planner Lab',task:'place the cup on the table'},

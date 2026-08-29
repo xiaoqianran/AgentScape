@@ -511,7 +511,7 @@ a2bc29f refactor: consolidate engine contracts and harden runtime
 CodeGraph 证明 `SkillRegistry` 已经能成为唯一能力边界，于是删除重复：
 
 ```text
-src/agent/toolCatalog.js
+agent/toolCatalog.js
 ```
 
 ToolCallingAgent 改为从：

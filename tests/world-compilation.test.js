@@ -4,8 +4,8 @@ import {
   assertWorldIRReferences,
   compileWorldIR,
   projectWorldIRToWorldSpec
-} from '../src/pipeline/WorldCompilation.js';
-import { normalizeWorldIR } from '../src/pipeline/WorldIR.js';
+} from '../world/compiler/WorldCompilation.js';
+import { normalizeWorldIR } from '../world/spec/WorldIR.js';
 
 const richWorldIR = () => ({
   schema:'agentscape.world-ir',

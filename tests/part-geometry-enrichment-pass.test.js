@@ -1,6 +1,6 @@
 import { Document } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
-import { PartGeometryEnrichmentPass } from '../src/compiler/passes/PartGeometryEnrichmentPass.js';
+import { PartGeometryEnrichmentPass } from '../asset/compiler/passes/PartGeometryEnrichmentPass.js';
 
 const fallback={shape:'box',halfExtents:[.5,.5,.5]};
 const hull={shape:'convexHull',vertices:[0,0,0,1,0,0,0,1,0,0,0,1]};

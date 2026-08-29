@@ -178,7 +178,7 @@ Draw Call 只遍历 Runtime 真正加载的默认 Scene，不把未使用的其�
 
 ### 输入大小防线
 
-本地文件在 `File.arrayBuffer()` 前先检查 `file.size`；URL 输入先检查 `Content-Length`，未知长度则流式读取并在超过 100 MiB 时立即取消。Compiler 内部仍保留同一上限作为第二道防线。预算常量只维护在 `src/compiler/resourceBudget.js`。
+本地文件在 `File.arrayBuffer()` 前先检查 `file.size`；URL 输入先检查 `Content-Length`，未知长度则流式读取并在超过 100 MiB 时立即取消。Compiler 内部仍保留同一上限作为第二道防线。预算常量只维护在 `asset/compiler/resourceBudget.js`。
 
 ## 可执行 Part 契约
 

@@ -7,7 +7,7 @@ import {
   fromOpenAIResponse,
   toOpenAIMessages,
   toOpenAITools
-} from '../scripts/openai-compatible-agent-gateway.mjs';
+} from '../tooling/scripts/openai-compatible-agent-gateway.mjs';
 
 describe('OpenAI-compatible local test gateway', () => {
   it('converts the canonical SkillRegistry tool shape without maintaining a second tool catalog', () => {

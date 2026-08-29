@@ -1,7 +1,7 @@
 import { Document } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
-import { ResourceBudgetPass } from '../src/compiler/passes/ResourceBudgetPass.js';
-import { RESOURCE_BUDGET } from '../src/compiler/resourceBudget.js';
+import { ResourceBudgetPass } from '../asset/compiler/passes/ResourceBudgetPass.js';
+import { RESOURCE_BUDGET } from '../asset/compiler/resourceBudget.js';
 
 function documentWithGeometry(vertexCount = 3) {
   const doc = new Document();

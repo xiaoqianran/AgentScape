@@ -1,6 +1,6 @@
 import { Document, Primitive } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
-import { boxCollidersForNodes, sceneMeshOwnership } from '../src/compiler/partGeometry.js';
+import { boxCollidersForNodes, sceneMeshOwnership } from '../asset/compiler/partGeometry.js';
 
 function meshNode(document, name, positions, { translation=[0,0,0], rotation=[0,0,0,1], scale=[1,1,1] } = {}) {
   const buffer=document.getRoot().listBuffers()[0] || document.createBuffer();

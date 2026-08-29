@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { AssetManager } from '../src/assets/AssetManager.js';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
+import { AssetManager } from '../asset/AssetManager.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
-import { assetManifests } from '../src/assets/manifests/index.js';
-import { disposeObject3D } from '../src/runtime/disposeObject3D.js';
+import { assetManifests } from '../asset/manifests/index.js';
+import { disposeObject3D } from '../core/disposeObject3D.js';
 
 it('builds static navigation from the real cabinet GLB while excluding the articulated door subtree', async () => {
   globalThis.ProgressEvent ||= class ProgressEvent { constructor(type, init={}) { this.type=type; Object.assign(this,init); } };

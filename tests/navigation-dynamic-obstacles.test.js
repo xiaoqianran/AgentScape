@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
 
 const floor = () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { composeNearPlacement, composeWorldLayout, manifestFootprint, preflightWorldPosition } from '../src/pipeline/WorldComposer.js';
+import { composeNearPlacement, composeWorldLayout, manifestFootprint, preflightWorldPosition } from '../world/compiler/WorldComposer.js';
 
 const box=(id,h=[.5,.5,.5])=>({id,physics:{body:'fixed',colliders:[{shape:'box',halfExtents:h,translation:[0,h[1],0]}]}});
 

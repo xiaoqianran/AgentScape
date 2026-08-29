@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { EmbodiedGenBundleAdapter } from '../src/adapters/EmbodiedGenBundleAdapter.js';
-import { AssetCompiler } from '../src/compiler/AssetCompiler.js';
+import { EmbodiedGenBundleAdapter } from '../asset/adapters/EmbodiedGenBundleAdapter.js';
+import { AssetCompiler } from '../asset/compiler/AssetCompiler.js';
 
 const enc = new TextEncoder();
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');

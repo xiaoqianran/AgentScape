@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { IncrementalSha256, sha256ArtifactHash } from '../src/artifacts/IncrementalSha256.js';
+import { IncrementalSha256, sha256ArtifactHash } from '../generation/artifacts/IncrementalSha256.js';
 
 const nodeHex=(bytes)=>createHash('sha256').update(bytes).digest('hex');
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CompileQualityPass } from '../src/compiler/passes/CompileQualityPass.js';
+import { CompileQualityPass } from '../asset/compiler/passes/CompileQualityPass.js';
 
 const run = (overrides = {}) => new CompileQualityPass().run({
   geometry: { warnings: [] },

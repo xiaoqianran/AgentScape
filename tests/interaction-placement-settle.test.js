@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
+import { InteractionSystem } from '../world/runtime/systems/InteractionSystem.js';
 
 const system = ({ motion, support } = {}) => {
   const physics={ bodyMotionState:vi.fn(()=>motion || {sleeping:false,linearSpeed:0,angularSpeed:0}) };

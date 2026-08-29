@@ -7,7 +7,7 @@ import {
   clearLegacyEndpointOverrides,
   normalizeCapabilityStatus,
   readCapabilityStatus
-} from '../src/config/capabilityEntry.js';
+} from '../studio/config/capabilityEntry.js';
 
 describe('AgentScape capability entry', () => {
   it('exposes only same-origin capability routes plus an optional local adapter host', () => {

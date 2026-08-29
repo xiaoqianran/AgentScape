@@ -1,7 +1,7 @@
 import { describe,expect,it } from 'vitest';
-import { PhysicsBackend, TransformPhysicsBackend } from '../src/runtime/physics/PhysicsBackend.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
-import { compileWorldPhysicsRequirements,admitWorldPhysics } from '../src/pipeline/WorldPhysicsAdmission.js';
+import { PhysicsBackend, TransformPhysicsBackend } from '../world/runtime/physics/PhysicsBackend.js';
+import { PhysicsSystem } from '../world/runtime/systems/PhysicsSystem.js';
+import { compileWorldPhysicsRequirements,admitWorldPhysics } from '../world/compiler/WorldPhysicsAdmission.js';
 
 const ir=(physicsRequirement)=>({revision:{id:'rev-p'},policy:{physics:{fallbackPolicy:'deny'}},entities:[{id:'door',physicsRequirement}]});
 const backend=(caps=['rigid-body','articulated-body','joints','collision'])=>new PhysicsBackend('test',caps,{executionModes:['realtime','validation-only'],qualities:{realtime:true,deterministic:true}});

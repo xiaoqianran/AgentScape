@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { getBounds, WebIO } from '@gltf-transform/core';
-import { AssetCompiler } from '../src/compiler/AssetCompiler.js';
-import { validateAssetManifest } from '../src/assets/schema.js';
+import { AssetCompiler } from '../asset/compiler/AssetCompiler.js';
+import { validateAssetManifest } from '../asset/schema.js';
 
 class MemoryStore {
   constructor(){ this.map=new Map(); }

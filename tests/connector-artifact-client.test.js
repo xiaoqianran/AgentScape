@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConnectorArtifactClient } from '../src/connector/ConnectorArtifactClient.js';
+import { ConnectorArtifactClient } from '../generation/connector/ConnectorArtifactClient.js';
 
 describe('ConnectorArtifactClient',()=>{
   it('derives the artifact route from opaque ID and enforces artifacts.read scope',async()=>{

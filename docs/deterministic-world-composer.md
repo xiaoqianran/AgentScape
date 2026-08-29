@@ -67,7 +67,7 @@ Strict live probe 要求 table / cabinet / cup 都先 search，再调用一次 `
 1.33 新增一个纯计算模块：
 
 ```text
-src/pipeline/WorldComposer.js
+world/compiler/WorldComposer.js
 ```
 
 它没有 ObjectStore、Physics world 或 Scene state。

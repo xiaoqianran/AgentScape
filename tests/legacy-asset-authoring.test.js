@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AssetCatalog } from '../src/assets/AssetCatalog.js';
-import { AssetManager } from '../src/assets/AssetManager.js';
-import { createLegacyAssetAuthoring } from '../src/authoring/LegacyAuthoringShell.js';
+import { AssetCatalog } from '../asset/AssetCatalog.js';
+import { AssetManager } from '../asset/AssetManager.js';
+import { createLegacyAssetAuthoring } from '../generation/orchestration/LegacyAuthoringShell.js';
 
 const manifest = (overrides = {}) => ({
   id:'generated_fixture', type:'object', label:'Generated Fixture',

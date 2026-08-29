@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LocalSceneStore } from '../src/persistence/LocalSceneStore.js';
+import { LocalSceneStore } from '../studio/persistence/LocalSceneStore.js';
 
 class MemoryStorage {
   constructor(){ this.map = new Map(); }

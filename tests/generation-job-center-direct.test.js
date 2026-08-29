@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GenerationJobCenter } from '../src/authoring/GenerationJobCenter.js';
+import { GenerationJobCenter } from '../generation/orchestration/GenerationJobCenter.js';
 
 describe('GenerationJobCenter direct capability path',()=>{
   it('executes a direct server capability without Connector jobs',async()=>{

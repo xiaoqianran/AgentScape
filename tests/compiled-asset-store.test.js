@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { CompiledAssetStore } from '../src/assets/storage/CompiledAssetStore.js';
+import { CompiledAssetStore } from '../asset/storage/CompiledAssetStore.js';
 
 it('falls back to in-memory persistence when IndexedDB is unavailable', async () => {
   const store = new CompiledAssetStore({ indexedDBImpl: null });

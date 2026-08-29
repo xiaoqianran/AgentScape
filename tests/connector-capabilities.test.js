@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConnectorCapabilityAdapter } from '../src/connector/ConnectorCapabilityAdapter.js';
-import { ConnectorContractError } from '../src/connector/ConnectorSession.js';
-import { createDefaultProviderRegistry } from '../src/providers/ProviderRegistry.js';
+import { ConnectorCapabilityAdapter } from '../generation/connector/ConnectorCapabilityAdapter.js';
+import { ConnectorContractError } from '../generation/connector/ConnectorSession.js';
+import { createDefaultProviderRegistry } from '../generation/providers/ProviderRegistry.js';
 
 const NOW=Date.parse('2026-08-24T06:30:00.000Z');
 const SESSION={

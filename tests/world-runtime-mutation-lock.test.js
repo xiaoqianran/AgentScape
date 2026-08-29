@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { WorldRuntime } from '../src/runtime/WorldRuntime.js';
+import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 
 it('keeps one async world mutation owner until locomotion-like work finishes', async () => {
   let release;

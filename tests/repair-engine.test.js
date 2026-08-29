@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { RepairEngine } from '../src/validation/RepairEngine.js';
+import { RepairEngine } from '../world/verification/RepairEngine.js';
 
 function belowGroundRuntime({ worsen = false } = {}) {
   const object = new THREE.Group(); object.position.set(0, -0.2, 0);

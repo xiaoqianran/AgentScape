@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compileInteractionContract, getInteractionContract, verifyInteractionResult } from '../src/runtime/interaction/InteractionContract.js';
+import { compileInteractionContract, getInteractionContract, verifyInteractionResult } from '../world/runtime/interaction/InteractionContract.js';
 
 describe('InteractionContract',()=>{
   const manifest={id:'cabinet',type:'cabinet',actions:['open','close'],source:{kind:'builtin'},parts:{door:{node:'Door',actions:['open','close'],targets:{open:-1.2,close:0},physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.5,.5,.05]}]},joint:{type:'revolute',axis:[0,1,0],limits:[-1.5,0],parentAnchor:[0,0,0],childAnchor:[0,0,0]}}}};

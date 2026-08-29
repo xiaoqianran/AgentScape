@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ProviderRegistry, createDefaultProviderRegistry } from '../src/providers/ProviderRegistry.js';
-import { createLegacyAssetAuthoring, createLegacyAssetGenerationPort } from '../src/authoring/LegacyAuthoringShell.js';
-import { AssetCatalog } from '../src/assets/AssetCatalog.js';
-import { AssetManager } from '../src/assets/AssetManager.js';
+import { ProviderRegistry, createDefaultProviderRegistry } from '../generation/providers/ProviderRegistry.js';
+import { createLegacyAssetAuthoring, createLegacyAssetGenerationPort } from '../generation/orchestration/LegacyAuthoringShell.js';
+import { AssetCatalog } from '../asset/AssetCatalog.js';
+import { AssetManager } from '../asset/AssetManager.js';
 
 describe('ProviderRegistry', () => {
   it('publishes the first provider batch without pretending disabled providers are available', () => {

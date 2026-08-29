@@ -1,8 +1,8 @@
 import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
+import { PhysicsSystem } from '../world/runtime/systems/PhysicsSystem.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
 
 const manifest = {
   id: 'cabinet', type: 'cabinet', source: { kind: 'builtin' }, actions: ['open', 'close', 'move'],

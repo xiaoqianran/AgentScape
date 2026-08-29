@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { bootstrapWorld } from '../src/agent/bootstrapWorld.js';
+import { bootstrapWorld } from '../agent/bootstrapWorld.js';
 
 it('bootstraps the embodied agent before the interactive demo assets', async () => {
   const tools={call:vi.fn(async()=>({success:true}))};

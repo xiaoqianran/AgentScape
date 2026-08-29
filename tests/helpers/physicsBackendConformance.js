@@ -1,5 +1,5 @@
 import { expect } from 'vitest';
-import { PhysicsBackend } from '../../src/runtime/physics/PhysicsBackend.js';
+import { PhysicsBackend } from '../../world/runtime/physics/PhysicsBackend.js';
 
 export const CAPABILITY_METHODS=Object.freeze({
   'rigid-body':['createBody','removeBody','bodyKey','bodyType','setBodyType','bodyPose','setBodyPose','translateBody','clearBodyMotion','bodyMotion','wakeBody'],

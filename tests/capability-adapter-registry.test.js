@@ -4,7 +4,7 @@ import {
   capabilityAvailability,
   invokeCapability,
   sendCapabilityStatus
-} from '../server/CapabilityAdapterRegistry.js';
+} from '../api/_server/CapabilityAdapterRegistry.js';
 
 function responseRecorder(){return{statusCode:0,headers:{},body:Buffer.alloc(0),setHeader(key,value){this.headers[String(key).toLowerCase()]=String(value);},end(value=''){this.body=Buffer.isBuffer(value)?value:Buffer.from(value);}};}
 

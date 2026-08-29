@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assetAdmission } from '../src/assets/admission.js';
+import { assetAdmission } from '../asset/admission.js';
 
 const q=(status,{hard=[],advisory=[]}={})=>({compiler:{quality:{status,hard,advisory}}});
 const p=(status,reasons=[])=>({provenance:{provider:'provider-x',admission:{status,reasons}}});

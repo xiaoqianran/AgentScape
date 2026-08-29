@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AgentTools } from '../src/agent/AgentTools.js';
+import { AgentTools } from '../agent/AgentTools.js';
 
 const runtime = () => ({
   events: { emit: vi.fn() },

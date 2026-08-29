@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildRecoveryProposals } from '../src/agent/buildRecoveryProposals.js';
+import { buildRecoveryProposals } from '../agent/buildRecoveryProposals.js';
 
 const blockerCandidate={kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0};
 const environmentCandidate={kind:'environment',environmentId:'monument-hall',colliderIndex:4};

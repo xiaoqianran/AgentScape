@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { bindRuntimeEvents } from '../src/ui/bindRuntimeEvents.js';
+import { bindRuntimeEvents } from '../studio/ui/bindRuntimeEvents.js';
 
 function fixture({ selectedId = 'cup_01', existing = ['cup_01'] } = {}) {
   const handlers = new Map();

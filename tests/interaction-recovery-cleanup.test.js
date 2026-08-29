@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
+import { InteractionSystem } from '../world/runtime/systems/InteractionSystem.js';
 
 const events={emit:vi.fn()};
 

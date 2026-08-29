@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_ENVIRONMENT, ENVIRONMENTS, resolveEnvironment } from '../src/content/environments.js';
+import { DEFAULT_ENVIRONMENT, ENVIRONMENTS, resolveEnvironment } from '../world/content/environments.js';
 
 describe('Environment catalog',()=>{
   it('keeps curated worlds as content metadata instead of Runtime branches',()=>{

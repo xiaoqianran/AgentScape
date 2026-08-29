@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../src/core/EventBus.js';
-import { RuleRuntime } from '../src/runtime/behavior/RuleRuntime.js';
+import { EventBus } from '../core/EventBus.js';
+import { RuleRuntime } from '../world/runtime/behavior/RuleRuntime.js';
 
 describe('RuleRuntime',()=>{
   function runtime(){

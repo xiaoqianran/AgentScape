@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { SpatialSystem } from '../src/runtime/systems/SpatialSystem.js';
-import { SceneGraph } from '../src/runtime/graph/SceneGraph.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
+import { SpatialSystem } from '../world/runtime/systems/SpatialSystem.js';
+import { SceneGraph } from '../world/runtime/graph/SceneGraph.js';
 
 function mesh(size, position, id) {
   const object = new THREE.Mesh(new THREE.BoxGeometry(...size), new THREE.MeshBasicMaterial());

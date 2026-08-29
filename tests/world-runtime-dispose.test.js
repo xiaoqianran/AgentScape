@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { expect, it, vi } from 'vitest';
-import { WorldRuntime } from '../src/runtime/WorldRuntime.js';
+import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 
 it('disposes objects without rebuilding semantic relations during teardown', () => {
   const object = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());

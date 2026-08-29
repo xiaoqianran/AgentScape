@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeWorldSpec } from '../src/pipeline/WorldSpec.js';
+import { normalizeWorldSpec } from '../world/spec/WorldSpec.js';
 
 describe('WorldSpec',()=>{
   it('normalizes provider/generation defaults into deterministic asset requests',()=>{

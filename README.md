@@ -200,15 +200,15 @@ npm run assets:validate
 ## 常用开发入口
 
 ```text
-src/runtime/WorldRuntime.js              Runtime composition root
-src/pipeline/createWorldPipeline.js      Generated-world canonical pipeline
-src/pipeline/WorldSpec.js                WorldSpec schema + deterministic normalization
-src/pipeline/WorldComposer.js            Deterministic placement / relation geometry
-src/adapters/EmbodiedGenAdapter.js       EmbodiedGen → AgentScape Manifest
-src/assets/library/AssetLibrary.js       Search / reuse / generation admission
-src/runtime/systems/PhysicsSystem.js     Rapier truth + hypothetical shape queries
-src/skills/registerCoreSkills.js         Agent executable capability registry
-src/agent/ToolCallingAgent.js            Plan → act → observe orchestration
+world/runtime/WorldRuntime.js              Runtime composition root
+world/compiler/createWorldPipeline.js      Generated-world canonical pipeline
+world/spec/WorldSpec.js                WorldSpec schema + deterministic normalization
+world/compiler/WorldComposer.js            Deterministic placement / relation geometry
+asset/adapters/EmbodiedGenAdapter.js       EmbodiedGen → AgentScape Manifest
+asset/AssetCatalog.js                  Reusable Asset read/search facade
+world/runtime/systems/PhysicsSystem.js     Rapier truth + hypothetical shape queries
+agent/skills/registerCoreSkills.js         Agent executable capability registry
+agent/ToolCallingAgent.js            Plan → act → observe orchestration
 ```
 
 ## Asset Compiler

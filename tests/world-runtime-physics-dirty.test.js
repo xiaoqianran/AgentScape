@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { WorldRuntime } from '../src/runtime/WorldRuntime.js';
+import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 
 it('marks semantic relations dirty after physical motion without rebuilding them in the frame loop', () => {
   const runtime = {

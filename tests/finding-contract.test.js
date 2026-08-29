@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertFindingRevision, compileAcceptanceFindings, compileAdmissionFindings, compileValidationFindings } from '../src/validation/Finding.js';
+import { assertFindingRevision, compileAcceptanceFindings, compileAdmissionFindings, compileValidationFindings } from '../world/verification/Finding.js';
 
 describe('Finding contract',()=>{
   it('converts validator rows into revision-bound typed findings with explicit repair eligibility',()=>{

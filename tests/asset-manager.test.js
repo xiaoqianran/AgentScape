@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AssetManager } from '../src/assets/AssetManager.js';
+import { AssetManager } from '../asset/AssetManager.js';
 
 const manifest = (label = 'A') => ({
   id: 'same', type: 'object', label,

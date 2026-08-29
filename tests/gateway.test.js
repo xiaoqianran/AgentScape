@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { HttpLLMGateway, normalizeGatewayResponse } from '../src/agent/gateway/HttpLLMGateway.js';
+import { HttpLLMGateway, normalizeGatewayResponse } from '../agent/gateway/HttpLLMGateway.js';
 
 describe('LLM gateway', () => {
   it('normalizes provider-neutral tool calls', () => {

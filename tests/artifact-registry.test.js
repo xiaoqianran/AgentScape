@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ArtifactRegistry } from '../src/artifacts/ArtifactRegistry.js';
+import { ArtifactRegistry } from '../generation/artifacts/ArtifactRegistry.js';
 
 const H1=`sha256:${'a'.repeat(64)}`;
 const H2=`sha256:${'c'.repeat(64)}`;

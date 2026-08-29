@@ -1,6 +1,6 @@
 import { Document, Primitive, WebIO } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
-import { SegmentMaterializePass } from '../src/compiler/passes/SegmentMaterializePass.js';
+import { SegmentMaterializePass } from '../asset/compiler/passes/SegmentMaterializePass.js';
 
 function fixture({ indexed=true } = {}) {
   const document=new Document();

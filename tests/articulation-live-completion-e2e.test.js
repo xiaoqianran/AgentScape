@@ -1,9 +1,9 @@
 import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { InteractionSystem } from '../src/runtime/systems/InteractionSystem.js';
-import { assetManifests } from '../src/assets/manifests/index.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
+import { InteractionSystem } from '../world/runtime/systems/InteractionSystem.js';
+import { assetManifests } from '../asset/manifests/index.js';
 
 const cabinetObject=()=>{
   const root=new THREE.Group();

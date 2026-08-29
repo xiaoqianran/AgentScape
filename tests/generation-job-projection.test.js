@@ -6,7 +6,7 @@ import {
   normalizeGenerationJobProjection,
   requireSafeJobId,
   sanitizeJobData
-} from '../src/jobs/GenerationJobProjection.js';
+} from '../generation/jobs/GenerationJobProjection.js';
 
 const base=(overrides={})=>({
   id:'job_01',

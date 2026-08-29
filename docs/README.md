@@ -67,6 +67,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 
 ## 2. 当前仓库与 Provider 边界
 
+- [`repository-layout.md`](./repository-layout.md)：当前根目录、五大产品系统、真实工程边界与禁止回退规则。
 - [`multi-repository-architecture.md`](./multi-repository-architecture.md)：当前已收敛的 `AgentScape + modal-provider` 仓库边界。
 - [`provider-integration-plan.md`](./provider-integration-plan.md)：Provider contract、2D→3D 主链、Gateway 与 EmbodiedGen ownership。
 - [`repository-baseline.md`](./repository-baseline.md)：2026-08-29 当前仓库基线与已退役 standalone inventory。

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GenerationJobStore } from '../src/jobs/GenerationJobStore.js';
+import { GenerationJobStore } from '../generation/jobs/GenerationJobStore.js';
 
 const event=(status='accepted',sequence=1,overrides={})=>({
   id:'job_01',provider:'modal-3d',operation:'modal-3d.asset.image_to_3d.v1',kind:'generation',

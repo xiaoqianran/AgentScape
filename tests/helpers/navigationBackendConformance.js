@@ -1,5 +1,5 @@
 import { expect } from 'vitest';
-import { NavigationBackend } from '../../src/runtime/navigation/NavigationBackend.js';
+import { NavigationBackend } from '../../world/runtime/navigation/NavigationBackend.js';
 
 export const NAVIGATION_CAPABILITY_METHODS=Object.freeze({
   'static-routing':['build','isReady'],

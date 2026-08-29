@@ -1,6 +1,6 @@
 import { describe,expect,it } from 'vitest';
-import { admitWorldBehavior,compileWorldBehaviorBundle } from '../src/pipeline/WorldBehaviorCompiler.js';
-import { normalizeWorldIR } from '../src/pipeline/WorldIR.js';
+import { admitWorldBehavior,compileWorldBehaviorBundle } from '../world/compiler/WorldBehaviorCompiler.js';
+import { normalizeWorldIR } from '../world/spec/WorldIR.js';
 
 const ir=()=>normalizeWorldIR({
   schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-b'},provenance:{source:'planner'},intent:{name:'Behavior Lab'},

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AssetCatalog } from '../src/assets/AssetCatalog.js';
-import { AssetManager } from '../src/assets/AssetManager.js';
-import { createCanonicalWorldPipeline } from '../src/pipeline/createWorldPipeline.js';
+import { AssetCatalog } from '../asset/AssetCatalog.js';
+import { AssetManager } from '../asset/AssetManager.js';
+import { createCanonicalWorldPipeline } from '../world/compiler/createWorldPipeline.js';
 
 const readyManifest = (id, type = 'object') => ({
   id,

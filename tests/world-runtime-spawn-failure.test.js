@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { expect, it, vi } from 'vitest';
-import { WorldRuntime } from '../src/runtime/WorldRuntime.js';
+import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 
 it('rolls back Three/store resources when physics attachment fails', async () => {
   const geometry = new THREE.BoxGeometry(); geometry.dispose = vi.fn();

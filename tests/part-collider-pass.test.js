@@ -1,6 +1,6 @@
 import { Document, Primitive } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
-import { PartColliderPass } from '../src/compiler/passes/PartColliderPass.js';
+import { PartColliderPass } from '../asset/compiler/passes/PartColliderPass.js';
 
 function triangle(document,parent,name){
   const buffer=document.getRoot().listBuffers()[0] || document.createBuffer();

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { disposeObject3D } from '../src/runtime/disposeObject3D.js';
+import { disposeObject3D } from '../core/disposeObject3D.js';
 
 describe('disposeObject3D', () => {
   it('disposes shared geometry/material/texture exactly once within one owned instance', () => {

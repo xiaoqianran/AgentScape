@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { generationJobCenterMarkup } from '../src/authoring/GenerationJobCenter.js';
-import { developerSettingsMarkup } from '../src/ui/developer/DeveloperSettings.js';
+import { generationJobCenterMarkup } from '../generation/orchestration/GenerationJobCenter.js';
+import { developerSettingsMarkup } from '../studio/ui/developer/DeveloperSettings.js';
 
 describe('capability-oriented product UI', () => {
   it('shows capability truth without exposing deployment adapter addresses', () => {

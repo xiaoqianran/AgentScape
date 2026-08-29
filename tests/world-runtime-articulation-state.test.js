@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { WorldRuntime } from '../src/runtime/WorldRuntime.js';
+import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 
 describe('WorldRuntime articulation state restore',()=>{
   it('replays active partTargets before legacy verified parts',()=>{

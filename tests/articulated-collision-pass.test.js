@@ -1,6 +1,6 @@
 import { Document, Primitive } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
-import { ArticulatedCollisionPass } from '../src/compiler/passes/ArticulatedCollisionPass.js';
+import { ArticulatedCollisionPass } from '../asset/compiler/passes/ArticulatedCollisionPass.js';
 
 function addTriangle(document,parent,name,x=0){
   const buffer=document.getRoot().listBuffers()[0] || document.createBuffer();

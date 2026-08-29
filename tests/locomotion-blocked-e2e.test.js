@@ -1,10 +1,10 @@
 import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from './helpers/createRecastNavigationSystem.js';
-import { LocomotionSystem } from '../src/runtime/systems/LocomotionSystem.js';
-import { assetManifests } from '../src/assets/manifests/index.js';
+import { LocomotionSystem } from '../world/runtime/systems/LocomotionSystem.js';
+import { assetManifests } from '../asset/manifests/index.js';
 
 it('returns blocked when Rapier sees a wall that the planned NavMesh did not include', async () => {
   const floor=new THREE.Mesh(new THREE.BoxGeometry(8,.2,6)); floor.position.y=-.1; floor.updateMatrixWorld(true);

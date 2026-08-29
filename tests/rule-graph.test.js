@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { compileRuleGraph, evaluateRuleGraph, executeRuleEffects } from '../src/runtime/behavior/RuleGraph.js';
+import { compileRuleGraph, evaluateRuleGraph, executeRuleEffects } from '../world/runtime/behavior/RuleGraph.js';
 
 describe('RuleGraph',()=>{
   it('compiles typed rules with only safe set-state effects',()=>{

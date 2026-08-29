@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { ToolCallingAgent } from '../src/agent/ToolCallingAgent.js';
+import { ToolCallingAgent } from '../agent/ToolCallingAgent.js';
 
 it('keeps the full world only before the first mutation and then sends compact task context',async()=>{
   const requests=[];

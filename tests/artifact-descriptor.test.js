@@ -5,7 +5,7 @@ import {
   normalizeArtifactHash,
   normalizeArtifactLocation,
   requireSafeArtifactId
-} from '../src/artifacts/ArtifactDescriptor.js';
+} from '../generation/artifacts/ArtifactDescriptor.js';
 
 const H1=`sha256:${'a'.repeat(64)}`;
 const HP=`sha256:${'b'.repeat(64)}`;

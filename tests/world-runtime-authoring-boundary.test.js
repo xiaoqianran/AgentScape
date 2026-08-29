@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { attachLegacyAuthoring } from '../src/authoring/LegacyAuthoringShell.js';
-import { createAssetModule } from '../src/assets/createAssetModule.js';
-import { WorldRuntime } from '../src/runtime/WorldRuntime.js';
+import { attachLegacyAuthoring } from '../generation/orchestration/LegacyAuthoringShell.js';
+import { createAssetModule } from '../generation/orchestration/createAssetModule.js';
+import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 
 const createRuntime = () => new WorldRuntime({ appendChild() {} }, { environmentFactory: () => null, assetModule:createAssetModule() });
 

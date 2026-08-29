@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
 
 describe('ObjectStore', () => {
   it('stores and retrieves records', () => { const s = new ObjectStore(); s.add('a', { value: 1 }); expect(s.get('a').value).toBe(1); });

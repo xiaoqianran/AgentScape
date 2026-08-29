@@ -1,12 +1,12 @@
 import { describe,expect,it,vi } from 'vitest';
-import { AssetManager } from '../src/assets/AssetManager.js';
-import { AssetCatalog } from '../src/assets/AssetCatalog.js';
-import { createLegacyAssetAuthoring } from '../src/authoring/LegacyAuthoringShell.js';
-import { createWorldPipeline } from '../src/pipeline/createWorldPipeline.js';
-import { SkillRegistry } from '../src/skills/SkillRegistry.js';
-import { registerCoreSkills } from '../src/skills/registerCoreSkills.js';
-import { PolicyEngine } from '../src/policy/PolicyEngine.js';
-import { TraceRecorder } from '../src/observability/TraceRecorder.js';
+import { AssetManager } from '../asset/AssetManager.js';
+import { AssetCatalog } from '../asset/AssetCatalog.js';
+import { createLegacyAssetAuthoring } from '../generation/orchestration/LegacyAuthoringShell.js';
+import { createWorldPipeline } from '../world/compiler/createWorldPipeline.js';
+import { SkillRegistry } from '../agent/skills/SkillRegistry.js';
+import { registerCoreSkills } from '../agent/skills/registerCoreSkills.js';
+import { PolicyEngine } from '../core/PolicyEngine.js';
+import { TraceRecorder } from '../core/TraceRecorder.js';
 
 describe('bounded generated-world retry',()=>{
   it('turns only a first-attempt search miss into generation, then reruns the canonical pipeline once',async()=>{

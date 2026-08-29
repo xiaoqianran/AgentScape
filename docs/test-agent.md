@@ -59,7 +59,7 @@ chmod 600 .env.local
 绝对不要把真实 Key 放到：
 
 ```text
-src/
+studio/ agent/ generation/ asset/ world/
 public/
 README
 localStorage
@@ -449,13 +449,13 @@ normal completion
 OpenAI-compatible 转换器现在放在：
 
 ```text
-scripts/openai-compatible-agent-gateway.mjs
+tooling/scripts/openai-compatible-agent-gateway.mjs
 ```
 
 而不是：
 
 ```text
-src/agent/gateway/OpenAIProvider.js
+agent/gateway/OpenAIProvider.js
 ```
 
 原因：
@@ -465,7 +465,7 @@ Browser Runtime
 不应该拥有 provider credential responsibility
 ```
 
-`src/agent/gateway/HttpLLMGateway.js` 继续只认识 AgentScape 的 provider-neutral Gateway。
+`agent/gateway/HttpLLMGateway.js` 继续只认识 AgentScape 的 provider-neutral Gateway。
 
 这样将来 Anthropic / Gemini / internal gateway 仍不需要污染 Runtime。
 

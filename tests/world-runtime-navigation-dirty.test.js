@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { WorldRuntime } from '../src/runtime/WorldRuntime.js';
+import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 
 it('invalidates static navigation when the editor commits a fixed-object transform', () => {
   const record={manifest:{physics:{body:'fixed'}}};

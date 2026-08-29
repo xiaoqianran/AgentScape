@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AutosaveController } from '../src/persistence/AutosaveController.js';
+import { AutosaveController } from '../studio/persistence/AutosaveController.js';
 
 it('writes a serialized scene when flushed', () => {
   const events = { on: vi.fn(() => () => {}), emit: vi.fn() };

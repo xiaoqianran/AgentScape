@@ -1,7 +1,7 @@
 import { describe,expect,it } from 'vitest';
 import * as THREE from 'three';
-import { JoltPhysicsBackend } from '../src/runtime/physics/JoltPhysicsBackend.js';
-import { PhysicsSystem } from '../src/runtime/systems/PhysicsSystem.js';
+import { JoltPhysicsBackend } from '../world/runtime/physics/JoltPhysicsBackend.js';
+import { PhysicsSystem } from '../world/runtime/systems/PhysicsSystem.js';
 
 describe('PhysicsSystem + JoltPhysicsBackend',()=>{
   it('attaches semantic manifests, simulates, syncs pose and serves scene queries',async()=>{

@@ -1,8 +1,8 @@
 import { createRapierPhysicsSystem } from './helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ObjectStore } from '../src/runtime/ObjectStore.js';
-import { validateAssetManifest } from '../src/assets/schema.js';
+import { ObjectStore } from '../world/runtime/ObjectStore.js';
+import { validateAssetManifest } from '../asset/schema.js';
 
 const agentManifest={
   id:'agent-test',type:'agent',source:{kind:'builtin'},actions:['navigate'],

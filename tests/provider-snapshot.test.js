@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultProviderRegistry } from '../src/providers/ProviderRegistry.js';
+import { createDefaultProviderRegistry } from '../generation/providers/ProviderRegistry.js';
 
 const capability=(providerId,domain='image',operation='text_to_image',output='image')=>({
   operation:`${providerId}.${domain}.${operation}.v1`,
