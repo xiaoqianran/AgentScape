@@ -76,6 +76,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 
 ## 3. 当前协议与实现文档
 
+- [`physics.md`](./physics.md)：PhysicsSystem / PhysicsBackend 深层契约、Rapier/Jolt/Transform parity、evidence quality 与 backend selection。
 - [`navigation.md`](./navigation.md)：1.10 Current-world Navigation Truth：Recast/Detour、TileCache、Rapier 动态障碍与查询时同步。
 - [`action-aware-navigation.md`](./action-aware-navigation.md)：1.14 单动作反事实诊断：blocker provenance、verified action eligibility 与动作后重规划。
 - [`locomotion.md`](./locomotion.md)：1.15 Embodied Locomotion：Agent Body、Rapier CharacterController、跨帧 History 与 blocked 执行语义。
