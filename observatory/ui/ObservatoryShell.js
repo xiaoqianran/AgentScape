@@ -178,7 +178,8 @@ export class ObservatoryShell {
     this.root.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => {
       this.root.querySelectorAll("[data-view]").forEach((item) => item.classList.toggle("is-active", item === button));
     }));
-    if (matchMedia("(max-width: 860px)").matches) this.setPanelVisible("results", false);
+    if (matchMedia("(max-width: 1040px)").matches) this.setPanelVisible("results", false);
+    if (matchMedia("(max-width: 760px)").matches) this.setPanelVisible("scenarios", false);
   }
 
   setRightTab(tab) {
@@ -199,7 +200,7 @@ export class ObservatoryShell {
     const isScenarios = panel === "scenarios";
     const className = isScenarios ? "obs-hide-scenarios" : "obs-hide-results";
     const willShow = this.root.classList.contains(className);
-    if (willShow && matchMedia("(max-width: 860px)").matches) this.setPanelVisible(isScenarios ? "results" : "scenarios", false);
+    if (willShow && matchMedia("(max-width: 1040px)").matches) this.setPanelVisible(isScenarios ? "results" : "scenarios", false);
     this.setPanelVisible(panel, willShow);
   }
 
