@@ -106,6 +106,25 @@ export class AgentToolsLab {
   setNormalizedDebug(visible) { this.colliderRenderer.setVisible(visible); }
   setGridVisible(visible) { this.grid.visible = Boolean(visible); }
 
+  toolDefinitions() {
+    return this.runner.context?.tools?.definitions?.() || [];
+  }
+
+  suggestedToolName() {
+    return this.lastDebugSnapshot?.lastTool?.name || null;
+  }
+
+  async invokeTool(name, args = {}) {
+    const context = this.runner.context;
+    if (!context) throw new Error("工具运行时尚未准备完成");
+    const started = performance.now();
+    const result = await context.callAndDriveSettle(name, args);
+    const policy = context.tools.executionPolicy(name, result);
+    this.refreshDebug();
+    this.emitTelemetry();
+    return { result, policy, elapsedMs: performance.now() - started };
+  }
+
   refreshDebug() {
     const snapshot = this.runner.context?.debugSnapshot?.();
     this.lastDebugSnapshot = snapshot || null;

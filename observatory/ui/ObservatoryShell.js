@@ -74,6 +74,7 @@ export class ObservatoryShell {
             <button id="obs-results-toggle" class="obs-edge-toggle obs-edge-toggle-left" type="button" aria-label="显示或隐藏验证面板" aria-pressed="true">${icon("chevron-right")}</button>
             <div class="obs-right-tabs" role="tablist" aria-label="右侧工具">
               <button class="obs-right-tab is-active" type="button" data-right-tab="run">${icon("flow")}<span>执行流</span></button>
+              <button id="obs-tools-tab" class="obs-right-tab" type="button" data-right-tab="tools" hidden>${icon("terminal")}<span>工具</span></button>
               <button class="obs-right-tab" type="button" data-right-tab="layers">${icon("layers")}<span>图层</span></button>
               <button class="obs-right-tab" type="button" data-right-tab="inspect">${icon("info")}<span>检视</span></button>
             </div>
@@ -95,6 +96,34 @@ export class ObservatoryShell {
                   </article>
                   <div id="obs-assertions" class="obs-assertions"></div>
                 </div>
+              </section>
+
+              <section class="obs-right-panel obs-tool-panel" data-right-panel="tools">
+                <div class="obs-panel-heading"><span>AGENT TOOLS</span><strong>工具工作台</strong><small>选择真实领域工具，编辑参数并查看调用结果。</small></div>
+                <label class="obs-tool-search">
+                  ${icon("search")}
+                  <input id="obs-tool-search" type="search" placeholder="搜索工具或能力…" autocomplete="off" />
+                </label>
+                <div id="obs-tool-list" class="obs-tool-list" role="listbox" aria-label="可用智能体工具"></div>
+                <div class="obs-tool-detail">
+                  <div class="obs-tool-detail-head">
+                    <div><span>当前工具</span><strong id="obs-tool-name">—</strong></div>
+                    <span id="obs-tool-required" class="obs-tool-required">无必填参数</span>
+                  </div>
+                  <p id="obs-tool-description">选择一个工具以查看定义。</p>
+                  <label class="obs-tool-args-label" for="obs-tool-args">调用参数 <small>JSON</small></label>
+                  <textarea id="obs-tool-args" class="obs-tool-args" rows="7" spellcheck="false">{}</textarea>
+                  <div id="obs-tool-error" class="obs-tool-error" role="alert" hidden></div>
+                  <button id="obs-tool-invoke" class="obs-tool-invoke" type="button" disabled>${icon("play")}<span>调用工具</span><small>⌘ ↵</small></button>
+                </div>
+                <section class="obs-tool-output" aria-live="polite">
+                  <div class="obs-tool-section-title"><span>最近响应</span><b id="obs-tool-outcome">等待调用</b></div>
+                  <pre id="obs-tool-result">选择工具并发起调用，结果会显示在这里。</pre>
+                </section>
+                <section class="obs-tool-history-section">
+                  <div class="obs-tool-section-title"><span>调用历史</span><button id="obs-tool-clear" type="button">清空</button></div>
+                  <div id="obs-tool-history" class="obs-tool-history"><div class="obs-empty">暂无手动调用</div></div>
+                </section>
               </section>
 
               <section class="obs-right-panel" data-right-panel="layers">
@@ -162,8 +191,14 @@ export class ObservatoryShell {
     this.refs = Object.fromEntries([
       "run", "step", "step10", "reset", "checkpoint", "restore", "checkpoint-frame", "frame", "time", "active-action", "scenario-list", "viewport",
       "scenario-badge", "status-layer", "status-text", "result-summary", "run-scenario-card", "inspector", "native-debug", "manifest-debug", "difference-debug", "normalized-debug", "velocity-debug", "joint-debug", "contact-debug", "bounds-debug", "ray-debug", "spatial-query-debug", "navmesh-debug", "path-debug", "endpoints-debug", "obstacles-debug", "interaction-los-debug", "interaction-support-debug", "interaction-state-debug", "agent-tool-debug", "labels-debug", "grid-debug", "assertions", "metrics",
-      "lab-title", "lab-select", "backend-select", "focus-view", "scenarios-toggle", "results-toggle"
+      "lab-title", "lab-select", "backend-select", "focus-view", "scenarios-toggle", "results-toggle",
+      "tools-tab", "tool-search", "tool-list", "tool-name", "tool-required", "tool-description", "tool-args", "tool-error", "tool-invoke", "tool-outcome", "tool-result", "tool-clear", "tool-history"
     ].map((name) => [name, root.querySelector(`#obs-${name}`)]));
+
+    this.toolDefinitions = [];
+    this.toolHistory = [];
+    this.activeToolName = null;
+    this.onToolInvoke = null;
 
     this.refs["scenarios-toggle"].addEventListener("click", () => this.togglePanel("scenarios"));
     this.refs["results-toggle"].addEventListener("click", () => this.togglePanel("results"));
@@ -178,6 +213,18 @@ export class ObservatoryShell {
     this.root.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => {
       this.root.querySelectorAll("[data-view]").forEach((item) => item.classList.toggle("is-active", item === button));
     }));
+    this.refs["tool-search"].addEventListener("input", () => this.renderToolList());
+    this.refs["tool-invoke"].addEventListener("click", () => this.invokeSelectedTool());
+    this.refs["tool-args"].addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        this.invokeSelectedTool();
+      }
+    });
+    this.refs["tool-clear"].addEventListener("click", () => {
+      this.toolHistory = [];
+      this.renderToolHistory();
+    });
     if (matchMedia("(max-width: 1040px)").matches) this.setPanelVisible("results", false);
     if (matchMedia("(max-width: 760px)").matches) this.setPanelVisible("scenarios", false);
   }
@@ -185,6 +232,104 @@ export class ObservatoryShell {
   setRightTab(tab) {
     this.root.querySelectorAll("[data-right-tab]").forEach((button) => button.classList.toggle("is-active", button.dataset.rightTab === tab));
     this.root.querySelectorAll("[data-right-panel]").forEach((panel) => panel.classList.toggle("is-active", panel.dataset.rightPanel === tab));
+  }
+
+  configureToolWorkbench(definitions = [], onInvoke = null, preferredToolName = null) {
+    this.toolDefinitions = [...definitions].sort((a, b) => a.name.localeCompare(b.name));
+    this.onToolInvoke = onInvoke;
+    const visible = this.toolDefinitions.length > 0;
+    this.refs["tools-tab"].hidden = !visible;
+    this.root.classList.toggle("obs-has-tool-workbench", visible);
+    if (!visible) {
+      this.activeToolName = null;
+      if (this.root.querySelector('[data-right-tab="tools"]')?.classList.contains("is-active")) this.setRightTab("run");
+      return;
+    }
+    const preferred = this.toolDefinitions.some((item) => item.name === preferredToolName) ? preferredToolName : null;
+    const selected = preferred || (this.toolDefinitions.some((item) => item.name === this.activeToolName)
+      ? this.activeToolName
+      : this.toolDefinitions[0].name);
+    this.selectTool(selected);
+  }
+
+  renderToolList() {
+    const query = this.refs["tool-search"].value.trim().toLowerCase();
+    const filtered = this.toolDefinitions.filter((definition) => `${definition.name} ${definition.description || ""}`.toLowerCase().includes(query));
+    this.refs["tool-list"].replaceChildren(...filtered.map((definition) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `obs-tool-item${definition.name === this.activeToolName ? " is-active" : ""}`;
+      button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", String(definition.name === this.activeToolName));
+      const required = definition.parameters?.required?.length || 0;
+      button.innerHTML = `<span>${escapeHtml(definition.name)}</span><small>${required ? `${required} 必填` : "无必填"}</small>`;
+      button.addEventListener("click", () => this.selectTool(definition.name));
+      return button;
+    }));
+    if (!filtered.length) this.refs["tool-list"].innerHTML = `<div class="obs-empty">没有匹配的工具</div>`;
+  }
+
+  selectTool(name) {
+    const definition = this.toolDefinitions.find((item) => item.name === name);
+    if (!definition) return;
+    this.activeToolName = name;
+    this.refs["tool-name"].textContent = definition.name;
+    this.refs["tool-description"].textContent = definition.description || "该工具没有提供说明。";
+    const required = definition.parameters?.required || [];
+    this.refs["tool-required"].textContent = required.length ? `必填：${required.join(" · ")}` : "无必填参数";
+    this.refs["tool-args"].value = JSON.stringify(toolArgumentTemplate(definition.parameters), null, 2);
+    this.refs["tool-error"].hidden = true;
+    this.refs["tool-invoke"].disabled = false;
+    this.renderToolList();
+  }
+
+  async invokeSelectedTool() {
+    if (!this.activeToolName || !this.onToolInvoke || this.refs["tool-invoke"].disabled) return;
+    let args;
+    try {
+      args = JSON.parse(this.refs["tool-args"].value || "{}");
+      if (!args || Array.isArray(args) || typeof args !== "object") throw new Error("参数必须是 JSON 对象");
+    } catch (error) {
+      this.refs["tool-error"].textContent = `参数格式错误：${error.message}`;
+      this.refs["tool-error"].hidden = false;
+      return;
+    }
+    this.refs["tool-error"].hidden = true;
+    this.refs["tool-invoke"].disabled = true;
+    this.refs["tool-invoke"].classList.add("is-running");
+    this.refs["tool-invoke"].querySelector("span").textContent = "正在调用…";
+    const startedAt = performance.now();
+    try {
+      const payload = await this.onToolInvoke(this.activeToolName, args);
+      const elapsedMs = payload?.elapsedMs ?? performance.now() - startedAt;
+      const outcome = payload?.policy?.outcome?.state || "accepted";
+      this.refs["tool-outcome"].textContent = `${outcome} · ${elapsedMs.toFixed(1)} ms`;
+      this.refs["tool-outcome"].dataset.tone = payload?.policy?.outcome?.verified === false ? "warn" : "pass";
+      this.refs["tool-result"].textContent = JSON.stringify(payload?.result ?? null, null, 2);
+      this.toolHistory.unshift({ name: this.activeToolName, args, result: payload?.result, outcome, elapsedMs, ok: true, time: new Date() });
+    } catch (error) {
+      const elapsedMs = performance.now() - startedAt;
+      this.refs["tool-outcome"].textContent = `${error.code || "error"} · ${elapsedMs.toFixed(1)} ms`;
+      this.refs["tool-outcome"].dataset.tone = "fail";
+      this.refs["tool-result"].textContent = JSON.stringify({ error: error.message, code: error.code || null }, null, 2);
+      this.toolHistory.unshift({ name: this.activeToolName, args, error: error.message, outcome: error.code || "error", elapsedMs, ok: false, time: new Date() });
+    } finally {
+      this.toolHistory = this.toolHistory.slice(0, 12);
+      this.renderToolHistory();
+      this.refs["tool-invoke"].disabled = false;
+      this.refs["tool-invoke"].classList.remove("is-running");
+      this.refs["tool-invoke"].querySelector("span").textContent = "调用工具";
+    }
+  }
+
+  renderToolHistory() {
+    if (!this.toolHistory.length) {
+      this.refs["tool-history"].innerHTML = `<div class="obs-empty">暂无手动调用</div>`;
+      return;
+    }
+    this.refs["tool-history"].innerHTML = this.toolHistory.map((entry) => `<article class="obs-tool-history-item ${entry.ok ? "is-pass" : "is-fail"}">
+      <i></i><div><strong>${escapeHtml(entry.name)}</strong><small>${escapeHtml(entry.outcome)} · ${entry.elapsedMs.toFixed(1)} ms · ${entry.time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</small></div>
+    </article>`).join("");
   }
 
   setPanelVisible(panel, visible) {
@@ -395,6 +540,27 @@ const renderAssertion = (assertion, index) => {
 
 const debugToggle = (layer, id, label) => `<label data-debug-layer="${layer}" class="obs-layer-row"><span>${escapeHtml(label)}</span><input id="obs-${id}" type="checkbox" checked /><i></i></label>`;
 
+const toolArgumentTemplate = (schema = {}) => {
+  const properties = schema.properties || {};
+  const keys = schema.required?.length ? schema.required : Object.keys(properties).slice(0, 4);
+  return Object.fromEntries(keys.map((key) => [key, toolArgumentValue(key, properties[key] || {})]));
+};
+
+const toolArgumentValue = (key, schema) => {
+  if (schema.default !== undefined) return schema.default;
+  if (schema.examples?.length) return schema.examples[0];
+  if (schema.enum?.length) return schema.enum[0];
+  if (key === "id" || key.endsWith("Id")) return "table";
+  if (key === "origin") return [0, 2, 0];
+  if (key === "direction") return [0, -1, 0];
+  if (key === "position" || key === "point") return [0, 0, 0];
+  if (schema.type === "array") return [];
+  if (schema.type === "number" || schema.type === "integer") return 0;
+  if (schema.type === "boolean") return false;
+  if (schema.type === "object") return {};
+  return "";
+};
+
 const icon = (name) => {
   const paths = {
     focus: '<path d="M7 3H3v4M17 7V3h-4M3 13v4h4M13 17h4v-4M8 10h4"/>',
@@ -414,7 +580,8 @@ const icon = (name) => {
     reset: '<path d="M5 6a6 6 0 1 1-1 7M5 6V3M5 6H2"/>',
     more: '<circle cx="5" cy="10" r="1"/><circle cx="10" cy="10" r="1"/><circle cx="15" cy="10" r="1"/>',
     settings: '<circle cx="10" cy="10" r="2.5"/><path d="M10 3.5v2M10 14.5v2M3.5 10h2M14.5 10h2M5.4 5.4l1.4 1.4M13.2 13.2l1.4 1.4M14.6 5.4l-1.4 1.4M6.8 13.2l-1.4 1.4"/>',
-    help: '<circle cx="10" cy="10" r="7"/><path d="M8.2 7.8a2 2 0 1 1 3.4 1.4c-.8.7-1.6 1-1.6 2M10 14h.01"/>'
+    help: '<circle cx="10" cy="10" r="7"/><path d="M8.2 7.8a2 2 0 1 1 3.4 1.4c-.8.7-1.6 1-1.6 2M10 14h.01"/>',
+    search: '<circle cx="8.5" cy="8.5" r="4.5"/><path d="M12 12l4 4"/>'
   };
   return `<svg viewBox="0 0 20 20" aria-hidden="true">${paths[name] || ""}</svg>`;
 };

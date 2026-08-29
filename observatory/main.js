@@ -47,6 +47,8 @@ class ObservatoryApp {
     this.activeBackendId = null;
     this.activeScenarioId = null;
     this.activationVersion = 0;
+    this.scenarioSelectionVersion = 0;
+    this.scenarioLoadPromise = Promise.resolve();
 
     this.shell.configureLabs(this.labs.list(), null);
     this.shell.bind({
@@ -97,7 +99,9 @@ class ObservatoryApp {
 
   async activateLab(labId, { backendId = null, scenarioId = null } = {}) {
     const version = ++this.activationVersion;
+    ++this.scenarioSelectionVersion;
     this.shell.setBusy(true, `正在加载 ${labId} Lab…`);
+    this.shell.configureToolWorkbench([]);
     const module = await this.labs.load(labId);
     if (version !== this.activationVersion) return;
     const definition = module.labDefinition;
@@ -105,6 +109,8 @@ class ObservatoryApp {
       throw new Error(`Invalid Observatory lab module: ${labId}`);
     }
 
+    await this.scenarioLoadPromise.catch(() => {});
+    if (version !== this.activationVersion) return;
     await this.lab?.dispose?.();
     if (version !== this.activationVersion) return;
 
@@ -124,6 +130,7 @@ class ObservatoryApp {
       viewport: this.shell.refs.viewport,
       backendId: normalizedBackend,
       onTelemetry: (data) => {
+        if (data.scenario?.id !== this.activeScenarioId || labId !== this.activeLabId) return;
         this.shell.setRunning(data.clock.running);
         this.shell.update(data);
       }
@@ -155,20 +162,51 @@ class ObservatoryApp {
       : available[0]?.id;
     if (!initialScenario) throw new Error(`Lab ${labId} has no scenarios`);
     await this.selectScenario(initialScenario);
+    if (this.lab.toolDefinitions?.().length) {
+      this.shell.setRightTab("tools");
+      if (!matchMedia("(max-width: 1040px)").matches) this.shell.setPanelVisible("results", true);
+    }
   }
 
-  async selectScenario(id) {
+  selectScenario(id) {
+    const version = ++this.scenarioSelectionVersion;
+    const lab = this.lab;
     this.activeScenarioId = id;
     const available = this.scenarios.list({ lab: this.activeLabId });
     this.shell.renderScenarios(available, id, (next) => this.selectScenario(next));
     this.updateUrl();
     const scenario = this.scenarios.get(id);
     this.shell.setBusy(true, `正在准备 ${scenario.title}…`);
-    try {
-      await this.lab.load(scenario);
-    } finally {
-      this.shell.setBusy(false);
-    }
+    const operation = this.scenarioLoadPromise.catch(() => {}).then(async () => {
+      if (version !== this.scenarioSelectionVersion || lab !== this.lab) return null;
+      try {
+        await lab.load(scenario);
+        if (version !== this.scenarioSelectionVersion || lab !== this.lab) return null;
+        this.shell.configureToolWorkbench(
+          lab.toolDefinitions?.() || [],
+          (name, args) => this.invokeTool(name, args),
+          lab.suggestedToolName?.()
+        );
+        return scenario;
+      } finally {
+        if (version === this.scenarioSelectionVersion && lab === this.lab) this.shell.setBusy(false);
+      }
+    });
+    this.scenarioLoadPromise = operation;
+    return operation;
+  }
+
+  invokeTool(name, args) {
+    const lab = this.lab;
+    const scenarioVersion = this.scenarioSelectionVersion;
+    const operation = this.scenarioLoadPromise.catch(() => {}).then(() => {
+      if (lab !== this.lab || scenarioVersion !== this.scenarioSelectionVersion) {
+        throw Object.assign(new Error("场景已切换，请在新场景中重新调用工具"), { code: "SCENARIO_CHANGED" });
+      }
+      return lab.invokeTool?.(name, args);
+    });
+    this.scenarioLoadPromise = operation;
+    return operation;
   }
 
   updateUrl() {
