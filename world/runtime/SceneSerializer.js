@@ -103,6 +103,15 @@ export class SceneSerializer {
       if (!runtime.assets.has(item.assetId)) throw new Error(`Scene references unknown asset: ${item.assetId}`);
     }
 
+    if (typeof runtime.physics?.resetWorld === 'function') {
+      runtime.locomotion?.cancelAll?.();
+      runtime.interactions?.cancelPending?.('SCENE_RESTORE');
+      runtime.physics.resetWorld();
+      if (runtime.environment?.colliders?.length) {
+        runtime.physics.addEnvironment(runtime.environment.colliders,{id:runtime.environment.id});
+      }
+    }
+
     await runtime.sceneGraph.batch(async () => {
       await runtime.clearObjects({silent:true});
       for (const item of scene.objects) {

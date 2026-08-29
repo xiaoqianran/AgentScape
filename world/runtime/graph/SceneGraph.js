@@ -77,9 +77,11 @@ export class SceneGraph {
           this.set(targetId, 'SUPPORTS', subjectId, { surfaceId:support.id });
         }
       }
-      if (target.box.containsBox(subject.box)) {
-        this.set(subjectId, 'INSIDE', targetId);
-        this.set(targetId, 'CONTAINS', subjectId);
+      const containment = this.spatial.insideStatus(subjectId,targetId,{snapshot:spatialSnapshot});
+      if (containment.inside) {
+        const meta = containment.receptacleId ? { receptacleId:containment.receptacleId } : {};
+        this.set(subjectId, 'INSIDE', targetId, meta);
+        this.set(targetId, 'CONTAINS', subjectId, meta);
       }
     };
 

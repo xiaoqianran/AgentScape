@@ -103,6 +103,20 @@ describe('interaction-range task execution',()=>{
     ctx.navigation.dispose(); ctx.physics.dispose();
   },20000);
 
+  it('allows a placement-style clear endpoint without weakening ordinary target-hit LOS',async()=>{
+    const ctx=await setup();
+    const originalRaycast=ctx.physics.raycast.bind(ctx.physics);
+    ctx.physics.raycast=()=>null;
+    const strict=ctx.interactions.interactionStatusAt('agent_01','cabinet_01',[0,0,2.3],{maxDistance:2.5});
+    const clearEndpoint=ctx.interactions.interactionStatusAt('agent_01','cabinet_01',[0,0,2.3],{
+      maxDistance:2.5,aimPoint:[0,1,0.5],allowClearEndpoint:true
+    });
+    expect(strict).toMatchObject({inRange:true,visible:false,interactable:false});
+    expect(clearEndpoint).toMatchObject({inRange:true,visible:true,interactable:true});
+    ctx.physics.raycast=originalRaycast;
+    ctx.navigation.dispose(); ctx.physics.dispose();
+  },15000);
+
   it('does not treat proximity through a physical wall as interactability',async()=>{
     const ctx=await setup({wall:{shape:'box',halfExtents:[1.4,1.5,.08],translation:[0,1.5,1.6]}});
     const status=ctx.interactions.interactionStatusAt('agent_01','cabinet_01',[0,0,2.3],{maxDistance:2.5});

@@ -9,7 +9,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run architecture:validate && npm run assets:validate && npm run test && npm run build",
+    "check": "npm run architecture:validate && npm run assets:validate && npm run world:viability && npm run test && npm run build",
     "architecture:validate": "node tooling/validate-repository-architecture.mjs && node tooling/validate-domain-boundaries.mjs",
     "assets:validate": "node tooling/validate-assets.mjs",
     "agent:gateway": "node tooling/scripts/openai-compatible-agent-gateway.mjs",
@@ -22,7 +22,8 @@
     "repos:sync-safe": "bash tooling/scripts/repos.sh sync-safe",
     "repos:status": "bash tooling/scripts/repos.sh status",
     "repos:check": "bash tooling/scripts/repos.sh check",
-    "repos:check-recursive": "bash tooling/scripts/repos.sh check-recursive"
+    "repos:check-recursive": "bash tooling/scripts/repos.sh check-recursive",
+    "world:viability": "node tooling/experiments/world/002-world-viability.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",

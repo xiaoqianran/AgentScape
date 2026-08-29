@@ -37,6 +37,28 @@ describe('WorldValidator', () => {
     expect(report.coverage.objects).toBe(2);
   });
 
+  it('treats only the active Agent-to-held-object overlap as an expected carry configuration', () => {
+    const r=runtime({collision:true});
+    r.interactions.heldByAgent=(id)=>id==='a' ? 'b' : null;
+    const report=new WorldValidator(r).run();
+    expect(report.hard.some((item)=>item.code==='P_OVERLAP')).toBe(false);
+
+    r.interactions.heldByAgent=()=>null;
+    const ordinaryOverlap=new WorldValidator(r).run();
+    expect(ordinaryOverlap.hard).toEqual(expect.arrayContaining([expect.objectContaining({code:'P_OVERLAP',object:'a',other:'b'})]));
+  });
+
+  it('uses physical penetration evidence to distinguish legal containment from a container-wall collision', () => {
+    const r=runtime({collision:true});
+    r.sceneGraph.list=()=>[{subject:'a',predicate:'INSIDE',object:'b'}];
+    r.store={has:()=>true,get:(id)=>({id,manifest:{physics:{colliders:[{shape:'box',halfExtents:[.1,.1,.1]}]}}})};
+    r.physics={getPosition:()=>[0,0,0],manifestPoseClear:()=>({checked:true,clear:true,blockedBy:[]})};
+    expect(new WorldValidator(r).run().hard.some((item)=>item.code==='P_OVERLAP')).toBe(false);
+
+    r.physics.manifestPoseClear=()=>({checked:true,clear:false,blockedBy:['object:b:$root']});
+    expect(new WorldValidator(r).run().hard).toEqual(expect.arrayContaining([expect.objectContaining({code:'P_OVERLAP',object:'a',other:'b'})]));
+  });
+
   it('does not report an Agent-held floating object as unsupported', () => {
     const r=runtime();
     r.spatial.snapshot=()=>new Map([

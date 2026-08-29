@@ -23,6 +23,19 @@ function validateInteractionContract(value, context = {}) {
   }
 }
 
+
+function validateReceptacles(receptacles, context = {}) {
+  if (receptacles == null) return;
+  if (!Array.isArray(receptacles)) throw Errors.invalidManifest('Manifest receptacles must be an array', context);
+  const ids=new Set();
+  for (const receptacle of receptacles) {
+    if (!receptacle?.id || typeof receptacle.id !== 'string' || ids.has(receptacle.id)) throw Errors.invalidManifest('Receptacle ids must be unique non-empty strings', context);
+    ids.add(receptacle.id);
+    if (!Array.isArray(receptacle.localPosition) || receptacle.localPosition.length !== 3 || !receptacle.localPosition.every(Number.isFinite)) throw Errors.invalidManifest(`Receptacle ${receptacle.id} localPosition requires finite [3]`, context);
+    if (!Array.isArray(receptacle.size) || receptacle.size.length !== 3 || !receptacle.size.every((value)=>Number.isFinite(value) && value > 0)) throw Errors.invalidManifest(`Receptacle ${receptacle.id} size requires positive finite [3]`, context);
+  }
+}
+
 function validateEmbodiment(embodiment, context = {}) {
   if (!embodiment) return;
   const anchor = embodiment.holdAnchor;
@@ -61,6 +74,7 @@ export function validateAssetManifest(manifest) {
   validateInteractionContract(manifest.interactionContract, { id: manifest.id });
   validatePhysics(manifest.physics, { id: manifest.id });
   validateEmbodiment(manifest.embodiment, { id: manifest.id });
+  validateReceptacles(manifest.receptacles, { id: manifest.id });
   for (const [name, part] of Object.entries(manifest.parts || {})) {
     const context = { id: manifest.id, part: name };
     if (!part.node) throw Errors.invalidManifest(`Part ${name} requires node`, context);

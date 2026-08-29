@@ -193,6 +193,16 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
         applied.push({...relation,result});
         continue;
       }
+      if (relation.predicate === 'INSIDE') {
+        const result=runtime.interactions.placeInside(relation.subject,relation.object,{receptacleId:relation.receptacleId,silent:true});
+        if (result.status !== 'inside' || result.containmentVerified !== true) {
+          issues.push({...relation,reason:result.reason || 'INSIDE_NOT_VERIFIED',details:result});
+          state.reports.relationAdmission={status:'rejected',reason:result.reason || 'INSIDE_NOT_VERIFIED',applied,issues};
+          return state;
+        }
+        applied.push({...relation,result});
+        continue;
+      }
       if (relation.predicate === 'NEAR') {
         const subject=runtime.store.get(relation.subject),target=runtime.store.get(relation.object);
         const targetPosition=target.object.position.toArray();

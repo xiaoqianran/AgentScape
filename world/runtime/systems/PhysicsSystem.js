@@ -68,6 +68,21 @@ export class PhysicsSystem {
     return this;
   }
 
+  resetWorld() {
+    const previousWorld=this.world;
+    const previousController=this.characterController;
+    this.entries.clear();
+    this.colliderProvenance.clear();
+    this.characterController=null;
+    if(previousWorld && previousController) this.backend.removeCharacterController(previousWorld,previousController);
+    if(previousWorld) this.backend.dispose(previousWorld);
+    this.world=this.backend.createWorld();
+    if(this.solverEnabled && this.backend.hasCapability('character-controller')) {
+      this.characterController=this.backend.createCharacterController(this.world);
+    }
+    return this;
+  }
+
   runtimeCapabilities() {
     const capabilities=['transform-state','articulation-pose'];
     if (this.backend.hasCapability('collision') && this.backend.hasCapability('scene-query')) capabilities.push('counterfactual-query');

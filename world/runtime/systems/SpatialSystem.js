@@ -121,6 +121,95 @@ export class SpatialSystem {
     };
   }
 
+  getReceptacle(targetId, receptacleId = null, snapshot = null) {
+    const record = this.store.get(targetId);
+    if (!snapshot?.has(targetId)) record.object.updateWorldMatrix(true, true);
+    const definition = receptacleId
+      ? record.manifest.receptacles?.find((item) => item.id === receptacleId)
+      : record.manifest.receptacles?.[0];
+    if (!definition) return null;
+    const half = new THREE.Vector3(...definition.size).multiplyScalar(0.5);
+    const center = new THREE.Vector3(...definition.localPosition);
+    const localBox = new THREE.Box3(center.clone().sub(half), center.clone().add(half));
+    const box = localBox.applyMatrix4(record.object.matrixWorld);
+    const worldCenter = box.getCenter(new THREE.Vector3());
+    const worldSize = box.getSize(new THREE.Vector3());
+    return { targetId, id:definition.id, box, center:worldCenter, size:worldSize };
+  }
+
+  insideStatus(subjectId, targetId, { receptacleId = null, tolerance = 0.02, snapshot = null } = {}) {
+    const localSnapshot = snapshot || this.snapshot();
+    const subject = localSnapshot.get(subjectId);
+    const target = localSnapshot.get(targetId);
+    if (!subject) return { inside:false, reason:'SUBJECT_MISSING' };
+    if (!target) return { inside:false, reason:'TARGET_MISSING' };
+    const record = this.store.get(targetId);
+    const receptacles = record.manifest.receptacles || [];
+    if (receptacles.length) {
+      const candidates = receptacleId ? receptacles.filter((item)=>item.id===receptacleId) : receptacles;
+      if (!candidates.length) return { inside:false, reason:'RECEPTACLE_MISSING', receptacleId };
+      for (const definition of candidates) {
+        const receptacle = this.getReceptacle(targetId,definition.id,localSnapshot);
+        const box = receptacle.box.clone().expandByScalar(tolerance);
+        if (box.containsBox(subject.box)) return {
+          inside:true,subjectId,targetId,receptacleId:definition.id,mode:'receptacle',tolerance
+        };
+      }
+      return { inside:false, reason:'OUTSIDE_RECEPTACLE', subjectId,targetId,receptacleId, tolerance };
+    }
+    const box = target.box.clone().expandByScalar(tolerance);
+    return {
+      inside:box.containsBox(subject.box),subjectId,targetId,receptacleId:null,mode:'bounds',tolerance,
+      ...(box.containsBox(subject.box)?{}:{reason:'OUTSIDE_TARGET_BOUNDS'})
+    };
+  }
+
+  findFreeSpaceInside(objectId, targetId, { receptacleId = null, clearance = 0.03, grid = 3, ignore = [], poseClear = null } = {}) {
+    const objectRecord = this.store.get(objectId);
+    const snapshot = this.snapshot();
+    const receptacle = this.getReceptacle(targetId,receptacleId,snapshot);
+    if (!receptacle) return null;
+    const originalPosition = objectRecord.object.position.clone();
+    const entry = snapshot.get(objectId);
+    const bounds = entry.box;
+    const size = entry.size;
+    if (size.x + clearance * 2 > receptacle.size.x || size.y + clearance * 2 > receptacle.size.y || size.z + clearance * 2 > receptacle.size.z) return null;
+    const rootToCenterX = originalPosition.x - entry.center.x;
+    const rootToCenterZ = originalPosition.z - entry.center.z;
+    const rootToBottomY = originalPosition.y - bounds.min.y;
+    const halfX = size.x / 2 + clearance;
+    const halfZ = size.z / 2 + clearance;
+    const usableX = Math.max(0,receptacle.size.x / 2 - halfX);
+    const usableZ = Math.max(0,receptacle.size.z / 2 - halfZ);
+    const candidates=[];
+    for(let ix=0;ix<grid;ix++) for(let iz=0;iz<grid;iz++) {
+      const nx=grid===1?0:(ix/(grid-1))*2-1;
+      const nz=grid===1?0:(iz/(grid-1))*2-1;
+      candidates.push(new THREE.Vector3(
+        receptacle.center.x + nx * usableX + rootToCenterX,
+        receptacle.box.min.y + clearance + rootToBottomY,
+        receptacle.center.z + nz * usableZ + rootToCenterZ
+      ));
+    }
+    candidates.sort((a,b)=>a.distanceToSquared(receptacle.center)-b.distanceToSquared(receptacle.center));
+    for(const candidate of candidates) {
+      objectRecord.object.position.copy(candidate);
+      objectRecord.object.updateWorldMatrix(true,true);
+      snapshot.set(objectId,snapshotEntry(objectId,objectRecord.object));
+      const inside=this.insideStatus(objectId,targetId,{receptacleId:receptacle.id,tolerance:0,snapshot});
+      const collisions=this.isColliding(objectId,{ignore:[targetId,...ignore],margin:clearance/2,snapshot});
+      const physics = poseClear ? poseClear(candidate.toArray()) : {checked:true,clear:true};
+      if (inside.inside && !collisions.length && physics?.checked && physics.clear) {
+        objectRecord.object.position.copy(originalPosition);
+        objectRecord.object.updateWorldMatrix(true,true);
+        return candidate;
+      }
+    }
+    objectRecord.object.position.copy(originalPosition);
+    objectRecord.object.updateWorldMatrix(true,true);
+    return null;
+  }
+
   supportStatus(subjectId, targetId, { surfaceId = null, tolerance = 0.12, snapshot = null } = {}) {
     const localSnapshot = snapshot || this.snapshot();
     const subject = localSnapshot.get(subjectId);

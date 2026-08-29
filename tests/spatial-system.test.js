@@ -116,3 +116,17 @@ describe('SpatialSystem', () => {
   });
 
 });
+
+
+it('uses declared receptacle volume for containment instead of treating the whole target AABB as storage',()=>{
+  const store=new ObjectStore();
+  const scene=new THREE.Scene();
+  const cabinet=new THREE.Mesh(new THREE.BoxGeometry(2,2,2)); cabinet.position.set(0,1,0); scene.add(cabinet); cabinet.updateMatrixWorld(true);
+  const item=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2)); item.position.set(0,.5,0); scene.add(item); item.updateMatrixWorld(true);
+  store.add('cabinet',{id:'cabinet',assetId:'cabinet',object:cabinet,manifest:{actions:[],receptacles:[{id:'interior',localPosition:[0,0,0],size:[1.4,1.4,1.4]}]}});
+  store.add('item',{id:'item',assetId:'item',object:item,manifest:{actions:[]}});
+  const spatial=new SpatialSystem({store,scene});
+  expect(spatial.insideStatus('item','cabinet',{receptacleId:'interior'})).toMatchObject({inside:true,receptacleId:'interior',mode:'receptacle'});
+  item.position.set(.9,.5,0); item.updateMatrixWorld(true);
+  expect(spatial.insideStatus('item','cabinet',{receptacleId:'interior'})).toMatchObject({inside:false,reason:'OUTSIDE_RECEPTACLE'});
+});

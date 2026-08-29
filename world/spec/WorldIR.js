@@ -16,7 +16,7 @@ const TRANSFORM_KEYS=new Set(['position']);
 const PHYSICS_REQUIREMENT_KEYS=new Set(['bodyClass','requiredCapabilities','executionMode','qualityPolicy']);
 const PHYSICS_QUALITY_KEYS=new Set(['deterministicRequired','realtimeRequired','fallbackPolicy']);
 const SPATIAL_KEYS=new Set(['relations','constraints']);
-const RELATION_KEYS=new Set(['subject','predicate','object','surfaceId','distance']);
+const RELATION_KEYS=new Set(['subject','predicate','object','surfaceId','receptacleId','distance']);
 const CONSTRAINT_KEYS=new Set(['id','kind','subject','object','description']);
 const INTERACTION_KEYS=new Set(['id','actorId','targetId','supportId','capability','stateKey','value','description']);
 const RULE_KEYS=new Set(['id','event','condition','effect','description']);
@@ -70,10 +70,10 @@ const normalizeRelation=(relation,index)=>{
   assertObject(relation,`WorldIR spatial relation[${index}]`); assertKnownKeys(relation,RELATION_KEYS,`WorldIR spatial relation[${index}]`);
   const subject=clean(relation.subject),predicate=clean(relation.predicate).toUpperCase(),object=clean(relation.object);
   if(!subject||!predicate||!object) throw new TypeError(`WorldIR spatial relation[${index}] requires subject, predicate, object`);
-  if(!['ON','NEAR'].includes(predicate)) throw new TypeError(`WorldIR spatial relation[${index}] unsupported predicate: ${predicate}`);
+  if(!['ON','NEAR','INSIDE'].includes(predicate)) throw new TypeError(`WorldIR spatial relation[${index}] unsupported predicate: ${predicate}`);
   const distance=relation.distance==null?null:Number(relation.distance);
   if(distance!=null&&(!Number.isFinite(distance)||distance<=0)) throw new TypeError(`WorldIR spatial relation[${index}] distance must be positive finite`);
-  return {subject,predicate,object,...(clean(relation.surfaceId)?{surfaceId:clean(relation.surfaceId)}:{}),...(distance!=null?{distance}:{})};
+  return {subject,predicate,object,...(clean(relation.surfaceId)?{surfaceId:clean(relation.surfaceId)}:{}),...(clean(relation.receptacleId)?{receptacleId:clean(relation.receptacleId)}:{}),...(distance!=null?{distance}:{})};
 };
 
 const fromWorldSpec=(input)=>{

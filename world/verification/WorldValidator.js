@@ -20,12 +20,31 @@ export class WorldValidator {
       }
     }
 
+    const relations = this.runtime.sceneGraph.list();
+    const relationKeys = new Set(relations.map((edge) => `${edge.subject}|${edge.predicate}|${edge.object}`));
     for (const [object, other] of this.runtime.spatial.collisionPairs({ margin: 0.015, snapshot })) {
+      const expectedCarryOverlap = this.runtime.interactions.heldByAgent?.(object) === other
+        || this.runtime.interactions.heldByAgent?.(other) === object;
+      if (expectedCarryOverlap) continue;
+      const contained = relationKeys.has(`${object}|INSIDE|${other}`)
+        ? { subject:object,target:other }
+        : relationKeys.has(`${other}|INSIDE|${object}`)
+          ? { subject:other,target:object }
+          : null;
+      if (contained) {
+        const record=this.runtime.store?.has?.(contained.subject) ? this.runtime.store.get(contained.subject) : null;
+        const position=this.runtime.physics?.getPosition?.(contained.subject);
+        const pose=record && position
+          ? this.runtime.physics?.manifestPoseClear?.(record.manifest,position,{excludeIds:[contained.subject]})
+          : null;
+        const penetratesContainer=pose?.checked === true
+          && pose.clear === false
+          && pose.blockedBy?.some((item)=>item.startsWith(`object:${contained.target}:`));
+        if (!penetratesContainer) continue;
+      }
       hard.push({ code: 'P_OVERLAP', object, other, message: 'Object bounding volumes overlap' });
     }
 
-    const relations = this.runtime.sceneGraph.list();
-    const relationKeys = new Set(relations.map((edge) => `${edge.subject}|${edge.predicate}|${edge.object}`));
     for (const edge of relations) {
       if (edge.predicate === 'ON' && !relationKeys.has(`${edge.object}|SUPPORTS|${edge.subject}`)) {
         hard.push({ code: 'R_ASYMMETRIC', object: edge.subject, other: edge.object, message: 'ON relation missing inverse SUPPORTS relation' });

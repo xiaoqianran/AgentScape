@@ -26,7 +26,7 @@ const entity=strict({
 },['id','asset']);
 
 const relation=strict({
-  subject:text,predicate:{type:'string',enum:['ON','NEAR']},object:text,surfaceId:text,
+  subject:text,predicate:{type:'string',enum:['ON','NEAR','INSIDE']},object:text,surfaceId:text,receptacleId:text,
   distance:{type:'number',exclusiveMinimum:0}
 },['subject','predicate','object']);
 

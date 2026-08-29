@@ -90,6 +90,40 @@ ArticulationVerifier
 
 ---
 
+## 1.35 World Viability Gate — Runtime World 已可执行
+
+2026-08-29，新增 `npm run world:viability`，把此前分散的 World/Physics/Navigation/Interaction/Agent/Acceptance 能力串成单一产品 Gate。
+
+旗舰链：
+
+```text
+WorldIR INSIDE cup→cabinet.interior
+→ real cabinet.glb shell + articulated Door
+→ Recast approach
+→ OPEN verified
+→ PICKUP from cabinet interior verified
+→ long-distance CARRY
+→ PLACE table.top verified
+→ Rapier settle + ON
+→ World Acceptance 7/7
+→ inject drift
+→ acceptance replay detects cup-on-table regression
+→ Scene restore with fresh Physics World
+→ persistent-state acceptance 7/7
+```
+
+当前 verdict：
+
+```text
+runtime-world-usable
+```
+
+但 canonical world admission 仍为 `provisional`，原因是当前 Asset/Layout evidence 仍带 `ASSET_PROVISIONAL / LAYOUT_PROVISIONAL`。因此“Runtime 可用”和“所有 admission evidence 已 ready”必须继续区分。
+
+本阶段同时补齐：canonical `INSIDE`、Manifest `receptacles`、cabinet shell collider、carry-aware overlap validation、placement clear-endpoint LOS，以及 restore-time Physics World rebuild。详见 [`world-viability.md`](./world-viability.md)。
+
+---
+
 ## 3. 1.8 已完成：Motion Sweep Validator
 
 当前 verifier 已经从：

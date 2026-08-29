@@ -220,7 +220,7 @@ export class RapierPhysicsBackend extends PhysicsBackend {
     for(let index=0;index<controller.numComputedCollisions();index++) {
       const hit=controller.computedCollision(index);
       if(!hit?.collider) continue;
-      collisions.push({collider:hit.collider,colliderKey:this.colliderKey(hit.collider),toi:hit.toi,normal:[hit.normal1.x,hit.normal1.y,hit.normal1.z]});
+      collisions.push({colliderKey:this.colliderKey(hit.collider),toi:hit.toi,normal:[hit.normal1.x,hit.normal1.y,hit.normal1.z]});
     }
     return {success:true,movement:array3(movement),grounded:controller.computedGrounded(),collisions};
   }
@@ -262,9 +262,10 @@ export class RapierPhysicsBackend extends PhysicsBackend {
       if(predicate && !predicate(other)) return;
       const hit=source.castCollider(v3(velocity),other,zero,targetDistance,maxToi,stopAtPenetration);
       if(!hit) return;
-      if(!best || hit.time_of_impact<best.timeOfImpact) best={collider:other,timeOfImpact:hit.time_of_impact};
+      const colliderKey=this.colliderKey(other);
+      if(!best || hit.time_of_impact<best.timeOfImpact) best={colliderKey,timeOfImpact:hit.time_of_impact};
     });
-    return best;
+    return best ? {...best,collider:world.getCollider(best.colliderKey)} : null;
   }
   raycast(world,origin,direction,maxDistance,{solid=true,predicate=null}={}) {
     this.syncSceneQueries(world);
@@ -275,9 +276,10 @@ export class RapierPhysicsBackend extends PhysicsBackend {
       if(predicate && !predicate(collider)) return;
       const toi=collider.castRay(ray,maxDistance,solid);
       if(!Number.isFinite(toi) || toi<0) return;
-      if(!best || toi<best.timeOfImpact) best={collider,timeOfImpact:toi};
+      const colliderKey=this.colliderKey(collider);
+      if(!best || toi<best.timeOfImpact) best={colliderKey,timeOfImpact:toi};
     });
-    return best;
+    return best ? {...best,collider:world.getCollider(best.colliderKey)} : null;
   }
   contactPairs(world,source) {
     const pairs=[];
@@ -297,12 +299,12 @@ export class RapierPhysicsBackend extends PhysicsBackend {
         }
       });
       if(manifoldCount && activeContactCount) pairs.push({
-        other,manifoldCount,contactCount,activeContactCount,
+        otherKey:this.colliderKey(other),manifoldCount,contactCount,activeContactCount,
         minDistance:Number.isFinite(minDistance)?minDistance:null,totalImpulse,normal,
         evidenceKind:'solver-contact',impulseAvailable:true
       });
     });
-    return pairs;
+    return pairs.map((pair)=>({...pair,other:world.getCollider(pair.otherKey)}));
   }
   penetrations(world,source) {
     const sourceSnapshot=this.colliderSnapshot(source);
@@ -313,10 +315,10 @@ export class RapierPhysicsBackend extends PhysicsBackend {
       const otherBody=this.colliderParent(other);
       if(!otherBody || this.bodyKey(otherBody)===this.bodyKey(sourceBody)) return true;
       const contact=source.contactCollider(other,0);
-      if(contact && contact.distance<0) hits.push({other,distance:contact.distance});
+      if(contact && contact.distance<0) hits.push({otherKey:this.colliderKey(other),distance:contact.distance});
       return true;
     },{excludeCollider:source});
-    return hits;
+    return hits.map((hit)=>({...hit,other:world.getCollider(hit.otherKey)}));
   }
   shapesIntersect(leftShape,leftPosition,leftRotation,rightShape,rightPosition,rightRotation) {
     return leftShape.intersectsShape(v3(leftPosition),q4(leftRotation),rightShape,v3(rightPosition),q4(rightRotation));

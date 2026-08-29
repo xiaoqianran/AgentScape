@@ -32,6 +32,15 @@ describe('asset manifest validation', () => {
     expect(() => validateAssetManifest({ id: 'cabinet', type: 'cabinet', source: { kind: 'builtin' }, actions: [], parts: { door: { node: 'Door', joint: { type: 'magic' } } } })).toThrow(/joint type/);
   });
 
+  it('validates executable receptacle volumes for canonical INSIDE placement', () => {
+    const valid={id:'cab',type:'cabinet',source:{kind:'builtin'},actions:[],receptacles:[{id:'interior',localPosition:[0,1,0],size:[1.4,1.6,.5]}]};
+    expect(()=>validateAssetManifest(valid)).not.toThrow();
+    const duplicate=structuredClone(valid); duplicate.receptacles.push(structuredClone(duplicate.receptacles[0]));
+    expect(()=>validateAssetManifest(duplicate)).toThrow(/unique/);
+    const invalid=structuredClone(valid); invalid.receptacles[0].size=[1,0,.5];
+    expect(()=>validateAssetManifest(invalid)).toThrow(/positive finite/);
+  });
+
   it('validates embodiment hold-anchor coordinates', () => {
     const valid={id:'agent',type:'agent',source:{kind:'builtin'},actions:['navigate'],embodiment:{holdAnchor:{translation:[0,.95,-.62],rotation:[0,0,0,1]}},physics:{body:'kinematic'}};
     expect(()=>validateAssetManifest(valid)).not.toThrow();

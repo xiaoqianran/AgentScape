@@ -21,6 +21,11 @@ describe('WorldSpec',()=>{
     });
   });
 
+  it('normalizes canonical INSIDE placement with an explicit receptacle id',()=>{
+    const spec=normalizeWorldSpec({relations:[{subject:'cup_01',predicate:'inside',object:'cabinet_01',receptacleId:'interior'}]});
+    expect(spec.relations).toEqual([{subject:'cup_01',predicate:'INSIDE',object:'cabinet_01',receptacleId:'interior'}]);
+  });
+
   it('rejects malformed positions and duplicate instance ids before world mutation',()=>{
     expect(()=>normalizeWorldSpec({assets:[{id:'x',type:'chair',position:[0,NaN,0]}]})).toThrow(/position/);
     expect(()=>normalizeWorldSpec({assets:[{id:'x',type:'chair'},{id:'x',type:'table'}]})).toThrow(/duplicate instance id/);

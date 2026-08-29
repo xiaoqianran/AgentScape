@@ -109,7 +109,13 @@ export function composeWorldLayout(requests,{getManifest,poseClear,layout,cleara
     };
 
     let position=request.position ? [...request.position] : null;
-    let mode='explicit'; let verdict=position ? test(position) : null;
+    let mode='explicit';
+    const explicitGroundY=groundY-footprint.minY;
+    if(position && Math.abs(position[1]-explicitGroundY)<=.03) {
+      position[1]=Number(groundPositionY.toFixed(4));
+      mode='explicit-grounded';
+    }
+    let verdict=position ? test(position) : null;
     if (!position) {
       mode='auto';
       const autoY=groundPositionY;

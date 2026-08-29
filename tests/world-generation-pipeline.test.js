@@ -63,7 +63,7 @@ describe('generated world pipeline',()=>{
     });
     expect(generator.generate).toHaveBeenCalledWith(expect.objectContaining({prompt:'industrial robotics workbench',provider:'embodiedgen'}));
     expect(assets.has('eg-workbench')).toBe(true);
-    expect(runtime.spawn).toHaveBeenCalledWith('eg-workbench',{position:[2,0,-1],id:'bench_01'});
+    expect(runtime.spawn).toHaveBeenCalledWith('eg-workbench',{position:[2,.01,-1],id:'bench_01'});
     expect(result.state.artifacts.worldSpec).toMatchObject({schema:1,name:'Generated Lab',generation:{provider:'embodiedgen',generate:true}});
     expect(result.state.artifacts.worldIR).toMatchObject({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'legacy-root'},provenance:{source:'legacy-world-spec'}});
     expect(result.state.reports.assetAdmission).toEqual({
@@ -350,4 +350,18 @@ it('runs rich World IR without routing semantic fields through legacy WorldSpec'
   expect(result.state.reports.worldAdmission.status).toBe('ready');
   expect(runtime.currentWorldRevision).toMatchObject({revision:{id:'rev-state'},provenance:{source:'planner'}});
   expect(runtime.restoredAcceptanceEvidence).toBeNull();
+});
+
+
+it('executes canonical INSIDE relation through a verified receptacle placement instead of inventing a scene-graph edge',async()=>{
+  const assets=new AssetManager();
+  assets.registerManifest({id:'storage-cabinet',type:'container',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[1,1,1],translation:[0,1,0]}]},receptacles:[{id:'interior',localPosition:[0,1,0],size:[1.5,1.5,1.5]}]});
+  assets.registerManifest({id:'storage-cup',type:'cup',source:{kind:'builtin'},actions:['move'],physics:{body:'dynamic',colliders:[{shape:'cylinder',halfHeight:.1,radius:.1,translation:[0,.1,0]}]}});
+  const validation={schema:1,ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:2,relations:1},findings:[]};
+  const placeInside=vi.fn(()=>({status:'inside',containmentVerified:true,receptacleId:'interior',position:[0,.2,0]}));
+  const runtime={events:null,trace:null,assets,environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(async(_assetId,{id})=>id),interactions:{place:vi.fn(),placeInside,move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}};
+  const pipeline=createCanonicalWorldPipeline(runtime);
+  const result=await pipeline.run({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'inside'},provenance:{source:'test'},intent:{name:'Inside'},entities:[{id:'cabinet_01',asset:{assetId:'storage-cabinet'}},{id:'cup_01',asset:{assetId:'storage-cup'}}],spatial:{relations:[{subject:'cup_01',predicate:'INSIDE',object:'cabinet_01',receptacleId:'interior'}]},interactions:[],rules:[],acceptance:[]});
+  expect(result.state.reports.relationAdmission).toMatchObject({status:'ready',applied:[{subject:'cup_01',predicate:'INSIDE',object:'cabinet_01',receptacleId:'interior'}]});
+  expect(placeInside).toHaveBeenCalledWith('cup_01','cabinet_01',{receptacleId:'interior',silent:true});
 });

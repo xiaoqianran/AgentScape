@@ -110,6 +110,27 @@ it('rejects broken or duplicate heldBy ownership before world mutation', () => {
 });
 
 
+it('rebuilds the Physics world before destructive scene restore when the runtime supports it', async () => {
+  const serializer=new SceneSerializer();
+  const physics={resetWorld:vi.fn(),addEnvironment:vi.fn(),syncTransform:vi.fn()};
+  const runtime={
+    environment:{id:'hall',colliders:[{shape:'box',halfExtents:[1,.1,1]}]},
+    assets:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
+    physics,
+    locomotion:{cancelAll:vi.fn()},interactions:{cancelPending:vi.fn(),rebuildHeldOwnership:vi.fn()},
+    sceneGraph:{batch:vi.fn(async(operation)=>operation()),changed:vi.fn()},
+    clearObjects:vi.fn(),spawn:vi.fn(async()=>{}),store:{get:vi.fn(()=>({object:new THREE.Group(),state:{}}))},
+    restoreObjectState:vi.fn(),camera:{position:new THREE.Vector3()},controls:{target:new THREE.Vector3(),update:vi.fn()},events:{emit:vi.fn()}
+  };
+  const scene={schema:'agentscape.scene',schemaVersion:1,assets:[],objects:[],relations:[],metadata:{environment:'hall'}};
+  await serializer.restore(runtime,scene);
+  expect(runtime.locomotion.cancelAll).toHaveBeenCalled();
+  expect(runtime.interactions.cancelPending).toHaveBeenCalledWith('SCENE_RESTORE');
+  expect(physics.resetWorld).toHaveBeenCalledTimes(1);
+  expect(physics.addEnvironment).toHaveBeenCalledWith(runtime.environment.colliders,{id:'hall'});
+  expect(runtime.clearObjects).toHaveBeenCalledWith({silent:true});
+});
+
 it('persists world revision and acceptance evidence without promoting restored evidence to current truth', async () => {
   const serializer=new SceneSerializer();
   const source=fakeRuntime();

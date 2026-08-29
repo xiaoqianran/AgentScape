@@ -8,7 +8,7 @@ export const WORLD_SPEC_SCHEMA = {
       position:{type:'array',items:{type:'number'},minItems:3,maxItems:3,description:'Optional exact world position. Omit unless the user explicitly constrains coordinates; Runtime composes omitted positions.'},generate:{type:'boolean',description:'Whether this request may generate if reuse fails.'},provider:{type:'string',description:'Per-asset generator provider override.'}
     }}},
     relations:{type:'array',items:{type:'object',additionalProperties:false,required:['subject','predicate','object'],properties:{
-      subject:{type:'string',description:'World instance id being placed/moved.'},predicate:{type:'string',enum:['ON','NEAR']},object:{type:'string',description:'World instance id used as support/near target.'},surfaceId:{type:'string'},distance:{type:'number',exclusiveMinimum:0,description:'Optional center distance for NEAR. Omit to let Runtime derive safe spacing from collider footprints.'}
+      subject:{type:'string',description:'World instance id being placed/moved.'},predicate:{type:'string',enum:['ON','NEAR','INSIDE']},object:{type:'string',description:'World instance id used as support/near target.'},surfaceId:{type:'string'},receptacleId:{type:'string'},distance:{type:'number',exclusiveMinimum:0,description:'Optional center distance for NEAR. Omit to let Runtime derive safe spacing from collider footprints.'}
     }}}
   }
 };
@@ -30,7 +30,7 @@ const assertKnownKeys = (value, allowed, label) => {
 const TOP_LEVEL_KEYS=new Set(['name','description','generation','assets','relations']);
 const GENERATION_KEYS=new Set(['provider','generate']);
 const ASSET_KEYS=new Set(['id','assetId','query','prompt','type','position','generate','provider']);
-const RELATION_KEYS=new Set(['subject','predicate','object','surfaceId','distance']);
+const RELATION_KEYS=new Set(['subject','predicate','object','surfaceId','receptacleId','distance']);
 
 export function normalizeWorldSpec(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('WorldSpec must be an object');
@@ -70,10 +70,10 @@ export function normalizeWorldSpec(input = {}) {
     assertKnownKeys(relation,RELATION_KEYS,`WorldSpec relation[${index}]`);
     const subject = clean(relation.subject), predicate = clean(relation.predicate).toUpperCase(), object = clean(relation.object);
     if (!subject || !predicate || !object) throw new TypeError(`WorldSpec relation[${index}] requires subject, predicate, object`);
-    if (!['ON','NEAR'].includes(predicate)) throw new TypeError(`WorldSpec relation[${index}] unsupported predicate: ${predicate}`);
+    if (!['ON','NEAR','INSIDE'].includes(predicate)) throw new TypeError(`WorldSpec relation[${index}] unsupported predicate: ${predicate}`);
     const distance = relation.distance == null ? null : Number(relation.distance);
     if (distance != null && (!Number.isFinite(distance) || distance <= 0)) throw new TypeError(`WorldSpec relation[${index}] distance must be positive finite`);
-    return { subject, predicate, object, ...(clean(relation.surfaceId) ? { surfaceId:clean(relation.surfaceId) } : {}), ...(distance != null ? { distance } : {}) };
+    return { subject, predicate, object, ...(clean(relation.surfaceId) ? { surfaceId:clean(relation.surfaceId) } : {}), ...(clean(relation.receptacleId) ? { receptacleId:clean(relation.receptacleId) } : {}), ...(distance != null ? { distance } : {}) };
   });
   return {
     schema: 1,

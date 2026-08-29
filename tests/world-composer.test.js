@@ -40,6 +40,15 @@ describe('WorldComposer',()=>{
     expect(explicit).toMatchObject({status:'rejected',reason:'WORLD_POSE_BLOCKED'});
   });
 
+  it('normalizes an explicitly grounded y=0 pose onto the same small Physics-safe ground epsilon as auto layout',()=>{
+    const manifest=box('a');
+    const poseClear=vi.fn((_m,p)=>({checked:true,clear:p[1]>=.009,blockedBy:p[1]>=.009?[]:['environment:ground']}));
+    const result=composeWorldLayout([{id:'a1',assetRef:{assetId:'a'},position:[1,0,1]}],{
+      getManifest:()=>manifest,poseClear,layout:{bounds:{min:[-3,-3],max:[3,3]},groundY:0,margin:.5}
+    });
+    expect(result).toMatchObject({status:'ready',placements:[{id:'a1',position:[1,.01,1],mode:'explicit-grounded'}]});
+  });
+
   it('marks articulated root-only layout coverage provisional',()=>{
     const manifest={...box('cabinet'),parts:{door:{physics:{colliders:[{shape:'box',halfExtents:[.2,.5,.05]}]}}}};
     const result=composeWorldLayout([{id:'c1',assetRef:{assetId:'cabinet'}}],{
