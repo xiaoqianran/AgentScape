@@ -58,7 +58,6 @@ export class AgentToolsScenarioContext {
   }
 
   async createHeldAgentCup() {
-    this.world.addBlocker({ id: "floor", size: [8, 0.2, 8], position: [0, -0.1, 0], color: 0x667585 });
     await this.world.addAsset({ id: "agent", assetId: "agent", position: [0, 0, 0] });
     await this.world.addAsset({ id: "cup", assetId: "cup", position: [0, 0, 0] });
     this.world.store.get("cup").state.heldBy = { kind: "agent", id: "agent" };

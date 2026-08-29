@@ -37,6 +37,7 @@ export class InteractionScenarioContext {
 
   async init() {
     await this.physics.init();
+    this.floorBody = this.physics.addFloor();
     return this;
   }
 

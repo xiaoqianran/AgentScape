@@ -43,6 +43,30 @@ describe("Observatory Interaction scenarios", () => {
     ctx.dispose();
   });
 
+
+  it("keeps a dropped cup on the physical floor instead of falling through the world", async () => {
+    const scenario = interactionScenarios.find((item) => item.id === "interaction.carry.pickup-drop");
+    const ctx = await createContext();
+    await scenario.setup(ctx);
+    ctx.advance(240);
+    const position = ctx.physics.getPosition("cup");
+    expect(position[1]).toBeGreaterThan(-0.03);
+    expect(position[1]).toBeLessThan(0.08);
+    ctx.dispose();
+  });
+
+  it("keeps LOS Clear valid after physics advances with the real floor", async () => {
+    const scenario = interactionScenarios.find((item) => item.id === "interaction.reach.los-clear");
+    const ctx = await createContext();
+    await scenario.setup(ctx);
+    ctx.advance(120);
+    const clear = ctx.interactionStatus("agent", "cup", { maxDistance: 1.5 });
+    expect(clear).toMatchObject({ inRange: true, visible: true, interactable: true });
+    expect(clear.lineOfSight.hit.id).toBe("cup");
+    expect(ctx.physics.getPosition("cup")[1]).toBeGreaterThan(-0.03);
+    ctx.dispose();
+  });
+
   it("distinguishes LOS blocked from LOS clear at the same interaction range", async () => {
     const blockedScenario = interactionScenarios.find((item) => item.id === "interaction.reach.los-blocked");
     const clearScenario = interactionScenarios.find((item) => item.id === "interaction.reach.los-clear");
