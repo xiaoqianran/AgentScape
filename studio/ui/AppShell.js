@@ -14,7 +14,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     <main class="shell" data-world="${environmentDefinition.id}">
       <header class="brandbar">
         <div class="brand-lockup">
-          <strong>AgentScape</strong>
+          <strong>AgentScape <em>Studio</em></strong>
           <span>${environmentDefinition.title}</span>
         </div>
         <div class="brand-actions">
