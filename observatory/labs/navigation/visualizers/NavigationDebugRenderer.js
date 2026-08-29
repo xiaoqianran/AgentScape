@@ -1,23 +1,10 @@
 import * as THREE from "three";
-
-const clearGroup = (group) => {
-  for (const child of [...group.children]) {
-    group.remove(child);
-    child.geometry?.dispose?.();
-    if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose?.());
-    else child.material?.dispose?.();
-  }
-};
-
-const sphere = (position, color, radius = 0.08) => {
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 12, 8),
-    new THREE.MeshBasicMaterial({ color, depthTest: false })
-  );
-  mesh.position.fromArray(position);
-  mesh.renderOrder = 24;
-  return mesh;
-};
+import {
+  OBSERVATORY_COLORS,
+  clearVisualGroup,
+  createInstrumentMarker,
+  createInstrumentPath
+} from "../../../visual/DebugVisualPrimitives.js";
 
 export class NavigationDebugRenderer {
   constructor(scene) {
@@ -46,7 +33,7 @@ export class NavigationDebugRenderer {
   }
 
   updateNavMesh(navMesh) {
-    clearGroup(this.navMeshGroup);
+    clearVisualGroup(this.navMeshGroup);
     if (!navMesh?.positions?.length) return;
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(navMesh.positions, 3));
@@ -55,83 +42,108 @@ export class NavigationDebugRenderer {
 
     const surface = new THREE.Mesh(
       geometry,
-      new THREE.MeshBasicMaterial({ color: 0x4f8eb8, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false })
+      new THREE.MeshBasicMaterial({
+        color: OBSERVATORY_COLORS.info,
+        transparent: true,
+        opacity: 0.075,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      })
     );
-    surface.renderOrder = 10;
+    surface.renderOrder = 9;
     this.navMeshGroup.add(surface);
 
     const wire = new THREE.LineSegments(
       new THREE.WireframeGeometry(geometry),
-      new THREE.LineBasicMaterial({ color: 0x8bc2df, transparent: true, opacity: 0.75, depthTest: false })
+      new THREE.LineBasicMaterial({
+        color: OBSERVATORY_COLORS.structure,
+        transparent: true,
+        opacity: 0.34,
+        depthTest: false
+      })
     );
-    wire.renderOrder = 11;
+    wire.renderOrder = 10;
     this.navMeshGroup.add(wire);
   }
 
   updatePath(route) {
-    clearGroup(this.pathGroup);
+    clearVisualGroup(this.pathGroup);
     const points = route?.path;
     if (!Array.isArray(points) || points.length < 2) return;
-    const vectors = points.map((point) => new THREE.Vector3(...point));
-    const line = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(vectors),
-      new THREE.LineBasicMaterial({ color: route.reachable ? 0x6fd59b : 0xe6846f, depthTest: false })
-    );
-    line.renderOrder = 22;
-    this.pathGroup.add(line);
-    for (const point of points) this.pathGroup.add(sphere(point, route.reachable ? 0x6fd59b : 0xe6846f, 0.055));
+    this.pathGroup.add(createInstrumentPath(
+      points,
+      route.reachable ? "pass" : "fail",
+      { dashed: !route.reachable, markers: true }
+    ));
   }
 
   updateObstacles(obstacles, diagnosis) {
-    clearGroup(this.obstacleGroup);
-    const recommended = new Set(diagnosis?.candidates?.filter((candidate) => candidate.counterfactual?.reachable).flatMap((candidate) => candidate.obstacleIds || []) || []);
+    clearVisualGroup(this.obstacleGroup);
+    const recommended = new Set(
+      diagnosis?.candidates
+        ?.filter((candidate) => candidate.counterfactual?.reachable)
+        .flatMap((candidate) => candidate.obstacleIds || []) || []
+    );
+
     for (const obstacle of obstacles) {
       let geometry = null;
       const position = new THREE.Vector3(...(obstacle.position || [0, 0, 0]));
       if (obstacle.shape === "box" && Array.isArray(obstacle.halfExtents)) {
-        geometry = new THREE.BoxGeometry(obstacle.halfExtents[0] * 2, obstacle.halfExtents[1] * 2, obstacle.halfExtents[2] * 2);
+        geometry = new THREE.BoxGeometry(
+          obstacle.halfExtents[0] * 2,
+          obstacle.halfExtents[1] * 2,
+          obstacle.halfExtents[2] * 2
+        );
       } else if (obstacle.shape === "cylinder" && Number.isFinite(obstacle.radius) && Number.isFinite(obstacle.height)) {
         geometry = new THREE.CylinderGeometry(obstacle.radius, obstacle.radius, obstacle.height, 24);
         position.y += obstacle.height / 2;
       }
       if (!geometry) continue;
+
       const isRecommended = recommended.has(obstacle.id);
+      const tone = isRecommended ? "warn" : "fail";
+      const color = OBSERVATORY_COLORS[tone];
       const mesh = new THREE.Mesh(
         geometry,
         new THREE.MeshBasicMaterial({
-          color: isRecommended ? 0xf0b85d : 0xe26d6d,
+          color,
           wireframe: true,
           transparent: true,
-          opacity: isRecommended ? 0.9 : 0.65,
+          opacity: isRecommended ? 0.82 : 0.48,
           depthTest: false
         })
       );
       mesh.name = `navigation-obstacle:${obstacle.id}`;
       mesh.position.copy(position);
       mesh.rotation.y = obstacle.angle || 0;
-      mesh.renderOrder = 23;
+      mesh.renderOrder = 22;
       this.obstacleGroup.add(mesh);
+      this.obstacleGroup.add(createInstrumentMarker(
+        [position.x, position.y + 0.18, position.z],
+        tone,
+        { radius: 0.045, ring: isRecommended }
+      ));
     }
   }
 
   updateEndpoints(route) {
-    clearGroup(this.endpointGroup);
+    clearVisualGroup(this.endpointGroup);
     if (!route) return;
     const startInput = route.start?.input || null;
     const endInput = route.end?.input || null;
     const startSnapped = route.start?.snapped || null;
     const endSnapped = route.end?.snapped || null;
-    if (Array.isArray(startInput)) this.endpointGroup.add(sphere(startInput, 0xf3c766, 0.095));
-    if (Array.isArray(endInput)) this.endpointGroup.add(sphere(endInput, 0xec8e8e, 0.095));
-    if (Array.isArray(startSnapped)) this.endpointGroup.add(sphere(startSnapped, 0x7ad1df, 0.06));
-    if (Array.isArray(endSnapped)) this.endpointGroup.add(sphere(endSnapped, 0xb78ce5, 0.06));
+    if (Array.isArray(startInput)) this.endpointGroup.add(createInstrumentMarker(startInput, "warn", { radius: 0.062 }));
+    if (Array.isArray(endInput)) this.endpointGroup.add(createInstrumentMarker(endInput, "fail", { radius: 0.062 }));
+    if (Array.isArray(startSnapped)) this.endpointGroup.add(createInstrumentMarker(startSnapped, "info", { radius: 0.038, ring: false }));
+    if (Array.isArray(endSnapped)) this.endpointGroup.add(createInstrumentMarker(endSnapped, "violet", { radius: 0.038, ring: false }));
   }
 
   dispose() {
-    clearGroup(this.navMeshGroup);
-    clearGroup(this.pathGroup);
-    clearGroup(this.endpointGroup);
-    clearGroup(this.obstacleGroup);
+    clearVisualGroup(this.navMeshGroup);
+    clearVisualGroup(this.pathGroup);
+    clearVisualGroup(this.endpointGroup);
+    clearVisualGroup(this.obstacleGroup);
     this.scene.remove(this.navMeshGroup, this.pathGroup, this.endpointGroup, this.obstacleGroup);
   }
 }

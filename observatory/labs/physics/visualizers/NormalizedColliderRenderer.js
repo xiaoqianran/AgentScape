@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { OBSERVATORY_COLORS } from "../../../visual/DebugVisualPrimitives.js";
 import { ConvexGeometry } from "three/examples/jsm/geometries/ConvexGeometry.js";
 
 const halfExtentsTuple = (value) => value
@@ -33,10 +34,10 @@ export class NormalizedColliderRenderer {
     this.group = new THREE.Group();
     this.group.name = "observatory-normalized-colliders";
     this.material = new THREE.MeshBasicMaterial({
-      color: 0x92a8bf,
+      color: OBSERVATORY_COLORS.structure,
       wireframe: true,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.42,
       depthTest: false
     });
     this.scene.add(this.group);

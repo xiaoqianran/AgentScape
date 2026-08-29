@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { OBSERVATORY_COLORS } from "../../../visual/DebugVisualPrimitives.js";
 import { geometryForColliderShape } from "./NormalizedColliderRenderer.js";
 
 export class ManifestColliderRenderer {
@@ -7,10 +8,10 @@ export class ManifestColliderRenderer {
     this.group = new THREE.Group();
     this.group.name = "observatory-manifest-colliders";
     this.material = new THREE.MeshBasicMaterial({
-      color: 0xe3b85c,
+      color: OBSERVATORY_COLORS.warn,
       wireframe: true,
       transparent: true,
-      opacity: 0.42,
+      opacity: 0.38,
       depthTest: false
     });
     scene.add(this.group);

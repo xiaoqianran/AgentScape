@@ -1,23 +1,10 @@
 import * as THREE from "three";
-
-const clearGroup = (group) => {
-  for (const child of [...group.children]) {
-    group.remove(child);
-    child.geometry?.dispose?.();
-    if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose?.());
-    else child.material?.dispose?.();
-  }
-};
-
-const marker = (position, color, radius = 0.085) => {
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 12, 8),
-    new THREE.MeshBasicMaterial({ color, depthTest: false })
-  );
-  mesh.position.fromArray(position);
-  mesh.renderOrder = 24;
-  return mesh;
-};
+import {
+  clearVisualGroup,
+  createInstrumentBounds,
+  createInstrumentLine,
+  createInstrumentMarker
+} from "../../../visual/DebugVisualPrimitives.js";
 
 export class AgentToolsDebugRenderer {
   constructor(scene) {
@@ -30,7 +17,7 @@ export class AgentToolsDebugRenderer {
   setVisible(visible) { this.group.visible = Boolean(visible); }
 
   update(snapshot) {
-    clearGroup(this.group);
+    clearVisualGroup(this.group);
     const tool = snapshot?.lastTool;
     if (!tool) return;
 
@@ -39,38 +26,34 @@ export class AgentToolsDebugRenderer {
       const direction = new THREE.Vector3(...tool.args.direction).normalize();
       const length = Number(tool.args.maxDistance) || 100;
       const end = origin.clone().addScaledVector(direction, length);
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([origin, end]),
-        new THREE.LineBasicMaterial({ color: 0x78c8e8, depthTest: false })
-      );
-      line.renderOrder = 21;
-      this.group.add(line, marker(origin.toArray(), 0x78c8e8, 0.055));
+      this.group.add(createInstrumentLine([origin, end], "info", { opacity: 0.78 }));
+      this.group.add(createInstrumentMarker(origin.toArray(), "info", { radius: 0.04, ring: false }));
       for (const [index, hit] of (tool.result || []).entries()) {
-        if (Array.isArray(hit.point)) this.group.add(marker(hit.point, index === 0 ? 0xf0cf6d : 0xb7c4cf, index === 0 ? 0.09 : 0.06));
+        if (!Array.isArray(hit.point)) continue;
+        this.group.add(createInstrumentMarker(
+          hit.point,
+          index === 0 ? "warn" : "muted",
+          { radius: index === 0 ? 0.062 : 0.04, ring: index === 0 }
+        ));
       }
     }
 
     if (tool.name === "findFreeSpace" && Array.isArray(tool.result)) {
-      this.group.add(marker(tool.result, 0x6fd59b, 0.11));
+      this.group.add(createInstrumentMarker(tool.result, "pass", { radius: 0.075 }));
     }
 
     if (tool.name === "getBounds" && tool.result?.min && tool.result?.max) {
-      const helper = new THREE.Box3Helper(
-        new THREE.Box3(new THREE.Vector3(...tool.result.min), new THREE.Vector3(...tool.result.max)),
-        0x78c8e8
-      );
-      helper.renderOrder = 20;
-      this.group.add(helper);
+      this.group.add(createInstrumentBounds(tool.result.min, tool.result.max, "info"));
     }
 
     if (tool.name === "getCarryStatus" && tool.result?.status === "empty") {
       const dropped = snapshot.physics?.bodies?.find((body) => body.objectId === "cup");
-      if (dropped?.position) this.group.add(marker(dropped.position, 0x6fd59b, 0.1));
+      if (dropped?.position) this.group.add(createInstrumentMarker(dropped.position, "pass", { radius: 0.07 }));
     }
   }
 
   dispose() {
-    clearGroup(this.group);
+    clearVisualGroup(this.group);
     this.scene.remove(this.group);
   }
 }

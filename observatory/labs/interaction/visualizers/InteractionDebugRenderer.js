@@ -1,23 +1,10 @@
 import * as THREE from "three";
-
-const clearGroup = (group) => {
-  for (const child of [...group.children]) {
-    group.remove(child);
-    child.geometry?.dispose?.();
-    if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose?.());
-    else child.material?.dispose?.();
-  }
-};
-
-const marker = (point, color, radius = 0.07) => {
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 12, 8),
-    new THREE.MeshBasicMaterial({ color, depthTest: false })
-  );
-  mesh.position.fromArray(point);
-  mesh.renderOrder = 24;
-  return mesh;
-};
+import {
+  clearVisualGroup,
+  createInstrumentLine,
+  createInstrumentMarker,
+  createInstrumentSurface
+} from "../../../visual/DebugVisualPrimitives.js";
 
 export class InteractionDebugRenderer {
   constructor(scene) {
@@ -42,64 +29,47 @@ export class InteractionDebugRenderer {
   }
 
   updateLos(reach) {
-    clearGroup(this.losGroup);
+    clearVisualGroup(this.losGroup);
     const eye = reach?.lineOfSight?.eye;
     const aim = reach?.lineOfSight?.aim;
     if (!Array.isArray(eye) || !Array.isArray(aim)) return;
-    const color = reach.visible ? 0x6fd59b : 0xe26d6d;
-    const line = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...eye), new THREE.Vector3(...aim)]),
-      new THREE.LineBasicMaterial({ color, depthTest: false })
-    );
-    line.renderOrder = 22;
-    this.losGroup.add(line, marker(eye, 0x78c8e8, 0.06), marker(aim, 0xf0cf6d, 0.06));
+    const tone = reach.visible ? "pass" : "fail";
+    this.losGroup.add(createInstrumentLine([eye, aim], tone, { opacity: 0.84, dashed: !reach.visible }));
+    this.losGroup.add(createInstrumentMarker(eye, "info", { radius: 0.042, ring: false }));
+    this.losGroup.add(createInstrumentMarker(aim, "warn", { radius: 0.045 }));
+
     const hit = reach.lineOfSight?.hit;
     if (hit && Number.isFinite(hit.distance)) {
       const direction = new THREE.Vector3(...aim).sub(new THREE.Vector3(...eye)).normalize();
       const point = new THREE.Vector3(...eye).addScaledVector(direction, hit.distance);
-      this.losGroup.add(marker(point.toArray(), reach.visible ? 0x6fd59b : 0xff5b5b, 0.085));
+      this.losGroup.add(createInstrumentMarker(point.toArray(), tone, { radius: 0.058 }));
     }
   }
 
   updateSupport(surface, support) {
-    clearGroup(this.supportGroup);
+    clearVisualGroup(this.supportGroup);
     if (!surface?.center || !surface?.size) return;
-    const [sx, sz] = surface.size;
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(sx, sz),
-      new THREE.MeshBasicMaterial({
-        color: support?.on ? 0x6fd59b : 0xe8b866,
-        wireframe: true,
-        side: THREE.DoubleSide,
-        depthTest: false
-      })
-    );
-    plane.rotation.x = -Math.PI / 2;
-    plane.position.fromArray(surface.center);
-    plane.renderOrder = 20;
-    this.supportGroup.add(plane);
+    this.supportGroup.add(createInstrumentSurface(
+      surface.center,
+      surface.size,
+      support?.on ? "pass" : "warn",
+      { opacity: support?.on ? 0.1 : 0.075 }
+    ));
   }
 
   updateState(snapshot) {
-    clearGroup(this.stateGroup);
+    clearVisualGroup(this.stateGroup);
     const heldId = snapshot?.held?.human;
     if (!heldId) return;
     const body = snapshot?.physics?.bodies?.find((item) => item.objectId === heldId);
     if (!body?.position) return;
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.24, 0.025, 8, 24),
-      new THREE.MeshBasicMaterial({ color: 0xf0cf6d, depthTest: false })
-    );
-    ring.rotation.x = Math.PI / 2;
-    ring.position.fromArray(body.position);
-    ring.renderOrder = 23;
-    this.stateGroup.add(ring);
+    this.stateGroup.add(createInstrumentMarker(body.position, "warn", { radius: 0.095 }));
   }
 
   dispose() {
-    clearGroup(this.losGroup);
-    clearGroup(this.supportGroup);
-    clearGroup(this.stateGroup);
+    clearVisualGroup(this.losGroup);
+    clearVisualGroup(this.supportGroup);
+    clearVisualGroup(this.stateGroup);
     this.scene.remove(this.losGroup, this.supportGroup, this.stateGroup);
   }
 }

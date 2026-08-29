@@ -1,34 +1,14 @@
 import * as THREE from "three";
-
-const COLORS = Object.freeze({
-  velocity: 0x6fa8dc,
-  joint: 0xe0b85a,
-  contact: 0xdf7373,
-  contactPair: 0x8d99a8
-});
-
-const clearGroup = (group) => {
-  for (const child of [...group.children]) {
-    group.remove(child);
-    child.traverse?.((node) => {
-      node.geometry?.dispose?.();
-      if (Array.isArray(node.material)) node.material.forEach((material) => material.dispose?.());
-      else node.material?.dispose?.();
-    });
-  }
-};
+import {
+  clearVisualGroup,
+  createInstrumentArrow,
+  createInstrumentLine,
+  createInstrumentMarker
+} from "../../../visual/DebugVisualPrimitives.js";
 
 const finiteVector = (value, size = 3) => Array.isArray(value)
   && value.length >= size
   && value.slice(0, size).every(Number.isFinite);
-
-const arrow = (direction, origin, length, color) => {
-  const dir = new THREE.Vector3(...direction);
-  const magnitude = dir.length();
-  if (!(magnitude > 1e-8)) return null;
-  dir.multiplyScalar(1 / magnitude);
-  return new THREE.ArrowHelper(dir, new THREE.Vector3(...origin), length, color, Math.min(0.18, length * 0.25), Math.min(0.09, length * 0.14));
-};
 
 export class PhysicsVectorRenderer {
   constructor(scene) {
@@ -53,57 +33,52 @@ export class PhysicsVectorRenderer {
   }
 
   updateVelocity(bodies) {
-    clearGroup(this.velocityGroup);
+    clearVisualGroup(this.velocityGroup);
     for (const body of bodies) {
       if (!finiteVector(body.position) || !finiteVector(body.linearVelocity)) continue;
       const speed = Math.hypot(...body.linearVelocity);
       if (speed < 1e-3) continue;
-      const helper = arrow(body.linearVelocity, body.position, Math.min(2.5, Math.max(0.18, speed * 0.28)), COLORS.velocity);
+      const helper = createInstrumentArrow(
+        body.linearVelocity,
+        body.position,
+        Math.min(2.4, Math.max(0.18, speed * 0.28)),
+        "info"
+      );
       if (helper) this.velocityGroup.add(helper);
     }
   }
 
   updateJoints(joints) {
-    clearGroup(this.jointGroup);
+    clearVisualGroup(this.jointGroup);
     for (const joint of joints) {
       if (!finiteVector(joint.worldAnchor) || !finiteVector(joint.worldAxis)) continue;
-      const helper = arrow(joint.worldAxis, joint.worldAnchor, 0.9, COLORS.joint);
+      const helper = createInstrumentArrow(joint.worldAxis, joint.worldAnchor, 0.86, "warn");
       if (helper) this.jointGroup.add(helper);
-      const pivot = new THREE.Mesh(
-        new THREE.SphereGeometry(0.055, 12, 8),
-        new THREE.MeshBasicMaterial({ color: COLORS.joint, depthTest: false })
-      );
-      pivot.position.fromArray(joint.worldAnchor);
-      pivot.renderOrder = 22;
-      this.jointGroup.add(pivot);
+      this.jointGroup.add(createInstrumentMarker(joint.worldAnchor, "warn", { radius: 0.045 }));
     }
   }
 
   updateContacts(contacts) {
-    clearGroup(this.contactGroup);
+    clearVisualGroup(this.contactGroup);
     for (const contact of contacts) {
       if (finiteVector(contact.sourcePosition) && finiteVector(contact.targetPosition)) {
-        const geometry = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(...contact.sourcePosition),
-          new THREE.Vector3(...contact.targetPosition)
-        ]);
-        const line = new THREE.Line(
-          geometry,
-          new THREE.LineBasicMaterial({ color: COLORS.contactPair, transparent: true, opacity: 0.45, depthTest: false })
-        );
-        line.renderOrder = 20;
-        this.contactGroup.add(line);
+        this.contactGroup.add(createInstrumentLine(
+          [contact.sourcePosition, contact.targetPosition],
+          "muted",
+          { opacity: 0.42, dashed: true }
+        ));
       }
       if (!finiteVector(contact.anchor) || !finiteVector(contact.normal)) continue;
-      const helper = arrow(contact.normal, contact.anchor, 0.7, COLORS.contact);
+      this.contactGroup.add(createInstrumentMarker(contact.anchor, "fail", { radius: 0.045 }));
+      const helper = createInstrumentArrow(contact.normal, contact.anchor, 0.66, "fail");
       if (helper) this.contactGroup.add(helper);
     }
   }
 
   dispose() {
-    clearGroup(this.velocityGroup);
-    clearGroup(this.jointGroup);
-    clearGroup(this.contactGroup);
+    clearVisualGroup(this.velocityGroup);
+    clearVisualGroup(this.jointGroup);
+    clearVisualGroup(this.contactGroup);
     this.scene.remove(this.velocityGroup, this.jointGroup, this.contactGroup);
   }
 }

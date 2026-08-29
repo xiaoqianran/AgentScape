@@ -203,6 +203,10 @@ export class ObservatoryShell {
     this.refs["lab-title"].textContent = `${title} · 单层验证`;
   }
 
+  setLabIdentity(labId) {
+    this.root.dataset.lab = labId || "physics";
+  }
+
   setBusy(busy, message = "正在加载实验…") {
     this.root.setAttribute("aria-busy", String(Boolean(busy)));
     this.refs["status-layer"].hidden = !busy;

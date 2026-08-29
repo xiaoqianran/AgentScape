@@ -117,6 +117,7 @@ class ObservatoryApp {
     this.shell.configureLabs(this.labs.list(), labId);
     this.shell.configureBackends(definition.backends || [], normalizedBackend);
     this.shell.setLabTitle(definition.title);
+    this.shell.setLabIdentity(labId);
     this.shell.configureDebugLayers(definition.debugLayers || ["grid"], definition.defaultDebugLayers || ["grid"]);
 
     this.lab = definition.create({

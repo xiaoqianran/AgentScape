@@ -1,13 +1,11 @@
 import * as THREE from "three";
-
-const clearGroup = (group) => {
-  for (const child of [...group.children]) {
-    group.remove(child);
-    child.geometry?.dispose?.();
-    if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose?.());
-    else child.material?.dispose?.();
-  }
-};
+import {
+  clearVisualGroup,
+  createInstrumentBounds,
+  createInstrumentLine,
+  createInstrumentMarker,
+  createInstrumentSurface
+} from "../../../visual/DebugVisualPrimitives.js";
 
 export class SpatialDebugRenderer {
   constructor(scene) {
@@ -32,84 +30,60 @@ export class SpatialDebugRenderer {
   }
 
   updateBounds(bounds, collisionPairs) {
-    clearGroup(this.boundsGroup);
+    clearVisualGroup(this.boundsGroup);
     const centers = new Map();
     for (const bound of bounds) {
-      const box = new THREE.Box3(
-        new THREE.Vector3(...bound.min),
-        new THREE.Vector3(...bound.max)
-      );
       centers.set(bound.id, new THREE.Vector3(...bound.center));
-      const helper = new THREE.Box3Helper(box, 0x7aa2cf);
-      helper.renderOrder = 18;
-      this.boundsGroup.add(helper);
+      this.boundsGroup.add(createInstrumentBounds(bound.min, bound.max, "structure"));
     }
     for (const [left, right] of collisionPairs) {
       const a = centers.get(left);
       const b = centers.get(right);
       if (!a || !b) continue;
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([a, b]),
-        new THREE.LineBasicMaterial({ color: 0xe26d6d, depthTest: false })
-      );
-      line.renderOrder = 20;
-      this.boundsGroup.add(line);
+      this.boundsGroup.add(createInstrumentLine([a, b], "fail", { opacity: 0.78, dashed: true }));
+      this.boundsGroup.add(createInstrumentMarker(a.toArray(), "fail", { radius: 0.035, ring: false }));
+      this.boundsGroup.add(createInstrumentMarker(b.toArray(), "fail", { radius: 0.035, ring: false }));
     }
   }
 
   updateRay(ray) {
-    clearGroup(this.rayGroup);
+    clearVisualGroup(this.rayGroup);
     if (!ray) return;
     const origin = new THREE.Vector3(...ray.origin);
     const direction = new THREE.Vector3(...ray.direction).normalize();
     const end = origin.clone().addScaledVector(direction, ray.maxDistance);
-    const line = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([origin, end]),
-      new THREE.LineBasicMaterial({ color: 0x75c6d4, depthTest: false })
-    );
-    line.renderOrder = 21;
-    this.rayGroup.add(line);
+    this.rayGroup.add(createInstrumentLine([origin, end], "info", { opacity: 0.78 }));
+    this.rayGroup.add(createInstrumentMarker(origin.toArray(), "info", { radius: 0.035, ring: false }));
     for (const [index, hit] of (ray.hits || []).entries()) {
-      const marker = new THREE.Mesh(
-        new THREE.SphereGeometry(index === 0 ? 0.09 : 0.055, 12, 8),
-        new THREE.MeshBasicMaterial({ color: index === 0 ? 0xf2d06b : 0xb0becb, depthTest: false })
-      );
-      marker.position.fromArray(hit.point);
-      marker.renderOrder = 22;
-      this.rayGroup.add(marker);
+      this.rayGroup.add(createInstrumentMarker(
+        hit.point,
+        index === 0 ? "warn" : "muted",
+        { radius: index === 0 ? 0.06 : 0.04, ring: index === 0 }
+      ));
     }
   }
 
   updateQueries(snapshot) {
-    clearGroup(this.queryGroup);
+    clearVisualGroup(this.queryGroup);
     const freeSpace = snapshot?.freeSpace?.point;
     if (Array.isArray(freeSpace)) {
-      const marker = new THREE.Mesh(
-        new THREE.SphereGeometry(0.085, 12, 8),
-        new THREE.MeshBasicMaterial({ color: 0x78cf98, depthTest: false })
-      );
-      marker.position.fromArray(freeSpace);
-      marker.renderOrder = 22;
-      this.queryGroup.add(marker);
+      this.queryGroup.add(createInstrumentMarker(freeSpace, "pass", { radius: 0.065 }));
     }
     const support = snapshot?.support;
     if (support?.surface?.center && support?.surface?.size) {
-      const [sx, sz] = support.surface.size;
-      const plane = new THREE.Mesh(
-        new THREE.PlaneGeometry(sx, sz),
-        new THREE.MeshBasicMaterial({ color: support.on ? 0x78cf98 : 0xe26d6d, wireframe: true, side: THREE.DoubleSide, depthTest: false })
-      );
-      plane.rotation.x = -Math.PI / 2;
-      plane.position.fromArray(support.surface.center);
-      plane.renderOrder = 20;
-      this.queryGroup.add(plane);
+      this.queryGroup.add(createInstrumentSurface(
+        support.surface.center,
+        support.surface.size,
+        support.on ? "pass" : "fail",
+        { opacity: support.on ? 0.1 : 0.08 }
+      ));
     }
   }
 
   dispose() {
-    clearGroup(this.boundsGroup);
-    clearGroup(this.rayGroup);
-    clearGroup(this.queryGroup);
+    clearVisualGroup(this.boundsGroup);
+    clearVisualGroup(this.rayGroup);
+    clearVisualGroup(this.queryGroup);
     this.scene.remove(this.boundsGroup, this.rayGroup, this.queryGroup);
   }
 }
