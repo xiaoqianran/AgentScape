@@ -6,6 +6,8 @@ import { FrameCadence } from "../../core/FrameCadence.js";
 import { createObservatoryGrid, disposeObservatoryGrid } from "../../visual/ObservatoryGrid.js";
 import { applyObservatorySceneTheme } from "../../visual/ObservatorySceneTheme.js";
 import { resizeObservatoryRenderer } from "../../visual/RendererQuality.js";
+import { WorldLabelLayer, worldLabelsForPhysics } from "../../visual/WorldLabelLayer.js";
+import { CameraRig } from "../../visual/CameraRig.js";
 import { PhysicsScenarioContext } from "./PhysicsScenarioContext.js";
 import { compareManifestToPhysics } from "./ManifestColliderSnapshot.js";
 import { PhysicsDebugRenderer } from "./visualizers/PhysicsDebugRenderer.js";
@@ -38,6 +40,8 @@ export class PhysicsLab {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.set(0, 1.4, 0);
     this.controls.enableDamping = true;
+    this.cameraRig = new CameraRig({ camera: this.camera, controls: this.controls });
+    this.worldLabels = new WorldLabelLayer({ scene: this.scene, camera: this.camera, viewport });
 
     this.grid = createObservatoryGrid({ size: 24 });
     this.scene.add(this.grid);
@@ -80,18 +84,29 @@ export class PhysicsLab {
   }
 
   fitScenario(scenario) {
+    let position;
+    let target;
     if (scenario.id.includes("hinge")) {
-      this.camera.position.set(5.8, 3.8, 6.8);
-      this.controls.target.set(0, 1.1, 0);
+      position = [5.8, 3.8, 6.8];
+      target = [0, 1.1, 0];
     } else if (scenario.id.includes("stack")) {
-      this.camera.position.set(7, 5.5, 8);
-      this.controls.target.set(0, 2.2, 0);
+      position = [7, 5.5, 8];
+      target = [0, 2.2, 0];
     } else {
-      this.camera.position.set(7, 4.8, 8);
-      this.controls.target.set(0, 1.8, 0);
+      position = [7, 4.8, 8];
+      target = [0, 1.8, 0];
     }
-    this.controls.update();
+    this.cameraRig.moveTo(position, target);
   }
+
+  focusScenario() {
+    if (this.runner.scenario) this.fitScenario(this.runner.scenario);
+  }
+
+  setWorldLabelsVisible(visible) {
+    this.worldLabels.setVisible(visible);
+  }
+
 
   toggleRunning() {
     this.clock.toggle();
@@ -178,6 +193,7 @@ export class PhysicsLab {
     const snapshot = context?.debugSnapshot({ nativeGeometry:this.nativeDebugVisible, contacts:this.contactDebugVisible });
     const manifestSnapshot = context?.manifestSnapshot?.() || null;
     this.lastDebugSnapshot = snapshot || null;
+    this.worldLabels.setLabels(worldLabelsForPhysics(snapshot || null));
     this.lastManifestSnapshot = manifestSnapshot;
     this.lastTruthComparison = snapshot && manifestSnapshot ? compareManifestToPhysics(manifestSnapshot, snapshot) : null;
     if (this.nativeDebugVisible) this.debugRenderer.update(snapshot?.nativeGeometry || null);
@@ -224,16 +240,18 @@ export class PhysicsLab {
     if (data) this.onTelemetry?.(data);
   }
 
-  renderFrame() {
-    this.controls.update();
+  renderFrame(timestamp = performance.now()) {
+    const cameraMoving = this.cameraRig.update(timestamp);
+    if (!cameraMoving) this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.worldLabels.render();
   }
 
   frame(timestamp) {
     const stepped = this.runner.tick(timestamp);
     if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
     if (stepped && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
-    this.renderFrame();
+    this.renderFrame(timestamp);
     if (this.autoAnimate) this.animation = requestAnimationFrame((next) => this.frame(next));
   }
 
@@ -243,6 +261,7 @@ export class PhysicsLab {
       camera: this.camera,
       viewport: this.viewport
     });
+    this.worldLabels.resize();
   }
 
   async dispose() {
@@ -254,6 +273,7 @@ export class PhysicsLab {
     this.manifestColliderRenderer.dispose();
     this.colliderDifferenceRenderer.dispose();
     this.vectorRenderer.dispose();
+    this.worldLabels.dispose();
     this.controls.dispose();
     disposeObservatoryGrid(this.grid);
     this.renderer.dispose();

@@ -7,8 +7,8 @@ export const labDefinition = Object.freeze({
   title: "Agent Trace",
   scenarios: agentTraceScenarios,
   backends: [Object.freeze({ id: "scripted-agent", title: "ToolCallingAgent + Scripted Gateway" })],
-  debugLayers: ["agent-tool", "normalized", "grid"],
-  defaultDebugLayers: ["agent-tool", "grid"],
+  debugLayers: ["agent-tool", "normalized", "labels", "grid"],
+  defaultDebugLayers: ["agent-tool", "labels", "grid"],
   normalizeBackend() { return "scripted-agent"; },
   create(options) {
     return new AgentToolsLab({

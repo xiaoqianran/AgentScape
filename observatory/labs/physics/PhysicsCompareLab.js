@@ -132,6 +132,16 @@ export class PhysicsCompareLab {
     this.right.setGridVisible(visible);
   }
 
+  setWorldLabelsVisible(visible) {
+    this.left.setWorldLabelsVisible(visible);
+    this.right.setWorldLabelsVisible(visible);
+  }
+
+  focusScenario() {
+    this.left.focusScenario();
+    this.right.focusScenario();
+  }
+
   comparison() {
     const left=this.left.lastDebugSnapshot || this.left.runner.context?.debugSnapshot({nativeGeometry:false,contacts:false});
     const right=this.right.lastDebugSnapshot || this.right.runner.context?.debugSnapshot({nativeGeometry:false,contacts:false});
@@ -193,8 +203,8 @@ export class PhysicsCompareLab {
       this.right.refreshDebug();
     }
     if(count && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
-    this.left.renderFrame();
-    this.right.renderFrame();
+    this.left.renderFrame(timestamp);
+    this.right.renderFrame(timestamp);
     this.animation=requestAnimationFrame((next)=>this.frame(next));
   }
 

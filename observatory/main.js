@@ -74,7 +74,9 @@ class ObservatoryApp {
       onInteractionSupportDebug: (visible) => this.lab?.setInteractionSupportDebug?.(visible),
       onInteractionStateDebug: (visible) => this.lab?.setInteractionStateDebug?.(visible),
       onAgentToolDebug: (visible) => this.lab?.setAgentToolDebug?.(visible),
+      onLabelsDebug: (visible) => this.lab?.setWorldLabelsVisible?.(visible),
       onGridDebug: (visible) => this.lab?.setGridVisible?.(visible),
+      onFocusView: () => this.lab?.focusScenario?.(),
       onLabChange: (labId) => this.activateLab(labId),
       onBackendChange: (backendId) => this.activateLab(this.activeLabId, {
         backendId,
@@ -143,6 +145,7 @@ class ObservatoryApp {
     this.lab.setInteractionSupportDebug?.(this.shell.refs["interaction-support-debug"].checked);
     this.lab.setInteractionStateDebug?.(this.shell.refs["interaction-state-debug"].checked);
     this.lab.setAgentToolDebug?.(this.shell.refs["agent-tool-debug"].checked);
+    this.lab.setWorldLabelsVisible?.(this.shell.refs["labels-debug"].checked);
     this.lab.setGridVisible?.(this.shell.refs["grid-debug"].checked);
 
     const available = this.scenarios.list({ lab: labId });

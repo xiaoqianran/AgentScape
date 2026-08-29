@@ -6,6 +6,8 @@ import { FrameCadence } from "../../core/FrameCadence.js";
 import { createObservatoryGrid, disposeObservatoryGrid } from "../../visual/ObservatoryGrid.js";
 import { applyObservatorySceneTheme } from "../../visual/ObservatorySceneTheme.js";
 import { resizeObservatoryRenderer } from "../../visual/RendererQuality.js";
+import { WorldLabelLayer, worldLabelsForAgent } from "../../visual/WorldLabelLayer.js";
+import { CameraRig } from "../../visual/CameraRig.js";
 import { AgentToolsScenarioContext } from "./AgentToolsScenarioContext.js";
 import { AgentToolsDebugRenderer } from "./visualizers/AgentToolsDebugRenderer.js";
 import { NormalizedColliderRenderer } from "../physics/visualizers/NormalizedColliderRenderer.js";
@@ -33,6 +35,8 @@ export class AgentToolsLab {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.set(0, 0.8, 0);
     this.controls.enableDamping = true;
+    this.cameraRig = new CameraRig({ camera: this.camera, controls: this.controls });
+    this.worldLabels = new WorldLabelLayer({ scene: this.scene, camera: this.camera, viewport });
 
     this.grid = createObservatoryGrid({ size: 24 });
     this.scene.add(this.grid);
@@ -60,18 +64,29 @@ export class AgentToolsLab {
   }
 
   fitScenario(scenario) {
+    let position;
+    let target;
     if (scenario.id.includes("raycast")) {
-      this.camera.position.set(4.5, 3.6, 7.5);
-      this.controls.target.set(0, 0.5, 0);
+      position = [4.5, 3.6, 7.5];
+      target = [0, 0.5, 0];
     } else if (scenario.id.includes("free-space")) {
-      this.camera.position.set(5.8, 4.8, 6.8);
-      this.controls.target.set(0, 0.8, 0);
+      position = [5.8, 4.8, 6.8];
+      target = [0, 0.8, 0];
     } else {
-      this.camera.position.set(5.5, 4.5, 6.5);
-      this.controls.target.set(0, 0.7, 0);
+      position = [5.5, 4.5, 6.5];
+      target = [0, 0.7, 0];
     }
-    this.controls.update();
+    this.cameraRig.moveTo(position, target);
   }
+
+  focusScenario() {
+    if (this.runner.scenario) this.fitScenario(this.runner.scenario);
+  }
+
+  setWorldLabelsVisible(visible) {
+    this.worldLabels.setVisible(visible);
+  }
+
 
   toggleRunning() { this.clock.toggle(); this.emitTelemetry(); return this.clock.running; }
   step(count = 1) { this.clock.pause(); this.runner.step(count); this.refreshDebug(); this.emitTelemetry(); }
@@ -94,6 +109,7 @@ export class AgentToolsLab {
   refreshDebug() {
     const snapshot = this.runner.context?.debugSnapshot?.();
     this.lastDebugSnapshot = snapshot || null;
+    this.worldLabels.setLabels(worldLabelsForAgent(snapshot || null));
     this.debugRenderer.update(snapshot || null);
     this.colliderRenderer.update(snapshot?.physics || null);
   }
@@ -132,8 +148,10 @@ export class AgentToolsLab {
     const stepped = this.runner.tick(timestamp);
     if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
     if (stepped && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
-    this.controls.update();
+    const cameraMoving = this.cameraRig.update(timestamp);
+    if (!cameraMoving) this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.worldLabels.render();
     this.animation = requestAnimationFrame((next) => this.frame(next));
   }
   resize() {
@@ -142,6 +160,7 @@ export class AgentToolsLab {
       camera: this.camera,
       viewport: this.viewport
     });
+    this.worldLabels.resize();
   }
   async dispose() {
     cancelAnimationFrame(this.animation);
@@ -149,6 +168,7 @@ export class AgentToolsLab {
     await this.runner.dispose();
     this.debugRenderer.dispose();
     this.colliderRenderer.dispose();
+    this.worldLabels.dispose();
     this.controls.dispose();
     disposeObservatoryGrid(this.grid);
     this.renderer.dispose();

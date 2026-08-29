@@ -6,8 +6,8 @@ export const labDefinition = Object.freeze({
   title: "Navigation",
   scenarios: navigationScenarios,
   backends: [Object.freeze({ id: "recast-detour", title: "Recast + Detour" })],
-  debugLayers: ["navmesh", "path", "endpoints", "obstacles", "grid"],
-  defaultDebugLayers: ["path", "endpoints", "grid"],
+  debugLayers: ["navmesh", "path", "endpoints", "obstacles", "labels", "grid"],
+  defaultDebugLayers: ["path", "endpoints", "labels", "grid"],
   normalizeBackend() { return "recast-detour"; },
   create(options) { return new NavigationLab(options); }
 });

@@ -8,8 +8,8 @@ export const labDefinition = Object.freeze({
   title: "Physics",
   scenarios: physicsScenarios,
   backends: PHYSICS_BACKENDS,
-  debugLayers: ["native", "manifest", "difference", "normalized", "velocity", "joint", "contact", "grid"],
-  defaultDebugLayers: ["normalized", "grid"],
+  debugLayers: ["native", "manifest", "difference", "normalized", "velocity", "joint", "contact", "labels", "grid"],
+  defaultDebugLayers: ["normalized", "labels", "grid"],
   normalizeBackend(id) { return isPhysicsBackend(id) ? id : "rapier"; },
   create(options) {
     return options.backendId === "compare"

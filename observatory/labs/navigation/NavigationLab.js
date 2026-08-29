@@ -6,6 +6,8 @@ import { FrameCadence } from "../../core/FrameCadence.js";
 import { createObservatoryGrid, disposeObservatoryGrid } from "../../visual/ObservatoryGrid.js";
 import { applyObservatorySceneTheme } from "../../visual/ObservatorySceneTheme.js";
 import { resizeObservatoryRenderer } from "../../visual/RendererQuality.js";
+import { WorldLabelLayer, worldLabelsForNavigation } from "../../visual/WorldLabelLayer.js";
+import { CameraRig } from "../../visual/CameraRig.js";
 import { NavigationScenarioContext } from "./NavigationScenarioContext.js";
 import { NavigationDebugRenderer } from "./visualizers/NavigationDebugRenderer.js";
 
@@ -31,6 +33,8 @@ export class NavigationLab {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.set(0, 0.6, 0);
     this.controls.enableDamping = true;
+    this.cameraRig = new CameraRig({ camera: this.camera, controls: this.controls });
+    this.worldLabels = new WorldLabelLayer({ scene: this.scene, camera: this.camera, viewport });
 
     this.grid = createObservatoryGrid({ size: 32 });
     this.scene.add(this.grid);
@@ -57,18 +61,29 @@ export class NavigationLab {
   }
 
   fitScenario(scenario) {
+    let position;
+    let target;
     if (scenario.id.includes("disconnected")) {
-      this.camera.position.set(8, 6.8, 9.5);
-      this.controls.target.set(0, 0.2, 0);
+      position = [8, 6.8, 9.5];
+      target = [0, 0.2, 0];
     } else if (scenario.id.includes("gap")) {
-      this.camera.position.set(7.8, 6.2, 8.6);
-      this.controls.target.set(0, 0.8, 0);
+      position = [7.8, 6.2, 8.6];
+      target = [0, 0.8, 0];
     } else {
-      this.camera.position.set(7.5, 5.8, 8.5);
-      this.controls.target.set(0, 0.2, 0);
+      position = [7.5, 5.8, 8.5];
+      target = [0, 0.2, 0];
     }
-    this.controls.update();
+    this.cameraRig.moveTo(position, target);
   }
+
+  focusScenario() {
+    if (this.runner.scenario) this.fitScenario(this.runner.scenario);
+  }
+
+  setWorldLabelsVisible(visible) {
+    this.worldLabels.setVisible(visible);
+  }
+
 
   toggleRunning() {
     this.clock.toggle();
@@ -121,6 +136,7 @@ export class NavigationLab {
     const snapshot = context.debugSnapshot?.();
     this.lastDebugRevision = revision;
     this.lastDebugSnapshot = snapshot || null;
+    this.worldLabels.setLabels(worldLabelsForNavigation(snapshot || null));
     this.debugRenderer.update(snapshot || null);
     return true;
   }
@@ -158,8 +174,10 @@ export class NavigationLab {
     const stepped = this.runner.tick(timestamp);
     if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
     if (stepped && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
-    this.controls.update();
+    const cameraMoving = this.cameraRig.update(timestamp);
+    if (!cameraMoving) this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.worldLabels.render();
     this.animation = requestAnimationFrame((next) => this.frame(next));
   }
 
@@ -170,6 +188,7 @@ export class NavigationLab {
       viewport: this.viewport,
       pixelBudget: 600000
     });
+    this.worldLabels.resize();
   }
 
   async dispose() {
@@ -177,6 +196,7 @@ export class NavigationLab {
     this.resizeObserver.disconnect();
     await this.runner.dispose();
     this.debugRenderer.dispose();
+    this.worldLabels.dispose();
     this.controls.dispose();
     disposeObservatoryGrid(this.grid);
     this.renderer.dispose();

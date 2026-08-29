@@ -6,6 +6,8 @@ import { FrameCadence } from "../../core/FrameCadence.js";
 import { createObservatoryGrid, disposeObservatoryGrid } from "../../visual/ObservatoryGrid.js";
 import { applyObservatorySceneTheme } from "../../visual/ObservatorySceneTheme.js";
 import { resizeObservatoryRenderer } from "../../visual/RendererQuality.js";
+import { WorldLabelLayer, worldLabelsForSpatial } from "../../visual/WorldLabelLayer.js";
+import { CameraRig } from "../../visual/CameraRig.js";
 import { SpatialScenarioContext } from "./SpatialScenarioContext.js";
 import { SpatialDebugRenderer } from "./visualizers/SpatialDebugRenderer.js";
 
@@ -31,6 +33,8 @@ export class SpatialLab {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.set(0, 1.2, 0);
     this.controls.enableDamping = true;
+    this.cameraRig = new CameraRig({ camera: this.camera, controls: this.controls });
+    this.worldLabels = new WorldLabelLayer({ scene: this.scene, camera: this.camera, viewport });
 
     this.grid = createObservatoryGrid({ size: 24 });
     this.scene.add(this.grid);
@@ -57,18 +61,29 @@ export class SpatialLab {
   }
 
   fitScenario(scenario) {
+    let position;
+    let target;
     if (scenario.id.includes("raycast")) {
-      this.camera.position.set(4.5, 4.2, 8.5);
-      this.controls.target.set(0.5, 0.7, 0);
+      position = [4.5, 4.2, 8.5];
+      target = [0.5, 0.7, 0];
     } else if (scenario.id.includes("support")) {
-      this.camera.position.set(5.5, 4.5, 6.5);
-      this.controls.target.set(0, 1.1, 0);
+      position = [5.5, 4.5, 6.5];
+      target = [0, 1.1, 0];
     } else {
-      this.camera.position.set(5.5, 4, 6.5);
-      this.controls.target.set(0.8, 0.7, 0);
+      position = [5.5, 4, 6.5];
+      target = [0.8, 0.7, 0];
     }
-    this.controls.update();
+    this.cameraRig.moveTo(position, target);
   }
+
+  focusScenario() {
+    if (this.runner.scenario) this.fitScenario(this.runner.scenario);
+  }
+
+  setWorldLabelsVisible(visible) {
+    this.worldLabels.setVisible(visible);
+  }
+
 
   toggleRunning() {
     this.clock.toggle();
@@ -115,6 +130,7 @@ export class SpatialLab {
   refreshDebug() {
     const snapshot = this.runner.context?.debugSnapshot?.();
     this.lastDebugSnapshot = snapshot || null;
+    this.worldLabels.setLabels(worldLabelsForSpatial(snapshot || null));
     this.debugRenderer.update(snapshot || null);
   }
 
@@ -149,8 +165,10 @@ export class SpatialLab {
     const stepped = this.runner.tick(timestamp);
     if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
     if (stepped && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
-    this.controls.update();
+    const cameraMoving = this.cameraRig.update(timestamp);
+    if (!cameraMoving) this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.worldLabels.render();
     this.animation = requestAnimationFrame((next) => this.frame(next));
   }
 
@@ -160,6 +178,7 @@ export class SpatialLab {
       camera: this.camera,
       viewport: this.viewport
     });
+    this.worldLabels.resize();
   }
 
   async dispose() {
@@ -167,6 +186,7 @@ export class SpatialLab {
     this.resizeObserver.disconnect();
     await this.runner.dispose();
     this.debugRenderer.dispose();
+    this.worldLabels.dispose();
     this.controls.dispose();
     disposeObservatoryGrid(this.grid);
     this.renderer.dispose();

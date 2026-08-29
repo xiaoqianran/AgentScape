@@ -6,8 +6,8 @@ export const labDefinition = Object.freeze({
   title: "AgentTools",
   scenarios: agentToolsScenarios,
   backends: [Object.freeze({ id: "agent-tools", title: "AgentTools + Domain Skills" })],
-  debugLayers: ["agent-tool", "normalized", "grid"],
-  defaultDebugLayers: ["agent-tool", "grid"],
+  debugLayers: ["agent-tool", "normalized", "labels", "grid"],
+  defaultDebugLayers: ["agent-tool", "labels", "grid"],
   normalizeBackend() { return "agent-tools"; },
   create(options) { return new AgentToolsLab(options); }
 });

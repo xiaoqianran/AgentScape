@@ -12,7 +12,10 @@ export class ObservatoryShell {
             <label><span>Lab</span><select id="obs-lab-select"></select></label>
             <label><span>Backend</span><select id="obs-backend-select"></select></label>
           </nav>
-          <div class="obs-panel-actions" aria-label="面板显示">
+          <div class="obs-panel-actions" aria-label="视图控制">
+            <button id="obs-focus-view" class="obs-icon-button" type="button" aria-label="聚焦当前场景" title="聚焦当前场景">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.5H3.5V6M14 3.5h2.5V6M6 16.5H3.5V14M14 16.5h2.5V14M7 10h6"/></svg>
+            </button>
             <button id="obs-scenarios-toggle" class="obs-icon-button is-active" type="button" aria-label="显示或隐藏场景面板" aria-pressed="true">
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h12M4 10h12M4 15h12"/></svg>
             </button>
@@ -100,6 +103,7 @@ export class ObservatoryShell {
                 <label data-debug-layer="interaction-support"><input id="obs-interaction-support-debug" type="checkbox" checked /> Support Surface</label>
                 <label data-debug-layer="interaction-state"><input id="obs-interaction-state-debug" type="checkbox" checked /> Interaction State</label>
                 <label data-debug-layer="agent-tool"><input id="obs-agent-tool-debug" type="checkbox" checked /> Tool Result</label>
+                <label data-debug-layer="labels"><input id="obs-labels-debug" type="checkbox" checked /> World Labels</label>
                 <label data-debug-layer="grid"><input id="obs-grid-debug" type="checkbox" checked /> Grid / Axes</label>
               </div>
             </details>
@@ -114,8 +118,8 @@ export class ObservatoryShell {
 
     this.refs = Object.fromEntries([
       "run", "step", "step10", "reset", "checkpoint", "restore", "checkpoint-frame", "frame", "time", "scenario-list", "viewport",
-      "scenario-badge", "status-layer", "status-text", "result-summary", "inspector", "native-debug", "manifest-debug", "difference-debug", "normalized-debug", "velocity-debug", "joint-debug", "contact-debug", "bounds-debug", "ray-debug", "spatial-query-debug", "navmesh-debug", "path-debug", "endpoints-debug", "obstacles-debug", "interaction-los-debug", "interaction-support-debug", "interaction-state-debug", "agent-tool-debug", "grid-debug", "assertions", "metrics",
-      "lab-title", "lab-select", "backend-select", "scenarios-toggle", "results-toggle"
+      "scenario-badge", "status-layer", "status-text", "result-summary", "inspector", "native-debug", "manifest-debug", "difference-debug", "normalized-debug", "velocity-debug", "joint-debug", "contact-debug", "bounds-debug", "ray-debug", "spatial-query-debug", "navmesh-debug", "path-debug", "endpoints-debug", "obstacles-debug", "interaction-los-debug", "interaction-support-debug", "interaction-state-debug", "agent-tool-debug", "labels-debug", "grid-debug", "assertions", "metrics",
+      "lab-title", "lab-select", "backend-select", "focus-view", "scenarios-toggle", "results-toggle"
     ].map((name) => [name, root.querySelector(`#obs-${name}`)]));
 
     this.refs["scenarios-toggle"].addEventListener("click", () => this.togglePanel("scenarios"));
@@ -142,7 +146,7 @@ export class ObservatoryShell {
     this.setPanelVisible(panel, willShow);
   }
 
-  bind({ onRun, onStep, onStep10, onReset, onCheckpoint, onRestore, onNativeDebug, onManifestDebug, onDifferenceDebug, onNormalizedDebug, onVelocityDebug, onJointDebug, onContactDebug, onBoundsDebug, onRayDebug, onSpatialQueryDebug, onNavMeshDebug, onPathDebug, onEndpointsDebug, onObstaclesDebug, onInteractionLosDebug, onInteractionSupportDebug, onInteractionStateDebug, onAgentToolDebug, onGridDebug, onLabChange, onBackendChange }) {
+  bind({ onRun, onStep, onStep10, onReset, onCheckpoint, onRestore, onNativeDebug, onManifestDebug, onDifferenceDebug, onNormalizedDebug, onVelocityDebug, onJointDebug, onContactDebug, onBoundsDebug, onRayDebug, onSpatialQueryDebug, onNavMeshDebug, onPathDebug, onEndpointsDebug, onObstaclesDebug, onInteractionLosDebug, onInteractionSupportDebug, onInteractionStateDebug, onAgentToolDebug, onLabelsDebug, onGridDebug, onFocusView, onLabChange, onBackendChange }) {
     this.refs.run.addEventListener("click", onRun);
     this.refs.step.addEventListener("click", onStep);
     this.refs.step10.addEventListener("click", onStep10);
@@ -168,7 +172,9 @@ export class ObservatoryShell {
     bindToggle("interaction-support-debug", onInteractionSupportDebug);
     bindToggle("interaction-state-debug", onInteractionStateDebug);
     bindToggle("agent-tool-debug", onAgentToolDebug);
+    bindToggle("labels-debug", onLabelsDebug);
     bindToggle("grid-debug", onGridDebug);
+    this.refs["focus-view"].addEventListener("click", () => onFocusView?.());
     this.refs["lab-select"].addEventListener("change", (event) => onLabChange?.(event.target.value));
     this.refs["backend-select"].addEventListener("change", (event) => onBackendChange?.(event.target.value));
   }

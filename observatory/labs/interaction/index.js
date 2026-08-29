@@ -6,8 +6,8 @@ export const labDefinition = Object.freeze({
   title: "Interaction",
   scenarios: interactionScenarios,
   backends: [Object.freeze({ id: "rapier-bvh", title: "Rapier + BVH" })],
-  debugLayers: ["interaction-los", "interaction-support", "interaction-state", "normalized", "grid"],
-  defaultDebugLayers: ["interaction-los", "interaction-support", "normalized", "grid"],
+  debugLayers: ["interaction-los", "interaction-support", "interaction-state", "normalized", "labels", "grid"],
+  defaultDebugLayers: ["interaction-los", "interaction-support", "normalized", "labels", "grid"],
   normalizeBackend() { return "rapier-bvh"; },
   create(options) { return new InteractionLab(options); }
 });

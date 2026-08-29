@@ -6,6 +6,8 @@ import { FrameCadence } from "../../core/FrameCadence.js";
 import { createObservatoryGrid, disposeObservatoryGrid } from "../../visual/ObservatoryGrid.js";
 import { applyObservatorySceneTheme } from "../../visual/ObservatorySceneTheme.js";
 import { resizeObservatoryRenderer } from "../../visual/RendererQuality.js";
+import { WorldLabelLayer, worldLabelsForInteraction } from "../../visual/WorldLabelLayer.js";
+import { CameraRig } from "../../visual/CameraRig.js";
 import { InteractionScenarioContext } from "./InteractionScenarioContext.js";
 import { InteractionDebugRenderer } from "./visualizers/InteractionDebugRenderer.js";
 import { NormalizedColliderRenderer } from "../physics/visualizers/NormalizedColliderRenderer.js";
@@ -32,6 +34,8 @@ export class InteractionLab {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.set(0, 0.9, 0);
     this.controls.enableDamping = true;
+    this.cameraRig = new CameraRig({ camera: this.camera, controls: this.controls });
+    this.worldLabels = new WorldLabelLayer({ scene: this.scene, camera: this.camera, viewport });
 
     this.grid = createObservatoryGrid({ size: 24 });
     this.scene.add(this.grid);
@@ -59,18 +63,29 @@ export class InteractionLab {
   }
 
   fitScenario(scenario) {
+    let position;
+    let target;
     if (scenario.id.includes("place")) {
-      this.camera.position.set(5.5, 4.8, 6.8);
-      this.controls.target.set(0, 0.9, 0);
+      position = [5.5, 4.8, 6.8];
+      target = [0, 0.9, 0];
     } else if (scenario.id.includes("los")) {
-      this.camera.position.set(4.6, 3.5, 5.8);
-      this.controls.target.set(0, 0.8, 0.3);
+      position = [4.6, 3.5, 5.8];
+      target = [0, 0.8, 0.3];
     } else {
-      this.camera.position.set(5, 4, 6);
-      this.controls.target.set(0, 1, 0);
+      position = [5, 4, 6];
+      target = [0, 1, 0];
     }
-    this.controls.update();
+    this.cameraRig.moveTo(position, target);
   }
+
+  focusScenario() {
+    if (this.runner.scenario) this.fitScenario(this.runner.scenario);
+  }
+
+  setWorldLabelsVisible(visible) {
+    this.worldLabels.setVisible(visible);
+  }
+
 
   toggleRunning() { this.clock.toggle(); this.emitTelemetry(); return this.clock.running; }
   step(count = 1) { this.clock.pause(); this.runner.step(count); this.refreshDebug(); this.emitTelemetry(); }
@@ -99,6 +114,7 @@ export class InteractionLab {
     const isReach = scenario?.id?.includes("reach");
     const snapshot = context.debugSnapshot({ actorId: isReach ? "agent" : null, targetId: isReach ? "cup" : null });
     this.lastDebugSnapshot = snapshot;
+    this.worldLabels.setLabels(worldLabelsForInteraction(snapshot || null));
     this.debugRenderer.update(snapshot);
     this.colliderRenderer.update(snapshot.physics || null);
   }
@@ -131,8 +147,10 @@ export class InteractionLab {
     const stepped = this.runner.tick(timestamp);
     if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
     if (stepped && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
-    this.controls.update();
+    const cameraMoving = this.cameraRig.update(timestamp);
+    if (!cameraMoving) this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.worldLabels.render();
     this.animation = requestAnimationFrame((next) => this.frame(next));
   }
   resize() {
@@ -141,6 +159,7 @@ export class InteractionLab {
       camera: this.camera,
       viewport: this.viewport
     });
+    this.worldLabels.resize();
   }
   async dispose() {
     cancelAnimationFrame(this.animation);
@@ -148,6 +167,7 @@ export class InteractionLab {
     await this.runner.dispose();
     this.debugRenderer.dispose();
     this.colliderRenderer.dispose();
+    this.worldLabels.dispose();
     this.controls.dispose();
     disposeObservatoryGrid(this.grid);
     this.renderer.dispose();
