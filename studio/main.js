@@ -1,7 +1,7 @@
 import './style.css';
 import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 import { createAssetModule } from '../generation/orchestration/createAssetModule.js';
-import { attachLegacyAuthoring } from '../generation/orchestration/LegacyAuthoringShell.js';
+import { attachGenerationRuntime } from '../generation/orchestration/GenerationRuntime.js';
 import { SkillRegistry } from '../agent/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../agent/skills/registerCoreSkills.js';
 import { AgentTools } from '../agent/AgentTools.js';
@@ -12,7 +12,7 @@ import { LocalSceneStore } from './persistence/LocalSceneStore.js';
 import { AutosaveController } from './persistence/AutosaveController.js';
 import { EditorController } from './editor/EditorController.js';
 import { ENVIRONMENTS, resolveEnvironment } from '../world/content/environments.js';
-import { GenerationJobCenter } from '../generation/orchestration/GenerationJobCenter.js';
+import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
 import { createAppShell } from './ui/AppShell.js';
 import { TaskPanel } from './ui/task/TaskPanel.js';
 import { ObjectInspector } from './ui/inspect/ObjectInspector.js';
@@ -21,7 +21,7 @@ import { DeveloperSettings } from './ui/developer/DeveloperSettings.js';
 import { bindSceneControls } from './ui/bindSceneControls.js';
 import { bindRuntimeEvents } from './ui/bindRuntimeEvents.js';
 import { bindDebugLayers } from './debug/bindDebugLayers.js';
-import { CAPABILITY_API, applyCapabilityStatus, clearLegacyEndpointOverrides, readCapabilityStatus } from './config/capabilityEntry.js';
+import { CAPABILITY_API, LOCAL_ADAPTER_HOST, applyCapabilityStatus, clearLegacyEndpointOverrides, readCapabilityStatus } from './config/capabilityEntry.js';
 
 async function main() {
   const app = document.querySelector('#app');
@@ -37,9 +37,12 @@ async function main() {
     environmentFactory,
     assetModule: createAssetModule()
   });
-  const authoring = attachLegacyAuthoring(world, { capabilityStatus });
+  const generation = attachGenerationRuntime(world, {
+    compilerEndpoint: capabilityStatus.assetCompile.available ? CAPABILITY_API.assetCompile : '',
+    connectorEndpoint: LOCAL_ADAPTER_HOST.connector
+  });
   world.skills = registerCoreSkills(new SkillRegistry({ policy: world.policy, trace: world.trace, runtime: world }), world);
-  await authoring.initialize({ pair: false });
+  world.generationState = await generation.initialize({ pair: false });
   await world.init();
 
   const tools = new AgentTools(world, { profile: 'builder', actor: 'agent_01' });
@@ -67,7 +70,7 @@ async function main() {
     initialCapabilityStatus: capabilityStatus,
     log: (text, kind) => taskPanel.log(text, kind),
     onCapabilityStatusChange: (status) => {
-      applyCapabilityStatus({ gateway, compilerProvider: world.compilerProvider, assetGenerator: world.assetGenerator }, status);
+      applyCapabilityStatus({ gateway, generation: world.generation }, status);
       taskPanel.setAvailability(status.agent.available);
     }
   }).init();

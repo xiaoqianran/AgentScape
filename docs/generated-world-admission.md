@@ -1,283 +1,49 @@
 # Generated World Admission
 
-AgentScape 1.32 把原本分散存在的 Asset Generator、`EmbodiedGenAdapter`、World Pipeline、Validator / Repair 串成第一条真正的 generated-world admission 主链。
+Generated World 的 canonical truth 不由 Provider、LLM 或 Generator 决定，而由 AgentScape 的 WorldIR → Admission → Runtime 验证链决定。
 
-目标不是“让 LLM 随便生成然后 spawn”，而是：
-
-```text
-WorldSpec
-→ resolve / generate
-→ provider adapter
-→ asset admission
-→ instantiate
-→ relations
-→ validate / repair
-→ world admission
-```
-
-## 1. `EmbodiedGenAdapter` 从孤立桥接器进入主干
-
-以前 `EmbodiedGenAdapter.toManifest(...)` 可以手工调用，但默认 `HttpAssetGenerator` 要求后端直接返回 `{ manifest }`。
-
-1.32 后 Generator Gateway 可以返回：
+## Current chain
 
 ```text
-{ manifest }
+Planner proposal
+    │
+    ▼
+proposeWorldIR
+    │ Runtime-issued revision/provenance
+    ▼
+WorldIR
+    │
+    ▼
+runWorldPipeline
+    │
+    ├─ resolve reusable Asset
+    │
+    ├─ missing + generation allowed
+    │        ▼
+    │   GenerationRuntime
+    │        ▼
+    │   Connector Job / Artifact
+    │        ▼
+    │   Asset publication / Compiler
+    │
+    ├─ asset admission
+    ├─ deterministic layout
+    ├─ behavior admission
+    ├─ physics admission
+    ├─ instantiate
+    ├─ ON / NEAR / INSIDE relations
+    ├─ validation / repair
+    ├─ world acceptance
+    └─ final world admission
 ```
 
-或 raw provider payload：
+## Reuse before generation
 
-```text
-{
-  provider: "embodiedgen",
-  asset: {...}
-}
-```
+Asset resolution always prefers an existing admitted Asset. A missing search result can become generation input only when WorldIR/policy permits it. Runtime 的 bounded retry 只允许为 missing Asset 开启一次 generation；Agent 不自己翻转 retry state，也不能绕过 canonical pipeline。
 
-`AssetLibrary.generate()` 会把后者交给 `EmbodiedGenAdapter`，再经过 `validateAssetManifest()` 与 `AssetManager.registerManifest()`。
+## Asset truth
 
-## 2. Adapter 结果不是 Verified Asset
-
-EmbodiedGen raw payload 目前只能可靠给出 provider semantics、尺寸、质量参数和浏览器可达 GLB。
-
-Adapter 使用 conservative box collider fallback，所以 Manifest 明确记录：
-
-```text
-provenance.admission.status = provisional
-reasons = [
-  FALLBACK_BOX_COLLIDER,
-  UNVERIFIED_PROVIDER_SEMANTICS
-]
-```
-
-Provider 的 `open / close` affordance 仍只留在 provenance，不会因为上游说“能开”就虚构 Runtime articulation。
-
-## 3. 单一 `assetAdmission()`
-
-1.32 新增一个很小的资产准入判断函数，供 AssetLibrary、WorldPipeline 和 Skills 共用。
-
-优先级：
-
-```text
-explicit provenance.admission
-→ compiler.quality.status
-→ generated external manifest defaults provisional
-→ repo/trusted existing asset defaults ready
-```
-
-Compiler `rejected` 的 generated manifest 不注册、不实例化。
-
-## 4. 外部 schema-valid 不等于 ready
-
-外部 Generator 即使直接返回一个通过 Schema 的 Manifest，也不会仅因 JSON 格式正确而变成 ready。
-
-没有 Compiler ready evidence 时：
-
-```text
-UNVERIFIED_GENERATOR_MANIFEST
-→ provisional
-```
-
-这避免把“格式验证”冒充“运行时验证”。
-
-## 5. `WorldSpec`
-
-1.32 增加纯函数 `normalizeWorldSpec()`，先把松散 world intent 规范化，再进入 mutation pipeline。
-
-当前 v1 只承认：
-
-```text
-name / description
-generation.provider
-generation.generate
-assets[]
-relations[]: ON | NEAR
-```
-
-Asset request 可以提供：
-
-```text
-assetId
-query
-prompt
-type
-instance id
-position
-generate
-provider
-```
-
-缺省值由 normalizer 一次性确定。
-
-## 6. Deterministic Reject Before Mutation
-
-WorldSpec 在进入 Runtime mutation 前拒绝：
-
-```text
-非法 position
-重复 instance id
-空 asset intent
-不支持的 relation predicate
-非法 distance
-```
-
-LLM 不负责解释 malformed spec。
-
-## 7. Canonical World Pipeline
-
-默认阶段现在是：
-
-```text
-normalize_spec
-resolve_assets
-asset_admission
-instantiate
-apply_relations
-validate
-repair
-finalize
-```
-
-内部 `PipelineEngine.run(...,{stages})` 仍可用于测试/开发；Agent skill 不再暴露 stage selection。
-
-所以 LLM 不能只跑：
-
-```text
-resolve → instantiate
-```
-
-然后跳过 validation / finalize。
-
-## 8. Reuse Before Generation
-
-`resolve_assets` 仍优先：
-
-```text
-explicit existing assetId
-→ AssetLibrary.search/resolve
-→ generator only when generate=true and no reuse match
-```
-
-这保持现有“成熟资产优先、生成作为缺失补充”的策略。
-
-## 9. Asset Admission Gate
-
-所有 asset resolution 完成后，统一产生：
-
-```text
-ready
-provisional
-rejected
-```
-
-如果存在 unresolved/rejected asset：
-
-```text
-assetAdmission = rejected
-```
-
-后续 `instantiate / apply_relations / repair` 不得产生部分世界 mutation。
-
-## 10. 不允许半成品 World
-
-专项测试包含：
-
-```text
-1 个 repo chair 已存在
-+ 1 个 EmbodiedGen asset 无 generator
-```
-
-虽然 chair 可解析，整个 asset admission 仍 rejected：
-
-```text
-spawn count = 0
-```
-
-不会留下“成功一半”的 world。
-
-## 11. World Validation / Repair 仍是现有 Owner
-
-1.32 没有新建 World Validator。
-
-实例化后的世界继续由：
-
-```text
-WorldValidator
-RepairEngine
-SceneGraph
-SceneSerializer
-```
-
-承担原有职责。
-
-Generated world 不拥有第二套几何/关系真值。
-
-## 12. World Admission
-
-`finalize` 汇总：
-
-```text
-asset admission
-+ validationAfterRepair
-```
-
-得到：
-
-```text
-world-ready
-world-provisional
-world-rejected
-```
-
-规则：
-
-```text
-hard validation finding / unresolved asset
-→ rejected
-
-advisory finding / provisional asset
-→ provisional
-
-无上述 evidence
-→ ready
-```
-
-## 13. Skill Outcome 进入 Agent Contract
-
-`SkillRegistry` 现在理解：
-
-```text
-world-ready       → verified
-world-provisional → unverified
-world-rejected    → failed
-```
-
-所以 LLM 不能把 provisional world 的 tool success 包装成“任务已验证完成”。
-
-## 14. Rejected World Rollback
-
-`runWorldPipeline` 在调用前 snapshot scene。
-
-如果最终：
-
-```text
-worldAdmission.status = rejected
-```
-
-则恢复调用前 scene，并返回：
-
-```text
-status = world-rejected
-rolledBack = true
-```
-
-Asset registry 的已准入资产可以保留，但 rejected world objects 不保留。
-
-## 15. 低层生成 / import 仍保留，但不拥有 World Success
-
-`generateAsset` 和 `importEmbodiedGenAsset` 仍用于资产级工作流。
-
-它们现在返回：
+外部 Job 成功不是 AgentScape Asset。Artifact 必须经过本地完整性/content gate、publication、Compiler/admission，最终成为：
 
 ```text
 asset-ready
@@ -285,81 +51,51 @@ asset-provisional
 asset-rejected
 ```
 
-不是 world admission。
+Schema-valid 或 Provider-succeeded 都不等于 `asset-ready`。
 
-## 16. Provisional `spawnAsset` 也不冒充 Verified
+## World truth
 
-低层编辑仍允许把 provisional asset 放进 scene 观察。
-
-但 `spawnAsset` 对 provisional manifest 返回：
+World admission 汇总 Asset、layout、behavior、physics、relation、validation 与 acceptance evidence：
 
 ```text
-status = asset-provisional
+world-ready       → verified
+world-provisional → unverified
+world-rejected    → failed / rollback
 ```
 
-Skill outcome 是 unverified。
+Rejected candidate world 恢复之前 Scene/authority；部分成功的 spawn 不会变成 committed truth。
 
-Compiler rejected asset 则：
+## Canonical placement
+
+WorldIR 支持 Runtime-owned deterministic placement。用户没有要求精确坐标时，Planner 应省略 position，由 Runtime 使用 Asset footprint、Environment bounds 与 Physics preflight 决定位置。
+
+Canonical relation input 包括：
 
 ```text
-asset-rejected
-→ 不 spawn
+ON
+NEAR
+INSIDE + receptacleId
 ```
 
-因此低层 `generate → spawn` 不能绕过 trust semantics。
+Planner 写出 relation 不等于 relation 成立；Runtime 必须物理执行，并由 Spatial/SceneGraph/verification 从实际世界重新推导结果。
 
-## 17. Real Raw EmbodiedGen Pipeline Test
+## Provider neutrality
 
-专项测试真实走：
+Generated World admission 不在源码默认值中认识 `modal-2d`、`modal-3d`、EmbodiedGen 或其它远程 Provider id。Provider capability 来自 Connector snapshot；World pipeline 只消费 normalized generation / Artifact / Asset contract。
 
-```text
-WorldSpec
-→ fake raw EmbodiedGen provider response
-→ EmbodiedGenAdapter
-→ validateAssetManifest
-→ AssetManager registration
-→ spawn request
-→ Validator hard=0
-→ worldAdmission=provisional
-→ serialized scene artifact
-```
+## Low-level tools do not own World success
 
-Provisional 原因来自真实 Adapter evidence，不是测试硬编码的最终世界状态。
+`generateAsset` 与 `spawnAsset` 仍适合显式低层编辑，但不能证明一个 generated multi-object world 已完成。此类任务必须走 `proposeWorldIR → runWorldPipeline` 并服从 final world admission。
 
-## 18. 当前 Claim
+Provider-specific import tool 不属于默认 Agent surface。
 
-AgentScape 现在可以说：
+## Evidence and restore
 
-> EmbodiedGen 风格 raw asset payload 已经可以通过默认 AssetLibrary generation path 进入 AgentScape Manifest；生成资产必须经过统一 asset admission，WorldSpec 再通过不可由 Agent 跳阶段的 canonical pipeline 进入实例化、关系、validation/repair 和 world admission。`ready / provisional / rejected` 已进入 Tool outcome 语义，rejected world 会恢复调用前 scene。
+持久化恢复出的 acceptance evidence 只是历史证据，必须针对当前 Runtime truth replay 后才能重新成为 current evidence。Scene restore 会先重建全新的 Physics World，再重新挂 Environment 与对象，避免旧 joint/collider/query 生命周期污染恢复后的世界。
 
-不能说：
+See also:
 
-> 1.32 已经能从自然语言自动规划完整 WorldSpec、自动设计房间布局或自动决定 regenerate strategy。
-
-这些属于下一阶段。
-
-## 19. 下一阶段
-
-下一步是：
-
-```text
-Prompt
-→ WorldSpec Planner
-→ reuse / generate decisions
-→ deterministic World Composer
-→ 1.32 admission pipeline
-→ validation findings
-→ bounded repair / regenerate proposal
-```
-
-Planner 只产生 specification/proposal；Runtime validation 继续拥有最终 truth。
-
-
-## 20. 1.33：WorldSpec 不再要求 LLM 提供坐标
-
-1.33 在 canonical pipeline 中新增 `compose_layout`，WorldSpec 的 `position` 变成真正 optional constraint。缺省位置由 `WorldComposer` + `PhysicsSystem.manifestPoseClear` 确定性选择；Environment Pack 提供 layout bounds，但真实碰撞仍由 Rapier 判断。`NEAR` 缺省 distance 也由 Runtime 根据 collider footprint 推导。详见 [`deterministic-world-composer.md`](./deterministic-world-composer.md)。
-
-
-## 21. 1.34：Admission Rejection 可以产生受限 Retry Evidence
-
-1.34 只在 `search miss + generator configured` 时由 Runtime 构造一次 `enable-generation` retry，restore scene 后完整重跑 canonical pipeline；其它 rejection 不自动放宽。详见 [`bounded-world-regeneration.md`](./bounded-world-regeneration.md)。
+- [`deterministic-world-composer.md`](./deterministic-world-composer.md)
+- [`bounded-world-regeneration.md`](./bounded-world-regeneration.md)
+- [`world-viability.md`](./world-viability.md)
+- [`generation-runtime.md`](./generation-runtime.md)

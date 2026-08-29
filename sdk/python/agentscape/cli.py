@@ -11,7 +11,6 @@ from .connector_pipeline import ConnectorJobRunner, ConnectorTextTo3DPipeline
 from .connector_session import ConnectorSession
 from .modal2d import Modal2DTextToImageRequestBuilder
 from .modal3d import Modal3DImageTo3DRequestBuilder
-from .providers import Modal3DProvider
 from .settings import Settings
 
 app = typer.Typer(no_args_is_help=True, help="AgentScape Unified Connector client")
@@ -86,27 +85,6 @@ def image(
             indent=2,
         )
     )
-
-
-@app.command("reconstruct-direct")
-def reconstruct_direct(
-    image_path: Path,
-    concept: str = typer.Option(..., "--concept"),
-    model: str = typer.Option(..., "--model"),
-    output: Path = typer.Option(Path("model.glb"), "--output", "-o"),
-    profile: str = typer.Option("recommended", "--profile"),
-) -> None:
-    """Legacy direct path for an arbitrary local image not owned by Connector lineage."""
-    settings = Settings.from_env()
-    provider = Modal3DProvider(settings.modal_agent_url, settings.modal_agent_session)
-    result = provider.reconstruct(
-        image_path,
-        output,
-        concept=concept,
-        model=model,
-        profile=profile,
-    )
-    typer.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
 
 
 @app.command()

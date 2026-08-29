@@ -75,8 +75,7 @@ export class DeveloperSettings {
     const q = (selector) => dialog.querySelector(selector);
     this.capabilityRows = {
       agent: q('#capability-agent-status'),
-      assetCompile: q('#capability-compile-status'),
-      assetGenerate: q('#capability-generate-status')
+      assetCompile: q('#capability-compile-status')
     };
     this.capabilityHelp = q('#capability-status-help');
     this.refreshCapabilitiesButton = q('#refresh-capabilities');
@@ -132,7 +131,7 @@ export class DeveloperSettings {
   }
 
   renderCapabilityStatus(status) {
-    for (const key of ['agent', 'assetCompile', 'assetGenerate']) {
+    for (const key of ['agent', 'assetCompile']) {
       const configured = Boolean(status?.[key]?.available);
       const row = this.capabilityRows[key];
       row.textContent = configured ? '可用' : '不可用';

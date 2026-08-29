@@ -47,11 +47,11 @@ const resolveCanonicalAsset = async (runtime, request) => {
 };
 
 const resolveLegacyAsset = (runtime, request) => {
-  if (typeof runtime.authoring?.resolveAssetRequest !== 'function') {
+  if (typeof runtime.generation?.resolveAssetRequest !== 'function') {
     const query=request.query || request.type || request.assetId || '';
     return Promise.resolve(runtime.assetCatalog.resolveExisting(query,{assetId:request.assetId || null,limit:5}));
   }
-  return runtime.authoring.resolveAssetRequest({
+  return runtime.generation.resolveAssetRequest({
     query:request.query || request.type || '',
     generate:request.generate ?? false,
     ...(request.id ? {instanceId:request.id} : {}),

@@ -92,12 +92,6 @@ def _load_windows_agent_handoff() -> tuple[str, str] | None:
 
 @dataclass(frozen=True)
 class Settings:
-    kaggle_url: str = "http://127.0.0.1:30100"
-    kaggle_token: str = field(default="", repr=False)
-    modal_2d_agent_url: str = "http://127.0.0.1:3212"
-    modal_2d_agent_session: str = field(default="", repr=False)
-    modal_agent_url: str = "http://127.0.0.1:39000"
-    modal_agent_session: str = field(default="", repr=False)
     connector_url: str = "http://127.0.0.1:39000"
     connector_origin: str = "http://localhost:3000"
     connector_pairing_token: str = field(default="", repr=False)
@@ -105,31 +99,24 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         explicit_connector_url = os.getenv("AGENTSCAPE_CONNECTOR_URL", "").strip()
-        explicit_modal_url = os.getenv("AGENTSCAPE_MODAL_AGENT_URL", "").strip()
         explicit_pairing = os.getenv("AGENTSCAPE_CONNECTOR_PAIRING_TOKEN", "").strip()
-        explicit_modal_session = os.getenv("AGENTSCAPE_MODAL_AGENT_SESSION", "").strip()
+
+        # Temporary input aliases only: they do not remain part of the Settings API.
+        legacy_connector_url = os.getenv("AGENTSCAPE_MODAL_AGENT_URL", "").strip()
+        legacy_pairing = os.getenv("AGENTSCAPE_MODAL_AGENT_SESSION", "").strip()
 
         handoff = None
-        if not explicit_connector_url and not explicit_modal_url:
+        if not explicit_connector_url and not legacy_connector_url:
             try:
                 handoff = _load_windows_agent_handoff()
             except (OSError, ValueError):
-                # 自动发现失败不应覆盖显式配置/默认值；连接时会给出清晰错误。
                 handoff = None
 
         discovered_url, discovered_token = handoff or ("", "")
-        modal_url = explicit_modal_url or discovered_url or "http://127.0.0.1:39000"
-        connector_url = explicit_connector_url or explicit_modal_url or discovered_url or "http://127.0.0.1:39000"
-        modal_session = explicit_modal_session or discovered_token
-        pairing = explicit_pairing or explicit_modal_session or discovered_token
+        connector_url = explicit_connector_url or legacy_connector_url or discovered_url or "http://127.0.0.1:39000"
+        pairing = explicit_pairing or legacy_pairing or discovered_token
 
         return cls(
-            kaggle_url=os.getenv("AGENTSCAPE_KAGGLE_URL", "http://127.0.0.1:30100").rstrip("/"),
-            kaggle_token=os.getenv("AGENTSCAPE_KAGGLE_TOKEN", ""),
-            modal_2d_agent_url=os.getenv("AGENTSCAPE_MODAL_2D_AGENT_URL", "http://127.0.0.1:3212").rstrip("/"),
-            modal_2d_agent_session=os.getenv("AGENTSCAPE_MODAL_2D_AGENT_SESSION", ""),
-            modal_agent_url=modal_url.rstrip("/"),
-            modal_agent_session=modal_session,
             connector_url=connector_url.rstrip("/"),
             connector_origin=os.getenv("AGENTSCAPE_CONNECTOR_ORIGIN", "http://localhost:3000").rstrip("/"),
             connector_pairing_token=pairing,

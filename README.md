@@ -81,8 +81,8 @@ Prompt / GLB / EmbodiedGen / External Generator
 | Articulation | revolute / prismatic joint、live completion、STALL/TIMEOUT、Motion Sweep 验证 |
 | Recovery | blocker attribution、pickup/articulated recovery、cleanup、original post-condition retry |
 | Counterfactual Safety | Physics-first shape-pair、convergence、third-object / Environment hard veto |
-| Generated Assets | Asset Generator Gateway + `EmbodiedGenAdapter` + Manifest admission |
-| Generated Worlds | Strong WorldSpec + deterministic auto layout + Rapier pre-spawn preflight + bounded missing-asset regeneration |
+| Generated Assets | `GenerationRuntime` + Connector Job/Artifact + Compiler/Asset admission |
+| Generated Worlds | Runtime-issued WorldIR + deterministic layout + Physics preflight + bounded missing-asset generation retry |
 | World Admission | asset/layout/relation/validation → `ready / provisional / rejected` |
 | Agent Safety | Policy、Trace、mutation barrier、fresh replan、unresolved ledger、deterministic verification |
 | Persistence | Scene serialization、Autosave、Undo/Redo、world-specific save |
@@ -90,34 +90,30 @@ Prompt / GLB / EmbodiedGen / External Generator
 
 版本演进细节不再塞在 README；完整历史见 [`docs/evolution.md`](docs/evolution.md)，当前真实状态见 [`docs/status-and-roadmap.md`](docs/status-and-roadmap.md)。
 
-## EmbodiedGen → AgentScape
+## Generation → Asset → World
 
-AgentScape 已经把 EmbodiedGen 接入默认 generated-asset 主链，而不是仅保留一个孤立 Adapter：
+AgentScape 不再拥有 direct Provider generation path。远程生成能力由 Connector capability snapshot 动态发现：
 
 ```text
-EmbodiedGen raw payload
-        │
-        ▼
-EmbodiedGenAdapter.toManifest(...)
-        │
-        ▼
-validateAssetManifest
-        │
-        ▼
-AssetManager
-        │
-        ▼
-asset admission
+GenerationRuntime
+      │
+      ▼
+Connector capability / Job / Artifact
+      │
+      ▼
+Artifact integrity + publication
+      │
+      ▼
+Asset Compiler / admission
+      │
+      ▼
 ready / provisional / rejected
-        │
-        ▼
-WorldSpec canonical pipeline
-        │
-        ▼
-compose → validate → repair → world admission
+      │
+      ▼
+WorldIR canonical pipeline
 ```
 
-Adapter fallback collider、Provider semantics 等不确定性会明确保持 `provisional`；Schema 正确也不等于 Runtime 已验证。详见 [`docs/generated-world-admission.md`](docs/generated-world-admission.md) 与 [`docs/deterministic-world-composer.md`](docs/deterministic-world-composer.md)。
+`ProviderRegistry` 默认不硬编码任何远程 Provider。`EmbodiedGenAdapter` 等 adapter 只属于 Asset compatibility/import implementation，不代表 AgentScape 的 Provider topology。详见 [`docs/generation-runtime.md`](docs/generation-runtime.md) 与 [`docs/generated-world-admission.md`](docs/generated-world-admission.md)。
 
 ## Generated World 主链
 
@@ -204,10 +200,10 @@ world/runtime/WorldRuntime.js              Runtime composition root
 world/compiler/createWorldPipeline.js      Generated-world canonical pipeline
 world/spec/WorldSpec.js                WorldSpec schema + deterministic normalization
 world/compiler/WorldComposer.js            Deterministic placement / relation geometry
-asset/adapters/EmbodiedGenAdapter.js       EmbodiedGen → AgentScape Manifest
+generation/orchestration/GenerationRuntime.js Connector / Job / Artifact / Asset publication composition
 asset/AssetCatalog.js                  Reusable Asset read/search facade
 world/runtime/systems/PhysicsSystem.js     Rapier truth + hypothetical shape queries
-agent/skills/registerCoreSkills.js         Agent executable capability registry
+agent/skills/registerCoreSkills.js         Domain skill-pack composition entry
 agent/ToolCallingAgent.js            Plan → act → observe orchestration
 ```
 
@@ -257,7 +253,7 @@ GitHub Pages 是静态前端，模型密钥和重型服务凭据不应提交到�
 
 - LLM Gateway：[`docs/llm-gateway.md`](docs/llm-gateway.md)
 - 本地测试 Agent：[`docs/test-agent.md`](docs/test-agent.md)
-- Asset Generator：[`docs/asset-generator.md`](docs/asset-generator.md)
+- Generation Runtime：[`docs/generation-runtime.md`](docs/generation-runtime.md)
 - Heavy Asset Compiler：[`services/asset-compiler/README.md`](services/asset-compiler/README.md)
 
 `.env.local` 只用于本地测试，并应保持 Git ignore 与最小文件权限。

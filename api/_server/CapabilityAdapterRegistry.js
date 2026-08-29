@@ -2,8 +2,7 @@ const SAFE_FORWARD_HEADERS = new Set(['accept', 'content-type']);
 
 export const CAPABILITIES = Object.freeze({
   AGENT: 'agent',
-  ASSET_COMPILE: 'asset.compile',
-  ASSET_GENERATE: 'asset.generate'
+  ASSET_COMPILE: 'asset.compile'
 });
 
 export const DEPLOYMENT_ADAPTERS = Object.freeze({
@@ -14,10 +13,6 @@ export const DEPLOYMENT_ADAPTERS = Object.freeze({
   [CAPABILITIES.ASSET_COMPILE]: Object.freeze({
     urlEnv: 'ASSET_COMPILE_ADAPTER_URL',
     authorizationEnv: 'ASSET_COMPILE_ADAPTER_AUTHORIZATION'
-  }),
-  [CAPABILITIES.ASSET_GENERATE]: Object.freeze({
-    urlEnv: 'ASSET_GENERATE_ADAPTER_URL',
-    authorizationEnv: 'ASSET_GENERATE_ADAPTER_AUTHORIZATION'
   })
 });
 

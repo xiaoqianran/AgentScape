@@ -15,6 +15,15 @@ from agentscape.settings import Settings
 runner = CliRunner()
 
 
+def test_settings_public_surface_is_connector_only() -> None:
+    fields = set(Settings.__dataclass_fields__)
+    assert fields == {"connector_url", "connector_origin", "connector_pairing_token"}
+
+
+def test_removed_direct_provider_cli_is_not_exposed() -> None:
+    assert runner.invoke(cli.app, ["reconstruct-direct", "--help"]).exit_code != 0
+
+
 def test_settings_connector_url_falls_back_to_modal_agent(monkeypatch) -> None:
     monkeypatch.delenv("AGENTSCAPE_CONNECTOR_URL", raising=False)
     monkeypatch.setenv("AGENTSCAPE_MODAL_AGENT_URL", "http://127.0.0.1:45678/")
@@ -139,14 +148,6 @@ def test_image_command_uses_connector_job_and_artifact_transport(monkeypatch, tm
     assert json.loads(result.stdout)["job_id"] == "job_image"
 
 
-def test_local_reconstruct_is_explicit_direct_command() -> None:
-    direct = runner.invoke(cli.app, ["reconstruct-direct", "--help"])
-    legacy_name = runner.invoke(cli.app, ["reconstruct", "--help"])
-
-    assert direct.exit_code == 0
-    assert legacy_name.exit_code != 0
-
-
 def test_connector_pairing_token_falls_back_to_agent_session(monkeypatch) -> None:
     monkeypatch.delenv("AGENTSCAPE_CONNECTOR_PAIRING_TOKEN", raising=False)
     monkeypatch.setenv("AGENTSCAPE_MODAL_AGENT_SESSION", "sidecar-session-token")
@@ -198,9 +199,7 @@ def test_settings_discovers_windows_sidecar_handoff_without_endpoint_override(mo
     settings = Settings.from_env()
 
     assert settings.connector_url == "http://127.0.0.1:51234"
-    assert settings.modal_agent_url == "http://127.0.0.1:51234"
     assert settings.connector_pairing_token == token
-    assert settings.modal_agent_session == token
     assert token not in repr(settings)
 
 
@@ -242,5 +241,4 @@ def test_explicit_pairing_secret_can_reuse_discovered_loopback_endpoint(monkeypa
 
     assert settings.connector_url == "http://127.0.0.1:52345"
     assert settings.connector_pairing_token == "explicit-approval"
-    assert settings.modal_agent_session == token
     assert token not in repr(settings)

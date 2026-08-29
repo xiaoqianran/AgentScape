@@ -1,4 +1,4 @@
-import { generationJobCenterMarkup } from '../../generation/orchestration/GenerationJobCenter.js';
+import { generationJobCenterMarkup } from './generation/GenerationJobCenter.js';
 import { taskPanelMarkup } from './task/TaskPanel.js';
 import { objectInspectorMarkup } from './inspect/ObjectInspector.js';
 import { runsPanelMarkup } from './runs/RunsPanel.js';

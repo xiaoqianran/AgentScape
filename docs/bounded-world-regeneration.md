@@ -369,7 +369,7 @@ runWorldPipeline exactly once
 position
  generate=true
  generateAsset
- importEmbodiedGenAsset
+ retired-provider-specific-import
  spawnAsset
  第二次 runWorldPipeline
  world-ready 后 validateWorld

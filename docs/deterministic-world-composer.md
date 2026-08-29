@@ -60,7 +60,7 @@ searchAssets first
 → generate only for unresolved requests
 ```
 
-Strict live probe 要求 table / cabinet / cup 都先 search，再调用一次 `runWorldPipeline`；禁止 `generateAsset / importEmbodiedGenAsset / spawnAsset` 绕过 canonical pipeline。
+Strict live probe 要求 table / cabinet / cup 都先 search，再调用一次 `runWorldPipeline`；禁止 `generateAsset / spawnAsset` 绕过 canonical pipeline。
 
 ## 4. `WorldComposer`
 

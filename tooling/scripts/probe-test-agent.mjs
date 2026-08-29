@@ -67,12 +67,12 @@ const scenarios = {
   }
 ,
   'generated-world': {
-    goal:'Create a small robot work area using reusable existing assets: one table, one chair, and one cup. The cup must be ON the table, and the chair must be NEAR the table. Search for reusable assets first. Then call proposeWorldIR exactly once with semantic World IR only; include relation-exists acceptance for both required relations. Observe the Runtime-issued worldIR in a fresh planning round, then call runWorldPipeline exactly once with that exact revision. Do not provide asset coordinates; let AgentScape compose them. Do not call generateAsset, importEmbodiedGenAsset, or spawnAsset directly. Only report complete if runWorldPipeline returns world-ready.',
+    goal:'Create a small robot work area using reusable existing assets: one table, one chair, and one cup. The cup must be ON the table, and the chair must be NEAR the table. Search for reusable assets first. Then call proposeWorldIR exactly once with semantic World IR only; include relation-exists acceptance for both required relations. Observe the Runtime-issued worldIR in a fresh planning round, then call runWorldPipeline exactly once with that exact revision. Do not provide asset coordinates; let AgentScape compose them. Do not call generateAsset or spawnAsset directly. Only report complete if runWorldPipeline returns world-ready.',
     world:[],
     expected:['proposeWorldIR','runWorldPipeline']
   },
   'generated-world-retry': {
-    goal:'Create a small calibration work area with one reusable table and one calibration fixture. The calibration fixture must be NEAR the table. Search for both assets first. The table exists, but the calibration fixture search will miss. Do NOT call generateAsset/importEmbodiedGenAsset/spawnAsset yourself and do NOT set generate=true. Call proposeWorldIR exactly once with semantic World IR only, including relation-exists acceptance for fixture NEAR table; do not author coordinates or NEAR distance. Observe the Runtime-issued worldIR in a fresh planning round, then submit that exact revision to runWorldPipeline exactly once. Runtime may internally perform its bounded generation retry. Only report success if runWorldPipeline is world-ready after attempt 1 rejected + retry-proposed and attempt 2 ready.',
+    goal:'Create a small calibration work area with one reusable table and one calibration fixture. The calibration fixture must be NEAR the table. Search for both assets first. The table exists, but the calibration fixture search will miss. Do NOT call generateAsset/spawnAsset yourself and do NOT set generate=true. Call proposeWorldIR exactly once with semantic World IR only, including relation-exists acceptance for fixture NEAR table; do not author coordinates or NEAR distance. Observe the Runtime-issued worldIR in a fresh planning round, then submit that exact revision to runWorldPipeline exactly once. Runtime may internally perform its bounded generation retry. Only report success if runWorldPipeline is world-ready after attempt 1 rejected + retry-proposed and attempt 2 ready.',
     world:[],
     expected:['proposeWorldIR','runWorldPipeline']
   },
@@ -256,7 +256,7 @@ try {
             pipeline:{state:{artifacts:{worldIR:plan,assets:placements},reports:{layoutAdmission:{status:'ready',placements,issues:[]},worldAdmission:{status:'ready'}}}}
           };
         }
-        if (['generateAsset','importEmbodiedGenAsset','spawnAsset'].includes(name)) throw Object.assign(new Error(`Generated-world probe forbids low-level ${name}`),{code:'PROBE_WORLD_PIPELINE_BYPASS'});
+        if (['generateAsset','spawnAsset'].includes(name)) throw Object.assign(new Error(`Generated-world probe forbids low-level ${name}`),{code:'PROBE_WORLD_PIPELINE_BYPASS'});
         throw Object.assign(new Error(`Probe does not allow ${name} in generated-world mode`),{code:'PROBE_TOOL_NOT_ALLOWED'});
       }
       if (mode === 'recovery-articulated' || mode === 'recovery-counterfactual') {
@@ -734,7 +734,7 @@ try {
     if (generatedWorldPlan.entities.some((entity)=>entity.asset?.generate===true)) throw new Error('Generated-world retry probe let the model enable generation instead of Runtime');
     if (generatedWorldPlan.spatial?.relations?.some((relation)=>Object.prototype.hasOwnProperty.call(relation,'distance'))) throw new Error('Generated-world retry probe let the model author NEAR distance');
     if (lastGeneratedWorldResult?.admission?.relations?.applied?.[0]?.mode!=='runtime-derived') throw new Error('Generated-world retry probe missing Runtime-derived relation evidence');
-    if (toolCalls.some((call)=>['generateAsset','importEmbodiedGenAsset','spawnAsset'].includes(call.name))) throw new Error('Generated-world retry probe used a low-level generation/spawn bypass');
+    if (toolCalls.some((call)=>['generateAsset','spawnAsset'].includes(call.name))) throw new Error('Generated-world retry probe used a low-level generation/spawn bypass');
     if (result.taskStatus!=='completed'||result.unresolvedMutations.length) throw new Error(`Generated-world retry task did not complete: status=${result.taskStatus} unresolved=${result.unresolvedMutations.length}`);
     const executed=result.execution.filter((entry)=>entry.executed&&entry.mutates);
     const pipeline=executed.find((entry)=>entry.tool==='runWorldPipeline'&&entry.outcome.state==='verified');
@@ -751,7 +751,7 @@ try {
     if (toolCalls.length!==pipelineIndex+1) throw new Error(`Generated-world probe made redundant tool calls after world-ready: ${toolCalls.slice(pipelineIndex+1).map((call)=>call.name).join(',')}`);
     if (!generatedWorldProposal || !generatedWorldPlan) throw new Error('Generated-world probe did not retain World IR proposal');
     if (generatedWorldPlan.entities.some((entity)=>entity.transform?.position)) throw new Error('Generated-world probe let the model author coordinates');
-    if (toolCalls.some((call)=>['generateAsset','importEmbodiedGenAsset','spawnAsset'].includes(call.name))) throw new Error('Generated-world probe used a low-level generation/spawn bypass');
+    if (toolCalls.some((call)=>['generateAsset','spawnAsset'].includes(call.name))) throw new Error('Generated-world probe used a low-level generation/spawn bypass');
     if (result.taskStatus!=='completed'||result.unresolvedMutations.length) throw new Error(`Generated-world task did not complete: status=${result.taskStatus} unresolved=${result.unresolvedMutations.length}`);
     const executed=result.execution.filter((entry)=>entry.executed&&entry.mutates);
     if (!executed.find((entry)=>entry.tool==='runWorldPipeline'&&entry.outcome.state==='verified')) throw new Error('Generated-world pipeline was not recorded as verified');

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { ConnectorClient } from "../../generation/connector/ConnectorClient.js";
-import { attachLegacyAuthoring } from "../../generation/orchestration/LegacyAuthoringShell.js";
+import { attachGenerationRuntime } from "../../generation/orchestration/GenerationRuntime.js";
 import { createAssetModule } from "../../generation/orchestration/createAssetModule.js";
 import { SpatialSystem } from "../../world/runtime/systems/SpatialSystem.js";
 import { NavigationSystem } from "../../world/runtime/systems/NavigationSystem.js";
@@ -87,12 +87,12 @@ const connector=await pairConnector();
 let runtime;
 try{
   runtime=await createHeadlessRuntime();
-  const authoring=attachLegacyAuthoring(runtime,{
+  const generation=attachGenerationRuntime(runtime,{
     connectorClient:connector,
     generationOptions:{pollIntervalMs:1000,generationTimeoutMs:20*60*1000}
   });
-  const generation=authoring.generation;
-  const initialized=await authoring.initialize({pair:false});
+  const generation=generation.generation;
+  const initialized=await generation.initialize({pair:false});
   if(initialized.status!=="generation-ready") throw new Error(`Generation unavailable: ${JSON.stringify(initialized)}`);
 
   const assetId="generated_real_red_apple_02";

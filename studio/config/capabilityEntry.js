@@ -1,8 +1,7 @@
 export const CAPABILITY_API = Object.freeze({
   status: '/api/capabilities',
   agent: '/api/capabilities/agent',
-  assetCompile: '/api/capabilities/asset-compile',
-  assetGenerate: '/api/capabilities/asset-generate'
+  assetCompile: '/api/capabilities/asset-compile'
 });
 
 export const LOCAL_ADAPTER_HOST = Object.freeze({
@@ -40,10 +39,9 @@ export async function readCapabilityStatus({ fetchImpl = fetch, timeoutMs = 5000
   }
 }
 
-export function applyCapabilityStatus({ gateway, compilerProvider, assetGenerator } = {}, status = unavailableCapabilityStatus()) {
+export function applyCapabilityStatus({ gateway, generation } = {}, status = unavailableCapabilityStatus()) {
   gateway?.setEndpoint?.(status.agent?.available ? CAPABILITY_API.agent : '');
-  compilerProvider?.setEndpoint?.(status.assetCompile?.available ? CAPABILITY_API.assetCompile : '');
-  assetGenerator?.setEndpoint?.(status.assetGenerate?.available ? CAPABILITY_API.assetGenerate : '');
+  generation?.setCompilerEndpoint?.(status.assetCompile?.available ? CAPABILITY_API.assetCompile : '');
   return status;
 }
 
@@ -52,8 +50,7 @@ export function normalizeCapabilityStatus(payload = {}) {
   return {
     source: 'server',
     agent: normalizeCapability(capabilities.agent),
-    assetCompile: normalizeCapability(capabilities['asset.compile']),
-    assetGenerate: normalizeCapability(capabilities['asset.generate'])
+    assetCompile: normalizeCapability(capabilities['asset.compile'])
   };
 }
 
@@ -62,8 +59,7 @@ export function unavailableCapabilityStatus(reason = '能力状态不可用') {
     source: 'unavailable',
     reason,
     agent: { available: false },
-    assetCompile: { available: false },
-    assetGenerate: { available: false }
+    assetCompile: { available: false }
   };
 }
 

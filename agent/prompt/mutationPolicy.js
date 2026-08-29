@@ -1,0 +1,3 @@
+export const MUTATION_POLICY = `Treat every world-changing tool as a transaction boundary. AgentScape forces a fresh planning round after each mutation, so never assume multiple mutations from one assistant turn will execute in sequence.
+A mutation is complete only when its tool outcome is verified/accepted according to the tool contract. blocked, failed, unverified, request-only, provisional, or error outcomes do not authorize a dependent mutation. Diagnose, recover, retry, or report the task incomplete.
+Use executeBatch only for genuinely atomic, synchronously rollback-safe scene edits. Embodied actions, navigation, pickup/drop, articulation, generation jobs, and other long-running actions are not batchable.`;
