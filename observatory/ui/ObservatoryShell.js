@@ -5,8 +5,8 @@ export class ObservatoryShell {
       <div class="obs-app">
         <header class="obs-topbar">
           <div class="obs-brand">
-            <strong>Observatory</strong>
-            <span id="obs-lab-title">运行时验证</span>
+            <span class="obs-brand-mark" aria-hidden="true"><i></i></span>
+            <div class="obs-brand-copy"><strong>Observatory</strong><span id="obs-lab-title">运行时验证</span></div>
           </div>
           <nav class="obs-context" aria-label="实验上下文">
             <label><span>Lab</span><select id="obs-lab-select"></select></label>
@@ -17,6 +17,7 @@ export class ObservatoryShell {
 
         <div class="obs-commandbar" aria-label="实验控制">
           <div class="obs-command-primary">
+            <span class="obs-command-label">SIMULATION</span>
             <button id="obs-run" class="obs-primary" type="button">▶ 运行</button>
             <button id="obs-step" type="button">单步</button>
             <button id="obs-step10" type="button">10 帧</button>
@@ -40,8 +41,9 @@ export class ObservatoryShell {
         <main class="obs-workspace">
           <aside class="obs-scenario-rail" aria-label="实验场景">
             <div class="obs-section-head">
-              <strong>场景</strong>
-              <span>选择一个任务验证</span>
+              <div class="obs-section-kicker">SCENARIOS</div>
+              <strong>选择验证任务</strong>
+              <span>一次聚焦一个运行时行为</span>
             </div>
             <div id="obs-scenario-list" class="obs-scenario-list"></div>
           </aside>
@@ -58,14 +60,14 @@ export class ObservatoryShell {
           <aside class="obs-results" aria-label="验证结果">
             <section class="obs-result-primary">
               <div class="obs-section-head obs-result-head">
-                <div><strong>验证结果</strong><span>当前场景的首要结论</span></div>
+                <div><div class="obs-section-kicker">VERIFICATION</div><strong>验证结果</strong><span>当前场景的首要结论</span></div>
                 <span id="obs-result-summary" class="obs-result-summary is-neutral">—</span>
               </div>
               <div id="obs-assertions" class="obs-assertions"></div>
             </section>
 
             <section class="obs-inspector-section">
-              <div class="obs-section-head"><strong>Runtime</strong><span>关键状态</span></div>
+              <div class="obs-section-head"><div class="obs-section-kicker">RUNTIME</div><strong>关键状态</strong><span>来自当前系统的观测值</span></div>
               <div id="obs-inspector"></div>
             </section>
 
@@ -180,6 +182,7 @@ export class ObservatoryShell {
       button.type = "button";
       button.className = `obs-scenario${scenario.id === activeId ? " is-active" : ""}`;
       button.setAttribute("aria-pressed", String(scenario.id === activeId));
+      button.title = `${scenario.title} — ${scenario.subtitle || scenario.id}`;
       button.innerHTML = `<span>${escapeHtml(scenario.title)}</span><small>${escapeHtml(scenario.subtitle || scenario.id)}</small>`;
       button.addEventListener("click", () => onSelect(scenario.id));
       return button;
