@@ -38,7 +38,7 @@ export class InteractionLab {
     this.cameraRig = new CameraRig({ camera: this.camera, controls: this.controls });
     this.worldLabels = new WorldLabelLayer({ scene: this.scene, camera: this.camera, viewport });
 
-    this.ground = createObservatoryGround({ size: 20, accentColor: 0x72d29a });
+    this.ground = createObservatoryGround({ size: 20, accentColor: 0x8caaee });
     this.grid = createObservatoryGrid({ size: 24 });
     this.scene.add(this.ground, this.grid);
 

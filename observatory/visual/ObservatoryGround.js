@@ -27,8 +27,8 @@ const fragmentShader = `
 
 export function createObservatoryGround({
   size = 20,
-  baseColor = 0x0d141c,
-  accentColor = 0x72d29a,
+  baseColor = 0x292c3c,
+  accentColor = 0x8caaee,
   y = -0.012
 } = {}) {
   const geometry = new THREE.PlaneGeometry(size, size, 1, 1);

@@ -64,10 +64,10 @@ export function createObservatoryGrid({ size = 24, minorStep = 0.5, majorStep = 
     side: THREE.DoubleSide,
     extensions: { derivatives: true },
     uniforms: {
-      uMinorColor: { value: new THREE.Color(0x5d7489) },
-      uMajorColor: { value: new THREE.Color(0x7998b5) },
-      uAxisXColor: { value: new THREE.Color(0x6a9ab8) },
-      uAxisZColor: { value: new THREE.Color(0x7f7ab8) },
+      uMinorColor: { value: new THREE.Color(0x51576d) },
+      uMajorColor: { value: new THREE.Color(0x737994) },
+      uAxisXColor: { value: new THREE.Color(0x8caaee) },
+      uAxisZColor: { value: new THREE.Color(0x85c1dc) },
       uMinorStep: { value: minorStep },
       uMajorStep: { value: majorStep },
       uFadeDistance: { value: size * 0.5 }
@@ -83,7 +83,7 @@ export function createObservatoryGrid({ size = 24, minorStep = 0.5, majorStep = 
 
   const origin = new THREE.Mesh(
     new THREE.RingGeometry(0.055, 0.075, 40),
-    new THREE.MeshBasicMaterial({ color: 0x93b9d9, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ color: 0x8caaee, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide })
   );
   origin.rotation.x = -Math.PI / 2;
   origin.position.y = 0.004;

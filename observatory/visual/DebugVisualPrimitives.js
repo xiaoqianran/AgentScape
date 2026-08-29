@@ -1,13 +1,13 @@
 import * as THREE from "three";
 
 export const OBSERVATORY_COLORS = Object.freeze({
-  info: 0x78b7f4,
-  pass: 0x72d29a,
-  warn: 0xd8b36a,
-  fail: 0xee7f83,
-  muted: 0x71869a,
-  structure: 0x8da9c2,
-  violet: 0xa59ade
+  info: 0x8caaee,
+  pass: 0xa6d189,
+  warn: 0xe5c890,
+  fail: 0xe78284,
+  muted: 0x838ba7,
+  structure: 0xa5adce,
+  violet: 0xca9ee6
 });
 
 const colorOf = (tone) => OBSERVATORY_COLORS[tone] ?? OBSERVATORY_COLORS.info;
