@@ -12,7 +12,15 @@ export class ObservatoryShell {
             <label><span>Lab</span><select id="obs-lab-select"></select></label>
             <label><span>Backend</span><select id="obs-backend-select"></select></label>
           </nav>
-          <a class="obs-link" href="/">返回 Studio</a>
+          <div class="obs-panel-actions" aria-label="面板显示">
+            <button id="obs-scenarios-toggle" class="obs-icon-button is-active" type="button" aria-label="显示或隐藏场景面板" aria-pressed="true">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h12M4 10h12M4 15h12"/></svg>
+            </button>
+            <button id="obs-results-toggle" class="obs-icon-button is-active" type="button" aria-label="显示或隐藏验证面板" aria-pressed="true">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4.5h10v11H5zM8 8h4M8 11h4"/></svg>
+            </button>
+          </div>
+          <a class="obs-link" href="/">Studio ↗</a>
         </header>
 
         <div class="obs-commandbar" aria-label="实验控制">
@@ -107,8 +115,31 @@ export class ObservatoryShell {
     this.refs = Object.fromEntries([
       "run", "step", "step10", "reset", "checkpoint", "restore", "checkpoint-frame", "frame", "time", "scenario-list", "viewport",
       "scenario-badge", "status-layer", "status-text", "result-summary", "inspector", "native-debug", "manifest-debug", "difference-debug", "normalized-debug", "velocity-debug", "joint-debug", "contact-debug", "bounds-debug", "ray-debug", "spatial-query-debug", "navmesh-debug", "path-debug", "endpoints-debug", "obstacles-debug", "interaction-los-debug", "interaction-support-debug", "interaction-state-debug", "agent-tool-debug", "grid-debug", "assertions", "metrics",
-      "lab-title", "lab-select", "backend-select"
+      "lab-title", "lab-select", "backend-select", "scenarios-toggle", "results-toggle"
     ].map((name) => [name, root.querySelector(`#obs-${name}`)]));
+
+    this.refs["scenarios-toggle"].addEventListener("click", () => this.togglePanel("scenarios"));
+    this.refs["results-toggle"].addEventListener("click", () => this.togglePanel("results"));
+    if (matchMedia("(max-width: 860px)").matches) this.setPanelVisible("results", false);
+  }
+
+  setPanelVisible(panel, visible) {
+    const isScenarios = panel === "scenarios";
+    const className = isScenarios ? "obs-hide-scenarios" : "obs-hide-results";
+    const ref = this.refs[isScenarios ? "scenarios-toggle" : "results-toggle"];
+    this.root.classList.toggle(className, !visible);
+    ref.classList.toggle("is-active", visible);
+    ref.setAttribute("aria-pressed", String(visible));
+  }
+
+  togglePanel(panel) {
+    const isScenarios = panel === "scenarios";
+    const className = isScenarios ? "obs-hide-scenarios" : "obs-hide-results";
+    const willShow = this.root.classList.contains(className);
+    if (willShow && matchMedia("(max-width: 860px)").matches) {
+      this.setPanelVisible(isScenarios ? "results" : "scenarios", false);
+    }
+    this.setPanelVisible(panel, willShow);
   }
 
   bind({ onRun, onStep, onStep10, onReset, onCheckpoint, onRestore, onNativeDebug, onManifestDebug, onDifferenceDebug, onNormalizedDebug, onVelocityDebug, onJointDebug, onContactDebug, onBoundsDebug, onRayDebug, onSpatialQueryDebug, onNavMeshDebug, onPathDebug, onEndpointsDebug, onObstaclesDebug, onInteractionLosDebug, onInteractionSupportDebug, onInteractionStateDebug, onAgentToolDebug, onGridDebug, onLabChange, onBackendChange }) {

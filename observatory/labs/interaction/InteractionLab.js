@@ -3,6 +3,9 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SimulationClock } from "../../core/SimulationClock.js";
 import { ScenarioRunner } from "../../core/ScenarioRunner.js";
 import { FrameCadence } from "../../core/FrameCadence.js";
+import { createObservatoryGrid, disposeObservatoryGrid } from "../../visual/ObservatoryGrid.js";
+import { applyObservatorySceneTheme } from "../../visual/ObservatorySceneTheme.js";
+import { resizeObservatoryRenderer } from "../../visual/RendererQuality.js";
 import { InteractionScenarioContext } from "./InteractionScenarioContext.js";
 import { InteractionDebugRenderer } from "./visualizers/InteractionDebugRenderer.js";
 import { NormalizedColliderRenderer } from "../physics/visualizers/NormalizedColliderRenderer.js";
@@ -16,30 +19,22 @@ export class InteractionLab {
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x11161d);
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.05, 200);
     this.camera.position.set(6, 4.8, 7.5);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = false;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.sceneTheme = applyObservatorySceneTheme(this.scene, this.renderer);
     viewport.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.set(0, 0.9, 0);
     this.controls.enableDamping = true;
 
-    this.grid = new THREE.GridHelper(12, 24, 0x566171, 0x2a323d);
-    this.axes = new THREE.AxesHelper(1.25);
-    this.axes.position.set(-5, 0.02, 3.5);
-    this.scene.add(this.grid, this.axes);
-    this.scene.add(new THREE.HemisphereLight(0xd8e6ff, 0x20252c, 1.5));
-    const key = new THREE.DirectionalLight(0xffffff, 3);
-    key.position.set(5, 9, 4);
-    key.castShadow = false;
-    this.scene.add(key);
+    this.grid = createObservatoryGrid({ size: 24 });
+    this.scene.add(this.grid);
 
     this.debugRenderer = new InteractionDebugRenderer(this.scene);
     this.colliderRenderer = new NormalizedColliderRenderer(this.scene);
@@ -95,7 +90,7 @@ export class InteractionLab {
   setInteractionSupportDebug(visible) { this.debugRenderer.setSupportVisible(visible); }
   setInteractionStateDebug(visible) { this.debugRenderer.setStateVisible(visible); }
   setNormalizedDebug(visible) { this.colliderRenderer.setVisible(visible); }
-  setGridVisible(visible) { this.grid.visible = Boolean(visible); this.axes.visible = Boolean(visible); }
+  setGridVisible(visible) { this.grid.visible = Boolean(visible); }
 
   refreshDebug() {
     const context = this.runner.context;
@@ -141,11 +136,11 @@ export class InteractionLab {
     this.animation = requestAnimationFrame((next) => this.frame(next));
   }
   resize() {
-    const width = Math.max(this.viewport.clientWidth, 1);
-    const height = Math.max(this.viewport.clientHeight, 1);
-    this.renderer.setSize(width, height, false);
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
+    this.renderQuality = resizeObservatoryRenderer({
+      renderer: this.renderer,
+      camera: this.camera,
+      viewport: this.viewport
+    });
   }
   async dispose() {
     cancelAnimationFrame(this.animation);
@@ -154,6 +149,7 @@ export class InteractionLab {
     this.debugRenderer.dispose();
     this.colliderRenderer.dispose();
     this.controls.dispose();
+    disposeObservatoryGrid(this.grid);
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

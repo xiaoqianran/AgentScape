@@ -1,9 +1,25 @@
 import { defineConfig } from "vite";
 import { capabilityDevPlugin } from "./tooling/dev/capabilityDevPlugin.js";
 
+function observatoryRoutePlugin() {
+  const redirect = (req, res, next) => {
+    const path = req.url?.split("?", 1)[0];
+    if (path !== "/observatory") return next();
+    const query = req.url?.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+    res.statusCode = 308;
+    res.setHeader("Location", `/observatory/${query}`);
+    res.end();
+  };
+  return {
+    name: "observatory-route",
+    configureServer(server) { server.middlewares.use(redirect); },
+    configurePreviewServer(server) { server.middlewares.use(redirect); }
+  };
+}
+
 export default defineConfig({
   base: "/",
-  plugins: [capabilityDevPlugin()],
+  plugins: [observatoryRoutePlugin(), capabilityDevPlugin()],
   test: {
     include: ["tests/**/*.test.js"]
   },
