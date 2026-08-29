@@ -20,6 +20,14 @@ export function declaredCapabilityMethodGaps(backend){
   return gaps;
 }
 
+export function unexpectedPublicBackendMethods(backend){
+  const contract=new Set(Object.getOwnPropertyNames(PhysicsBackend.prototype).filter((name)=>name!=='constructor'));
+  return Object.getOwnPropertyNames(Object.getPrototypeOf(backend))
+    .filter((name)=>name!=='constructor' && !name.startsWith('_') && typeof backend[name]==='function')
+    .filter((name)=>!contract.has(name))
+    .sort();
+}
+
 export async function createConformanceWorld(createBackend){
   const backend=createBackend();
   await backend.init();

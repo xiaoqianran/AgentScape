@@ -52,6 +52,23 @@ const createQueryShape=(spec)=>{
   return null;
 };
 
+const describeShape=(shape)=>{
+  if(!shape) return {kind:'unknown'};
+  if(shape.type===RAPIER.ShapeType.Cuboid) return {
+    kind:'box', halfExtents:v3(shape.halfExtents), borderRadius:Number(shape.borderRadius)||0
+  };
+  if(shape.type===RAPIER.ShapeType.Cylinder) return {
+    kind:'cylinder', halfHeight:shape.halfHeight, radius:shape.radius, borderRadius:Number(shape.borderRadius)||0
+  };
+  if(shape.type===RAPIER.ShapeType.Capsule) return {
+    kind:'capsule', halfHeight:shape.halfHeight, radius:shape.radius, borderRadius:Number(shape.borderRadius)||0
+  };
+  if(shape.type===RAPIER.ShapeType.ConvexPolyhedron) return {
+    kind:'convexHull', vertices:Array.from(shape.vertices || []), borderRadius:Number(shape.borderRadius)||0
+  };
+  return {kind:'unknown',type:shape.type};
+};
+
 export class RapierPhysicsBackend extends PhysicsBackend {
   constructor({ gravity={x:0,y:-9.81,z:0} } = {}) {
     super('rapier', PHYSICS_BACKEND_CAPABILITIES, {
@@ -103,27 +120,10 @@ export class RapierPhysicsBackend extends PhysicsBackend {
       parent:this.colliderParent(collider),
       position:v3(position),
       rotation:q4(rotation),
-      shape:this.describeShape(collider.shape),
+      shape:describeShape(collider.shape),
       shapeRef:collider.shape
     };
   }
-  describeShape(shape) {
-    if(!shape) return {kind:'unknown'};
-    if(shape.type===RAPIER.ShapeType.Cuboid) return {
-      kind:'box', halfExtents:v3(shape.halfExtents), borderRadius:Number(shape.borderRadius)||0
-    };
-    if(shape.type===RAPIER.ShapeType.Cylinder) return {
-      kind:'cylinder', halfHeight:shape.halfHeight, radius:shape.radius, borderRadius:Number(shape.borderRadius)||0
-    };
-    if(shape.type===RAPIER.ShapeType.Capsule) return {
-      kind:'capsule', halfHeight:shape.halfHeight, radius:shape.radius, borderRadius:Number(shape.borderRadius)||0
-    };
-    if(shape.type===RAPIER.ShapeType.ConvexPolyhedron) return {
-      kind:'convexHull', vertices:Array.from(shape.vertices || []), borderRadius:Number(shape.borderRadius)||0
-    };
-    return {kind:'unknown',type:shape.type};
-  }
-
   bodyType(body) { return body?.isKinematic?.() ? 'kinematic' : body?.isDynamic?.() ? 'dynamic' : 'fixed'; }
   setBodyType(body,type) {
     if(type==='kinematic') body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased,true);

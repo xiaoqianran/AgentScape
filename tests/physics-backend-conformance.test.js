@@ -1,8 +1,9 @@
 import { describe,expect,it } from 'vitest';
 import { PhysicsBackend,TransformPhysicsBackend } from '../src/runtime/physics/PhysicsBackend.js';
 import { RapierPhysicsBackend } from '../src/runtime/physics/RapierPhysicsBackend.js';
+import { JoltPhysicsBackend } from '../src/runtime/physics/JoltPhysicsBackend.js';
 import {
-  createConformanceWorld,declaredCapabilityMethodGaps,expectCollisionRoundTrip,expectSemanticBodyRoundTrip
+  createConformanceWorld,declaredCapabilityMethodGaps,expectCollisionRoundTrip,expectSemanticBodyRoundTrip,unexpectedPublicBackendMethods
 } from './helpers/physicsBackendConformance.js';
 
 class LyingBackend extends PhysicsBackend {
@@ -18,6 +19,9 @@ describe('PhysicsBackend conformance',()=>{
     expect(declaredCapabilityMethodGaps(new LyingBackend())).toContainEqual({capability:'rigid-body',method:'createBody'});
     expect(declaredCapabilityMethodGaps(new RapierPhysicsBackend())).toEqual([]);
     expect(declaredCapabilityMethodGaps(new TransformPhysicsBackend())).toEqual([]);
+    expect(unexpectedPublicBackendMethods(new RapierPhysicsBackend())).toEqual([]);
+    expect(unexpectedPublicBackendMethods(new JoltPhysicsBackend())).toEqual([]);
+    expect(unexpectedPublicBackendMethods(new TransformPhysicsBackend())).toEqual([]);
   });
 
   it('executes the Rapier lifecycle and rigid-body semantic contract',async()=>{
