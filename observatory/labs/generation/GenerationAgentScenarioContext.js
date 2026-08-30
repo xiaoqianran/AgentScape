@@ -30,7 +30,7 @@ if (!globalThis.ProgressEvent) {
   };
 }
 const EMBODIED_TOOLS = new Set(["approachAndPickup", "navigateTo", "approachAndPlace", "dropHeld"]);
-const DEFAULT_CONNECTOR_ENDPOINT = "http://127.0.0.1:3210";
+const DEFAULT_CONNECTOR_ENDPOINT = "http://127.0.0.1:48123";
 const CONNECTOR_SMOKE_TIMEOUT_MS = 2500;
 const timedFetch = async (url, options = {}) => {
   const controller = new AbortController();

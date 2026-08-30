@@ -5,7 +5,7 @@ export const CAPABILITY_API = Object.freeze({
 });
 
 export const LOCAL_ADAPTER_HOST = Object.freeze({
-  connector: 'http://127.0.0.1:3210'
+  connector: 'http://127.0.0.1:48123'
 });
 
 export const LEGACY_ENDPOINT_STORAGE_KEYS = Object.freeze([

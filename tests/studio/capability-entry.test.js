@@ -16,7 +16,7 @@ describe('AgentScape capability entry', () => {
       agent:'/api/capabilities/agent',
       assetCompile:'/api/capabilities/asset-compile'
     });
-    expect(LOCAL_ADAPTER_HOST.connector).toBe('http://127.0.0.1:3210');
+    expect(LOCAL_ADAPTER_HOST.connector).toBe('http://127.0.0.1:48123');
   });
 
   it('removes obsolete browser endpoint overrides', () => {
