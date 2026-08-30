@@ -25,6 +25,11 @@ const LABS = [
     load: () => import("./labs/interaction/index.js")
   },
   {
+    id: "generation",
+    title: "生成与智能体构建",
+    load: () => import("./labs/generation/index.js")
+  },
+  {
     id: "agent",
     title: "智能体工具",
     load: () => import("./labs/agent/index.js")

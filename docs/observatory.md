@@ -28,6 +28,10 @@
 /observatory/?lab=physics&scenario=physics.gravity.basic&backend=jolt
 /observatory/?lab=physics&scenario=physics.gravity.basic&backend=compare
 /observatory/?lab=spatial&scenario=spatial.raycast.bvh&backend=three-bvh
+/observatory/?lab=navigation&scenario=navigation.path.simple
+/observatory/?lab=interaction&scenario=interaction.place.surface
+/observatory/?lab=agent-trace&scenario=agent.trace.verified-mutation
+/observatory/?lab=generation&scenario=generation.agent-build.red-apple&backend=fixture
 ```
 
 `backend=compare` 会同步运行 Rapier 与 Jolt，并比较 normalized physics state。
@@ -88,6 +92,51 @@ Production contracts
 ```
 
 `ThreeBvhRuntime` 属于 World/Spatial runtime，而不是 Observatory。Observatory 只负责驱动和显示。AssetManager 不再通过隐式 prototype 初始化承担 BVH ownership；对象进入 WorldRuntime 时由 World/Spatial 明确准备 bounds tree。
+
+## Generation / Agent Build Lab 当前能力
+
+Generation Lab 回答一个此前 Observatory 没有闭合的问题：**Agent 能否创造一个此前不存在的 3D Asset，并把它可靠地加入当前世界。**
+
+默认 backend 是 `fixture`，**不会请求 Modal、不会启动 GPU、不会产生远程生成费用**。Fixture 只替代远端 Connector 的响应；其余链路复用生产代码：
+
+```text
+ToolCallingAgent
+  ↓
+listGenerationCapabilities
+  ↓
+generateAndCompileAsset
+  ↓
+ConnectorJobClient
+  ↓
+真实 GLB bytes
+  ↓
+ArtifactImporter
+  ├─ MIME
+  ├─ bytes
+  └─ SHA-256 integrity
+  ↓
+AssetCompiler
+  ↓
+Asset Admission = ready
+  ↓
+spawnAsset
+  ↓ fresh replan
+place(table.top)
+  ↓ fresh replan
+SceneGraph ON verification
+  ↓
+Agent taskStatus = completed
+```
+
+当前 fixture 生成一个低多边形红苹果。它不是预先注册的 builtin Asset：GLB 在 Scenario 初始化时确定性构造，经 Connector Artifact transport 导入，再由真实 AssetCompiler 编译成带 `pickup/drop/place` 与 capsule collider 的 executable Asset。
+
+Observatory 同时暴露：Provider/Job 状态、Artifact integrity、Compiler quality、Asset admission、实例 ID、Rapier collider、最终 ON 关系、Agent planning rounds 与 mutation barrier。
+
+当前边界必须明确区分：
+
+- **已验证**：Agent orchestration、Connector Job contract、Artifact integrity、Compiler/Admission、spawn/place，以及 Level 2 的 `approachAndPickup → navigateTo(carry) → approachAndPlace`；最终由 Physics/Spatial/SceneGraph 验证。
+- **尚未验证**：真实 Modal Provider 的网络/冷启动/模型输出质量；当前 Agent decision 使用 deterministic scripted gateway，而非在线 LLM。
+- 下一阶段只需增加 opt-in `connector` backend，把同一套 Scenario 接到真实 `modal-provider`；之后再把 scripted gateway 换成真实 LLM 做在线 planner smoke。
 
 ## Spatial Debug Contract
 
@@ -159,18 +208,20 @@ missing body / joint
 contact count delta
 ```
 
-## 后续顺序
+## 当前覆盖与下一步
 
 ```text
-Physics + Spatial Observatory
+Physics / Spatial
   ↓
-Deterministic checkpoint / replay
+Navigation / Interaction
   ↓
-Synthetic vs real Asset truth comparison
+AgentTools / Agent Trace
   ↓
-Navigation / Recast Lab
+Generation / Agent Build fixture E2E
   ↓
-Interaction Lab
+Generated Asset pickup / carry / approachAndPlace   ← 当前已闭合
   ↓
-AgentTools Lab
+真实 Connector / modal-provider opt-in smoke
+  ↓
+真实 LLM planner smoke
 ```

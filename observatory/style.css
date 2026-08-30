@@ -270,8 +270,12 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.55;strok
 .obs-active-op b{max-width:180px;color:var(--accent);overflow:hidden;text-overflow:ellipsis}
 
 .obs-world-label-layer{position:absolute!important;inset:0;z-index:7;pointer-events:none;overflow:hidden}
-.obs-world-label{position:relative;display:flex;align-items:center;gap:7px;min-width:82px;padding:6px 8px 6px 7px;border:1px solid rgba(var(--accent-rgb),.18);border-radius:999px;background:rgba(65,69,89,.9);box-shadow:var(--shadow-sm);color:var(--text);transform:translate(10px,-10px);animation:obs-label-in .18s ease-out both;white-space:nowrap}
-.obs-world-label::before{content:"";position:absolute;right:100%;top:50%;width:10px;height:1px;background:rgba(var(--accent-rgb),.38)}
+.obs-world-label-anchor{position:relative;width:12px;height:12px;pointer-events:none}
+.obs-world-label-pin{position:absolute;left:3px;top:3px;width:6px;height:6px;border:1px solid rgba(198,208,245,.9);border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.14),0 0 10px rgba(var(--accent-rgb),.55)}
+.obs-world-label{position:absolute;left:17px;top:-17px;display:flex;align-items:center;gap:7px;min-width:160px;padding:8px 10px 8px 9px;border:1px solid rgba(var(--accent-rgb),.3);border-radius:10px;background:rgba(48,52,70,.96);box-shadow:var(--shadow-md);color:var(--text);opacity:0;pointer-events:none;transform:translate(calc(10px + var(--obs-label-shift-x, 0px)),calc(-10px + var(--obs-label-shift-y, 0px)));transition:opacity .14s ease,transform .14s ease;white-space:nowrap}
+.obs-world-label-anchor.is-hovered .obs-world-label{opacity:1}
+.obs-world-label::before{content:"";position:absolute;right:100%;top:calc(50% + 8px);width:24px;height:1px;background:rgba(var(--accent-rgb),.58);transform:rotate(-27deg);transform-origin:right center}
+.obs-world-label::after{content:"";position:absolute;right:100%;top:calc(50% + 2px);width:10px;height:1px;background:rgba(var(--accent-rgb),.72)}
 .obs-world-label>i{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(var(--accent-rgb),.45)}
 .obs-world-label>div{display:grid;grid-template-columns:auto auto;gap:1px 7px;align-items:baseline}
 .obs-world-label small{grid-column:1/-1;color:var(--accent);font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em}
@@ -291,7 +295,7 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.55;strok
 @keyframes obs-spin{to{transform:rotate(360deg)}}
 @keyframes obs-pulse{0%,100%{opacity:.55;transform:scale(.94)}50%{opacity:1;transform:scale(1.06)}}
 @keyframes obs-breathe{0%,100%{opacity:.52;transform:translate(-50%,-50%) scale(.985)}50%{opacity:.9;transform:translate(-50%,-50%) scale(1.015)}}
-@keyframes obs-label-in{from{opacity:0;transform:translate(7px,-7px) scale(.98)}to{opacity:1;transform:translate(10px,-10px) scale(1)}}
+@keyframes obs-label-in{from{opacity:0}to{opacity:1}}
 
 @media(max-width:1280px){
   .obs-workspace{grid-template-columns:220px minmax(0,1fr) 340px;gap:16px;padding:18px}

@@ -89,6 +89,22 @@ export function worldLabelsForAgent(snapshot) {
     labels.push(label("agent:dropped", [cup.position[0], cup.position[1] + 0.25, cup.position[2]], "已验证", "杯子已放下", "已稳定", "pass"));
   }
 
+  if (snapshot?.source === "generation-agent-build") {
+    const generatedId = snapshot?.generation?.instanceId;
+    const generatedBody = snapshot?.physics?.bodies?.find((body) => body.objectId === generatedId);
+    const relation = snapshot?.generation?.relations?.find((edge) => edge.subject === generatedId && edge.predicate === "ON");
+    if (generatedId && tuple(generatedBody?.position)) {
+      labels.push(label(
+        "generation:asset",
+        [generatedBody.position[0], generatedBody.position[1] + 0.34, generatedBody.position[2]],
+        relation ? "已验证生成资产" : "生成资产",
+        snapshot.generation.asset?.type === "apple" ? "红苹果" : generatedId,
+        relation ? `ON · ${relation.object}` : (snapshot.generation.asset?.admission?.status || "已实例化"),
+        relation ? "pass" : "info"
+      ));
+    }
+  }
+
   const execution = snapshot?.agent?.execution || [];
   const latestExecution = [...execution].reverse().find((entry) => entry.executed);
   if (!tool && latestExecution?.tool === "getBounds") {
@@ -120,10 +136,48 @@ export class WorldLabelLayer {
     viewport.appendChild(this.renderer.domElement);
     this.objects = new Map();
     this.visible = true;
+    this.hoveredId = null;
+    this.onPointerMove = (event) => {
+      let nextId = null;
+      let closest = 30;
+      if (this.hoveredId) {
+        const currentCard = this.objects.get(this.hoveredId)?.labelElement;
+        const cardRect = currentCard?.getBoundingClientRect();
+        if (cardRect && event.clientX >= cardRect.left && event.clientX <= cardRect.right && event.clientY >= cardRect.top && event.clientY <= cardRect.bottom) {
+          nextId = this.hoveredId;
+        }
+      }
+      for (const [id, object] of this.objects) {
+        if (nextId) break;
+        const pin = object.pinElement;
+        if (!pin) continue;
+        const pinRect = pin.getBoundingClientRect();
+        const distance = Math.hypot(event.clientX - (pinRect.left + pinRect.width / 2), event.clientY - (pinRect.top + pinRect.height / 2));
+        if (distance < closest) {
+          closest = distance;
+          nextId = id;
+        }
+      }
+      this.setHovered(nextId);
+    };
+    this.onPointerLeave = () => {
+      this.setHovered(null);
+    };
+    viewport.addEventListener("pointermove", this.onPointerMove);
+    viewport.addEventListener("pointerleave", this.onPointerLeave);
+  }
+
+  setHovered(id) {
+    if (this.hoveredId === id) return;
+    this.hoveredId = id;
+    for (const [objectId, object] of this.objects) {
+      object.element.classList.toggle("is-hovered", objectId === id);
+    }
   }
 
   setVisible(visible) {
     this.visible = Boolean(visible);
+    if (!this.visible) this.setHovered(null);
     this.renderer.domElement.hidden = !this.visible;
   }
 
@@ -131,6 +185,7 @@ export class WorldLabelLayer {
     const nextIds = new Set(labels.map((item) => item.id));
     for (const [id, object] of this.objects) {
       if (nextIds.has(id)) continue;
+      if (this.hoveredId === id) this.hoveredId = null;
       this.group.remove(object);
       object.element.remove();
       this.objects.delete(id);
@@ -140,19 +195,27 @@ export class WorldLabelLayer {
       if (!tuple(item.position)) continue;
       let object = this.objects.get(item.id);
       if (!object) {
+        const anchor = document.createElement("div");
+        anchor.className = "obs-world-label-anchor";
+        const pin = document.createElement("i");
+        pin.className = "obs-world-label-pin";
+        pin.setAttribute("aria-hidden", "true");
         const element = document.createElement("div");
         element.className = "obs-world-label";
         element.innerHTML = "<i></i><div><small></small><b></b><span></span></div>";
-        object = new CSS2DObject(element);
+        anchor.append(pin, element);
+        object = new CSS2DObject(anchor);
+        object.pinElement = pin;
+        object.labelElement = element;
         object.name = `world-label:${item.id}`;
         this.objects.set(item.id, object);
         this.group.add(object);
       }
       object.position.fromArray(item.position);
-      object.element.dataset.tone = item.tone || "neutral";
-      object.element.querySelector("small").textContent = item.eyebrow || "";
-      object.element.querySelector("b").textContent = item.title || "";
-      object.element.querySelector("span").textContent = item.detail || "";
+      object.labelElement.dataset.tone = item.tone || "neutral";
+      object.labelElement.querySelector("small").textContent = item.eyebrow || "";
+      object.labelElement.querySelector("b").textContent = item.title || "";
+      object.labelElement.querySelector("span").textContent = item.detail || "";
     }
   }
 
@@ -161,10 +224,44 @@ export class WorldLabelLayer {
   }
 
   render() {
-    if (this.visible) this.renderer.render(this.scene, this.camera);
+    if (!this.visible) return;
+    this.renderer.render(this.scene, this.camera);
+
+    const viewportRect = this.viewport.getBoundingClientRect();
+    const badge = this.viewport.closest(".obs-stage")?.querySelector(".obs-stage-title");
+    const badgeRect = badge?.getBoundingClientRect();
+    const padding = 8;
+
+    for (const object of this.objects.values()) {
+      const element = object.labelElement;
+      if (!element || !object.element.classList.contains("is-hovered")) continue;
+      element.style.setProperty("--obs-label-shift-x", "0px");
+      element.style.setProperty("--obs-label-shift-y", "0px");
+      let rect = element.getBoundingClientRect();
+      let shiftX = 0;
+      let shiftY = 0;
+      if (rect.left < viewportRect.left + padding) shiftX += viewportRect.left + padding - rect.left;
+      if (rect.right > viewportRect.right - padding) shiftX -= rect.right - (viewportRect.right - padding);
+      if (rect.top < viewportRect.top + padding) shiftY += viewportRect.top + padding - rect.top;
+      if (rect.bottom > viewportRect.bottom - padding) shiftY -= rect.bottom - (viewportRect.bottom - padding);
+
+      if (badgeRect && rect.left < badgeRect.right && rect.right > badgeRect.left && rect.top < badgeRect.bottom && rect.bottom > badgeRect.top) {
+        shiftY += badgeRect.bottom + padding - rect.top;
+        rect = { x: rect.x + shiftX, y: rect.y + shiftY, width: rect.width, height: rect.height, bottom: rect.bottom + shiftY };
+        if (rect.bottom > viewportRect.bottom - padding) {
+          shiftY -= rect.bottom - (viewportRect.bottom - padding);
+          shiftX += badgeRect.left + padding - rect.right;
+        }
+      }
+
+      element.style.setProperty("--obs-label-shift-x", `${shiftX}px`);
+      element.style.setProperty("--obs-label-shift-y", `${shiftY}px`);
+    }
   }
 
   dispose() {
+    this.viewport.removeEventListener("pointermove", this.onPointerMove);
+    this.viewport.removeEventListener("pointerleave", this.onPointerLeave);
     for (const object of this.objects.values()) object.element.remove();
     this.objects.clear();
     this.scene.remove(this.group);

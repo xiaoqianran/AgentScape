@@ -87,7 +87,7 @@ Prompt / GLB / EmbodiedGen / External Generator
 | Agent Safety | Policy、Trace、mutation barrier、fresh replan、unresolved ledger、deterministic verification |
 | Persistence | Scene serialization、Autosave、Undo/Redo、world-specific save |
 | Asset Compiler | GLB inspection、Part/Joint、collider、resource budget、quality gate |
-| Observatory | Developer Runtime Lab：Physics/Spatial 单步、replay、Rapier↔Jolt comparison、debug contract |
+| Observatory | Developer Runtime Lab：Physics / Spatial / Navigation / Interaction / Agent / Generation 单步与 replay；Generation Lab 可走真实 Artifact/Compiler/Admission，并验证生成资产的 spawn / pickup / carry / place |
 
 版本演进细节不再塞在 README；完整历史见 [`docs/evolution.md`](docs/evolution.md)，当前真实状态见 [`docs/status-and-roadmap.md`](docs/status-and-roadmap.md)。
 

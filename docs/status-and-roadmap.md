@@ -41,7 +41,7 @@
 | Multi-Agent | 10% | 不是当前优先级 |
 | 完整生成式 World Pipeline | 76% | 1.34 已有 missing-asset-only bounded regeneration、fixed attempt budget 与 exact-plan duplicate gate；下一步按新架构先收敛 World IR revision/acceptance contract，再实现 non-retriable finding→受约束修订 |
 | Pages / Art Direction | 78% | Monument Hall + Ruined Courtyard + Grand Urban Block；world pack JS 已按当前选择 lazy load |
-| Developer Observatory | 72% | 独立 Vite 入口；Physics + Spatial Lab、fixed-step replay、Rapier/Jolt normalized comparison、production debug contracts 已通；Navigation/Interaction/Agent Lab 尚未实现 |
+| Developer Observatory | 88% | Physics / Spatial / Navigation / Interaction / AgentTools / Agent Trace 已通；Generation / Agent Build 已闭合 deterministic Agent→Job→Artifact→Compiler→Spawn→Place，以及生成资产 approachAndPickup→carry→approachAndPlace；真实 Connector/Modal 与在线 LLM 仍待 opt-in E2E |
 
 ---
 
@@ -157,6 +157,31 @@ Spatial Lab
 ├─ Bounds / overlap
 ├─ Support / free-space
 └─ deterministic query replay
+
+Navigation Lab
+├─ Recast path truth
+├─ disconnected islands
+├─ door counterfactual
+└─ door-open transition
+
+Interaction Lab
+├─ LOS clear / blocked
+├─ pickup / drop
+└─ place + support verification
+
+Agent Lab
+├─ AgentTools workbench
+├─ ToolCallingAgent scripted trace
+└─ mutation barrier / fresh replan
+
+Generation / Agent Build Lab
+├─ deterministic zero-cost Connector fixture
+├─ real GLB bytes + Artifact SHA-256/MIME/bytes verification
+├─ production AssetCompiler + Admission
+├─ spawnAsset + Rapier instance
+├─ Level 1: spawnAsset + place(table.top)
+├─ Level 2: approachAndPickup + navigateTo(carry) + approachAndPlace
+└─ Physics/Spatial/SceneGraph ON + Agent completed
 ```
 
 架构约束：
@@ -169,9 +194,9 @@ Spatial Lab
 下一阶段顺序：
 
 ```text
-Navigation / Recast Lab
-→ Interaction Lab
-→ AgentTools / Run Lab
+真实 Connector / modal-provider opt-in Generation smoke
+→ 在线 LLM planner smoke（替换 scripted gateway）
+→ 更复杂的 Agent-generated World / Asset failure recovery
 ```
 
 详见 [`observatory.md`](./observatory.md)。
