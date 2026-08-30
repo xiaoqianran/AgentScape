@@ -3,6 +3,7 @@ import { LabRegistry } from "./core/LabRegistry.js";
 import { ScenarioRegistry } from "./core/ScenarioRegistry.js";
 import { ObservatoryShell } from "./ui/ObservatoryShell.js";
 import { runWebGPUComputeProbe } from "../core/rendering/WebGPUComputeProbe.js";
+import { runWebGPUSpatialProbe } from "../core/rendering/WebGPUSpatialProbe.js";
 
 const renderingInfoForLab = (lab) => lab?.rendererProbe?.snapshot?.() || lab?.left?.rendererProbe?.snapshot?.() || lab?.rendererInfo || lab?.left?.rendererInfo || null;
 const rendererForLab = (lab) => lab?.renderer || lab?.left?.renderer || null;
@@ -106,6 +107,7 @@ class ObservatoryApp {
       onGridDebug: (visible) => this.lab?.setGridVisible?.(visible),
       onFocusView: () => this.lab?.focusScenario?.(),
       onComputeProbe: () => this.runComputeProbe(),
+      onSpatialProbe: () => this.runSpatialProbe(),
       onLabChange: (labId) => this.activateLab(labId),
       onBackendChange: (backendId) => this.activateLab(this.activeLabId, {
         backendId,
@@ -241,6 +243,21 @@ class ObservatoryApp {
       return null;
     } finally {
       this.shell.setComputeProbeRunning(false);
+    }
+  }
+
+  async runSpatialProbe() {
+    const renderer = rendererForLab(this.lab);
+    this.shell.setSpatialProbeRunning(true);
+    try {
+      const result = await runWebGPUSpatialProbe(renderer);
+      this.shell.renderSpatialProbe(result);
+      return result;
+    } catch (error) {
+      this.shell.renderSpatialProbe({ supported: true, passed: false, error: error?.message || String(error) });
+      return null;
+    } finally {
+      this.shell.setSpatialProbeRunning(false);
     }
   }
 
