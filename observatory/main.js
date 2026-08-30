@@ -4,6 +4,21 @@ import { ScenarioRegistry } from "./core/ScenarioRegistry.js";
 import { ObservatoryShell } from "./ui/ObservatoryShell.js";
 
 const renderingInfoForLab = (lab) => lab?.rendererProbe?.snapshot?.() || lab?.left?.rendererProbe?.snapshot?.() || lab?.rendererInfo || lab?.left?.rendererInfo || null;
+const rendererFeatureSummary = (features = []) => {
+  const set = new Set(features || []);
+  const selected = ['timestamp-query', 'shader-f16', 'subgroups', 'texture-compression-bc'].filter((name) => set.has(name));
+  return selected.length ? selected.join(', ') : '—';
+};
+const formatRendererBytes = (value) => Number.isFinite(value)
+  ? (value >= 1024 ** 3 ? `${(value / 1024 ** 3).toFixed(1)} GiB` : `${(value / 1024 ** 2).toFixed(0)} MiB`)
+  : '—';
+const computeWorkgroupSummary = (limits = {}) => {
+  const shape = [limits.maxComputeWorkgroupSizeX, limits.maxComputeWorkgroupSizeY, limits.maxComputeWorkgroupSizeZ]
+    .map((value) => Number.isFinite(value) ? value : '—')
+    .join('×');
+  const invocations = Number.isFinite(limits.maxComputeInvocationsPerWorkgroup) ? limits.maxComputeInvocationsPerWorkgroup : '—';
+  return `${shape} / ${invocations}`;
+};
 
 const LABS = [
   {
@@ -163,7 +178,10 @@ class ObservatoryApp {
             "gpu timing": rendering.gpuTiming ?? false,
             "gpu render": Number.isFinite(rendering.gpuTimeMs) ? `${rendering.gpuTimeMs.toFixed(3)} ms` : "—",
             "timestamp query": rendering.timestampSupported ?? false,
-            "webgpu compatibility": rendering.compatibilityMode ?? "—"
+            "webgpu compatibility": rendering.compatibilityMode ?? "—",
+            "webgpu features": rendererFeatureSummary(rendering.features),
+            "storage buffer": formatRendererBytes(rendering.limits?.maxStorageBufferBindingSize),
+            "compute workgroup": computeWorkgroupSummary(rendering.limits)
           }
         } : data);
       }

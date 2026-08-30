@@ -138,10 +138,12 @@ export class DeveloperSettings {
     const gpuTime = Number.isFinite(info.gpuTimeMs) ? `${info.gpuTimeMs.toFixed(3)} ms` : '—';
     const timing = info.gpuTiming ? `启用 · ${gpuTime}` : '关闭';
     const compatibility = info.compatibilityMode === true ? 'compatibility' : info.compatibilityMode === false ? 'core' : '—';
+    const features = rendererFeatureSummary(info.features);
+    const limits = rendererLimitSummary(info.limits);
     renderTechnicalReport(
       this.rendererReport,
       `${backend} · ${health}`,
-      `模式 ${mode} · fallback ${info.fallback ? '是' : '否'} · GPU timing ${timing} · WebGPU ${compatibility}`
+      `模式 ${mode} · fallback ${info.fallback ? '是' : '否'} · GPU timing ${timing} · WebGPU ${compatibility} · ${features} · ${limits}`
     );
   }
 
@@ -265,4 +267,29 @@ function renderTechnicalReport(container, heading, detail) {
   const strong = document.createElement('strong');
   strong.textContent = String(heading ?? '');
   container.replaceChildren(strong, document.createTextNode(` · ${String(detail ?? '')}`));
+}
+
+function rendererFeatureSummary(features = []) {
+  const set = new Set(features || []);
+  const important = ['timestamp-query', 'shader-f16', 'subgroups', 'texture-compression-bc'].filter((name) => set.has(name));
+  return important.length ? `features ${important.join(', ')}` : 'features —';
+}
+
+function rendererLimitSummary(limits = {}) {
+  if (!limits || !Object.keys(limits).length) return 'limits —';
+  const storage = formatBytes(limits.maxStorageBufferBindingSize);
+  const invocations = Number.isFinite(limits.maxComputeInvocationsPerWorkgroup) ? limits.maxComputeInvocationsPerWorkgroup : '—';
+  const group = [limits.maxComputeWorkgroupSizeX, limits.maxComputeWorkgroupSizeY, limits.maxComputeWorkgroupSizeZ]
+    .map((value) => Number.isFinite(value) ? value : '—')
+    .join('×');
+  const bindGroups = Number.isFinite(limits.maxBindGroups) ? limits.maxBindGroups : '—';
+  return `storage ${storage} · compute ${group} / ${invocations} invocations · bind groups ${bindGroups}`;
+}
+
+function formatBytes(value) {
+  if (!Number.isFinite(value)) return '—';
+  if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(1)} GiB`;
+  if (value >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(0)} MiB`;
+  if (value >= 1024) return `${(value / 1024).toFixed(0)} KiB`;
+  return `${value} B`;
 }

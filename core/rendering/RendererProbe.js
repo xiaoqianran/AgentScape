@@ -7,7 +7,12 @@ const WEBGPU_LIMIT_KEYS = Object.freeze([
   'maxUniformBufferBindingSize',
   'maxStorageBufferBindingSize',
   'maxComputeWorkgroupStorageSize',
-  'maxComputeInvocationsPerWorkgroup'
+  'maxComputeInvocationsPerWorkgroup',
+  'maxStorageBuffersPerShaderStage',
+  'maxComputeWorkgroupSizeX',
+  'maxComputeWorkgroupSizeY',
+  'maxComputeWorkgroupSizeZ',
+  'maxComputeWorkgroupsPerDimension'
 ]);
 
 const scalar = (value) => typeof value === 'bigint'

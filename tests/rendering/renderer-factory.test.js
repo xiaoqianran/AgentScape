@@ -72,8 +72,17 @@ describe('renderer factory', () => {
         trackTimestamp: true,
         compatibilityMode: false,
         device: {
-          features: new Set(['timestamp-query', 'texture-compression-bc']),
-          limits: { maxTextureDimension2D: 8192, maxBindGroups: 4 }
+          features: new Set(['timestamp-query', 'texture-compression-bc', 'shader-f16']),
+          limits: {
+            maxTextureDimension2D: 8192,
+            maxBindGroups: 4,
+            maxStorageBufferBindingSize: 134217728,
+            maxComputeInvocationsPerWorkgroup: 256,
+            maxComputeWorkgroupSizeX: 256,
+            maxComputeWorkgroupSizeY: 256,
+            maxComputeWorkgroupSizeZ: 64,
+            maxComputeWorkgroupsPerDimension: 65535
+          }
         }
       },
       onDeviceLost: previousDeviceLost,
@@ -94,7 +103,13 @@ describe('renderer factory', () => {
       gpuTiming: true,
       gpuTimeMs: 1.25,
       timestampSupported: true,
-      compatibilityMode: false
+      compatibilityMode: false,
+      features: ['shader-f16', 'texture-compression-bc', 'timestamp-query'],
+      limits: expect.objectContaining({
+        maxStorageBufferBindingSize: 134217728,
+        maxComputeInvocationsPerWorkgroup: 256,
+        maxComputeWorkgroupSizeX: 256
+      })
     });
 
     renderer.onError({ api: 'WebGPU', type: 'GPUValidationError', message: 'bad binding' });
