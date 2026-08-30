@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GltfAssetLoader } from './loading/GltfAssetLoader.js';
 import { assetManifests } from './manifests/index.js';
 import { validateAssetManifest } from './schema.js';
 import { Errors } from '../core/errors.js';
@@ -12,9 +12,10 @@ const canonical = (value) => {
 };
 
 export class AssetManager {
-  constructor({ manifests = assetManifests, compiledStore = null } = {}) {
+  constructor({ manifests = assetManifests, compiledStore = null, gltfLoader = new GltfAssetLoader() } = {}) {
+    if (!gltfLoader || typeof gltfLoader.loadScene !== 'function') throw new TypeError('AssetManager requires a glTF asset loader');
     this.compiledStore = compiledStore;
-    this.loader = new GLTFLoader();
+    this.gltfLoader = gltfLoader;
     this.manifests = new Map();
     this.factories = new Map();
     for (const manifest of Object.values(manifests)) this.registerManifest(manifest);
@@ -40,6 +41,7 @@ export class AssetManager {
   }
 
   registerFactory(assetId, factory) { this.factories.set(assetId, factory); }
+  configureRenderer(renderer) { return this.gltfLoader.configureRenderer?.(renderer) ?? false; }
   has(assetId) { return this.manifests.has(assetId); }
   getManifest(assetId) {
     const manifest = this.manifests.get(assetId);
@@ -86,14 +88,14 @@ export class AssetManager {
   }
 
   async loadGLB(url) {
-    const gltf = await this.loader.loadAsync(url);
-    gltf.scene.traverse((node) => {
+    const scene = await this.gltfLoader.loadScene(url);
+    scene.traverse((node) => {
       if (node.isMesh) {
         node.castShadow = true;
         node.receiveShadow = true;
       }
     });
-    return gltf.scene;
+    return scene;
   }
 
   registerBuiltins() {

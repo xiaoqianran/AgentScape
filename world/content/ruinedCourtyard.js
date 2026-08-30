@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
 export const RUINED_COURTYARD_ASSETS = Object.freeze({
   hdri: 'assets/ruined-courtyard/courtyard_1k.hdr',
@@ -110,7 +109,7 @@ const addGrass = (root) => {
   root.add(instanced);
 };
 
-export function createRuinedCourtyard({ scene, loadAssets = true } = {}) {
+export function createRuinedCourtyard({ loadAssets = true } = {}) {
   const root = new THREE.Group();
   root.name = 'RuinedCourtyard';
   root.userData.environment = 'ruined-courtyard';
@@ -170,7 +169,6 @@ export function createRuinedCourtyard({ scene, loadAssets = true } = {}) {
   root.add(hemi, sun, fill);
 
   let active = true;
-  let environmentTexture = null;
   const loader = loadAssets ? new THREE.TextureLoader() : null;
   const loadTexture = (url, configure, apply) => loader?.load(url, (texture) => {
     if (!active) { texture.dispose(); return; }
@@ -181,12 +179,6 @@ export function createRuinedCourtyard({ scene, loadAssets = true } = {}) {
     loadTexture(RUINED_COURTYARD_ASSETS.groundDiffuse, (t) => tile(t, [12, 10], true), (t) => { ground.map = t; ground.needsUpdate = true; });
     loadTexture(RUINED_COURTYARD_ASSETS.groundNormal, (t) => tile(t, [12, 10]), (t) => { ground.normalMap = t; ground.normalScale.set(.42, .42); ground.needsUpdate = true; });
     loadTexture(RUINED_COURTYARD_ASSETS.wallDiffuse, (t) => tile(t, [5, 3], true), (t) => { sandstone.map = t; sandstone.needsUpdate = true; });
-    new RGBELoader().load(RUINED_COURTYARD_ASSETS.hdri, (texture) => {
-      if (!active) { texture.dispose(); return; }
-      environmentTexture = texture;
-      texture.mapping = THREE.EquirectangularReflectionMapping;
-      if (scene) scene.environment = texture;
-    });
   }
 
   return {
@@ -196,12 +188,9 @@ export function createRuinedCourtyard({ scene, loadAssets = true } = {}) {
     colliders:RUINED_COURTYARD_COLLIDERS.map((value) => structuredClone(value)),
     layout:{bounds:{min:[-17,-14],max:[17,14]},groundY:0,margin:1},
     camera:{ position:[16.8, 8.8, 19.5], target:[0, 1.2, -2.6] },
-    rendering:{ background:0x667160, fog:{ color:0x667160, near:24, far:72 }, exposure:1.08 },
+    rendering:{ background:0x667160, fog:{ color:0x667160, near:24, far:72 }, exposure:1.08 , ibl:loadAssets?{url:RUINED_COURTYARD_ASSETS.hdri,intensity:1}:null },
     dispose() {
       active = false;
-      if (scene?.environment === environmentTexture) scene.environment = null;
-      environmentTexture?.dispose();
-      environmentTexture = null;
     }
   };
 }

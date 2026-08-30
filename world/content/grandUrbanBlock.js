@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
 export const GRAND_URBAN_BLOCK_ASSETS = Object.freeze({
   hdri:'assets/grand-urban-block/urban_street_01_1k.hdr',
@@ -126,7 +125,7 @@ const addStreetFurniture = (root) => {
   root.add(trunks,crowns);
 };
 
-export function createGrandUrbanBlock({scene,loadAssets=true}={}){
+export function createGrandUrbanBlock({loadAssets=true}={}){
   const root=new THREE.Group();
   root.name='GrandUrbanBlock'; root.userData.environment='grand-urban-block';
 
@@ -168,7 +167,6 @@ export function createGrandUrbanBlock({scene,loadAssets=true}={}){
   root.add(hemi,sun,cityFill,beaconLight);
 
   let active=true;
-  let environmentTexture=null;
   const loader=loadAssets?new THREE.TextureLoader():null;
   const loadTexture=(url,configure,apply)=>loader?.load(url,(texture)=>{
     if(!active){texture.dispose();return;}
@@ -178,11 +176,6 @@ export function createGrandUrbanBlock({scene,loadAssets=true}={}){
     loadTexture(GRAND_URBAN_BLOCK_ASSETS.asphaltDiffuse,(t)=>tile(t,[28,20],true),(t)=>{asphalt.map=t;asphalt.needsUpdate=true;});
     loadTexture(GRAND_URBAN_BLOCK_ASSETS.asphaltNormal,(t)=>tile(t,[28,20]),(t)=>{asphalt.normalMap=t;asphalt.normalScale.set(.28,.28);asphalt.needsUpdate=true;});
     loadTexture(GRAND_URBAN_BLOCK_ASSETS.pavementDiffuse,(t)=>tile(t,[12,9],true),(t)=>{pavement.map=t;pavement.needsUpdate=true;});
-    new RGBELoader().load(GRAND_URBAN_BLOCK_ASSETS.hdri,(texture)=>{
-      if(!active){texture.dispose();return;}
-      environmentTexture=texture; texture.mapping=THREE.EquirectangularReflectionMapping;
-      if(scene) scene.environment=texture;
-    });
   }
 
   return {
@@ -190,7 +183,7 @@ export function createGrandUrbanBlock({scene,loadAssets=true}={}){
     colliders:GRAND_URBAN_BLOCK_COLLIDERS.map((value)=>structuredClone(value)),
     layout:{bounds:{min:[-47,-35],max:[47,35]},groundY:0,margin:1.5},
     camera:{position:[52,36,58],target:[0,4,0],far:190},
-    rendering:{background:0x66717d,fog:{color:0x66717d,near:58,far:155},exposure:1.04},
-    dispose(){active=false;if(scene?.environment===environmentTexture)scene.environment=null;environmentTexture?.dispose();environmentTexture=null;}
+    rendering:{background:0x66717d,fog:{color:0x66717d,near:58,far:155},exposure:1.04, ibl:loadAssets?{url:GRAND_URBAN_BLOCK_ASSETS.hdri,intensity:1}:null },
+    dispose(){active=false;}
   };
 }

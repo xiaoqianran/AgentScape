@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
 export const MONUMENT_HALL_ASSETS = Object.freeze({
   hdri: 'assets/monument-hall/solitude_interior_1k.hdr',
@@ -43,7 +42,7 @@ const prepareTiling = (texture, repeat, color = false) => {
   return texture;
 };
 
-export function createMonumentHall({ scene, loadAssets = true } = {}) {
+export function createMonumentHall({ loadAssets = true } = {}) {
   const root = new THREE.Group();
   root.name = 'MonumentHall';
   root.userData.environment = 'monument-hall';
@@ -127,7 +126,6 @@ export function createMonumentHall({ scene, loadAssets = true } = {}) {
   root.add(coreLight);
 
   let active = true;
-  let environmentTexture = null;
   const textureLoader = loadAssets ? new THREE.TextureLoader() : null;
   const loadTexture = (url, configure, apply) => textureLoader?.load(url, (texture) => {
     if (!active) { texture.dispose(); return; }
@@ -139,12 +137,6 @@ export function createMonumentHall({ scene, loadAssets = true } = {}) {
     loadTexture(MONUMENT_HALL_ASSETS.marbleDiffuse, (t) => prepareTiling(t, [10, 7.5], true), (t) => { marble.map = t; marble.needsUpdate = true; });
     loadTexture(MONUMENT_HALL_ASSETS.marbleNormal, (t) => prepareTiling(t, [10, 7.5]), (t) => { marble.normalMap = t; marble.normalScale.set(0.32, 0.32); marble.needsUpdate = true; });
     loadTexture(MONUMENT_HALL_ASSETS.marbleRoughness, (t) => prepareTiling(t, [10, 7.5]), (t) => { marble.roughnessMap = t; marble.needsUpdate = true; });
-    new RGBELoader().load(MONUMENT_HALL_ASSETS.hdri, (texture) => {
-      if (!active) { texture.dispose(); return; }
-      environmentTexture = texture;
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-      if (scene) scene.environment = texture;
-    });
   }
 
   return {
@@ -154,12 +146,9 @@ export function createMonumentHall({ scene, loadAssets = true } = {}) {
     colliders: MONUMENT_HALL_COLLIDERS.map((value) => structuredClone(value)),
     layout:{bounds:{min:[-15,-11],max:[15,11]},groundY:0,margin:1},
     camera: { position: [11.8, 6.8, 16.5], target: [0, 2.4, -4.4] },
-    rendering:{ background:0x080b10, fog:{ color:0x080b10, near:22, far:58 }, exposure:1.15 },
+    rendering:{ background:0x080b10, fog:{ color:0x080b10, near:22, far:58 }, exposure:1.15 , ibl:loadAssets?{url:MONUMENT_HALL_ASSETS.hdri,intensity:1}:null },
     dispose() {
       active = false;
-      if (scene?.environment === environmentTexture) scene.environment = null;
-      environmentTexture?.dispose();
-      environmentTexture = null;
     }
   };
 }

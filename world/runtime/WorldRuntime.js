@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { installThreeBvhRuntime, ensureBoundsTrees } from './spatial/ThreeBvhRuntime.js';
 import { EventBus } from '../../core/EventBus.js';
 import { ObjectStore } from './ObjectStore.js';
@@ -10,6 +9,7 @@ import { SpatialSystem } from './systems/SpatialSystem.js';
 import { NavigationSystem } from './systems/NavigationSystem.js';
 import { RecastNavigationBackend } from './navigation/RecastNavigationBackend.js';
 import { LocomotionSystem } from './systems/LocomotionSystem.js';
+import { RenderingSystem } from './systems/RenderingSystem.js';
 import { SceneSerializer } from './SceneSerializer.js';
 import { CommandHistory } from './CommandHistory.js';
 import { SceneGraph } from './graph/SceneGraph.js';
@@ -22,8 +22,6 @@ import { disposeObject3D } from '../../core/disposeObject3D.js';
 import { ArticulationVerifier } from '../verification/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
-import { createRenderer } from '../../core/rendering/createRenderer.js';
-import { RendererProbe } from '../../core/rendering/RendererProbe.js';
 installThreeBvhRuntime();
 
 const cloneAuthorityValue=(value)=>value==null?value:structuredClone(value);
@@ -55,13 +53,13 @@ const mutationResultCommitted=(result)=>!(
 );
 
 export class WorldRuntime {
-  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend(), rendererFactory = createRenderer, rendererMode = 'auto', rendererTiming = false } = {}) {
+  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend(), rendererFactory = null, rendererMode = 'auto', rendererTiming = false } = {}) {
     if (!assetModule?.manager || !assetModule?.catalog || !assetModule?.compiledStore) {
       throw new TypeError('WorldRuntime requires an Asset module');
     }
     if (typeof physicsFactory !== 'function') throw new TypeError('WorldRuntime physicsFactory must be a function');
     if (typeof navigationBackendFactory !== 'function') throw new TypeError('WorldRuntime navigationBackendFactory must be a function');
-    if (typeof rendererFactory !== 'function') throw new TypeError('WorldRuntime rendererFactory must be a function');
+    if (rendererFactory !== null && typeof rendererFactory !== 'function') throw new TypeError('WorldRuntime rendererFactory must be a function');
     this.version = '1.34.2';
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
@@ -73,30 +71,35 @@ export class WorldRuntime {
     this.navigationBackendFactory = navigationBackendFactory;
     this.rendererFactory = rendererFactory;
     this.rendererMode = rendererMode;
-    this.rendererInfo = null;
     this.rendererTiming = Boolean(rendererTiming);
+    this.rendering = null;
+    this.camera = null;
+    this.renderer = null;
+    this.controls = null;
+    this.rendererInfo = null;
     this.rendererProbe = null;
     this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null; this.timer = new THREE.Timer(); this.running = false;
   }
   async init() {
     await this.physics.init();
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(45, 1, 0.05, 120);
-    const rendering = await this.rendererFactory({ mode:this.rendererMode, antialias:true, alpha:false, trackTimestamp:this.rendererTiming });
-    this.renderer = rendering.renderer;
-    this.rendererInfo = rendering.info;
-    this.rendererProbe = new RendererProbe(this.renderer, {
-      requestedMode:this.rendererMode,
-      onDeviceLost:(detail)=>{ this.running=false; this.events.emit('renderer.device-lost', detail); },
-      onError:(detail)=>this.events.emit('renderer.error', detail)
-    });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
-    this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.container.appendChild(this.renderer.domElement);
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement); this.controls.enableDamping = true;
+    const renderingOptions = {
+      container:this.container,
+      scene:this.scene,
+      events:this.events,
+      rendererMode:this.rendererMode,
+      rendererTiming:this.rendererTiming,
+      onDeviceLost:()=>{ this.running=false; }
+    };
+    if (this.rendererFactory) renderingOptions.rendererFactory = this.rendererFactory;
+    this.rendering = new RenderingSystem(renderingOptions);
+    await this.rendering.init();
+    this.camera = this.rendering.camera;
+    this.renderer = this.rendering.renderer;
+    this.controls = this.rendering.controls;
+    this.rendererInfo = this.rendering.info;
+    this.rendererProbe = this.rendering.probe;
+    this.assets.configureRenderer?.(this.renderer);
     this.spatial = new SpatialSystem({ store: this.store, scene: this.scene });
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
@@ -110,24 +113,15 @@ export class WorldRuntime {
     this.interactions = new InteractionSystem({ store:this.store, physics:this.physics, spatial:this.spatial, navigation:this.navigation, locomotion:this.locomotion, events:this.events });
     this.ruleRuntime.start();
     this.worldPipeline = createCanonicalWorldPipeline(this);
-    this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); if (typeof document !== 'undefined') this.timer.connect(document); this.timer.reset(); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version, rendering:this.rendererInfo }); this.events.emit('runtime.ready', { rendering:this.rendererInfo }); return this;
+    this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); if (typeof document !== 'undefined') this.timer.connect(document); this.timer.reset(); this.running = true; this.animate(); const rendering=this.renderingDiagnostics(); this.trace.emit('runtime.ready', { version: this.version, rendering }); this.events.emit('runtime.ready', { rendering }); return this;
   }
   addEnvironment() {
     if (!this.environmentFactory) throw new Error('WorldRuntime requires an environmentFactory');
     this.environment = this.environmentFactory({ scene:this.scene });
     this.environmentFloor = this.environment.floor;
-    const rendering = this.environment.rendering || {};
-    const background = rendering.background ?? 0x080b10;
-    this.scene.background = new THREE.Color(background);
-    const fog = rendering.fog || { color:background, near:22, far:58 };
-    this.scene.fog = new THREE.Fog(fog.color, fog.near, fog.far);
-    this.renderer.toneMappingExposure = rendering.exposure ?? 1.1;
     this.scene.add(this.environment.root);
+    this.rendering.applyEnvironment(this.environment);
     this.physics.addEnvironment(this.environment.colliders,{id:this.environment.id});
-    if (this.environment.camera.far) { this.camera.far = this.environment.camera.far; this.camera.updateProjectionMatrix(); }
-    this.camera.position.fromArray(this.environment.camera.position);
-    this.controls.target.fromArray(this.environment.camera.target);
-    this.controls.update();
   }
   async spawn(assetId, { position = [0, 0, 0], id = `${assetId}_${crypto.randomUUID()}`, initialState = null } = {}) {
     const { object, manifest } = await this.assets.instantiate(assetId);
@@ -312,10 +306,10 @@ export class WorldRuntime {
   }
 
   listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
-  update(timestamp) { this.timer.update(timestamp); const dt = Math.min(this.timer.getDelta(), 1 / 30); this.locomotion?.update(dt); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.camera); this.controls.update(); }
-  animate = (timestamp) => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(timestamp); this.renderer.render(this.scene, this.camera); this.rendererProbe?.afterRender(timestamp ?? performance.now()); };
-  renderingDiagnostics() { return this.rendererProbe?.snapshot?.() || this.rendererInfo; }
-  resize() { const w = this.container.clientWidth, h = this.container.clientHeight; if (!w || !h) return; this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h, false); }
+  update(timestamp) { this.timer.update(timestamp); const dt = Math.min(this.timer.getDelta(), 1 / 30); this.locomotion?.update(dt); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.camera); if (this.rendering) this.rendering.update(); else this.controls?.update?.(); }
+  animate = (timestamp) => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(timestamp); if (this.rendering) this.rendering.render(timestamp ?? performance.now()); else { this.renderer?.render?.(this.scene, this.camera); this.rendererProbe?.afterRender?.(timestamp ?? performance.now()); } };
+  renderingDiagnostics() { return this.rendering?.diagnostics?.() || this.rendererProbe?.snapshot?.() || this.rendererInfo; }
+  resize() { return this.rendering?.resize?.() ?? false; }
   dispose() {
     this.running = false;
     window.removeEventListener('resize', this._resize);
@@ -332,15 +326,24 @@ export class WorldRuntime {
     this.environment?.dispose();
     this.environment = null;
     disposeObject3D(this.scene);
-    this.controls?.dispose();
     this.navigation?.dispose();
     this.navigation = null;
     this.physics.dispose();
     this.timer?.dispose();
-    this.rendererProbe?.dispose();
-    this.rendererProbe = null;
-    this.renderer?.dispose();
-    this.renderer?.domElement?.remove();
+    if (this.rendering?.dispose) {
+      this.rendering.dispose();
+      this.rendering = null;
+      this.camera = null;
+      this.renderer = null;
+      this.controls = null;
+      this.rendererInfo = null;
+      this.rendererProbe = null;
+    } else {
+      this.controls?.dispose?.();
+      this.rendererProbe?.dispose?.();
+      this.renderer?.dispose?.();
+      this.renderer?.domElement?.remove?.();
+    }
     this.events.clear();
   }
 }
