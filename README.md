@@ -311,4 +311,14 @@ modal-provider
 
 `modal-provider` 内统一维护 `modal-gen-client`、2D/3D Provider 与 Reference Sidecar、以及 `modal-EmbodiedGen` build/runtime integration。它们仍可独立测试和部署，但不是独立系统仓库。
 
+跨进程生成链可直接验证：
+
+```bash
+npm run test:modal-e2e
+```
+
+该测试启动相邻仓库中的真实 Python `modal-gen-client`，覆盖 Agent → 两阶段配对 → 2D → 3D → Artifact → AssetManager → `WorldRuntime.spawn()` → `place()`。测试 Provider 使用确定性本地实现，不调用付费 Modal GPU；需要本机可用 `uv`，并保持 `modal-provider` 与 `AgentScape` 为相邻目录。
+
+该跨仓库测试作为独立 gate 运行，不混入默认 `npm test` / `npm run check`，避免外部 Python 进程启动时间受 Vitest 并行负载干扰。
+
 `npm run architecture:validate` 会验证这一点：`sdk/python` 必须由 AgentScape 自己拥有，并拒绝任何 `providers/*` Git submodule。详见 [`docs/multi-repository-architecture.md`](docs/multi-repository-architecture.md) 与 [`docs/provider-integration-plan.md`](docs/provider-integration-plan.md)。
