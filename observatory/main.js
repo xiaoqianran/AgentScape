@@ -1,3 +1,4 @@
+import { createWebGPUIndirectDrawProbe } from '../core/rendering/WebGPUIndirectDrawProbe.js';
 import { createGPUResidentCullingProbe } from '../core/rendering/WebGPUResidentCullingProbe.js';
 import "./style.css";
 import { LabRegistry } from "./core/LabRegistry.js";
@@ -75,6 +76,7 @@ class ObservatoryApp {
     this.rendererMode = "auto";
     this.rendererTiming = false;
     this.residentCullingProbe = null;
+    this.indirectDrawProbe = null;
     this.activationVersion = 0;
     this.scenarioSelectionVersion = 0;
     this.scenarioLoadPromise = Promise.resolve();
@@ -109,6 +111,7 @@ class ObservatoryApp {
       onGridDebug: (visible) => this.lab?.setGridVisible?.(visible),
       onFocusView: () => this.lab?.focusScenario?.(),
       onResidentCullingProbe: () => this.toggleResidentCullingProbe(),
+      onIndirectDrawProbe: () => this.toggleIndirectDrawProbe(),
       onComputeProbe: () => this.runComputeProbe(),
       onSpatialProbe: () => this.runSpatialProbe(),
       onLabChange: (labId) => this.activateLab(labId),
@@ -150,6 +153,12 @@ class ObservatoryApp {
       this.residentCullingProbe.result.dispose?.();
       this.residentCullingProbe = null;
       this.shell.setResidentCullingResult(null);
+    }
+    if (this.indirectDrawProbe) {
+      this.indirectDrawProbe.scene?.remove(this.indirectDrawProbe.result.mesh);
+      this.indirectDrawProbe.result.dispose?.();
+      this.indirectDrawProbe = null;
+      this.shell.setIndirectDrawResult(null);
     }
     await this.lab?.dispose?.();
     if (version !== this.activationVersion) return;
@@ -270,6 +279,40 @@ class ObservatoryApp {
     }
   }
 
+
+
+  async toggleIndirectDrawProbe() {
+    if (this.indirectDrawProbe) {
+      const current = this.indirectDrawProbe;
+      this.indirectDrawProbe = null;
+      current.scene?.remove(current.result.mesh);
+      current.result.dispose?.();
+      this.shell.setIndirectDrawResult(null);
+      return;
+    }
+    const renderer = this.lab?.renderer || this.lab?.left?.renderer || null;
+    const scene = this.lab?.scene || this.lab?.left?.scene || null;
+    if (!renderer || !scene) {
+      this.shell.setIndirectDrawResult({ supported:false, reason:'renderer-or-scene-unavailable' });
+      return;
+    }
+    this.shell.setIndirectDrawBusy(true);
+    try {
+      const result = await createWebGPUIndirectDrawProbe(renderer, { capacity:4096, visibleCount:256 });
+      if (!result.supported) {
+        this.shell.setIndirectDrawResult(result);
+        return;
+      }
+      result.mesh.position.set(0, 0, 0);
+      scene.add(result.mesh);
+      this.indirectDrawProbe = { result, scene };
+      this.shell.setIndirectDrawResult(result);
+    } catch (error) {
+      this.shell.setIndirectDrawResult({ supported:true, passed:false, reason:error?.message || String(error) });
+    } finally {
+      this.shell.setIndirectDrawBusy(false);
+    }
+  }
 
   async toggleResidentCullingProbe() {
     if (this.residentCullingProbe) {

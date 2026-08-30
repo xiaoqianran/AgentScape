@@ -162,7 +162,7 @@ export class ObservatoryShell {
                 <div class="obs-compute-probe">
                   <button id="obs-compute-probe" type="button">运行 Compute Probe</button>
                   <pre id="obs-compute-probe-result">尚未运行。仅验证当前 WebGPU renderer 的 storage buffer / compute / readback。</pre>
-                  <button id="obs-spatial-probe" type="button">运行 Spatial Probe</button><button id="obs-resident-culling-probe" type="button">显示 GPU Culling</button>
+                  <button id="obs-spatial-probe" type="button">运行 Spatial Probe</button><button id="obs-resident-culling-probe" type="button">显示 GPU Culling</button><button id="obs-indirect-draw-probe" type="button">显示 Indirect Draw</button>
                   <pre id="obs-spatial-probe-result">尚未运行。GPU 与 CPU 将对同一批位置做距离阈值筛选并逐项比对。</pre>
                 </div>
               </section>
@@ -200,7 +200,7 @@ export class ObservatoryShell {
       "run", "step", "step10", "reset", "checkpoint", "restore", "checkpoint-frame", "frame", "time", "active-action", "scenario-list", "viewport",
       "scenario-badge", "status-layer", "status-text", "status-action", "result-summary", "run-scenario-card", "inspector", "native-debug", "manifest-debug", "difference-debug", "normalized-debug", "velocity-debug", "joint-debug", "contact-debug", "bounds-debug", "ray-debug", "spatial-query-debug", "navmesh-debug", "path-debug", "endpoints-debug", "obstacles-debug", "interaction-los-debug", "interaction-support-debug", "interaction-state-debug", "agent-tool-debug", "labels-debug", "grid-debug", "assertions", "metrics",
       "lab-title", "lab-select", "backend-select", "focus-view", "scenarios-toggle", "results-toggle",
-      "tools-tab", "tool-search", "tool-list", "tool-name", "tool-required", "tool-description", "tool-args", "tool-error", "tool-invoke", "tool-outcome", "tool-result", "tool-clear", "tool-history", "resident-culling-probe", "compute-probe", "compute-probe-result", "spatial-probe", "spatial-probe-result"
+      "tools-tab", "tool-search", "tool-list", "tool-name", "tool-required", "tool-description", "tool-args", "tool-error", "tool-invoke", "tool-outcome", "tool-result", "tool-clear", "tool-history", "resident-culling-probe", "indirect-draw-probe", "compute-probe", "compute-probe-result", "spatial-probe", "spatial-probe-result"
     ].map((name) => [name, root.querySelector(`#obs-${name}`)]));
 
     this.toolDefinitions = [];
@@ -367,7 +367,7 @@ export class ObservatoryShell {
     this.setPanelVisible(panel, willShow);
   }
 
-  bind({ onRun, onStep, onStep10, onReset, onCheckpoint, onRestore, onResidentCullingProbe, onNativeDebug, onManifestDebug, onDifferenceDebug, onNormalizedDebug, onVelocityDebug, onJointDebug, onContactDebug, onBoundsDebug, onRayDebug, onSpatialQueryDebug, onNavMeshDebug, onPathDebug, onEndpointsDebug, onObstaclesDebug, onInteractionLosDebug, onInteractionSupportDebug, onInteractionStateDebug, onAgentToolDebug, onLabelsDebug, onGridDebug, onFocusView, onComputeProbe, onSpatialProbe, onLabChange, onBackendChange }) {
+  bind({ onRun, onStep, onStep10, onReset, onCheckpoint, onRestore, onResidentCullingProbe, onIndirectDrawProbe, onNativeDebug, onManifestDebug, onDifferenceDebug, onNormalizedDebug, onVelocityDebug, onJointDebug, onContactDebug, onBoundsDebug, onRayDebug, onSpatialQueryDebug, onNavMeshDebug, onPathDebug, onEndpointsDebug, onObstaclesDebug, onInteractionLosDebug, onInteractionSupportDebug, onInteractionStateDebug, onAgentToolDebug, onLabelsDebug, onGridDebug, onFocusView, onComputeProbe, onSpatialProbe, onLabChange, onBackendChange }) {
     this.refs.run.addEventListener("click", onRun);
     this.refs.step.addEventListener("click", onStep);
     this.refs.step10.addEventListener("click", onStep10);
@@ -375,6 +375,7 @@ export class ObservatoryShell {
     this.refs.checkpoint.addEventListener("click", onCheckpoint);
     this.refs.restore.addEventListener("click", onRestore);
     this.refs["resident-culling-probe"]?.addEventListener("click", () => onResidentCullingProbe?.());
+    this.refs["indirect-draw-probe"]?.addEventListener("click", () => onIndirectDrawProbe?.());
     const bindToggle = (name, handler) => this.refs[name].addEventListener("change", (event) => handler?.(event.target.checked));
     bindToggle("native-debug", onNativeDebug);
     bindToggle("manifest-debug", onManifestDebug);
@@ -454,6 +455,40 @@ export class ObservatoryShell {
   }
 
 
+
+  setIndirectDrawBusy(busy) {
+    const button = this.refs["indirect-draw-probe"];
+    if (!button) return;
+    button.disabled = Boolean(busy);
+    if (busy) button.textContent = "正在构建 Indirect Draw…";
+  }
+
+  setIndirectDrawResult(result) {
+    const button = this.refs["indirect-draw-probe"];
+    if (!button) return;
+    if (!result) {
+      button.disabled = false;
+      button.textContent = "显示 Indirect Draw";
+      button.title = "GPU compute 写入 indirect instanceCount；不读回 CPU。";
+      return;
+    }
+    if (!result.supported) {
+      button.disabled = true;
+      button.textContent = "Indirect Draw 需要 WebGPU";
+      button.title = result.reason || "webgpu-required";
+      return;
+    }
+    if (result.passed === false) {
+      button.disabled = false;
+      button.textContent = "Indirect Draw 失败";
+      button.title = result.reason || "unknown";
+      return;
+    }
+    button.disabled = false;
+    button.textContent = "隐藏 Indirect Draw";
+    const gpu = Number.isFinite(result.gpuComputeMs) ? `${result.gpuComputeMs.toFixed(3)} ms` : "—";
+    button.title = `capacity ${result.capacity} · GPU draw instances ${result.visibleCount} · compute ${result.computeSubmitMs.toFixed(3)} ms · GPU ${gpu}`;
+  }
   setResidentCullingBusy(busy) {
     const button = this.refs["resident-culling-probe"];
     if (!button) return;
