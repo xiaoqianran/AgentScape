@@ -16,12 +16,13 @@ import { PhysicsVectorRenderer } from "./visualizers/PhysicsVectorRenderer.js";
 import { createPhysicsBackend } from "./backends.js";
 
 export class PhysicsLab {
-  constructor({ viewport, onTelemetry, backendId = "rapier", autoAnimate = true, rendererMode = "auto", rendererTiming = false }) {
+  constructor({ viewport, onTelemetry, backendId = "rapier", autoAnimate = true, rendererMode = "auto", rendererTiming = false, onRendererFailure = null }) {
     this.viewport = viewport;
     this.backendId = backendId;
     this.onTelemetry = onTelemetry;
     this.rendererMode = rendererMode;
     this.rendererTiming = Boolean(rendererTiming);
+    this.onRendererFailure = onRendererFailure;
     this.autoAnimate = autoAnimate;
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
@@ -65,6 +66,7 @@ export class PhysicsLab {
       camera: this.camera,
       rendererMode: this.rendererMode,
       rendererTiming: this.rendererTiming,
+      onRendererFailure: this.onRendererFailure,
       controlsTarget: [0, 1.4, 0],
       shadowType: THREE.PCFSoftShadowMap,
     }));
@@ -250,6 +252,7 @@ export class PhysicsLab {
   }
 
   frame(timestamp) {
+    if (this.rendererState?.failed) return;
     const stepped = this.runner.tick(timestamp);
     if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
     if ((stepped || this.rendererTiming) && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();

@@ -21,7 +21,15 @@ export async function createObservatoryRenderSurface({
   if (shadowType != null) renderer.shadowMap.type = shadowType;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  const rendererProbe = new RendererProbe(renderer, { requestedMode: rendererMode });
+  const rendererState = { failed: false, failure: null };
+  const rendererProbe = new RendererProbe(renderer, {
+    requestedMode: rendererMode,
+    onDeviceLost: (failure) => {
+      rendererState.failed = true;
+      rendererState.failure = failure;
+      onRendererFailure?.(failure);
+    }
+  });
   const sceneTheme = applyObservatorySceneTheme(scene, renderer);
   viewport.appendChild(renderer.domElement);
 
@@ -30,5 +38,5 @@ export async function createObservatoryRenderSurface({
   controls.enableDamping = true;
   const cameraRig = new CameraRig({ camera, controls });
 
-  return { renderer, rendererInfo: info, rendererProbe, sceneTheme, controls, cameraRig };
+  return { renderer, rendererInfo: info, rendererProbe, rendererState, sceneTheme, controls, cameraRig };
 }

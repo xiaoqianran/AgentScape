@@ -132,6 +132,8 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.55;strok
 .obs-focus-reticle i:nth-child(3),.obs-focus-reticle i:nth-child(4){top:50%;height:1px;width:16px}
 .obs-focus-reticle i:nth-child(3){left:-1px}.obs-focus-reticle i:nth-child(4){right:-1px}
 .obs-status-layer{position:absolute;z-index:50;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:rgba(48,52,70,.82);color:var(--text);font-size:12px}
+.obs-status-action{height:32px;padding:0 12px;border:1px solid rgba(var(--accent-rgb),.4);border-radius:999px;background:rgba(65,69,89,.9);color:var(--accent);font:800 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer}
+.obs-status-action:hover{background:rgba(81,87,109,.9);color:var(--text)}
 .obs-spinner{width:18px;height:18px;border:2px solid rgba(198,208,245,.22);border-top-color:var(--accent);border-radius:50%;animation:obs-spin .75s linear infinite}
 
 .obs-right-tabs{flex:none;display:grid;grid-template-columns:1.2fr .8fr .8fr;gap:4px;padding:8px;border-bottom:1px solid rgba(0,0,0,.2)}

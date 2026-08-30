@@ -66,6 +66,7 @@ export class ObservatoryShell {
               <div id="obs-status-layer" class="obs-status-layer" hidden>
                 <div class="obs-spinner" aria-hidden="true"></div>
                 <span id="obs-status-text">正在加载实验…</span>
+                <button id="obs-status-action" class="obs-status-action" type="button" hidden>重新加载</button>
               </div>
             </section>
           </section>
@@ -190,7 +191,7 @@ export class ObservatoryShell {
 
     this.refs = Object.fromEntries([
       "run", "step", "step10", "reset", "checkpoint", "restore", "checkpoint-frame", "frame", "time", "active-action", "scenario-list", "viewport",
-      "scenario-badge", "status-layer", "status-text", "result-summary", "run-scenario-card", "inspector", "native-debug", "manifest-debug", "difference-debug", "normalized-debug", "velocity-debug", "joint-debug", "contact-debug", "bounds-debug", "ray-debug", "spatial-query-debug", "navmesh-debug", "path-debug", "endpoints-debug", "obstacles-debug", "interaction-los-debug", "interaction-support-debug", "interaction-state-debug", "agent-tool-debug", "labels-debug", "grid-debug", "assertions", "metrics",
+      "scenario-badge", "status-layer", "status-text", "status-action", "result-summary", "run-scenario-card", "inspector", "native-debug", "manifest-debug", "difference-debug", "normalized-debug", "velocity-debug", "joint-debug", "contact-debug", "bounds-debug", "ray-debug", "spatial-query-debug", "navmesh-debug", "path-debug", "endpoints-debug", "obstacles-debug", "interaction-los-debug", "interaction-support-debug", "interaction-state-debug", "agent-tool-debug", "labels-debug", "grid-debug", "assertions", "metrics",
       "lab-title", "lab-select", "backend-select", "focus-view", "scenarios-toggle", "results-toggle",
       "tools-tab", "tool-search", "tool-list", "tool-name", "tool-required", "tool-description", "tool-args", "tool-error", "tool-invoke", "tool-outcome", "tool-result", "tool-clear", "tool-history"
     ].map((name) => [name, root.querySelector(`#obs-${name}`)]));
@@ -425,10 +426,26 @@ export class ObservatoryShell {
     this.root.setAttribute("aria-busy", String(Boolean(busy)));
     this.refs["status-layer"].hidden = !busy;
     this.refs["status-text"].textContent = message;
+    this.refs["status-layer"].querySelector(".obs-spinner").hidden = !busy;
+    this.refs["status-action"].hidden = true;
+    this.refs["status-action"].onclick = null;
     this.refs.run.disabled = Boolean(busy);
     this.refs.step.disabled = Boolean(busy);
     this.refs.step10.disabled = Boolean(busy);
     this.refs.reset.disabled = Boolean(busy);
+  }
+
+  setRendererFailure(message = "渲染设备丢失", recover = () => location.reload()) {
+    this.root.setAttribute("aria-busy", "true");
+    this.refs["status-layer"].hidden = false;
+    this.refs["status-layer"].querySelector(".obs-spinner").hidden = true;
+    this.refs["status-text"].textContent = message;
+    this.refs["status-action"].hidden = false;
+    this.refs["status-action"].onclick = recover;
+    this.refs.run.disabled = true;
+    this.refs.step.disabled = true;
+    this.refs.step10.disabled = true;
+    this.refs.reset.disabled = true;
   }
 
   renderScenarios(scenarios, activeId, onSelect) {

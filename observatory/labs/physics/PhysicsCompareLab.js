@@ -6,11 +6,12 @@ import { comparePhysicsSnapshots } from "./PhysicsStateComparator.js";
 const formatDelta = (value) => Number.isFinite(value) ? value.toExponential(3) : "—";
 
 export class PhysicsCompareLab {
-  constructor({ viewport, onTelemetry, rendererMode = "auto", rendererTiming = false }) {
+  constructor({ viewport, onTelemetry, rendererMode = "auto", rendererTiming = false, onRendererFailure = null }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
     this.rendererMode = rendererMode;
     this.rendererTiming = Boolean(rendererTiming);
+    this.onRendererFailure = onRendererFailure;
     this.clock = new SimulationClock({ fixedDt:1/60, maxSubSteps:8 });
     this.scenario = null;
     this.checkpointFrame = null;
@@ -23,7 +24,7 @@ export class PhysicsCompareLab {
     this.host.append(this.leftPane.root, this.rightPane.root);
     viewport.appendChild(this.host);
 
-    this.left = new PhysicsLab({ viewport:this.leftPane.viewport, backendId:"rapier", onTelemetry:()=>{}, autoAnimate:false, rendererMode, rendererTiming });
+    this.left = new PhysicsLab({ viewport:this.leftPane.viewport, backendId:"rapier", onTelemetry:()=>{}, autoAnimate:false, rendererMode, rendererTiming, onRendererFailure });
     this.right = new PhysicsLab({ viewport:this.rightPane.viewport, backendId:"jolt", onTelemetry:()=>{}, autoAnimate:false, rendererMode, rendererTiming });
     this.animation = null;
   }
@@ -204,6 +205,7 @@ export class PhysicsCompareLab {
   }
 
   frame(timestamp) {
+    if (this.left.rendererState?.failed || this.right.rendererState?.failed) return;
     const count=this.clock.consume(timestamp);
     if(count) this.stepBoth(count);
     if(count && this.cadence.shouldDebug(timestamp)) {

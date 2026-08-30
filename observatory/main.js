@@ -143,6 +143,10 @@ class ObservatoryApp {
       backendId: normalizedBackend,
       rendererMode: this.rendererMode,
       rendererTiming: this.rendererTiming,
+      onRendererFailure: ({ api, reason, message }) => {
+        const backend = api || 'GPU';
+        this.shell.setRendererFailure(`${backend} 渲染设备丢失 · ${reason || 'unknown'} · ${message || 'unknown'}`);
+      },
       onTelemetry: (data) => {
         if (data.scenario?.id !== this.activeScenarioId || labId !== this.activeLabId) return;
         const rendering = renderingInfoForLab(nextLab);
