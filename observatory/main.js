@@ -1,3 +1,4 @@
+import { createGPUResidentCullingProbe } from '../core/rendering/WebGPUResidentCullingProbe.js';
 import "./style.css";
 import { LabRegistry } from "./core/LabRegistry.js";
 import { ScenarioRegistry } from "./core/ScenarioRegistry.js";
@@ -73,6 +74,7 @@ class ObservatoryApp {
     this.activeScenarioId = null;
     this.rendererMode = "auto";
     this.rendererTiming = false;
+    this.residentCullingProbe = null;
     this.activationVersion = 0;
     this.scenarioSelectionVersion = 0;
     this.scenarioLoadPromise = Promise.resolve();
@@ -106,6 +108,7 @@ class ObservatoryApp {
       onLabelsDebug: (visible) => this.lab?.setWorldLabelsVisible?.(visible),
       onGridDebug: (visible) => this.lab?.setGridVisible?.(visible),
       onFocusView: () => this.lab?.focusScenario?.(),
+      onResidentCullingProbe: () => this.toggleResidentCullingProbe(),
       onComputeProbe: () => this.runComputeProbe(),
       onSpatialProbe: () => this.runSpatialProbe(),
       onLabChange: (labId) => this.activateLab(labId),
@@ -142,6 +145,12 @@ class ObservatoryApp {
 
     await this.scenarioLoadPromise.catch(() => {});
     if (version !== this.activationVersion) return;
+    if (this.residentCullingProbe) {
+      this.residentCullingProbe.scene?.remove(this.residentCullingProbe.result.mesh);
+      this.residentCullingProbe.result.dispose?.();
+      this.residentCullingProbe = null;
+      this.shell.setResidentCullingResult(null);
+    }
     await this.lab?.dispose?.();
     if (version !== this.activationVersion) return;
 
@@ -258,6 +267,39 @@ class ObservatoryApp {
       return null;
     } finally {
       this.shell.setSpatialProbeRunning(false);
+    }
+  }
+
+
+  async toggleResidentCullingProbe() {
+    if (this.residentCullingProbe) {
+      const current = this.residentCullingProbe;
+      this.residentCullingProbe = null;
+      current.scene?.remove(current.result.mesh);
+      current.result.dispose?.();
+      this.shell.setResidentCullingResult(null);
+      return;
+    }
+    const renderer = this.lab?.renderer || this.lab?.left?.renderer || null;
+    const scene = this.lab?.scene || this.lab?.left?.scene || null;
+    if (!renderer || !scene) {
+      this.shell.setResidentCullingResult({ supported: false, reason: 'renderer-or-scene-unavailable' });
+      return;
+    }
+    this.shell.setResidentCullingBusy(true);
+    try {
+      const result = await createGPUResidentCullingProbe(renderer, { count: 4096, radius: 18 });
+      if (!result.supported) {
+        this.shell.setResidentCullingResult(result);
+        return;
+      }
+      scene.add(result.mesh);
+      this.residentCullingProbe = { result, scene };
+      this.shell.setResidentCullingResult(result);
+    } catch (error) {
+      this.shell.setResidentCullingResult({ supported: true, passed: false, reason: error?.message || String(error) });
+    } finally {
+      this.shell.setResidentCullingBusy(false);
     }
   }
 
