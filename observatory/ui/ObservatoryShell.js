@@ -158,6 +158,11 @@ export class ObservatoryShell {
                 <div id="obs-inspector" class="obs-inspector"></div>
                 <div class="obs-metrics-title"><span>测量</span><strong>测量数据</strong></div>
                 <div id="obs-metrics" class="obs-metrics"></div>
+                <div class="obs-metrics-title"><span>WebGPU</span><strong>Compute Probe</strong></div>
+                <div class="obs-compute-probe">
+                  <button id="obs-compute-probe" type="button">运行 Compute Probe</button>
+                  <pre id="obs-compute-probe-result">尚未运行。仅验证当前 WebGPU renderer 的 storage buffer / compute / readback。</pre>
+                </div>
               </section>
             </div>
           </aside>
@@ -193,7 +198,7 @@ export class ObservatoryShell {
       "run", "step", "step10", "reset", "checkpoint", "restore", "checkpoint-frame", "frame", "time", "active-action", "scenario-list", "viewport",
       "scenario-badge", "status-layer", "status-text", "status-action", "result-summary", "run-scenario-card", "inspector", "native-debug", "manifest-debug", "difference-debug", "normalized-debug", "velocity-debug", "joint-debug", "contact-debug", "bounds-debug", "ray-debug", "spatial-query-debug", "navmesh-debug", "path-debug", "endpoints-debug", "obstacles-debug", "interaction-los-debug", "interaction-support-debug", "interaction-state-debug", "agent-tool-debug", "labels-debug", "grid-debug", "assertions", "metrics",
       "lab-title", "lab-select", "backend-select", "focus-view", "scenarios-toggle", "results-toggle",
-      "tools-tab", "tool-search", "tool-list", "tool-name", "tool-required", "tool-description", "tool-args", "tool-error", "tool-invoke", "tool-outcome", "tool-result", "tool-clear", "tool-history"
+      "tools-tab", "tool-search", "tool-list", "tool-name", "tool-required", "tool-description", "tool-args", "tool-error", "tool-invoke", "tool-outcome", "tool-result", "tool-clear", "tool-history", "compute-probe", "compute-probe-result"
     ].map((name) => [name, root.querySelector(`#obs-${name}`)]));
 
     this.toolDefinitions = [];
@@ -360,7 +365,7 @@ export class ObservatoryShell {
     this.setPanelVisible(panel, willShow);
   }
 
-  bind({ onRun, onStep, onStep10, onReset, onCheckpoint, onRestore, onNativeDebug, onManifestDebug, onDifferenceDebug, onNormalizedDebug, onVelocityDebug, onJointDebug, onContactDebug, onBoundsDebug, onRayDebug, onSpatialQueryDebug, onNavMeshDebug, onPathDebug, onEndpointsDebug, onObstaclesDebug, onInteractionLosDebug, onInteractionSupportDebug, onInteractionStateDebug, onAgentToolDebug, onLabelsDebug, onGridDebug, onFocusView, onLabChange, onBackendChange }) {
+  bind({ onRun, onStep, onStep10, onReset, onCheckpoint, onRestore, onNativeDebug, onManifestDebug, onDifferenceDebug, onNormalizedDebug, onVelocityDebug, onJointDebug, onContactDebug, onBoundsDebug, onRayDebug, onSpatialQueryDebug, onNavMeshDebug, onPathDebug, onEndpointsDebug, onObstaclesDebug, onInteractionLosDebug, onInteractionSupportDebug, onInteractionStateDebug, onAgentToolDebug, onLabelsDebug, onGridDebug, onFocusView, onComputeProbe, onLabChange, onBackendChange }) {
     this.refs.run.addEventListener("click", onRun);
     this.refs.step.addEventListener("click", onStep);
     this.refs.step10.addEventListener("click", onStep10);
@@ -389,8 +394,35 @@ export class ObservatoryShell {
     bindToggle("labels-debug", onLabelsDebug);
     bindToggle("grid-debug", onGridDebug);
     this.refs["focus-view"].addEventListener("click", () => onFocusView?.());
+    this.refs["compute-probe"].addEventListener("click", () => onComputeProbe?.());
     this.refs["lab-select"].addEventListener("change", (event) => onLabChange?.(event.target.value));
     this.refs["backend-select"].addEventListener("change", (event) => onBackendChange?.(event.target.value));
+  }
+
+  setComputeProbeAvailability(available) {
+    this.refs["compute-probe"].disabled = !available;
+    if (!available) this.refs["compute-probe-result"].textContent = "当前 renderer 不是 WebGPU；Compute Probe 不会在 WebGL2 fallback 上运行。";
+    else if (this.refs["compute-probe-result"].textContent.includes("不是 WebGPU")) this.refs["compute-probe-result"].textContent = "尚未运行。仅验证当前 WebGPU renderer 的 storage buffer / compute / readback。";
+  }
+
+  setComputeProbeRunning(running) {
+    this.refs["compute-probe"].disabled = Boolean(running);
+    this.refs["compute-probe"].textContent = running ? "正在计算…" : "运行 Compute Probe";
+  }
+
+  renderComputeProbe(result) {
+    if (!result?.supported) {
+      this.refs["compute-probe-result"].textContent = `不支持 · ${result?.reason || "unknown"}`;
+      return;
+    }
+    if (result?.error) {
+      this.refs["compute-probe-result"].textContent = `失败 · ${result.error}`;
+      return;
+    }
+    const gpu = Number.isFinite(result.gpuComputeMs) ? ` · GPU ${result.gpuComputeMs.toFixed(3)} ms` : "";
+    this.refs["compute-probe-result"].textContent = result.passed
+      ? `通过 · ${result.verification.checked}/${result.count} · ${result.bytes} B · workgroup ${result.workgroupSize} · dispatch ${result.dispatchCount}${gpu}`
+      : `失败 · mismatches ${result.verification?.mismatches ?? "?"}`;
   }
 
   configureLabs(labs, activeId) {

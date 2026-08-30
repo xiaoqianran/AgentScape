@@ -2,8 +2,10 @@ import "./style.css";
 import { LabRegistry } from "./core/LabRegistry.js";
 import { ScenarioRegistry } from "./core/ScenarioRegistry.js";
 import { ObservatoryShell } from "./ui/ObservatoryShell.js";
+import { runWebGPUComputeProbe } from "../core/rendering/WebGPUComputeProbe.js";
 
 const renderingInfoForLab = (lab) => lab?.rendererProbe?.snapshot?.() || lab?.left?.rendererProbe?.snapshot?.() || lab?.rendererInfo || lab?.left?.rendererInfo || null;
+const rendererForLab = (lab) => lab?.renderer || lab?.left?.renderer || null;
 const rendererFeatureSummary = (features = []) => {
   const set = new Set(features || []);
   const selected = ['timestamp-query', 'shader-f16', 'subgroups', 'texture-compression-bc'].filter((name) => set.has(name));
@@ -103,6 +105,7 @@ class ObservatoryApp {
       onLabelsDebug: (visible) => this.lab?.setWorldLabelsVisible?.(visible),
       onGridDebug: (visible) => this.lab?.setGridVisible?.(visible),
       onFocusView: () => this.lab?.focusScenario?.(),
+      onComputeProbe: () => this.runComputeProbe(),
       onLabChange: (labId) => this.activateLab(labId),
       onBackendChange: (backendId) => this.activateLab(this.activeLabId, {
         backendId,
@@ -192,6 +195,7 @@ class ObservatoryApp {
       return;
     }
     this.lab = nextLab;
+    this.shell.setComputeProbeAvailability(renderingInfoForLab(this.lab)?.backend === "webgpu");
     this.lab.setNativeDebug?.(this.shell.refs["native-debug"].checked);
     this.lab.setManifestDebug?.(this.shell.refs["manifest-debug"].checked);
     this.lab.setDifferenceDebug?.(this.shell.refs["difference-debug"].checked);
@@ -222,6 +226,21 @@ class ObservatoryApp {
     if (this.lab.toolDefinitions?.().length) {
       this.shell.setRightTab("tools");
       if (!matchMedia("(max-width: 1040px)").matches) this.shell.setPanelVisible("results", true);
+    }
+  }
+
+  async runComputeProbe() {
+    const renderer = rendererForLab(this.lab);
+    this.shell.setComputeProbeRunning(true);
+    try {
+      const result = await runWebGPUComputeProbe(renderer);
+      this.shell.renderComputeProbe(result);
+      return result;
+    } catch (error) {
+      this.shell.renderComputeProbe({ supported: true, passed: false, error: error?.message || String(error) });
+      return null;
+    } finally {
+      this.shell.setComputeProbeRunning(false);
     }
   }
 
