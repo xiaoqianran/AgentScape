@@ -76,7 +76,7 @@ export class WorldRuntime {
     this.rendererInfo = null;
     this.rendererTiming = Boolean(rendererTiming);
     this.rendererProbe = null;
-    this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
+    this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null; this.timer = new THREE.Timer(); this.running = false;
   }
   async init() {
     await this.physics.init();
@@ -110,7 +110,7 @@ export class WorldRuntime {
     this.interactions = new InteractionSystem({ store:this.store, physics:this.physics, spatial:this.spatial, navigation:this.navigation, locomotion:this.locomotion, events:this.events });
     this.ruleRuntime.start();
     this.worldPipeline = createCanonicalWorldPipeline(this);
-    this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version, rendering:this.rendererInfo }); this.events.emit('runtime.ready', { rendering:this.rendererInfo }); return this;
+    this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); if (typeof document !== 'undefined') this.timer.connect(document); this.timer.reset(); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version, rendering:this.rendererInfo }); this.events.emit('runtime.ready', { rendering:this.rendererInfo }); return this;
   }
   addEnvironment() {
     if (!this.environmentFactory) throw new Error('WorldRuntime requires an environmentFactory');
@@ -312,8 +312,8 @@ export class WorldRuntime {
   }
 
   listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
-  update() { const dt = Math.min(this.clock.getDelta(), 1 / 30); this.locomotion?.update(dt); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.camera); this.controls.update(); }
-  animate = () => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(); this.renderer.render(this.scene, this.camera); this.rendererProbe?.afterRender(performance.now()); };
+  update(timestamp) { this.timer.update(timestamp); const dt = Math.min(this.timer.getDelta(), 1 / 30); this.locomotion?.update(dt); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.camera); this.controls.update(); }
+  animate = (timestamp) => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(timestamp); this.renderer.render(this.scene, this.camera); this.rendererProbe?.afterRender(timestamp ?? performance.now()); };
   renderingDiagnostics() { return this.rendererProbe?.snapshot?.() || this.rendererInfo; }
   resize() { const w = this.container.clientWidth, h = this.container.clientHeight; if (!w || !h) return; this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h, false); }
   dispose() {
@@ -336,6 +336,7 @@ export class WorldRuntime {
     this.navigation?.dispose();
     this.navigation = null;
     this.physics.dispose();
+    this.timer?.dispose();
     this.rendererProbe?.dispose();
     this.rendererProbe = null;
     this.renderer?.dispose();
