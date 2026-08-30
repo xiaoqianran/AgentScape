@@ -157,6 +157,29 @@ export class RenderingSystem {
     this.environmentTexture = null;
   }
 
+  viewport() {
+    if (!this.camera || !this.renderer || !this.controls) return null;
+    return { camera:this.camera, element:this.renderer.domElement, controls:this.controls };
+  }
+
+  viewPose() {
+    if (!this.camera) return null;
+    return { position:this.camera.position.toArray(), rotation:this.camera.quaternion.toArray() };
+  }
+
+  cameraState() {
+    if (!this.camera || !this.controls) return null;
+    return { position:this.camera.position.toArray(), target:this.controls.target.toArray() };
+  }
+
+  applyCameraState(state = {}) {
+    if (!this.camera || !this.controls) return false;
+    if (Array.isArray(state.position) && state.position.length === 3) this.camera.position.fromArray(state.position);
+    if (Array.isArray(state.target) && state.target.length === 3) this.controls.target.fromArray(state.target);
+    this.controls.update();
+    return true;
+  }
+
   update() {
     this.controls?.update();
   }

@@ -329,12 +329,12 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
   }
 }
 
-async function recompileFull(runtime,{nextIR,before,previous,baseRevisionId,revisionId}){
+async function recompileFull(runtime,{pipeline,nextIR,before,previous,baseRevisionId,revisionId}){
   try{
     runtime.loadRuleGraph?.([]);
     await runtime.clearObjects({silent:true});
-    const pipeline=await runtime.worldPipeline.run(nextIR);
-    const admission=pipeline?.state?.reports?.worldAdmission;
+    const pipelineResult=await pipeline.run(nextIR);
+    const admission=pipelineResult?.state?.reports?.worldAdmission;
     if(!admission){
       const error=new Error('Canonical recompile produced no world admission');
       error.code='WORLD_RECOMPILE_ADMISSION_MISSING';
@@ -345,13 +345,13 @@ async function recompileFull(runtime,{nextIR,before,previous,baseRevisionId,revi
       restoreAuthority(runtime,previous);
       return {
         status:'world-rejected',reason:admission.reasons?.[0]||'WORLD_REJECTED',rolledBack:true,
-        baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
+        baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline:pipelineResult,
         recompile:{canonical:true,mode:'full',freshVerification:true,committed:false}
       };
     }
     return {
       status:`world-${admission.status}`,rolledBack:false,
-      baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
+      baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline:pipelineResult,
       recompile:{canonical:true,mode:'full',freshVerification:true,committed:true}
     };
   }catch(error){
@@ -364,8 +364,8 @@ async function recompileFull(runtime,{nextIR,before,previous,baseRevisionId,revi
   }
 }
 
-export async function recompileWorldRevision(runtime,{baseWorldIR,proposal,acceptChangedPlan=false}={}){
-  if(!runtime?.worldPipeline?.run) throw new Error('Canonical world pipeline unavailable');
+export async function recompileWorldRevision(runtime,{baseWorldIR,proposal,acceptChangedPlan=false,pipeline=null}={}){
+  if(!pipeline?.run) throw new Error('Canonical world pipeline unavailable');
   if(typeof runtime.snapshot!=='function'||typeof runtime.restore!=='function'||typeof runtime.clearObjects!=='function') throw new Error('Runtime revision recompile lifecycle unavailable');
 
   // Scope/change acceptance and canonical IR validation happen before any Runtime mutation.
@@ -388,5 +388,5 @@ export async function recompileWorldRevision(runtime,{baseWorldIR,proposal,accep
     const result=await recompilePosition(runtime,{nextIR,compilation,before,previous,baseRevisionId,revisionId,impact});
     if(result) return result;
   }
-  return recompileFull(runtime,{nextIR,before,previous,baseRevisionId,revisionId});
+  return recompileFull(runtime,{pipeline,nextIR,before,previous,baseRevisionId,revisionId});
 }

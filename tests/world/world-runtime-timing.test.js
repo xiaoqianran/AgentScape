@@ -11,8 +11,7 @@ describe('WorldRuntime timing', () => {
       store: {},
       sceneGraph: { invalidate: vi.fn() },
       interactions: { update: vi.fn() },
-      camera: {},
-      controls: { update: vi.fn() }
+      rendering: { viewPose:vi.fn(() => ({position:[1,2,3],rotation:[0,0,0,1]})), update:vi.fn() }
     };
 
     WorldRuntime.prototype.update.call(runtime, 1234.5);
@@ -22,8 +21,8 @@ describe('WorldRuntime timing', () => {
     expect(runtime.locomotion.update).toHaveBeenCalledWith(1 / 30);
     expect(runtime.physics.step).toHaveBeenCalledWith(1 / 30, runtime.store);
     expect(runtime.sceneGraph.invalidate).toHaveBeenCalledOnce();
-    expect(runtime.interactions.update).toHaveBeenCalledWith(1 / 30, runtime.camera);
-    expect(runtime.controls.update).toHaveBeenCalledOnce();
+    expect(runtime.interactions.update).toHaveBeenCalledWith(1 / 30, {position:[1,2,3],rotation:[0,0,0,1]});
+    expect(runtime.rendering.update).toHaveBeenCalledOnce();
   });
 
   it('keeps sub-clamp frame deltas unchanged', () => {
@@ -35,8 +34,7 @@ describe('WorldRuntime timing', () => {
       store: {},
       sceneGraph: { invalidate: vi.fn() },
       interactions: { update: vi.fn() },
-      camera: {},
-      controls: { update: vi.fn() }
+      rendering: { viewPose:vi.fn(() => ({position:[1,2,3],rotation:[0,0,0,1]})), update:vi.fn() }
     };
 
     WorldRuntime.prototype.update.call(runtime, 2000);

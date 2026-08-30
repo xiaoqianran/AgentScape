@@ -17,7 +17,7 @@ import { SceneGraph } from '../../../world/runtime/graph/SceneGraph.js';
 import { CommandHistory } from '../../../world/runtime/CommandHistory.js';
 import { WorldValidator } from '../../../world/verification/WorldValidator.js';
 import { RepairEngine } from '../../../world/verification/RepairEngine.js';
-import { createCanonicalWorldPipeline } from '../../../world/compiler/createWorldPipeline.js';
+import { WorldBuilder } from '../../../world/build/WorldBuilder.js';
 import { createMonumentHall } from '../../../world/content/monumentHall.js';
 import { createRuinedCourtyard } from '../../../world/content/ruinedCourtyard.js';
 import { createGrandUrbanBlock } from '../../../world/content/grandUrbanBlock.js';
@@ -139,8 +139,11 @@ async function createHeadlessMonumentRuntime() {
   });
   await runtime.physics.init();
   runtime.scene = new THREE.Scene();
-  runtime.camera = new THREE.PerspectiveCamera(45,1,.05,120);
-  runtime.controls = {target:new THREE.Vector3(),update(){}};
+  runtime.rendering = {
+    viewPose:()=>({position:[0,0,0],rotation:[0,0,0,1]}),
+    cameraState:()=>({position:[0,0,0],target:[0,0,-1]}),
+    applyCameraState:()=>true,update(){}
+  };
   runtime.environment = createMonumentHall({scene:runtime.scene,loadAssets:false});
   runtime.scene.add(runtime.environment.root);
   runtime.environmentFloor = runtime.environment.floor;
@@ -158,10 +161,10 @@ async function createHeadlessMonumentRuntime() {
   runtime.interactions = new InteractionSystem({
     store:runtime.store,physics:runtime.physics,spatial:runtime.spatial,navigation:runtime.navigation,locomotion:runtime.locomotion,events:runtime.events
   });
-  runtime.worldPipeline = createCanonicalWorldPipeline(runtime);
-  runtime.skills = registerCoreSkills(new SkillRegistry({policy:runtime.policy,trace:runtime.trace,runtime}),runtime);
+  const worldBuilder = new WorldBuilder(runtime);
+  runtime.skills = registerCoreSkills(new SkillRegistry({policy:runtime.policy,trace:runtime.trace,runtime}),runtime,{worldBuilder});
   runtime.ruleRuntime.start();
-  return runtime;
+  return {runtime,worldBuilder};
 }
 
 async function driveAgent(promise,runtime,max=12000) {
@@ -170,7 +173,7 @@ async function driveAgent(promise,runtime,max=12000) {
   for(let i=0;i<max && !done;i++) {
     runtime.locomotion.update(1/60);
     runtime.physics.step(1/60,runtime.store);
-    runtime.interactions.update(1/60,runtime.camera);
+    runtime.interactions.update(1/60,runtime.rendering.viewPose());
     runtime.sceneGraph.update();
     if(i%12===0) await sleep(); else await Promise.resolve();
   }
@@ -199,7 +202,7 @@ const persistedWorldCriteria = [
 ];
 
 async function runEmbodiedWorldTask() {
-  const runtime = await createHeadlessMonumentRuntime();
+  const {runtime,worldBuilder} = await createHeadlessMonumentRuntime();
   const tools = new AgentTools(runtime,{profile:'builder',actor:'agent_01'});
   try {
     const worldIR = {
@@ -223,7 +226,8 @@ async function runEmbodiedWorldTask() {
       rules:[],acceptance:[]
     };
 
-    const pipeline = await runtime.worldPipeline.run(worldIR);
+    const build = await worldBuilder.run(worldIR);
+    const pipeline = build.pipeline;
     assert.notEqual(pipeline.state.reports.worldAdmission.status,'rejected',`World pipeline rejected: ${JSON.stringify(pipeline.state.reports.worldAdmission)}`);
     assert.equal(pipeline.state.artifacts.behaviorBundle.behaviorGraph.commands.length,3,'WorldIR must compile all three interaction commands');
     assert.equal(runtime.store.list().length,4,'World pipeline must instantiate four runtime objects');
@@ -275,7 +279,7 @@ async function runEmbodiedWorldTask() {
     await runtime.restore(acceptedSnapshot);
     for(let i=0;i<180;i++) {
       runtime.physics.step(1/60,runtime.store);
-      runtime.interactions.update(1/60,runtime.camera);
+      runtime.interactions.update(1/60,runtime.rendering.viewPose());
       if(i%30===0) await sleep();
     }
     runtime.sceneGraph.changed(); runtime.sceneGraph.update();

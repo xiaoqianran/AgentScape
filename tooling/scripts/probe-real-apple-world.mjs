@@ -13,7 +13,7 @@ import { SceneGraph } from "../../world/runtime/graph/SceneGraph.js";
 import { CommandHistory } from "../../world/runtime/CommandHistory.js";
 import { WorldValidator } from "../../world/verification/WorldValidator.js";
 import { RepairEngine } from "../../world/verification/RepairEngine.js";
-import { createCanonicalWorldPipeline } from "../../world/compiler/createWorldPipeline.js";
+import { WorldBuilder } from "../../world/build/WorldBuilder.js";
 import { executeBehaviorCommand, verifyBehaviorCommand } from "../../world/runtime/behavior/BehaviorCompiler.js";
 
 const endpoint=process.env.AGENTSCAPE_CONNECTOR_ENDPOINT || "http://127.0.0.1:48123";
@@ -47,8 +47,7 @@ async function createHeadlessRuntime(){
   const runtime=new WorldRuntime({appendChild(){}},{environmentFactory:null,assetModule:createAssetModule()});
   await runtime.physics.init();
   runtime.scene=new THREE.Scene();
-  runtime.camera=new THREE.PerspectiveCamera(45,1,.05,120);
-  runtime.controls={target:new THREE.Vector3(),update(){}};
+  runtime.rendering={viewPose:()=>({position:[0,0,0],rotation:[0,0,0,1]}),cameraState:()=>({position:[0,0,0],target:[0,0,-1]}),applyCameraState:()=>true,update(){}};
 
   const ground=new THREE.Mesh(new THREE.BoxGeometry(12,.2,12),new THREE.MeshBasicMaterial());
   ground.position.y=-.1; ground.name="HeadlessGround"; ground.updateMatrixWorld(true); runtime.scene.add(ground);
@@ -66,7 +65,6 @@ async function createHeadlessRuntime(){
   runtime.navigation=new NavigationSystem({store:runtime.store,physics:runtime.physics,environmentRoots:[ground],events:runtime.events,backend:new RecastNavigationBackend()});
   runtime.locomotion=new LocomotionSystem({store:runtime.store,physics:runtime.physics,navigation:runtime.navigation,events:runtime.events});
   runtime.interactions=new InteractionSystem({store:runtime.store,physics:runtime.physics,spatial:runtime.spatial,navigation:runtime.navigation,locomotion:runtime.locomotion,events:runtime.events});
-  runtime.worldPipeline=createCanonicalWorldPipeline(runtime);
   return runtime;
 }
 
@@ -77,7 +75,7 @@ async function drive(promise,runtime,max=1800){
   for(let i=0;i<max&&!done;i++){
     runtime.locomotion.update(1/60);
     runtime.physics.step(1/60,runtime.store);
-    runtime.interactions.update(1/60,runtime.camera);
+    runtime.interactions.update(1/60,runtime.rendering.viewPose());
     runtime.sceneGraph.update();
     if(i%24===0) await sleep(); else await Promise.resolve();
   }
@@ -98,7 +96,8 @@ try{
   const initialized=await generation.initialize({pair:false});
   if(initialized.status!=="generation-ready") throw new Error(`Generation unavailable: ${JSON.stringify(initialized)}`);
 
-  const registry=registerCoreSkills(new SkillRegistry({policy:runtime.policy,trace:runtime.trace,runtime}),runtime);
+  const worldBuilder=new WorldBuilder(runtime);
+  const registry=registerCoreSkills(new SkillRegistry({policy:runtime.policy,trace:runtime.trace,runtime}),runtime,{worldBuilder});
   runtime.skills=registry;
   const prompt="a single glossy realistic red apple, centered, isolated object, clean neutral background, no text, no extra objects";
   const worldIR={

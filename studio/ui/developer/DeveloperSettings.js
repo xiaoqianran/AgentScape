@@ -131,7 +131,7 @@ export class DeveloperSettings {
   }
 
   renderRendererStatus() {
-    const info = this.world.renderingDiagnostics?.() || this.world.rendererInfo || {};
+    const info = this.world.renderingDiagnostics?.() || {};
     const backend = info.backend === 'webgpu' ? 'WebGPU' : info.backend === 'webgl2' ? 'WebGL2' : String(info.backend || 'unknown');
     const mode = info.requestedMode || 'auto';
     const health = info.health || 'ready';

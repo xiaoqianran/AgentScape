@@ -22,7 +22,7 @@ const runtime=(admission={status:'ready',reasons:[]})=>{
     currentBehaviorBundle:{tag:'old-behavior',ruleGraph:[{id:'old-rule'}]},
     currentPhysicsRequirements:{tag:'old-physics'},lastAcceptanceBundle:{tag:'old-acceptance'},restoredAcceptanceEvidence:{tag:'old-restored'},
     snapshot:vi.fn(()=>structuredClone(before)),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),loadRuleGraph:vi.fn(),
-    worldPipeline:{run:vi.fn(async(ir)=>{observed.push({behavior:structuredClone(runtimeRef.currentBehaviorBundle),physics:structuredClone(runtimeRef.currentPhysicsRequirements)});return {state:{artifacts:{worldIR:structuredClone(ir),acceptanceEvidence:{result:{status:'world-accepted'}}},reports:{worldAdmission:structuredClone(admission),worldAcceptance:{status:'world-accepted'}}},timeline:[]};})},
+    pipeline:{run:vi.fn(async(ir)=>{observed.push({behavior:structuredClone(runtimeRef.currentBehaviorBundle),physics:structuredClone(runtimeRef.currentPhysicsRequirements)});return {state:{artifacts:{worldIR:structuredClone(ir),acceptanceEvidence:{result:{status:'world-accepted'}}},reports:{worldAdmission:structuredClone(admission),worldAcceptance:{status:'world-accepted'}}},timeline:[]};})},
     _observedAuthority:observed
   };
   runtimeRef=value;
@@ -32,14 +32,14 @@ const runtime=(admission={status:'ready',reasons:[]})=>{
 describe('WorldRecompiler',()=>{
   it('requires changed-plan acceptance before any Runtime mutation',async()=>{
     const rt=runtime();
-    await expect(recompileWorldRevision(rt,{baseWorldIR:baseIR(),proposal:proposal(),acceptChangedPlan:false})).rejects.toMatchObject({code:'WORLD_REVISION_CHANGE_NOT_ACCEPTED'});
-    expect(rt.snapshot).not.toHaveBeenCalled(); expect(rt.clearObjects).not.toHaveBeenCalled(); expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+    await expect(recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:baseIR(),proposal:proposal(),acceptChangedPlan:false})).rejects.toMatchObject({code:'WORLD_REVISION_CHANGE_NOT_ACCEPTED'});
+    expect(rt.snapshot).not.toHaveBeenCalled(); expect(rt.clearObjects).not.toHaveBeenCalled(); expect(rt.pipeline.run).not.toHaveBeenCalled();
   });
   it('replaces the current world and sends the accepted child revision through the canonical pipeline',async()=>{
     const rt=runtime({status:'ready',reasons:[]});
-    const result=await recompileWorldRevision(rt,{baseWorldIR:baseIR(),proposal:proposal(),acceptChangedPlan:true});
+    const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:baseIR(),proposal:proposal(),acceptChangedPlan:true});
     expect(rt.snapshot).toHaveBeenCalledOnce(); expect(rt.clearObjects).toHaveBeenCalledWith({silent:true});
-    const compiledIR=rt.worldPipeline.run.mock.calls[0][0];
+    const compiledIR=rt.pipeline.run.mock.calls[0][0];
     expect(compiledIR.revision).toMatchObject({id:'rev-2',parentId:'rev-1',reason:'lift box'});
     expect(compiledIR.provenance).toMatchObject({source:'finding-revision'});
     expect(rt._observedAuthority).toEqual([{behavior:{tag:'old-behavior',ruleGraph:[{id:'old-rule'}]},physics:{tag:'old-physics'}}]);
@@ -49,13 +49,13 @@ describe('WorldRecompiler',()=>{
   });
   it('rolls back the original scene when fresh admission rejects the child revision',async()=>{
     const rt=runtime({status:'rejected',reasons:['WORLD_ACCEPTANCE_FAILED']});
-    const result=await recompileWorldRevision(rt,{baseWorldIR:baseIR(),proposal:proposal(),acceptChangedPlan:true});
+    const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:baseIR(),proposal:proposal(),acceptChangedPlan:true});
     expect(result).toMatchObject({status:'world-rejected',reason:'WORLD_ACCEPTANCE_FAILED',rolledBack:true,revisionId:'rev-2',recompile:{committed:false}});
     expect(rt.restore).toHaveBeenCalledOnce();
   });
   it('restores the original scene on canonical pipeline exceptions',async()=>{
-    const rt=runtime(); rt.worldPipeline.run=vi.fn(async()=>{throw Object.assign(new Error('compiler failed'),{code:'COMPILER_FAILED'});});
-    await expect(recompileWorldRevision(rt,{baseWorldIR:baseIR(),proposal:proposal(),acceptChangedPlan:true})).rejects.toMatchObject({code:'COMPILER_FAILED'});
+    const rt=runtime(); rt.pipeline.run=vi.fn(async()=>{throw Object.assign(new Error('compiler failed'),{code:'COMPILER_FAILED'});});
+    await expect(recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:baseIR(),proposal:proposal(),acceptChangedPlan:true})).rejects.toMatchObject({code:'COMPILER_FAILED'});
     expect(rt.restore).toHaveBeenCalledOnce();
   });
 });
@@ -80,7 +80,7 @@ const incrementalRuntime=({revisionId='state-rev-1',state={enabled:true},validat
     currentWorldRevision:{revision:{id:revisionId},provenance:{source:'planner'}},
     currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{requirements:[]},lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
-    worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
+    pipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
     store:{get:vi.fn(()=>record)},
     restoreObjectState:vi.fn((_id,next)=>{record.state=structuredClone(next);}),
     validator:{run:vi.fn(()=>structuredClone(validation))},
@@ -91,10 +91,10 @@ const incrementalRuntime=({revisionId='state-rev-1',state={enabled:true},validat
 
 it('incrementally recompiles a provably unchanged Runtime when only semantic initial state changes',async()=>{
   const rt=incrementalRuntime();
-  const result=await recompileWorldRevision(rt,{baseWorldIR:stateRevision(),proposal:stateProposal(),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:stateRevision(),proposal:stateProposal(),acceptChangedPlan:true});
   expect(rt.restoreObjectState).toHaveBeenCalledWith('box',{enabled:false});
   expect(rt.clearObjects).not.toHaveBeenCalled();
-  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+  expect(rt.pipeline.run).not.toHaveBeenCalled();
   expect(rt.currentWorldRevision).toMatchObject({revision:{id:'state-rev-2',parentId:'state-rev-1'}});
   expect(result).toMatchObject({
     status:'world-ready',rolledBack:false,baseRevisionId:'state-rev-1',revisionId:'state-rev-2',
@@ -107,16 +107,16 @@ it('incrementally recompiles a provably unchanged Runtime when only semantic ini
 
 it('falls back to full canonical rebuild when current Runtime state has drifted from the base revision',async()=>{
   const rt=incrementalRuntime({state:{enabled:true,runtimeFlag:'drift'}});
-  const result=await recompileWorldRevision(rt,{baseWorldIR:stateRevision(),proposal:stateProposal(),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:stateRevision(),proposal:stateProposal(),acceptChangedPlan:true});
   expect(rt.restoreObjectState).not.toHaveBeenCalled();
   expect(rt.clearObjects).toHaveBeenCalledOnce();
-  expect(rt.worldPipeline.run).toHaveBeenCalledOnce();
+  expect(rt.pipeline.run).toHaveBeenCalledOnce();
   expect(result.recompile).toMatchObject({mode:'full',canonical:true,committed:true});
 });
 
 it('rolls back an incremental state revision when fresh validation rejects it',async()=>{
   const rt=incrementalRuntime({validation:{ok:false,counts:{hard:1,advisory:0},findings:[]}});
-  const result=await recompileWorldRevision(rt,{baseWorldIR:stateRevision(),proposal:stateProposal(),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:stateRevision(),proposal:stateProposal(),acceptChangedPlan:true});
   expect(result).toMatchObject({
     status:'world-rejected',rolledBack:true,reason:'VALIDATION_HARD:1',
     recompile:{mode:'incremental-state',committed:false,freshVerification:true}
@@ -148,7 +148,7 @@ const behaviorRuntime=({revisionId='behavior-rev-1',actions=['pickup','place','m
     currentWorldRevision:{revision:{id:revisionId},provenance:{source:'planner'}},
     currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{requirements:[]},lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
-    worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
+    pipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
     store:{get:vi.fn(()=>record)},assets:{getManifest:vi.fn(()=>({id:'crate',actions}))},
     validator:{run:vi.fn(()=>{observedRevisions.push(runtimeRef.currentWorldRevision?.revision?.id || null);return {ok:true,counts:{hard:0,advisory:0},findings:[]};})},
     sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},
@@ -160,9 +160,9 @@ const behaviorRuntime=({revisionId='behavior-rev-1',actions=['pickup','place','m
 
 it('incrementally recompiles capability intent when current assets prove the new behavior contract',async()=>{
   const rt=behaviorRuntime();
-  const result=await recompileWorldRevision(rt,{baseWorldIR:behaviorRevision(),proposal:behaviorProposal(),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:behaviorRevision(),proposal:behaviorProposal(),acceptChangedPlan:true});
   expect(rt.clearObjects).not.toHaveBeenCalled();
-  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+  expect(rt.pipeline.run).not.toHaveBeenCalled();
   expect(rt.currentWorldRevision).toMatchObject({revision:{id:'behavior-rev-2',parentId:'behavior-rev-1'}});
   expect(rt.currentBehaviorBundle.capabilityIntents).toEqual([{entityId:'box',capabilities:['PICKUP','PLACE']}]);
   expect(rt._observedRevisions).toEqual(['behavior-rev-1']);
@@ -176,7 +176,7 @@ it('incrementally recompiles capability intent when current assets prove the new
 
 it('rejects unsupported capability intent before changing Runtime authority',async()=>{
   const rt=behaviorRuntime({actions:['pickup','move']});
-  const result=await recompileWorldRevision(rt,{baseWorldIR:behaviorRevision(),proposal:behaviorProposal(),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:behaviorRevision(),proposal:behaviorProposal(),acceptChangedPlan:true});
   expect(result).toMatchObject({
     status:'world-rejected',rolledBack:false,reason:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',
     admission:{status:'rejected',behavior:{status:'rejected',issues:[{code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',targetId:'box',capability:'PLACE'}]}},
@@ -186,14 +186,14 @@ it('rejects unsupported capability intent before changing Runtime authority',asy
   expect(rt.currentBehaviorBundle).toEqual({ruleGraph:[]});
   expect(rt.restoredAcceptanceEvidence).toEqual({historical:true});
   expect(rt.clearObjects).not.toHaveBeenCalled();
-  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+  expect(rt.pipeline.run).not.toHaveBeenCalled();
 });
 
 it('falls back to full canonical rebuild when incremental behavior authority cannot be proven',async()=>{
   const rt=behaviorRuntime({revisionId:'other-revision'});
-  const result=await recompileWorldRevision(rt,{baseWorldIR:behaviorRevision(),proposal:behaviorProposal(),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:behaviorRevision(),proposal:behaviorProposal(),acceptChangedPlan:true});
   expect(rt.clearObjects).toHaveBeenCalledOnce();
-  expect(rt.worldPipeline.run).toHaveBeenCalledOnce();
+  expect(rt.pipeline.run).toHaveBeenCalledOnce();
   expect(result.recompile).toMatchObject({mode:'full',canonical:true,committed:true});
 });
 
@@ -207,7 +207,7 @@ it('does not carry interaction verification evidence across an incremental behav
   });
   const rt=behaviorRuntime();
   recordInteractionEvidence(rt,{targetId:'box',capability:'PICKUP',verified:true,source:'test'});
-  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
   expect(result).toMatchObject({
     status:'world-rejected',rolledBack:false,reason:'WORLD_ACCEPTANCE_FAILED',
     admission:{status:'rejected',acceptance:{status:'world-incomplete'}},
@@ -246,7 +246,7 @@ const physicsRuntime=({revisionId='physics-rev-1',capabilities=['rigid-body','co
     currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{worldRevisionId:'physics-rev-1',requirements:[{entityId:'box',bodyClass:'rigid'}]},
     lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
-    worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
+    pipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
     store:{get:vi.fn(()=>record)},assets:{getManifest:vi.fn(()=>({id:'crate',actions:['move'],physics:{body:'dynamic'}}))},
     physics:{
       backend,
@@ -264,9 +264,9 @@ const physicsRuntime=({revisionId='physics-rev-1',capabilities=['rigid-body','co
 
 it('incrementally admits a physics requirement when current backend and asset evidence already satisfy it',async()=>{
   const rt=physicsRuntime();
-  const result=await recompileWorldRevision(rt,{baseWorldIR:physicsRevision(),proposal:physicsProposal(),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:physicsRevision(),proposal:physicsProposal(),acceptChangedPlan:true});
   expect(rt.clearObjects).not.toHaveBeenCalled();
-  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+  expect(rt.pipeline.run).not.toHaveBeenCalled();
   expect(rt.currentWorldRevision).toMatchObject({revision:{id:'physics-rev-2',parentId:'physics-rev-1'}});
   expect(rt.currentPhysicsRequirements).toMatchObject({
     worldRevisionId:'physics-rev-2',requirements:[{entityId:'box',bodyClass:'rigid',requiredCapabilities:['rigid-body','collision']}]
@@ -281,7 +281,7 @@ it('incrementally admits a physics requirement when current backend and asset ev
 
 it('rejects an unmet physics requirement before changing Runtime authority',async()=>{
   const rt=physicsRuntime({capabilities:['rigid-body']});
-  const result=await recompileWorldRevision(rt,{baseWorldIR:physicsRevision(),proposal:physicsProposal(),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:physicsRevision(),proposal:physicsProposal(),acceptChangedPlan:true});
   expect(result).toMatchObject({
     status:'world-rejected',rolledBack:false,reason:'PHYSICS_BACKEND_CAPABILITY_MISSING',
     admission:{status:'rejected',physics:{status:'rejected',issues:[{code:'PHYSICS_BACKEND_CAPABILITY_MISSING',entityId:'box',capability:'collision'}]}},
@@ -290,14 +290,14 @@ it('rejects an unmet physics requirement before changing Runtime authority',asyn
   expect(rt.currentWorldRevision).toMatchObject({revision:{id:'physics-rev-1'}});
   expect(rt.restoredAcceptanceEvidence).toEqual({historical:true});
   expect(rt.clearObjects).not.toHaveBeenCalled();
-  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+  expect(rt.pipeline.run).not.toHaveBeenCalled();
 });
 
 it('falls back to full canonical rebuild when incremental physics authority cannot be proven',async()=>{
   const rt=physicsRuntime({revisionId:'other-revision'});
-  const result=await recompileWorldRevision(rt,{baseWorldIR:physicsRevision(),proposal:physicsProposal(),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:physicsRevision(),proposal:physicsProposal(),acceptChangedPlan:true});
   expect(rt.clearObjects).toHaveBeenCalledOnce();
-  expect(rt.worldPipeline.run).toHaveBeenCalledOnce();
+  expect(rt.pipeline.run).toHaveBeenCalledOnce();
   expect(result.recompile).toMatchObject({mode:'full',canonical:true,committed:true});
 });
 
@@ -337,7 +337,7 @@ const positionRuntime=({revisionId='position-rev-1',boxPosition=[0,.01,0],poseCl
     currentWorldRevision:{revision:{id:revisionId},provenance:{source:'planner'}},
     currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{requirements:[]},lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
-    worldPipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
+    pipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
     store:{get:vi.fn((id)=>records[id])},assets:{getManifest:vi.fn((id)=>positionManifest(id))},interactions,
     physics:{manifestPoseClear:vi.fn(poseClear),setPosition:vi.fn()},navigation:{invalidateIfStatic:vi.fn()},environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
     validator:{run:vi.fn(()=>{observedRevisions.push(runtimeRef.currentWorldRevision?.revision?.id || null);return structuredClone(validation);})},sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},
@@ -350,14 +350,14 @@ const positionRuntime=({revisionId='position-rev-1',boxPosition=[0,.01,0],poseCl
 it('incrementally moves one relation-free entity only after shared layout/Physics preflight',async()=>{
   const rt=positionRuntime();
   const base=positionRevision(),patch=positionProposal(base);
-  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
   expect(rt.interactions.move).not.toHaveBeenCalled();
   expect(rt.physics.setPosition).toHaveBeenCalledWith('box',[-2,.01,0]);
   expect(rt.navigation.invalidateIfStatic).toHaveBeenCalledWith(expect.objectContaining({id:'box'}),'world.revision.position');
   expect(rt.physics.manifestPoseClear).toHaveBeenCalledWith(expect.objectContaining({id:'crate'}),[-2,.01,0],{excludeIds:['box']});
   expect(rt._observedRevisions).toEqual(['position-rev-1']);
   expect(rt.clearObjects).not.toHaveBeenCalled();
-  expect(rt.worldPipeline.run).not.toHaveBeenCalled();
+  expect(rt.pipeline.run).not.toHaveBeenCalled();
   expect(result).toMatchObject({
     status:'world-ready',rolledBack:false,admission:{status:'ready',layout:{status:'ready'}},
     recompile:{mode:'incremental-position',freshVerification:true,committed:true,affectedEntityIds:['box']}
@@ -367,7 +367,7 @@ it('incrementally moves one relation-free entity only after shared layout/Physic
 it('rejects an incrementally moved pose before mutation when layout or Physics preflight blocks it',async()=>{
   const rt=positionRuntime({poseClear:()=>({checked:true,clear:false,blockedBy:['wall']})});
   const base=positionRevision(),patch=positionProposal(base,[-2,.01,0]);
-  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:base,proposal:patch,acceptChangedPlan:true});
   expect(result).toMatchObject({
     status:'world-rejected',rolledBack:false,reason:'WORLD_POSE_BLOCKED',
     admission:{status:'rejected',layout:{status:'rejected',issues:[{blockedBy:['wall']}]}},
@@ -380,16 +380,16 @@ it('rejects an incrementally moved pose before mutation when layout or Physics p
 it('falls back to full rebuild when a position patch participates in spatial relations',async()=>{
   const base=positionRevision({withRelation:true});
   const rt=positionRuntime();
-  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:positionProposal(base),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:base,proposal:positionProposal(base),acceptChangedPlan:true});
   expect(rt.interactions.move).not.toHaveBeenCalled();
   expect(rt.clearObjects).toHaveBeenCalledOnce();
-  expect(rt.worldPipeline.run).toHaveBeenCalledOnce();
+  expect(rt.pipeline.run).toHaveBeenCalledOnce();
   expect(result.recompile).toMatchObject({mode:'full',committed:true});
 });
 
 it('falls back to full rebuild when the target has drifted from an explicit base position',async()=>{
   const base=positionRevision(),rt=positionRuntime({boxPosition:[.5,.01,0]});
-  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:positionProposal(base),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:base,proposal:positionProposal(base),acceptChangedPlan:true});
   expect(rt.interactions.move).not.toHaveBeenCalled();
   expect(rt.clearObjects).toHaveBeenCalledOnce();
   expect(result.recompile).toMatchObject({mode:'full'});
@@ -398,7 +398,7 @@ it('falls back to full rebuild when the target has drifted from an explicit base
 it('restores scene and authority when fresh validation rejects an incremental position change',async()=>{
   const base=positionRevision();
   const rt=positionRuntime({validation:{ok:false,counts:{hard:1,advisory:0},findings:[]}});
-  const result=await recompileWorldRevision(rt,{baseWorldIR:base,proposal:positionProposal(base),acceptChangedPlan:true});
+  const result=await recompileWorldRevision(rt,{pipeline:rt.pipeline,baseWorldIR:base,proposal:positionProposal(base),acceptChangedPlan:true});
   expect(result).toMatchObject({status:'world-rejected',rolledBack:true,reason:'VALIDATION_HARD:1',recompile:{mode:'incremental-position',committed:false}});
   expect(rt.restore).toHaveBeenCalledOnce();
   expect(rt.currentWorldRevision).toMatchObject({revision:{id:'position-rev-1'}});

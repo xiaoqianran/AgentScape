@@ -34,7 +34,7 @@ async function setup({tablePhysics=true, blocker=null}={}){
 async function drive(promise,ctx,max=1500){
   let done=false,result,error;promise.then(v=>{done=true;result=v},e=>{done=true;error=e});
   for(let i=0;i<150&&!done&&ctx.locomotion.tasks.size===0&&ctx.interactions.settleTasks.size===0;i++) await new Promise(r=>setTimeout(r,0));
-  for(let i=0;i<max&&!done;i++){ctx.locomotion.update(1/60);ctx.physics.step(1/60,ctx.store);ctx.interactions.update(1/60,new THREE.PerspectiveCamera());await Promise.resolve();}
+  for(let i=0;i<max&&!done;i++){ctx.locomotion.update(1/60);ctx.physics.step(1/60,ctx.store);ctx.interactions.update(1/60,{position:[0,0,0],rotation:[0,0,0,1]});await Promise.resolve();}
   if(error) throw error;if(!done) throw new Error('place task did not settle');return result;
 }
 

@@ -58,7 +58,7 @@ async function drive(promise, locomotion, physics, store, interactions, max=1200
   for(let i=0;i<max&&!done;i++){
     locomotion.update(1/60);
     physics.step(1/60,store);
-    interactions.update(1/60,new THREE.PerspectiveCamera());
+    interactions.update(1/60,{position:[0,0,0],rotation:[0,0,0,1]});
     await Promise.resolve();
   }
   if(error) throw error;

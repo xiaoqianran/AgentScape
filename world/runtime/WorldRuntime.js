@@ -17,7 +17,6 @@ import { PolicyEngine } from '../../core/PolicyEngine.js';
 import { TraceRecorder } from '../../core/TraceRecorder.js';
 import { WorldValidator } from '../verification/WorldValidator.js';
 import { RepairEngine } from '../verification/RepairEngine.js';
-import { createCanonicalWorldPipeline } from '../compiler/createWorldPipeline.js';
 import { disposeObject3D } from '../../core/disposeObject3D.js';
 import { ArticulationVerifier } from '../verification/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
@@ -73,11 +72,6 @@ export class WorldRuntime {
     this.rendererMode = rendererMode;
     this.rendererTiming = Boolean(rendererTiming);
     this.rendering = null;
-    this.camera = null;
-    this.renderer = null;
-    this.controls = null;
-    this.rendererInfo = null;
-    this.rendererProbe = null;
     this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null; this.timer = new THREE.Timer(); this.running = false;
   }
   async init() {
@@ -94,12 +88,7 @@ export class WorldRuntime {
     if (this.rendererFactory) renderingOptions.rendererFactory = this.rendererFactory;
     this.rendering = new RenderingSystem(renderingOptions);
     await this.rendering.init();
-    this.camera = this.rendering.camera;
-    this.renderer = this.rendering.renderer;
-    this.controls = this.rendering.controls;
-    this.rendererInfo = this.rendering.info;
-    this.rendererProbe = this.rendering.probe;
-    this.assets.configureRenderer?.(this.renderer);
+    this.assets.configureRenderer?.(this.rendering.renderer);
     this.spatial = new SpatialSystem({ store: this.store, scene: this.scene });
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
@@ -112,7 +101,6 @@ export class WorldRuntime {
     this.locomotion = new LocomotionSystem({ store:this.store, physics:this.physics, navigation:this.navigation, events:this.events });
     this.interactions = new InteractionSystem({ store:this.store, physics:this.physics, spatial:this.spatial, navigation:this.navigation, locomotion:this.locomotion, events:this.events });
     this.ruleRuntime.start();
-    this.worldPipeline = createCanonicalWorldPipeline(this);
     this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); if (typeof document !== 'undefined') this.timer.connect(document); this.timer.reset(); this.running = true; this.animate(); const rendering=this.renderingDiagnostics(); this.trace.emit('runtime.ready', { version: this.version, rendering }); this.events.emit('runtime.ready', { rendering }); return this;
   }
   addEnvironment() {
@@ -306,9 +294,9 @@ export class WorldRuntime {
   }
 
   listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
-  update(timestamp) { this.timer.update(timestamp); const dt = Math.min(this.timer.getDelta(), 1 / 30); this.locomotion?.update(dt); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.camera); if (this.rendering) this.rendering.update(); else this.controls?.update?.(); }
-  animate = (timestamp) => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(timestamp); if (this.rendering) this.rendering.render(timestamp ?? performance.now()); else { this.renderer?.render?.(this.scene, this.camera); this.rendererProbe?.afterRender?.(timestamp ?? performance.now()); } };
-  renderingDiagnostics() { return this.rendering?.diagnostics?.() || this.rendererProbe?.snapshot?.() || this.rendererInfo; }
+  update(timestamp) { this.timer.update(timestamp); const dt = Math.min(this.timer.getDelta(), 1 / 30); this.locomotion?.update(dt); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.rendering?.viewPose?.() || null); this.rendering?.update(); }
+  animate = (timestamp) => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(timestamp); this.rendering?.render(timestamp ?? performance.now()); };
+  renderingDiagnostics() { return this.rendering?.diagnostics?.() || null; }
   resize() { return this.rendering?.resize?.() ?? false; }
   dispose() {
     this.running = false;
@@ -330,20 +318,8 @@ export class WorldRuntime {
     this.navigation = null;
     this.physics.dispose();
     this.timer?.dispose();
-    if (this.rendering?.dispose) {
-      this.rendering.dispose();
-      this.rendering = null;
-      this.camera = null;
-      this.renderer = null;
-      this.controls = null;
-      this.rendererInfo = null;
-      this.rendererProbe = null;
-    } else {
-      this.controls?.dispose?.();
-      this.rendererProbe?.dispose?.();
-      this.renderer?.dispose?.();
-      this.renderer?.domElement?.remove?.();
-    }
+    this.rendering?.dispose?.();
+    this.rendering = null;
     this.events.clear();
   }
 }

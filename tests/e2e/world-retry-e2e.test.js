@@ -1,7 +1,6 @@
 import { describe,expect,it,vi } from 'vitest';
 import { AssetManager } from '../../asset/AssetManager.js';
 import { AssetCatalog } from '../../asset/AssetCatalog.js';
-import { createCanonicalWorldPipeline } from '../../world/compiler/createWorldPipeline.js';
 import { SkillRegistry } from '../../agent/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../../agent/skills/registerCoreSkills.js';
 import { PolicyEngine } from '../../core/PolicyEngine.js';
@@ -39,7 +38,6 @@ describe('bounded generated-world retry',()=>{
       store:{get:vi.fn()},snapshot:vi.fn(()=>structuredClone(snapshot)),restore:vi.fn(async()=>{}),mutate:vi.fn(async(_label,fn)=>fn()),
       clearObjects:vi.fn(async()=>{spawned.length=0;}),loadRuleGraph:vi.fn()
     };
-    runtime.worldPipeline=createCanonicalWorldPipeline(runtime);
     const registry=registerCoreSkills(new SkillRegistry({policy:runtime.policy,trace:runtime.trace,runtime}),runtime);
 
     const result=await registry.invoke('runWorldPipeline',{
@@ -58,7 +56,6 @@ describe('bounded generated-world retry',()=>{
       ]
     }});
     expect(generation.generateAsset).toHaveBeenCalledOnce();
-    expect(runtime.worldPipeline).toBeDefined();
     expect(assets.has('retry_fixture_qx9')).toBe(true);
     expect(runtime.spawn).toHaveBeenCalledOnce();
     expect(runtime.spawn).toHaveBeenCalledWith('retry_fixture_qx9',expect.objectContaining({id:'fixture_01'}));

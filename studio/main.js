@@ -106,9 +106,10 @@ async function main() {
 
   inspector.render(null);
   world.history.clear();
-  const rendererBackendLabel = world.rendererInfo?.backend === 'webgpu' ? 'WebGPU' : (world.rendererInfo?.backend === 'webgl2' ? 'WebGL2' : '未知后端');
+  const rendering = world.renderingDiagnostics?.() || {};
+  const rendererBackendLabel = rendering.backend === 'webgpu' ? 'WebGPU' : (rendering.backend === 'webgl2' ? 'WebGL2' : '未知后端');
   ui.setRuntimeStatus('ready', `就绪 · ${rendererBackendLabel}`);
-  taskPanel.log(`场景已就绪 · ${world.listObjects().length} 个对象 · ${world.rendererInfo?.renderer || 'Renderer'} / ${rendererBackendLabel}${world.rendererInfo?.fallback ? ' fallback' : ''}`, 'result');
+  taskPanel.log(`场景已就绪 · ${world.listObjects().length} 个对象 · ${rendering.renderer || 'Renderer'} / ${rendererBackendLabel}${rendering.fallback ? ' fallback' : ''}`, 'result');
 }
 
 async function restoreOrBootstrap({ world, tools, sceneStore, environmentDefinition, taskPanel }) {

@@ -29,6 +29,7 @@ export class SceneSerializer {
 
     const worldRevision=runtime.currentWorldRevision ? clone(runtime.currentWorldRevision) : null;
     const acceptanceEvidence=runtime.lastAcceptanceBundle ? clone(runtime.lastAcceptanceBundle) : null;
+    const cameraState=runtime.rendering?.cameraState?.() || null;
     return {
       schema: SCENE_SCHEMA,
       schemaVersion: SCENE_VERSION,
@@ -43,10 +44,7 @@ export class SceneSerializer {
       objects,
       relations: runtime.sceneGraph?.list?.() || [],
       ...(acceptanceEvidence?{verification:{acceptanceEvidence}}:{}),
-      camera: {
-        position: runtime.camera.position.toArray(),
-        target: runtime.controls.target.toArray()
-      }
+      ...(cameraState?{camera:cameraState}:{})
     };
   }
 
@@ -128,9 +126,7 @@ export class SceneSerializer {
       runtime.sceneGraph.changed();
     });
 
-    if (scene.camera?.position?.length === 3) runtime.camera.position.fromArray(scene.camera.position);
-    if (scene.camera?.target?.length === 3) runtime.controls.target.fromArray(scene.camera.target);
-    runtime.controls.update();
+    if (scene.camera) runtime.rendering?.applyCameraState?.(scene.camera);
     runtime.currentWorldRevision=scene.metadata?.worldRevision ? clone(scene.metadata.worldRevision) : null;
     runtime.restoredAcceptanceEvidence=scene.verification?.acceptanceEvidence ? clone(scene.verification.acceptanceEvidence) : null;
     runtime.lastAcceptanceBundle=null;

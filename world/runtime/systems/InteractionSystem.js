@@ -1123,11 +1123,12 @@ export class InteractionSystem {
     return { id, part:name, action, capability:contract.capability, target:part.targets[action], requested:true, interactionContractId:contract.id, verifierTarget:structuredClone(contract.verifierTarget) };
   }
 
-  update(dt, camera) {
+  update(dt, viewPose) {
     this.updatePlacementSettles(dt);
     this.updateArticulationTasks(dt);
-    if (this.humanHeldId) {
-      const target = new THREE.Vector3(0,0,-1.6).applyQuaternion(camera.quaternion).add(camera.position);
+    if (this.humanHeldId && viewPose?.position?.length === 3 && viewPose?.rotation?.length === 4) {
+      const rotation = new THREE.Quaternion(...viewPose.rotation);
+      const target = new THREE.Vector3(0,0,-1.6).applyQuaternion(rotation).add(new THREE.Vector3(...viewPose.position));
       this.physics.setHeldTarget(this.humanHeldId, target);
     }
     for (const [actorId, targetId] of this.agentHeld) {

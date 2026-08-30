@@ -8,8 +8,7 @@ it('marks semantic relations dirty after physical motion without rebuilding them
     store:{},
     sceneGraph:{ invalidate:vi.fn(), update:vi.fn() },
     interactions:{ update:vi.fn() },
-    camera:{},
-    controls:{ update:vi.fn() }
+    rendering:{ viewPose:vi.fn(()=>null), update:vi.fn() }
   };
   WorldRuntime.prototype.update.call(runtime);
   expect(runtime.sceneGraph.invalidate).toHaveBeenCalledOnce();

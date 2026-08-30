@@ -3,6 +3,7 @@ import { SkillRegistry } from '../../agent/skills/SkillRegistry.js';
 import { PolicyEngine } from '../../core/PolicyEngine.js';
 import { TraceRecorder } from '../../core/TraceRecorder.js';
 import { registerCoreSkills } from '../../agent/skills/registerCoreSkills.js';
+import { WorldBuilder } from '../../world/build/WorldBuilder.js';
 
 function runtime() {
   let value = 0;
@@ -38,8 +39,9 @@ function runtime() {
     sceneGraph: { list:vi.fn(()=>[]), describe:vi.fn(), update:vi.fn() },
     validator: { run:vi.fn(()=>({ ok:true, counts:{hard:0,advisory:0}, hard:[], advisory:[], coverage:{objects:0,relations:0} })) },
     repair: { repair:vi.fn() },
-    worldPipeline: { run:vi.fn() }
+    pipeline: { run:vi.fn() }
   };
+  r.worldBuilder = new WorldBuilder(r,{pipeline:r.pipeline});
   r.getValue = () => value;
   return r;
 }
@@ -47,7 +49,7 @@ function runtime() {
 describe('core skills', () => {
   it('atomically rolls back a batch when a nested skill fails', async () => {
     const r = runtime();
-    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r);
+    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r, { worldBuilder:r.worldBuilder });
     r.skills = registry;
     const result = await registry.invoke('executeBatch', { calls: [
       { name:'spawnAsset', args:{ assetId:'chair', position:[0,0,0] } },
@@ -62,7 +64,7 @@ describe('core skills', () => {
 
   it('surfaces provisional/rejected asset admission on low-level spawn without pretending verification', async () => {
     const r=runtime();
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
 
     r.assets.getManifest=vi.fn(()=>({id:'eg',type:'object',source:{kind:'glb',url:'https://assets.test/eg.glb'},actions:['move'],physics:{body:'dynamic',colliders:[]},provenance:{admission:{status:'provisional',reasons:['UNVERIFIED_PROVIDER_SEMANTICS']}}}));
     const provisional=await registry.invoke('spawnAsset',{assetId:'eg',position:[0,0,0],instanceId:'eg_01'},{profile:'builder',actor:'test'});
@@ -81,11 +83,11 @@ describe('core skills', () => {
   it('world pipeline cannot bypass asset permissions', async () => {
     const r = runtime();
     r.policy = new PolicyEngine({ profiles: { worldOnly: ['world.write'] } });
-    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r);
+    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r, { worldBuilder:r.worldBuilder });
     const result = await registry.invoke('runWorldPipeline', { plan:{} }, { profile:'worldOnly' });
     expect(result.success).toBe(false);
     expect(result.error.code).toBe('forbidden');
-    expect(r.worldPipeline.run).not.toHaveBeenCalled();
+    expect(r.pipeline.run).not.toHaveBeenCalled();
   });
   it('requires generation authority and never allows runWorldPipeline inside executeBatch', async () => {
     const r=runtime();
@@ -93,7 +95,7 @@ describe('core skills', () => {
       worldNoGeneration:['world.write','asset.read','asset.write','physics.read'],
       builder:['generation.read','generation.submit','artifact.import','world.write','asset.read','asset.write','physics.read']
     }});
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const denied=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'worldNoGeneration',actor:'test'});
     expect(denied).toMatchObject({success:false,error:{code:'forbidden'}});
     expect(denied.error.message).toContain('generation.read');
@@ -106,12 +108,12 @@ describe('core skills', () => {
 
     const batch=await registry.invoke('executeBatch',{calls:[{name:'runWorldPipeline',args:{plan:{}}}]},{profile:'builder',actor:'test'});
     expect(batch).toMatchObject({success:true,result:{committed:false,rolledBack:false,reason:'UNBATCHABLE_SKILL',skill:'runWorldPipeline'}});
-    expect(r.worldPipeline.run).not.toHaveBeenCalled();
+    expect(r.pipeline.run).not.toHaveBeenCalled();
   });
 
   it('does not expose pipeline stage selection to the agent tool', async () => {
     const r=runtime();
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const def=registry.definitions().find((item)=>item.name==='runWorldPipeline');
     expect(def.parameters.properties.plan).toMatchObject({
       type:'object',additionalProperties:false,
@@ -122,28 +124,28 @@ describe('core skills', () => {
       }
     });
     expect(def.parameters.properties.plan.properties.spatial.properties).not.toHaveProperty('constraints');
-    r.worldPipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}));
+    r.pipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}));
     await registry.invoke('runWorldPipeline',{plan:{},stages:['instantiate']},{profile:'builder',actor:'test'});
-    expect(r.worldPipeline.run).toHaveBeenCalledWith({});
+    expect(r.pipeline.run).toHaveBeenCalledWith({});
   });
 
 
   it('classifies world pipeline admission and restores a rejected generated world', async () => {
     const r=runtime();
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
 
-    r.worldPipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}));
+    r.pipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}));
     const ready=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
     expect(ready).toMatchObject({success:true,result:{status:'world-ready',admission:{status:'ready'}}});
     expect(registry.executionPolicy('runWorldPipeline',ready.result).outcome).toMatchObject({state:'verified',verified:true,status:'world-ready'});
 
-    r.worldPipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'provisional',reasons:['ASSET_PROVISIONAL']}}},timeline:[]}));
+    r.pipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'provisional',reasons:['ASSET_PROVISIONAL']}}},timeline:[]}));
     const provisional=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
     expect(provisional).toMatchObject({success:true,result:{status:'world-provisional',admission:{status:'provisional'}}});
     expect(registry.executionPolicy('runWorldPipeline',provisional.result).outcome).toMatchObject({state:'unverified',verified:false,status:'world-provisional',reason:'WORLD_PROVISIONAL'});
 
     r.restore.mockClear();
-    r.worldPipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'rejected',reasons:['ASSET_UNRESOLVED']}}},timeline:[]}));
+    r.pipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'rejected',reasons:['ASSET_UNRESOLVED']}}},timeline:[]}));
     const rejected=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
     expect(rejected).toMatchObject({success:true,result:{status:'world-rejected',reason:'ASSET_UNRESOLVED',rolledBack:true,admission:{status:'rejected'}}});
     expect(r.restore).toHaveBeenCalledOnce();
@@ -172,15 +174,15 @@ describe('core skills', () => {
       }
     },timeline:[]};
     const second={state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]};
-    r.worldPipeline.run=vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    r.pipeline.run=vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const result=await registry.invoke('runWorldPipeline',{plan},{profile:'builder',actor:'test'});
     expect(result).toMatchObject({success:true,result:{
       status:'world-ready',attempts:[{attempt:1,retry:{status:'retry-proposed',actions:[{kind:'enable-generation',instanceId:'machine_01'}]}},{attempt:2,admission:{status:'ready'}}],
       retry:{status:'retry-proposed',retriable:true}
     }});
-    expect(r.worldPipeline.run).toHaveBeenCalledTimes(2);
-    expect(r.worldPipeline.run.mock.calls[1][0]).toMatchObject({
+    expect(r.pipeline.run).toHaveBeenCalledTimes(2);
+    expect(r.pipeline.run.mock.calls[1][0]).toMatchObject({
       schema:'agentscape.world-ir',revision:{id:'rev-1:retry-2',parentId:'rev-1'},
       entities:[{id:'machine_01',asset:{assetId:'generated_machine_01',query:'rare machine',generate:true}}]
     });
@@ -211,13 +213,13 @@ describe('core skills', () => {
     const retryPlan=structuredClone(basePlan);
     retryPlan.revision={id:'rev-1:retry-2',parentId:'rev-1',reason:'bounded missing-asset regeneration'};
     retryPlan.entities[0].asset.generate=true;
-    r.worldPipeline.run=vi.fn().mockResolvedValueOnce(rejected(basePlan)).mockResolvedValueOnce(rejected(retryPlan));
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    r.pipeline.run=vi.fn().mockResolvedValueOnce(rejected(basePlan)).mockResolvedValueOnce(rejected(retryPlan));
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const result=await registry.invoke('runWorldPipeline',{plan:basePlan},{profile:'builder',actor:'test'});
     expect(result).toMatchObject({success:true,result:{
       status:'world-rejected',rolledBack:true,retry:{status:'exhausted',attempt:2,budget:2,retriable:false},attempts:[{attempt:1},{attempt:2}]
     }});
-    expect(r.worldPipeline.run).toHaveBeenCalledTimes(2);
+    expect(r.pipeline.run).toHaveBeenCalledTimes(2);
     expect(r.restore).toHaveBeenCalledTimes(2);
     expect(registry.executionPolicy('runWorldPipeline',result.result).outcome).toMatchObject({state:'failed',verified:false});
   });
@@ -225,14 +227,14 @@ describe('core skills', () => {
 
   it('viewer can validate but cannot repair', async () => {
     const r = runtime();
-    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r);
+    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r, { worldBuilder:r.worldBuilder });
     expect((await registry.invoke('validateWorld', {}, { profile:'viewer' })).success).toBe(true);
     expect((await registry.invoke('repairWorld', {}, { profile:'viewer' })).error.code).toBe('forbidden');
   });
 
   it('exposes navigation truth through the same spatial-read SkillRegistry contract', async () => {
     const r = runtime();
-    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r);
+    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r, { worldBuilder:r.worldBuilder });
     const reach = await registry.invoke('canReach', { start:[0,0,0], end:[3,0,0] }, { profile:'viewer' });
     const path = await registry.invoke('findPath', { start:[0,0,0], end:[3,0,0] }, { profile:'viewer' });
     const status = await registry.invoke('getNavigationStatus', {}, { profile:'viewer' });
@@ -248,7 +250,7 @@ describe('core skills', () => {
 
   it('exposes embodied interaction pose discovery and wraps approach+open in one mutation', async () => {
     const r = runtime();
-    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r);
+    const registry = registerCoreSkills(new SkillRegistry({ policy:r.policy, trace:r.trace, runtime:r }), r, { worldBuilder:r.worldBuilder });
     const pose = await registry.invoke('findInteractionPose', { actorId:'agent_01', targetId:'cabinet_01' }, { profile:'viewer' });
     expect(pose).toMatchObject({success:true,result:{status:'approach-pose',position:[1,0,1]}});
     const task = await registry.invoke('approachAndInteract', { actorId:'agent_01', targetId:'cabinet_01', action:'open', partName:'door' }, { profile:'builder', actor:'agent_01' });
@@ -266,7 +268,7 @@ describe('core skills', () => {
 
   it('exposes Agent carry ownership without presenting kinematic attachment as grasp verification', async () => {
     const r=runtime();
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const pickup=await registry.invoke('approachAndPickup',{actorId:'agent_01',targetId:'cup_01'},{profile:'builder',actor:'agent_01'});
     expect(pickup).toMatchObject({success:true,result:{status:'held',targetId:'cup_01',graspVerified:false}});
     expect(r.interactions.approachAndPickup).toHaveBeenCalledWith('agent_01','cup_01',{speed:undefined});
@@ -283,7 +285,7 @@ describe('core skills', () => {
     let finish;
     const deferred=new Promise((resolve)=>{finish=resolve;});
     r.interactions.approachAndPlace=vi.fn(()=>deferred);
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const pending=registry.invoke('approachAndPlace',{actorId:'agent_01',supportId:'table_01',surfaceId:'top'},{profile:'builder',actor:'agent_01'});
     await Promise.resolve(); await Promise.resolve();
     expect(r.mutate).toHaveBeenCalledWith('skill:approachAndPlace',expect.any(Function),expect.objectContaining({source:'agent_01',skill:'approachAndPlace'}));
@@ -299,7 +301,7 @@ describe('core skills', () => {
 
   it('refuses unbatchable embodied actions before mutating the world', async () => {
     const r=runtime();
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const result=await registry.invoke('executeBatch',{calls:[
       {name:'spawnAsset',args:{assetId:'chair',position:[0,0,0]}},
       {name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}
@@ -312,7 +314,7 @@ describe('core skills', () => {
   it('rolls back a batch when a nested skill returns a structured semantic failure without throwing', async () => {
     const r=runtime();
     r.interactions.place=vi.fn(()=>({status:'place-failed',reason:'SUPPORT_NOT_REACHED',supportVerified:false,settled:true}));
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const result=await registry.invoke('executeBatch',{calls:[
       {name:'spawnAsset',args:{assetId:'chair',position:[0,0,0]}},
       {name:'place',args:{id:'cup_01',targetId:'table_01'}}
@@ -325,7 +327,7 @@ describe('core skills', () => {
 
 
   it('registers blocker recovery as auxiliary and suggestion as read-only',()=>{
-    const r=runtime(); const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const r=runtime(); const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     expect(registry.executionPolicy('suggestRecoveryActions')).toMatchObject({mutates:false,barrier:false,auxiliary:false});
     expect(registry.executionPolicy('recoverPickupBlocker')).toMatchObject({mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false});
     expect(registry.executionPolicy('recoverArticulatedBlocker')).toMatchObject({mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false});
@@ -345,7 +347,7 @@ describe('core skills', () => {
     r.interactions.articulationStatus=vi.fn((id)=>id==='cabinet_A'?{
       id,parts:[{partName:'door',status:'action-failed',verifiedAction:'close',requestedAction:null,last:{status:'action-failed',reason:'STALL',action:'open',attribution:{status:'contact-evidence',blockerCandidates:[{kind:'object',objectId:'cabinet_B',partName:'door',colliderIndex:0}]}}}]
     }:{id,parts:[{partName:'door',status:'verified-state',verifiedAction:'open',requestedAction:null}]});
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const result=await registry.invoke('recoverArticulatedBlocker',{
       actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'
     },{profile:'builder',actor:'agent_01'});
@@ -376,7 +378,7 @@ describe('core skills', () => {
     r.interactions.articulationStatus=vi.fn((id)=>id==='cabinet_A'?{
       id,parts:[{partName:'door',status:'action-failed',verifiedAction:'close',requestedAction:null,last:{status:'action-failed',reason:'STALL',action:'open',attribution:{status:'contact-evidence',blockerCandidates:[candidate]}}}]
     }:{id,parts:[{partName:'door',status:'verified-state',verifiedAction:'open',requestedAction:null,live:{coordinate:-1,target:-1,error:0,tolerance:.08}}]});
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const result=await registry.invoke('recoverArticulatedBlocker',{
       actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'
     },{profile:'builder',actor:'agent_01'});
@@ -413,7 +415,7 @@ describe('core skills', () => {
       'cabinet_B:close:sweep':{min:[.4,.1,.3],max:[1.6,1.9,1.7]}
     };
     r.interactions.actionSweepBounds=vi.fn((id,action,partName,samples=9)=>({checked:true,partName,action,bounds:geometry[`${id}:${action}:${samples===1?'target':'sweep'}`] || geometry[`${id}:${action}:sweep`]}));
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const result=await registry.invoke('recoverArticulatedBlocker',{
       actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'
     },{profile:'builder',actor:'agent_01'});
@@ -457,7 +459,7 @@ describe('core skills', () => {
     };
     r.interactions.actionSweepBounds=vi.fn((id,action,partName,samples=9)=>({checked:true,partName,action,bounds:geometry[`${id}:${action}:${samples===1?'target':'sweep'}`] || geometry[`${id}:${action}:sweep`]}));
     r.interactions.approachAndInteract=vi.fn(async()=>({status:'action-completed',targetReached:true,settled:true,targetId:'cabinet_B',partName:'door',action:'close'}));
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const result=await registry.invoke('recoverArticulatedBlocker',{
       actorId:'agent_01',targetId:'cabinet_A',partName:'door',blockerId:'cabinet_B',blockerPartName:'door',blockerAction:'close'
     },{profile:'builder',actor:'agent_01'});
@@ -478,7 +480,7 @@ describe('core skills', () => {
     const r=runtime();
     r.currentWorldRevision={revision:{id:'rev-1'},provenance:{source:'planner'}};
     r.restoredAcceptanceEvidence={schema:'agentscape.acceptance-evidence',schemaVersion:1,required:true,source:'world-pipeline',worldRevisionId:'rev-1',criteria:[{id:'valid',kind:'world-valid'}],result:{schema:'agentscape.world-acceptance',schemaVersion:1,status:'world-accepted',checks:[{id:'valid',kind:'world-valid',verified:true}],verifiedCount:1,failedCount:0},findings:[]};
-    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
     const result=await registry.invoke('replayWorldAcceptance',{}, {profile:'viewer',actor:'agent_01'});
     expect(result).toMatchObject({success:true,result:{status:'world-accepted',replay:{status:'replayed',evidenceRevisionId:'rev-1',currentRevisionId:'rev-1'},acceptanceBundle:{source:'acceptance-replay'}}});
     expect(r.lastAcceptanceBundle).toMatchObject({source:'acceptance-replay',result:{status:'world-accepted'}});
@@ -490,7 +492,7 @@ describe('core skills', () => {
 
 it('exposes a semantic-only World Planner proposal contract and seals identity inside Runtime',async()=>{
   const r=runtime();
-  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
   const definition=registry.definitions().find((item)=>item.name==='proposeWorldIR');
   expect(definition.parameters).toMatchObject({
     type:'object',additionalProperties:false,required:['proposal'],
@@ -515,7 +517,7 @@ it('exposes a semantic-only World Planner proposal contract and seals identity i
 
 it('keeps bounded WorldRevision scope Runtime-owned and removes baseWorldIR from the Agent contract',async()=>{
   const r=runtime();
-  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
   const proposalDef=registry.definitions().find((item)=>item.name==='proposeWorldRevision');
   const recompileDef=registry.definitions().find((item)=>item.name==='recompileWorldRevision');
   expect(proposalDef.parameters).toMatchObject({required:['request'],properties:{request:{type:'object',required:['edits']}}});
@@ -574,12 +576,12 @@ it('replaces the current world before candidate execution and restores committed
   r.loadRuleGraph=vi.fn((graph)=>order.push(graph.length?'load-rules':'pause-rules'));
   r.clearObjects=vi.fn(async()=>{order.push('clear-world');r.interactionEvidence.clear();});
   r.restore=vi.fn(async()=>{order.push('restore-scene');});
-  r.worldPipeline.run=vi.fn(async()=>{
+  r.pipeline.run=vi.fn(async()=>{
     order.push('candidate-pipeline');
     expect(r.interactionEvidence.size).toBe(0);
     return {state:{artifacts:{},reports:{worldAdmission:{status:'rejected',reasons:['VALIDATION_HARD']}}},timeline:[]};
   });
-  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
   const result=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
   expect(result).toMatchObject({success:true,result:{status:'world-rejected',rolledBack:true,reason:'VALIDATION_HARD'}});
   expect(r.clearObjects).toHaveBeenCalledWith({silent:true});

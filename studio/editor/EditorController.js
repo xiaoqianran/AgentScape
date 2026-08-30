@@ -12,23 +12,29 @@ export class EditorController {
     this.dragBlocked = false;
     this.runtime.scene.add(this.box);
 
-    this.transform = new TransformControls(runtime.camera, runtime.renderer.domElement);
+    const viewport = runtime.rendering?.viewport?.();
+    if (!viewport) throw new Error('EditorController requires an initialized RenderingSystem viewport');
+    this.camera = viewport.camera;
+    this.element = viewport.element;
+    this.controls = viewport.controls;
+
+    this.transform = new TransformControls(this.camera, this.element);
     this.transform.setMode('translate');
     this.transform.setTranslationSnap(0.05);
     this.transform.setRotationSnap(THREE.MathUtils.degToRad(5));
     runtime.scene.add(this.transform.getHelper());
 
     this.onPointerDown = (event) => this.pick(event);
-    runtime.renderer.domElement.addEventListener('pointerdown', this.onPointerDown);
+    this.element.addEventListener('pointerdown', this.onPointerDown);
 
     this.transform.addEventListener('dragging-changed', ({ value }) => {
-      runtime.controls.enabled = !value;
+      this.controls.enabled = !value;
       if (!this.selectedId) return;
       if (value) {
         this.dragBlocked = !runtime.beginMutation(`editor:${this.transform.getMode()}`);
         if (this.dragBlocked) {
           this.transform.reset();
-          runtime.controls.enabled = true;
+          this.controls.enabled = true;
           return;
         }
         runtime.physics.beginTransform(this.selectedId);
@@ -49,10 +55,10 @@ export class EditorController {
 
   pick(event) {
     if (this.transform.dragging) return;
-    const rect = this.runtime.renderer.domElement.getBoundingClientRect();
+    const rect = this.element.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    this.raycaster.setFromCamera(this.pointer, this.runtime.camera);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
 
     const roots = this.runtime.store.list().map(([, record]) => record.object);
     const hits = this.raycaster.intersectObjects(roots, true);
@@ -100,7 +106,7 @@ export class EditorController {
   }
 
   dispose() {
-    this.runtime.renderer.domElement.removeEventListener('pointerdown', this.onPointerDown);
+    this.element.removeEventListener('pointerdown', this.onPointerDown);
     this.transform.detach();
     this.transform.dispose();
     this.box.geometry.dispose();

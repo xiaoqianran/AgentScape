@@ -17,8 +17,7 @@ function fakeRuntime() {
   return {
     version: '0.8.0', store,
     assets: { getManifest: vi.fn(() => ({ id: 'cabinet', type: 'cabinet', source: { kind: 'glb', url: 'assets/cabinet.glb' }, actions: ['open'] })) },
-    camera: { position: new THREE.Vector3(4,5,6) },
-    controls: { target: new THREE.Vector3(0,1,0) }
+    rendering: { cameraState:()=>({position:[4,5,6],target:[0,1,0]}), applyCameraState:vi.fn() }
   };
 }
 
@@ -120,7 +119,7 @@ it('rebuilds the Physics world before destructive scene restore when the runtime
     locomotion:{cancelAll:vi.fn()},interactions:{cancelPending:vi.fn(),rebuildHeldOwnership:vi.fn()},
     sceneGraph:{batch:vi.fn(async(operation)=>operation()),changed:vi.fn()},
     clearObjects:vi.fn(),spawn:vi.fn(async()=>{}),store:{get:vi.fn(()=>({object:new THREE.Group(),state:{}}))},
-    restoreObjectState:vi.fn(),camera:{position:new THREE.Vector3()},controls:{target:new THREE.Vector3(),update:vi.fn()},events:{emit:vi.fn()}
+    restoreObjectState:vi.fn(),rendering:{applyCameraState:vi.fn()},events:{emit:vi.fn()}
   };
   const scene={schema:'agentscape.scene',schemaVersion:1,assets:[],objects:[],relations:[],metadata:{environment:'hall'}};
   await serializer.restore(runtime,scene);
@@ -146,7 +145,7 @@ it('persists world revision and acceptance evidence without promoting restored e
     sceneGraph:{batch:vi.fn(async(operation)=>operation()),changed:vi.fn()},
     clearObjects:vi.fn(),spawn:vi.fn(async()=>{}),store:{get:vi.fn(()=>({object:new THREE.Group(),state:{}}))},
     physics:{syncTransform:vi.fn()},restoreObjectState:vi.fn(),interactions:{rebuildHeldOwnership:vi.fn()},
-    camera:{position:new THREE.Vector3()},controls:{target:new THREE.Vector3(),update:vi.fn()},events:{emit:vi.fn()},
+    rendering:{applyCameraState:vi.fn()},events:{emit:vi.fn()},
     lastAcceptanceBundle:{required:true,result:{status:'world-accepted'}}
   };
   await serializer.restore(restored,{...scene,objects:[],assets:[]});

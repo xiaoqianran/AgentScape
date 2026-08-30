@@ -60,7 +60,7 @@ async function setup(){
 async function driveAgent(promise,ctx,max=9000){
   let done=false,result,error; promise.then(v=>{done=true;result=v},e=>{done=true;error=e});
   for(let i=0;i<max&&!done;i++){
-    ctx.locomotion.update(1/60); ctx.physics.step(1/60,ctx.store); ctx.interactions.update(1/60,new THREE.PerspectiveCamera());
+    ctx.locomotion.update(1/60); ctx.physics.step(1/60,ctx.store); ctx.interactions.update(1/60,{position:[0,0,0],rotation:[0,0,0,1]});
     if(i%12===0) await new Promise(r=>setTimeout(r,0)); else await Promise.resolve();
   }
   if(error) throw error; if(!done) throw new Error('cleanup agent did not settle'); return result;

@@ -42,7 +42,7 @@ async function drive(promise,ctx,max=1600){
   for(let i=0;i<max&&!done;i++){
     ctx.locomotion.update(1/60);
     ctx.physics.step(1/60,ctx.store);
-    ctx.interactions.update(1/60,new THREE.PerspectiveCamera());
+    ctx.interactions.update(1/60,{position:[0,0,0],rotation:[0,0,0,1]});
     if(i%24===0) await new Promise(r=>setTimeout(r,0));
     else await Promise.resolve();
   }
