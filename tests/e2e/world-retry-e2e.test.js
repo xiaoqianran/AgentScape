@@ -1,7 +1,7 @@
 import { describe,expect,it,vi } from 'vitest';
 import { AssetManager } from '../../asset/AssetManager.js';
 import { AssetCatalog } from '../../asset/AssetCatalog.js';
-import { createWorldPipeline } from '../../world/compiler/createWorldPipeline.js';
+import { createCanonicalWorldPipeline } from '../../world/compiler/createWorldPipeline.js';
 import { SkillRegistry } from '../../agent/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../../agent/skills/registerCoreSkills.js';
 import { PolicyEngine } from '../../core/PolicyEngine.js';
@@ -19,12 +19,11 @@ describe('bounded generated-world retry',()=>{
     };
     const generation={
       canGenerateAsset:vi.fn(()=>true),
-      resolveAssetRequest:vi.fn(async(request)=>{
-        const existing=assetCatalog.resolveExisting(request.query || '',{assetId:request.assetId || null});
-        if(existing.status==='found') return existing;
-        if(!request.generate) return existing;
+      generateAsset:vi.fn(async(prompt,options)=>{
+        expect(prompt).toBe('qx9 generated retry fixture');
+        expect(options).toMatchObject({instanceId:'fixture_01'});
         assets.registerManifest(generatedManifest);
-        return {status:'generated',query:request.query,assets:[assetCatalog.summary(generatedManifest)]};
+        return {...assetCatalog.summary(generatedManifest),status:'asset-ready'};
       })
     };
     const spawned=[];
@@ -40,7 +39,7 @@ describe('bounded generated-world retry',()=>{
       store:{get:vi.fn()},snapshot:vi.fn(()=>structuredClone(snapshot)),restore:vi.fn(async()=>{}),mutate:vi.fn(async(_label,fn)=>fn()),
       clearObjects:vi.fn(async()=>{spawned.length=0;}),loadRuleGraph:vi.fn()
     };
-    runtime.worldPipeline=createWorldPipeline(runtime);
+    runtime.worldPipeline=createCanonicalWorldPipeline(runtime);
     const registry=registerCoreSkills(new SkillRegistry({policy:runtime.policy,trace:runtime.trace,runtime}),runtime);
 
     const result=await registry.invoke('runWorldPipeline',{
@@ -58,7 +57,8 @@ describe('bounded generated-world retry',()=>{
         {attempt:2,admission:{status:'ready'}}
       ]
     }});
-    expect(generation.resolveAssetRequest).toHaveBeenCalledWith(expect.objectContaining({query:'qx9 generated retry fixture',generate:true,instanceId:'fixture_01'}));
+    expect(generation.generateAsset).toHaveBeenCalledOnce();
+    expect(runtime.worldPipeline).toBeDefined();
     expect(assets.has('retry_fixture_qx9')).toBe(true);
     expect(runtime.spawn).toHaveBeenCalledOnce();
     expect(runtime.spawn).toHaveBeenCalledWith('retry_fixture_qx9',expect.objectContaining({id:'fixture_01'}));

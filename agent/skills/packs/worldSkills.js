@@ -11,6 +11,46 @@ const newWorldRevisionId=()=>{
   return `world-${id}`;
 };
 
+const materializeRetryAssets=async(runtime,retry)=>{
+  if(retry?.status!=='retry-proposed') return {status:'not-requested',plan:retry?.nextIR || null,assets:[]};
+  if(typeof runtime.generation?.generateAsset!=='function') {
+    return {status:'generation-failed',reason:'GENERATOR_UNAVAILABLE',plan:null,assets:[]};
+  }
+  const plan=structuredClone(retry.nextIR);
+  const generated=[];
+  for(const action of retry.actions || []) {
+    if(action.kind!=='enable-generation') continue;
+    const entity=plan.entities.find((item)=>(action.instanceId && item.id===action.instanceId) || (!action.instanceId && item.asset?.query===action.query));
+    if(!entity){
+      return {status:'generation-failed',reason:'RETRY_ENTITY_NOT_FOUND',plan:null,assets:generated,action:structuredClone(action)};
+    }
+    const asset=entity.asset || {};
+    const prompt=asset.prompt || asset.query || asset.type || action.query || '';
+    let produced;
+    try {
+      produced=await runtime.generation.generateAsset(prompt,{
+        ...(entity.id ? {instanceId:entity.id} : {}),
+        ...(asset.provider ? {provider:asset.provider} : {})
+      });
+    } catch(error) {
+      return {
+        status:'generation-failed',reason:error?.code || 'GENERATION_FAILED',plan:null,assets:generated,
+        error:{code:error?.code || 'GENERATION_FAILED',message:error?.message || String(error)}
+      };
+    }
+    const assetId=produced?.id || null;
+    if(!assetId || runtime.assets?.has?.(assetId)!==true) {
+      return {
+        status:'generation-failed',reason:produced?.status || 'GENERATED_ASSET_NOT_PUBLISHED',plan:null,assets:generated,
+        result:produced ? structuredClone(produced) : null
+      };
+    }
+    entity.asset={...asset,assetId};
+    generated.push({instanceId:entity.id || null,assetId,status:produced.status || 'generated'});
+  }
+  return {status:'generated',plan,assets:generated};
+};
+
 export function registerWorldSkills(add,runtime) {
   add('proposeWorldRevision', meta('针对最近一次 world-rejected 的 Runtime-issued revision context 提交 bounded typed edits。Runtime 决定 base/next revision、Finding scope 和 affectedEntityIds；本工具只生成 proposal，不修改 Scene。成功后必须 fresh-replan，再把返回 proposal 原样提交 recompileWorldRevision。', [], ['request'], { request:WORLD_REVISION_REQUEST_TOOL_SCHEMA }), (a,{context}) => {
     const repair=context?.worldRevisionRepair;
@@ -79,7 +119,16 @@ export function registerWorldSkills(add,runtime) {
       if (retry.status!=='retry-proposed') {
         return {status:'world-rejected',reason:admission.reasons?.[0] || 'WORLD_REJECTED',rolledBack:true,admission,pipeline,attempts,retry};
       }
-      plan=retry.nextIR;
+      const generation=await materializeRetryAssets(runtime,retry);
+      record.generation=generation.status==='generated'
+        ? {status:generation.status,assets:structuredClone(generation.assets)}
+        : {status:generation.status,reason:generation.reason,...(generation.error?{error:generation.error}:{})};
+      if(generation.status!=='generated') {
+        const failedRetry={...retry,status:'generation-failed',retriable:false,generation:record.generation};
+        record.retry=failedRetry;
+        return {status:'world-rejected',reason:generation.reason || 'GENERATION_FAILED',rolledBack:true,admission,pipeline,attempts,retry:failedRetry};
+      }
+      plan=generation.plan;
     }
     throw new Error('World retry loop exceeded its fixed budget');
   });

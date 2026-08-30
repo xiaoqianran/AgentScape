@@ -63,6 +63,21 @@ describe('Canonical World asset boundary', () => {
     expect(result.state.reports.assetAdmission.status).toBe('ready');
   });
 
+
+  it('consumes a published retry asset without invoking generation inside the canonical pipeline', async () => {
+    const r = runtime();
+    const result = await createCanonicalWorldPipeline(r).run(worldIR({
+      assetId: 'table_fixture',
+      query: 'table fixture',
+      generate: true,
+      provider: 'modal-3d'
+    }));
+
+    expect(r.authoring.resolveAssetRequest).not.toHaveBeenCalled();
+    expect(r.spawn).toHaveBeenCalledWith('table_fixture', expect.objectContaining({ id: 'entity_01' }));
+    expect(result.state.reports.assetAdmission.status).toBe('ready');
+  });
+
   it('refuses generation intent instead of invoking a provider from World', async () => {
     const r = runtime();
     const result = await createCanonicalWorldPipeline(r).run(worldIR({

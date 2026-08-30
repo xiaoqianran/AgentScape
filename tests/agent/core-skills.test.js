@@ -133,6 +133,7 @@ describe('core skills', () => {
   it('retries one canonical world pipeline attempt by enabling generation only for search-missing assets', async () => {
     const r=runtime();
     r.generation.canGenerateAsset=()=>true;
+    r.generation.generateAsset=vi.fn(async()=>({id:'generated_machine_01',status:'asset-ready'}));
     const plan={
       schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-1'},provenance:{source:'planner'},intent:{name:'Lab'},
       entities:[{id:'machine_01',asset:{query:'rare machine',generate:false}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]
@@ -160,7 +161,7 @@ describe('core skills', () => {
     expect(r.worldPipeline.run).toHaveBeenCalledTimes(2);
     expect(r.worldPipeline.run.mock.calls[1][0]).toMatchObject({
       schema:'agentscape.world-ir',revision:{id:'rev-1:retry-2',parentId:'rev-1'},
-      entities:[{id:'machine_01',asset:{query:'rare machine',generate:true}}]
+      entities:[{id:'machine_01',asset:{assetId:'generated_machine_01',query:'rare machine',generate:true}}]
     });
     expect(r.restore).toHaveBeenCalledOnce();
     expect(registry.executionPolicy('runWorldPipeline',result.result).outcome).toMatchObject({state:'verified',verified:true,status:'world-ready'});
@@ -169,6 +170,7 @@ describe('core skills', () => {
   it('never exceeds the fixed two-attempt world generation budget', async () => {
     const r=runtime();
     r.generation.canGenerateAsset=()=>true;
+    r.generation.generateAsset=vi.fn(async()=>({id:'generated_machine_01',status:'asset-ready'}));
     const basePlan={
       schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-1'},provenance:{source:'planner'},intent:{name:'Lab'},
       entities:[{id:'machine_01',asset:{query:'rare machine',generate:false}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[]

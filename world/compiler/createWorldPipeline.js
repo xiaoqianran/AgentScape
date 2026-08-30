@@ -28,6 +28,13 @@ const admissionNotEvaluated=(reason='UPSTREAM_ADMISSION_REJECTED',extra={})=>({
 
 const resolveCanonicalAsset = async (runtime, request) => {
   const query = request.query || request.type || request.assetId || '';
+  // Canonical World compilation may consume an already-published Asset even when
+  // the retry revision preserves generation provenance. It must never invoke a
+  // Provider itself; generation happens in the Runtime orchestration boundary.
+  if (request.assetId && runtime.assets.has(request.assetId)) {
+    const manifest = runtime.assets.getManifest(request.assetId);
+    return { status: 'found', query, assets: [runtime.assetCatalog?.summary?.(manifest) || { id: manifest.id }] };
+  }
   if (request.generate || request.provider) {
     return {
       status: 'generation_outside_world',
@@ -35,10 +42,6 @@ const resolveCanonicalAsset = async (runtime, request) => {
       assets: [],
       hint: 'Generate and publish the Asset before compiling canonical WorldIR.'
     };
-  }
-  if (request.assetId && runtime.assets.has(request.assetId)) {
-    const manifest = runtime.assets.getManifest(request.assetId);
-    return { status: 'found', query, assets: [runtime.assetCatalog?.summary?.(manifest) || { id: manifest.id }] };
   }
   if (runtime.assetCatalog?.resolveExisting) {
     return runtime.assetCatalog.resolveExisting(query, { assetId: request.assetId || null, limit: 5 });

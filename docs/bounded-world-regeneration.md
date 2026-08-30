@@ -237,12 +237,15 @@ Runtime 构造 retry：
 enable-generation(fixture_01)
 ```
 
-第二次真实调用 Generator，得到 Compiler-ready Manifest：
+`runWorldPipeline` 的 Runtime 编排层会在两次 canonical execution 之间调用 Generator；canonical resolver 本身仍不访问 Provider。生成并发布完成后，Runtime 把已发布 `assetId` 写入 retry revision，再执行第二次完整 canonical pipeline：
 
 ```text
-Generator
-→ AssetLibrary.generate
+Runtime retry orchestration
+→ Generator
+→ Artifact / Compiler
 → AssetManager.registerManifest
+→ retry WorldIR.assetId
+→ canonical resolve(existing assetId)
 → compose layout
 → spawn
 → validate
