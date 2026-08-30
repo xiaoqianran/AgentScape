@@ -22,9 +22,9 @@ export function createAppShell({ app, environmentDefinition, environments }) {
             <span>世界</span>
             <select id="world-select" class="world-select" aria-label="当前世界">${environmentOptions}</select>
           </label>
-          <div id="runtime-status" class="runtime-status" data-state="loading" role="status" aria-live="polite">
+          <button id="runtime-status" class="runtime-status" data-state="loading" type="button" disabled aria-live="polite">
             <i></i><span>启动中</span>
-          </div>
+          </button>
           <button id="cinematic-toggle" class="header-button" type="button">沉浸模式</button>
           <button id="open-developer" class="icon-button" type="button" aria-label="打开开发者设置" title="开发者设置">⋯</button>
         </div>
@@ -112,10 +112,18 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     requestAnimationFrame(() => onLayoutChange());
   };
 
+  let runtimeRecoveryAction = null;
   const setRuntimeStatus = (state, label) => {
     runtimeStatus.dataset.state = state;
     runtimeStatusLabel.textContent = label;
   };
+  const setRuntimeRecoveryAction = (handler, label = null) => {
+    runtimeRecoveryAction = typeof handler === 'function' ? handler : null;
+    runtimeStatus.disabled = !runtimeRecoveryAction;
+    runtimeStatus.classList.toggle('is-actionable', Boolean(runtimeRecoveryAction));
+    if (label) runtimeStatusLabel.textContent = label;
+  };
+  runtimeStatus.addEventListener('click', () => runtimeRecoveryAction?.());
 
   tabs.forEach((tab) => tab.addEventListener('click', () => setView(tab.dataset.panelView)));
   app.querySelector('#world-select').addEventListener('change', (event) => {
@@ -140,6 +148,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     developerDialog: app.querySelector('#developer-dialog'),
     setView,
     setRuntimeStatus,
+    setRuntimeRecoveryAction,
     setLayoutChangeHandler(handler) { onLayoutChange = handler || (() => {}); }
   };
 }

@@ -44,7 +44,10 @@ button:disabled,input:disabled,select:disabled,textarea:disabled { cursor:not-al
 .header-button { padding:0 10px; }
 .icon-button { width:32px; padding:0; font-size:18px; line-height:1; }
 .world-select:hover,.header-button:hover,.icon-button:hover { border-color:var(--line-strong); color:var(--text); background:var(--bg-hover); }
-.runtime-status { display:flex; align-items:center; gap:6px; color:var(--text-muted); font-size:10px; font-weight:650; white-space:nowrap; }
+.runtime-status { display:flex; align-items:center; gap:6px; padding:0; border:0; background:transparent; color:var(--text-muted); font-size:10px; font-weight:650; white-space:nowrap; }
+.runtime-status:disabled { opacity:1; cursor:default; }
+.runtime-status.is-actionable { cursor:pointer; }
+.runtime-status.is-actionable:hover { color:var(--text); }
 .runtime-status i { width:6px; height:6px; border-radius:50%; background:var(--warning); }
 .runtime-status[data-state="ready"] i { background:var(--success); }
 .runtime-status[data-state="error"] i,.runtime-status[data-state="offline"] i { background:var(--danger); }

@@ -1,8 +1,16 @@
-export function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui }) {
+export function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, autosave = null, reload = () => location.reload() }) {
   const log = (text, kind) => taskPanel.log(text, kind);
-  world.events.on('renderer.device-lost', ({ reason, message }) => {
-    ui.setRuntimeStatus('error', 'GPU 设备丢失 · 请重新加载');
-    log(`渲染设备丢失：${reason || 'unknown'} · ${message || 'unknown'}`, 'error');
+  world.events.on('renderer.device-lost', ({ api, reason, message }) => {
+    let saved = false;
+    try {
+      saved = Boolean(autosave?.flush?.());
+    } catch (error) {
+      log(`渲染中断后的自动保存失败：${error.message}`, 'error');
+    }
+    const backend = api || 'GPU';
+    ui.setRuntimeStatus('error', '渲染已中断 · 点击恢复');
+    ui.setRuntimeRecoveryAction?.(reload, '渲染已中断 · 点击恢复');
+    log(`渲染设备丢失：${backend} · ${reason || 'unknown'} · ${message || 'unknown'}${saved ? ' · 场景已保存' : ''}`, 'error');
   });
   world.events.on('renderer.error', ({ type, message }) => log(`渲染错误：${type || 'GPUError'} · ${message || 'unknown'}`, 'error'));
   world.events.on('tool.called', (event) => log(`工具：${event.name} ${JSON.stringify(event.args)}`, 'tool'));

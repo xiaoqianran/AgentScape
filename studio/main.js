@@ -88,9 +88,9 @@ async function main() {
     const legacy = new LocalSceneStore();
     if (legacy.has()) sceneStore.save(legacy.load());
   }
-  new AutosaveController({ runtime: world, store: sceneStore, delayMs: 600 }).start();
+  const autosave = new AutosaveController({ runtime: world, store: sceneStore, delayMs: 600 }).start();
 
-  bindRuntimeEvents({ world, editor, inspector, taskPanel, ui });
+  bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, autosave });
   bindDebugLayers(world, { log: (text, kind) => taskPanel.log(text, kind) });
   await restoreOrBootstrap({ world, tools, sceneStore, environmentDefinition, taskPanel });
   bindSceneControls({
