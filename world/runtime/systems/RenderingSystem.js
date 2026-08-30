@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { createRenderer } from '../../../core/rendering/createRenderer.js';
 import { RendererProbe } from '../../../core/rendering/RendererProbe.js';
+import { WebGpuPostFxPipeline } from '../../../core/rendering/WebGpuPostFxPipeline.js';
 
 export class RenderingSystem {
   constructor({
@@ -14,6 +15,8 @@ export class RenderingSystem {
     rendererTiming = false,
     controlsFactory = (camera, domElement) => new OrbitControls(camera, domElement),
     environmentLoader = new HDRLoader(),
+    postFxFactory = (options) => new WebGpuPostFxPipeline(options),
+    postFxOptions = {},
     onDeviceLost = null,
     onError = null
   } = {}) {
@@ -22,6 +25,7 @@ export class RenderingSystem {
     if (typeof rendererFactory !== 'function') throw new TypeError('RenderingSystem rendererFactory must be a function');
     if (typeof controlsFactory !== 'function') throw new TypeError('RenderingSystem controlsFactory must be a function');
     if (!environmentLoader || typeof environmentLoader.loadAsync !== 'function') throw new TypeError('RenderingSystem requires an environment loader');
+    if (typeof postFxFactory !== 'function') throw new TypeError('RenderingSystem postFxFactory must be a function');
 
     this.container = container;
     this.scene = scene;
@@ -31,6 +35,8 @@ export class RenderingSystem {
     this.rendererTiming = Boolean(rendererTiming);
     this.controlsFactory = controlsFactory;
     this.environmentLoader = environmentLoader;
+    this.postFxFactory = postFxFactory;
+    this.postFxOptions = postFxOptions;
     this.onDeviceLost = typeof onDeviceLost === 'function' ? onDeviceLost : null;
     this.onError = typeof onError === 'function' ? onError : null;
     this.camera = null;
@@ -41,6 +47,7 @@ export class RenderingSystem {
     this.environmentTexture = null;
     this.environmentVersion = 0;
     this.environmentTask = Promise.resolve(false);
+    this.postFx = null;
   }
 
   async init() {
@@ -74,6 +81,13 @@ export class RenderingSystem {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.container.appendChild(this.renderer.domElement);
+
+    this.postFx = this.postFxFactory({
+      renderer: this.renderer,
+      scene: this.scene,
+      camera: this.camera,
+      options: this.postFxOptions
+    });
 
     this.controls = this.controlsFactory(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -148,8 +162,27 @@ export class RenderingSystem {
   }
 
   render(timestamp = performance.now()) {
-    this.renderer.render(this.scene, this.camera);
+    if (this.postFx?.enabled) {
+      try {
+        this.postFx.render();
+      } catch (error) {
+        this.disablePostFx(error);
+        this.renderer.render(this.scene, this.camera);
+      }
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
     this.probe?.afterRender(timestamp);
+  }
+
+  disablePostFx(error) {
+    const diagnostics = this.postFx?.diagnostics?.() || null;
+    this.postFx?.dispose?.();
+    this.postFx = null;
+    this.events?.emit?.('renderer.postfx-error', {
+      message: error instanceof Error ? error.message : String(error),
+      postfx: diagnostics
+    });
   }
 
   resize() {
@@ -163,12 +196,16 @@ export class RenderingSystem {
   }
 
   diagnostics() {
-    return this.probe?.snapshot?.() || this.info;
+    const base = this.probe?.snapshot?.() || this.info;
+    if (!base) return base;
+    return { ...base, postfx: this.postFx?.diagnostics?.() || { enabled:false, effects:[] } };
   }
 
   dispose() {
     this.environmentVersion += 1;
     this.releaseEnvironmentTexture();
+    this.postFx?.dispose?.();
+    this.postFx = null;
     this.controls?.dispose?.();
     this.controls = null;
     this.probe?.dispose?.();

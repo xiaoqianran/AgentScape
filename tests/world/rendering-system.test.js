@@ -136,4 +136,69 @@ describe('RenderingSystem', () => {
     expect(h.domElement.remove).toHaveBeenCalledOnce();
     expect(scene.children).toContain(child);
   });
+  it('routes WebGPU frames through PostFX and exposes its diagnostics', async () => {
+    const h = createHarness();
+    h.renderer.backend = { isWebGPUBackend:true, trackTimestamp:false };
+    h.rendererFactory.mockResolvedValue({ renderer:h.renderer, info:{ backend:'webgpu' } });
+    const postFx = {
+      enabled:true,
+      render:vi.fn(),
+      dispose:vi.fn(),
+      diagnostics:vi.fn(() => ({ enabled:true, backend:'webgpu', effects:['gtao','bloom','fxaa'] }))
+    };
+    const postFxFactory = vi.fn(() => postFx);
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene:new THREE.Scene(),
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory,
+      postFxFactory
+    });
+
+    await rendering.init();
+    rendering.render(42);
+
+    expect(postFxFactory).toHaveBeenCalledOnce();
+    expect(postFx.render).toHaveBeenCalledOnce();
+    expect(h.renderer.render).not.toHaveBeenCalled();
+    expect(rendering.diagnostics().postfx).toEqual({
+      enabled:true,
+      backend:'webgpu',
+      effects:['gtao','bloom','fxaa']
+    });
+
+    rendering.dispose();
+    expect(postFx.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to direct rendering if the WebGPU PostFX pipeline fails', async () => {
+    const h = createHarness();
+    const scene = new THREE.Scene();
+    const events = { emit:vi.fn() };
+    const postFx = {
+      enabled:true,
+      render:vi.fn(() => { throw new Error('shader compile failed'); }),
+      dispose:vi.fn(),
+      diagnostics:vi.fn(() => ({ enabled:true, backend:'webgpu', effects:['gtao'] }))
+    };
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene,
+      events,
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory,
+      postFxFactory:() => postFx
+    });
+
+    await rendering.init();
+    rendering.render(99);
+
+    expect(postFx.dispose).toHaveBeenCalledOnce();
+    expect(rendering.postFx).toBeNull();
+    expect(h.renderer.render).toHaveBeenCalledWith(scene, rendering.camera);
+    expect(events.emit).toHaveBeenCalledWith('renderer.postfx-error', {
+      message:'shader compile failed',
+      postfx:{ enabled:true, backend:'webgpu', effects:['gtao'] }
+    });
+  });
 });
