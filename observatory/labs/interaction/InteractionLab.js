@@ -12,10 +12,11 @@ import { InteractionDebugRenderer } from "./visualizers/InteractionDebugRenderer
 import { NormalizedColliderRenderer } from "../physics/visualizers/NormalizedColliderRenderer.js";
 
 export class InteractionLab {
-  constructor({ viewport, onTelemetry, rendererMode = "auto" }) {
+  constructor({ viewport, onTelemetry, rendererMode = "auto", rendererTiming = false }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
     this.rendererMode = rendererMode;
+    this.rendererTiming = Boolean(rendererTiming);
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
     this.checkpointFrame = null;
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
@@ -45,6 +46,7 @@ export class InteractionLab {
       scene: this.scene,
       camera: this.camera,
       rendererMode: this.rendererMode,
+      rendererTiming: this.rendererTiming,
       controlsTarget: [0, 0.9, 0],
     }));
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -147,10 +149,11 @@ export class InteractionLab {
   frame(timestamp) {
     const stepped = this.runner.tick(timestamp);
     if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
-    if (stepped && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
+    if ((stepped || this.rendererTiming) && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
     const cameraMoving = this.cameraRig.update(timestamp);
     if (!cameraMoving) this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.rendererProbe?.afterRender(timestamp);
     this.worldLabels.render();
     this.animation = requestAnimationFrame((next) => this.frame(next));
   }

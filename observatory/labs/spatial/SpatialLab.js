@@ -10,10 +10,11 @@ import { SpatialScenarioContext } from "./SpatialScenarioContext.js";
 import { SpatialDebugRenderer } from "./visualizers/SpatialDebugRenderer.js";
 
 export class SpatialLab {
-  constructor({ viewport, onTelemetry, rendererMode = "auto" }) {
+  constructor({ viewport, onTelemetry, rendererMode = "auto", rendererTiming = false }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
     this.rendererMode = rendererMode;
+    this.rendererTiming = Boolean(rendererTiming);
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
     this.checkpointFrame = null;
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
@@ -41,6 +42,7 @@ export class SpatialLab {
       scene: this.scene,
       camera: this.camera,
       rendererMode: this.rendererMode,
+      rendererTiming: this.rendererTiming,
       controlsTarget: [0, 1.2, 0],
     }));
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -163,10 +165,11 @@ export class SpatialLab {
   frame(timestamp) {
     const stepped = this.runner.tick(timestamp);
     if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
-    if (stepped && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
+    if ((stepped || this.rendererTiming) && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
     const cameraMoving = this.cameraRig.update(timestamp);
     if (!cameraMoving) this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.rendererProbe?.afterRender(timestamp);
     this.worldLabels.render();
     this.animation = requestAnimationFrame((next) => this.frame(next));
   }

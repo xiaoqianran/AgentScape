@@ -28,6 +28,14 @@ export const developerSettingsMarkup = () => `
         </section>
 
         <details class="settings-section disclosure" open>
+          <summary>渲染运行时</summary>
+          <div class="settings-body">
+            <div id="renderer-report" class="technical-report">读取渲染状态中…</div>
+            <p class="settings-help">使用 ?renderer=webgpu 强制 WebGPU，?renderer=webgl 强制 WebGL2；追加 ?gpuTiming=1 可启用 GPU timestamp query。</p>
+          </div>
+        </details>
+
+        <details class="settings-section disclosure" open>
           <summary>世界验证</summary>
           <div class="settings-body">
             <div class="button-row">
@@ -79,6 +87,7 @@ export class DeveloperSettings {
     };
     this.capabilityHelp = q('#capability-status-help');
     this.refreshCapabilitiesButton = q('#refresh-capabilities');
+    this.rendererReport = q('#renderer-report');
     this.engineReport = q('#engine-report');
     this.compilerReport = q('#compiler-report');
     this.assetQuery = q('#asset-query');
@@ -88,6 +97,7 @@ export class DeveloperSettings {
 
   init() {
     this.renderCapabilityStatus(this.capabilityStatus);
+    this.renderRendererStatus();
     this.refreshCapabilitiesButton.addEventListener('click', () => this.refreshCapabilityStatus());
     this.dialog.querySelector('#validate-world').addEventListener('click', () => this.validate());
     this.dialog.querySelector('#repair-world').addEventListener('click', () => this.repair());
@@ -116,7 +126,23 @@ export class DeveloperSettings {
   open() {
     if (typeof this.dialog.showModal === 'function') this.dialog.showModal();
     else this.dialog.setAttribute('open', '');
+    this.renderRendererStatus();
     requestAnimationFrame(() => this.refreshCapabilitiesButton.focus());
+  }
+
+  renderRendererStatus() {
+    const info = this.world.renderingDiagnostics?.() || this.world.rendererInfo || {};
+    const backend = info.backend === 'webgpu' ? 'WebGPU' : info.backend === 'webgl2' ? 'WebGL2' : String(info.backend || 'unknown');
+    const mode = info.requestedMode || 'auto';
+    const health = info.health || 'ready';
+    const gpuTime = Number.isFinite(info.gpuTimeMs) ? `${info.gpuTimeMs.toFixed(3)} ms` : '—';
+    const timing = info.gpuTiming ? `启用 · ${gpuTime}` : '关闭';
+    const compatibility = info.compatibilityMode === true ? 'compatibility' : info.compatibilityMode === false ? 'core' : '—';
+    renderTechnicalReport(
+      this.rendererReport,
+      `${backend} · ${health}`,
+      `模式 ${mode} · fallback ${info.fallback ? '是' : '否'} · GPU timing ${timing} · WebGPU ${compatibility}`
+    );
   }
 
   async refreshCapabilityStatus() {

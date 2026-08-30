@@ -1,5 +1,10 @@
 export function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui }) {
   const log = (text, kind) => taskPanel.log(text, kind);
+  world.events.on('renderer.device-lost', ({ reason, message }) => {
+    ui.setRuntimeStatus('error', 'GPU 设备丢失 · 请重新加载');
+    log(`渲染设备丢失：${reason || 'unknown'} · ${message || 'unknown'}`, 'error');
+  });
+  world.events.on('renderer.error', ({ type, message }) => log(`渲染错误：${type || 'GPUError'} · ${message || 'unknown'}`, 'error'));
   world.events.on('tool.called', (event) => log(`工具：${event.name} ${JSON.stringify(event.args)}`, 'tool'));
   world.events.on('interaction', (event) => log(`动作：${event.action} ${event.id}`, 'tool'));
   world.events.on('locomotion.started', ({ id, waypoints, pathCost }) => log(`行走：${id} · ${waypoints} 个路径点 · ${pathCost ?? '?'} 米`, 'tool'));

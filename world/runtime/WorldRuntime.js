@@ -23,6 +23,7 @@ import { ArticulationVerifier } from '../verification/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
 import { createRenderer } from '../../core/rendering/createRenderer.js';
+import { RendererProbe } from '../../core/rendering/RendererProbe.js';
 installThreeBvhRuntime();
 
 const cloneAuthorityValue=(value)=>value==null?value:structuredClone(value);
@@ -54,7 +55,7 @@ const mutationResultCommitted=(result)=>!(
 );
 
 export class WorldRuntime {
-  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend(), rendererFactory = createRenderer, rendererMode = 'auto' } = {}) {
+  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend(), rendererFactory = createRenderer, rendererMode = 'auto', rendererTiming = false } = {}) {
     if (!assetModule?.manager || !assetModule?.catalog || !assetModule?.compiledStore) {
       throw new TypeError('WorldRuntime requires an Asset module');
     }
@@ -73,15 +74,22 @@ export class WorldRuntime {
     this.rendererFactory = rendererFactory;
     this.rendererMode = rendererMode;
     this.rendererInfo = null;
+    this.rendererTiming = Boolean(rendererTiming);
+    this.rendererProbe = null;
     this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
   }
   async init() {
     await this.physics.init();
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.05, 120);
-    const rendering = await this.rendererFactory({ mode:this.rendererMode, antialias:true, alpha:false });
+    const rendering = await this.rendererFactory({ mode:this.rendererMode, antialias:true, alpha:false, trackTimestamp:this.rendererTiming });
     this.renderer = rendering.renderer;
     this.rendererInfo = rendering.info;
+    this.rendererProbe = new RendererProbe(this.renderer, {
+      requestedMode:this.rendererMode,
+      onDeviceLost:(detail)=>{ this.running=false; this.events.emit('renderer.device-lost', detail); },
+      onError:(detail)=>this.events.emit('renderer.error', detail)
+    });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -305,7 +313,8 @@ export class WorldRuntime {
 
   listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
   update() { const dt = Math.min(this.clock.getDelta(), 1 / 30); this.locomotion?.update(dt); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.camera); this.controls.update(); }
-  animate = () => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(); this.renderer.render(this.scene, this.camera); };
+  animate = () => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(); this.renderer.render(this.scene, this.camera); this.rendererProbe?.afterRender(performance.now()); };
+  renderingDiagnostics() { return this.rendererProbe?.snapshot?.() || this.rendererInfo; }
   resize() { const w = this.container.clientWidth, h = this.container.clientHeight; if (!w || !h) return; this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h, false); }
   dispose() {
     this.running = false;
@@ -327,6 +336,8 @@ export class WorldRuntime {
     this.navigation?.dispose();
     this.navigation = null;
     this.physics.dispose();
+    this.rendererProbe?.dispose();
+    this.rendererProbe = null;
     this.renderer?.dispose();
     this.renderer?.domElement?.remove();
     this.events.clear();

@@ -3,7 +3,7 @@ import { LabRegistry } from "./core/LabRegistry.js";
 import { ScenarioRegistry } from "./core/ScenarioRegistry.js";
 import { ObservatoryShell } from "./ui/ObservatoryShell.js";
 
-const renderingInfoForLab = (lab) => lab?.rendererInfo || lab?.left?.rendererInfo || null;
+const renderingInfoForLab = (lab) => lab?.rendererProbe?.snapshot?.() || lab?.left?.rendererProbe?.snapshot?.() || lab?.rendererInfo || lab?.left?.rendererInfo || null;
 
 const LABS = [
   {
@@ -54,6 +54,7 @@ class ObservatoryApp {
     this.activeBackendId = null;
     this.activeScenarioId = null;
     this.rendererMode = "auto";
+    this.rendererTiming = false;
     this.activationVersion = 0;
     this.scenarioSelectionVersion = 0;
     this.scenarioLoadPromise = Promise.resolve();
@@ -99,6 +100,7 @@ class ObservatoryApp {
     const params = new URLSearchParams(location.search);
     const requestedLab = params.get("lab");
     this.rendererMode = params.get("renderer") || "auto";
+    this.rendererTiming = params.get("gpuTiming") === "1";
     const labId = this.labs.has(requestedLab) ? requestedLab : this.labs.list()[0].id;
     await this.activateLab(labId, {
       backendId: params.get("backend"),
@@ -140,6 +142,7 @@ class ObservatoryApp {
       viewport: this.shell.refs.viewport,
       backendId: normalizedBackend,
       rendererMode: this.rendererMode,
+      rendererTiming: this.rendererTiming,
       onTelemetry: (data) => {
         if (data.scenario?.id !== this.activeScenarioId || labId !== this.activeLabId) return;
         const rendering = renderingInfoForLab(nextLab);
@@ -151,7 +154,12 @@ class ObservatoryApp {
             renderer: rendering.renderer,
             "render backend": rendering.backend,
             "render mode": rendering.requestedMode,
-            "render fallback": rendering.fallback
+            "render fallback": rendering.fallback,
+            "render health": rendering.health || "ready",
+            "gpu timing": rendering.gpuTiming ?? false,
+            "gpu render": Number.isFinite(rendering.gpuTimeMs) ? `${rendering.gpuTimeMs.toFixed(3)} ms` : "—",
+            "timestamp query": rendering.timestampSupported ?? false,
+            "webgpu compatibility": rendering.compatibilityMode ?? "—"
           }
         } : data);
       }

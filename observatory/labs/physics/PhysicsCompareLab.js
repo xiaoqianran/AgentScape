@@ -6,10 +6,11 @@ import { comparePhysicsSnapshots } from "./PhysicsStateComparator.js";
 const formatDelta = (value) => Number.isFinite(value) ? value.toExponential(3) : "—";
 
 export class PhysicsCompareLab {
-  constructor({ viewport, onTelemetry, rendererMode = "auto" }) {
+  constructor({ viewport, onTelemetry, rendererMode = "auto", rendererTiming = false }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
     this.rendererMode = rendererMode;
+    this.rendererTiming = Boolean(rendererTiming);
     this.clock = new SimulationClock({ fixedDt:1/60, maxSubSteps:8 });
     this.scenario = null;
     this.checkpointFrame = null;
@@ -22,8 +23,8 @@ export class PhysicsCompareLab {
     this.host.append(this.leftPane.root, this.rightPane.root);
     viewport.appendChild(this.host);
 
-    this.left = new PhysicsLab({ viewport:this.leftPane.viewport, backendId:"rapier", onTelemetry:()=>{}, autoAnimate:false, rendererMode });
-    this.right = new PhysicsLab({ viewport:this.rightPane.viewport, backendId:"jolt", onTelemetry:()=>{}, autoAnimate:false, rendererMode });
+    this.left = new PhysicsLab({ viewport:this.leftPane.viewport, backendId:"rapier", onTelemetry:()=>{}, autoAnimate:false, rendererMode, rendererTiming });
+    this.right = new PhysicsLab({ viewport:this.rightPane.viewport, backendId:"jolt", onTelemetry:()=>{}, autoAnimate:false, rendererMode, rendererTiming });
     this.animation = null;
   }
 
@@ -209,7 +210,7 @@ export class PhysicsCompareLab {
       this.left.refreshDebug();
       this.right.refreshDebug();
     }
-    if(count && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
+    if((count || this.rendererTiming) && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
     this.left.renderFrame(timestamp);
     this.right.renderFrame(timestamp);
     this.animation=requestAnimationFrame((next)=>this.frame(next));

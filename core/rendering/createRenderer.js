@@ -40,12 +40,14 @@ export async function createRenderer({
   mode = RENDERER_MODE.AUTO,
   antialias = true,
   alpha = false,
+  trackTimestamp = false,
   RendererClass = WebGPURenderer
 } = {}) {
   const requestedMode = normalizeRendererMode(mode);
   const renderer = new RendererClass({
     antialias: Boolean(antialias),
     alpha: Boolean(alpha),
+    trackTimestamp: Boolean(trackTimestamp),
     forceWebGL: requestedMode === RENDERER_MODE.WEBGL2
   });
 

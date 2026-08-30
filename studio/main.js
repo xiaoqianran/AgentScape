@@ -37,7 +37,8 @@ async function main() {
   const world = new WorldRuntime(ui.viewport, {
     environmentFactory,
     assetModule: createAssetModule(),
-    rendererMode: params.get('renderer') || 'auto'
+    rendererMode: params.get('renderer') || 'auto',
+    rendererTiming: params.get('gpuTiming') === '1'
   });
   const generation = attachGenerationRuntime(world, {
     compilerEndpoint: capabilityStatus.assetCompile.available ? CAPABILITY_API.assetCompile : '',

@@ -11,10 +11,11 @@ import { AgentToolsDebugRenderer } from "./visualizers/AgentToolsDebugRenderer.j
 import { NormalizedColliderRenderer } from "../physics/visualizers/NormalizedColliderRenderer.js";
 
 export class AgentToolsLab {
-  constructor({ viewport, onTelemetry, contextFactory = null, contextOptions = {}, rendererMode = "auto" }) {
+  constructor({ viewport, onTelemetry, contextFactory = null, contextOptions = {}, rendererMode = "auto", rendererTiming = false }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
     this.rendererMode = rendererMode;
+    this.rendererTiming = Boolean(rendererTiming);
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
     this.checkpointFrame = null;
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
@@ -45,6 +46,7 @@ export class AgentToolsLab {
       scene: this.scene,
       camera: this.camera,
       rendererMode: this.rendererMode,
+      rendererTiming: this.rendererTiming,
       controlsTarget: [0, 0.8, 0],
     }));
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -166,10 +168,11 @@ export class AgentToolsLab {
   frame(timestamp) {
     const stepped = this.runner.tick(timestamp);
     if (stepped && this.cadence.shouldDebug(timestamp)) this.refreshDebug();
-    if (stepped && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
+    if ((stepped || this.rendererTiming) && this.cadence.shouldTelemetry(timestamp)) this.emitTelemetry();
     const cameraMoving = this.cameraRig.update(timestamp);
     if (!cameraMoving) this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.rendererProbe?.afterRender(timestamp);
     this.worldLabels.render();
     this.animation = requestAnimationFrame((next) => this.frame(next));
   }
