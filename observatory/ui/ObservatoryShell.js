@@ -51,9 +51,9 @@ export class ObservatoryShell {
           <section class="obs-center-column" aria-label="运行时视口">
             <div class="obs-center-toolbar">
               <div class="obs-view-tabs" role="tablist" aria-label="视图模式">
-                <button class="obs-view-tab is-active" type="button" data-view="world">${icon("world")}<span>真实世界 <b>世界</b></span></button>
-                <button class="obs-view-tab" type="button" data-view="evidence">${icon("evidence")}<span>运行证据 <b>证据</b></span></button>
-                <button class="obs-view-tab" type="button" data-view="inspect">${icon("cube")}<span>运行时检视 <b>检视</b></span></button>
+                <button class="obs-view-tab is-active" type="button" data-view="world" aria-label="真实世界">${icon("world")}<span>真实世界 <b>世界</b></span></button>
+                <button class="obs-view-tab" type="button" data-view="evidence" aria-label="运行证据">${icon("evidence")}<span>运行证据 <b>证据</b></span></button>
+                <button class="obs-view-tab" type="button" data-view="inspect" aria-label="运行时检视">${icon("cube")}<span>运行时检视 <b>检视</b></span></button>
               </div>
               <div class="obs-fixed-pill"><i></i><span>仿真 · 固定 60 HZ</span></div>
             </div>
@@ -61,7 +61,7 @@ export class ObservatoryShell {
             <section class="obs-stage obs-glass" aria-label="运行时 3D 世界">
               <div id="obs-viewport" class="obs-viewport"></div>
               <div class="obs-stage-wash" aria-hidden="true"></div>
-              <div class="obs-stage-title" id="obs-scenario-badge"></div>
+              <button class="obs-stage-title" id="obs-scenario-badge" type="button" aria-expanded="false" aria-label="查看当前场景详情"></button>
               <div class="obs-focus-reticle" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
               <div id="obs-status-layer" class="obs-status-layer" hidden>
                 <div class="obs-spinner" aria-hidden="true"></div>
@@ -225,6 +225,16 @@ export class ObservatoryShell {
       this.toolHistory = [];
       this.renderToolHistory();
     });
+    const scenarioBadge = this.refs["scenario-badge"];
+    const setScenarioBadgeExpanded = (expanded) => {
+      scenarioBadge.classList.toggle("is-expanded", expanded);
+      scenarioBadge.setAttribute("aria-expanded", String(expanded));
+    };
+    scenarioBadge.addEventListener("mouseenter", () => setScenarioBadgeExpanded(true));
+    scenarioBadge.addEventListener("mouseleave", () => setScenarioBadgeExpanded(false));
+    scenarioBadge.addEventListener("focus", () => setScenarioBadgeExpanded(true));
+    scenarioBadge.addEventListener("blur", () => setScenarioBadgeExpanded(false));
+    scenarioBadge.addEventListener("click", () => setScenarioBadgeExpanded(!scenarioBadge.classList.contains("is-expanded")));
     if (matchMedia("(max-width: 1040px)").matches) this.setPanelVisible("results", false);
     if (matchMedia("(max-width: 760px)").matches) this.setPanelVisible("scenarios", false);
   }
@@ -451,6 +461,7 @@ export class ObservatoryShell {
 
     const scenarioIndex = this.scenarioIndexById.get(scenario.id) || 1;
     this.refs["scenario-badge"].innerHTML = `<small>场景 // ${String(scenarioIndex).padStart(3, "0")}</small><b>${escapeHtml(scenario.title)}</b><span>${escapeHtml(scenario.description || scenario.subtitle || "")}</span>`;
+    this.refs["scenario-badge"].setAttribute("aria-label", `${scenario.title}：${scenario.description || scenario.subtitle || "查看场景详情"}`);
     this.refs["run-scenario-card"].innerHTML = `<strong>${escapeHtml(scenario.title)}</strong><small>${escapeHtml(scenario.subtitle || scenario.id)}</small>`;
 
     const normalizedAssertions = assertions || [];

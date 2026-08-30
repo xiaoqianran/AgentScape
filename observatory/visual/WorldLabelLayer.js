@@ -51,6 +51,10 @@ export function worldLabelsForNavigation(snapshot) {
   const end = route?.end?.input || route?.end?.snapped;
   if (tuple(start)) labels.push(label("nav:start", [start[0], start[1] + 0.22, start[2]], "路径", "起点", "输入", "info"));
   if (tuple(end)) labels.push(label("nav:end", [end[0], end[1] + 0.22, end[2]], "路径", "终点", route?.reachable ? "可达" : (route?.reason || "受阻"), route?.reachable ? "pass" : "fail"));
+  if (!route?.reachable && Array.isArray(route?.path) && tuple(route.path.at(-1))) {
+    const blocked = route.path.at(-1);
+    labels.push(label("nav:blocked", [blocked[0], blocked[1] + 0.24, blocked[2]], "路径停止", "阻断点", route.reason || "目标不可达", "fail"));
+  }
   for (const obstacle of (snapshot?.obstacles || []).slice(0, 3)) {
     if (!tuple(obstacle.position)) continue;
     labels.push(label(`nav:obstacle:${obstacle.id}`, [obstacle.position[0], obstacle.position[1] + 0.42, obstacle.position[2]], "障碍物", obstacle.id || "动态障碍物", obstacle.action || obstacle.shape || "", "warn"));

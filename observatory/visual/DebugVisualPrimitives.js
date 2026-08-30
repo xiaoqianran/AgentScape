@@ -149,6 +149,31 @@ export function createInstrumentPath(points, tone = "pass", { dashed = false, ma
   return group;
 }
 
+export function createBlockedPathGate(path, tone = "fail") {
+  if (!Array.isArray(path) || path.length < 2) return null;
+  const previous = new THREE.Vector3(...path.at(-2));
+  const endpoint = new THREE.Vector3(...path.at(-1));
+  const direction = endpoint.clone().sub(previous);
+  direction.y = 0;
+  if (direction.lengthSq() < 1e-8) return null;
+  direction.normalize();
+  const perpendicular = new THREE.Vector3(-direction.z, 0, direction.x).multiplyScalar(0.32);
+  const center = endpoint.clone();
+  center.y += 0.06;
+  const gate = new THREE.Group();
+  gate.name = "instrument-blocked-path-gate";
+  gate.add(createInstrumentLine([center.clone().sub(perpendicular), center.clone().add(perpendicular)], tone, { opacity: 0.98 }));
+  gate.add(createInstrumentLine([
+    center.clone().add(new THREE.Vector3(-0.12, 0, 0.12)),
+    center.clone().add(new THREE.Vector3(0.12, 0, -0.12))
+  ], tone, { opacity: 0.9 }));
+  gate.add(createInstrumentLine([
+    center.clone().add(new THREE.Vector3(-0.12, 0, -0.12)),
+    center.clone().add(new THREE.Vector3(0.12, 0, 0.12))
+  ], tone, { opacity: 0.9 }));
+  return gate;
+}
+
 export function disposeVisualObject(root) {
   root?.traverse?.((node) => {
     if (!node.geometry?.userData?.observatoryShared) node.geometry?.dispose?.();

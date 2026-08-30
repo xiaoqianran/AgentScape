@@ -2,6 +2,7 @@ import * as THREE from "three";
 import {
   OBSERVATORY_COLORS,
   clearVisualGroup,
+  createBlockedPathGate,
   createInstrumentMarker,
   createInstrumentPath
 } from "../../../visual/DebugVisualPrimitives.js";
@@ -75,6 +76,10 @@ export class NavigationDebugRenderer {
       route.reachable ? "pass" : "fail",
       { dashed: !route.reachable, markers: true }
     ));
+    if (!route.reachable) {
+      const gate = createBlockedPathGate(points, "fail");
+      if (gate) this.pathGroup.add(gate);
+    }
   }
 
   updateObstacles(obstacles, diagnosis) {
