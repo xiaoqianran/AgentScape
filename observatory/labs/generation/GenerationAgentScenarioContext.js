@@ -10,6 +10,7 @@ import { PolicyEngine } from "../../../core/PolicyEngine.js";
 import { TraceRecorder } from "../../../core/TraceRecorder.js";
 import { assetAdmission } from "../../../asset/admission.js";
 import { GenerationRuntime } from "../../../generation/orchestration/GenerationRuntime.js";
+import { ConnectorClient } from "../../../generation/connector/ConnectorClient.js";
 import { SceneGraph } from "../../../world/runtime/graph/SceneGraph.js";
 import { NavigationSystem } from "../../../world/runtime/systems/NavigationSystem.js";
 import { RecastNavigationBackend } from "../../../world/runtime/navigation/RecastNavigationBackend.js";
@@ -29,10 +30,19 @@ if (!globalThis.ProgressEvent) {
   };
 }
 const EMBODIED_TOOLS = new Set(["approachAndPickup", "navigateTo", "approachAndPlace", "dropHeld"]);
+const DEFAULT_CONNECTOR_ENDPOINT = "http://127.0.0.1:3210";
+const CONNECTOR_SMOKE_TIMEOUT_MS = 2500;
+const timedFetch = async (url, options = {}) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CONNECTOR_SMOKE_TIMEOUT_MS);
+  try { return await fetch(url, { ...options, signal: controller.signal }); }
+  finally { clearTimeout(timer); }
+};
 
 export class GenerationAgentScenarioContext {
-  constructor({ scene }) {
+  constructor({ scene, backendId = "fixture" }) {
     this.scene = scene;
+    this.backendId = backendId === "connector" ? "connector" : "fixture";
     this.world = new InteractionScenarioContext({ scene });
     this.toolCalls = [];
     this.sequenceEvents = [];
@@ -47,7 +57,9 @@ export class GenerationAgentScenarioContext {
 
   async init() {
     await this.world.init();
-    this.connector = await FixtureGenerationConnector.create();
+    this.connector = this.backendId === "fixture"
+      ? await FixtureGenerationConnector.create()
+      : new ConnectorClient({ endpoint: DEFAULT_CONNECTOR_ENDPOINT, fetchImpl: timedFetch });
     this.trace = new TraceRecorder({ events: this.world.events });
     this.policy = new PolicyEngine();
     this.sceneGraph = new SceneGraph({ store: this.world.store, spatial: this.world.spatial, events: this.world.events });
@@ -121,11 +133,13 @@ export class GenerationAgentScenarioContext {
       assetCatalog: runtime.assetCatalog,
       compiledAssetStore: runtime.compiledAssetStore,
       events: runtime.events,
-      version: "observatory-fixture-v1",
+      version: this.backendId === "fixture" ? "observatory-fixture-v1" : "observatory-connector-smoke-v1",
       connectorClient: this.connector
     });
-    const snapshot = generation.capabilityAdapter.normalizeSnapshot(this.connector.capabilityPayload(), this.connector.session());
-    generation.capabilityAdapter.applySnapshot(generation.providerRegistry, snapshot);
+    if (this.backendId === "fixture") {
+      const snapshot = generation.capabilityAdapter.normalizeSnapshot(this.connector.capabilityPayload(), this.connector.session());
+      generation.capabilityAdapter.applySnapshot(generation.providerRegistry, snapshot);
+    }
     runtime.generation = generation;
     this.generation = generation;
     this.runtime = runtime;

@@ -13,13 +13,14 @@ import { AgentToolsDebugRenderer } from "./visualizers/AgentToolsDebugRenderer.j
 import { NormalizedColliderRenderer } from "../physics/visualizers/NormalizedColliderRenderer.js";
 
 export class AgentToolsLab {
-  constructor({ viewport, onTelemetry, contextFactory = null }) {
+  constructor({ viewport, onTelemetry, contextFactory = null, contextOptions = {} }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
     this.checkpointFrame = null;
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
     this.contextFactory = contextFactory || ((options) => new AgentToolsScenarioContext(options));
+    this.contextOptions = { ...contextOptions };
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.05, 200);
@@ -45,7 +46,7 @@ export class AgentToolsLab {
     this.colliderRenderer = new NormalizedColliderRenderer(this.scene);
     this.runner = new ScenarioRunner({
       clock: this.clock,
-      createContext: async () => this.contextFactory({ scene: this.scene }).init()
+      createContext: async () => this.contextFactory({ scene: this.scene, ...this.contextOptions }).init()
     });
 
     this.resizeObserver = new ResizeObserver(() => this.resize());

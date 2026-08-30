@@ -9,7 +9,7 @@ import {
   FIXTURE_INSTANCE_ID,
   FIXTURE_PROVIDER_ID
 } from "../../observatory/labs/generation/FixtureGenerationConnector.js";
-import { generationAgentBuildScenario, generationEmbodiedBuildScenario } from "../../observatory/labs/generation/scenarios/index.js";
+import { generationAgentBuildScenario, generationConnectorDiscoveryScenario, generationEmbodiedBuildScenario } from "../../observatory/labs/generation/scenarios/index.js";
 
 const createContext = async () => new GenerationAgentScenarioContext({ scene: new THREE.Scene() }).init();
 
@@ -18,9 +18,11 @@ describe("Observatory Generation / Agent Build", () => {
     expect(labDefinition).toMatchObject({
       id: "generation",
       title: "生成与智能体构建",
-      backends: [{ id: "fixture" }]
+      backends: [{ id: "fixture" }, { id: "connector" }]
     });
-    expect(labDefinition.scenarios.map((scenario) => scenario.id)).toEqual(["generation.agent-build.red-apple", "generation.agent-build.embodied-red-apple"]);
+    expect(labDefinition.scenarios.map((scenario) => scenario.id)).toEqual(["generation.agent-build.red-apple", "generation.agent-build.embodied-red-apple", "generation.connector.discovery"]);
+    expect(labDefinition.normalizeBackend("connector")).toBe("connector");
+    expect(generationConnectorDiscoveryScenario.description).toMatch(/不会.*Modal GPU/);
   });
 
   it("runs Agent → Job → Artifact → Compiler → Spawn → Place → Verify through production boundaries", async () => {
