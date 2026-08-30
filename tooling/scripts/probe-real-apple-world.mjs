@@ -1,4 +1,7 @@
 import * as THREE from "three";
+import { SkillRegistry } from "../../agent/skills/SkillRegistry.js";
+import { registerCoreSkills } from "../../agent/skills/registerCoreSkills.js";
+import { assetAdmission } from "../../asset/admission.js";
 import { ConnectorClient } from "../../generation/connector/ConnectorClient.js";
 import { attachGenerationRuntime } from "../../generation/orchestration/GenerationRuntime.js";
 import { createAssetModule } from "../../generation/orchestration/createAssetModule.js";
@@ -89,39 +92,48 @@ try{
   runtime=await createHeadlessRuntime();
   const generation=attachGenerationRuntime(runtime,{
     connectorClient:connector,
-    generationOptions:{pollIntervalMs:1000,generationTimeoutMs:20*60*1000}
+    pollIntervalMs:1000,
+    generationTimeoutMs:20*60*1000
   });
-  const generation=generation.generation;
   const initialized=await generation.initialize({pair:false});
   if(initialized.status!=="generation-ready") throw new Error(`Generation unavailable: ${JSON.stringify(initialized)}`);
 
-  const assetId="generated_real_red_apple_02";
+  const registry=registerCoreSkills(new SkillRegistry({policy:runtime.policy,trace:runtime.trace,runtime}),runtime);
+  runtime.skills=registry;
   const prompt="a single glossy realistic red apple, centered, isolated object, clean neutral background, no text, no extra objects";
-  mark("generation.begin",{assetId});
-  const generated=await generation.generateTextAsset({prompt,assetId,label:"Real Red Apple",pollIntervalMs:1000,timeoutMs:20*60*1000});
-  const appleManifest=runtime.assets.getManifest(assetId);
-  mark("generation.ready",{status:generated.status,admission:generated.admission?.status||null,type:appleManifest.type,actions:appleManifest.actions,body:appleManifest.physics?.body,collisionStrategy:appleManifest.compiler?.collisionStrategy});
-
   const worldIR={
     schema:"agentscape.world-ir",schemaVersion:1,
-    revision:{id:"real-apple-world-r1",reason:"real generated apple world e2e"},
-    provenance:{source:"real-e2e-probe",createdBy:"AgentScape",evidenceRefs:[generated.artifactId].filter(Boolean)},
-    intent:{name:"Real Apple Table Lab",description:"Place a generated apple on a table and have the embodied agent pick it up."},
+    revision:{id:"real-apple-world-r1",reason:"real generated apple bounded retry e2e"},
+    provenance:{source:"real-e2e-probe",createdBy:"AgentScape",evidenceRefs:[]},
+    intent:{name:"Real Apple Table Lab",description:"Generate a missing apple inside bounded World retry, place it on a table, and have the embodied agent pick it up."},
     policy:{generation:{generate:false},physics:{fallbackPolicy:"deny"}},
     entities:[
       {id:"agent_01",asset:{assetId:"agent"},capabilityIntent:[],initialState:{}},
       {id:"table_01",asset:{assetId:"table"},capabilityIntent:[],initialState:{}},
-      {id:"apple_01",asset:{assetId},capabilityIntent:["PICKUP"],initialState:{}}
+      {id:"apple_01",asset:{prompt,generate:false},capabilityIntent:["PICKUP"],initialState:{}}
     ],
     spatial:{relations:[{subject:"apple_01",predicate:"ON",object:"table_01",surfaceId:"top"}],constraints:[]},
     interactions:[{id:"pickup-generated-apple",actorId:"agent_01",targetId:"apple_01",capability:"PICKUP",description:"Agent autonomously approaches and picks up the generated apple."}],
     rules:[],acceptance:[]
   };
 
-  mark("world.pipeline.begin");
-  const pipeline=await runtime.worldPipeline.run(worldIR);
-  const admission=pipeline.state.reports.worldAdmission;
-  if(admission.status==="rejected") throw new Error(`WorldPipeline rejected: ${JSON.stringify(admission)}`);
+  mark("world.pipeline.begin",{mode:"bounded-generation-retry"});
+  const invocation=await registry.invoke("runWorldPipeline",{plan:worldIR},{profile:"builder",actor:"real-e2e-probe"});
+  if(!invocation.success) throw new Error(`runWorldPipeline skill failed: ${JSON.stringify(invocation.error)}`);
+  const worldResult=invocation.result;
+  if(worldResult.status==="world-rejected") throw new Error(`WorldPipeline rejected: ${JSON.stringify({reason:worldResult.reason,retry:worldResult.retry,admission:worldResult.admission})}`);
+  if(worldResult.attempts?.length!==2 || worldResult.attempts[0]?.retry?.status!=="retry-proposed" || worldResult.attempts[1]?.admission?.status==="rejected") {
+    throw new Error(`Bounded generation retry evidence invalid: ${JSON.stringify(worldResult.attempts)}`);
+  }
+  const generatedAsset=worldResult.attempts[0]?.generation?.assets?.find((item)=>item.instanceId==="apple_01") || null;
+  if(!generatedAsset?.assetId) throw new Error(`Retry produced no published apple asset: ${JSON.stringify(worldResult.attempts[0]?.generation||null)}`);
+  const assetId=generatedAsset.assetId;
+  const appleManifest=runtime.assets.getManifest(assetId);
+  const appleAdmission=assetAdmission(appleManifest,{generated:true});
+  mark("generation.ready",{assetId,status:generatedAsset.status,admission:appleAdmission.status,type:appleManifest.type,actions:appleManifest.actions,body:appleManifest.physics?.body,collisionStrategy:appleManifest.compiler?.collisionStrategy});
+
+  const pipeline=worldResult.pipeline;
+  const admission=worldResult.admission;
   for(let i=0;i<120;i++) runtime.physics.step(1/60,runtime.store);
   runtime.sceneGraph.update();
   const appleBefore=runtime.physics.getPosition("apple_01");
@@ -153,7 +165,7 @@ try{
   if(!verification.verified || pickup.status!=="held" || held?.id!=="agent_01") throw new Error(`PICKUP verification failed: ${JSON.stringify({pickup,verification,held})}`);
   if(traveled<0.25) throw new Error(`Agent did not meaningfully approach the apple: traveled=${traveled}`);
   mark("behavior.verified",{pickupStatus:pickup.status,verification,held,agentStart,agentEnd,appleEnd,traveled:Number(traveled.toFixed(3)),locomotion:pickup.locomotion});
-  mark("probe.complete",{status:"passed",worldAdmission:admission.status,assetAdmission:generated.admission?.status||null});
+  mark("probe.complete",{status:"passed",worldAdmission:admission.status,assetAdmission:appleAdmission.status,generatedAssetId:assetId,attempts:worldResult.attempts.length});
 } finally {
   runtime?.navigation?.dispose?.();
   runtime?.physics?.dispose?.();

@@ -87,6 +87,27 @@ describe('core skills', () => {
     expect(result.error.code).toBe('forbidden');
     expect(r.worldPipeline.run).not.toHaveBeenCalled();
   });
+  it('requires generation authority and never allows runWorldPipeline inside executeBatch', async () => {
+    const r=runtime();
+    r.policy=new PolicyEngine({profiles:{
+      worldNoGeneration:['world.write','asset.read','asset.write','physics.read'],
+      builder:['generation.read','generation.submit','artifact.import','world.write','asset.read','asset.write','physics.read']
+    }});
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r);
+    const denied=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'worldNoGeneration',actor:'test'});
+    expect(denied).toMatchObject({success:false,error:{code:'forbidden'}});
+    expect(denied.error.message).toContain('generation.read');
+    expect(denied.error.message).toContain('generation.submit');
+    expect(denied.error.message).toContain('artifact.import');
+    expect(registry.authorization('runWorldPipeline',{profile:'builder'}).required).toEqual([
+      'generation.read','generation.submit','artifact.import','world.write','asset.read','asset.write','physics.read'
+    ]);
+    expect(registry.executionPolicy('runWorldPipeline')).toMatchObject({mutates:true,barrier:true,batchable:false});
+
+    const batch=await registry.invoke('executeBatch',{calls:[{name:'runWorldPipeline',args:{plan:{}}}]},{profile:'builder',actor:'test'});
+    expect(batch).toMatchObject({success:true,result:{committed:false,rolledBack:false,reason:'UNBATCHABLE_SKILL',skill:'runWorldPipeline'}});
+    expect(r.worldPipeline.run).not.toHaveBeenCalled();
+  });
 
   it('does not expose pipeline stage selection to the agent tool', async () => {
     const r=runtime();

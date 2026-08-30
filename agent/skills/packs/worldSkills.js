@@ -81,7 +81,7 @@ export function registerWorldSkills(add,runtime) {
     });
   });
 
-  add('runWorldPipeline', { ...meta('提交 strict World IR v1 到 canonical compiler：替换当前 world，而不是在旧 Scene 上追加；先暂停旧规则并清空旧 Scene，再统一解析资产、Behavior、Physics、Acceptance、实例化与验证。Agent 只执行 proposeWorldIR 已颁发的 revision/provenance；不支持的语义 fail-closed。若唯一 rejection 是可生成的 search miss，Runtime 最多自动重跑一次，只为缺失 asset 开启 generation。world-ready 才视为 verified；world-provisional 不冒充验证；world-rejected 精确恢复调用前 Scene 与 committed authority。', ['world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: WORLD_IR_TOOL_SCHEMA }), mutates: true }, async (a) => {
+  add('runWorldPipeline', { ...meta('提交 strict World IR v1 到 canonical compiler：替换当前 world，而不是在旧 Scene 上追加；先暂停旧规则并清空旧 Scene，再统一解析资产、Behavior、Physics、Acceptance、实例化与验证。Agent 只执行 proposeWorldIR 已颁发的 revision/provenance；不支持的语义 fail-closed。若唯一 rejection 是可生成的 search miss，Runtime 最多自动重跑一次，只为缺失 asset 开启 generation。world-ready 才视为 verified；world-provisional 不冒充验证；world-rejected 精确恢复调用前 Scene 与 committed authority。', ['generation.read', 'generation.submit', 'artifact.import', 'world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: WORLD_IR_TOOL_SCHEMA }), batchable:false, mutates:true }, async (a) => {
     const before=runtime.snapshot();
     const authorityBefore=runtime.captureWorldAuthority?.() || null;
     const restoreBefore=async()=>{
