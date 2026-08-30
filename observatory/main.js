@@ -1,3 +1,4 @@
+import { createWebGPUCompactionProbe } from '../core/rendering/WebGPUCompactionProbe.js';
 import { createWebGPUIndirectDrawProbe } from '../core/rendering/WebGPUIndirectDrawProbe.js';
 import { createGPUResidentCullingProbe } from '../core/rendering/WebGPUResidentCullingProbe.js';
 import "./style.css";
@@ -77,6 +78,7 @@ class ObservatoryApp {
     this.rendererTiming = false;
     this.residentCullingProbe = null;
     this.indirectDrawProbe = null;
+    this.compactionProbe = null;
     this.activationVersion = 0;
     this.scenarioSelectionVersion = 0;
     this.scenarioLoadPromise = Promise.resolve();
@@ -112,6 +114,7 @@ class ObservatoryApp {
       onFocusView: () => this.lab?.focusScenario?.(),
       onResidentCullingProbe: () => this.toggleResidentCullingProbe(),
       onIndirectDrawProbe: () => this.toggleIndirectDrawProbe(),
+      onCompactionProbe: () => this.toggleCompactionProbe(),
       onComputeProbe: () => this.runComputeProbe(),
       onSpatialProbe: () => this.runSpatialProbe(),
       onLabChange: (labId) => this.activateLab(labId),
@@ -159,6 +162,12 @@ class ObservatoryApp {
       this.indirectDrawProbe.result.dispose?.();
       this.indirectDrawProbe = null;
       this.shell.setIndirectDrawResult(null);
+    }
+    if (this.compactionProbe) {
+      this.compactionProbe.scene?.remove(this.compactionProbe.result.mesh);
+      this.compactionProbe.result.dispose?.();
+      this.compactionProbe = null;
+      this.shell.setCompactionResult(null);
     }
     await this.lab?.dispose?.();
     if (version !== this.activationVersion) return;
@@ -280,6 +289,39 @@ class ObservatoryApp {
   }
 
 
+
+
+  async toggleCompactionProbe() {
+    if (this.compactionProbe) {
+      const current = this.compactionProbe;
+      this.compactionProbe = null;
+      current.scene?.remove(current.result.mesh);
+      current.result.dispose?.();
+      this.shell.setCompactionResult(null);
+      return;
+    }
+    const renderer = this.lab?.renderer || this.lab?.left?.renderer || null;
+    const scene = this.lab?.scene || this.lab?.left?.scene || null;
+    if (!renderer || !scene) {
+      this.shell.setCompactionResult({ supported:false, reason:'renderer-or-scene-unavailable' });
+      return;
+    }
+    this.shell.setCompactionBusy(true);
+    try {
+      const result = await createWebGPUCompactionProbe(renderer, { count:4096, radius:18 });
+      if (!result.supported) {
+        this.shell.setCompactionResult(result);
+        return;
+      }
+      scene.add(result.mesh);
+      this.compactionProbe = { result, scene };
+      this.shell.setCompactionResult(result);
+    } catch (error) {
+      this.shell.setCompactionResult({ supported:true, passed:false, reason:error?.message || String(error) });
+    } finally {
+      this.shell.setCompactionBusy(false);
+    }
+  }
 
   async toggleIndirectDrawProbe() {
     if (this.indirectDrawProbe) {
