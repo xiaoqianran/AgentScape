@@ -164,7 +164,10 @@ export class RenderingSystem {
 
   viewPose() {
     if (!this.camera) return null;
-    return { position:this.camera.position.toArray(), rotation:this.camera.quaternion.toArray() };
+    this.viewPoseState ||= { position:[0,0,0], rotation:[0,0,0,1] };
+    this.camera.position.toArray(this.viewPoseState.position);
+    this.camera.quaternion.toArray(this.viewPoseState.rotation);
+    return this.viewPoseState;
   }
 
   cameraState() {

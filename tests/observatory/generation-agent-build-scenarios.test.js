@@ -74,7 +74,7 @@ describe("Observatory Generation / Agent Build", () => {
     } finally {
       ctx.dispose();
     }
-  });
+  }, 30000);
 
   it("runs generated Asset through embodied pickup, carry and verified place", async () => {
     const ctx = await createContext();

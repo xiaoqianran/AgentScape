@@ -20,6 +20,9 @@ export class InteractionSystem {
     this.settleTasks = new Map();
     this.articulationTasks = new Map();
     this.articulationResults = new Map();
+    this.humanViewPosition = new THREE.Vector3();
+    this.humanViewRotation = new THREE.Quaternion();
+    this.humanHeldTarget = new THREE.Vector3();
   }
 
   get heldId() { return this.humanHeldId; }
@@ -1127,9 +1130,10 @@ export class InteractionSystem {
     this.updatePlacementSettles(dt);
     this.updateArticulationTasks(dt);
     if (this.humanHeldId && viewPose?.position?.length === 3 && viewPose?.rotation?.length === 4) {
-      const rotation = new THREE.Quaternion(...viewPose.rotation);
-      const target = new THREE.Vector3(0,0,-1.6).applyQuaternion(rotation).add(new THREE.Vector3(...viewPose.position));
-      this.physics.setHeldTarget(this.humanHeldId, target);
+      this.humanViewPosition.fromArray(viewPose.position);
+      this.humanViewRotation.fromArray(viewPose.rotation);
+      this.humanHeldTarget.set(0,0,-1.6).applyQuaternion(this.humanViewRotation).add(this.humanViewPosition);
+      this.physics.setHeldTarget(this.humanHeldId, this.humanHeldTarget);
     }
     for (const [actorId, targetId] of this.agentHeld) {
       if (!this.store.has(actorId) || !this.store.has(targetId)) continue;

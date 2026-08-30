@@ -18,22 +18,41 @@ export class WorldBuilder {
     const attempts = [];
     let candidate = plan;
 
-    const restoreBefore = async () => {
-      await runtime.restore(before);
-      if (authorityBefore) runtime.restoreWorldAuthority?.(authorityBefore);
-      else runtime.loadRuleGraph?.(runtime.currentBehaviorBundle?.ruleGraph || []);
+    const restoreBefore = async (cause = null) => {
+      try {
+        await runtime.restore(before);
+        if (authorityBefore) runtime.restoreWorldAuthority?.(authorityBefore);
+        else runtime.loadRuleGraph?.(runtime.currentBehaviorBundle?.ruleGraph || []);
+      } catch (rollbackError) {
+        const failure = new AggregateError(
+          cause ? [cause, rollbackError] : [rollbackError],
+          'World build rollback failed',
+          cause ? { cause } : undefined
+        );
+        failure.code = 'WORLD_BUILD_ROLLBACK_FAILED';
+        failure.rollbackError = rollbackError;
+        throw failure;
+      }
+    };
+
+    const runCandidate = async (candidatePlan) => {
+      try {
+        runtime.loadRuleGraph?.([]);
+        await runtime.clearObjects({ silent:true });
+        return await this.pipeline.run(candidatePlan);
+      } catch (error) {
+        await restoreBefore(error);
+        throw error;
+      }
     };
 
     for (let attempt = 1; attempt <= this.retryBudget; attempt++) {
-      runtime.loadRuleGraph?.([]);
-      await runtime.clearObjects({ silent:true });
-
-      const pipeline = await this.pipeline.run(candidate);
+      const pipeline = await runCandidate(candidate);
       const admission = pipeline.state?.reports?.worldAdmission;
       if (!admission) {
-        await restoreBefore();
         const error = new Error('Canonical world pipeline produced no world admission');
         error.code = 'WORLD_PIPELINE_ADMISSION_MISSING';
+        await restoreBefore(error);
         throw error;
       }
 

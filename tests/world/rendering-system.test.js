@@ -171,6 +171,28 @@ describe('RenderingSystem', () => {
     expect(postFx.dispose).toHaveBeenCalledOnce();
   });
 
+  it('reuses a pure-data view pose snapshot instead of allocating every frame', async () => {
+    const h = createHarness();
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene:new THREE.Scene(),
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory
+    });
+
+    await rendering.init();
+    rendering.camera.position.set(1,2,3);
+    rendering.camera.quaternion.set(0,0,0,1);
+    const first = rendering.viewPose();
+    rendering.camera.position.set(4,5,6);
+    const second = rendering.viewPose();
+
+    expect(second).toBe(first);
+    expect(second.position).toBe(first.position);
+    expect(second.rotation).toBe(first.rotation);
+    expect(second).toEqual({ position:[4,5,6], rotation:[0,0,0,1] });
+  });
+
   it('falls back to direct rendering if the WebGPU PostFX pipeline fails', async () => {
     const h = createHarness();
     const scene = new THREE.Scene();
