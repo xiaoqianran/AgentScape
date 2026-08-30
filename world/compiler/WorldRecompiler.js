@@ -5,37 +5,13 @@ import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
 import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
 import { preflightWorldPosition } from './WorldComposer.js';
 import { createAssetRef } from '../../asset/AssetRef.js';
+import { evaluateWorldAdmission } from './WorldAdmission.js';
+import { captureWorldAuthority, commitWorldAuthority, restoreWorldAuthority } from '../runtime/WorldAuthority.js';
 
 const clone=(value)=>value==null?value:structuredClone(value);
 const scalarStateEqual=(left={},right={})=>{
   const a=Object.keys(left).sort(),b=Object.keys(right).sort();
   return a.length===b.length && a.every((key,index)=>key===b[index] && Object.is(left[key],right[key]));
-};
-
-const captureAuthority=(runtime)=>({
-  revision:clone(runtime.currentWorldRevision),
-  behavior:clone(runtime.currentBehaviorBundle),
-  physics:clone(runtime.currentPhysicsRequirements),
-  acceptance:clone(runtime.lastAcceptanceBundle),
-  restoredAcceptance:clone(runtime.restoredAcceptanceEvidence)
-});
-
-const restoreAuthority=(runtime,previous)=>{
-  runtime.currentWorldRevision=clone(previous.revision) || null;
-  runtime.currentBehaviorBundle=clone(previous.behavior) || null;
-  runtime.currentPhysicsRequirements=clone(previous.physics) || null;
-  runtime.lastAcceptanceBundle=clone(previous.acceptance) || null;
-  runtime.restoredAcceptanceEvidence=clone(previous.restoredAcceptance) || null;
-  runtime.loadRuleGraph?.(previous.behavior?.ruleGraph || []);
-};
-
-const commitAuthority=(runtime,nextIR,compilation,pipeline)=>{
-  runtime.currentWorldRevision={revision:clone(nextIR.revision),provenance:clone(nextIR.provenance)};
-  runtime.restoredAcceptanceEvidence=null;
-  runtime.lastAcceptanceBundle=clone(pipeline?.state?.artifacts?.acceptanceEvidence) || null;
-  runtime.currentBehaviorBundle=clone(compilation.behaviorBundle);
-  runtime.currentPhysicsRequirements=clone(compilation.physicsRequirements);
-  runtime.loadRuleGraph?.(compilation.behaviorBundle.ruleGraph);
 };
 
 const canIncrementState=(runtime,baseWorldIR,impact)=>{
@@ -120,33 +96,6 @@ const applyCandidatePosition=(runtime,id,position)=>{
   runtime.sceneGraph?.update?.();
 };
 
-const worldAdmission=(validation,acceptance,{behaviorAdmission=null,physicsAdmission=null,layoutAdmission=null}={})=>{
-  const hard=validation?.counts?.hard || 0;
-  const advisory=validation?.counts?.advisory || 0;
-  const behaviorRejected=behaviorAdmission?.status==='rejected';
-  const physicsRejected=physicsAdmission?.status==='rejected';
-  const layoutRejected=layoutAdmission?.status==='rejected';
-  const layoutProvisional=layoutAdmission?.status==='provisional';
-  const acceptanceRejected=acceptance?.status==='world-incomplete';
-  return {
-    status:behaviorRejected||physicsRejected||layoutRejected||hard||acceptanceRejected?'rejected':layoutProvisional||advisory?'provisional':'ready',
-    reasons:[
-      ...(behaviorRejected?[behaviorAdmission.reason || behaviorAdmission.issues?.[0]?.code || 'BEHAVIOR_REJECTED']:[]),
-      ...(physicsRejected?[physicsAdmission.reason || physicsAdmission.issues?.[0]?.code || 'PHYSICS_REJECTED']:[]),
-      ...(layoutRejected?[layoutAdmission.reason || 'LAYOUT_REJECTED']:[]),
-      ...(layoutProvisional?[layoutAdmission.reason || 'LAYOUT_PROVISIONAL']:[]),
-      ...(hard?[`VALIDATION_HARD:${hard}`]:[]),
-      ...(advisory?[`VALIDATION_ADVISORY:${advisory}`]:[]),
-      ...(acceptanceRejected?['WORLD_ACCEPTANCE_FAILED']:[])
-    ],
-    validation:{hard,advisory},
-    ...(behaviorAdmission?{behavior:clone(behaviorAdmission)}:{}),
-    ...(physicsAdmission?{physics:clone(physicsAdmission)}:{}),
-    ...(layoutAdmission?{layout:clone(layoutAdmission)}:{}),
-    ...(acceptance?{acceptance:clone(acceptance)}:{})
-  };
-};
-
 const verifyIncrementalRevision=(runtime,{compilation,nextIR,revisionId,source,behaviorAdmission=null,physicsAdmission=null,layoutAdmission=null,timelineName,started})=>{
   const validation=runtime.validator.run({worldRevisionId:revisionId});
   const acceptance=compilation.acceptanceGraph
@@ -157,7 +106,7 @@ const verifyIncrementalRevision=(runtime,{compilation,nextIR,revisionId,source,b
     : null;
   if(acceptanceEvidence) runtime.trace?.emit?.('world.acceptance',{bundle:clone(acceptanceEvidence)},{actor:'world-recompiler'});
 
-  const admission=worldAdmission(validation,acceptance,{behaviorAdmission,physicsAdmission,layoutAdmission});
+  const admission=evaluateWorldAdmission({validation,acceptance,behaviorAdmission,physicsAdmission,layoutAdmission});
   const artifacts={worldIR:clone(nextIR),compilation:clone(compilation),...(acceptanceEvidence?{acceptanceEvidence:clone(acceptanceEvidence)}:{})};
   const revisionFindings=[
     ...(validation?.findings || []).filter((finding)=>finding.severity==='hard'),
@@ -189,21 +138,26 @@ async function recompileInitialState(runtime,{nextIR,compilation,before,previous
 
     if(admission.status==='rejected'){
       await runtime.restore(before);
-      restoreAuthority(runtime,previous);
+      restoreWorldAuthority(runtime,previous);
       return {
         status:'world-rejected',reason:admission.reasons[0]||'WORLD_REJECTED',rolledBack:true,
         baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
         recompile:{canonical:true,mode:'incremental-state',freshVerification:true,committed:false,affectedEntityIds:[...impact.affectedEntityIds]}
       };
     }
-    commitAuthority(runtime,nextIR,compilation,pipeline);
+    commitWorldAuthority(runtime,{
+      worldIR:nextIR,
+      behaviorBundle:compilation.behaviorBundle,
+      physicsRequirements:compilation.physicsRequirements,
+      acceptanceBundle:pipeline?.state?.artifacts?.acceptanceEvidence || null
+    });
     return {
       status:`world-${admission.status}`,rolledBack:false,
       baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
       recompile:{canonical:true,mode:'incremental-state',freshVerification:true,committed:true,affectedEntityIds:[...impact.affectedEntityIds]}
     };
   }catch(error){
-    try { await runtime.restore(before); restoreAuthority(runtime,previous); }
+    try { await runtime.restore(before); restoreWorldAuthority(runtime,previous); }
     catch(rollbackError){
       const failure=new Error(`World revision incremental recompile failed and rollback failed: ${error.message}; rollback: ${rollbackError.message}`,{cause:error});
       failure.code='WORLD_RECOMPILE_ROLLBACK_FAILED'; failure.rollbackError=rollbackError; throw failure;
@@ -227,7 +181,7 @@ async function recompileAuthorityOnly(runtime,{nextIR,compilation,baseRevisionId
   const label=isBehavior?'behavior':'physics';
 
   if(admissionResult.status==='rejected'){
-    const admission=worldAdmission(null,null,admissionContext);
+    const admission=evaluateWorldAdmission(admissionContext);
     return {
       status:'world-rejected',reason:admission.reasons[0]||`${label.toUpperCase()}_REJECTED`,rolledBack:false,
       baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),
@@ -251,7 +205,12 @@ async function recompileAuthorityOnly(runtime,{nextIR,compilation,baseRevisionId
         recompile:{canonical:true,mode:impact.mode,freshVerification:true,committed:false,affectedEntityIds:[...impact.affectedEntityIds]}
       };
     }
-    commitAuthority(runtime,nextIR,compilation,pipeline);
+    commitWorldAuthority(runtime,{
+      worldIR:nextIR,
+      behaviorBundle:compilation.behaviorBundle,
+      physicsRequirements:compilation.physicsRequirements,
+      acceptanceBundle:pipeline?.state?.artifacts?.acceptanceEvidence || null
+    });
     return {
       status:`world-${admission.status}`,rolledBack:false,
       baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
@@ -285,7 +244,7 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
     issues:preflight.clear?[]:[{id,assetId:record.assetId,reason:preflight.reason || 'WORLD_POSE_BLOCKED',blockedBy:preflight.blockedBy || []}]
   };
   if(layoutAdmission.status==='rejected'){
-    const admission=worldAdmission(null,null,{layoutAdmission});
+    const admission=evaluateWorldAdmission({layoutAdmission});
     return {
       status:'world-rejected',reason:admission.reasons[0]||'LAYOUT_REJECTED',rolledBack:false,
       baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),
@@ -306,21 +265,26 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
     });
     if(admission.status==='rejected'){
       await runtime.restore(before);
-      restoreAuthority(runtime,previous);
+      restoreWorldAuthority(runtime,previous);
       return {
         status:'world-rejected',reason:admission.reasons[0]||'WORLD_REJECTED',rolledBack:true,
         baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
         recompile:{canonical:true,mode:'incremental-position',freshVerification:true,committed:false,affectedEntityIds:[id]}
       };
     }
-    commitAuthority(runtime,nextIR,compilation,pipeline);
+    commitWorldAuthority(runtime,{
+      worldIR:nextIR,
+      behaviorBundle:compilation.behaviorBundle,
+      physicsRequirements:compilation.physicsRequirements,
+      acceptanceBundle:pipeline?.state?.artifacts?.acceptanceEvidence || null
+    });
     return {
       status:`world-${admission.status}`,rolledBack:false,
       baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline,
       recompile:{canonical:true,mode:'incremental-position',freshVerification:true,committed:true,affectedEntityIds:[id]}
     };
   }catch(error){
-    try { await runtime.restore(before); restoreAuthority(runtime,previous); }
+    try { await runtime.restore(before); restoreWorldAuthority(runtime,previous); }
     catch(rollbackError){
       const failure=new Error(`World revision incremental position failed and rollback failed: ${error.message}; rollback: ${rollbackError.message}`,{cause:error});
       failure.code='WORLD_RECOMPILE_ROLLBACK_FAILED'; failure.rollbackError=rollbackError; throw failure;
@@ -342,7 +306,7 @@ async function recompileFull(runtime,{pipeline,nextIR,before,previous,baseRevisi
     }
     if(admission.status==='rejected'){
       await runtime.restore(before);
-      restoreAuthority(runtime,previous);
+      restoreWorldAuthority(runtime,previous);
       return {
         status:'world-rejected',reason:admission.reasons?.[0]||'WORLD_REJECTED',rolledBack:true,
         baseRevisionId,revisionId,worldIR:clone(nextIR),admission:clone(admission),pipeline:pipelineResult,
@@ -355,7 +319,7 @@ async function recompileFull(runtime,{pipeline,nextIR,before,previous,baseRevisi
       recompile:{canonical:true,mode:'full',freshVerification:true,committed:true}
     };
   }catch(error){
-    try { await runtime.restore(before); restoreAuthority(runtime,previous); }
+    try { await runtime.restore(before); restoreWorldAuthority(runtime,previous); }
     catch(rollbackError){
       const failure=new Error(`World revision recompile failed and rollback failed: ${error.message}; rollback: ${rollbackError.message}`,{cause:error});
       failure.code='WORLD_RECOMPILE_ROLLBACK_FAILED'; failure.rollbackError=rollbackError; throw failure;
@@ -373,7 +337,7 @@ export async function recompileWorldRevision(runtime,{baseWorldIR,proposal,accep
   const compilation=compileWorldIR(nextIR);
   const impact=classifyWorldRevisionImpact(proposal);
   const before=runtime.snapshot();
-  const previous=captureAuthority(runtime);
+  const previous=captureWorldAuthority(runtime);
   const baseRevisionId=nextIR.revision.parentId;
   const revisionId=nextIR.revision.id;
 

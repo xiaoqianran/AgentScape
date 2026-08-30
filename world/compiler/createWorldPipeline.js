@@ -8,6 +8,8 @@ import { compileAdmissionFindings } from '../verification/Finding.js';
 import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
 import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
 import { assetIdFromRef, createAssetRef } from '../../asset/AssetRef.js';
+import { evaluateWorldAdmission } from './WorldAdmission.js';
+import { commitWorldAuthority } from '../runtime/WorldAuthority.js';
 
 const executionAdmissionRejected=(state)=>[
   state.reports.assetAdmission,
@@ -270,32 +272,11 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
         runtime.trace?.emit?.('world.acceptance',{bundle:structuredClone(bundle)},{actor:'world-pipeline'});
       }
     }
-    const acceptanceRejected=worldAcceptance?.status==='world-incomplete';
-    const status=validation.counts.hard || assetAdmission.status==='rejected' || layoutAdmission.status==='rejected' || behaviorAdmission.status==='rejected' || physicsAdmission.status==='rejected' || relationAdmission.status==='rejected' || acceptanceRejected ? 'rejected'
-      : validation.counts.advisory || assetAdmission.status==='provisional' || layoutAdmission.status==='provisional' ? 'provisional'
-      : 'ready';
-    state.reports.worldAdmission={
-      status,
-      reasons:[
-        ...(validation.counts.hard?[`VALIDATION_HARD:${validation.counts.hard}`]:[]),
-        ...(validation.counts.advisory?[`VALIDATION_ADVISORY:${validation.counts.advisory}`]:[]),
-        ...(assetAdmission.status==='rejected'?['ASSET_UNRESOLVED']:[]),
-        ...(assetAdmission.status==='provisional'?['ASSET_PROVISIONAL']:[]),
-        ...(layoutAdmission.status==='rejected'?[layoutAdmission.reason || 'LAYOUT_REJECTED']:[]),
-        ...(layoutAdmission.status==='provisional'?['LAYOUT_PROVISIONAL']:[]),
-        ...(behaviorAdmission.status==='rejected'?[behaviorAdmission.reason || behaviorAdmission.issues?.[0]?.code || 'BEHAVIOR_REJECTED']:[]),
-        ...(physicsAdmission.status==='rejected'?[physicsAdmission.reason || physicsAdmission.issues?.[0]?.code || 'PHYSICS_REJECTED']:[]),
-        ...(relationAdmission.status==='rejected'?[relationAdmission.reason || 'RELATION_REJECTED']:[]),
-        ...(acceptanceRejected?['WORLD_ACCEPTANCE_FAILED']:[])
-      ],
-      validation:{ hard:validation.counts.hard, advisory:validation.counts.advisory },
-      assets:structuredClone(assetAdmission),
-      layout:structuredClone(layoutAdmission),
-      behavior:structuredClone(behaviorAdmission),
-      physics:structuredClone(physicsAdmission),
-      relations:structuredClone(relationAdmission),
-      ...(worldAcceptance?{acceptance:structuredClone(worldAcceptance)}:{})
-    };
+    const worldAdmission=evaluateWorldAdmission({
+      validation,acceptance:worldAcceptance,assetAdmission,layoutAdmission,behaviorAdmission,physicsAdmission,relationAdmission
+    });
+    const status=worldAdmission.status;
+    state.reports.worldAdmission=worldAdmission;
     const admissionFindingOptions={worldRevisionId:worldIR?.revision?.id || null};
     const revisionFindings=[
       ...(validation.findings||[]).filter((finding)=>finding.severity==='hard'),
@@ -308,12 +289,12 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
     ];
     if(status==='rejected'&&revisionFindings.length) state.artifacts.revisionContext=buildWorldRevisionContext(worldIR,revisionFindings);
     if(status!=='rejected'){
-      runtime.currentWorldRevision={revision:structuredClone(worldIR.revision),provenance:structuredClone(worldIR.provenance)};
-      runtime.restoredAcceptanceEvidence=null;
-      runtime.lastAcceptanceBundle=state.artifacts.acceptanceEvidence?structuredClone(state.artifacts.acceptanceEvidence):null;
-      runtime.currentBehaviorBundle=structuredClone(state.artifacts.behaviorBundle);
-      runtime.currentPhysicsRequirements=structuredClone(state.artifacts.physicsRequirements);
-      runtime.loadRuleGraph?.(state.artifacts.behaviorBundle.ruleGraph);
+      commitWorldAuthority(runtime,{
+        worldIR,
+        behaviorBundle:state.artifacts.behaviorBundle,
+        physicsRequirements:state.artifacts.physicsRequirements,
+        acceptanceBundle:state.artifacts.acceptanceEvidence || null
+      });
     }
     state.artifacts.scene = runtime.serialize({ name: worldIR?.intent?.name || 'Generated World' });
     return state;

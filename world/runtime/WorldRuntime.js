@@ -21,29 +21,8 @@ import { disposeObject3D } from '../../core/disposeObject3D.js';
 import { ArticulationVerifier } from '../verification/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
+import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
 installThreeBvhRuntime();
-
-const cloneAuthorityValue=(value)=>value==null?value:structuredClone(value);
-const captureWorldAuthority=(runtime)=>({
-  currentWorldRevision:cloneAuthorityValue(runtime.currentWorldRevision) || null,
-  currentBehaviorBundle:cloneAuthorityValue(runtime.currentBehaviorBundle) || null,
-  currentPhysicsRequirements:cloneAuthorityValue(runtime.currentPhysicsRequirements) || null,
-  lastAcceptanceBundle:cloneAuthorityValue(runtime.lastAcceptanceBundle) || null,
-  restoredAcceptanceEvidence:cloneAuthorityValue(runtime.restoredAcceptanceEvidence) || null,
-  interactionEvidence:runtime.interactionEvidence instanceof Map
-    ? [...runtime.interactionEvidence.entries()].map(([key,value])=>[key,cloneAuthorityValue(value)])
-    : null
-});
-const restoreWorldAuthority=(runtime,authority={})=>{
-  runtime.currentWorldRevision=cloneAuthorityValue(authority.currentWorldRevision) || null;
-  runtime.currentBehaviorBundle=cloneAuthorityValue(authority.currentBehaviorBundle) || null;
-  runtime.currentPhysicsRequirements=cloneAuthorityValue(authority.currentPhysicsRequirements) || null;
-  runtime.lastAcceptanceBundle=cloneAuthorityValue(authority.lastAcceptanceBundle) || null;
-  runtime.restoredAcceptanceEvidence=cloneAuthorityValue(authority.restoredAcceptanceEvidence) || null;
-  if(authority.interactionEvidence===null) delete runtime.interactionEvidence;
-  else runtime.interactionEvidence=new Map((authority.interactionEvidence||[]).map(([key,value])=>[key,cloneAuthorityValue(value)]));
-  runtime.loadRuleGraph?.(authority.currentBehaviorBundle?.ruleGraph || []);
-};
 
 const mutationResultCommitted=(result)=>!(
   result?.committed===false ||
