@@ -27,7 +27,8 @@ async function main() {
   const app = document.querySelector('#app');
   clearLegacyEndpointOverrides();
   const capabilityStatusPromise = readCapabilityStatus();
-  const environmentDefinition = resolveEnvironment(new URLSearchParams(location.search).get('world'));
+  const params = new URLSearchParams(location.search);
+  const environmentDefinition = resolveEnvironment(params.get('world'));
   const environmentFactory = await environmentDefinition.load();
   const ui = createAppShell({ app, environmentDefinition, environments: ENVIRONMENTS });
   ui.setRuntimeStatus('loading', '启动中');
@@ -35,7 +36,8 @@ async function main() {
 
   const world = new WorldRuntime(ui.viewport, {
     environmentFactory,
-    assetModule: createAssetModule()
+    assetModule: createAssetModule(),
+    rendererMode: params.get('renderer') || 'auto'
   });
   const generation = attachGenerationRuntime(world, {
     compilerEndpoint: capabilityStatus.assetCompile.available ? CAPABILITY_API.assetCompile : '',
@@ -103,8 +105,9 @@ async function main() {
 
   inspector.render(null);
   world.history.clear();
-  ui.setRuntimeStatus('ready', '就绪');
-  taskPanel.log(`场景已就绪 · ${world.listObjects().length} 个对象`, 'result');
+  const rendererBackendLabel = world.rendererInfo?.backend === 'webgpu' ? 'WebGPU' : (world.rendererInfo?.backend === 'webgl2' ? 'WebGL2' : '未知后端');
+  ui.setRuntimeStatus('ready', `就绪 · ${rendererBackendLabel}`);
+  taskPanel.log(`场景已就绪 · ${world.listObjects().length} 个对象 · ${world.rendererInfo?.renderer || 'Renderer'} / ${rendererBackendLabel}${world.rendererInfo?.fallback ? ' fallback' : ''}`, 'result');
 }
 
 async function restoreOrBootstrap({ world, tools, sceneStore, environmentDefinition, taskPanel }) {

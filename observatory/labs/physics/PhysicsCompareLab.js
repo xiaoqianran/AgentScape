@@ -6,9 +6,10 @@ import { comparePhysicsSnapshots } from "./PhysicsStateComparator.js";
 const formatDelta = (value) => Number.isFinite(value) ? value.toExponential(3) : "—";
 
 export class PhysicsCompareLab {
-  constructor({ viewport, onTelemetry }) {
+  constructor({ viewport, onTelemetry, rendererMode = "auto" }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
+    this.rendererMode = rendererMode;
     this.clock = new SimulationClock({ fixedDt:1/60, maxSubSteps:8 });
     this.scenario = null;
     this.checkpointFrame = null;
@@ -21,9 +22,15 @@ export class PhysicsCompareLab {
     this.host.append(this.leftPane.root, this.rightPane.root);
     viewport.appendChild(this.host);
 
-    this.left = new PhysicsLab({ viewport:this.leftPane.viewport, backendId:"rapier", onTelemetry:()=>{}, autoAnimate:false });
-    this.right = new PhysicsLab({ viewport:this.rightPane.viewport, backendId:"jolt", onTelemetry:()=>{}, autoAnimate:false });
+    this.left = new PhysicsLab({ viewport:this.leftPane.viewport, backendId:"rapier", onTelemetry:()=>{}, autoAnimate:false, rendererMode });
+    this.right = new PhysicsLab({ viewport:this.rightPane.viewport, backendId:"jolt", onTelemetry:()=>{}, autoAnimate:false, rendererMode });
+    this.animation = null;
+  }
+
+  async init() {
+    await Promise.all([this.left.init(), this.right.init()]);
     this.animation = requestAnimationFrame((timestamp)=>this.frame(timestamp));
+    return this;
   }
 
   createPane(title) {
@@ -209,7 +216,7 @@ export class PhysicsCompareLab {
   }
 
   async dispose() {
-    cancelAnimationFrame(this.animation);
+    if (this.animation != null) cancelAnimationFrame(this.animation);
     this.clock.pause();
     await Promise.all([this.left.dispose(),this.right.dispose()]);
     this.host.remove();

@@ -503,7 +503,7 @@ const escapeHtml = (value) => String(value)
 const DISPLAY_KEYS = Object.freeze({
   position: "位置", heldBy: "持有者", humanHeld: "人工持有", lastAction: "上次动作", lastResult: "上次结果",
   interactable: "可交互", inRange: "交互距离内", visible: "可见", blocker: "阻挡物", supportOn: "位于支撑面", eventCount: "事件数",
-  backend: "后端", solver: "求解器", bodies: "刚体数", colliders: "碰撞体数", joints: "关节数", contacts: "接触数", entities: "实体数",
+  backend: "后端", renderer: "Renderer", "render backend": "渲染后端", "render mode": "渲染模式", "render fallback": "渲染回退", solver: "求解器", bodies: "刚体数", colliders: "碰撞体数", joints: "关节数", contacts: "接触数", entities: "实体数",
   objects: "对象数", overlaps: "重叠数", reachable: "可达", reason: "原因", waypoints: "路径点", cost: "代价", state: "状态",
   held: "持有对象", action: "动作", events: "事件数", definitions: "工具定义数", tool: "工具", outcome: "结果", verified: "已验证", provider: "Provider", jobStatus: "任务状态", artifactIntegrity: "产物完整性", assetId: "资产 ID", assetAdmission: "资产准入", compilerQuality: "编译质量", instanceId: "实例 ID", taskStatus: "智能体任务", planningRounds: "规划轮次", connectorRequests: "Connector 请求",
   elapsed: "耗时", "physics.step": "物理步耗时", "native debug": "原生调试", "manifest colliders": "清单碰撞体数",

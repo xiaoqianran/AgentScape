@@ -1,13 +1,11 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SimulationClock } from "../../core/SimulationClock.js";
 import { ScenarioRunner } from "../../core/ScenarioRunner.js";
 import { FrameCadence } from "../../core/FrameCadence.js";
 import { createObservatoryGrid, disposeObservatoryGrid } from "../../visual/ObservatoryGrid.js";
-import { applyObservatorySceneTheme } from "../../visual/ObservatorySceneTheme.js";
 import { resizeObservatoryRenderer } from "../../visual/RendererQuality.js";
+import { createObservatoryRenderSurface } from "../../visual/ObservatoryRenderSurface.js";
 import { WorldLabelLayer, worldLabelsForPhysics } from "../../visual/WorldLabelLayer.js";
-import { CameraRig } from "../../visual/CameraRig.js";
 import { PhysicsScenarioContext } from "./PhysicsScenarioContext.js";
 import { compareManifestToPhysics } from "./ManifestColliderSnapshot.js";
 import { PhysicsDebugRenderer } from "./visualizers/PhysicsDebugRenderer.js";
@@ -18,10 +16,11 @@ import { PhysicsVectorRenderer } from "./visualizers/PhysicsVectorRenderer.js";
 import { createPhysicsBackend } from "./backends.js";
 
 export class PhysicsLab {
-  constructor({ viewport, onTelemetry, backendId = "rapier", autoAnimate = true }) {
+  constructor({ viewport, onTelemetry, backendId = "rapier", autoAnimate = true, rendererMode = "auto" }) {
     this.viewport = viewport;
     this.backendId = backendId;
     this.onTelemetry = onTelemetry;
+    this.rendererMode = rendererMode;
     this.autoAnimate = autoAnimate;
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
@@ -29,18 +28,6 @@ export class PhysicsLab {
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.05, 200);
     this.camera.position.set(7.5, 5.5, 8.5);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.shadowMap.enabled = false;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.sceneTheme = applyObservatorySceneTheme(this.scene, this.renderer);
-    viewport.appendChild(this.renderer.domElement);
-
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 1.4, 0);
-    this.controls.enableDamping = true;
-    this.cameraRig = new CameraRig({ camera: this.camera, controls: this.controls });
     this.worldLabels = new WorldLabelLayer({ scene: this.scene, camera: this.camera, viewport });
 
     this.grid = createObservatoryGrid({ size: 24 });
@@ -68,10 +55,22 @@ export class PhysicsLab {
       }
     });
 
+  }
+
+  async init() {
+    Object.assign(this, await createObservatoryRenderSurface({
+      viewport: this.viewport,
+      scene: this.scene,
+      camera: this.camera,
+      rendererMode: this.rendererMode,
+      controlsTarget: [0, 1.4, 0],
+      shadowType: THREE.PCFSoftShadowMap,
+    }));
     this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(viewport);
+    this.resizeObserver.observe(this.viewport);
     this.resize();
     this.animation = this.autoAnimate ? requestAnimationFrame((timestamp) => this.frame(timestamp)) : null;
+    return this;
   }
 
   async load(scenario) {
@@ -266,7 +265,7 @@ export class PhysicsLab {
 
   async dispose() {
     if (this.animation != null) cancelAnimationFrame(this.animation);
-    this.resizeObserver.disconnect();
+    this.resizeObserver?.disconnect?.();
     await this.runner.dispose();
     this.debugRenderer.dispose();
     this.normalizedColliderRenderer.dispose();
@@ -274,9 +273,9 @@ export class PhysicsLab {
     this.colliderDifferenceRenderer.dispose();
     this.vectorRenderer.dispose();
     this.worldLabels.dispose();
-    this.controls.dispose();
+    this.controls?.dispose?.();
     disposeObservatoryGrid(this.grid);
-    this.renderer.dispose();
-    this.renderer.domElement.remove();
+    this.renderer?.dispose?.();
+    this.renderer?.domElement?.remove?.();
   }
 }

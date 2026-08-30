@@ -1,21 +1,20 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SimulationClock } from "../../core/SimulationClock.js";
 import { ScenarioRunner } from "../../core/ScenarioRunner.js";
 import { FrameCadence } from "../../core/FrameCadence.js";
 import { createObservatoryGrid, disposeObservatoryGrid } from "../../visual/ObservatoryGrid.js";
-import { applyObservatorySceneTheme } from "../../visual/ObservatorySceneTheme.js";
 import { resizeObservatoryRenderer } from "../../visual/RendererQuality.js";
+import { createObservatoryRenderSurface } from "../../visual/ObservatoryRenderSurface.js";
 import { WorldLabelLayer, worldLabelsForAgent } from "../../visual/WorldLabelLayer.js";
-import { CameraRig } from "../../visual/CameraRig.js";
 import { AgentToolsScenarioContext } from "./AgentToolsScenarioContext.js";
 import { AgentToolsDebugRenderer } from "./visualizers/AgentToolsDebugRenderer.js";
 import { NormalizedColliderRenderer } from "../physics/visualizers/NormalizedColliderRenderer.js";
 
 export class AgentToolsLab {
-  constructor({ viewport, onTelemetry, contextFactory = null, contextOptions = {} }) {
+  constructor({ viewport, onTelemetry, contextFactory = null, contextOptions = {}, rendererMode = "auto" }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
+    this.rendererMode = rendererMode;
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
     this.checkpointFrame = null;
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
@@ -26,17 +25,6 @@ export class AgentToolsLab {
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.05, 200);
     this.camera.position.set(6, 4.6, 7);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.shadowMap.enabled = false;
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.sceneTheme = applyObservatorySceneTheme(this.scene, this.renderer);
-    viewport.appendChild(this.renderer.domElement);
-
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 0.8, 0);
-    this.controls.enableDamping = true;
-    this.cameraRig = new CameraRig({ camera: this.camera, controls: this.controls });
     this.worldLabels = new WorldLabelLayer({ scene: this.scene, camera: this.camera, viewport });
 
     this.grid = createObservatoryGrid({ size: 24 });
@@ -49,10 +37,21 @@ export class AgentToolsLab {
       createContext: async () => this.contextFactory({ scene: this.scene, ...this.contextOptions }).init()
     });
 
+  }
+
+  async init() {
+    Object.assign(this, await createObservatoryRenderSurface({
+      viewport: this.viewport,
+      scene: this.scene,
+      camera: this.camera,
+      rendererMode: this.rendererMode,
+      controlsTarget: [0, 0.8, 0],
+    }));
     this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(viewport);
+    this.resizeObserver.observe(this.viewport);
     this.resize();
     this.animation = requestAnimationFrame((timestamp) => this.frame(timestamp));
+    return this;
   }
 
   async load(scenario) {
@@ -184,14 +183,14 @@ export class AgentToolsLab {
   }
   async dispose() {
     cancelAnimationFrame(this.animation);
-    this.resizeObserver.disconnect();
+    this.resizeObserver?.disconnect?.();
     await this.runner.dispose();
     this.debugRenderer.dispose();
     this.colliderRenderer.dispose();
     this.worldLabels.dispose();
-    this.controls.dispose();
+    this.controls?.dispose?.();
     disposeObservatoryGrid(this.grid);
-    this.renderer.dispose();
-    this.renderer.domElement.remove();
+    this.renderer?.dispose?.();
+    this.renderer?.domElement?.remove?.();
   }
 }

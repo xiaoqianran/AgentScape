@@ -3,6 +3,8 @@ import { LabRegistry } from "./core/LabRegistry.js";
 import { ScenarioRegistry } from "./core/ScenarioRegistry.js";
 import { ObservatoryShell } from "./ui/ObservatoryShell.js";
 
+const renderingInfoForLab = (lab) => lab?.rendererInfo || lab?.left?.rendererInfo || null;
+
 const LABS = [
   {
     id: "physics",
@@ -51,6 +53,7 @@ class ObservatoryApp {
     this.activeLabId = null;
     this.activeBackendId = null;
     this.activeScenarioId = null;
+    this.rendererMode = "auto";
     this.activationVersion = 0;
     this.scenarioSelectionVersion = 0;
     this.scenarioLoadPromise = Promise.resolve();
@@ -95,6 +98,7 @@ class ObservatoryApp {
   async init() {
     const params = new URLSearchParams(location.search);
     const requestedLab = params.get("lab");
+    this.rendererMode = params.get("renderer") || "auto";
     const labId = this.labs.has(requestedLab) ? requestedLab : this.labs.list()[0].id;
     await this.activateLab(labId, {
       backendId: params.get("backend"),
@@ -131,15 +135,33 @@ class ObservatoryApp {
     this.shell.setLabIdentity(labId);
     this.shell.configureDebugLayers(definition.debugLayers || ["grid"], definition.defaultDebugLayers || ["grid"]);
 
-    this.lab = definition.create({
+    let nextLab = null;
+    nextLab = definition.create({
       viewport: this.shell.refs.viewport,
       backendId: normalizedBackend,
+      rendererMode: this.rendererMode,
       onTelemetry: (data) => {
         if (data.scenario?.id !== this.activeScenarioId || labId !== this.activeLabId) return;
+        const rendering = renderingInfoForLab(nextLab);
         this.shell.setRunning(data.clock.running);
-        this.shell.update(data);
+        this.shell.update(rendering ? {
+          ...data,
+          metrics: {
+            ...(data.metrics || {}),
+            renderer: rendering.renderer,
+            "render backend": rendering.backend,
+            "render mode": rendering.requestedMode,
+            "render fallback": rendering.fallback
+          }
+        } : data);
       }
     });
+    await nextLab.init?.();
+    if (version !== this.activationVersion) {
+      await nextLab.dispose?.();
+      return;
+    }
+    this.lab = nextLab;
     this.lab.setNativeDebug?.(this.shell.refs["native-debug"].checked);
     this.lab.setManifestDebug?.(this.shell.refs["manifest-debug"].checked);
     this.lab.setDifferenceDebug?.(this.shell.refs["difference-debug"].checked);

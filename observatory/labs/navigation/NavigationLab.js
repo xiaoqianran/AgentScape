@@ -1,20 +1,19 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SimulationClock } from "../../core/SimulationClock.js";
 import { ScenarioRunner } from "../../core/ScenarioRunner.js";
 import { FrameCadence } from "../../core/FrameCadence.js";
 import { createObservatoryGrid, disposeObservatoryGrid } from "../../visual/ObservatoryGrid.js";
-import { applyObservatorySceneTheme } from "../../visual/ObservatorySceneTheme.js";
 import { resizeObservatoryRenderer } from "../../visual/RendererQuality.js";
+import { createObservatoryRenderSurface } from "../../visual/ObservatoryRenderSurface.js";
 import { WorldLabelLayer, worldLabelsForNavigation } from "../../visual/WorldLabelLayer.js";
-import { CameraRig } from "../../visual/CameraRig.js";
 import { NavigationScenarioContext } from "./NavigationScenarioContext.js";
 import { NavigationDebugRenderer } from "./visualizers/NavigationDebugRenderer.js";
 
 export class NavigationLab {
-  constructor({ viewport, onTelemetry }) {
+  constructor({ viewport, onTelemetry, rendererMode = "auto" }) {
     this.viewport = viewport;
     this.onTelemetry = onTelemetry;
+    this.rendererMode = rendererMode;
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
     this.checkpointFrame = null;
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
@@ -23,17 +22,6 @@ export class NavigationLab {
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.05, 200);
     this.camera.position.set(8, 6.5, 9);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.shadowMap.enabled = false;
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.sceneTheme = applyObservatorySceneTheme(this.scene, this.renderer);
-    viewport.appendChild(this.renderer.domElement);
-
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 0.6, 0);
-    this.controls.enableDamping = true;
-    this.cameraRig = new CameraRig({ camera: this.camera, controls: this.controls });
     this.worldLabels = new WorldLabelLayer({ scene: this.scene, camera: this.camera, viewport });
 
     this.grid = createObservatoryGrid({ size: 32 });
@@ -45,10 +33,21 @@ export class NavigationLab {
       createContext: async () => new NavigationScenarioContext({ scene: this.scene }).init()
     });
 
+  }
+
+  async init() {
+    Object.assign(this, await createObservatoryRenderSurface({
+      viewport: this.viewport,
+      scene: this.scene,
+      camera: this.camera,
+      rendererMode: this.rendererMode,
+      controlsTarget: [0, 0.6, 0],
+    }));
     this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(viewport);
+    this.resizeObserver.observe(this.viewport);
     this.resize();
     this.animation = requestAnimationFrame((timestamp) => this.frame(timestamp));
+    return this;
   }
 
   async load(scenario) {
@@ -193,13 +192,13 @@ export class NavigationLab {
 
   async dispose() {
     cancelAnimationFrame(this.animation);
-    this.resizeObserver.disconnect();
+    this.resizeObserver?.disconnect?.();
     await this.runner.dispose();
     this.debugRenderer.dispose();
     this.worldLabels.dispose();
-    this.controls.dispose();
+    this.controls?.dispose?.();
     disposeObservatoryGrid(this.grid);
-    this.renderer.dispose();
-    this.renderer.domElement.remove();
+    this.renderer?.dispose?.();
+    this.renderer?.domElement?.remove?.();
   }
 }

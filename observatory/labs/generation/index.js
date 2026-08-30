@@ -13,9 +13,10 @@ export const labDefinition = {
   scenarios: [generationAgentBuildScenario, generationEmbodiedBuildScenario, generationConnectorDiscoveryScenario],
   debugLayers: ["normalized", "agent-tool", "labels", "grid"],
   defaultDebugLayers: ["normalized", "agent-tool", "labels", "grid"],
-  create: ({ viewport, onTelemetry, backendId }) => new AgentToolsLab({
+  create: ({ viewport, onTelemetry, backendId, rendererMode }) => new AgentToolsLab({
     viewport,
     onTelemetry,
+    rendererMode,
     contextOptions: { backendId },
     contextFactory: (options) => new GenerationAgentScenarioContext(options)
   })

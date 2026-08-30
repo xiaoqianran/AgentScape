@@ -22,6 +22,7 @@ import { disposeObject3D } from '../../core/disposeObject3D.js';
 import { ArticulationVerifier } from '../verification/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
+import { createRenderer } from '../../core/rendering/createRenderer.js';
 installThreeBvhRuntime();
 
 const cloneAuthorityValue=(value)=>value==null?value:structuredClone(value);
@@ -53,12 +54,13 @@ const mutationResultCommitted=(result)=>!(
 );
 
 export class WorldRuntime {
-  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend() } = {}) {
+  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend(), rendererFactory = createRenderer, rendererMode = 'auto' } = {}) {
     if (!assetModule?.manager || !assetModule?.catalog || !assetModule?.compiledStore) {
       throw new TypeError('WorldRuntime requires an Asset module');
     }
     if (typeof physicsFactory !== 'function') throw new TypeError('WorldRuntime physicsFactory must be a function');
     if (typeof navigationBackendFactory !== 'function') throw new TypeError('WorldRuntime navigationBackendFactory must be a function');
+    if (typeof rendererFactory !== 'function') throw new TypeError('WorldRuntime rendererFactory must be a function');
     this.version = '1.34.2';
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
@@ -68,13 +70,18 @@ export class WorldRuntime {
     this.assetCatalog = assetModule.catalog;
     this.physicsFactory = physicsFactory;
     this.navigationBackendFactory = navigationBackendFactory;
+    this.rendererFactory = rendererFactory;
+    this.rendererMode = rendererMode;
+    this.rendererInfo = null;
     this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null; this.clock = new THREE.Clock(); this.running = false;
   }
   async init() {
     await this.physics.init();
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.05, 120);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    const rendering = await this.rendererFactory({ mode:this.rendererMode, antialias:true, alpha:false });
+    this.renderer = rendering.renderer;
+    this.rendererInfo = rendering.info;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -95,7 +102,7 @@ export class WorldRuntime {
     this.interactions = new InteractionSystem({ store:this.store, physics:this.physics, spatial:this.spatial, navigation:this.navigation, locomotion:this.locomotion, events:this.events });
     this.ruleRuntime.start();
     this.worldPipeline = createCanonicalWorldPipeline(this);
-    this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version }); this.events.emit('runtime.ready'); return this;
+    this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); this.running = true; this.animate(); this.trace.emit('runtime.ready', { version: this.version, rendering:this.rendererInfo }); this.events.emit('runtime.ready', { rendering:this.rendererInfo }); return this;
   }
   addEnvironment() {
     if (!this.environmentFactory) throw new Error('WorldRuntime requires an environmentFactory');
