@@ -45,6 +45,21 @@ const loadSemantics = async (source) => {
   return response.json();
 };
 
+const resolveRelativeUrl = (path, baseUrl) => {
+  if (!path) return null;
+  if (!baseUrl) return path;
+  return new URL(path, baseUrl).href;
+};
+
+const loadJsonSource = async (value, name) => {
+  const source = asSource(value, name);
+  if (!source) throw new TypeError(`${name} is required`);
+  if (source.data) return { data:JSON.parse(new TextDecoder().decode(source.data)), source, baseUrl:source.baseUrl || null };
+  const response = await fetch(source.url);
+  if (!response.ok) throw new Error(`Failed to load ${name}: ${response.status}`);
+  return { data:await response.json(), source, baseUrl:response.url || source.url };
+};
+
 export function geometryToTrimeshCollider(geometry) {
   const position = geometry?.getAttribute?.('position');
   if (!position || position.itemSize !== 3 || position.count < 3) throw new TypeError('Generated world mesh requires triangle positions');
@@ -81,7 +96,10 @@ export async function loadGeneratedWorld({
   mesh,
   visual = null,
   semantics = null,
-  coordinateSystem = 'y-up'
+  coordinateSystem = 'y-up',
+  layout = null,
+  camera = null,
+  rendering = null
 } = {}) {
   const meshSource = asSource(mesh, 'mesh');
   if (!meshSource) throw new TypeError('loadGeneratedWorld requires mesh');
@@ -113,13 +131,58 @@ export async function loadGeneratedWorld({
     root,
     floor,
     colliders:[collider],
+    ...(layout ? { layout:structuredClone(layout) } : {}),
+    ...(camera ? { camera:structuredClone(camera) } : {}),
+    ...(rendering ? { rendering:structuredClone(rendering) } : {}),
     semantics:semanticData,
     generated:{
       mesh:sourceDescriptor(meshSource),
       visual:visualSource ? { ...sourceDescriptor(visualSource), status:'deferred' } : null,
       semantics:semanticsSource ? { ...sourceDescriptor(semanticsSource), data:semanticData } : null,
       coordinateSystem
+    },
+    dispose(){
+      floor.geometry?.dispose?.();
+      floor.material?.dispose?.();
     }
   };
+}
+
+/**
+ * Load the compact runtime/world.json emitted by modal-world. Artifact paths in
+ * the manifest are resolved relative to the manifest URL before crossing the
+ * existing generated-world Environment boundary.
+ */
+export async function loadGeneratedWorldManifest(manifest) {
+  const { data, source, baseUrl } = await loadJsonSource(manifest, 'generated world manifest');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new TypeError('Generated world manifest must be an object');
+  if (data.schemaVersion !== 1) throw new TypeError(`Unsupported generated world manifest version: ${data.schemaVersion}`);
+  const artifacts = data.artifacts;
+  if (!artifacts || typeof artifacts !== 'object' || Array.isArray(artifacts)) throw new TypeError('Generated world manifest requires artifacts');
+  const environment = artifacts.environment;
+  if (!environment?.path) throw new TypeError('Generated world manifest requires artifacts.environment.path');
+
+  const artifactSource = (artifact) => artifact?.path ? {
+    url:resolveRelativeUrl(artifact.path, baseUrl),
+    ...(artifact.format ? { format:artifact.format } : {})
+  } : null;
+
+  const loaded = await loadGeneratedWorld({
+    id:data.id || 'generated-world',
+    mesh:artifactSource(environment),
+    visual:artifactSource(artifacts.visual),
+    semantics:artifactSource(artifacts.semantics),
+    coordinateSystem:data.coordinateSystem || 'y-up',
+    layout:data.layout || null,
+    camera:data.camera || null,
+    rendering:data.rendering || null
+  });
+  loaded.generated.manifest = {
+    ...sourceDescriptor(source),
+    schemaVersion:data.schemaVersion,
+    mesh:data.mesh ? structuredClone(data.mesh) : null,
+    compiler:data.compiler ? structuredClone(data.compiler) : null
+  };
+  return loaded;
 }
 

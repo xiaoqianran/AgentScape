@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { geometryToTrimeshCollider, loadGeneratedWorld } from '../../world/loadGeneratedWorld.js';
+import { geometryToTrimeshCollider, loadGeneratedWorld, loadGeneratedWorldManifest } from '../../world/loadGeneratedWorld.js';
 
 vi.mock('three/examples/jsm/loaders/PLYLoader.js',()=>({
   PLYLoader:class {
@@ -77,6 +77,34 @@ end_header
     expect(environment.semantics).toEqual([{id:'chair_01',label:'chair'}]);
     expect(environment.generated.mesh).toEqual({format:'ply',bytes:ply.byteLength});
     expect(environment.generated.semantics).toMatchObject({format:'json',bytes:semantics.byteLength,data:[{id:'chair_01',label:'chair'}]});
+  });
+
+  it('loads modal-world runtime manifest and resolves artifact URLs relative to it',async()=>{
+    const worldManifest={
+      schemaVersion:1,id:'garden-v1',coordinateSystem:'z-up',
+      artifacts:{
+        environment:{path:'environment.ply',format:'ply'},
+        visual:{path:'../gs_result/ply/point_cloud_7999.spz',format:'spz'},
+        semantics:{path:'../objects.json',format:'json'}
+      },
+      layout:{bounds:{min:[-6,-6],max:[6,5]},groundY:0,margin:.5},
+      mesh:{sourceTriangles:744212,runtimeTriangles:100000},
+      compiler:{profile:'agentscape-environment-v1'}
+    };
+    const fetchMock=vi.fn(async(url)=>{
+      if(String(url).endsWith('/runtime/world.json')) return {ok:true,status:200,url:'https://world.test/jobs/garden-v1/runtime/world.json',json:async()=>worldManifest};
+      if(String(url).endsWith('/objects.json')) return {ok:true,status:200,url:String(url),json:async()=>semantics};
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch',fetchMock);
+    const environment=await loadGeneratedWorldManifest('https://world.test/jobs/garden-v1/runtime/world.json');
+    expect(environment.id).toBe('garden-v1');
+    expect(environment.layout).toEqual(worldManifest.layout);
+    expect(environment.generated.mesh.url).toBe('https://world.test/jobs/garden-v1/runtime/environment.ply');
+    expect(environment.generated.visual.url).toBe('https://world.test/jobs/garden-v1/gs_result/ply/point_cloud_7999.spz');
+    expect(environment.generated.semantics.url).toBe('https://world.test/jobs/garden-v1/objects.json');
+    expect(environment.generated.manifest).toMatchObject({url:'https://world.test/jobs/garden-v1/runtime/world.json',schemaVersion:1,mesh:worldManifest.mesh,compiler:worldManifest.compiler});
+    environment.dispose();
   });
 
   it('validates triangle geometry for the Rapier trimesh boundary',()=>{

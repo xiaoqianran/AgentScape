@@ -12,7 +12,7 @@ import { LocalSceneStore } from './persistence/LocalSceneStore.js';
 import { AutosaveController } from './persistence/AutosaveController.js';
 import { EditorController } from './editor/EditorController.js';
 import { ENVIRONMENTS, resolveEnvironment } from '../world/content/environments.js';
-import { loadGeneratedWorld } from '../world/loadGeneratedWorld.js';
+import { loadGeneratedWorld, loadGeneratedWorldManifest } from '../world/loadGeneratedWorld.js';
 import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
 import { createAppShell } from './ui/AppShell.js';
 import { TaskPanel } from './ui/task/TaskPanel.js';
@@ -29,8 +29,16 @@ async function main() {
   clearLegacyEndpointOverrides();
   const capabilityStatusPromise = readCapabilityStatus();
   const params = new URLSearchParams(location.search);
+  const generatedWorldManifest = params.get('worldManifest');
   const generatedMesh = params.get('mesh');
-  const environmentDefinition = generatedMesh
+  const environmentDefinition = generatedWorldManifest
+    ? {
+        id:'generated-world', number:'GENERATED', title:'生成世界', headline:'运行外部生成世界。',
+        description:'从统一 Runtime Manifest 加载外部生成世界。',
+        facts:['WORLD MANIFEST','RAPIER','RECAST / DETOUR'], bootstrap:{agent:[0,0,0]}, coffeeCorner:{},
+        load:async()=>async()=>loadGeneratedWorldManifest(generatedWorldManifest)
+      }
+    : generatedMesh
     ? {
         id:'generated-world', number:'GENERATED', title:'生成世界', headline:'运行外部生成世界。',
         description:'外部生成文件直接进入 AgentScape 现有渲染、物理与导航运行时。',
