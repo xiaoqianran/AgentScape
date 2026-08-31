@@ -21,6 +21,21 @@ vi.mock('three/examples/jsm/loaders/PLYLoader.js',()=>({
   }
 }));
 
+vi.mock('three/examples/jsm/loaders/GLTFLoader.js',()=>({
+  GLTFLoader:class {
+    async parseAsync(){
+      const scene=new THREE.Group();
+      const mesh=new THREE.Mesh(new THREE.BufferGeometry());
+      mesh.geometry.setAttribute('position',new THREE.Float32BufferAttribute([0,0,0,1,0,0,0,0,1],3));
+      mesh.geometry.setIndex([0,2,1]);
+      mesh.position.set(2,0,0);
+      scene.add(mesh);
+      return {scene};
+    }
+    async loadAsync(){ return this.parseAsync(); }
+  }
+}));
+
 describe('loadGeneratedWorld',()=>{
   const semantics={objects:[{id:1,label:'bench',center:[1,2,3]}]};
 
@@ -36,7 +51,7 @@ describe('loadGeneratedWorld',()=>{
     expect(environment.colliders[0]).toMatchObject({shape:'trimesh'});
     expect(environment.generated).toMatchObject({
       mesh:{url:'/world/global_mesh.ply',format:'ply'},
-      visual:{url:'/world/final.spz',status:'deferred'},
+      visual:{url:'/world/final.spz',format:'spz',status:'deferred'},
       semantics:{url:'/world/semantics.json',data:semantics},
       coordinateSystem:'y-up'
     });
@@ -79,9 +94,20 @@ end_header
     expect(environment.generated.semantics).toMatchObject({format:'json',bytes:semantics.byteLength,data:[{id:'chair_01',label:'chair'}]});
   });
 
+  it('loads GLB collision bytes and bakes node transforms into one runtime geometry',async()=>{
+    const glb=new Uint8Array([0x67,0x6c,0x54,0x46]);
+    const environment=await loadGeneratedWorld({mesh:{data:glb,format:'glb'},coordinateSystem:'y-up',metersPerUnit:2});
+    const positions=Array.from(environment.floor.geometry.getAttribute('position').array);
+    expect(positions.slice(0,3)).toEqual([4,0,0]);
+    expect(environment.colliders[0]).toMatchObject({shape:'trimesh',indices:[0,2,1]});
+    expect(environment.generated.mesh).toEqual({format:'glb',bytes:glb.byteLength});
+    expect(environment.generated.metersPerUnit).toBe(2);
+    environment.dispose();
+  });
+
   it('loads modal-world runtime manifest and resolves artifact URLs relative to it',async()=>{
     const worldManifest={
-      schemaVersion:1,id:'garden-v1',coordinateSystem:'z-up',
+      schemaVersion:1,id:'garden-v1',coordinateSystem:'z-up',metersPerUnit:1,
       artifacts:{
         environment:{path:'environment.ply',format:'ply'},
         visual:{path:'../gs_result/ply/point_cloud_7999.spz',format:'spz'},
@@ -103,6 +129,7 @@ end_header
     expect(environment.generated.mesh.url).toBe('https://world.test/jobs/garden-v1/runtime/environment.ply');
     expect(environment.generated.visual.url).toBe('https://world.test/jobs/garden-v1/gs_result/ply/point_cloud_7999.spz');
     expect(environment.generated.semantics.url).toBe('https://world.test/jobs/garden-v1/objects.json');
+    expect(environment.generated.metersPerUnit).toBe(1);
     expect(environment.generated.manifest).toMatchObject({url:'https://world.test/jobs/garden-v1/runtime/world.json',schemaVersion:1,mesh:worldManifest.mesh,compiler:worldManifest.compiler});
     environment.dispose();
   });

@@ -54,6 +54,18 @@ describe('NavigationBackend contract',()=>{
     } finally { backend.dispose(); }
   });
 
+  it('rejects a successful Recast build that contains no walkable polygons',async()=>{
+    const backend=new RecastNavigationBackend();
+    try {
+      const result=await backend.build([{
+        positions:new Float32Array([0,0,0,.1,0,0,0,0,.1]),
+        indices:new Uint32Array([0,1,2])
+      }],{agentRadius:.3,agentHeight:1.7,maxClimb:.3,maxSlope:45});
+      expect(result).toEqual({success:false,code:'NAVMESH_EMPTY'});
+      expect(backend.isReady()).toBe(false);
+    } finally { backend.dispose(); }
+  });
+
   it('executes dynamic obstacle synchronization only when the backend declares it',async()=>{
     const backend=new RecastNavigationBackend();
     try {

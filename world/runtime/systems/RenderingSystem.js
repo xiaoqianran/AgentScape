@@ -4,6 +4,7 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { createRenderer } from '../../../core/rendering/createRenderer.js';
 import { RendererProbe } from '../../../core/rendering/RendererProbe.js';
 import { WebGpuPostFxPipeline } from '../../../core/rendering/WebGpuPostFxPipeline.js';
+import { loadGaussianSplatVisual } from '../../../core/rendering/loadGaussianSplatVisual.js';
 
 export class RenderingSystem {
   constructor({
@@ -17,6 +18,7 @@ export class RenderingSystem {
     environmentLoader = new HDRLoader(),
     postFxFactory = (options) => new WebGpuPostFxPipeline(options),
     postFxOptions = {},
+    generatedVisualLoader = loadGaussianSplatVisual,
     onDeviceLost = null,
     onError = null
   } = {}) {
@@ -26,6 +28,7 @@ export class RenderingSystem {
     if (typeof controlsFactory !== 'function') throw new TypeError('RenderingSystem controlsFactory must be a function');
     if (!environmentLoader || typeof environmentLoader.loadAsync !== 'function') throw new TypeError('RenderingSystem requires an environment loader');
     if (typeof postFxFactory !== 'function') throw new TypeError('RenderingSystem postFxFactory must be a function');
+    if (typeof generatedVisualLoader !== 'function') throw new TypeError('RenderingSystem generatedVisualLoader must be a function');
 
     this.container = container;
     this.scene = scene;
@@ -37,6 +40,7 @@ export class RenderingSystem {
     this.environmentLoader = environmentLoader;
     this.postFxFactory = postFxFactory;
     this.postFxOptions = postFxOptions;
+    this.generatedVisualLoader = generatedVisualLoader;
     this.onDeviceLost = typeof onDeviceLost === 'function' ? onDeviceLost : null;
     this.onError = typeof onError === 'function' ? onError : null;
     this.camera = null;
@@ -48,6 +52,9 @@ export class RenderingSystem {
     this.environmentVersion = 0;
     this.environmentTask = Promise.resolve(false);
     this.postFx = null;
+    this.generatedVisual = null;
+    this.generatedVisualState = { status:'none', format:null, splatCount:0 };
+    this.visualTask = Promise.resolve(false);
   }
 
   async init() {
@@ -98,6 +105,7 @@ export class RenderingSystem {
   applyEnvironment(environment = {}) {
     const version = ++this.environmentVersion;
     this.releaseEnvironmentTexture();
+    this.releaseGeneratedVisual();
 
     const rendering = environment.rendering || {};
     const background = rendering.background ?? 0x080b10;
@@ -119,7 +127,71 @@ export class RenderingSystem {
     this.environmentTask = ibl?.url
       ? this.loadEnvironmentTexture(ibl, version)
       : Promise.resolve(false);
+    this.visualTask = environment.generated?.visual
+      ? this.loadGeneratedVisual(environment, version)
+      : Promise.resolve(false);
     return true;
+  }
+
+  async loadGeneratedVisual(environment, version) {
+    const visual = environment.generated?.visual;
+    if (!visual) return false;
+    const format = String(visual.format || visual.source?.format || '').toLowerCase();
+    if (format !== 'spz') return false;
+    if (this.renderer?.backend?.isWebGPUBackend !== true) {
+      visual.status = 'unsupported-backend';
+      this.generatedVisualState = { status:'unsupported-backend', format, splatCount:0 };
+      return false;
+    }
+
+    visual.status = 'loading';
+    this.generatedVisualState = { status:'loading', format, splatCount:0 };
+    try {
+      const loaded = await this.generatedVisualLoader({
+        source:visual.source || visual,
+        coordinateSystem:environment.generated.coordinateSystem || 'y-up',
+        metersPerUnit:environment.generated.metersPerUnit ?? 1
+      });
+      if (version !== this.environmentVersion || !this.renderer) {
+        loaded?.dispose?.();
+        return false;
+      }
+      if (!loaded?.object?.isObject3D) throw new TypeError('Generated visual loader must return an Object3D');
+      environment.root?.add?.(loaded.object);
+      const fallbackMaterial = environment.floor?.material || null;
+      if (fallbackMaterial) fallbackMaterial.visible = false;
+      this.generatedVisual = { ...loaded, root:environment.root || null, fallbackMaterial };
+      visual.status = 'ready';
+      this.generatedVisualState = {
+        status:'ready',
+        format:loaded.format || format,
+        splatCount:loaded.splatCount || 0
+      };
+      this.events?.emit?.('renderer.generated-visual-ready', {
+        format:this.generatedVisualState.format,
+        splatCount:this.generatedVisualState.splatCount
+      });
+      return true;
+    } catch (error) {
+      if (version === this.environmentVersion && this.renderer) {
+        visual.status = 'failed';
+        this.generatedVisualState = { status:'failed', format, splatCount:0 };
+        this.events?.emit?.('renderer.generated-visual-error', {
+          format,
+          message:error instanceof Error ? error.message : String(error)
+        });
+      }
+      return false;
+    }
+  }
+
+  releaseGeneratedVisual() {
+    const visual = this.generatedVisual;
+    if (visual?.object?.parent) visual.object.parent.remove(visual.object);
+    visual?.dispose?.();
+    if (visual?.fallbackMaterial) visual.fallbackMaterial.visible = true;
+    this.generatedVisual = null;
+    this.generatedVisualState = { status:'none', format:null, splatCount:0 };
   }
 
   async loadEnvironmentTexture(ibl, version) {
@@ -224,12 +296,17 @@ export class RenderingSystem {
   diagnostics() {
     const base = this.probe?.snapshot?.() || this.info;
     if (!base) return base;
-    return { ...base, postfx: this.postFx?.diagnostics?.() || { enabled:false, effects:[] } };
+    return {
+      ...base,
+      postfx:this.postFx?.diagnostics?.() || { enabled:false, effects:[] },
+      generatedVisual:{...this.generatedVisualState}
+    };
   }
 
   dispose() {
     this.environmentVersion += 1;
     this.releaseEnvironmentTexture();
+    this.releaseGeneratedVisual();
     this.postFx?.dispose?.();
     this.postFx = null;
     this.controls?.dispose?.();

@@ -31,8 +31,10 @@
     "@gltf-transform/functions": "^4.4.2",
     "@recast-navigation/core": "^0.43.1",
     "@recast-navigation/generators": "^0.43.1",
+    "@sparkjsdev/spark": "^2.1.0",
     "jolt-physics": "1.1.0",
     "three": "^0.185.1",
+    "three-gsmesh": "^0.0.3",
     "three-mesh-bvh": "^0.9.1"
   },
   "devDependencies": {

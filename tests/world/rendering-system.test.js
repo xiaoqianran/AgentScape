@@ -116,6 +116,108 @@ describe('RenderingSystem', () => {
     });
   });
 
+  it('loads generated SPZ visuals only on WebGPU while keeping collision geometry visible to runtime systems', async () => {
+    const h = createHarness();
+    h.renderer.backend = { isWebGPUBackend:true, trackTimestamp:false };
+    h.rendererFactory.mockResolvedValue({ renderer:h.renderer, info:{ backend:'webgpu' } });
+    const scene = new THREE.Scene();
+    const root = new THREE.Group();
+    const floor = new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshBasicMaterial());
+    root.add(floor);
+    scene.add(root);
+    const visualObject = new THREE.Group();
+    const dispose = vi.fn();
+    const generatedVisualLoader = vi.fn(async () => ({object:visualObject,format:'spz',splatCount:134414,dispose}));
+    const events = { emit:vi.fn() };
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene,
+      events,
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory,
+      generatedVisualLoader
+    });
+
+    await rendering.init();
+    const environment={
+      root,floor,
+      generated:{
+        coordinateSystem:'z-up',metersPerUnit:2,
+        visual:{format:'spz',source:{data:new Uint8Array([1]),format:'spz'},status:'deferred'}
+      }
+    };
+    rendering.applyEnvironment(environment);
+    expect(await rendering.visualTask).toBe(true);
+
+    expect(generatedVisualLoader).toHaveBeenCalledWith({
+      source:environment.generated.visual.source,
+      coordinateSystem:'z-up',
+      metersPerUnit:2
+    });
+    expect(root.children).toContain(visualObject);
+    expect(floor.visible).toBe(true);
+    expect(floor.material.visible).toBe(false);
+    expect(environment.generated.visual.status).toBe('ready');
+    expect(rendering.diagnostics().generatedVisual).toEqual({status:'ready',format:'spz',splatCount:134414});
+    expect(events.emit).toHaveBeenCalledWith('renderer.generated-visual-ready',{format:'spz',splatCount:134414});
+
+    rendering.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(floor.material.visible).toBe(true);
+  });
+
+  it('keeps the mesh fallback when SPZ rendering is unavailable on the WebGL backend', async () => {
+    const h = createHarness();
+    const floor = new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshBasicMaterial());
+    const generatedVisualLoader = vi.fn();
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene:new THREE.Scene(),
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory,
+      generatedVisualLoader
+    });
+    await rendering.init();
+    const environment={
+      root:new THREE.Group(),floor,
+      generated:{coordinateSystem:'y-up',metersPerUnit:1,visual:{format:'spz',source:{url:'world.spz',format:'spz'},status:'deferred'}}
+    };
+    rendering.applyEnvironment(environment);
+
+    expect(await rendering.visualTask).toBe(false);
+    expect(generatedVisualLoader).not.toHaveBeenCalled();
+    expect(floor.material.visible).toBe(true);
+    expect(environment.generated.visual.status).toBe('unsupported-backend');
+    expect(rendering.diagnostics().generatedVisual.status).toBe('unsupported-backend');
+  });
+
+  it('fails generated visual loading closed and preserves the mesh fallback', async () => {
+    const h = createHarness();
+    h.renderer.backend = { isWebGPUBackend:true, trackTimestamp:false };
+    h.rendererFactory.mockResolvedValue({ renderer:h.renderer, info:{ backend:'webgpu' } });
+    const floor = new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshBasicMaterial());
+    const events = { emit:vi.fn() };
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene:new THREE.Scene(),
+      events,
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory,
+      generatedVisualLoader:vi.fn(async()=>{ throw new Error('bad spz'); })
+    });
+    await rendering.init();
+    const environment={
+      root:new THREE.Group(),floor,
+      generated:{coordinateSystem:'y-up',metersPerUnit:1,visual:{format:'spz',source:{url:'bad.spz',format:'spz'},status:'deferred'}}
+    };
+    rendering.applyEnvironment(environment);
+
+    expect(await rendering.visualTask).toBe(false);
+    expect(floor.material.visible).toBe(true);
+    expect(environment.generated.visual.status).toBe('failed');
+    expect(events.emit).toHaveBeenCalledWith('renderer.generated-visual-error',{format:'spz',message:'bad spz'});
+  });
+
   it('disposes rendering resources without owning the shared scene', async () => {
     const h = createHarness();
     const scene = new THREE.Scene();

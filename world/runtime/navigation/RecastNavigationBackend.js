@@ -80,6 +80,13 @@ export class RecastNavigationBackend extends NavigationBackend {
         this.clear();
         return {success:false,code:'NAVMESH_BUILD_FAILED',error:built.error||'Navigation backend build failed'};
       }
+      const [navPositions,navIndices]=getNavMeshPositionsAndIndices(built.navMesh);
+      if(!navPositions?.length||!navIndices?.length){
+        built.tileCache?.destroy?.();
+        built.navMesh?.destroy?.();
+        this.clear();
+        return {success:false,code:'NAVMESH_EMPTY'};
+      }
       const query=new NavMeshQuery(built.navMesh);
       this.clear();
       this.navMesh=built.navMesh;

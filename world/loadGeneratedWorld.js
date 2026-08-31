@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-const SUPPORTED_MESH_FORMATS = new Set(['ply']);
+const SUPPORTED_MESH_FORMATS = new Set(['glb', 'ply']);
 const SUPPORTED_COORDINATE_SYSTEMS = new Set(['y-up', 'z-up']);
 
 const asBytes = (value) => {
@@ -28,12 +30,35 @@ const sourceFormat = (source) => {
   return path.slice(path.lastIndexOf('.') + 1).toLowerCase();
 };
 
-const sourceDescriptor = (source) => source
-  ? { ...(source.url ? { url:source.url } : {}), ...(source.format ? { format:sourceFormat(source) } : {}), ...(source.data ? { bytes:source.data.byteLength } : {}) }
-  : null;
+const sourceDescriptor = (source) => {
+  if (!source) return null;
+  const format = sourceFormat(source);
+  return {
+    ...(source.url ? { url:source.url } : {}),
+    ...(format ? { format } : {}),
+    ...(source.data ? { bytes:source.data.byteLength } : {})
+  };
+};
 
-const toRuntimeCoordinates = (geometry, coordinateSystem) => {
+const toRuntimeCoordinates = (geometry, coordinateSystem, metersPerUnit) => {
   if (coordinateSystem === 'z-up') geometry.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+  if (metersPerUnit !== 1) geometry.scale(metersPerUnit, metersPerUnit, metersPerUnit);
+  return geometry;
+};
+
+const glbGeometry = (scene) => {
+  const geometries = [];
+  scene.updateWorldMatrix(true, true);
+  scene.traverse((node) => {
+    if (!node.isMesh || !node.geometry?.getAttribute?.('position')) return;
+    const geometry = node.geometry.clone();
+    geometry.applyMatrix4(node.matrixWorld);
+    geometries.push(geometry);
+  });
+  if (!geometries.length) throw new TypeError('Generated world GLB contains no triangle mesh');
+  const geometry = geometries.length === 1 ? geometries[0] : mergeGeometries(geometries, false);
+  if (!geometry) throw new TypeError('Generated world GLB meshes could not be merged');
+  geometries.forEach((item) => { if (item !== geometry) item.dispose(); });
   return geometry;
 };
 
@@ -74,14 +99,23 @@ export function geometryToTrimeshCollider(geometry) {
   return { shape:'trimesh', vertices, indices };
 }
 
-async function loadMesh(source, coordinateSystem) {
+async function loadMesh(source, coordinateSystem, metersPerUnit) {
   const format = sourceFormat(source);
   if (!SUPPORTED_MESH_FORMATS.has(format)) throw new TypeError(`Unsupported generated world mesh format: ${format || 'unknown'}`);
-  const loader = new PLYLoader();
-  const geometry = source.data
-    ? loader.parse(source.data.buffer.slice(source.data.byteOffset, source.data.byteOffset + source.data.byteLength))
-    : await loader.loadAsync(source.url);
-  toRuntimeCoordinates(geometry, coordinateSystem);
+  let geometry;
+  if (format === 'ply') {
+    const loader = new PLYLoader();
+    geometry = source.data
+      ? loader.parse(source.data.buffer.slice(source.data.byteOffset, source.data.byteOffset + source.data.byteLength))
+      : await loader.loadAsync(source.url);
+  } else {
+    const loader = new GLTFLoader();
+    const gltf = source.data
+      ? await loader.parseAsync(source.data.buffer.slice(source.data.byteOffset, source.data.byteOffset + source.data.byteLength), '')
+      : await loader.loadAsync(source.url);
+    geometry = glbGeometry(gltf.scene);
+  }
+  toRuntimeCoordinates(geometry, coordinateSystem, metersPerUnit);
   if (!geometry.getAttribute('normal')) geometry.computeVertexNormals();
   return geometry;
 }
@@ -97,6 +131,7 @@ export async function loadGeneratedWorld({
   visual = null,
   semantics = null,
   coordinateSystem = 'y-up',
+  metersPerUnit = 1,
   layout = null,
   camera = null,
   rendering = null
@@ -104,11 +139,12 @@ export async function loadGeneratedWorld({
   const meshSource = asSource(mesh, 'mesh');
   if (!meshSource) throw new TypeError('loadGeneratedWorld requires mesh');
   if (!SUPPORTED_COORDINATE_SYSTEMS.has(coordinateSystem)) throw new TypeError('coordinateSystem must be y-up or z-up');
+  if (!Number.isFinite(metersPerUnit) || metersPerUnit <= 0) throw new TypeError('metersPerUnit must be a positive finite number');
 
   const visualSource = asSource(visual, 'visual');
   const semanticsSource = asSource(semantics, 'semantics');
   const [geometry, semanticData] = await Promise.all([
-    loadMesh(meshSource, coordinateSystem),
+    loadMesh(meshSource, coordinateSystem, metersPerUnit),
     loadSemantics(semanticsSource)
   ]);
 
@@ -137,9 +173,10 @@ export async function loadGeneratedWorld({
     semantics:semanticData,
     generated:{
       mesh:sourceDescriptor(meshSource),
-      visual:visualSource ? { ...sourceDescriptor(visualSource), status:'deferred' } : null,
+      visual:visualSource ? { ...sourceDescriptor(visualSource), source:visualSource, status:'deferred' } : null,
       semantics:semanticsSource ? { ...sourceDescriptor(semanticsSource), data:semanticData } : null,
-      coordinateSystem
+      coordinateSystem,
+      metersPerUnit
     },
     dispose(){
       floor.geometry?.dispose?.();
@@ -173,6 +210,7 @@ export async function loadGeneratedWorldManifest(manifest) {
     visual:artifactSource(artifacts.visual),
     semantics:artifactSource(artifacts.semantics),
     coordinateSystem:data.coordinateSystem || 'y-up',
+    metersPerUnit:data.metersPerUnit ?? 1,
     layout:data.layout || null,
     camera:data.camera || null,
     rendering:data.rendering || null
