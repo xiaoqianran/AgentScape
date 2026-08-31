@@ -1,5 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const DEFAULT_BASE_URL = 'https://newapi-jp1.202820.xyz/v1';
 export const DEFAULT_HOST = '127.0.0.1';
@@ -209,7 +211,16 @@ export function startServer(options = {}) {
   return server;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function isDirectEntry(metaUrl = import.meta.url, argv1 = process.argv[1]) {
+  if (!argv1) return false;
+  try {
+    return path.resolve(fileURLToPath(metaUrl)) === path.resolve(argv1);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectEntry()) {
   loadEnvFile();
   startServer({
     baseUrl: process.env.AGENTSCAPE_LLM_BASE_URL || process.env.AGENTSCAPE_TEST_LLM_BASE_URL || DEFAULT_BASE_URL,
