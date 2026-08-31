@@ -103,7 +103,7 @@ export class ConnectorClient {
   } = {}) {
     this.endpoint = normalizeConnectorEndpoint(endpoint);
     this.origin = normalizeClientOrigin(origin);
-    this.fetchImpl = fetchImpl;
+    this.fetchImpl = (...args) => fetchImpl(...args);
     this.scopes = normalizeRequestedScopes(scopes);
     this.contractVersion = String(contractVersion);
     this.clientIdentity = String(clientIdentity);

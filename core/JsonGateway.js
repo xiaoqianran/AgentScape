@@ -1,7 +1,7 @@
 export class JsonGateway {
   constructor({ endpoint = '', fetchImpl = fetch, timeoutMs = 30000, label = 'Gateway' } = {}) {
     this.endpoint = String(endpoint || '').trim();
-    this.fetchImpl = fetchImpl;
+    this.fetchImpl = (...args) => fetchImpl(...args);
     this.timeoutMs = timeoutMs;
     this.label = label;
   }

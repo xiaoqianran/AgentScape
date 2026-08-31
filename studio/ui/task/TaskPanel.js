@@ -1,3 +1,7 @@
+import { generatedPlacementDemoTask } from '../../demos/generated-placement/index.js';
+
+const GENERATED_PLACEMENT_TASK = generatedPlacementDemoTask();
+
 const QUICK_TASK_GROUPS = [
   {
     label: '常用任务',
@@ -11,6 +15,7 @@ const QUICK_TASK_GROUPS = [
   {
     label: '流程任务',
     tasks: [
+      { title: GENERATED_PLACEMENT_TASK.title, detail: GENERATED_PLACEMENT_TASK.detail, prompt: GENERATED_PLACEMENT_TASK.prompt, demo: GENERATED_PLACEMENT_TASK.id, wide: true },
       { title: '完成具身任务', detail: '打开 → 拿起 → 放置 → 验证', prompt: '让 agent_01 打开 cabinet_01，确认柜门完成打开后拿起 cup_01，再把杯子放到 table_01 上；每一步失败都不要继续后续动作', wide: true },
       { title: '建立咖啡角', detail: '让智能体规划完整场景流程', prompt: '建立一个咖啡角', wide: true }
     ]
@@ -23,7 +28,7 @@ const quickTaskMarkup = () => QUICK_TASK_GROUPS.map((group) => `
   <section class="task-group">
     <div class="section-label">${group.label}</div>
     <div class="task-grid">
-      ${group.tasks.map((task) => `<button class="task-card${task.wide ? ' wide' : ''}" type="button" data-prompt="${escapeAttr(task.prompt)}"><strong>${task.title}</strong><span>${task.detail}</span></button>`).join('')}
+      ${group.tasks.map((task) => `<button class="task-card${task.wide ? ' wide' : ''}" type="button" data-prompt="${escapeAttr(task.prompt)}"${task.demo ? ` data-demo="${escapeAttr(task.demo)}"` : ''}><strong>${task.title}</strong><span>${task.detail}</span></button>`).join('')}
     </div>
   </section>`).join('');
 
@@ -54,7 +59,7 @@ export const taskPanelMarkup = () => `
   </section>`;
 
 export class TaskPanel {
-  constructor({ root, commandForm, commandInput, commandButton, setView, onRun = () => {}, onOpenSettings = () => {} }) {
+  constructor({ root, commandForm, commandInput, commandButton, setView, onRun = () => {}, onOpenSettings = () => {}, demoRunners = {} }) {
     this.root = root;
     this.commandForm = commandForm;
     this.commandInput = commandInput;
@@ -63,6 +68,7 @@ export class TaskPanel {
     this.setView = setView;
     this.onRun = onRun;
     this.onOpenSettings = onOpenSettings;
+    this.demoRunners = demoRunners;
     this.agent = null;
     this.gateway = null;
     this.busy = false;
@@ -92,7 +98,7 @@ export class TaskPanel {
     this.stateAction.addEventListener('click', () => this.onOpenSettings());
     this.taskButtons.forEach((button) => button.addEventListener('click', () => {
       this.setView('task');
-      this.execute(button.dataset.prompt, button.querySelector('strong')?.textContent || '任务', button);
+      this.execute(button.dataset.prompt, button.querySelector('strong')?.textContent || '任务', button, button.dataset.demo || null);
     }));
     this.commandForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -173,7 +179,7 @@ export class TaskPanel {
     }
   }
 
-  async execute(prompt, label = '任务', sourceButton = null) {
+  async execute(prompt, label = '任务', sourceButton = null, demoId = null) {
     if (this.busy) return null;
     if (!this.available || !this.agent) {
       this.setState('offline', '智能体不可用', '智能体能力当前不可用；由部署适配器提供，无需在浏览器填写地址。', { action: '配置' });
@@ -186,8 +192,9 @@ export class TaskPanel {
     this.setState('running', '正在执行任务', label);
 
     try {
-      const result = await this.agent.run(prompt);
-      const completed = result.taskStatus === 'completed';
+      const demoRunner = demoId ? this.demoRunners?.[demoId] : null;
+      const result = demoRunner ? await demoRunner.run(GENERATED_PLACEMENT_TASK) : await this.agent.run(prompt);
+      const completed = result.taskStatus === 'completed' || result.status === 'completed';
       const tool = result.lastMutation?.tool || 'mutation';
       const outcome = result.lastMutation?.outcome?.state || 'unknown';
       if (completed) {

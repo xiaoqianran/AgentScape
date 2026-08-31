@@ -16,6 +16,7 @@ import { loadGeneratedWorld, loadGeneratedWorldManifest } from '../world/loadGen
 import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
 import { createAppShell } from './ui/AppShell.js';
 import { TaskPanel } from './ui/task/TaskPanel.js';
+import { GeneratedPlacementDemoRunner } from './demos/generated-placement/index.js';
 import { ObjectInspector } from './ui/inspect/ObjectInspector.js';
 import { RunsPanel } from './ui/runs/RunsPanel.js';
 import { DeveloperSettings } from './ui/developer/DeveloperSettings.js';
@@ -74,13 +75,16 @@ async function main() {
   const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });
   const editor = new EditorController(world);
   const runsPanel = new RunsPanel({ root: ui.panel });
-  const taskPanel = new TaskPanel({
+  let taskPanel = null;
+  const generatedPlacementDemo = new GeneratedPlacementDemoRunner({ world, log: (text, kind) => taskPanel?.log?.(text, kind) });
+  taskPanel = new TaskPanel({
     root: ui.panel,
     commandForm: ui.commandForm,
     commandInput: ui.commandInput,
     commandButton: ui.commandButton,
     setView: ui.setView,
-    onRun: (run) => runsPanel.addRun(run)
+    onRun: (run) => runsPanel.addRun(run),
+    demoRunners: { 'generated-placement': generatedPlacementDemo }
   });
   const agent = new ToolCallingAgent({ tools, gateway, log: (text, kind) => taskPanel.log(text, kind) });
   taskPanel.attachAgent({ agent, gateway });
