@@ -28,8 +28,9 @@ const createColliderDesc=(spec)=>{
   else if(spec.shape==='cylinder') desc=RAPIER.ColliderDesc.cylinder(spec.halfHeight,spec.radius);
   else if(spec.shape==='capsule') desc=RAPIER.ColliderDesc.capsule(spec.halfHeight,spec.radius);
   else if(spec.shape==='convexHull') desc=RAPIER.ColliderDesc.convexHull(new Float32Array(spec.vertices));
+  else if(spec.shape==='trimesh') desc=RAPIER.ColliderDesc.trimesh(new Float32Array(spec.vertices),new Uint32Array(spec.indices));
   else return null;
-  if(!desc) throw new Error('Rapier rejected a degenerate convex hull collider');
+  if(!desc) throw new Error(`Rapier rejected collider shape: ${spec.shape}`);
   return desc;
 };
 
@@ -65,6 +66,9 @@ const describeShape=(shape)=>{
   };
   if(shape.type===RAPIER.ShapeType.ConvexPolyhedron) return {
     kind:'convexHull', vertices:Array.from(shape.vertices || []), borderRadius:Number(shape.borderRadius)||0
+  };
+  if(shape.type===RAPIER.ShapeType.TriMesh) return {
+    kind:'trimesh', vertices:Array.from(shape.vertices || []), indices:Array.from(shape.indices || [])
   };
   return {kind:'unknown',type:shape.type};
 };

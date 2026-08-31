@@ -12,6 +12,7 @@ import { LocalSceneStore } from './persistence/LocalSceneStore.js';
 import { AutosaveController } from './persistence/AutosaveController.js';
 import { EditorController } from './editor/EditorController.js';
 import { ENVIRONMENTS, resolveEnvironment } from '../world/content/environments.js';
+import { loadGeneratedWorld } from '../world/loadGeneratedWorld.js';
 import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
 import { createAppShell } from './ui/AppShell.js';
 import { TaskPanel } from './ui/task/TaskPanel.js';
@@ -28,7 +29,20 @@ async function main() {
   clearLegacyEndpointOverrides();
   const capabilityStatusPromise = readCapabilityStatus();
   const params = new URLSearchParams(location.search);
-  const environmentDefinition = resolveEnvironment(params.get('world'));
+  const generatedMesh = params.get('mesh');
+  const environmentDefinition = generatedMesh
+    ? {
+        id:'generated-world', number:'GENERATED', title:'生成世界', headline:'运行外部生成世界。',
+        description:'外部生成文件直接进入 AgentScape 现有渲染、物理与导航运行时。',
+        facts:['GENERATED MESH','RAPIER','RECAST / DETOUR'], bootstrap:{agent:[0,0,0]}, coffeeCorner:{},
+        load:async()=>async()=>loadGeneratedWorld({
+          mesh:generatedMesh,
+          visual:params.get('visual'),
+          semantics:params.get('semantics'),
+          coordinateSystem:params.get('up') === 'z' ? 'z-up' : 'y-up'
+        })
+      }
+    : resolveEnvironment(params.get('world'));
   const environmentFactory = await environmentDefinition.load();
   const ui = createAppShell({ app, environmentDefinition, environments: ENVIRONMENTS });
   ui.setRuntimeStatus('loading', '启动中');

@@ -72,7 +72,7 @@ export class WorldRuntime {
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
     this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);
-    this.addEnvironment();
+    await this.addEnvironment();
     this.navigation = new NavigationSystem({
       store:this.store,physics:this.physics,environmentRoots:[this.environment.root],events:this.events,
       backend:this.navigationBackendFactory()
@@ -82,9 +82,9 @@ export class WorldRuntime {
     this.ruleRuntime.start();
     this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); if (typeof document !== 'undefined') this.timer.connect(document); this.timer.reset(); this.running = true; this.animate(); const rendering=this.renderingDiagnostics(); this.trace.emit('runtime.ready', { version: this.version, rendering }); this.events.emit('runtime.ready', { rendering }); return this;
   }
-  addEnvironment() {
+  async addEnvironment() {
     if (!this.environmentFactory) throw new Error('WorldRuntime requires an environmentFactory');
-    this.environment = this.environmentFactory({ scene:this.scene });
+    this.environment = await this.environmentFactory({ scene:this.scene });
     this.environmentFloor = this.environment.floor;
     this.scene.add(this.environment.root);
     this.rendering.applyEnvironment(this.environment);
