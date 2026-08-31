@@ -217,6 +217,17 @@ describe("GenerationOrchestrator",()=>{
     });
   });
 
+  it("returns the verified local cache key without exposing Connector transport to consumers",async()=>{
+    const {orchestrator,assetModule}=await harness();
+    await orchestrator.submitGenerationJob(generationRequest());
+    const imported=await orchestrator.importGenerationResult("job_01");
+    expect(imported).toMatchObject({status:"artifact-imported",artifact:{id:"artifact_01",integrity:"verified"}});
+    expect(imported.cacheKey).toMatch(/^cache_/);
+    const cached=assetModule.byteStore.get(imported.cacheKey);
+    expect(cached).toMatchObject({artifactId:"artifact_01",hash:imported.artifact.hash});
+    expect(cached.data).toBeInstanceOf(Uint8Array);
+  });
+
   it("refuses import before provider success",async()=>{
     const {orchestrator}=await harness({remoteStatus:"running"});
     await orchestrator.submitGenerationJob(generationRequest());

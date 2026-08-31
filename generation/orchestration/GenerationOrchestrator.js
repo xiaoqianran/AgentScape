@@ -463,6 +463,7 @@ export class GenerationOrchestrator {
     const verifiedLocal=descriptor.integrity?.state==="verified" && descriptor.locations?.some((location)=>location.kind==="local-cache"&&location.state==="available");
     const imported=verifiedLocal ? {artifact:descriptor,reused:true} : await this.artifactImporter.import(summary.id);
     const artifact=imported.artifact;
+    const local=artifact.locations?.find((location)=>location.kind==="local-cache"&&location.state==="available"&&location.access?.kind==="cache-key");
     this.events?.emit?.("generation.artifact.imported",{jobId:job.id,artifactId:artifact.id,hash:artifact.hash});
     return {
       status:"artifact-imported",jobId:job.id,
@@ -471,6 +472,7 @@ export class GenerationOrchestrator {
         bytes:artifact.bytes,hash:artifact.hash,integrity:artifact.integrity?.state,
         producer:clone(artifact.producer),lineage:clone(artifact.lineage)
       },
+      cacheKey:local?.access?.key||null,
       reused:Boolean(imported.reused)
     };
   }

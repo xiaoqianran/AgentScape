@@ -4,19 +4,33 @@ import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
 const SUPPORTED_MESH_FORMATS = new Set(['ply']);
 const SUPPORTED_COORDINATE_SYSTEMS = new Set(['y-up', 'z-up']);
 
+const asBytes = (value) => {
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  return null;
+};
+
 const asSource = (value, name) => {
   if (value == null) return null;
   if (typeof value === 'string' && value.trim()) return { url:value.trim() };
-  if (typeof value === 'object' && typeof value.url === 'string' && value.url.trim()) return { ...value, url:value.url.trim() };
-  throw new TypeError(`${name} must be a URL string or { url }`);
+  if (typeof value !== 'object') throw new TypeError(`${name} must be a URL string, { url }, or { data, format }`);
+  if (typeof value.url === 'string' && value.url.trim()) return { ...value, url:value.url.trim() };
+  const data = asBytes(value.data);
+  if (data && typeof value.format === 'string' && value.format.trim()) return { ...value, data, format:value.format.trim().toLowerCase() };
+  throw new TypeError(`${name} must be a URL string, { url }, or { data, format }`);
 };
 
-const meshFormat = (source) => {
+const sourceFormat = (source) => {
   const explicit = source.format?.toLowerCase();
   if (explicit) return explicit;
-  const path = source.url.split(/[?#]/, 1)[0];
+  const path = source.url?.split(/[?#]/, 1)[0] || '';
   return path.slice(path.lastIndexOf('.') + 1).toLowerCase();
 };
+
+const sourceDescriptor = (source) => source
+  ? { ...(source.url ? { url:source.url } : {}), ...(source.format ? { format:sourceFormat(source) } : {}), ...(source.data ? { bytes:source.data.byteLength } : {}) }
+  : null;
 
 const toRuntimeCoordinates = (geometry, coordinateSystem) => {
   if (coordinateSystem === 'z-up') geometry.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
@@ -25,6 +39,7 @@ const toRuntimeCoordinates = (geometry, coordinateSystem) => {
 
 const loadSemantics = async (source) => {
   if (!source) return null;
+  if (source.data) return JSON.parse(new TextDecoder().decode(source.data));
   const response = await fetch(source.url);
   if (!response.ok) throw new Error(`Failed to load generated world semantics: ${response.status}`);
   return response.json();
@@ -45,9 +60,12 @@ export function geometryToTrimeshCollider(geometry) {
 }
 
 async function loadMesh(source, coordinateSystem) {
-  const format = meshFormat(source);
+  const format = sourceFormat(source);
   if (!SUPPORTED_MESH_FORMATS.has(format)) throw new TypeError(`Unsupported generated world mesh format: ${format || 'unknown'}`);
-  const geometry = await new PLYLoader().loadAsync(source.url);
+  const loader = new PLYLoader();
+  const geometry = source.data
+    ? loader.parse(source.data.buffer.slice(source.data.byteOffset, source.data.byteOffset + source.data.byteLength))
+    : await loader.loadAsync(source.url);
   toRuntimeCoordinates(geometry, coordinateSystem);
   if (!geometry.getAttribute('normal')) geometry.computeVertexNormals();
   return geometry;
@@ -97,9 +115,9 @@ export async function loadGeneratedWorld({
     colliders:[collider],
     semantics:semanticData,
     generated:{
-      mesh:{ ...meshSource, format:meshFormat(meshSource) },
-      visual:visualSource ? { ...visualSource, status:'deferred' } : null,
-      semantics:semanticsSource ? { ...semanticsSource, data:semanticData } : null,
+      mesh:sourceDescriptor(meshSource),
+      visual:visualSource ? { ...sourceDescriptor(visualSource), status:'deferred' } : null,
+      semantics:semanticsSource ? { ...sourceDescriptor(semanticsSource), data:semanticData } : null,
       coordinateSystem
     }
   };
