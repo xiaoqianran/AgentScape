@@ -8,7 +8,7 @@ const formatAllowed=(actual,declared)=>{
   const value=String(declared||'').toLowerCase();
   const allowed={
     glb:new Set(['glb']),json:new Set(['json']),png:new Set(['png']),jpeg:new Set(['jpg','jpeg']),
-    webp:new Set(['webp']),xml:new Set(['xml','urdf']),text:new Set(['txt','text','obj']),obj:new Set(['obj'])
+    webp:new Set(['webp']),ply:new Set(['ply']),spz:new Set(['spz']),xml:new Set(['xml','urdf']),text:new Set(['txt','text','obj']),obj:new Set(['obj'])
   };
   return allowed[actual]?.has(value) ?? false;
 };
@@ -68,6 +68,22 @@ function validateWebp(prefix) {
   return {mime:'image/webp',format:'webp'};
 }
 
+function validatePly(prefix) {
+  requirePrefix(prefix,4,'PLY');
+  if (prefix[0]!==0x70||prefix[1]!==0x6c||prefix[2]!==0x79||![0x0a,0x0d].includes(prefix[3])) {
+    fail('ARTIFACT_MIME_MISMATCH','PLY signature mismatch');
+  }
+  return {mime:'model/ply',format:'ply'};
+}
+
+function validateSpz(prefix) {
+  requirePrefix(prefix,4,'SPZ');
+  const ngsp=prefix[0]===0x4e&&prefix[1]===0x47&&prefix[2]===0x53&&prefix[3]===0x50;
+  const legacyGzip=prefix[0]===0x1f&&prefix[1]===0x8b;
+  if (!ngsp&&!legacyGzip) fail('ARTIFACT_MIME_MISMATCH','SPZ signature mismatch');
+  return {mime:'model/spz',format:'spz'};
+}
+
 function decodeText(fullBytes,label) {
   if (!(fullBytes instanceof Uint8Array)) fail('ARTIFACT_STRUCTURE_INVALID',`${label} validation requires full bounded bytes`);
   let text;
@@ -117,6 +133,8 @@ export function validateArtifactContent(descriptor,{prefix,totalBytes,fullBytes=
   else if (mime==='image/png') actual=validatePng(prefix);
   else if (mime==='image/jpeg') actual=validateJpeg(prefix);
   else if (mime==='image/webp') actual=validateWebp(prefix);
+  else if (mime==='model/ply') actual=validatePly(prefix);
+  else if (mime==='model/spz') actual=validateSpz(prefix);
   else if (mime==='application/xml'||mime==='text/xml') actual=validateXml(fullBytes,mime);
   else if (mime==='text/plain'||mime==='model/obj') actual=validateText(fullBytes,mime);
   else fail('ARTIFACT_MIME_UNSUPPORTED','Artifact MIME is not supported by the v1 integrity gate',{mime});

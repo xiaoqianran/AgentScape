@@ -74,6 +74,19 @@ describe('ArtifactContentGate',()=>{
       .toThrow(expect.objectContaining({code:'ARTIFACT_FORMAT_MISMATCH'}));
   });
 
+  it('recognizes generated-world PLY and SPZ container signatures',()=>{
+    const ply=new TextEncoder().encode('ply\nformat binary_little_endian 1.0\n');
+    expect(validateArtifactContent(descriptor('model/ply','ply'),{prefix:ply,totalBytes:ply.length}))
+      .toEqual({mime:'model/ply',format:'ply'});
+    const spzV4=new Uint8Array([0x4e,0x47,0x53,0x50,4,0,0,0]);
+    expect(validateArtifactContent(descriptor('model/spz','spz'),{prefix:spzV4,totalBytes:spzV4.length}))
+      .toEqual({mime:'model/spz',format:'spz'});
+    const legacySpz=new Uint8Array([0x1f,0x8b,0x08,0x00]);
+    expect(validateArtifactContent(descriptor('model/spz','spz'),{prefix:legacySpz,totalBytes:legacySpz.length}).format).toBe('spz');
+    expect(()=>validateArtifactContent(descriptor('model/spz','spz'),{prefix:new Uint8Array([1,2,3,4]),totalBytes:4}))
+      .toThrow(expect.objectContaining({code:'ARTIFACT_MIME_MISMATCH'}));
+  });
+
   it('accepts bounded UTF-8 XML/OBJ structure without claiming semantic validity',()=>{
     const xml=new TextEncoder().encode('<?xml version="1.0"?><robot/>');
     expect(validateArtifactContent(descriptor('application/xml','urdf'),{

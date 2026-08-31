@@ -19,6 +19,8 @@ const PENDING_GENERATION_STATUSES=new Set(["generation-pending","generation-canc
 const FAILED_GENERATION_STATUSES=new Set(["generation-failed","generation-cancelled","generation-expired"]);
 const MIME_DESCRIPTOR=Object.freeze({
   "model/gltf-binary":{type:"asset-bundle",format:"glb"},
+  "model/ply":{type:"world-geometry",format:"ply"},
+  "model/spz":{type:"world-visual",format:"spz"},
   "application/json":{type:"metadata",format:"json"},
   "image/png":{type:"image",format:"png"},
   "image/jpeg":{type:"image",format:"jpeg"},
