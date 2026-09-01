@@ -28,38 +28,48 @@ const computeWorkgroupSummary = (limits = {}) => {
 
 const LABS = [
   {
+    id: "assets",
+    title: "资产目录",
+    load: () => import("./labs/resources/assets.js")
+  },
+  {
+    id: "gaussian",
+    title: "高斯泼溅",
+    load: () => import("./labs/resources/gaussian.js")
+  },
+  {
     id: "physics",
-    title: "物理",
+    title: "物理（Deprecated）",
     load: () => import("./labs/physics/index.js")
   },
   {
     id: "spatial",
-    title: "空间",
+    title: "空间（Deprecated）",
     load: () => import("./labs/spatial/index.js")
   },
   {
     id: "navigation",
-    title: "导航",
+    title: "导航（Deprecated）",
     load: () => import("./labs/navigation/index.js")
   },
   {
     id: "interaction",
-    title: "交互",
+    title: "交互（Deprecated）",
     load: () => import("./labs/interaction/index.js")
   },
   {
     id: "generation",
-    title: "生成与智能体构建",
+    title: "生成与智能体构建（Deprecated）",
     load: () => import("./labs/generation/index.js")
   },
   {
     id: "agent",
-    title: "智能体工具",
+    title: "智能体工具（Deprecated）",
     load: () => import("./labs/agent/index.js")
   },
   {
     id: "agent-trace",
-    title: "智能体轨迹",
+    title: "智能体轨迹（Deprecated）",
     load: () => import("./labs/agent/traceIndex.js")
   }
 ];
@@ -142,6 +152,7 @@ class ObservatoryApp {
     ++this.scenarioSelectionVersion;
     this.shell.setBusy(true, `正在加载 ${labId} Lab…`);
     this.shell.configureToolWorkbench([]);
+    this.shell.configureResourceWorkbench(null);
     const module = await this.labs.load(labId);
     if (version !== this.activationVersion) return;
     const definition = module.labDefinition;
@@ -180,8 +191,9 @@ class ObservatoryApp {
 
     this.shell.configureLabs(this.labs.list(), labId);
     this.shell.configureBackends(definition.backends || [], normalizedBackend);
-    this.shell.setLabTitle(definition.title);
+    this.shell.setLabTitle(this.labs.list().find((item) => item.id === labId)?.title || definition.title);
     this.shell.setLabIdentity(labId);
+    this.shell.setResourceMode(Boolean(definition.resourceLab));
     this.shell.configureDebugLayers(definition.debugLayers || ["grid"], definition.defaultDebugLayers || ["grid"]);
 
     let nextLab = null;
@@ -407,6 +419,7 @@ class ObservatoryApp {
           (name, args) => this.invokeTool(name, args),
           lab.suggestedToolName?.()
         );
+        this.shell.configureResourceWorkbench(lab.resourceWorkbench?.() || null);
         return scenario;
       } finally {
         if (version === this.scenarioSelectionVersion && lab === this.lab) this.shell.setBusy(false);

@@ -42,10 +42,11 @@ export class ObservatoryShell {
           <aside class="obs-left-sidebar obs-glass" aria-label="实验场景">
             <button id="obs-scenarios-toggle" class="obs-edge-toggle obs-edge-toggle-right" type="button" aria-label="显示或隐藏场景面板" aria-pressed="true">${icon("chevron-left")}</button>
             <div class="obs-sidebar-head">
-              <strong>运行图</strong>
-              <span>实时执行</span>
+              <strong id="obs-sidebar-title">运行图</strong>
+              <span id="obs-sidebar-subtitle">实时执行</span>
             </div>
             <div id="obs-scenario-list" class="obs-scenario-list"></div>
+            <div id="obs-resource-browser-host" class="obs-resource-browser-host" hidden></div>
           </aside>
 
           <section class="obs-center-column" aria-label="运行时视口">
@@ -76,6 +77,7 @@ export class ObservatoryShell {
             <div class="obs-right-tabs" role="tablist" aria-label="右侧工具">
               <button class="obs-right-tab is-active" type="button" data-right-tab="run">${icon("flow")}<span>执行流</span></button>
               <button id="obs-tools-tab" class="obs-right-tab" type="button" data-right-tab="tools" hidden>${icon("terminal")}<span>工具</span></button>
+              <button id="obs-resources-tab" class="obs-right-tab" type="button" data-right-tab="resources" hidden>${icon("cube")}<span>资源</span></button>
               <button class="obs-right-tab" type="button" data-right-tab="layers">${icon("layers")}<span>图层</span></button>
               <button class="obs-right-tab" type="button" data-right-tab="inspect">${icon("info")}<span>检视</span></button>
             </div>
@@ -125,6 +127,10 @@ export class ObservatoryShell {
                   <div class="obs-tool-section-title"><span>调用历史</span><button id="obs-tool-clear" type="button">清空</button></div>
                   <div id="obs-tool-history" class="obs-tool-history"><div class="obs-empty">暂无手动调用</div></div>
                 </section>
+              </section>
+
+              <section class="obs-right-panel obs-resource-panel" data-right-panel="resources">
+                <div id="obs-resource-host"></div>
               </section>
 
               <section class="obs-right-panel" data-right-panel="layers">
@@ -199,8 +205,8 @@ export class ObservatoryShell {
     this.refs = Object.fromEntries([
       "run", "step", "step10", "reset", "checkpoint", "restore", "checkpoint-frame", "frame", "time", "active-action", "scenario-list", "viewport",
       "scenario-badge", "status-layer", "status-text", "status-action", "result-summary", "run-scenario-card", "inspector", "native-debug", "manifest-debug", "difference-debug", "normalized-debug", "velocity-debug", "joint-debug", "contact-debug", "bounds-debug", "ray-debug", "spatial-query-debug", "navmesh-debug", "path-debug", "endpoints-debug", "obstacles-debug", "interaction-los-debug", "interaction-support-debug", "interaction-state-debug", "agent-tool-debug", "labels-debug", "grid-debug", "assertions", "metrics",
-      "lab-title", "lab-select", "backend-select", "focus-view", "scenarios-toggle", "results-toggle",
-      "tools-tab", "tool-search", "tool-list", "tool-name", "tool-required", "tool-description", "tool-args", "tool-error", "tool-invoke", "tool-outcome", "tool-result", "tool-clear", "tool-history", "resident-culling-probe", "indirect-draw-probe", "compaction-probe", "compute-probe", "compute-probe-result", "spatial-probe", "spatial-probe-result"
+      "lab-title", "lab-select", "backend-select", "focus-view", "scenarios-toggle", "results-toggle", "sidebar-title", "sidebar-subtitle",
+      "tools-tab", "resources-tab", "resource-host", "resource-browser-host", "tool-search", "tool-list", "tool-name", "tool-required", "tool-description", "tool-args", "tool-error", "tool-invoke", "tool-outcome", "tool-result", "tool-clear", "tool-history", "resident-culling-probe", "indirect-draw-probe", "compaction-probe", "compute-probe", "compute-probe-result", "spatial-probe", "spatial-probe-result"
     ].map((name) => [name, root.querySelector(`#obs-${name}`)]));
 
     this.toolDefinitions = [];
@@ -268,6 +274,36 @@ export class ObservatoryShell {
       ? this.activeToolName
       : this.toolDefinitions[0].name);
     this.selectTool(selected);
+  }
+
+  configureResourceWorkbench(workbench = null) {
+    const visible = Boolean(workbench?.mount || workbench?.mountInspector || workbench?.mountBrowser);
+    this.refs["resources-tab"].hidden = !visible;
+    this.refs["resource-host"].replaceChildren();
+    this.refs["resource-browser-host"].replaceChildren();
+    this.refs["resource-browser-host"].hidden = !workbench?.mountBrowser;
+    this.refs["scenario-list"].hidden = Boolean(workbench?.mountBrowser);
+    if (!visible) {
+      if (this.root.querySelector('[data-right-tab="resources"]')?.classList.contains("is-active")) this.setRightTab("run");
+      return;
+    }
+    workbench.mountBrowser?.(this.refs["resource-browser-host"]);
+    (workbench.mountInspector || workbench.mount)?.(this.refs["resource-host"]);
+    this.setPanelVisible("results", true);
+    this.setRightTab("resources");
+  }
+
+  setResourceMode(active) {
+    const enabled = Boolean(active);
+    this.root.classList.toggle("obs-resource-mode", enabled);
+    this.refs["sidebar-title"].textContent = enabled ? "资源库" : "运行图";
+    this.refs["sidebar-subtitle"].textContent = enabled ? "ASSET CATALOG" : "实时执行";
+    const worldTab = this.root.querySelector('[data-view="world"] span');
+    const evidenceTab = this.root.querySelector('[data-view="evidence"]');
+    const fixedPill = this.root.querySelector('.obs-fixed-pill');
+    if (worldTab) worldTab.innerHTML = enabled ? "资产预览 <b>PREVIEW</b>" : "真实世界 <b>世界</b>";
+    if (evidenceTab) evidenceTab.hidden = enabled;
+    if (fixedPill) fixedPill.hidden = enabled;
   }
 
   renderToolList() {

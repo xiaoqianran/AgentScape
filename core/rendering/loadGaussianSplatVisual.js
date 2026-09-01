@@ -1,4 +1,5 @@
 import { disposeObject3D } from '../disposeObject3D.js';
+import { applyGeneratedWorldObjectTransform } from '../generatedWorldCoordinates.js';
 
 const asArrayBuffer=(bytes)=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
 
@@ -26,9 +27,7 @@ export async function loadGaussianSplatVisual({source,coordinateSystem='y-up',me
   if(!splatCount) throw new Error('Generated SPZ visual contains no splats');
   const object=new GSMesh(data,{sortIntervalFrames:1});
   object.name='GeneratedWorldGaussianSplat';
-  if(coordinateSystem==='z-up') object.rotation.x=-Math.PI/2;
-  object.scale.setScalar(metersPerUnit);
-  object.updateMatrixWorld(true);
+  applyGeneratedWorldObjectTransform(object,coordinateSystem,metersPerUnit);
   return {
     object,
     format:'spz',

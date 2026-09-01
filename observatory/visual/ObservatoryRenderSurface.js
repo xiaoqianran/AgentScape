@@ -11,6 +11,7 @@ export async function createObservatoryRenderSurface({
   camera,
   rendererMode = "auto",
   rendererTiming = false,
+  onRendererFailure = null,
   controlsTarget = [0, 0, 0],
   shadows = false,
   shadowType = null
