@@ -12,6 +12,7 @@ import { bootstrapWorld } from '../agent/bootstrapWorld.js';
 import { LocalSceneStore } from './persistence/LocalSceneStore.js';
 import { AutosaveController } from './persistence/AutosaveController.js';
 import { EditorController } from './editor/EditorController.js';
+import { AssetPlacementController } from './editor/AssetPlacementController.js';
 import { ENVIRONMENTS, resolveEnvironment } from '../world/content/environments.js';
 import { loadGeneratedWorld, loadGeneratedWorldManifest } from '../world/loadGeneratedWorld.js';
 import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
@@ -20,6 +21,7 @@ import { TaskPanel } from './ui/task/TaskPanel.js';
 import { GeneratedPlacementDemoRunner } from './demos/generated-placement/index.js';
 import { ObjectInspector } from './ui/inspect/ObjectInspector.js';
 import { RunsPanel } from './ui/runs/RunsPanel.js';
+import { ResourceLibrary } from './ui/resources/ResourceLibrary.js';
 import { DeveloperSettings } from './ui/developer/DeveloperSettings.js';
 import { bindSceneControls } from './ui/bindSceneControls.js';
 import { bindRuntimeEvents } from './ui/bindRuntimeEvents.js';
@@ -94,6 +96,30 @@ async function main() {
   const agent = new ToolCallingAgent({ tools, gateway, log: (text, kind) => taskPanel.log(text, kind) });
   taskPanel.attachAgent({ agent, gateway });
   taskPanel.setAvailability(capabilityStatus.agent.available);
+
+  const placement = new AssetPlacementController({
+    world,
+    tools,
+    editor,
+    log: (text, kind) => taskPanel.log(text, kind)
+  });
+  const resourceLibrary = new ResourceLibrary({
+    root: ui.panel,
+    world,
+    environments: ENVIRONMENTS,
+    placement,
+    log: (text, kind) => taskPanel.log(text, kind),
+    openEnvironment: (id) => {
+      const url = new URL(location.href);
+      url.searchParams.delete('worldManifest');
+      url.searchParams.delete('mesh');
+      url.searchParams.delete('visual');
+      url.searchParams.delete('semantics');
+      url.searchParams.set('world', id);
+      location.href = url.toString();
+    }
+  }).init();
+  window.addEventListener('beforeunload', () => { resourceLibrary.destroy(); placement.dispose(); }, { once:true });
 
   const inspector = new ObjectInspector({ root: ui.panel, world, tools, log: (text, kind) => taskPanel.log(text, kind) });
   const developer = new DeveloperSettings({

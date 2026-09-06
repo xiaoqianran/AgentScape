@@ -3,6 +3,7 @@ import { taskPanelMarkup } from './task/TaskPanel.js';
 import { objectInspectorMarkup } from './inspect/ObjectInspector.js';
 import { runsPanelMarkup } from './runs/RunsPanel.js';
 import { developerSettingsMarkup } from './developer/DeveloperSettings.js';
+import { resourceLibraryMarkup } from './resources/ResourceLibrary.js';
 
 export function createAppShell({ app, environmentDefinition, environments }) {
   const environmentOptions = environments.map((item) => `
@@ -70,11 +71,13 @@ export function createAppShell({ app, environmentDefinition, environments }) {
           <nav class="panel-tabs" aria-label="工作区视图">
             <button type="button" data-panel-view="task" class="active" aria-selected="true">任务</button>
             <button type="button" data-panel-view="create" aria-selected="false">创建</button>
+            <button type="button" data-panel-view="resources" aria-selected="false">资源</button>
             <button type="button" data-panel-view="inspect" aria-selected="false">检查</button>
             <button type="button" data-panel-view="runs" aria-selected="false">记录</button>
           </nav>
           ${taskPanelMarkup()}
           ${generationJobCenterMarkup()}
+          ${resourceLibraryMarkup()}
           ${objectInspectorMarkup()}
           ${runsPanelMarkup()}
         </aside>
