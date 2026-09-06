@@ -1,5 +1,5 @@
-import { WebIO } from '@gltf-transform/core';
 import { validateAssetManifest } from '../schema.js';
+import { createAssetGLTFIO } from './gltfIO.js';
 import { GLTFInspectPass } from './passes/GLTFInspectPass.js';
 import { JointFramePass } from './passes/JointFramePass.js';
 import { SegmentMaterializePass } from './passes/SegmentMaterializePass.js';
@@ -24,7 +24,7 @@ import { ManifestPass } from './passes/ManifestPass.js';
 export class AssetCompiler {
   constructor({ store, provider = null, events = null, version = 'dev' } = {}) {
     this.store = store; this.provider = provider; this.events = events; this.version = version;
-    this.io = new WebIO();
+    this.io = createAssetGLTFIO();
     this.passes = [
       new GLTFInspectPass({ io: this.io }),
       new StructurePass(),

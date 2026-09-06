@@ -1,8 +1,8 @@
-import { WebIO } from '@gltf-transform/core';
 import { inspect } from '@gltf-transform/functions';
+import { createAssetGLTFIO } from '../gltfIO.js';
 
 export class GLTFInspectPass {
-  constructor({ io = new WebIO() } = {}) { this.io = io; }
+  constructor({ io = createAssetGLTFIO() } = {}) { this.io = io; }
 
   async run(context) {
     const document = await this.io.readBinary(context.bytes);
