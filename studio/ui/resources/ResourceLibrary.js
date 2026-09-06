@@ -82,7 +82,7 @@ function metaLine(...parts) {
 }
 
 export class ResourceLibrary {
-  constructor({ root, world, environments = [], placement, openEnvironment = null, log = () => {} } = {}) {
+  constructor({ root, world, environments = [], placement, openEnvironment = null, openGeneratedWorld = null, log = () => {} } = {}) {
     if (!root || !world?.assetCatalog || !world?.generation?.artifacts?.registry) throw new TypeError('ResourceLibrary requires Studio root and hydrated runtime resources');
     if (!placement?.beginDrag || !placement?.placeAtCenter) throw new TypeError('ResourceLibrary requires AssetPlacementController');
     this.root = root;
@@ -90,6 +90,7 @@ export class ResourceLibrary {
     this.environments = environments;
     this.placement = placement;
     this.openEnvironment = typeof openEnvironment === 'function' ? openEnvironment : null;
+    this.openGeneratedWorld = typeof openGeneratedWorld === 'function' ? openGeneratedWorld : null;
     this.log = log;
     this.kind = 'assets';
     this.objectUrls = new Set();
@@ -233,7 +234,19 @@ export class ResourceLibrary {
       actions.append(open);
       card.append(actions);
     } else if (worldResource.source === 'generated') {
-      card.append(el('div','resource-card-note','已保存为 World Artifact；Open / Replace 在下一阶段接入。'));
+      if (this.openGeneratedWorld) {
+        const actions = el('div','resource-card-actions');
+        const open = el('button','resource-action','替换当前环境');
+        open.type = 'button';
+        open.addEventListener('click', async () => {
+          open.disabled = true;
+          try { await this.openGeneratedWorld(worldResource.id); }
+          catch (error) { this.log(`打开生成世界失败：${error.message}`,'error'); }
+          finally { open.disabled = false; }
+        });
+        actions.append(open);
+        card.append(actions);
+      } else card.append(el('div','resource-card-note','World Artifact 已保存，但当前工作区不支持替换环境。'));
     }
     return card;
   }

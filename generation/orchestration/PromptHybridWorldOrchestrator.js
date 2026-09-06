@@ -15,6 +15,8 @@ export const PROMPT_HYBRID_WORLD_REQUEST_SCHEMA=strict({
 
 const clean=(value)=>typeof value==='string'?value.trim():'';
 const clone=(value)=>value==null?value:structuredClone(value);
+const REQUIRED_WORLD_ROLES=Object.freeze(['world-manifest','world-mesh','world-semantics','world-visual']);
+const OPTIONAL_WORLD_ROLES=Object.freeze(['world-navigation']);
 const safeId=()=>{
   const id=globalThis.crypto?.randomUUID?.();
   if(!id){const error=new Error('Secure revision identity is unavailable');error.code='WORLD_PROPOSAL_ID_UNAVAILABLE';throw error;}
@@ -73,6 +75,58 @@ export async function materializeImportedWorldEnvironment(runtime,generationResu
     camera:manifest.camera || null,
     rendering:manifest.rendering || null
   });
+}
+
+function persistedArtifactImportShape(descriptor) {
+  const local=descriptor.locations?.find((location)=>location.kind==='local-cache'&&location.state==='available'&&location.access?.kind==='cache-key');
+  if(!local?.access?.key){
+    const error=new Error(`Persisted World Artifact ${descriptor.id} has no verified local bytes`);
+    error.code='GENERATED_WORLD_ARTIFACT_BYTES_UNAVAILABLE';
+    throw error;
+  }
+  return {
+    status:'artifact-imported',
+    artifact:{
+      id:descriptor.id,role:descriptor.role,mime:descriptor.mime,format:descriptor.format,
+      bytes:descriptor.bytes,hash:descriptor.hash,integrity:descriptor.integrity?.state,
+      producer:clone(descriptor.producer),lineage:clone(descriptor.lineage)
+    },
+    cacheKey:local.access.key,
+    reused:true
+  };
+}
+
+export function resolvePersistedWorldArtifactBundle(runtime,manifestArtifactId) {
+  const registry=runtime?.generation?.artifacts?.registry;
+  if(!registry?.get||!registry?.list){const error=new Error('ArtifactRegistry is unavailable');error.code='ARTIFACT_REGISTRY_UNAVAILABLE';throw error;}
+  const manifest=registry.get(String(manifestArtifactId||'').trim());
+  if(!manifest||manifest.role!=='world-manifest'){const error=new Error('Selected Artifact is not a persisted world-manifest');error.code='GENERATED_WORLD_MANIFEST_NOT_FOUND';throw error;}
+  if(manifest.integrity?.state!=='verified'){const error=new Error('Persisted world-manifest is not verified');error.code='GENERATED_WORLD_ARTIFACT_UNVERIFIED';throw error;}
+  const jobId=clean(manifest.producer?.jobId);
+  if(!jobId){const error=new Error('Persisted world-manifest has no producer Job identity');error.code='GENERATED_WORLD_BUNDLE_IDENTITY_MISSING';throw error;}
+  const sameJob=registry.list().filter((artifact)=>artifact.producer?.jobId===jobId);
+  const artifacts={};
+  for(const role of [...REQUIRED_WORLD_ROLES,...OPTIONAL_WORLD_ROLES]){
+    const matches=sameJob.filter((artifact)=>artifact.role===role);
+    if(matches.length>1){const error=new Error(`World Job ${jobId} has multiple ${role} artifacts`);error.code='GENERATED_WORLD_BUNDLE_AMBIGUOUS';error.details={jobId,role,artifactIds:matches.map((item)=>item.id)};throw error;}
+    const artifact=matches[0];
+    if(!artifact){
+      if(REQUIRED_WORLD_ROLES.includes(role)){const error=new Error(`World Job ${jobId} is missing ${role}`);error.code='GENERATED_WORLD_BUNDLE_INCOMPLETE';error.details={jobId,role};throw error;}
+      continue;
+    }
+    if(artifact.integrity?.state!=='verified'){const error=new Error(`World Artifact ${artifact.id} is not verified`);error.code='GENERATED_WORLD_ARTIFACT_UNVERIFIED';error.details={artifactId:artifact.id,role};throw error;}
+    artifacts[role]=persistedArtifactImportShape(artifact);
+  }
+  return {
+    status:'world-artifacts-ready',
+    jobs:{world:jobId},
+    route:{kind:'persisted-world-artifacts',world:{provider:manifest.producer?.provider||null,operation:manifest.producer?.operation||null}},
+    artifacts
+  };
+}
+
+export async function materializePersistedWorldEnvironment(runtime,manifestArtifactId,{byteStore=runtime.generation?.artifacts?.byteStore || null}={}) {
+  return materializeImportedWorldEnvironment(runtime,resolvePersistedWorldArtifactBundle(runtime,manifestArtifactId),{byteStore});
 }
 
 function generationEvidence(result) {

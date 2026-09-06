@@ -1,8 +1,10 @@
 import './style.css';
 import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 import { RuntimeDriver } from './runtime/RuntimeDriver.js';
+import { replaceStudioEnvironment } from './runtime/replaceStudioEnvironment.js';
 import { createAssetModule } from '../asset/AssetModule.js';
 import { attachGenerationRuntime } from '../generation/orchestration/GenerationRuntime.js';
+import { materializePersistedWorldEnvironment } from '../generation/orchestration/PromptHybridWorldOrchestrator.js';
 import { SkillRegistry } from '../agent/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../agent/skills/registerCoreSkills.js';
 import { AgentTools } from '../agent/AgentTools.js';
@@ -117,6 +119,12 @@ async function main() {
       url.searchParams.delete('semantics');
       url.searchParams.set('world', id);
       location.href = url.toString();
+    },
+    openGeneratedWorld: async (manifestArtifactId) => {
+      const nextEnvironment=await materializePersistedWorldEnvironment(world,manifestArtifactId);
+      const result=await replaceStudioEnvironment(world,nextEnvironment,{reason:'resource-library-generated-world'});
+      taskPanel.log(`已打开生成世界：${nextEnvironment.id || manifestArtifactId} · 清理 ${result.clearedObjects} 个对象`,'result');
+      return result;
     }
   }).init();
   window.addEventListener('beforeunload', () => { resourceLibrary.destroy(); placement.dispose(); }, { once:true });
