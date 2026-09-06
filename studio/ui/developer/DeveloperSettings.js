@@ -140,10 +140,11 @@ export class DeveloperSettings {
     const compatibility = info.compatibilityMode === true ? 'compatibility' : info.compatibilityMode === false ? 'core' : '—';
     const features = rendererFeatureSummary(info.features);
     const limits = rendererLimitSummary(info.limits);
+    const generatedVisual = rendererGeneratedVisualSummary(info.generatedVisual);
     renderTechnicalReport(
       this.rendererReport,
       `${backend} · ${health}`,
-      `模式 ${mode} · fallback ${info.fallback ? '是' : '否'} · GPU timing ${timing} · WebGPU ${compatibility} · ${features} · ${limits}`
+      `模式 ${mode} · fallback ${info.fallback ? '是' : '否'} · GPU timing ${timing} · WebGPU ${compatibility} · ${features} · ${limits} · ${generatedVisual}`
     );
   }
 
@@ -267,6 +268,16 @@ function renderTechnicalReport(container, heading, detail) {
   const strong = document.createElement('strong');
   strong.textContent = String(heading ?? '');
   container.replaceChildren(strong, document.createTextNode(` · ${String(detail ?? '')}`));
+}
+
+function rendererGeneratedVisualSummary(visual = {}) {
+  const status = visual.status || 'none';
+  if (status === 'none') return 'Generated visual none';
+  const format = String(visual.format || 'unknown').toUpperCase();
+  const count = Number.isFinite(visual.splatCount) ? visual.splatCount.toLocaleString() : '?';
+  return status === 'ready'
+    ? `Generated visual ${format} ready · ${count} splats`
+    : `Generated visual ${format} ${status}`;
 }
 
 function rendererFeatureSummary(features = []) {

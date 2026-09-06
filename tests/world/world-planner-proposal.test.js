@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildWorldProposal } from '../../world/spec/WorldPlannerProposal.js';
+import { WORLD_PLANNER_PROPOSAL_SCHEMA } from '../../world/spec/WorldIRToolSchema.js';
 
 const proposal=()=>({
   intent:{name:'Planner Lab',task:'place the cup on the table'},
@@ -51,4 +52,17 @@ it('creates a Runtime-owned child revision with deduplicated rejection evidence'
     revision:{id:'world-rev-2',parentId:'world-rev-1',reason:'ASSET_UNRESOLVED'},
     provenance:{source:'agent-world-planner',evidenceRefs:['finding-1','retry-1']}
   });
+});
+
+it('exposes observation-anchored NEAR to the planner and compiles the proposal without model-owned identity',()=>{
+  const body={
+    intent:{name:'Generated Garden',task:'put a cup near the bench'},
+    entities:[{id:'cup_01',asset:{assetId:'cup'}}],
+    spatial:{relations:[{subject:'cup_01',predicate:'NEAR',anchor:{kind:'observation',label:'bench'}}]},
+    interactions:[],rules:[],acceptance:[]
+  };
+  const result=buildWorldProposal(body,{revisionId:'world-hybrid-1'});
+  expect(result.worldIR.spatial.relations[0]).toEqual({subject:'cup_01',predicate:'NEAR',anchor:{kind:'observation',label:'bench'}});
+  const relationSchema=WORLD_PLANNER_PROPOSAL_SCHEMA.properties.spatial.properties.relations.items;
+  expect(relationSchema.oneOf.some((branch)=>branch.properties?.anchor?.properties?.kind?.enum?.includes('observation'))).toBe(true);
 });

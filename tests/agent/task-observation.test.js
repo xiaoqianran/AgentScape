@@ -90,6 +90,7 @@ describe('compact task observation',()=>{
     expect(JSON.stringify(observation).length).toBeLessThan(3500);
   });
 
+
   it('preserves unavailable geometric contact impulse as null instead of fabricating zero',()=>{
     const runtime=runtimeFixture();
     const status=runtime.interactions.articulationStatus();

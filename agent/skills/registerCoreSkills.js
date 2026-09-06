@@ -9,7 +9,7 @@ import { registerVerificationSkills } from './packs/verificationSkills.js';
 import { registerBatchSkills } from './packs/batchSkills.js';
 import { registerWorldSkills } from './packs/worldSkills.js';
 
-export function registerCoreSkills(registry,runtime,{worldBuilder} = {}) {
+export function registerCoreSkills(registry,runtime,{worldBuilder,promptHybridWorldOrchestrator} = {}) {
   const add=(name,options,handler)=>registry.register({name,...options,handler});
   registerAssetSkills(add,runtime);
   registerGenerationSkills(add,runtime);
@@ -20,6 +20,6 @@ export function registerCoreSkills(registry,runtime,{worldBuilder} = {}) {
   registerRecoverySkills(add,runtime);
   registerVerificationSkills(add,runtime);
   registerBatchSkills(add,runtime,registry);
-  registerWorldSkills(add,runtime,{worldBuilder});
+  registerWorldSkills(add,runtime,{worldBuilder,promptHybridWorldOrchestrator});
   return registry;
 }

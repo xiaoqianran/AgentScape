@@ -25,10 +25,18 @@ const entity=strict({
   initialState:{type:'object',additionalProperties:scalar}
 },['id','asset']);
 
-const relation=strict({
-  subject:text,predicate:{type:'string',enum:['ON','NEAR','INSIDE']},object:text,surfaceId:text,receptacleId:text,
-  distance:{type:'number',exclusiveMinimum:0}
-},['subject','predicate','object']);
+const observationAnchor=strict({
+  kind:{type:'string',enum:['observation']},id:text,label:text
+},['kind']);
+observationAnchor.anyOf=[{required:['id']},{required:['label']}];
+
+const relationCommon={
+  subject:text,surfaceId:text,receptacleId:text,distance:{type:'number',exclusiveMinimum:0}
+};
+const relation={oneOf:[
+  strict({...relationCommon,predicate:{type:'string',enum:['ON','NEAR','INSIDE']},object:text},['subject','predicate','object']),
+  strict({...relationCommon,predicate:{type:'string',enum:['NEAR']},anchor:observationAnchor},['subject','predicate','anchor'])
+]};
 
 const interactionCommon={id:text,actorId:text,targetId:text,supportId:text,description:{type:'string'}};
 const interaction={oneOf:[

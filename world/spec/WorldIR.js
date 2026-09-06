@@ -16,7 +16,8 @@ const TRANSFORM_KEYS=new Set(['position']);
 const PHYSICS_REQUIREMENT_KEYS=new Set(['bodyClass','requiredCapabilities','executionMode','qualityPolicy']);
 const PHYSICS_QUALITY_KEYS=new Set(['deterministicRequired','realtimeRequired','fallbackPolicy']);
 const SPATIAL_KEYS=new Set(['relations','constraints']);
-const RELATION_KEYS=new Set(['subject','predicate','object','surfaceId','receptacleId','distance']);
+const RELATION_KEYS=new Set(['subject','predicate','object','anchor','surfaceId','receptacleId','distance']);
+const RELATION_ANCHOR_KEYS=new Set(['kind','id','label']);
 const CONSTRAINT_KEYS=new Set(['id','kind','subject','object','description']);
 const INTERACTION_KEYS=new Set(['id','actorId','targetId','supportId','capability','stateKey','value','description']);
 const RULE_KEYS=new Set(['id','event','condition','effect','description']);
@@ -66,14 +67,27 @@ const normalizePhysicsRequirement=(value,label)=>{
   return {...(bodyClass?{bodyClass}:{}),...(requiredCapabilities.length?{requiredCapabilities}:{}),...(executionMode?{executionMode}:{}),...(Object.keys(qualityPolicy).length?{qualityPolicy}:{})};
 };
 
+const normalizeRelationAnchor=(value,label)=>{
+  if(value==null) return null;
+  assertObject(value,label); assertKnownKeys(value,RELATION_ANCHOR_KEYS,label);
+  const kind=clean(value.kind).toLowerCase(),id=clean(value.id),anchorLabel=clean(value.label);
+  if(kind!=='observation') throw new TypeError(`${label} unsupported kind: ${kind || '$empty'}`);
+  if(!id&&!anchorLabel) throw new TypeError(`${label} requires id or label`);
+  return {kind:'observation',...(id?{id}:{}),...(anchorLabel?{label:anchorLabel}:{})};
+};
+
 const normalizeRelation=(relation,index)=>{
-  assertObject(relation,`WorldIR spatial relation[${index}]`); assertKnownKeys(relation,RELATION_KEYS,`WorldIR spatial relation[${index}]`);
+  const label=`WorldIR spatial relation[${index}]`;
+  assertObject(relation,label); assertKnownKeys(relation,RELATION_KEYS,label);
   const subject=clean(relation.subject),predicate=clean(relation.predicate).toUpperCase(),object=clean(relation.object);
-  if(!subject||!predicate||!object) throw new TypeError(`WorldIR spatial relation[${index}] requires subject, predicate, object`);
-  if(!['ON','NEAR','INSIDE'].includes(predicate)) throw new TypeError(`WorldIR spatial relation[${index}] unsupported predicate: ${predicate}`);
+  const anchor=normalizeRelationAnchor(relation.anchor,`${label} anchor`);
+  if(!subject||!predicate) throw new TypeError(`${label} requires subject and predicate`);
+  if(!['ON','NEAR','INSIDE'].includes(predicate)) throw new TypeError(`${label} unsupported predicate: ${predicate}`);
+  if(Boolean(object)===Boolean(anchor)) throw new TypeError(`${label} requires exactly one of object or anchor`);
+  if(anchor&&predicate!=='NEAR') throw new TypeError(`${label} observation anchor is only supported for NEAR`);
   const distance=relation.distance==null?null:Number(relation.distance);
-  if(distance!=null&&(!Number.isFinite(distance)||distance<=0)) throw new TypeError(`WorldIR spatial relation[${index}] distance must be positive finite`);
-  return {subject,predicate,object,...(clean(relation.surfaceId)?{surfaceId:clean(relation.surfaceId)}:{}),...(clean(relation.receptacleId)?{receptacleId:clean(relation.receptacleId)}:{}),...(distance!=null?{distance}:{})};
+  if(distance!=null&&(!Number.isFinite(distance)||distance<=0)) throw new TypeError(`${label} distance must be positive finite`);
+  return {subject,predicate,...(object?{object}:{}),...(anchor?{anchor}:{}),...(clean(relation.surfaceId)?{surfaceId:clean(relation.surfaceId)}:{}),...(clean(relation.receptacleId)?{receptacleId:clean(relation.receptacleId)}:{}),...(distance!=null?{distance}:{})};
 };
 
 const fromWorldSpec=(input)=>{

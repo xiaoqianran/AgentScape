@@ -13,6 +13,13 @@ export function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, aut
     log(`渲染设备丢失：${backend} · ${reason || 'unknown'} · ${message || 'unknown'}${saved ? ' · 场景已保存' : ''}`, 'error');
   });
   world.events.on('renderer.error', ({ type, message }) => log(`渲染错误：${type || 'GPUError'} · ${message || 'unknown'}`, 'error'));
+  world.events.on('renderer.generated-visual-ready', ({ format, splatCount }) => {
+    const count = Number.isFinite(splatCount) ? splatCount.toLocaleString() : '?';
+    log(`生成视觉已就绪：${String(format || 'unknown').toUpperCase()} · ${count} splats`, 'result');
+  });
+  world.events.on('renderer.generated-visual-error', ({ format, message }) => {
+    log(`生成视觉加载失败：${String(format || 'unknown').toUpperCase()} · ${message || 'unknown'}`, 'error');
+  });
   world.events.on('tool.called', (event) => log(`工具：${event.name} ${JSON.stringify(event.args)}`, 'tool'));
   world.events.on('interaction', (event) => log(`动作：${event.action} ${event.id}`, 'tool'));
   world.events.on('locomotion.started', ({ id, waypoints, pathCost }) => log(`行走：${id} · ${waypoints} 个路径点 · ${pathCost ?? '?'} 米`, 'tool'));

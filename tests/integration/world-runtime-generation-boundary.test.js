@@ -31,6 +31,8 @@ describe('WorldRuntime generation boundary',()=>{
     expect(runtime.getAssetCompiler).toBeUndefined();
     await expect(generation.initialize()).resolves.toEqual({status:'connection-required',reason:'CONNECTOR_NOT_CONFIGURED'});
     expect(generation.canGenerateAsset()).toBe(false);
+    expect(generation.canGenerateTextWorld()).toBe(false);
+    expect(typeof generation.generateTextWorldArtifacts).toBe('function');
   });
 
   it('is idempotent for one runtime',()=>{

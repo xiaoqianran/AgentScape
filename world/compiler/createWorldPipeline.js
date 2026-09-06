@@ -1,7 +1,7 @@
 import { PipelineEngine } from './PipelineEngine.js';
 import { compileWorldIR, compileWorldInput } from './WorldCompilation.js';
 import { assetAdmission } from '../../asset/admission.js';
-import { composeNearPlacement, composeWorldLayout } from './WorldComposer.js';
+import { composeNearPlacement, composeObservedNearPlacement, composeWorldLayout } from './WorldComposer.js';
 import { buildAcceptanceEvidenceBundle, evaluateWorldAcceptance } from '../verification/WorldAcceptance.js';
 import { buildWorldRevisionContext } from '../spec/WorldRevision.js';
 import { compileAdmissionFindings } from '../verification/Finding.js';
@@ -10,6 +10,7 @@ import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
 import { assetIdFromRef, createAssetRef } from '../../asset/AssetRef.js';
 import { evaluateWorldAdmission } from './WorldAdmission.js';
 import { commitWorldAuthority } from '../runtime/WorldAuthority.js';
+import { resolveObservedEntity } from '../runtime/ObservedEntity.js';
 
 const executionAdmissionRejected=(state)=>[
   state.reports.assetAdmission,
@@ -130,22 +131,80 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
 
   pipeline.register('compose_layout', async (state) => {
     if (state.reports.assetAdmission?.status==='rejected') {
-      state.reports.layoutAdmission=admissionNotEvaluated('UPSTREAM_ASSET_ADMISSION_REJECTED',{placements:[],issues:[]});
+      state.reports.layoutAdmission=admissionNotEvaluated('UPSTREAM_ASSET_ADMISSION_REJECTED',{placements:[],issues:[],observationAnchors:[]});
       return state;
     }
-    const report=composeWorldLayout(state.artifacts.assets || [],{
+    const assets=state.artifacts.assets || [];
+    const relations=state.artifacts.compilation?.relations || [];
+    const observationRelations=relations.filter((relation)=>relation.anchor?.kind==='observation');
+    const anchoredSubjects=new Set(observationRelations.map((relation)=>relation.subject));
+    const regularAssets=assets.filter((item)=>!anchoredSubjects.has(item.id));
+    const base=composeWorldLayout(regularAssets,{
       getManifest:(assetId)=>runtime.assets.getManifest(assetId),
       poseClear:(manifest,position)=>runtime.physics.manifestPoseClear(manifest,position),
       layout:runtime.environment?.layout
     });
-    state.reports.layoutAdmission=report;
-    if (report.status!=='rejected') {
-      const placements=report.placements || [];
-      state.artifacts.assets=(state.artifacts.assets || []).map((item,index)=>{
-        const placement=placements[index];
-        return placement ? {...item,position:[...placement.position],placement:{mode:placement.mode,coverage:placement.coverage}} : item;
-      });
+    if(base.status==='rejected'){
+      state.reports.layoutAdmission={...base,observationAnchors:[]};
+      return state;
     }
+    const placements=[...(base.placements || [])],issues=[...(base.issues || [])],observationAnchors=[];
+    const occupied=[];
+    for(const placement of placements){
+      const asset=assets.find((item)=>item.id===placement.id);
+      const assetId=assetIdFromRef(asset?.assetRef);
+      if(assetId) occupied.push({id:placement.id,manifest:runtime.assets.getManifest(assetId),position:[...placement.position]});
+    }
+    let provisional=base.status==='provisional';
+    for(const relation of observationRelations){
+      const asset=assets.find((item)=>item.id===relation.subject);
+      const assetId=assetIdFromRef(asset?.assetRef);
+      const resolution=resolveObservedEntity(runtime.sceneGraph,relation.anchor);
+      if(!assetId || resolution.status!=='resolved'){
+        const reason=!assetId?'OBSERVATION_ANCHOR_SUBJECT_UNRESOLVED':'OBSERVATION_ANCHOR_NOT_FOUND';
+        const issue={id:relation.subject,assetId:assetId || null,reason,selector:structuredClone(relation.anchor),resolution};
+        state.reports.layoutAdmission={status:'rejected',reason,placements,issues:[...issues,issue],observationAnchors};
+        return state;
+      }
+      const manifest=runtime.assets.getManifest(assetId);
+      const result=composeObservedNearPlacement(manifest,resolution.entity,{
+        layout:runtime.environment?.layout,
+        poseClear:(candidate,position)=>runtime.physics.manifestPoseClear(candidate,position),
+        distance:relation.distance,
+        occupied
+      });
+      if(!result.checked){
+        const issue={id:relation.subject,assetId,reason:result.reason,selector:structuredClone(relation.anchor),resolution,details:result};
+        state.reports.layoutAdmission={status:'rejected',reason:result.reason,placements,issues:[...issues,issue],observationAnchors};
+        return state;
+      }
+      const placement={
+        id:relation.subject,assetId,position:[...result.position],mode:result.mode,
+        radius:result.radius,
+        coverage:result.coverage,
+        anchor:{kind:'observation',selector:structuredClone(relation.anchor),observedEntityId:resolution.entity.id,observationId:resolution.entity.observationId || null}
+      };
+      placements.push(placement);
+      occupied.push({id:relation.subject,manifest,position:[...result.position]});
+      observationAnchors.push({
+        subject:relation.subject,selector:structuredClone(relation.anchor),status:'resolved',
+        observedEntityId:resolution.entity.id,observationId:resolution.entity.observationId || null,label:resolution.entity.label,
+        candidateCount:resolution.candidateCount,selection:resolution.selection,confidence:resolution.entity.confidence ?? null,
+        position:[...result.position],distance:result.distance,collisionVerified:result.collisionVerified===true,coverage:result.coverage
+      });
+      if(result.status==='provisional') provisional=true;
+    }
+    const report={
+      status:provisional?'provisional':'ready',
+      reason:provisional?'LAYOUT_PROVISIONAL':null,
+      placements,issues,observationAnchors
+    };
+    state.reports.layoutAdmission=report;
+    const placementById=new Map(placements.map((placement)=>[placement.id,placement]));
+    state.artifacts.assets=assets.map((item)=>{
+      const placement=placementById.get(item.id);
+      return placement ? {...item,position:[...placement.position],placement:{mode:placement.mode,coverage:placement.coverage,...(placement.anchor?{anchor:structuredClone(placement.anchor)}:{})}} : item;
+    });
     return state;
   });
 
@@ -206,6 +265,17 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
           return state;
         }
         applied.push({...relation,result});
+        continue;
+      }
+      if (relation.predicate === 'NEAR' && relation.anchor?.kind==='observation') {
+        const evidence=state.reports.layoutAdmission?.observationAnchors?.find((item)=>item.subject===relation.subject);
+        if(!evidence){
+          const reason='OBSERVATION_ANCHOR_EVIDENCE_MISSING';
+          issues.push({...relation,reason});
+          state.reports.relationAdmission={status:'rejected',reason,applied,issues};
+          return state;
+        }
+        applied.push({...relation,status:'compiled-before-spawn',position:[...evidence.position],observedEntityId:evidence.observedEntityId,observationId:evidence.observationId,selection:evidence.selection,collisionVerified:evidence.collisionVerified});
         continue;
       }
       if (relation.predicate === 'NEAR') {

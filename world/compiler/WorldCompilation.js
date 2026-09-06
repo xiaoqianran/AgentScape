@@ -43,6 +43,7 @@ const unsupportedExecutionFeatures = (worldIR) => {
 
 export function assertWorldIRReferences(worldIR) {
   const entityIds = new Set(worldIR.entities.map((entity) => entity.id).filter(Boolean));
+  const entityById = new Map(worldIR.entities.filter((entity)=>entity.id).map((entity)=>[entity.id,entity]));
 
   worldIR.entities.forEach((entity, index) => {
     if (!entity.id && (entity.capabilityIntent.length || hasState(entity))) {
@@ -52,9 +53,25 @@ export function assertWorldIRReferences(worldIR) {
     }
   });
 
+  const anchoredSubjects=new Set();
   worldIR.spatial.relations.forEach((relation, index) => {
     requireEntity(entityIds, `spatial.relations[${index}].subject`, relation.subject);
-    requireEntity(entityIds, `spatial.relations[${index}].object`, relation.object);
+    if(relation.object) requireEntity(entityIds, `spatial.relations[${index}].object`, relation.object);
+    if(relation.anchor?.kind==='observation'){
+      if(anchoredSubjects.has(relation.subject)){
+        const error=new TypeError(`WorldIR entity ${relation.subject} has multiple observation anchors`);
+        error.code='WORLD_IR_OBSERVATION_ANCHOR_AMBIGUOUS';
+        error.entityId=relation.subject;
+        throw error;
+      }
+      anchoredSubjects.add(relation.subject);
+      if(entityById.get(relation.subject)?.transform?.position){
+        const error=new TypeError(`WorldIR entity ${relation.subject} cannot combine explicit transform.position with an observation anchor`);
+        error.code='WORLD_IR_OBSERVATION_ANCHOR_POSITION_CONFLICT';
+        error.entityId=relation.subject;
+        throw error;
+      }
+    }
   });
   worldIR.spatial.constraints.forEach((constraint, index) => {
     requireEntity(entityIds, `spatial.constraints[${index}].subject`, constraint.subject);
@@ -85,17 +102,26 @@ const executionEntities = (worldIR) => worldIR.entities.map((entity) => ({
   ...(hasState(entity) ? { initialState:clone(entity.initialState) } : {})
 }));
 
-const compatibilityWorldSpec = (worldIR) => normalizeWorldSpec({
-  name:worldIR.intent.name,
-  description:worldIR.intent.description,
-  generation:clone(worldIR.policy.generation),
-  assets:worldIR.entities.map((entity) => ({
-    ...(entity.id ? { id:entity.id } : {}),
-    ...clone(entity.asset),
-    ...(entity.transform.position ? { position:[...entity.transform.position] } : {})
-  })),
-  relations:worldIR.spatial.relations.map(clone)
-});
+const compatibilityWorldSpec = (worldIR) => {
+  const anchored=worldIR.spatial.relations.find((relation)=>relation.anchor);
+  if(anchored){
+    const error=new TypeError('Legacy WorldSpec cannot represent observation-anchored relations');
+    error.code='WORLD_IR_COMPATIBILITY_UNSUPPORTED';
+    error.feature='spatial.relations.anchor';
+    throw error;
+  }
+  return normalizeWorldSpec({
+    name:worldIR.intent.name,
+    description:worldIR.intent.description,
+    generation:clone(worldIR.policy.generation),
+    assets:worldIR.entities.map((entity) => ({
+      ...(entity.id ? { id:entity.id } : {}),
+      ...clone(entity.asset),
+      ...(entity.transform.position ? { position:[...entity.transform.position] } : {})
+    })),
+    relations:worldIR.spatial.relations.map(clone)
+  });
+};
 
 export function projectWorldIRToWorldSpec(input) {
   return compatibilityWorldSpec(assertWorldIRReferences(normalizeWorldIR(input)));

@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { applyGeneratedWorldGeometryTransform, transformGeneratedWorldBounds, transformGeneratedWorldPoint, validateGeneratedWorldCoordinates } from '../core/generatedWorldCoordinates.js';
 
 const SUPPORTED_MESH_FORMATS = new Set(['glb', 'ply']);
-const SUPPORTED_COORDINATE_SYSTEMS = new Set(['y-up', 'z-up']);
 
 const asBytes = (value) => {
   if (value instanceof Uint8Array) return value;
@@ -40,12 +40,6 @@ const sourceDescriptor = (source) => {
   };
 };
 
-const toRuntimeCoordinates = (geometry, coordinateSystem, metersPerUnit) => {
-  if (coordinateSystem === 'z-up') geometry.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
-  if (metersPerUnit !== 1) geometry.scale(metersPerUnit, metersPerUnit, metersPerUnit);
-  return geometry;
-};
-
 const glbGeometry = (scene) => {
   const geometries = [];
   scene.updateWorldMatrix(true, true);
@@ -62,12 +56,41 @@ const glbGeometry = (scene) => {
   return geometry;
 };
 
-const loadSemantics = async (source) => {
+const loadSemantics = async (source, coordinateSystem, metersPerUnit) => {
   if (!source) return null;
-  if (source.data) return JSON.parse(new TextDecoder().decode(source.data));
-  const response = await fetch(source.url);
-  if (!response.ok) throw new Error(`Failed to load generated world semantics: ${response.status}`);
-  return response.json();
+  const value = source.data
+    ? JSON.parse(new TextDecoder().decode(source.data))
+    : await (async () => {
+        const response = await fetch(source.url);
+        if (!response.ok) throw new Error(`Failed to load generated world semantics: ${response.status}`);
+        return response.json();
+      })();
+  if (Array.isArray(value)) return value; // legacy category-only payload
+  if (![1,2].includes(value?.schemaVersion) || !Array.isArray(value.categories) || !Array.isArray(value.instances)) return value;
+  const instances = value.instances.map((instance) => {
+    if (!instance || typeof instance !== 'object' || Array.isArray(instance)) return instance;
+    if (value.schemaVersion === 1) {
+      if (!Array.isArray(instance.center) || !instance.bbox) return structuredClone(instance);
+      return {
+        ...structuredClone(instance),
+        center:transformGeneratedWorldPoint(instance.center, coordinateSystem, metersPerUnit),
+        bbox:transformGeneratedWorldBounds(instance.bbox, coordinateSystem, metersPerUnit)
+      };
+    }
+    const localization=instance.localization;
+    if (localization?.kind !== 'point-scale' || !Array.isArray(localization.center)) return structuredClone(instance);
+    return {
+      ...structuredClone(instance),
+      localization:{
+        ...structuredClone(localization),
+        center:transformGeneratedWorldPoint(localization.center, coordinateSystem, metersPerUnit),
+        scale:Number(localization.scale) * metersPerUnit,
+        ...(Array.isArray(localization.leftPoint)?{leftPoint:transformGeneratedWorldPoint(localization.leftPoint,coordinateSystem,metersPerUnit)}:{}),
+        ...(Array.isArray(localization.rightPoint)?{rightPoint:transformGeneratedWorldPoint(localization.rightPoint,coordinateSystem,metersPerUnit)}:{})
+      }
+    };
+  });
+  return { ...structuredClone(value), instances };
 };
 
 const resolveRelativeUrl = (path, baseUrl) => {
@@ -115,7 +138,7 @@ async function loadMesh(source, coordinateSystem, metersPerUnit) {
       : await loader.loadAsync(source.url);
     geometry = glbGeometry(gltf.scene);
   }
-  toRuntimeCoordinates(geometry, coordinateSystem, metersPerUnit);
+  applyGeneratedWorldGeometryTransform(geometry, coordinateSystem, metersPerUnit);
   if (!geometry.getAttribute('normal')) geometry.computeVertexNormals();
   return geometry;
 }
@@ -130,6 +153,7 @@ export async function loadGeneratedWorld({
   mesh,
   visual = null,
   semantics = null,
+  navigation = null,
   coordinateSystem = 'y-up',
   metersPerUnit = 1,
   layout = null,
@@ -138,14 +162,15 @@ export async function loadGeneratedWorld({
 } = {}) {
   const meshSource = asSource(mesh, 'mesh');
   if (!meshSource) throw new TypeError('loadGeneratedWorld requires mesh');
-  if (!SUPPORTED_COORDINATE_SYSTEMS.has(coordinateSystem)) throw new TypeError('coordinateSystem must be y-up or z-up');
-  if (!Number.isFinite(metersPerUnit) || metersPerUnit <= 0) throw new TypeError('metersPerUnit must be a positive finite number');
+  validateGeneratedWorldCoordinates(coordinateSystem, metersPerUnit);
 
   const visualSource = asSource(visual, 'visual');
   const semanticsSource = asSource(semantics, 'semantics');
-  const [geometry, semanticData] = await Promise.all([
+  const navigationSource = asSource(navigation, 'navigation');
+  const [geometry, semanticData, navigationGeometry] = await Promise.all([
     loadMesh(meshSource, coordinateSystem, metersPerUnit),
-    loadSemantics(semanticsSource)
+    loadSemantics(semanticsSource, coordinateSystem, metersPerUnit),
+    navigationSource ? loadMesh(navigationSource, coordinateSystem, metersPerUnit) : Promise.resolve(null)
   ]);
 
   const collider = geometryToTrimeshCollider(geometry);
@@ -162,10 +187,20 @@ export async function loadGeneratedWorld({
   floor.receiveShadow = true;
   root.add(floor);
 
+  let navigationRoot = null;
+  if (navigationGeometry) {
+    navigationRoot = new THREE.Group();
+    navigationRoot.name = 'GeneratedWorldNavigation';
+    const navigationMesh = new THREE.Mesh(navigationGeometry, new THREE.MeshBasicMaterial({ visible:false }));
+    navigationMesh.name = 'GeneratedWorldNavigationMesh';
+    navigationRoot.add(navigationMesh);
+  }
+
   return {
     id,
     root,
     floor,
+    ...(navigationRoot ? { navigationRoot } : {}),
     colliders:[collider],
     ...(layout ? { layout:structuredClone(layout) } : {}),
     ...(camera ? { camera:structuredClone(camera) } : {}),
@@ -175,12 +210,15 @@ export async function loadGeneratedWorld({
       mesh:sourceDescriptor(meshSource),
       visual:visualSource ? { ...sourceDescriptor(visualSource), source:visualSource, status:'deferred' } : null,
       semantics:semanticsSource ? { ...sourceDescriptor(semanticsSource), data:semanticData } : null,
+      navigation:navigationSource ? { ...sourceDescriptor(navigationSource), locomotionGround:true } : null,
+      collisionGeometry:'environment',
       coordinateSystem,
       metersPerUnit
     },
     dispose(){
       floor.geometry?.dispose?.();
       floor.material?.dispose?.();
+      navigationRoot?.traverse?.((node) => { node.geometry?.dispose?.(); node.material?.dispose?.(); });
     }
   };
 }
@@ -209,6 +247,7 @@ export async function loadGeneratedWorldManifest(manifest) {
     mesh:artifactSource(environment),
     visual:artifactSource(artifacts.visual),
     semantics:artifactSource(artifacts.semantics),
+    navigation:artifactSource(artifacts.navigation),
     coordinateSystem:data.coordinateSystem || 'y-up',
     metersPerUnit:data.metersPerUnit ?? 1,
     layout:data.layout || null,
@@ -223,4 +262,3 @@ export async function loadGeneratedWorldManifest(manifest) {
   };
   return loaded;
 }
-

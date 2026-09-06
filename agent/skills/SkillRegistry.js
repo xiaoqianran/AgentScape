@@ -73,7 +73,7 @@ export class SkillRegistry {
   register(skill) {
     if (!skill?.name || typeof skill.handler !== 'function') throw new Error('Skill requires name and handler');
     if (this.skills.has(skill.name)) throw new Error(`Skill already registered: ${skill.name}`);
-    this.skills.set(skill.name, { version:'1.0.0', permissions:[], required:[], properties:{}, mutates:false, batchable:true, auxiliary:false, agent:true, ...skill });
+    this.skills.set(skill.name, { version:'1.0.0', permissions:[], required:[], properties:{}, mutates:false, history:true, manualMutation:false, batchable:true, auxiliary:false, agent:true, ...skill });
     return this;
   }
 
@@ -99,6 +99,7 @@ export class SkillRegistry {
     const mutates = Boolean(skill?.mutates);
     return {
       mutates,
+      history:skill?.history !== false,
       barrier:mutates,
       auxiliary:Boolean(skill?.auxiliary),
       tracksUnresolved:!skill?.auxiliary,
@@ -124,9 +125,12 @@ export class SkillRegistry {
 
     const execute = () => skill.handler(input, { runtime:this.runtime, registry:this, context });
     try {
-      const result = skill.mutates && this.runtime?.mutate && !context.skipHistory
-        ? await this.runtime.mutate(`skill:${name}`, execute, { source:actor, skill:name, input })
-        : await execute();
+      let result;
+      if (skill.mutates && !skill.manualMutation && !context.skipHistory) {
+        if (skill.history === false && this.runtime?.exclusiveMutation) result=await this.runtime.exclusiveMutation(`skill:${name}`,execute);
+        else if (this.runtime?.mutate) result=await this.runtime.mutate(`skill:${name}`, execute, { source:actor, skill:name, input });
+        else result=await execute();
+      } else result=await execute();
       this.trace?.emit('skill.executed', { skill:name, version:skill.version, input, result:result ?? { ok:true } }, { actor, causedBy:policyEvent ? [policyEvent.seq] : [] });
       return { success:true, result:result ?? { ok:true } };
     } catch (error) {

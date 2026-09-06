@@ -155,3 +155,47 @@ export function composeNearPlacement(subjectManifest,targetManifest,targetPositi
   }
   return {checked:false,reason:'NEAR_NO_CLEAR_POSE',distance:spacing,blocked};
 }
+
+const observedCenter=(observation)=>{
+  const point=observation?.localization?.kind==='point-scale' ? observation.localization.center : observation?.center;
+  return Array.isArray(point)&&point.length===3&&point.every(Number.isFinite) ? [...point] : null;
+};
+
+export function composeObservedNearPlacement(subjectManifest,observation,{layout,poseClear,distance=null,clearance=.35,maxDistance=3,occupied=[]}={}){
+  const normalized=normalizeLayout(layout);
+  if(!normalized.checked) return {checked:false,reason:normalized.reason};
+  const footprint=manifestFootprint(subjectManifest);
+  if(!footprint.checked) return {checked:false,reason:footprint.reason,source:'subject-footprint'};
+  const center=observedCenter(observation);
+  if(!center) return {checked:false,reason:'OBSERVATION_LOCALIZATION_UNAVAILABLE'};
+  if(typeof poseClear!=='function') return {checked:false,reason:'LAYOUT_PHYSICS_UNAVAILABLE'};
+  const reserved=[];
+  for(const item of occupied){
+    if(!item?.manifest || !Array.isArray(item.position) || item.position.length!==3) return {checked:false,reason:'OCCUPIED_POSITION_INVALID'};
+    const other=manifestFootprint(item.manifest);
+    if(!other.checked) return {checked:false,reason:other.reason,occupiedId:item.id || null};
+    reserved.push({x:item.position[0],z:item.position[2],radius:other.radius});
+  }
+  const explicit=distance!=null;
+  const observedScale=Number.isFinite(observation?.localization?.scale)&&observation.localization.scale>0 ? observation.localization.scale : 0;
+  const startDistance=explicit ? Number(distance) : Math.max(footprint.radius+clearance+.25,Math.min(1.5,observedScale+footprint.radius+clearance));
+  if(!Number.isFinite(startDistance)||startDistance<=0) return {checked:false,reason:'NEAR_DISTANCE_INVALID'};
+  const limit=Math.max(startDistance,Number.isFinite(maxDistance)?maxDistance:3);
+  const groundY=normalized.groundY-footprint.minY+.01;
+  const directions=[[1,0],[-1,0],[0,1],[0,-1],[Math.SQRT1_2,Math.SQRT1_2],[-Math.SQRT1_2,Math.SQRT1_2],[Math.SQRT1_2,-Math.SQRT1_2],[-Math.SQRT1_2,-Math.SQRT1_2]];
+  const blocked=[];
+  for(let radius=startDistance;radius<=limit+1e-9;radius+=.35){
+    for(const [dx,dz] of directions){
+      const position=[Number((center[0]+dx*radius).toFixed(4)),Number(groundY.toFixed(4)),Number((center[2]+dz*radius).toFixed(4))];
+      const bounds=checkPosition(subjectManifest,footprint,position,{layout:normalized,reserved,poseClear,clearance});
+      if(bounds.checked&&bounds.clear) return {
+        checked:true,status:footprint.coverage==='root-only'?'provisional':'ready',position,
+        distance:Number(Math.hypot(position[0]-center[0],position[2]-center[2]).toFixed(4)),
+        requestedDistance:explicit?startDistance:null,mode:explicit?'observation-explicit':'observation-auto',
+        observationId:observation?.id||null,anchor:[...center],radius:Number(footprint.radius.toFixed(4)),coverage:footprint.coverage,collisionVerified:true
+      };
+      blocked.push({position,reason:bounds.reason,blockedBy:bounds.blockedBy||[]});
+    }
+  }
+  return {checked:false,reason:'OBSERVATION_NEAR_NO_CLEAR_POSE',observationId:observation?.id||null,anchor:center,startDistance,maxDistance:limit,blocked};
+}

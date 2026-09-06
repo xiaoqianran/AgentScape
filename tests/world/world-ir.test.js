@@ -47,3 +47,16 @@ describe('WorldIR',()=>{
     expect(()=>normalizeWorldIR({schema:WORLD_IR_SCHEMA,schemaVersion:1,revision:{id:'r1'},provenance:{source:'planner'},unexpected:true})).toThrow('WorldIR unknown field: unexpected');
   });
 });
+
+it('normalizes an observation anchor as an explicit NEAR target without inventing an entity id',()=>{
+  const input={
+    schema:WORLD_IR_SCHEMA,schemaVersion:1,revision:{id:'obs-anchor'},provenance:{source:'planner'},intent:{name:'Garden'},
+    entities:[{id:'cup_01',asset:{assetId:'cup'}}],
+    spatial:{relations:[{subject:'cup_01',predicate:'near',anchor:{kind:'observation',label:'bench'}}],constraints:[]},
+    interactions:[],rules:[],acceptance:[]
+  };
+  const ir=normalizeWorldIR(input);
+  expect(ir.spatial.relations).toEqual([{subject:'cup_01',predicate:'NEAR',anchor:{kind:'observation',label:'bench'}}]);
+  expect(()=>normalizeWorldIR({...input,spatial:{relations:[{subject:'cup_01',predicate:'NEAR',object:'cup_01',anchor:{kind:'observation',label:'bench'}}],constraints:[]}})).toThrow(/exactly one of object or anchor/);
+  expect(()=>normalizeWorldIR({...input,spatial:{relations:[{subject:'cup_01',predicate:'ON',anchor:{kind:'observation',label:'bench'}}],constraints:[]}})).toThrow(/only supported for NEAR/);
+});

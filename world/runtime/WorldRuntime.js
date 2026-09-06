@@ -22,6 +22,7 @@ import { ArticulationVerifier } from '../verification/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
 import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
+import { SimulationSession } from './simulation/SimulationSession.js';
 installThreeBvhRuntime();
 
 const mutationResultCommitted=(result)=>!(
@@ -51,7 +52,14 @@ export class WorldRuntime {
     this.rendererMode = rendererMode;
     this.rendererTiming = Boolean(rendererTiming);
     this.rendering = null;
-    this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null; this.timer = new THREE.Timer(); this.running = false;
+    this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null;
+    this.simulation = new SimulationSession({
+      fixedDt:1/60,
+      executeStep:(dt)=>this.stepSimulation(dt),
+      snapshotWorld:()=>this.snapshot(),
+      restoreWorld:(scene)=>this.restore(scene),
+      events:this.events
+    });
   }
   async init() {
     await this.physics.init();
@@ -61,8 +69,7 @@ export class WorldRuntime {
       scene:this.scene,
       events:this.events,
       rendererMode:this.rendererMode,
-      rendererTiming:this.rendererTiming,
-      onDeviceLost:()=>{ this.running=false; }
+      rendererTiming:this.rendererTiming
     };
     if (this.rendererFactory) renderingOptions.rendererFactory = this.rendererFactory;
     this.rendering = new RenderingSystem(renderingOptions);
@@ -73,22 +80,98 @@ export class WorldRuntime {
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
     this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);
     await this.addEnvironment();
+    this.createEnvironmentSystems();
+    this.ruleRuntime.start();
+    const rendering=this.renderingDiagnostics(); this.trace.emit('runtime.ready', { version: this.version, rendering }); this.events.emit('runtime.ready', { rendering }); return this;
+  }
+  async addEnvironment() {
+    if (!this.environmentFactory) throw new Error('WorldRuntime requires an environmentFactory');
+    const environment = await this.environmentFactory({ scene:this.scene });
+    this.installEnvironment(environment);
+    return environment;
+  }
+
+  installEnvironment(environment) {
+    if (!environment?.root?.isObject3D || !Array.isArray(environment.colliders)) {
+      const error=new TypeError('Runtime environment requires root Object3D and colliders');
+      error.code='ENVIRONMENT_INVALID';
+      throw error;
+    }
+    this.environment = environment;
+    this.environmentFloor = environment.floor || null;
+    this.sceneGraph?.setEnvironmentSemantics(environment.id, environment.semantics);
+    this.scene.add(environment.root);
+    this.rendering?.applyEnvironment(environment);
+    this.physics.addEnvironment(environment.colliders,{id:environment.id});
+    return environment;
+  }
+
+  createEnvironmentSystems() {
     this.navigation = new NavigationSystem({
-      store:this.store,physics:this.physics,environmentRoots:[this.environment.root],events:this.events,
+      store:this.store,physics:this.physics,environmentRoots:[this.environment.navigationRoot || this.environment.root],events:this.events,
       backend:this.navigationBackendFactory()
     });
     this.locomotion = new LocomotionSystem({ store:this.store, physics:this.physics, navigation:this.navigation, events:this.events });
     this.interactions = new InteractionSystem({ store:this.store, physics:this.physics, spatial:this.spatial, navigation:this.navigation, locomotion:this.locomotion, events:this.events });
-    this.ruleRuntime.start();
-    this.resize(); window.addEventListener('resize', this._resize = () => this.resize()); if (typeof document !== 'undefined') this.timer.connect(document); this.timer.reset(); this.running = true; this.animate(); const rendering=this.renderingDiagnostics(); this.trace.emit('runtime.ready', { version: this.version, rendering }); this.events.emit('runtime.ready', { rendering }); return this;
+    return this.navigation;
   }
-  async addEnvironment() {
-    if (!this.environmentFactory) throw new Error('WorldRuntime requires an environmentFactory');
-    this.environment = await this.environmentFactory({ scene:this.scene });
-    this.environmentFloor = this.environment.floor;
-    this.scene.add(this.environment.root);
-    this.rendering.applyEnvironment(this.environment);
-    this.physics.addEnvironment(this.environment.colliders,{id:this.environment.id});
+
+  teardownEnvironmentSystems(reason='ENVIRONMENT_REPLACED') {
+    this.interactions?.cancelPending(reason);
+    this.locomotion?.cancelAll(reason);
+    this.navigation?.dispose();
+    this.interactions=null;
+    this.locomotion=null;
+    this.navigation=null;
+  }
+
+  async replaceEnvironment(environment,{disposePrevious=true,reason='environment-replaced'}={}) {
+    if (this.store.list().length) {
+      const error=new Error('Environment replacement requires an empty ObjectStore');
+      error.code='ENVIRONMENT_REPLACE_REQUIRES_EMPTY_WORLD';
+      throw error;
+    }
+    if (!environment?.root?.isObject3D || !Array.isArray(environment.colliders)) {
+      const error=new TypeError('Runtime environment requires root Object3D and colliders');
+      error.code='ENVIRONMENT_INVALID';
+      throw error;
+    }
+    const previous=this.environment || null;
+    if (previous===environment) return {status:'environment-ready',environmentId:environment.id || null,previousEnvironmentId:previous?.id || null,reused:true};
+    this.teardownEnvironmentSystems('ENVIRONMENT_REPLACED');
+    if (previous?.root?.parent===this.scene) this.scene.remove(previous.root);
+    this.physics.resetWorld();
+    try {
+      this.installEnvironment(environment);
+      this.createEnvironmentSystems();
+      this.sceneGraph?.changed();
+      this.events?.emit('environment.replaced',{id:environment.id || null,previousId:previous?.id || null,reason});
+      if (disposePrevious) previous?.dispose?.();
+      return {status:'environment-ready',environmentId:environment.id || null,previousEnvironmentId:previous?.id || null,reused:false};
+    } catch (error) {
+      let rollbackError=null;
+      try {
+        if (environment.root?.parent===this.scene) this.scene.remove(environment.root);
+        this.teardownEnvironmentSystems('ENVIRONMENT_REPLACE_ROLLBACK');
+        this.physics.resetWorld();
+        if (previous) {
+          this.installEnvironment(previous);
+          this.createEnvironmentSystems();
+          this.sceneGraph?.changed();
+        } else {
+          this.environment=null;
+          this.environmentFloor=null;
+          this.sceneGraph?.setEnvironmentSemantics('environment',null);
+        }
+      } catch (cause) { rollbackError=cause; }
+      if (rollbackError) {
+        const failure=new AggregateError([error,rollbackError],'Environment replacement rollback failed',{cause:error});
+        failure.code='ENVIRONMENT_REPLACE_ROLLBACK_FAILED';
+        failure.rollbackError=rollbackError;
+        throw failure;
+      }
+      throw error;
+    }
   }
   async spawn(assetId, { position = [0, 0, 0], id = `${assetId}_${crypto.randomUUID()}`, initialState = null } = {}) {
     const { object, manifest } = await this.assets.instantiate(assetId);
@@ -123,6 +206,17 @@ export class WorldRuntime {
 
   captureWorldAuthority() { return captureWorldAuthority(this); }
   restoreWorldAuthority(authority) { return restoreWorldAuthority(this,authority); }
+
+  async exclusiveMutation(label, operation) {
+    if (this.mutationOwner) {
+      const error = new Error(`World mutation already in progress: ${this.mutationOwner}`);
+      error.code = 'WORLD_MUTATION_BUSY';
+      throw error;
+    }
+    this.mutationOwner=label;
+    try { return await operation(); }
+    finally { this.mutationOwner=null; }
+  }
 
   async mutate(label, operation, meta = {}) {
     if (this.history?.suspended) return operation();
@@ -273,13 +367,14 @@ export class WorldRuntime {
   }
 
   listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
-  update(timestamp) { this.timer.update(timestamp); const dt = Math.min(this.timer.getDelta(), 1 / 30); this.locomotion?.update(dt); if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate(); this.interactions.update(dt, this.rendering?.viewPose?.() || null); this.rendering?.update(); }
-  animate = (timestamp) => { if (!this.running) return; requestAnimationFrame(this.animate); this.update(timestamp); this.rendering?.render(timestamp ?? performance.now()); };
+  stepSimulation(dt) {
+    this.locomotion?.update(dt);
+    if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate();
+    this.interactions?.update(dt);
+  }
   renderingDiagnostics() { return this.rendering?.diagnostics?.() || null; }
   resize() { return this.rendering?.resize?.() ?? false; }
   dispose() {
-    this.running = false;
-    window.removeEventListener('resize', this._resize);
     this.interactions?.cancelPending('RUNTIME_DISPOSED');
     for (const [id, record] of this.store.list()) {
       this.physics.remove(id);
@@ -296,7 +391,7 @@ export class WorldRuntime {
     this.navigation?.dispose();
     this.navigation = null;
     this.physics.dispose();
-    this.timer?.dispose();
+    this.simulation?.pause();
     this.rendering?.dispose?.();
     this.rendering = null;
     this.events.clear();

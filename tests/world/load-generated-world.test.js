@@ -67,6 +67,34 @@ describe('loadGeneratedWorld',()=>{
     expect(environment.colliders[0].vertices.slice(0,3)).toEqual(positions.slice(0,3));
   });
 
+  it('uses dedicated navigation geometry for locomotion while retaining the environment mesh for physics',async()=>{
+    const navPly=new TextEncoder().encode(`ply
+format ascii 1.0
+element vertex 3
+property float x
+property float y
+property float z
+element face 1
+property list uchar int vertex_indices
+end_header
+0 0 0
+1 0 0
+0 0 1
+3 0 2 1
+`);
+    const environment=await loadGeneratedWorld({
+      mesh:{url:'/world/environment.ply',format:'ply'},
+      navigation:{data:navPly,format:'ply'},
+      coordinateSystem:'y-up'
+    });
+    expect(environment.floor.geometry.getAttribute('position').count).toBe(4);
+    expect(environment.navigationRoot.children[0].geometry.getAttribute('position').count).toBe(3);
+    expect(environment.colliders[0].vertices).toEqual(Array.from(environment.floor.geometry.getAttribute('position').array));
+    expect(environment.generated.navigation).toMatchObject({format:'ply',bytes:navPly.byteLength,locomotionGround:true});
+    expect(environment.generated.collisionGeometry).toBe('environment');
+    environment.dispose();
+  });
+
   it('loads verified artifact bytes without knowing about Connector transport',async()=>{
     const ply=new TextEncoder().encode(`ply
 format ascii 1.0
@@ -111,7 +139,8 @@ end_header
       artifacts:{
         environment:{path:'environment.ply',format:'ply'},
         visual:{path:'../gs_result/ply/point_cloud_7999.spz',format:'spz'},
-        semantics:{path:'../objects.json',format:'json'}
+        semantics:{path:'../objects.json',format:'json'},
+        navigation:{path:'navigation.ply',format:'ply',role:'world-navigation',runtimeMode:'dedicated-geometry'}
       },
       layout:{bounds:{min:[-6,-6],max:[6,5]},groundY:0,margin:.5},
       mesh:{sourceTriangles:744212,runtimeTriangles:100000},
@@ -129,9 +158,36 @@ end_header
     expect(environment.generated.mesh.url).toBe('https://world.test/jobs/garden-v1/runtime/environment.ply');
     expect(environment.generated.visual.url).toBe('https://world.test/jobs/garden-v1/gs_result/ply/point_cloud_7999.spz');
     expect(environment.generated.semantics.url).toBe('https://world.test/jobs/garden-v1/objects.json');
+    expect(environment.generated.navigation.url).toBe('https://world.test/jobs/garden-v1/runtime/navigation.ply');
+    expect(environment.navigationRoot?.children?.[0]?.name).toBe('GeneratedWorldNavigationMesh');
+    expect(environment.navigationRoot?.children?.[0]?.material?.visible).toBe(false);
     expect(environment.generated.metersPerUnit).toBe(1);
     expect(environment.generated.manifest).toMatchObject({url:'https://world.test/jobs/garden-v1/runtime/world.json',schemaVersion:1,mesh:worldManifest.mesh,compiler:worldManifest.compiler});
     environment.dispose();
+  });
+
+  it('transforms evidenced semantic instances into runtime coordinates without objectizing them',async()=>{
+    const semanticPayload={
+      schemaVersion:1,granularity:'instance',categories:['bench'],
+      instances:[{id:'bench_01',label:'bench',center:[1,2,3],bbox:{min:[0,1,2],max:[2,3,4]},confidence:.9}],
+      provenance:{kind:'provider-instance-evidence',source:'instances.json'}
+    };
+    const bytes=new TextEncoder().encode(JSON.stringify(semanticPayload));
+    const environment=await loadGeneratedWorld({
+      mesh:{url:'/world/environment.ply',format:'ply'},
+      semantics:{data:bytes,format:'json'},
+      coordinateSystem:'z-up',metersPerUnit:2
+    });
+    expect(environment.semantics.instances[0]).toMatchObject({id:'bench_01',label:'bench',confidence:.9});
+    expect(environment.semantics.instances[0].center[0]).toBeCloseTo(2,6);
+    expect(environment.semantics.instances[0].center[1]).toBeCloseTo(6,6);
+    expect(environment.semantics.instances[0].center[2]).toBeCloseTo(-4,6);
+    expect(environment.semantics.instances[0].bbox.min[0]).toBeCloseTo(0,6);
+    expect(environment.semantics.instances[0].bbox.min[1]).toBeCloseTo(4,6);
+    expect(environment.semantics.instances[0].bbox.min[2]).toBeCloseTo(-6,6);
+    expect(environment.semantics.instances[0].bbox.max[0]).toBeCloseTo(4,6);
+    expect(environment.semantics.instances[0].bbox.max[1]).toBeCloseTo(8,6);
+    expect(environment.semantics.instances[0].bbox.max[2]).toBeCloseTo(-2,6);
   });
 
   it('validates triangle geometry for the Rapier trimesh boundary',()=>{
@@ -140,6 +196,24 @@ end_header
     geometry.setIndex([0,1,2]);
     expect(geometryToTrimeshCollider(geometry)).toMatchObject({shape:'trimesh',indices:[0,1,2]});
   });
+
+  it('transforms point-scale semantic evidence without inventing bounds',async()=>{
+    const semantics={
+      schemaVersion:2,granularity:'instance',categories:['door'],
+      instances:[{id:'hyworld2-target-4',label:'door',confidence:.95,localization:{kind:'point-scale',center:[1,2,3],scale:.5,leftPoint:[0,2,3],rightPoint:[2,2,3]},evidence:{sourceId:4}}],
+      provenance:{kind:'hyworld2-sam3-depth-targets',instancesSource:'../camera_trajectory/target_camera.json'}
+    };
+    const bytes=new TextEncoder().encode(JSON.stringify(semantics));
+    const environment=await loadGeneratedWorld({
+      mesh:{url:'/world/environment.ply',format:'ply'},semantics:{data:bytes,format:'json'},coordinateSystem:'z-up',metersPerUnit:2
+    });
+    const instance=environment.semantics.instances[0];
+    expect(instance.localization.center[0]).toBeCloseTo(2,6);
+    expect(instance.localization.center[1]).toBeCloseTo(6,6);
+    expect(instance.localization.center[2]).toBeCloseTo(-4,6);
+    expect(instance.localization.scale).toBeCloseTo(1,6);
+    expect(instance).not.toHaveProperty('bbox');
+    environment.dispose();
+  });
+
 });
-
-

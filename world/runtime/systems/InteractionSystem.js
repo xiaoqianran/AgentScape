@@ -22,10 +22,22 @@ export class InteractionSystem {
     this.articulationResults = new Map();
     this.humanViewPosition = new THREE.Vector3();
     this.humanViewRotation = new THREE.Quaternion();
+    this.humanViewValid = false;
     this.humanHeldTarget = new THREE.Vector3();
   }
 
   get heldId() { return this.humanHeldId; }
+
+  setHumanViewPose(viewPose = null) {
+    if (viewPose?.position?.length === 3 && viewPose?.rotation?.length === 4) {
+      this.humanViewPosition.fromArray(viewPose.position);
+      this.humanViewRotation.fromArray(viewPose.rotation).normalize();
+      this.humanViewValid = true;
+      return true;
+    }
+    this.humanViewValid = false;
+    return false;
+  }
 
   debugSnapshot({ actorId = null, targetId = null, maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
     let reach = null;
@@ -1126,12 +1138,10 @@ export class InteractionSystem {
     return { id, part:name, action, capability:contract.capability, target:part.targets[action], requested:true, interactionContractId:contract.id, verifierTarget:structuredClone(contract.verifierTarget) };
   }
 
-  update(dt, viewPose) {
+  update(dt) {
     this.updatePlacementSettles(dt);
     this.updateArticulationTasks(dt);
-    if (this.humanHeldId && viewPose?.position?.length === 3 && viewPose?.rotation?.length === 4) {
-      this.humanViewPosition.fromArray(viewPose.position);
-      this.humanViewRotation.fromArray(viewPose.rotation);
+    if (this.humanHeldId && this.humanViewValid) {
       this.humanHeldTarget.set(0,0,-1.6).applyQuaternion(this.humanViewRotation).add(this.humanViewPosition);
       this.physics.setHeldTarget(this.humanHeldId, this.humanHeldTarget);
     }

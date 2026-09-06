@@ -37,6 +37,18 @@ describe('UI runtime event lifecycle', () => {
     expect(f.taskPanel.log).toHaveBeenCalledWith('渲染中断后的自动保存失败：quota', 'error');
   });
 
+  it('reports generated SPZ readiness with splat count', () => {
+    const f = fixture();
+    f.handlers.get('renderer.generated-visual-ready')({ format:'spz', splatCount:134414 });
+    expect(f.taskPanel.log).toHaveBeenCalledWith('生成视觉已就绪：SPZ · 134,414 splats', 'result');
+  });
+
+  it('reports generated visual loading failures without breaking runtime', () => {
+    const f = fixture();
+    f.handlers.get('renderer.generated-visual-error')({ format:'spz', message:'bad spz' });
+    expect(f.taskPanel.log).toHaveBeenCalledWith('生成视觉加载失败：SPZ · bad spz', 'error');
+  });
+
   it('deselects an object that is removed outside the editor', () => {
     const f = fixture();
     f.handlers.get('object.removed')({ id: 'cup_01' });

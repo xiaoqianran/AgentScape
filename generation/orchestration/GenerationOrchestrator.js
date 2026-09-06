@@ -10,6 +10,9 @@ const clone=(value)=>value==null?value:structuredClone(value);
 const GENERATION_CATEGORY=/generation/i;
 const IMAGE_GENERATION_CATEGORY=/image-generation/i;
 const ASSET_GENERATION_CATEGORY=/asset-generation/i;
+const WORLD_GENERATION_CATEGORY=/world-generation/i;
+const PRIMARY_IMAGE_ROLE="primary-image";
+const WORLD_MANIFEST_ROLE="world-manifest";
 const SAFE_ROLE=/^[a-z0-9][a-z0-9._-]{0,95}$/i;
 const PNG_MIME="image/png";
 const GLB_MIME="model/gltf-binary";
@@ -147,6 +150,37 @@ function selectTextAssetRoute(providerRegistry,{provider=null,imageProvider=null
   return asset && image ? {kind:"composed",image,asset} : null;
 }
 
+function selectTextWorldRoute(providerRegistry,{worldProvider=null,imageProvider=null}={}) {
+  const capabilities=providerRegistry.findCapabilities({availableOnly:true})
+    .filter((capability)=>GENERATION_CATEGORY.test(capability.category||""))
+    .sort((a,b)=>`${a.provider}:${a.operation}`.localeCompare(`${b.provider}:${b.operation}`));
+  const image=capabilities.find((capability)=>(!imageProvider || capability.provider===imageProvider)
+    && IMAGE_GENERATION_CATEGORY.test(capability.category||"")
+    && capability.input?.types?.includes("text")
+    && capability.output?.roles?.includes(PRIMARY_IMAGE_ROLE));
+  const world=capabilities.find((capability)=>(!worldProvider || capability.provider===worldProvider)
+    && WORLD_GENERATION_CATEGORY.test(capability.category||"")
+    && capability.input?.types?.includes("image")
+    && capability.input?.types?.includes("text")
+    && capability.input?.schema?.properties?.sourceArtifact
+    && capability.input?.schema?.properties?.prompt
+    && capability.output?.roles?.includes(WORLD_MANIFEST_ROLE));
+  return image && world ? {kind:"text-image-world",image,world} : null;
+}
+
+function fillCapabilityDefaults(capability,inputs) {
+  const result={...inputs};
+  for (const key of capability?.input?.schema?.required || []) {
+    if (Object.prototype.hasOwnProperty.call(result,key)) continue;
+    const value=capabilityDefault(capability,key);
+    if (value===undefined) {
+      throw new GenerationOrchestrationError("GENERATION_CAPABILITY_INCOMPLETE",`Capability ${capability.operation} requires unsupported input ${key}`,{provider:capability.provider,operation:capability.operation,input:key});
+    }
+    result[key]=value;
+  }
+  return result;
+}
+
 function descriptorShapeForArtifact(summary) {
   const mime=String(summary?.mime||"").trim().toLowerCase();
   const shape=MIME_DESCRIPTOR[mime];
@@ -191,6 +225,10 @@ export class GenerationOrchestrator {
 
   canGenerateTextAsset(options={}) {
     return Boolean(this.jobClient && selectTextAssetRoute(this.providerRegistry,options));
+  }
+
+  canGenerateTextWorld(options={}) {
+    return Boolean(this.jobClient && selectTextWorldRoute(this.providerRegistry,options));
   }
 
   async #runJobToSuccess(request,{timeoutMs=this.generationTimeoutMs,pollIntervalMs=this.pollIntervalMs}={}) {
@@ -265,6 +303,53 @@ export class GenerationOrchestrator {
       ...produced,
       route:{kind:"text-image-3d",image:{provider:route.image.provider,operation:route.image.operation},asset:{provider:route.asset.provider,operation:route.asset.operation}},
       jobs:{image:imageJob.jobId,asset:assetJob.jobId},sourceArtifact:{id:source.id,role:source.role,mime:source.mime,hash:source.hash}
+    };
+  }
+
+  async generateTextWorldArtifacts(request={}) {
+    const prompt=String(request.prompt||"").trim();
+    if (!prompt) throw new GenerationOrchestrationError("GENERATION_PROMPT_REQUIRED","generateTextWorldArtifacts requires prompt");
+    const route=selectTextWorldRoute(this.providerRegistry,{worldProvider:request.worldProvider||null,imageProvider:request.imageProvider||null});
+    if (!this.jobClient || !route) {
+      throw new GenerationOrchestrationError("GENERATION_ROUTE_UNAVAILABLE","No available capability route can produce a World from text",{worldProvider:request.worldProvider||null,imageProvider:request.imageProvider||null});
+    }
+    const wait={timeoutMs:request.timeoutMs??this.generationTimeoutMs,pollIntervalMs:request.pollIntervalMs??this.pollIntervalMs};
+    const imageJob=await this.#runJobToSuccess({
+      provider:route.image.provider,operation:route.image.operation,inputs:textInputs(route.image,prompt),
+      profile:preferredProfile(route.image),options:request.imageOptions||{},outputRoles:requiredOutputRoles(route.image),
+      metadata:{purpose:"world-reference-image"}
+    },wait);
+    const source=imageJob.artifacts.find((artifact)=>artifact.role===PRIMARY_IMAGE_ROLE && artifact.mime===PNG_MIME)
+      || imageJob.artifacts.find((artifact)=>artifact.mime===PNG_MIME);
+    if (!source?.id || !source.hash) {
+      throw new GenerationOrchestrationError("GENERATION_SOURCE_ARTIFACT_INVALID","Text-to-image Job produced no lossless PNG Artifact suitable for World generation",{jobId:imageJob.jobId,provider:imageJob.provider});
+    }
+    const worldInputs=fillCapabilityDefaults(route.world,{
+      sourceArtifact:{id:source.id,role:source.role,mime:source.mime,hash:source.hash},prompt
+    });
+    const requestedWorldRoles=[...new Set(route.world.output?.roles || requiredOutputRoles(route.world))];
+    const worldJob=await this.#runJobToSuccess({
+      provider:route.world.provider,operation:route.world.operation,inputs:worldInputs,
+      profile:preferredProfile(route.world),options:request.worldOptions||{},outputRoles:requestedWorldRoles,
+      parent:{jobId:imageJob.jobId},metadata:{purpose:"generated-world"}
+    },wait);
+    const availableRoles=new Set(worldJob.artifacts.map((artifact)=>artifact.role));
+    const missing=(route.world.output?.required || []).filter((role)=>!availableRoles.has(role));
+    if (missing.length) {
+      throw new GenerationOrchestrationError("GENERATION_WORLD_ARTIFACTS_INCOMPLETE","World Job is missing required artifacts",{jobId:worldJob.jobId,missing});
+    }
+    const artifacts={};
+    for (const role of requestedWorldRoles) {
+      const summary=worldJob.artifacts.find((artifact)=>artifact.role===role);
+      if (!summary) continue;
+      artifacts[role]=await this.importGenerationResult(worldJob.jobId,{artifactId:summary.id});
+    }
+    return {
+      status:"world-artifacts-ready",prompt,
+      route:{kind:route.kind,image:{provider:route.image.provider,operation:route.image.operation},world:{provider:route.world.provider,operation:route.world.operation}},
+      jobs:{image:imageJob.jobId,world:worldJob.jobId},
+      sourceArtifact:{id:source.id,role:source.role,mime:source.mime,hash:source.hash},
+      artifacts
     };
   }
 

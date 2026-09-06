@@ -1,5 +1,6 @@
 import './style.css';
 import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
+import { RuntimeDriver } from './runtime/RuntimeDriver.js';
 import { createAssetModule } from '../generation/orchestration/createAssetModule.js';
 import { attachGenerationRuntime } from '../generation/orchestration/GenerationRuntime.js';
 import { SkillRegistry } from '../agent/skills/SkillRegistry.js';
@@ -70,6 +71,10 @@ async function main() {
   world.skills = registerCoreSkills(new SkillRegistry({ policy: world.policy, trace: world.trace, runtime: world }), world);
   world.generationState = await generation.initialize({ pair: false });
   await world.init();
+  const runtimeDriver = new RuntimeDriver(world, {
+    syncInput: () => world.interactions?.setHumanViewPose(world.rendering?.viewPose?.() || null)
+  }).start();
+  window.addEventListener('beforeunload', () => { runtimeDriver.dispose(); world.dispose(); }, { once:true });
 
   const tools = new AgentTools(world, { profile: 'builder', actor: 'agent_01' });
   const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });

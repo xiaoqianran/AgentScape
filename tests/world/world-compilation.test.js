@@ -101,3 +101,22 @@ it('rejects dangling relation acceptance references before runtime mutation',()=
   try { compileWorldIR(input); } catch (error) { failure=error; }
   expect(failure).toMatchObject({code:'WORLD_IR_REFERENCE_INVALID',path:'acceptance[0].object',entityId:'missing_01'});
 });
+
+it('fails closed on conflicting or ambiguous observation anchors and keeps them out of legacy projection',()=>{
+  const anchored=richWorldIR();
+  anchored.entities=[{id:'cup_01',asset:{assetId:'cup'},capabilityIntent:[],initialState:{}}];
+  anchored.interactions=[]; anchored.acceptance=[];
+  anchored.spatial.relations=[{subject:'cup_01',predicate:'NEAR',anchor:{kind:'observation',label:'bench'}}];
+  const compiled=compileWorldIR(anchored);
+  expect(compiled.relations).toEqual([{subject:'cup_01',predicate:'NEAR',anchor:{kind:'observation',label:'bench'}}]);
+  let compatibilityFailure; try{projectWorldIRToWorldSpec(anchored);}catch(error){compatibilityFailure=error;}
+  expect(compatibilityFailure).toMatchObject({code:'WORLD_IR_COMPATIBILITY_UNSUPPORTED',feature:'spatial.relations.anchor'});
+
+  const explicit=structuredClone(anchored); explicit.entities[0].transform={position:[1,0,1]};
+  let explicitFailure; try{compileWorldIR(explicit);}catch(error){explicitFailure=error;}
+  expect(explicitFailure).toMatchObject({code:'WORLD_IR_OBSERVATION_ANCHOR_POSITION_CONFLICT',entityId:'cup_01'});
+
+  const duplicate=structuredClone(anchored); duplicate.spatial.relations.push({subject:'cup_01',predicate:'NEAR',anchor:{kind:'observation',label:'door'}});
+  let duplicateFailure; try{compileWorldIR(duplicate);}catch(error){duplicateFailure=error;}
+  expect(duplicateFailure).toMatchObject({code:'WORLD_IR_OBSERVATION_ANCHOR_AMBIGUOUS',entityId:'cup_01'});
+});

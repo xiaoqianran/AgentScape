@@ -30,15 +30,17 @@ AgentScape **不再 pin Provider repository 为 Git submodule**。`npm run archi
 
 ```text
 modal-provider/
-├─ modal-gen-client/      optional local security gateway
+├─ modal-gen-client/      optional local security gateway / Provider Hub
 ├─ modal-2D-client/       image Reference Sidecar
 ├─ modal-2D/              image generation Provider
 ├─ modal-3D-client/       3D Reference Sidecar
 ├─ modal-3D/              3D generation Provider
-└─ modal-EmbodiedGen/     EmbodiedGen build/runtime integration
+├─ modal-world/           canonical production World Provider
+├─ modal-EmbodiedGen/     EmbodiedGen build/runtime integration
+└─ modal-build/           shared CUDA/PyTorch build/release infrastructure
 ```
 
-这些目录仍可拥有独立 package、lockfile、测试、Modal app 与部署生命周期，但它们不再是 AgentScape 的独立 repository topology。
+这些目录仍可拥有独立 package、lockfile、测试、Modal app 与部署生命周期，但它们不再是 AgentScape 的独立 repository topology。`modal-world` 负责生产 World execution truth；`modal-build` 只负责可复现构建与 release artifacts，不是运行时 Provider。顶层实验仓 `modal-comfyui-hyworld2` 不属于产品运行时拓扑，只作为 HYWorld2 的 ComfyUI 可视化/手工调试路径保留。
 
 ## Removed standalone boundaries
 

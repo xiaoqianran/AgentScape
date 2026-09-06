@@ -36,6 +36,8 @@ function runtime() {
     duplicate: vi.fn(), remove: vi.fn(),
     spatial: { getBounds:vi.fn(), findNearby:vi.fn(), raycast:vi.fn(), isColliding:vi.fn(), getSupportSurface:vi.fn(), findFreeSpace:vi.fn() },
     navigation: { canReach:vi.fn(async()=>({reachable:true,cost:3})), findPath:vi.fn(async()=>({reachable:true,path:[[0,0,0],[3,0,0]],cost:3})), suggestActions:vi.fn(async()=>({status:'action-candidate'})), status:vi.fn(()=>({state:'ready'})) },
+    environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
+    physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
     sceneGraph: { list:vi.fn(()=>[]), describe:vi.fn(), update:vi.fn() },
     validator: { run:vi.fn(()=>({ ok:true, counts:{hard:0,advisory:0}, hard:[], advisory:[], coverage:{objects:0,relations:0} })) },
     repair: { repair:vi.fn() },
@@ -591,4 +593,77 @@ it('replaces the current world before candidate execution and restores committed
   expect(r.currentPhysicsRequirements).toEqual(oldAuthority.currentPhysicsRequirements);
   expect(r.lastAcceptanceBundle).toEqual(oldAuthority.lastAcceptanceBundle);
   expect([...r.interactionEvidence.entries()]).toEqual(oldAuthority.interactionEvidence);
+});
+
+it('queries generated-world observed entities without promoting them to runtime objects', async () => {
+    const r=runtime();
+    r.sceneGraph.list=vi.fn((query={})=>query.predicate==='HAS_INSTANCE' ? [{
+      subject:'environment:garden-v1',predicate:'HAS_INSTANCE',object:'semantic-instance:hyworld2-target-0',
+      meta:{id:'hyworld2-target-0',label:'door',confidence:.95,localization:{kind:'point-scale',center:[0,0,1.7],scale:.47},sourceKind:'runtime-semantics-v2'}
+    }] : []);
+    const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
+    const listed=await registry.invoke('listObservedEntities',{label:'door'},{profile:'builder',actor:'test'});
+    expect(listed).toMatchObject({success:true,result:[{id:'semantic-instance:hyworld2-target-0',observationId:'hyworld2-target-0',label:'door',localization:{kind:'point-scale',center:[0,0,1.7],scale:.47}}]});
+    const one=await registry.invoke('getObservedEntity',{id:'hyworld2-target-0'},{profile:'builder',actor:'test'});
+    expect(one).toMatchObject({success:true,result:{id:'semantic-instance:hyworld2-target-0',observationId:'hyworld2-target-0',label:'door',confidence:.95}});
+    r.assets.getManifest=vi.fn(()=>({id:'cup',physics:{body:'dynamic',colliders:[{shape:'cylinder',radius:.15,halfHeight:.16,translation:[0,.16,0]}]}}));
+    const planned=await registry.invoke('planAssetNearObservedEntity',{assetId:'cup',id:'hyworld2-target-0'},{profile:'builder',actor:'test'});
+    expect(planned).toMatchObject({success:true,result:{status:'placement-ready',assetId:'cup',observedEntityId:'semantic-instance:hyworld2-target-0',collisionVerified:true}});
+    expect(r.physics.manifestPoseClear).toHaveBeenCalled();
+    r.navigation.findPath=vi.fn(async(_start,_end,options)=>({reachable:true,end:{snapped:[0,0,1]},path:[[0,0,0],[0,0,1]],cost:1,options}));
+    const approach=await registry.invoke('findObservedEntityApproach',{id:'hyworld2-target-0',start:[0,0,0]},{profile:'builder',actor:'test'});
+    expect(approach).toMatchObject({success:true,result:{status:'approach-ready',id:'semantic-instance:hyworld2-target-0',approach:[0,0,1],targetCenter:[0,0,1.7]}});
+    expect(approach.result.maxSnapDistance).toBeCloseTo(1.22,6);
+    expect(approach.result.standoffDistance).toBeCloseTo(.7,6);
+    expect(r.listObjects()).toEqual([]);
+  });
+
+it('carries an observation-anchored WorldIR proposal unchanged from Agent proposal into canonical execution',async()=>{
+  const r=runtime();
+  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
+  const proposed=await registry.invoke('proposeWorldIR',{proposal:{
+    intent:{name:'Generated Garden',task:'put a cup near the bench'},
+    entities:[{id:'cup_01',asset:{assetId:'cup'}}],
+    spatial:{relations:[{subject:'cup_01',predicate:'NEAR',anchor:{kind:'observation',label:'bench'}}]},
+    interactions:[],rules:[],acceptance:[]
+  }},{profile:'viewer',actor:'planner-test'});
+  expect(proposed).toMatchObject({success:true,result:{status:'world-proposal-ready',worldIR:{spatial:{relations:[{subject:'cup_01',predicate:'NEAR',anchor:{kind:'observation',label:'bench'}}]}}}});
+  r.pipeline.run=vi.fn(async(plan)=>{
+    expect(plan.spatial.relations[0]).toEqual({subject:'cup_01',predicate:'NEAR',anchor:{kind:'observation',label:'bench'}});
+    return {state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]};
+  });
+  const executed=await registry.invoke('runWorldPipeline',{plan:proposed.result.worldIR},{profile:'builder',actor:'planner-test'});
+  expect(executed).toMatchObject({success:true,result:{status:'world-ready',admission:{status:'ready'}}});
+  expect(r.pipeline.run).toHaveBeenCalledOnce();
+});
+
+it('exposes one bounded generated-hybrid-world product entry without model-owned runtime evidence',async()=>{
+  const r=runtime();
+  const promptHybridWorldOrchestrator={run:vi.fn(async(request)=>({status:'world-ready',worldRevisionId:'runtime-issued',request}))};
+  const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder,promptHybridWorldOrchestrator});
+  const def=registry.definitions().find((item)=>item.name==='buildGeneratedHybridWorld');
+  expect(def.parameters).toMatchObject({type:'object',additionalProperties:false,required:['request']});
+  expect(Object.keys(def.parameters.properties)).toEqual(['request']);
+  expect(def.parameters.properties.request).toMatchObject({
+    type:'object',additionalProperties:false,required:['environmentPrompt','proposal'],
+    properties:{environmentPrompt:{type:'string'},proposal:{type:'object'}}
+  });
+  expect(def.parameters.properties.request.properties).not.toHaveProperty('revision');
+  expect(def.parameters.properties.request.properties).not.toHaveProperty('provenance');
+  expect(def.parameters.properties.request.properties).not.toHaveProperty('job');
+  expect(def.parameters.properties.request.properties).not.toHaveProperty('artifact');
+  expect(def.parameters.properties.request.properties).not.toHaveProperty('spawn');
+  expect(def.parameters.properties.request.properties.proposal.properties).not.toHaveProperty('revision');
+  expect(def.parameters.properties.request.properties.proposal.properties).not.toHaveProperty('provenance');
+  expect(registry.executionPolicy('buildGeneratedHybridWorld')).toMatchObject({mutates:true,history:false,barrier:true,batchable:false});
+
+  const request={
+    environmentPrompt:'a compact garden',
+    proposal:{intent:{name:'Garden'},entities:[{id:'cup_01',asset:{assetId:'cup'}}],spatial:{relations:[{subject:'cup_01',predicate:'NEAR',anchor:{kind:'observation',label:'bench'}}]},interactions:[],rules:[],acceptance:[]}
+  };
+  const called=await registry.invoke('buildGeneratedHybridWorld',{request},{profile:'builder',actor:'planner-test'});
+  expect(called).toMatchObject({success:true,result:{status:'world-ready',worldRevisionId:'runtime-issued'}});
+  expect(promptHybridWorldOrchestrator.run).toHaveBeenCalledWith(request);
+  expect(r.mutate).not.toHaveBeenCalled();
+  expect(registry.executionPolicy('buildGeneratedHybridWorld',called.result).outcome).toMatchObject({state:'verified',verified:true,status:'world-ready'});
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { composeNearPlacement, composeWorldLayout, manifestFootprint, preflightWorldPosition } from '../../world/compiler/WorldComposer.js';
+import { composeNearPlacement, composeObservedNearPlacement, composeWorldLayout, manifestFootprint, preflightWorldPosition } from '../../world/compiler/WorldComposer.js';
 
 const box=(id,h=[.5,.5,.5])=>({id,physics:{body:'fixed',colliders:[{shape:'box',halfExtents:h,translation:[0,h[1],0]}]}});
 
@@ -90,3 +90,22 @@ it('preflights an existing object pose against bounds, occupied footprints, and 
   })).toMatchObject({checked:true,clear:false,status:'rejected',reason:'BATCH_FOOTPRINT_OVERLAP'});
   expect(preflightWorldPosition(moving,[3.8,.01,0],{layout,occupied:[],poseClear})).toMatchObject({checked:true,clear:false,reason:'OUTSIDE_LAYOUT_BOUNDS'});
 });
+
+it('plans observation-anchored placement only when live Environment physics accepts the pose',()=>{
+    const manifest={physics:{body:'dynamic',colliders:[{shape:'cylinder',radius:.15,halfHeight:.16,translation:[0,.16,0]}]}};
+    const observation={id:'hyworld2-target-1',label:'bench',localization:{kind:'point-scale',center:[0,0,0],scale:.2}};
+    const tried=[];
+    const result=composeObservedNearPlacement(manifest,observation,{
+      layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5},
+      poseClear:(_manifest,position)=>{tried.push(position);return {checked:true,clear:position[0]<0,blockedBy:position[0]<0?[]:['environment:garden']};}
+    });
+    expect(result).toMatchObject({checked:true,status:'ready',observationId:'hyworld2-target-1',collisionVerified:true,mode:'observation-auto'});
+    expect(result.position[0]).toBeLessThan(0);
+    expect(result.position[1]).toBeCloseTo(.01,6);
+    expect(tried.length).toBeGreaterThan(1);
+  });
+
+  it('rejects observation placement when localization is unavailable instead of guessing',()=>{
+    const manifest={physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.2,.2,.2]}]}};
+    expect(composeObservedNearPlacement(manifest,{id:'category-only'}, {layout:{bounds:{min:[-2,-2],max:[2,2]},groundY:0},poseClear:()=>({checked:true,clear:true})})).toMatchObject({checked:false,reason:'OBSERVATION_LOCALIZATION_UNAVAILABLE'});
+  });

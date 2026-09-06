@@ -6,8 +6,6 @@ it('disposes objects without rebuilding semantic relations during teardown', () 
   const object = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
   const store = new Map([['a', { object }]]);
   const runtime = {
-    running:true,
-    _resize:()=>{},
     store:{ list:()=>[...store], delete:(id)=>store.delete(id) },
     physics:{ remove:vi.fn(), dispose:vi.fn() },
     navigation:{ dispose:vi.fn() },
@@ -19,10 +17,7 @@ it('disposes objects without rebuilding semantic relations during teardown', () 
     events:{ clear:vi.fn() }
   };
   const navigationDispose = runtime.navigation.dispose;
-  const oldWindow = globalThis.window;
-  globalThis.window = { removeEventListener:vi.fn() };
-  try { WorldRuntime.prototype.dispose.call(runtime); }
-  finally { globalThis.window = oldWindow; }
+  WorldRuntime.prototype.dispose.call(runtime);
   expect(runtime.interactions.cancelPending).toHaveBeenCalledWith('RUNTIME_DISPOSED');
   expect(runtime.sceneGraph.reset).toHaveBeenCalledOnce();
   expect(runtime.sceneGraph.update).not.toHaveBeenCalled();

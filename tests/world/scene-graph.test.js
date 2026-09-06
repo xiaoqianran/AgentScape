@@ -91,4 +91,79 @@ describe('SceneGraph', () => {
     expect(snapshot).toHaveBeenCalledTimes(2);
   });
 
+
+  it('derives generated Environment category semantics as SceneGraph facts without creating Objects', () => {
+    const store = new ObjectStore();
+    const graph = new SceneGraph({ store, spatial:new SpatialSystem({ store }) });
+    graph.setEnvironmentSemantics('garden-v1', {
+      schemaVersion:1,granularity:'category',categories:['tree','bench','Door','bench'],instances:[],
+      provenance:{kind:'hyworld2-object-labels',source:'../objects.json'}
+    });
+    graph.update();
+    expect(store.list()).toHaveLength(0);
+    expect(graph.list({subject:'environment:garden-v1',predicate:'HAS_CATEGORY'})).toEqual([
+      expect.objectContaining({object:'semantic-category:tree',meta:expect.objectContaining({label:'tree',granularity:'category',sourceKind:'runtime-semantics-v1'})}),
+      expect.objectContaining({object:'semantic-category:bench',meta:expect.objectContaining({label:'bench'})}),
+      expect.objectContaining({object:'semantic-category:door',meta:expect.objectContaining({label:'Door',provenance:{kind:'hyworld2-object-labels',source:'../objects.json'}})})
+    ]);
+  });
+
+  it('preserves Environment facts while object-derived relations rebuild', () => {
+    const store = new ObjectStore();
+    const graph = new SceneGraph({ store, spatial:new SpatialSystem({ store }) });
+    graph.setEnvironmentSemantics('garden-v1', ['bench']);
+    const a = mesh([1,1,1], [0,0,0], 'a');
+    const b = mesh([1,1,1], [1,0,0], 'b');
+    store.add('a', { id:'a', assetId:'a', object:a, manifest:{ actions:[] } });
+    store.add('b', { id:'b', assetId:'b', object:b, manifest:{ actions:[] } });
+    graph.changed();
+    expect(graph.list({predicate:'HAS_CATEGORY'})).toHaveLength(1);
+    expect(graph.list({subject:'a',predicate:'NEAR',object:'b'})).toHaveLength(1);
+    store.delete('b'); graph.changed();
+    expect(graph.list({predicate:'HAS_CATEGORY'})).toHaveLength(1);
+    expect(graph.list({predicate:'NEAR'})).toHaveLength(0);
+  });
+
+  it('admits only evidenced semantic instances and keeps them outside ObjectStore', () => {
+    const store = new ObjectStore();
+    const graph = new SceneGraph({ store, spatial:new SpatialSystem({ store }) });
+    graph.setEnvironmentSemantics('garden-v1', {
+      schemaVersion:1,granularity:'instance',categories:['bench'],
+      instances:[
+        {id:'bench_01',label:'bench',center:[1,0,2],bbox:{min:[0.5,0,1.5],max:[1.5,1,2.5]},confidence:0.92},
+        {id:'door_missing_bbox',label:'door',center:[0,0,0]}
+      ],
+      provenance:{kind:'provider-instance-evidence',source:'instances.json'}
+    });
+    expect(store.list()).toHaveLength(0);
+    expect(graph.list({subject:'environment:garden-v1',predicate:'HAS_INSTANCE'})).toEqual([
+      expect.objectContaining({
+        object:'semantic-instance:bench_01',
+        meta:expect.objectContaining({id:'bench_01',label:'bench',center:[1,0,2],bbox:{min:[0.5,0,1.5],max:[1.5,1,2.5]},confidence:0.92})
+      })
+    ]);
+    expect(graph.list({subject:'semantic-instance:bench_01',predicate:'INSTANCE_OF'})).toEqual([
+      expect.objectContaining({object:'semantic-category:bench',meta:expect.objectContaining({label:'bench'})})
+    ]);
+    expect(graph.list({predicate:'HAS_INSTANCE'}).some((edge)=>edge.object.includes('door_missing_bbox'))).toBe(false);
+  });
+
+
+  it('keeps point-scale observed instances as semantic facts outside ObjectStore', () => {
+    const store=new ObjectStore();
+    const graph=new SceneGraph({store,spatial:new SpatialSystem({store})});
+    graph.setEnvironmentSemantics('garden-v1',{
+      schemaVersion:2,granularity:'instance',categories:['door'],
+      instances:[{id:'hyworld2-target-4',label:'door',confidence:.95,localization:{kind:'point-scale',center:[1,0,2],scale:.47},evidence:{sourceId:4,rank:1}}],
+      provenance:{kind:'hyworld2-sam3-depth-targets'}
+    });
+    const facts=graph.list({subject:'environment:garden-v1',predicate:'HAS_INSTANCE'});
+    expect(facts).toHaveLength(1);
+    expect(facts[0]).toMatchObject({
+      object:'semantic-instance:hyworld2-target-4',
+      meta:{id:'hyworld2-target-4',label:'door',confidence:.95,localization:{kind:'point-scale',center:[1,0,2],scale:.47},evidence:{sourceId:4,rank:1},sourceKind:'runtime-semantics-v2'}
+    });
+    expect(store.has('semantic-instance:hyworld2-target-4')).toBe(false);
+  });
+
 });

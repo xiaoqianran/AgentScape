@@ -1,6 +1,9 @@
+import { composeObservedNearPlacement } from '../../../world/compiler/WorldComposer.js';
+import { listObservedEntities, resolveObservedEntity } from '../../../world/runtime/ObservedEntity.js';
 import { meta, string, number, vec3 } from '../skillPrimitives.js';
 
 export function registerSpatialSkills(add,runtime) {
+  const observedEntity=(id)=>resolveObservedEntity(runtime.sceneGraph,{id}).entity;
   add('getBounds', meta('获取对象的世界空间包围盒。', ['spatial.read'], ['id'], { id: string }), (a) => runtime.spatial.getBounds(a.id));
   add('findNearby', meta('查询对象附近的其他对象。', ['spatial.read'], ['id'], { id: string, radius: { type: 'number', minimum: 0 } }), (a) => runtime.spatial.findNearby(a.id, a.radius ?? 2));
   add('raycast', meta('向场景发射射线并返回命中对象。', ['spatial.read'], ['origin', 'direction'], { origin: vec3, direction: vec3, maxDistance: { type: 'number', minimum: 0 } }), (a) => runtime.spatial.raycast(a.origin, a.direction, a.maxDistance ?? 100));
@@ -17,6 +20,35 @@ export function registerSpatialSkills(add,runtime) {
   add('getLocomotionStatus', meta('读取 Agent Body 当前或最近一次 locomotion 状态。', ['world.read', 'physics.read'], ['id'], { id:string }), (a) => runtime.locomotion.status(a.id));
   add('findInteractionPose', meta('只读诊断/预览：按 Runtime 固定 1.5m 交互距离，为 Agent 与目标寻找满足当前 navigation backend 可达和 physics scene-query 视线的交互位；可选 action/partName 时排除 Agent 阻挡 articulation sweep 的位姿。若目标是实际走过去并 open/close，应直接调用 approachAndInteract，不要手工拆链。', ['spatial.read', 'physics.read'], ['actorId','targetId'], { actorId:string, targetId:string, action:{type:'string',enum:['open','close']}, partName:string }), (a) => runtime.interactions.findInteractionPose(a.actorId, a.targetId, { action:a.action, partName:a.partName }));
   add('getNavigationStatus', meta('读取 NavMesh 派生状态、构建版本与 Agent 导航配置。', ['spatial.read']), () => runtime.navigation.status());
+  add('listObservedEntities', meta('列出 Generated World 中仅用于感知/导航的语义实例证据；这些实例不是 ObjectStore 对象，也不代表可抓取、可打开或其他已验证能力。', ['world.read','spatial.read'], [], { label:string }), (a) => {
+    const label=typeof a.label==='string' ? a.label.trim().toLocaleLowerCase() : '';
+    return listObservedEntities(runtime.sceneGraph,{label});
+  });
+  add('getObservedEntity', meta('读取一个 Generated World 语义实例的观测证据；返回值仍不是 executable Object。', ['world.read','spatial.read'], ['id'], { id:string }), (a) => observedEntity(a.id));
+  add('planAssetNearObservedEntity', meta('为已注册资产规划一个靠近 Generated World 观测实例、且经当前 Physics Environment 碰撞预检通过的位置。这里只规划，不实例化；真正生成对象仍必须调用 spawnAsset。', ['asset.read','world.read','spatial.read'], ['assetId','id'], { assetId:string, id:string, distance:{type:'number',minimum:0}, maxDistance:{type:'number',minimum:0} }), (a) => {
+    const observed=observedEntity(a.id);
+    if (!observed) return {status:'observed-entity-missing',id:a.id};
+    const manifest=runtime.assets.getManifest(a.assetId);
+    const result=composeObservedNearPlacement(manifest,observed,{
+      layout:runtime.environment?.layout,
+      poseClear:(candidate,position)=>runtime.physics.manifestPoseClear(candidate,position),
+      distance:a.distance,maxDistance:a.maxDistance
+    });
+    return result.checked ? {...result,status:'placement-ready',assetId:a.assetId,observedEntityId:observed.id,observationId:observed.observationId} : {...result,status:'placement-rejected',assetId:a.assetId,observedEntityId:observed.id,observationId:observed.observationId};
+  });
+  add('findObservedEntityApproach', meta('为 Generated World 观测实例寻找 Recast 可达的附近位置。语义中心只是感知证据，可能落在物体几何内；此工具只返回导航 approach，不把观测实例提升为 Runtime Object。', ['world.read','spatial.read'], ['id','start'], { id:string, start:vec3, maxSnapDistance:{type:'number',minimum:0} }), async (a) => {
+    const observed=observedEntity(a.id);
+    if (!observed) return {status:'observed-entity-missing',id:a.id};
+    const center=observed.localization?.kind==='point-scale' ? observed.localization.center : observed.center;
+    if (!Array.isArray(center) || center.length!==3 || !center.every(Number.isFinite)) return {status:'approach-unavailable',id:observed.id,reason:'LOCALIZATION_UNAVAILABLE'};
+    const scale=Number.isFinite(observed.localization?.scale) ? observed.localization.scale : 0;
+    const maxSnapDistance=Number.isFinite(a.maxSnapDistance) ? a.maxSnapDistance : Math.max(.75,Math.min(2,scale+.75));
+    const route=await runtime.navigation.findPath(a.start,center,{maxSnapDistance});
+    if (!route.reachable) return {status:'approach-unreachable',id:observed.id,observationId:observed.observationId,targetCenter:[...center],maxSnapDistance,route};
+    const approach=route.end?.snapped || route.path?.at?.(-1) || null;
+    const standoffDistance=Array.isArray(approach) ? Number(Math.hypot(approach[0]-center[0],approach[1]-center[1],approach[2]-center[2]).toFixed(3)) : null;
+    return {status:'approach-ready',id:observed.id,observationId:observed.observationId,targetCenter:[...center],approach,maxSnapDistance,standoffDistance,route};
+  });
   add('listRelations', meta('查询 ON、NEAR、INSIDE 等语义空间关系。', ['spatial.read'], [], { subject: string, predicate: string, object: string }), (a) => { runtime.sceneGraph.update(); return runtime.sceneGraph.list(a); });
   add('describeObjectRelations', meta('查询一个对象的全部语义空间关系。', ['spatial.read'], ['id'], { id: string }), (a) => { runtime.sceneGraph.update(); return runtime.sceneGraph.describe(a.id); });
 }
