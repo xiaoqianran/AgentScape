@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { attachGenerationRuntime } from '../../generation/orchestration/GenerationRuntime.js';
-import { createAssetModule } from '../../generation/orchestration/createAssetModule.js';
+import { createAssetModule } from '../../asset/AssetModule.js';
+import { createArtifactModule } from '../../generation/artifacts/ArtifactModule.js';
 import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
 
 const createRuntime=()=>new WorldRuntime({appendChild(){}},{environmentFactory:()=>null,assetModule:createAssetModule()});
@@ -18,11 +19,14 @@ describe('WorldRuntime generation boundary',()=>{
 
   it('attaches one GenerationRuntime without restoring legacy authoring surfaces',async()=>{
     const runtime=createRuntime();
-    const generation=attachGenerationRuntime(runtime,{connectorClient:null,compilerEndpoint:''});
+    const artifacts=createArtifactModule();
+    const generation=attachGenerationRuntime(runtime,{artifactModule:artifacts,connectorClient:null,compilerEndpoint:''});
     expect(runtime.generation).toBe(generation);
+    expect(runtime.assetModule.artifacts).toBeUndefined();
     expect(generation.assetCatalog).toBe(runtime.assetCatalog);
-    expect(generation.artifactRegistry).toBe(runtime.assetModule.artifactRegistry);
-    expect(generation.byteStore).toBe(runtime.assetModule.byteStore);
+    expect(generation.artifacts).toBe(artifacts);
+    expect(generation.artifactRegistry).toBe(artifacts.registry);
+    expect(generation.byteStore).toBe(artifacts.byteStore);
     expect(generation.publishAsset).toBe(runtime.assetModule.publishAsset);
     expect(generation.providerRegistry.listProviders()).toEqual([]);
     expect(runtime.authoring).toBeUndefined();

@@ -62,6 +62,7 @@ export class WorldRuntime {
     });
   }
   async init() {
+    await this.assetModule.hydrate?.();
     await this.physics.init();
     this.scene = new THREE.Scene();
     const renderingOptions = {

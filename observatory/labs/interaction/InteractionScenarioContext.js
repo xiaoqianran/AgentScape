@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { createAssetModule } from "../../../generation/orchestration/createAssetModule.js";
+import { createAssetModule } from "../../../asset/AssetModule.js";
 import { EventBus } from "../../../core/EventBus.js";
 import { ObjectStore } from "../../../world/runtime/ObjectStore.js";
 import { PhysicsSystem } from "../../../world/runtime/systems/PhysicsSystem.js";

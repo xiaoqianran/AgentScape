@@ -129,9 +129,6 @@ export class GenerationAgentScenarioContext {
 
     const generation = new GenerationRuntime({
       assetModule: runtime.assetModule,
-      assetManager: runtime.assets,
-      assetCatalog: runtime.assetCatalog,
-      compiledAssetStore: runtime.compiledAssetStore,
       events: runtime.events,
       version: this.backendId === "fixture" ? "observatory-fixture-v1" : "observatory-connector-smoke-v1",
       connectorClient: this.connector
@@ -350,4 +347,3 @@ export class GenerationAgentScenarioContext {
     this.world.dispose();
   }
 }
-

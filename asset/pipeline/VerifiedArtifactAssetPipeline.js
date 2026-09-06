@@ -1,7 +1,7 @@
-import { assetAdmission } from '../../asset/admission.js';
-import { validateAssetManifest } from '../../asset/schema.js';
-import { requireSafeArtifactId } from '../artifacts/ArtifactDescriptor.js';
-import { createAssetRef } from '../../asset/AssetRef.js';
+import { assetAdmission } from '../admission.js';
+import { validateAssetManifest } from '../schema.js';
+import { requireSafeArtifactId } from '../../generation/artifacts/ArtifactDescriptor.js';
+import { createAssetRef } from '../AssetRef.js';
 
 const SAFE_ASSET_ID=/^[A-Za-z0-9_-]{1,160}$/;
 const CONTROL_RE=/[\u0000-\u001f\u007f]/;
@@ -74,7 +74,7 @@ function buildProvenance({artifact,assetId,admission}) {
 }
 
 export class VerifiedArtifactAssetPipeline {
-  constructor({artifactRegistry,byteStore,assetCompiler,assetManager,events=null,now=()=>Date.now(),idFactory=defaultIdFactory}={}) {
+  constructor({artifactRegistry,byteStore,assetCompiler,assetManager,onManifestRegistered=null,events=null,now=()=>Date.now(),idFactory=defaultIdFactory}={}) {
     if (!artifactRegistry?.get || !artifactRegistry?.acquireLease || !artifactRegistry?.releaseLease) {
       throw new AssetProductionError('ASSET_PIPELINE_INVALID','VerifiedArtifactAssetPipeline requires ArtifactRegistry');
     }
@@ -85,6 +85,7 @@ export class VerifiedArtifactAssetPipeline {
     this.byteStore=byteStore;
     this.assetCompiler=assetCompiler;
     this.assetManager=assetManager;
+    this.onManifestRegistered=typeof onManifestRegistered==='function'?onManifestRegistered:null;
     this.events=events;
     this.now=now;
     this.idFactory=idFactory;
@@ -220,6 +221,7 @@ export class VerifiedArtifactAssetPipeline {
           artifactId:input.artifact.id,assetId:input.assetId,cause:error?.code||error?.name||'Error'
         });
       }
+      if (registered && this.onManifestRegistered) await this.onManifestRegistered(manifest);
       const status=admission.status==='ready'?'asset-ready':'asset-provisional';
       const result={
         status,stage:'registered',registered:Boolean(registered),
@@ -240,7 +242,7 @@ export class VerifiedArtifactAssetPipeline {
 
 
 export function createAssetPublisher({
-  artifactRegistry, byteStore, getAssetCompiler, assetManager, events = null,
+  artifactRegistry, byteStore, getAssetCompiler, assetManager, onManifestRegistered = null, events = null,
   now = () => Date.now(), idFactory = defaultIdFactory
 } = {}) {
   if (typeof getAssetCompiler !== 'function') {
@@ -251,7 +253,7 @@ export function createAssetPublisher({
     if (!pipeline) {
       const assetCompiler = await getAssetCompiler();
       pipeline = new VerifiedArtifactAssetPipeline({
-        artifactRegistry, byteStore, assetCompiler, assetManager, events, now, idFactory
+        artifactRegistry, byteStore, assetCompiler, assetManager, onManifestRegistered, events, now, idFactory
       });
     }
     const result = await pipeline.produce(request);
@@ -261,3 +263,4 @@ export function createAssetPublisher({
     return result;
   };
 }
+

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import * as THREE from 'three';
 
-import { createAssetModule } from '../../../generation/orchestration/createAssetModule.js';
+import { createAssetModule } from '../../../asset/AssetModule.js';
 import { assetManifests } from '../../../asset/manifests/index.js';
 import { WorldRuntime } from '../../../world/runtime/WorldRuntime.js';
 import { ObjectStore } from '../../../world/runtime/ObjectStore.js';

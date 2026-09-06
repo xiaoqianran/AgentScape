@@ -13,6 +13,13 @@ const syncLiveVerification = (runtime, assetId, manifest) => {
   }
 };
 
+const registerManifest = async (runtime, manifest, options = {}) => {
+  if (typeof runtime.assetModule?.registerManifest === 'function') {
+    return runtime.assetModule.registerManifest(manifest, options);
+  }
+  return runtime.assets.registerManifest(manifest, options);
+};
+
 export function registerAssetSkills(add,runtime) {
   add('compileAsset', {
     ...meta('把 GLB 编译为可运行的 Agent 资产。', ['asset.write'], [], { url:string, sourceName:string, assetId:string, label:string, partProposal:{type:'object'}, partSegmentation:{type:'object'} }),
@@ -21,7 +28,7 @@ export function registerAssetSkills(add,runtime) {
     const compiler = await runtime.generation?.getAssetCompiler?.();
     if (!compiler) throw Object.assign(new Error('Asset Compiler is not configured'), { code:'ASSET_COMPILER_UNAVAILABLE' });
     const result = await compiler.compile(input);
-    runtime.assets.registerManifest(result.manifest);
+    await registerManifest(runtime, result.manifest);
     runtime.events.emit('asset.compiled', { assetId: result.manifest.id, report: result });
     return result;
   });
@@ -35,7 +42,7 @@ export function registerAssetSkills(add,runtime) {
       if (!report.ok) quality.advisory.push({ code: 'ARTICULATION_VERIFICATION_FAILED', message: '可执行 Part/Joint 未通过运行时运动轨迹验证。' });
       quality.status = quality.hard?.length ? 'rejected' : quality.advisory.length ? 'provisional' : 'ready';
     }
-    runtime.assets.registerManifest(manifest, { replace: true });
+    await registerManifest(runtime, manifest, { replace: true });
     syncLiveVerification(runtime, a.assetId, manifest);
     const admission=assetAdmission(manifest);
     runtime.events.emit('asset.verified', { assetId: a.assetId, articulation: report, admission:admission.status });

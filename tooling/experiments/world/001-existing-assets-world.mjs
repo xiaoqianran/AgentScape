@@ -1,4 +1,4 @@
-import { createAssetModule } from '../../../generation/orchestration/createAssetModule.js';
+import { createAssetModule } from '../../../asset/AssetModule.js';
 import { createCanonicalWorldPipeline } from '../../../world/compiler/createWorldPipeline.js';
 
 const manifest = (id, type, halfExtents) => ({

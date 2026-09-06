@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { createProviderRegistry } from '../../generation/providers/ProviderRegistry.js';
 import { GenerationOrchestrator } from '../../generation/orchestration/GenerationOrchestrator.js';
-import { createAssetModule } from '../../generation/orchestration/createAssetModule.js';
+import { createArtifactModule } from '../../generation/artifacts/ArtifactModule.js';
 
 const enc=(v)=>new TextEncoder().encode(v);
 const sha=(b)=>`sha256:${createHash('sha256').update(b).digest('hex')}`;
@@ -52,8 +52,8 @@ it('composes text-to-image and image-to-world and imports the complete verified 
     throw new Error(`unexpected ${path}`);
   };
   const connectorClient={request,session:()=>({status:'paired',connector:{id:'connector',instance:'i1',version:'1'}})};
-  const assetModule=createAssetModule();
-  const orchestrator=new GenerationOrchestrator({providerRegistry:registry(),connectorClient,artifactRegistry:assetModule.artifactRegistry,byteStore:assetModule.byteStore,pollIntervalMs:0});
+  const artifacts=createArtifactModule();
+  const orchestrator=new GenerationOrchestrator({providerRegistry:registry(),connectorClient,artifactRegistry:artifacts.registry,byteStore:artifacts.byteStore,pollIntervalMs:0});
   expect(orchestrator.canGenerateTextWorld()).toBe(true);
   const result=await orchestrator.generateTextWorldArtifacts({prompt:'a compact Japanese garden'});
   expect(result).toMatchObject({status:'world-artifacts-ready',route:{kind:'text-image-world',image:{provider:'modal-2d'},world:{provider:'modal-world'}},jobs:{image:'job_image',world:'job_world'}});

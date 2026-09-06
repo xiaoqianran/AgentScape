@@ -21,13 +21,13 @@ const safeId=()=>{
   return `world-${id}`;
 };
 
-function cachedBytes(runtime, imported, role) {
+function cachedBytes(byteStore, imported, role) {
   if (!imported?.artifact || imported.artifact.integrity!=='verified' || !imported.cacheKey) {
     const error=new Error(`Generated World ${role} is not a verified local artifact`);
     error.code='GENERATED_WORLD_ARTIFACT_UNVERIFIED';
     throw error;
   }
-  const entry=runtime.assetModule?.byteStore?.get?.(imported.cacheKey);
+  const entry=byteStore?.get?.(imported.cacheKey);
   if (!entry?.data) {
     const error=new Error(`Generated World ${role} bytes are unavailable`);
     error.code='GENERATED_WORLD_ARTIFACT_BYTES_UNAVAILABLE';
@@ -53,14 +53,14 @@ function parseManifest(bytes) {
   return value;
 }
 
-export async function materializeImportedWorldEnvironment(runtime,generationResult) {
+export async function materializeImportedWorldEnvironment(runtime,generationResult,{byteStore=runtime.generation?.artifacts?.byteStore || null}={}) {
   const artifacts=generationResult?.artifacts || {};
-  const manifestBytes=cachedBytes(runtime,artifacts['world-manifest'],'world-manifest');
+  const manifestBytes=cachedBytes(byteStore,artifacts['world-manifest'],'world-manifest');
   const manifest=parseManifest(manifestBytes);
-  const mesh=cachedBytes(runtime,artifacts['world-mesh'],'world-mesh');
-  const semantics=cachedBytes(runtime,artifacts['world-semantics'],'world-semantics');
-  const visual=cachedBytes(runtime,artifacts['world-visual'],'world-visual');
-  const navigation=artifacts['world-navigation'] ? cachedBytes(runtime,artifacts['world-navigation'],'world-navigation') : null;
+  const mesh=cachedBytes(byteStore,artifacts['world-mesh'],'world-mesh');
+  const semantics=cachedBytes(byteStore,artifacts['world-semantics'],'world-semantics');
+  const visual=cachedBytes(byteStore,artifacts['world-visual'],'world-visual');
+  const navigation=artifacts['world-navigation'] ? cachedBytes(byteStore,artifacts['world-navigation'],'world-navigation') : null;
   return loadGeneratedWorld({
     id:manifest.id || 'generated-world',
     mesh:{data:mesh,format:artifacts['world-mesh'].artifact.format},
@@ -105,6 +105,7 @@ export class PromptHybridWorldOrchestrator {
   constructor(runtime,{
     worldBuilder=new WorldBuilder(runtime),
     generateWorldArtifacts=null,
+    artifactByteStore=runtime.generation?.artifacts?.byteStore || null,
     materializeEnvironment=materializeImportedWorldEnvironment,
     revisionIdFactory=safeId
   }={}) {
@@ -117,6 +118,7 @@ export class PromptHybridWorldOrchestrator {
       }
       return runtime.generation.generateTextWorldArtifacts(request);
     });
+    this.artifactByteStore=artifactByteStore;
     this.materializeEnvironment=materializeEnvironment;
     this.revisionIdFactory=revisionIdFactory;
   }
@@ -136,7 +138,7 @@ export class PromptHybridWorldOrchestrator {
       error.code='GENERATED_WORLD_ARTIFACTS_NOT_READY';
       throw error;
     }
-    const nextEnvironment=await this.materializeEnvironment(this.runtime,generation);
+    const nextEnvironment=await this.materializeEnvironment(this.runtime,generation,{byteStore:this.artifactByteStore});
     const runtime=this.runtime;
     let transactionStarted=false;
     try {

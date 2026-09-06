@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { ArtifactRegistry } from '../../../generation/artifacts/ArtifactRegistry.js';
 import { MemoryArtifactByteStore } from '../../../generation/artifacts/MemoryArtifactByteStore.js';
 import { AssetCompiler } from '../../../asset/compiler/AssetCompiler.js';
-import { createAssetModule } from '../../../generation/orchestration/createAssetModule.js';
+import { createAssetModule } from '../../../asset/AssetModule.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const candidates = [

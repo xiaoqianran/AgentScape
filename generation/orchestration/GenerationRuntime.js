@@ -1,4 +1,5 @@
 import { HttpCompilerProvider } from '../../asset/compiler/providers/HttpCompilerProvider.js';
+import { createArtifactModule } from '../artifacts/ArtifactModule.js';
 import { ConnectorClient } from '../connector/ConnectorClient.js';
 import { ProviderRegistry } from '../providers/ProviderRegistry.js';
 import { GenerationOrchestrator } from './GenerationOrchestrator.js';
@@ -12,9 +13,7 @@ const generatedAssetId=(prompt,instanceId='')=>{
 export class GenerationRuntime extends GenerationOrchestrator {
   constructor({
     assetModule,
-    assetManager,
-    assetCatalog,
-    compiledAssetStore,
+    artifactModule=null,
     events=null,
     version='dev',
     compilerProvider=null,
@@ -27,9 +26,13 @@ export class GenerationRuntime extends GenerationOrchestrator {
     if (!assetModule?.configurePublication || typeof assetModule.publishAsset !== 'function') {
       throw new TypeError('GenerationRuntime requires AssetModule publication boundary');
     }
+    const assetManager=assetModule.manager;
+    const assetCatalog=assetModule.catalog;
+    const compiledAssetStore=assetModule.compiledStore;
     if (!assetManager?.getManifest || !assetCatalog?.resolveExisting || !compiledAssetStore) {
-      throw new TypeError('GenerationRuntime requires AssetManager, AssetCatalog, and CompiledAssetStore');
+      throw new TypeError('GenerationRuntime requires a complete AssetModule');
     }
+    const artifacts=artifactModule || createArtifactModule();
 
     const providers=providerRegistry || new ProviderRegistry();
     let connector=connectorClient;
@@ -53,22 +56,29 @@ export class GenerationRuntime extends GenerationOrchestrator {
       return assetCompiler;
     };
 
-    assetModule.configurePublication({getAssetCompiler,events});
+    assetModule.configurePublication({artifacts,getAssetCompiler,events});
     super({
       providerRegistry:providers,
       connectorClient:connector,
-      artifactRegistry:assetModule.artifactRegistry,
-      byteStore:assetModule.byteStore,
+      artifactRegistry:artifacts.registry,
+      byteStore:artifacts.byteStore,
       publishAsset:assetModule.publishAsset,
+      persistArtifact:(artifactId,cacheKey)=>artifacts.persistArtifact?.(artifactId,cacheKey),
       events,
       ...orchestratorOptions
     });
 
+    this.artifacts=artifacts;
     this.assetManager=assetManager;
     this.assetCatalog=assetCatalog;
     this.compilerProvider=compiler;
     this.connectorError=connectorError;
     this.getAssetCompiler=getAssetCompiler;
+  }
+
+  async initialize(options={}) {
+    await this.artifacts.hydrate?.();
+    return super.initialize(options);
   }
 
   setCompilerEndpoint(endpoint='') {
@@ -126,9 +136,6 @@ export function attachGenerationRuntime(runtime,options={}) {
   if (runtime.generation) return runtime.generation;
   const generation=new GenerationRuntime({
     assetModule:runtime.assetModule,
-    assetManager:runtime.assets,
-    assetCatalog:runtime.assetCatalog,
-    compiledAssetStore:runtime.compiledAssetStore,
     events:runtime.events,
     version:runtime.version,
     ...options

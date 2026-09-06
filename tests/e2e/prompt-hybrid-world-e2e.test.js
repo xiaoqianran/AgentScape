@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { createAssetModule } from '../../generation/orchestration/createAssetModule.js';
+import { createAssetModule } from '../../asset/AssetModule.js';
+import { createArtifactModule } from '../../generation/artifacts/ArtifactModule.js';
 import { loadGeneratedWorld } from '../../world/loadGeneratedWorld.js';
 import { PromptHybridWorldOrchestrator } from '../../generation/orchestration/PromptHybridWorldOrchestrator.js';
 import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
@@ -16,7 +17,7 @@ const semantics=(label='bench')=>text(JSON.stringify({schemaVersion:2,categories
 
 const hash=(bytes)=>`sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 
-async function seedImportedGeneration(runtime,label='bench'){
+async function seedImportedGeneration(artifactByteStore,label='bench'){
   const manifestBytes=text(JSON.stringify({
     schemaVersion:1,id:'generated-garden',coordinateSystem:'y-up',metersPerUnit:1,
     layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5},
@@ -36,7 +37,7 @@ async function seedImportedGeneration(runtime,label='bench'){
     const artifactId=`p5_${role.replaceAll('-','_')}_${label}`;
     const cacheKey=`cache_${role.replaceAll('-','_')}_${label}`;
     const digest=hash(data);
-    const writer=runtime.assetModule.byteStore.begin({artifactId,maxBytes:data.byteLength});
+    const writer=artifactByteStore.begin({artifactId,maxBytes:data.byteLength});
     await writer.write(data);
     await writer.commit({key:cacheKey,hash:digest,mime,bytes:data.byteLength});
     artifacts[role]={
@@ -77,6 +78,7 @@ const generationResult=()=>({
 });
 
 async function runtimeFixture(){
+  const artifactModule=createArtifactModule();
   const runtime=new WorldRuntime({appendChild(){}},{environmentFactory:()=>null,assetModule:createAssetModule(),physicsFactory:createRapierPhysicsSystem});
   runtime.scene=new THREE.Scene(); await runtime.physics.init();
   runtime.rendering={applyEnvironment:vi.fn(),cameraState:()=>null};
@@ -85,7 +87,7 @@ async function runtimeFixture(){
   runtime.validator={run:()=>({ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:runtime.store.list().length,relations:runtime.sceneGraph.list().length}})};
   runtime.repair={repair:async()=>({})};
   const initial=oldEnvironment(); runtime.installEnvironment(initial); runtime.createEnvironmentSystems();
-  return {runtime,initial};
+  return {runtime,initial,artifactModule};
 }
 
 const proposal=(anchorLabel='bench')=>({
@@ -97,10 +99,10 @@ const proposal=(anchorLabel='bench')=>({
 
 describe('Prompt → Generated World → Hybrid WorldIR product E2E',()=>{
   it('uses the verified local ArtifactByteStore bundle through the default materializer before canonical world execution',async()=>{
-    const {runtime,initial}=await runtimeFixture();
-    const generation=await seedImportedGeneration(runtime,'bench');
+    const {runtime,initial,artifactModule}=await runtimeFixture();
+    const generation=await seedImportedGeneration(artifactModule.byteStore,'bench');
     const orchestrator=new PromptHybridWorldOrchestrator(runtime,{
-      generateWorldArtifacts:async()=>generation,revisionIdFactory:()=> 'world-product-byte-store'
+      generateWorldArtifacts:async()=>generation,artifactByteStore:artifactModule.byteStore,revisionIdFactory:()=> 'world-product-byte-store'
     });
     const result=await orchestrator.run({environmentPrompt:'a compact garden',proposal:proposal()});
     expect(result).toMatchObject({

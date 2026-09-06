@@ -60,8 +60,11 @@ WorldRuntime                 → world/runtime/WorldRuntime.js
 WorldSpec                    → world/spec/WorldSpec.js
 WorldComposer                → world/compiler/WorldComposer.js
 WorldValidator               → world/verification/WorldValidator.js
+AssetModule                  → asset/AssetModule.js
 AssetCompiler                → asset/compiler/AssetCompiler.js
+Artifact→Asset Pipeline      → asset/pipeline/VerifiedArtifactAssetPipeline.js
 EmbodiedGenAdapter           → asset/adapters/EmbodiedGenAdapter.js
+ArtifactModule               → generation/artifacts/ArtifactModule.js
 ArtifactRegistry             → generation/artifacts/ArtifactRegistry.js
 ConnectorClient              → generation/connector/ConnectorClient.js
 GenerationRuntime            → generation/orchestration/GenerationRuntime.js
@@ -83,5 +86,6 @@ AppShell                     → studio/ui/AppShell.js
 7. `tooling/` 只放 repository engineering；某个 domain 专属的工具应该留在对应 domain。
 8. unit test 可以逐步靠近 owner；根 `tests/` 主要承担 integration、contract、regression、e2e。
 9. `observatory/` 只能消费生产 Runtime contract；生产代码禁止 import `observatory/`，synthetic fixture 不得复制生产 Manifest/Schema。
+10. Artifact 与 Asset 必须保持独立所有权：`ArtifactModule` 管 Provider 产物，`AssetModule` 管可执行 Asset，二者只通过 Artifact→Asset publication pipeline 连接。
 
-`npm run architecture:validate` 会机械拒绝旧的 `src/ server/ tools/ scripts/ experiments/ ops/` 根目录回归，并验证 Core / Asset / World / Observatory 的关键依赖边界。
+`npm run architecture:validate` 会机械拒绝旧的 `src/ server/ tools/ scripts/ experiments/ ops/` 根目录回归，并验证 Core / Artifact / Asset / World / Observatory 的关键依赖边界。

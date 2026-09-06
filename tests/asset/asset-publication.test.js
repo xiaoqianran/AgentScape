@@ -1,9 +1,14 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { createAssetModule } from '../../generation/orchestration/createAssetModule.js';
+import { createAssetModule } from '../../asset/AssetModule.js';
+import { createArtifactModule } from '../../generation/artifacts/ArtifactModule.js';
 
 const NOW = Date.parse('2026-08-28T00:00:00.000Z');
 const sha = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+const harness = ({ manifestStore = null } = {}) => ({
+  module:createAssetModule({ manifests:{}, manifestStore, now:() => NOW }),
+  artifacts:createArtifactModule({ persistentStore:null, now:() => NOW })
+});
 
 const readyManifest = (id, label = 'Published Asset') => ({
   id,
@@ -21,14 +26,14 @@ const readyManifest = (id, label = 'Published Asset') => ({
   provenance: { compiler: 'publication-test' }
 });
 
-async function registerVerifiedGlb(module, {
+async function registerVerifiedGlb(artifacts, {
   id = 'artifact_publish_01',
   bytes = new Uint8Array([1, 2, 3, 4]),
   cacheKey = `${id}_cache`
 } = {}) {
   const hash = sha(bytes);
   const createdAt = new Date(NOW).toISOString();
-  module.artifactRegistry.register({
+  artifacts.registry.register({
     id,
     role: 'primary-glb',
     type: 'asset-bundle',
@@ -53,10 +58,10 @@ async function registerVerifiedGlb(module, {
     retention: { class: 'project' },
     locations: []
   });
-  const writer = module.byteStore.begin({ artifactId: id, maxBytes: bytes.byteLength });
+  const writer = artifacts.byteStore.begin({ artifactId: id, maxBytes: bytes.byteLength });
   await writer.write(bytes);
   await writer.commit({ key: cacheKey, hash, mime: 'model/gltf-binary', bytes: bytes.byteLength });
-  module.artifactRegistry.updateLocation(id, {
+  artifacts.registry.updateLocation(id, {
     id: `${id}_location`,
     kind: 'local-cache',
     scope: 'application',
@@ -64,7 +69,7 @@ async function registerVerifiedGlb(module, {
     verifiedAt: createdAt,
     access: { kind: 'cache-key', key: cacheKey }
   });
-  module.artifactRegistry.verifyIntegrity(id, {
+  artifacts.registry.verifyIntegrity(id, {
     hash,
     bytes: bytes.byteLength,
     mime: 'model/gltf-binary',
@@ -76,22 +81,24 @@ async function registerVerifiedGlb(module, {
 
 describe('Asset module publishAsset public API', () => {
   it('fails closed until composition configures the compiler', async () => {
-    const module = createAssetModule({ manifests: {}, now: () => NOW });
+    const { module, artifacts } = harness();
     await expect(module.publishAsset({ artifactId: 'artifact_missing', assetId: 'asset_missing' }))
       .rejects.toMatchObject({ code: 'ASSET_PUBLICATION_NOT_CONFIGURED' });
   });
 
   it('publishes a verified Artifact and returns the stable AssetRef', async () => {
-    const module = createAssetModule({ manifests: {}, now: () => NOW });
+    const manifestStore={put:vi.fn(async()=> 'asset_publish_01'),list:vi.fn(async()=>[])};
+    const { module, artifacts } = harness({manifestStore});
     const compile = vi.fn(async ({ assetId, label }) => ({
       manifest: readyManifest(assetId, label),
       quality: { status: 'ready', hard: [], advisory: [] }
     }));
     module.configurePublication({
+      artifacts,
       getAssetCompiler: async () => ({ compile }),
       idFactory: () => 'lease_publication_01'
     });
-    await registerVerifiedGlb(module);
+    await registerVerifiedGlb(artifacts);
 
     const result = await module.publishAsset({
       artifactId: 'artifact_publish_01',
@@ -113,19 +120,21 @@ describe('Asset module publishAsset public API', () => {
       assets: [{ id: 'asset_publish_01' }]
     });
     expect(compile).toHaveBeenCalledOnce();
+    expect(manifestStore.put).toHaveBeenCalledWith(expect.objectContaining({id:'asset_publish_01'}));
   });
 
   it('reuses identical publication without recompiling', async () => {
-    const module = createAssetModule({ manifests: {}, now: () => NOW });
+    const { module, artifacts } = harness();
     const compile = vi.fn(async ({ assetId }) => ({
       manifest: readyManifest(assetId),
       quality: { status: 'ready', hard: [], advisory: [] }
     }));
     module.configurePublication({
+      artifacts,
       getAssetCompiler: async () => ({ compile }),
       idFactory: () => 'lease_publication_reuse'
     });
-    await registerVerifiedGlb(module);
+    await registerVerifiedGlb(artifacts);
 
     const request = { artifactId: 'artifact_publish_01', assetId: 'asset_publish_reuse' };
     const first = await module.publishAsset(request);
@@ -142,18 +151,19 @@ describe('Asset module publishAsset public API', () => {
   });
 
   it('rejects a different Artifact trying to claim an existing assetId', async () => {
-    const module = createAssetModule({ manifests: {}, now: () => NOW });
+    const { module, artifacts } = harness();
     const compile = vi.fn(async ({ assetId }) => ({
       manifest: readyManifest(assetId),
       quality: { status: 'ready', hard: [], advisory: [] }
     }));
     module.configurePublication({
+      artifacts,
       getAssetCompiler: async () => ({ compile }),
       idFactory: () => 'lease_publication_conflict'
     });
-    await registerVerifiedGlb(module, { id: 'artifact_publish_01' });
+    await registerVerifiedGlb(artifacts, { id: 'artifact_publish_01' });
     await module.publishAsset({ artifactId: 'artifact_publish_01', assetId: 'asset_shared' });
-    await registerVerifiedGlb(module, {
+    await registerVerifiedGlb(artifacts, {
       id: 'artifact_publish_02',
       bytes: new Uint8Array([9, 8, 7, 6])
     });
@@ -164,8 +174,9 @@ describe('Asset module publishAsset public API', () => {
   });
 
   it('does not expose AssetRef or register when compilation is rejected', async () => {
-    const module = createAssetModule({ manifests: {}, now: () => NOW });
+    const { module, artifacts } = harness();
     module.configurePublication({
+      artifacts,
       getAssetCompiler: async () => ({
         compile: async () => {
           const error = new Error('quality rejected');
@@ -176,7 +187,7 @@ describe('Asset module publishAsset public API', () => {
       }),
       idFactory: () => 'lease_publication_rejected'
     });
-    await registerVerifiedGlb(module);
+    await registerVerifiedGlb(artifacts);
 
     const result = await module.publishAsset({
       artifactId: 'artifact_publish_01',

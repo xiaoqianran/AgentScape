@@ -62,6 +62,19 @@ export class MemoryArtifactByteStore {
   #entries=new Map();
   #hashIndex=new Map();
 
+  restore(entry={}) {
+    const key=requireSafeArtifactId(entry.key,'cacheKey');
+    const artifactId=requireSafeArtifactId(entry.artifactId);
+    const hash=normalizeArtifactHash(entry.hash);
+    const mime=String(entry.mime||'').trim().toLowerCase();
+    const bytes=Number(entry.bytes);
+    const data=entry.data instanceof Uint8Array ? new Uint8Array(entry.data) : null;
+    if (!mime || !Number.isSafeInteger(bytes) || bytes<0 || !data || data.byteLength!==bytes) {
+      throw new ArtifactContractError('ARTIFACT_BYTE_STORE_INVALID','Persisted Artifact cache entry is invalid',{key});
+    }
+    return this._commit(COMMIT_TOKEN,{key,artifactId,hash,mime,bytes,data});
+  }
+
   begin({artifactId,maxBytes}) {
     const limit=Number(maxBytes);
     if (!Number.isSafeInteger(limit)||limit<0) throw new ArtifactContractError('ARTIFACT_BYTES_LIMIT','Artifact byte store maxBytes must be a non-negative safe integer');

@@ -4,7 +4,7 @@ import { AgentTools } from '../../agent/AgentTools.js';
 import { SkillRegistry } from '../../agent/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../../agent/skills/registerCoreSkills.js';
 import { disposeObject3D } from '../../core/disposeObject3D.js';
-import { createAssetModule } from '../../generation/orchestration/createAssetModule.js';
+import { createAssetModule } from '../../asset/AssetModule.js';
 import { attachGenerationRuntime } from '../../generation/orchestration/GenerationRuntime.js';
 import { ConnectorClient } from '../../generation/connector/ConnectorClient.js';
 import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';

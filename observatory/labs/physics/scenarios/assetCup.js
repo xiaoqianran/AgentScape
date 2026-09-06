@@ -7,7 +7,7 @@ export const assetCupScenario = {
   inspect: "asset_cup_01",
   async setup(ctx) {
     ctx.addBox({ id: "floor", type: "fixed", position: [0, -0.1, 0], halfExtents: [5, 0.1, 4] });
-    const { createAssetModule } = await import("../../../../generation/orchestration/createAssetModule.js");
+    const { createAssetModule } = await import("../../../../asset/AssetModule.js");
     const assets = createAssetModule().manager;
     const { object, manifest } = await assets.instantiate("cup");
     ctx.addAssetInstance({ id: "asset_cup_01", assetId: "cup", object, manifest, position: [0, 4, 0] });

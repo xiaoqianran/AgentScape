@@ -4,7 +4,7 @@ import { registerCoreSkills } from "../../agent/skills/registerCoreSkills.js";
 import { assetAdmission } from "../../asset/admission.js";
 import { ConnectorClient } from "../../generation/connector/ConnectorClient.js";
 import { attachGenerationRuntime } from "../../generation/orchestration/GenerationRuntime.js";
-import { createAssetModule } from "../../generation/orchestration/createAssetModule.js";
+import { createAssetModule } from "../../asset/AssetModule.js";
 import { SpatialSystem } from "../../world/runtime/systems/SpatialSystem.js";
 import { NavigationSystem } from "../../world/runtime/systems/NavigationSystem.js";
 import { LocomotionSystem } from "../../world/runtime/systems/LocomotionSystem.js";

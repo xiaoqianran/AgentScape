@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { createAssetModule } from '../../generation/orchestration/createAssetModule.js';
+import { createAssetModule } from '../../asset/AssetModule.js';
 import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
 import { SceneGraph } from '../../world/runtime/graph/SceneGraph.js';
 import { SpatialSystem } from '../../world/runtime/systems/SpatialSystem.js';

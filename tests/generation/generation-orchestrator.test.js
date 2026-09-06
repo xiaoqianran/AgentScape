@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { AssetCompiler } from "../../asset/compiler/AssetCompiler.js";
 import { GenerationOrchestrator } from "../../generation/orchestration/GenerationOrchestrator.js";
 import { createProviderRegistry } from "../../generation/providers/ProviderRegistry.js";
-import { createAssetModule } from "../../generation/orchestration/createAssetModule.js";
+import { createAssetModule } from "../../asset/AssetModule.js";
+import { createArtifactModule } from "../../generation/artifacts/ArtifactModule.js";
 
 const operation="modal-3d.asset.text_to_3d.v1";
 const capabilityHash="sha256:cap01";
@@ -102,14 +103,17 @@ async function harness({remoteStatus="succeeded"}={}) {
   const compilerStore=new CompilerStore();
   const compiler=new AssetCompiler({store:compilerStore,version:"as09-test"});
   const now=()=>Date.parse("2026-08-25T00:01:00.000Z");
+  const artifacts=createArtifactModule({now});
   const assetModule=createAssetModule({manifests:{},compiledStore:compilerStore,now});
-  assetModule.configurePublication({getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_01"});
+  assetModule.configurePublication({artifacts,getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_01"});
+  const persistArtifact=vi.fn(async()=>true);
   const orchestrator=new GenerationOrchestrator({
     providerRegistry:providerRegistry(),connectorClient,
-    artifactRegistry:assetModule.artifactRegistry,byteStore:assetModule.byteStore,publishAsset:assetModule.publishAsset,
+    artifactRegistry:artifacts.registry,byteStore:artifacts.byteStore,publishAsset:assetModule.publishAsset,
+    persistArtifact,
     now
   });
-  return {orchestrator,request,assets:assetModule.manager,assetModule,artifactHash};
+  return {orchestrator,request,assets:assetModule.manager,assetModule,artifacts,artifactHash,persistArtifact};
 }
 
 const generationRequest=()=>({
@@ -196,12 +200,13 @@ describe("GenerationOrchestrator",()=>{
     const connectorClient={request,session:()=>({status:"paired",connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"}})};
     const compilerStore=new CompilerStore();
     const compiler=new AssetCompiler({store:compilerStore,version:"p19-test"});
+    const artifacts=createArtifactModule();
     const assetModule=createAssetModule({manifests:{},compiledStore:compilerStore});
-    assetModule.configurePublication({getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_composed"});
+    assetModule.configurePublication({artifacts,getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_composed"});
     const assets=assetModule.manager;
     const orchestrator=new GenerationOrchestrator({
       providerRegistry:composedProviderRegistry(),connectorClient,
-      artifactRegistry:assetModule.artifactRegistry,byteStore:assetModule.byteStore,publishAsset:assetModule.publishAsset,
+      artifactRegistry:artifacts.registry,byteStore:artifacts.byteStore,publishAsset:assetModule.publishAsset,
       pollIntervalMs:0
     });
 
@@ -218,14 +223,15 @@ describe("GenerationOrchestrator",()=>{
   });
 
   it("returns the verified local cache key without exposing Connector transport to consumers",async()=>{
-    const {orchestrator,assetModule}=await harness();
+    const {orchestrator,artifacts,persistArtifact}=await harness();
     await orchestrator.submitGenerationJob(generationRequest());
     const imported=await orchestrator.importGenerationResult("job_01");
     expect(imported).toMatchObject({status:"artifact-imported",artifact:{id:"artifact_01",integrity:"verified"}});
     expect(imported.cacheKey).toMatch(/^cache_/);
-    const cached=assetModule.byteStore.get(imported.cacheKey);
+    const cached=artifacts.byteStore.get(imported.cacheKey);
     expect(cached).toMatchObject({artifactId:"artifact_01",hash:imported.artifact.hash});
     expect(cached.data).toBeInstanceOf(Uint8Array);
+    expect(persistArtifact).toHaveBeenCalledWith("artifact_01",imported.cacheKey);
   });
 
   it("refuses import before provider success",async()=>{

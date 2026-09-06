@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { createAssetModule } from '../../../generation/orchestration/createAssetModule.js';
 import { AssetCompiler } from '../../../asset/compiler/AssetCompiler.js';
 import { RESOURCE_BUDGET } from '../../../asset/compiler/resourceBudget.js';
 import { disposeObject3D } from '../../../core/disposeObject3D.js';
@@ -10,35 +9,35 @@ import { createObservatoryRenderSurface } from '../../visual/ObservatoryRenderSu
 import { resizeObservatoryRenderer } from '../../visual/RendererQuality.js';
 import { downloadBytes, prepareGaussianRuntimeVisual } from '../../workbench/gaussianPipeline.js';
 
-const MANIFEST_STORAGE_KEY = 'agentscape.observatory.asset-manifests.v1';
 const safeId = (value) => String(value || '').trim().replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 160);
 const bytesLabel = (value) => value >= 1024 ** 2 ? `${(value / 1024 ** 2).toFixed(1)} MiB` : `${Math.ceil(value / 1024)} KiB`;
 const escapeHtml = (value) => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 
 export class ResourceLab {
-  constructor({ viewport, onTelemetry, rendererMode='auto', rendererTiming=false, onRendererFailure=null, mode='assets' }) {
+  constructor({ viewport, assetModule, onTelemetry, rendererMode='auto', rendererTiming=false, onRendererFailure=null, mode='assets' }) {
     this.viewport=viewport;
     this.onTelemetry=onTelemetry;
     this.rendererMode=rendererMode;
     this.rendererTiming=rendererTiming;
     this.onRendererFailure=onRendererFailure;
     this.mode=mode;
+    if (!assetModule?.manager || !assetModule?.catalog || !assetModule?.compiledStore) throw new TypeError('ResourceLab requires AssetModule');
+    this.assetModule=assetModule;
     this.clock=new SimulationClock();
     this.scene=new THREE.Scene();
     this.camera=new THREE.PerspectiveCamera(48,1,.02,500);
     this.camera.position.set(5,3.8,6);
     this.grid=createObservatoryGrid({size:24});
     this.scene.add(this.grid);
-    this.assetModule=createAssetModule();
     this.compiler=new AssetCompiler({store:this.assetModule.compiledStore,version:'observatory'});
     this.subject=null;
     this.gaussian=null;
     this.selectedAsset=null;
     this.gaussianState={status:'waiting'};
-    this.restoreUploadedManifests();
   }
 
   async init() {
+    await this.assetModule.hydrate?.();
     Object.assign(this,await createObservatoryRenderSurface({
       viewport:this.viewport,scene:this.scene,camera:this.camera,rendererMode:this.rendererMode,
       rendererTiming:this.rendererTiming,onRendererFailure:this.onRendererFailure,controlsTarget:[0,1,0]
@@ -130,8 +129,7 @@ export class ResourceLab {
     this.setReport(host,'inspect → normalize → collider → admission…');
     try{
       const result=await this.compiler.compile({bytes:new Uint8Array(await file.arrayBuffer()),sourceName:file.name,assetId,label:host.querySelector('[data-asset-label]').value.trim()||assetId});
-      this.assetModule.manager.registerManifest(result.manifest);
-      this.persistUploadedManifests();
+      await this.assetModule.registerManifest(result.manifest);
       if(this.assetBrowserHost)this.renderAssetList(this.assetBrowserHost,this.assetBrowserHost.querySelector('[data-resource-search]').value);
       this.setReport(host,`${result.manifest.id} · ${result.quality.status} · ${result.inspection.stats.meshes} meshes · ${result.manifest.compiler.collisionStrategy}`);
       await this.previewAsset(result.manifest.id);
@@ -195,7 +193,5 @@ export class ResourceLab {
   emitTelemetry(){if(this.scenario)this.onTelemetry?.(this.telemetry());}
   frame(time){if(this.rendererState?.failed)return;this.controls.update();this.renderer.render(this.scene,this.camera);this.rendererProbe?.afterRender(time);this.animation=requestAnimationFrame((next)=>this.frame(next));}
   resize(){this.renderQuality=resizeObservatoryRenderer({renderer:this.renderer,camera:this.camera,viewport:this.viewport});}
-  restoreUploadedManifests(){let list=[];try{list=JSON.parse(localStorage.getItem(MANIFEST_STORAGE_KEY)||'[]');}catch{}for(const manifest of Array.isArray(list)?list:[]){try{this.assetModule.manager.registerManifest(manifest);}catch{}}}
-  persistUploadedManifests(){const list=[...this.assetModule.manager.manifests.values()].filter((manifest)=>manifest.source?.kind==='compiled');localStorage.setItem(MANIFEST_STORAGE_KEY,JSON.stringify(list));}
   async dispose(){cancelAnimationFrame(this.animation);this.resizeObserver?.disconnect?.();if(this.subject){if(this.gaussian)this.gaussian.dispose?.();else disposeObject3D(this.subject);}this.controls?.dispose?.();disposeObservatoryGrid(this.grid);this.renderer?.dispose?.();this.renderer?.domElement?.remove?.();}
 }

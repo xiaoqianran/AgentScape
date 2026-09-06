@@ -7,6 +7,7 @@ import { ScenarioRegistry } from "./core/ScenarioRegistry.js";
 import { ObservatoryShell } from "./ui/ObservatoryShell.js";
 import { runWebGPUComputeProbe } from "../core/rendering/WebGPUComputeProbe.js";
 import { runWebGPUSpatialProbe } from "../core/rendering/WebGPUSpatialProbe.js";
+import { createAssetModule } from "../asset/AssetModule.js";
 
 const renderingInfoForLab = (lab) => lab?.rendererProbe?.snapshot?.() || lab?.left?.rendererProbe?.snapshot?.() || lab?.rendererInfo || lab?.left?.rendererInfo || null;
 const rendererForLab = (lab) => lab?.renderer || lab?.left?.renderer || null;
@@ -77,6 +78,7 @@ const LABS = [
 class ObservatoryApp {
   constructor(root) {
     this.labs = new LabRegistry(LABS);
+    this.assetModule = createAssetModule();
     this.shell = new ObservatoryShell(root);
     this.lab = null;
     this.labDefinition = null;
@@ -199,6 +201,7 @@ class ObservatoryApp {
     let nextLab = null;
     nextLab = definition.create({
       viewport: this.shell.refs.viewport,
+      assetModule: this.assetModule,
       backendId: normalizedBackend,
       rendererMode: this.rendererMode,
       rendererTiming: this.rendererTiming,

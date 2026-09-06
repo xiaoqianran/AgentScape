@@ -105,14 +105,23 @@ if (!fs.existsSync(expectedOrchestrator)) failures.push("Generation ownership vi
 for (const file of productJs) {
   const name = relative(file);
   const source = fs.readFileSync(file, "utf8");
-  if (name !== "generation/orchestration/createAssetModule.js") {
-    if (/\bnew\s+AssetManager\s*\(/.test(source)) failures.push(`Asset state ownership violation: ${name} constructs AssetManager outside createAssetModule`);
-    if (/\bnew\s+ArtifactRegistry\s*\(/.test(source)) failures.push(`Artifact state ownership violation: ${name} constructs ArtifactRegistry outside createAssetModule`);
-    if (/\bnew\s+MemoryArtifactByteStore\s*\(/.test(source)) failures.push(`Artifact state ownership violation: ${name} constructs MemoryArtifactByteStore outside createAssetModule`);
-    for (const specifier of imports(file)) {
-      if (resolveImport(file, specifier) === "generation/orchestration/publishAsset.js") {
-        failures.push(`Asset publication boundary violation: ${name} imports publication internals directly`);
-      }
+  if (name !== "asset/AssetModule.js" && /\bnew\s+AssetManager\s*\(/.test(source)) {
+    failures.push(`Asset state ownership violation: ${name} constructs AssetManager outside AssetModule`);
+  }
+  if (name !== "generation/artifacts/ArtifactModule.js") {
+    if (/\bnew\s+ArtifactRegistry\s*\(/.test(source)) failures.push(`Artifact state ownership violation: ${name} constructs ArtifactRegistry outside ArtifactModule`);
+    if (/\bnew\s+MemoryArtifactByteStore\s*\(/.test(source)) failures.push(`Artifact state ownership violation: ${name} constructs MemoryArtifactByteStore outside ArtifactModule`);
+  }
+  for (const specifier of imports(file)) {
+    const target = resolveImport(file, specifier);
+    if (target === "asset/pipeline/VerifiedArtifactAssetPipeline.js" && name !== "asset/AssetModule.js") {
+      failures.push(`Asset publication boundary violation: ${name} imports publication internals directly`);
+    }
+    if (target === "asset/storage/AssetManifestStore.js" && name !== "asset/AssetModule.js") {
+      failures.push(`Asset persistence boundary violation: ${name} imports AssetManifestStore outside AssetModule`);
+    }
+    if (target === "generation/artifacts/storage/IndexedDbArtifactStore.js" && name !== "generation/artifacts/ArtifactModule.js") {
+      failures.push(`Artifact persistence boundary violation: ${name} imports IndexedDbArtifactStore outside ArtifactModule`);
     }
   }
 }

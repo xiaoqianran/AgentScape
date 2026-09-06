@@ -1,7 +1,7 @@
 import './style.css';
 import { WorldRuntime } from '../world/runtime/WorldRuntime.js';
 import { RuntimeDriver } from './runtime/RuntimeDriver.js';
-import { createAssetModule } from '../generation/orchestration/createAssetModule.js';
+import { createAssetModule } from '../asset/AssetModule.js';
 import { attachGenerationRuntime } from '../generation/orchestration/GenerationRuntime.js';
 import { SkillRegistry } from '../agent/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../agent/skills/registerCoreSkills.js';

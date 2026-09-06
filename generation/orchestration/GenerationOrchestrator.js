@@ -195,7 +195,7 @@ export class GenerationOrchestrator {
   constructor({
     providerRegistry,connectorClient=null,capabilityAdapter=new ConnectorCapabilityAdapter(),
     jobClient=null,jobReconciler=null,artifactRegistry=null,byteStore=null,
-    artifactImporter=null,publishAsset=null,
+    artifactImporter=null,publishAsset=null,persistArtifact=null,
     events=null,now=()=>Date.now(),monotonic=()=>globalThis.performance?.now?.() ?? Date.now(),
     sleep=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms)),pollIntervalMs=DEFAULT_POLL_INTERVAL_MS,
     generationTimeoutMs=DEFAULT_GENERATION_TIMEOUT_MS
@@ -215,6 +215,7 @@ export class GenerationOrchestrator {
       connectorArtifactClient:new ConnectorArtifactClient({connectorClient}),now
     }) : null);
     this.publishAsset=publishAsset;
+    this.persistArtifact=typeof persistArtifact==='function'?persistArtifact:null;
     this.events=events;
     this.now=now;
     this.monotonic=monotonic;
@@ -551,6 +552,7 @@ export class GenerationOrchestrator {
     const imported=verifiedLocal ? {artifact:descriptor,reused:true} : await this.artifactImporter.import(summary.id);
     const artifact=imported.artifact;
     const local=artifact.locations?.find((location)=>location.kind==="local-cache"&&location.state==="available"&&location.access?.kind==="cache-key");
+    if (local?.access?.key && this.persistArtifact) await this.persistArtifact(artifact.id,local.access.key);
     this.events?.emit?.("generation.artifact.imported",{jobId:job.id,artifactId:artifact.id,hash:artifact.hash});
     return {
       status:"artifact-imported",jobId:job.id,
