@@ -25,6 +25,10 @@ import { ObjectInspector } from './ui/inspect/ObjectInspector.js';
 import { RunsPanel } from './ui/runs/RunsPanel.js';
 import { ResourceLibrary } from './ui/resources/ResourceLibrary.js';
 import { DeveloperSettings } from './ui/developer/DeveloperSettings.js';
+import { SceneExplorer } from './ui/scene/SceneExplorer.js';
+import { BuildWorkbench } from './ui/build/BuildWorkbench.js';
+import { BuildSession } from './build/BuildSession.js';
+import { StudioBuildController } from './build/StudioBuildController.js';
 import { bindSceneControls } from './ui/bindSceneControls.js';
 import { bindRuntimeEvents } from './ui/bindRuntimeEvents.js';
 import { bindDebugLayers } from './debug/bindDebugLayers.js';
@@ -83,6 +87,7 @@ async function main() {
   const tools = new AgentTools(world, { profile: 'builder', actor: 'agent_01' });
   const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });
   const editor = new EditorController(world);
+  const sceneExplorer = new SceneExplorer({ root: ui.scenePanel, world, editor, environmentDefinition }).init();
   const runsPanel = new RunsPanel({ root: ui.panel });
   let taskPanel = null;
   const generatedPlacementDemo = new GeneratedPlacementDemoRunner({ world, log: (text, kind) => taskPanel?.log?.(text, kind) });
@@ -105,6 +110,27 @@ async function main() {
     editor,
     log: (text, kind) => taskPanel.log(text, kind)
   });
+  const openGeneratedWorld = async (manifestArtifactId) => {
+    const nextEnvironment=await materializePersistedWorldEnvironment(world,manifestArtifactId);
+    const result=await replaceStudioEnvironment(world,nextEnvironment,{reason:'studio-generated-world'});
+    taskPanel.log(`已打开生成世界：${nextEnvironment.id || manifestArtifactId} · 清理 ${result.clearedObjects} 个对象`,'result');
+    return result;
+  };
+  const buildSession = new BuildSession({ mode:'asset' });
+  const buildController = new StudioBuildController({
+    world,
+    placement,
+    openGeneratedWorld,
+    log:(text,kind)=>taskPanel.log(text,kind)
+  });
+  const buildWorkbench = new BuildWorkbench({
+    root:ui.panel,
+    world,
+    session:buildSession,
+    controller:buildController,
+    environmentDefinition,
+    log:(text,kind)=>taskPanel.log(text,kind)
+  }).init();
   const resourceLibrary = new ResourceLibrary({
     root: ui.panel,
     world,
@@ -120,14 +146,9 @@ async function main() {
       url.searchParams.set('world', id);
       location.href = url.toString();
     },
-    openGeneratedWorld: async (manifestArtifactId) => {
-      const nextEnvironment=await materializePersistedWorldEnvironment(world,manifestArtifactId);
-      const result=await replaceStudioEnvironment(world,nextEnvironment,{reason:'resource-library-generated-world'});
-      taskPanel.log(`已打开生成世界：${nextEnvironment.id || manifestArtifactId} · 清理 ${result.clearedObjects} 个对象`,'result');
-      return result;
-    }
+    openGeneratedWorld
   }).init();
-  window.addEventListener('beforeunload', () => { resourceLibrary.destroy(); placement.dispose(); }, { once:true });
+  window.addEventListener('beforeunload', () => { buildWorkbench.destroy(); sceneExplorer.destroy(); resourceLibrary.destroy(); placement.dispose(); }, { once:true });
 
   const inspector = new ObjectInspector({ root: ui.panel, world, tools, log: (text, kind) => taskPanel.log(text, kind) });
   const developer = new DeveloperSettings({

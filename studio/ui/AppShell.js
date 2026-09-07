@@ -4,6 +4,8 @@ import { objectInspectorMarkup } from './inspect/ObjectInspector.js';
 import { runsPanelMarkup } from './runs/RunsPanel.js';
 import { developerSettingsMarkup } from './developer/DeveloperSettings.js';
 import { resourceLibraryMarkup } from './resources/ResourceLibrary.js';
+import { sceneExplorerMarkup } from './scene/SceneExplorer.js';
+import { buildWorkbenchMarkup } from './build/BuildWorkbench.js';
 
 export function createAppShell({ app, environmentDefinition, environments }) {
   const environmentOptions = environments.map((item) => `
@@ -32,6 +34,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
       </header>
 
       <section class="workspace">
+        ${sceneExplorerMarkup(environmentDefinition)}
         <div id="viewport" class="viewport">
           <div class="editor-toolbar" aria-label="场景编辑工具">
             <button data-mode="translate" class="active" type="button">移动 <kbd>W</kbd></button>
@@ -67,16 +70,23 @@ export function createAppShell({ app, environmentDefinition, environments }) {
           <div class="hint">点击选择 · W 移动 · E 旋转 · Del 删除</div>
         </div>
 
-        <aside class="panel" data-view="task" aria-label="上下文面板">
+        <aside class="panel" data-view="create" aria-label="上下文面板">
           <nav class="panel-tabs" aria-label="工作区视图">
-            <button type="button" data-panel-view="task" class="active" aria-selected="true">任务</button>
-            <button type="button" data-panel-view="create" aria-selected="false">创建</button>
+            <button type="button" data-panel-view="create" class="active" aria-selected="true">构建</button>
+            <button type="button" data-panel-view="task" aria-selected="false">Agent</button>
             <button type="button" data-panel-view="resources" aria-selected="false">资源</button>
             <button type="button" data-panel-view="inspect" aria-selected="false">检查</button>
             <button type="button" data-panel-view="runs" aria-selected="false">记录</button>
           </nav>
           ${taskPanelMarkup()}
-          ${generationJobCenterMarkup()}
+          ${buildWorkbenchMarkup()}
+          <div class="build-advanced-shell">
+            <div class="build-advanced-header">
+              <button id="build-close-advanced" type="button">← 返回 Build Workbench</button>
+              <span>Advanced Generation Console</span>
+            </div>
+            ${generationJobCenterMarkup()}
+          </div>
           ${resourceLibraryMarkup()}
           ${objectInspectorMarkup()}
           ${runsPanelMarkup()}
@@ -129,6 +139,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
   runtimeStatus.addEventListener('click', () => runtimeRecoveryAction?.());
 
   tabs.forEach((tab) => tab.addEventListener('click', () => setView(tab.dataset.panelView)));
+  app.querySelector('#build-close-advanced')?.addEventListener('click', () => panel.classList.remove('build-advanced-open'));
   app.querySelector('#world-select').addEventListener('change', (event) => {
     const url = new URL(location.href);
     url.searchParams.set('world', event.target.value);
@@ -143,6 +154,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
   return {
     shell,
     panel,
+    scenePanel: app.querySelector('.scene-panel'),
     viewport: app.querySelector('#viewport'),
     commandForm,
     commandInput,
