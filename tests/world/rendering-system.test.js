@@ -158,8 +158,8 @@ describe('RenderingSystem', () => {
     expect(floor.visible).toBe(true);
     expect(floor.material.visible).toBe(false);
     expect(environment.generated.visual.status).toBe('ready');
-    expect(rendering.diagnostics().generatedVisual).toEqual({status:'ready',format:'spz',splatCount:134414});
-    expect(events.emit).toHaveBeenCalledWith('renderer.generated-visual-ready',{format:'spz',splatCount:134414});
+    expect(rendering.diagnostics().generatedVisual).toEqual({status:'ready',format:'spz',splatCount:134414,sourceSplatCount:134414,sampled:false});
+    expect(events.emit).toHaveBeenCalledWith('renderer.generated-visual-ready',{format:'spz',splatCount:134414,sourceSplatCount:134414,sampled:false});
 
     rendering.dispose();
     expect(dispose).toHaveBeenCalledOnce();

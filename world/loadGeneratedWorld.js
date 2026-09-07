@@ -99,6 +99,22 @@ const resolveRelativeUrl = (path, baseUrl) => {
   return new URL(path, baseUrl).href;
 };
 
+const deriveCameraFromGeometry = (geometry) => {
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  if (!bounds || bounds.isEmpty()) return { position:[8,5,8], target:[0,1,0], far:120 };
+  const center = bounds.getCenter(new THREE.Vector3());
+  const size = bounds.getSize(new THREE.Vector3());
+  const radius = Math.max(size.length() * 0.5, 1);
+  const distance = Math.max(radius * 2.2, 6);
+  const offset = new THREE.Vector3(1, 0.65, 1).normalize().multiplyScalar(distance);
+  return {
+    position:center.clone().add(offset).toArray(),
+    target:center.toArray(),
+    far:Math.max(120, distance * 6)
+  };
+};
+
 const loadJsonSource = async (value, name) => {
   const source = asSource(value, name);
   if (!source) throw new TypeError(`${name} is required`);
@@ -106,6 +122,21 @@ const loadJsonSource = async (value, name) => {
   const response = await fetch(source.url);
   if (!response.ok) throw new Error(`Failed to load ${name}: ${response.status}`);
   return { data:await response.json(), source, baseUrl:response.url || source.url };
+};
+
+const ensureGpuCompatibleAttributes = (geometry) => {
+  for (const [name, attribute] of Object.entries(geometry.attributes || {})) {
+    if (!(attribute?.array instanceof Float64Array)) continue;
+    const replacement = new THREE.BufferAttribute(
+      Float32Array.from(attribute.array),
+      attribute.itemSize,
+      attribute.normalized
+    );
+    replacement.name = attribute.name;
+    replacement.setUsage(attribute.usage);
+    geometry.setAttribute(name, replacement);
+  }
+  return geometry;
 };
 
 export function geometryToTrimeshCollider(geometry) {
@@ -140,6 +171,7 @@ async function loadMesh(source, coordinateSystem, metersPerUnit) {
   }
   applyGeneratedWorldGeometryTransform(geometry, coordinateSystem, metersPerUnit);
   if (!geometry.getAttribute('normal')) geometry.computeVertexNormals();
+  ensureGpuCompatibleAttributes(geometry);
   return geometry;
 }
 
@@ -178,10 +210,11 @@ export async function loadGeneratedWorld({
   root.name = 'GeneratedWorld';
   root.userData.generatedSemantics = semanticData;
 
-  const floor = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
-    vertexColors:Boolean(geometry.getAttribute('color')),
-    roughness:1,
-    metalness:0
+  const hasVertexColors=Boolean(geometry.getAttribute('color'));
+  const floor = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+    color:hasVertexColors ? 0xffffff : 0x8f98a3,
+    vertexColors:hasVertexColors,
+    side:THREE.DoubleSide
   }));
   floor.name = 'GeneratedWorldMesh';
   floor.receiveShadow = true;
@@ -203,7 +236,7 @@ export async function loadGeneratedWorld({
     ...(navigationRoot ? { navigationRoot } : {}),
     colliders:[collider],
     ...(layout ? { layout:structuredClone(layout) } : {}),
-    ...(camera ? { camera:structuredClone(camera) } : {}),
+    camera:camera ? structuredClone(camera) : deriveCameraFromGeometry(geometry),
     ...(rendering ? { rendering:structuredClone(rendering) } : {}),
     semantics:semanticData,
     generated:{

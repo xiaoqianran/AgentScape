@@ -165,21 +165,23 @@ export class RenderingSystem {
       this.generatedVisualState = {
         status:'ready',
         format:loaded.format || format,
-        splatCount:loaded.splatCount || 0
+        splatCount:loaded.splatCount || 0,
+        sourceSplatCount:loaded.sourceSplatCount || loaded.splatCount || 0,
+        sampled:Boolean(loaded.sampled)
       };
       this.events?.emit?.('renderer.generated-visual-ready', {
         format:this.generatedVisualState.format,
-        splatCount:this.generatedVisualState.splatCount
+        splatCount:this.generatedVisualState.splatCount,
+        sourceSplatCount:this.generatedVisualState.sourceSplatCount,
+        sampled:this.generatedVisualState.sampled
       });
       return true;
     } catch (error) {
       if (version === this.environmentVersion && this.renderer) {
         visual.status = 'failed';
-        this.generatedVisualState = { status:'failed', format, splatCount:0 };
-        this.events?.emit?.('renderer.generated-visual-error', {
-          format,
-          message:error instanceof Error ? error.message : String(error)
-        });
+        const message=error instanceof Error ? error.message : String(error);
+        this.generatedVisualState = { status:'failed', format, splatCount:0, message };
+        this.events?.emit?.('renderer.generated-visual-error', { format, message });
       }
       return false;
     }
