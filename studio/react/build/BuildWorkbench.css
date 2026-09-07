@@ -1,0 +1,62 @@
+.build-source-artifact {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:8px 9px;
+  border:1px solid rgba(210,188,255,.22);
+  border-radius:var(--radius-sm);
+  background:rgba(125,89,184,.08);
+}
+
+.build-source-artifact > div {
+  min-width:0;
+  display:grid;
+  gap:3px;
+}
+
+.build-source-artifact small {
+  color:var(--success);
+  font:650 6.5px/1 var(--font-mono);
+  letter-spacing:.07em;
+}
+
+.build-source-artifact strong,
+.build-source-artifact code {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.build-source-artifact strong {
+  color:var(--text);
+  font-size:9px;
+  font-weight:620;
+}
+
+.build-source-artifact code {
+  color:var(--text-muted);
+  font:500 7px/1.2 var(--font-mono);
+}
+
+.build-source-artifact button {
+  height:24px;
+  flex:0 0 auto;
+  padding:0 8px;
+  border:1px solid var(--line);
+  border-radius:var(--radius-sm);
+  color:var(--text-muted);
+  background:rgba(10,10,12,.5);
+  cursor:pointer;
+  font:600 7.5px/1 var(--font-ui);
+}
+
+.build-source-artifact button:hover:not(:disabled) {
+  color:var(--text);
+  border-color:rgba(210,188,255,.3);
+}
+
+.build-source-artifact button:disabled {
+  opacity:.45;
+  cursor:default;
+}

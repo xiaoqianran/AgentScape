@@ -21,14 +21,16 @@ import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
 import { createAppShell } from './ui/AppShell.js';
 import { TaskPanel } from './ui/task/TaskPanel.js';
 import { GeneratedPlacementDemoRunner } from './demos/generated-placement/index.js';
-import { ObjectInspector } from './ui/inspect/ObjectInspector.js';
+import { mountObjectInspector } from './react/inspect/ObjectInspector.tsx';
 import { RunsPanel } from './ui/runs/RunsPanel.js';
 import { ResourceLibrary } from './ui/resources/ResourceLibrary.js';
 import { DeveloperSettings } from './ui/developer/DeveloperSettings.js';
-import { SceneExplorer } from './ui/scene/SceneExplorer.js';
-import { BuildWorkbench } from './ui/build/BuildWorkbench.js';
+import { mountSceneExplorer } from './react/scene/SceneExplorer.tsx';
+import { mountBuildWorkbench } from './react/build/BuildWorkbench.tsx';
+import { mountArtifactTray } from './react/artifacts/ArtifactTray.tsx';
 import { BuildSession } from './build/BuildSession.js';
 import { StudioBuildController } from './build/StudioBuildController.js';
+import { AssetAgentVerifier } from './agent/AssetAgentVerifier.js';
 import { bindSceneControls } from './ui/bindSceneControls.js';
 import { bindRuntimeEvents } from './ui/bindRuntimeEvents.js';
 import { bindDebugLayers } from './debug/bindDebugLayers.js';
@@ -87,7 +89,7 @@ async function main() {
   const tools = new AgentTools(world, { profile: 'builder', actor: 'agent_01' });
   const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });
   const editor = new EditorController(world);
-  const sceneExplorer = new SceneExplorer({ root: ui.scenePanel, world, editor, environmentDefinition }).init();
+  const sceneExplorer = mountSceneExplorer({ root: ui.scenePanel, world, editor, environmentDefinition });
   const runsPanel = new RunsPanel({ root: ui.panel });
   let taskPanel = null;
   const generatedPlacementDemo = new GeneratedPlacementDemoRunner({ world, log: (text, kind) => taskPanel?.log?.(text, kind) });
@@ -123,14 +125,14 @@ async function main() {
     openGeneratedWorld,
     log:(text,kind)=>taskPanel.log(text,kind)
   });
-  const buildWorkbench = new BuildWorkbench({
+  const buildWorkbench = mountBuildWorkbench({
     root:ui.panel,
     world,
     session:buildSession,
     controller:buildController,
     environmentDefinition,
     log:(text,kind)=>taskPanel.log(text,kind)
-  }).init();
+  });
   const resourceLibrary = new ResourceLibrary({
     root: ui.panel,
     world,
@@ -148,9 +150,23 @@ async function main() {
     },
     openGeneratedWorld
   }).init();
-  window.addEventListener('beforeunload', () => { buildWorkbench.destroy(); sceneExplorer.destroy(); resourceLibrary.destroy(); placement.dispose(); }, { once:true });
+  const inspector = mountObjectInspector({ root: ui.panel, world, tools, log: (text, kind) => taskPanel.log(text, kind) });
+  const agentVerifier = new AssetAgentVerifier({
+    world,
+    tools,
+    actorId:'agent_01',
+    log:(text,kind)=>taskPanel.log(text,kind)
+  });
+  const artifactTray = mountArtifactTray({
+    root:app,
+    world,
+    controller:buildController,
+    agentVerifier,
+    openBuild:()=>ui.setView('create'),
+    log:(text,kind)=>taskPanel.log(text,kind)
+  });
+  window.addEventListener('beforeunload', () => { artifactTray.destroy(); buildWorkbench.destroy(); sceneExplorer.destroy(); inspector.destroy(); resourceLibrary.destroy(); placement.dispose(); }, { once:true });
 
-  const inspector = new ObjectInspector({ root: ui.panel, world, tools, log: (text, kind) => taskPanel.log(text, kind) });
   const developer = new DeveloperSettings({
     dialog: ui.developerDialog,
     world,

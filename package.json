@@ -9,7 +9,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run --exclude tests/e2e/generated-cup-runtime-e2e.test.js",
     "test:watch": "vitest",
-    "check": "npm run architecture:validate && npm run assets:validate && npm run world:viability && npm run test && npm run build",
+    "check": "npm run architecture:validate && npm run assets:validate && npm run world:viability && npm run typecheck && npm run test && npm run build",
     "architecture:validate": "node tooling/validate-repository-architecture.mjs && node tooling/validate-domain-boundaries.mjs && node tooling/validate-convergence.mjs",
     "assets:validate": "node tooling/validate-assets.mjs",
     "agent:gateway": "node tooling/scripts/openai-compatible-agent-gateway.mjs",
@@ -23,7 +23,8 @@
     "test:generation": "vitest run tests/generation tests/contracts tests/studio/generation-job-center-*",
     "test:modal-e2e": "vitest run tests/e2e/generated-cup-runtime-e2e.test.js",
     "test:studio": "vitest run tests/studio",
-    "test:observatory": "vitest run tests/observatory"
+    "test:observatory": "vitest run tests/observatory",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
@@ -34,12 +35,19 @@
     "@recast-navigation/generators": "^0.43.1",
     "@sparkjsdev/spark": "^2.1.0",
     "jolt-physics": "1.1.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "three": "^0.185.1",
     "three-gsmesh": "^0.0.3",
-    "three-mesh-bvh": "^0.9.1"
+    "three-mesh-bvh": "^0.9.1",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
     "sharp": "^0.35.3",
+    "typescript": "^7.0.2",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
   }

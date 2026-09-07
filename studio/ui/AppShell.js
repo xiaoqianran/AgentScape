@@ -6,6 +6,7 @@ import { developerSettingsMarkup } from './developer/DeveloperSettings.js';
 import { resourceLibraryMarkup } from './resources/ResourceLibrary.js';
 import { sceneExplorerMarkup } from './scene/SceneExplorer.js';
 import { buildWorkbenchMarkup } from './build/BuildWorkbench.js';
+import { useStudioStore } from '../react/state/studioStore.ts';
 
 export function createAppShell({ app, environmentDefinition, environments }) {
   const environmentOptions = environments.map((item) => `
@@ -93,6 +94,8 @@ export function createAppShell({ app, environmentDefinition, environments }) {
         </aside>
       </section>
 
+      <div class="artifact-tray-host"></div>
+
       <form id="command" class="command-bar" autocomplete="off">
         <div class="command-field">
           <span class="command-prefix" aria-hidden="true">›</span>
@@ -117,6 +120,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
 
   const setView = (view) => {
     panel.dataset.view = view;
+    useStudioStore.getState().setActiveContextView(view);
     for (const tab of tabs) {
       const active = tab.dataset.panelView === view;
       tab.classList.toggle('active', active);
