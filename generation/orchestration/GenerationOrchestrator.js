@@ -566,6 +566,24 @@ export class GenerationOrchestrator {
     };
   }
 
+  async importGenerationArtifacts(jobId,{roles=null}={}) {
+    const view=await this.getGenerationJob(jobId);
+    if(view.status!=="provider-succeeded") {
+      throw new GenerationOrchestrationError("JOB_NOT_READY","Provider Job has not produced importable results",{jobId,status:view.status});
+    }
+    const requested=roles==null ? null : new Set((Array.isArray(roles)?roles:[roles]).map(String).filter(Boolean));
+    const summaries=(view.artifacts||[]).filter((artifact)=>!requested||requested.has(artifact.role));
+    if(requested){
+      const found=new Set(summaries.map((artifact)=>artifact.role));
+      const missing=[...requested].filter((role)=>!found.has(role));
+      if(missing.length) throw new GenerationOrchestrationError("ARTIFACT_NOT_FOUND","Generation Job result is missing requested Artifact roles",{jobId,missing});
+    }
+    if(!summaries.length) throw new GenerationOrchestrationError("ARTIFACT_NOT_FOUND","Generation Job result contains no importable Artifacts",{jobId});
+    const artifacts=[];
+    for(const summary of summaries) artifacts.push(await this.importGenerationResult(jobId,{artifactId:summary.id}));
+    return {status:"artifacts-imported",jobId,artifacts};
+  }
+
   async generateAndCompileAsset(request={}) {
     const assetId=String(request.assetId||"").trim();
     if (!assetId) throw new GenerationOrchestrationError("ASSET_ID_REQUIRED","generateAndCompileAsset requires assetId");

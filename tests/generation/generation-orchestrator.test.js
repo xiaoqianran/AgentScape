@@ -222,6 +222,23 @@ describe("GenerationOrchestrator",()=>{
     });
   });
 
+  it("bulk-imports every Artifact in a recovered multi-artifact Job",async()=>{
+    const {orchestrator}=await harness();
+    const summaries=[
+      {id:"artifact_mesh",role:"world-mesh",mime:"model/ply"},
+      {id:"artifact_manifest",role:"world-manifest",mime:"application/json"},
+      {id:"artifact_nav",role:"world-navigation",mime:"model/ply"}
+    ];
+    orchestrator.getGenerationJob=vi.fn(async()=>({status:"provider-succeeded",jobId:"job_world",artifacts:summaries}));
+    orchestrator.importGenerationResult=vi.fn(async(jobId,{artifactId})=>({
+      status:"artifact-imported",jobId,artifact:{id:artifactId,role:summaries.find((item)=>item.id===artifactId).role,integrity:"verified"}
+    }));
+    const result=await orchestrator.importGenerationArtifacts("job_world");
+    expect(result).toMatchObject({status:"artifacts-imported",jobId:"job_world"});
+    expect(result.artifacts.map((item)=>item.artifact.id)).toEqual(["artifact_mesh","artifact_manifest","artifact_nav"]);
+    expect(orchestrator.importGenerationResult).toHaveBeenCalledTimes(3);
+  });
+
   it("returns the verified local cache key without exposing Connector transport to consumers",async()=>{
     const {orchestrator,artifacts,persistArtifact}=await harness();
     await orchestrator.submitGenerationJob(generationRequest());

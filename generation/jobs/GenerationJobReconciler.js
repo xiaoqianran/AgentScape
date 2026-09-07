@@ -51,7 +51,11 @@ export class GenerationJobReconciler {
       const result=await this.jobClient.list({replaceStore:true});
       this.overlay.clearAll();
       if (result.eventCursor != null) this.cursor.reset(result.eventCursor);
-      return {state:'ready',...result};
+      const recovered=[];
+      for (const job of this.jobClient.listCached().filter((item)=>ACTIVE_REMOTE_STATUSES.has(item.status))) {
+        recovered.push(await this.reconcileJob(job.id));
+      }
+      return {state:'ready',...result,jobs:this.jobClient.listCached(),recovered};
     } catch (error) {
       if (error?.code === 'CONNECTION_REQUIRED') return {state:'connection_required',jobs:this.jobClient.listCached(),eventCursor:this.cursor.sequence};
       throw error;

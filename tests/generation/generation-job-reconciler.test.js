@@ -33,19 +33,26 @@ describe('Generation Job restart/reconcile',()=>{
   it('bootstraps the in-memory projection atomically from Connector list truth',async()=>{
     const store=new GenerationJobStore();
     store.apply(job('running',1,{id:'old_job',requestHash:'old',idempotencyKey:'old'}));
-    const request=vi.fn(async()=>response({jobs:[
-      job('running',2),
-      job('succeeded',4,{id:'job_02',requestHash:'sha256:req02',idempotencyKey:'idem_02',result:{artifacts:[]}})
-    ],eventCursor:17}));
+    const request=vi.fn(async(path)=>{
+      if(path==='/connector/v1/jobs') return response({jobs:[
+        job('running',2),
+        job('succeeded',4,{id:'job_02',requestHash:'sha256:req02',idempotencyKey:'idem_02',result:{artifacts:[]}})
+      ],eventCursor:17});
+      if(path==='/connector/v1/jobs/job_01') return response({job:job('succeeded',3,{result:{artifacts:[]}})});
+      throw new Error(`unexpected path: ${path}`);
+    });
     const jobClient=makeClient(request,store);
     const reconciler=new GenerationJobReconciler({jobClient});
     const result=await reconciler.bootstrap();
     expect(result.state).toBe('ready');
     expect(result.eventCursor).toBe(17);
+    expect(result.recovered).toHaveLength(1);
     expect(jobClient.listCached().map((item)=>item.id).sort()).toEqual(['job_01','job_02']);
+    expect(jobClient.getCached('job_01')).toMatchObject({status:'succeeded',lastEventSequence:3});
     expect(jobClient.getCached('old_job')).toBeNull();
     expect(reconciler.cursor.sequence).toBe(17);
     expect(request).toHaveBeenCalledWith('/connector/v1/jobs',{scope:'jobs.read'});
+    expect(request).toHaveBeenCalledWith('/connector/v1/jobs/job_01',{scope:'jobs.read'});
   });
 
   it('does not partially replace the store when restart list contains a malformed later Job',async()=>{

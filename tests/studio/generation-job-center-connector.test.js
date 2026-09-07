@@ -35,4 +35,23 @@ describe('GenerationJobCenter Connector capability path',()=>{
     expect(center.selectedJobId).toBe('job_01');
     expect(center.resultDisclosure.open).toBe(true);
   });
+
+  it('bulk-imports recovered multi-artifact World jobs instead of dropping the bundle',async()=>{
+    const importGenerationArtifacts=vi.fn(async()=>({
+      status:'artifacts-imported',jobId:'job_world',artifacts:[
+        {artifact:{id:'artifact_mesh',role:'world-mesh',integrity:'verified'}},
+        {artifact:{id:'artifact_manifest',role:'world-manifest',integrity:'verified'}}
+      ]
+    }));
+    const center=Object.create(GenerationJobCenter.prototype);
+    Object.assign(center,{
+      selectedJob:()=>({jobId:'job_world',artifacts:[{id:'artifact_mesh'},{id:'artifact_manifest'}]}),
+      world:{generation:{importGenerationArtifacts,importGenerationResult:vi.fn()}},
+      imports:new Map(),renderSelected:vi.fn(),log:vi.fn()
+    });
+    await center.importSelected();
+    expect(importGenerationArtifacts).toHaveBeenCalledWith('job_world');
+    expect(center.imports.get('job_world')).toMatchObject({artifact:{id:'artifact_manifest',role:'world-manifest'}});
+    expect(center.log).toHaveBeenCalledWith('产物已导入：2 个 · job_world','result');
+  });
 });
