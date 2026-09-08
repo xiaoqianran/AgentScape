@@ -10,6 +10,7 @@ export type BuildOutputRef = {
   artifactIds: string[];
   prompt: string;
   status: string;
+  routeLabel?: string;
   createdAt: number;
 };
 

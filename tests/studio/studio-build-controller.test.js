@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { StudioBuildController, buildInputs, selectBuildCapability } from '../../studio/build/StudioBuildController.js';
+import { StudioBuildController, buildInputs, buildProviderOptions, selectBuildCapability } from '../../studio/build/StudioBuildController.js';
 
 const imageCapability={
   provider:'modal-2d',operation:'image.text_to_image',category:'image-generation',status:'available',
@@ -18,6 +18,23 @@ describe('StudioBuildController helpers',()=>{
     expect(selectBuildCapability(generation,{category:'image-generation',inputType:'text'})).toBe(imageCapability);
     expect(selectBuildCapability(generation,{category:'asset-generation',inputType:'image'})).toBe(assetCapability);
     expect(buildInputs(imageCapability,{prompt:'chair'})).toEqual({prompt:'chair',seed:42});
+  });
+
+  it('projects available provider choices from the capability snapshot without hardcoding model ids',()=>{
+    const alternate={...assetCapability,provider:'hermit-3d',operation:'asset.image_to_3d.hermit'};
+    const generation={
+      listGenerationCapabilities:()=>({capabilities:[imageCapability,assetCapability,alternate]}),
+      listGenerationProviders:()=>({providers:[
+        {id:'modal-3d',displayName:'Modal 3D'},
+        {id:'hermit-3d',displayName:'Hermit 3D'}
+      ]}),
+      canGenerateAsset:({provider}={})=>['modal-3d','hermit-3d'].includes(provider)
+    };
+    expect(buildProviderOptions(generation,{mode:'asset',inputType:'image'})).toEqual([
+      expect.objectContaining({id:'modal-3d',label:'Modal 3D',recommendedProfile:'recommended'}),
+      expect.objectContaining({id:'hermit-3d',label:'Hermit 3D',recommendedProfile:'recommended'})
+    ]);
+    expect(selectBuildCapability(generation,{category:'asset-generation',inputType:'image',provider:'hermit-3d'})).toBe(alternate);
   });
 });
 
@@ -71,8 +88,9 @@ describe('StudioBuildController workflows',()=>{
       }))
     };
     const controller=new StudioBuildController({world:{generation},placement:{placeAtCenter},openGeneratedWorld});
-    const result=await controller.generateWorld({prompt:'Japanese garden'});
-    expect(result).toMatchObject({kind:'world',manifestArtifactId:'manifest_01',artifacts:{'world-manifest':'manifest_01','world-mesh':'mesh_01'}});
+    const result=await controller.generateWorld({prompt:'Japanese garden',provider:'modal-world'});
+    expect(result).toMatchObject({kind:'world',manifestArtifactId:'manifest_01',provider:'modal-world',artifacts:{'world-manifest':'manifest_01','world-mesh':'mesh_01'}});
+    expect(generation.generateTextWorldArtifacts).toHaveBeenCalledWith({prompt:'Japanese garden',worldProvider:'modal-world'});
     await controller.placeAsset('chair_01');
     await controller.openWorld('manifest_01');
     expect(placeAtCenter).toHaveBeenCalledWith('chair_01');

@@ -13,11 +13,47 @@ export function requiredOutputRoles(capability) {
   return required.length?[...required]:[...(capability?.output?.roles||[])];
 }
 
-export function selectBuildCapability(generation,{category,inputType,requiredRole=null}={}) {
+export function selectBuildCapability(generation,{category,inputType,requiredRole=null,provider=null,operation=null}={}) {
   const capabilities=generation?.listGenerationCapabilities?.({availableOnly:true})?.capabilities||[];
   return capabilities.find((capability)=>String(capability.category||'').includes(category)
     && capability.input?.types?.includes(inputType)
-    && (!requiredRole||capability.output?.roles?.includes(requiredRole)))||null;
+    && (!requiredRole||capability.output?.roles?.includes(requiredRole))
+    && (!provider||capability.provider===provider)
+    && (!operation||capability.operation===operation))||null;
+}
+
+function providerDisplayNames(generation) {
+  const providers=generation?.listGenerationProviders?.({availableOnly:false})?.providers||[];
+  return new Map(providers.map((provider)=>[provider.id,provider.displayName||provider.id]));
+}
+
+export function buildProviderOptions(generation,{mode,inputType='text'}={}) {
+  const capabilities=generation?.listGenerationCapabilities?.({availableOnly:true})?.capabilities||[];
+  const names=providerDisplayNames(generation);
+  let candidates=[];
+  if(mode==='image') {
+    candidates=capabilities.filter((capability)=>String(capability.category||'').includes('image-generation')&&capability.input?.types?.includes('text'));
+  } else if(mode==='asset'&&inputType==='image') {
+    candidates=capabilities.filter((capability)=>String(capability.category||'').includes('asset-generation')&&capability.input?.types?.includes('image'));
+  } else if(mode==='asset') {
+    candidates=capabilities.filter((capability)=>String(capability.category||'').includes('asset-generation')
+      && generation?.canGenerateAsset?.({provider:capability.provider}));
+  } else if(mode==='world') {
+    candidates=capabilities.filter((capability)=>String(capability.category||'').includes('world-generation')
+      && generation?.canGenerateTextWorld?.({worldProvider:capability.provider}));
+  }
+  const seen=new Set();
+  return candidates.filter((capability)=>{
+    if(seen.has(capability.provider)) return false;
+    seen.add(capability.provider);
+    return true;
+  }).map((capability)=>({
+    id:capability.provider,
+    label:names.get(capability.provider)||capability.provider,
+    operation:capability.operation,
+    profiles:Object.keys(capability.profiles||{}),
+    recommendedProfile:preferredProfile(capability)
+  }));
 }
 
 export function buildInputs(capability,seed={}) {
@@ -45,6 +81,10 @@ export class StudioBuildController {
     this.openGeneratedWorld=typeof openGeneratedWorld==='function'?openGeneratedWorld:null;
     this.log=log;
     this.pollIntervalMs=Math.max(0,Number(pollIntervalMs)||0);
+  }
+
+  providerOptions({mode,inputType='text'}={}) {
+    return buildProviderOptions(this.generation,{mode,inputType});
   }
 
   capabilities() {
@@ -88,10 +128,10 @@ export class StudioBuildController {
     }
   }
 
-  async generateImage({prompt,onProgress=()=>{}}={}) {
+  async generateImage({prompt,provider=null,onProgress=()=>{}}={}) {
     const text=String(prompt||'').trim();
     if(!text) throw new Error('请输入 Image prompt');
-    const capability=selectBuildCapability(this.generation,{category:'image-generation',inputType:'text'});
+    const capability=selectBuildCapability(this.generation,{category:'image-generation',inputType:'text',provider});
     if(!capability){const error=new Error('当前没有可用的 Text → Image 能力');error.code='GENERATION_ROUTE_UNAVAILABLE';throw error;}
     const job=await this.generation.submitGenerationJob({
       provider:capability.provider,
@@ -106,14 +146,14 @@ export class StudioBuildController {
     const summary=completed.artifacts.find((artifact)=>String(artifact.mime||'').startsWith('image/'));
     if(!summary){const error=new Error('Image 任务没有产生图像 Artifact');error.code='GENERATION_ARTIFACT_MISSING';throw error;}
     const imported=await this.generation.importGenerationResult(completed.jobId,{artifactId:summary.id});
-    return {kind:'image',status:'ready',jobId:completed.jobId,artifactId:imported.artifact.id,artifact:imported.artifact,prompt:text};
+    return {kind:'image',status:'ready',jobId:completed.jobId,artifactId:imported.artifact.id,artifact:imported.artifact,prompt:text,provider:capability.provider,route:{provider:capability.provider,operation:capability.operation,profile:preferredProfile(capability)}};
   }
 
-  async generateAsset({prompt,assetId=null,onProgress=()=>{}}={}) {
+  async generateAsset({prompt,assetId=null,provider=null,onProgress=()=>{}}={}) {
     const text=String(prompt||'').trim();
     if(!text) throw new Error('请输入 3D Asset prompt');
     onProgress({phase:'generation'});
-    const produced=await this.generation.generateAsset(text,{assetId:assetId||undefined,label:text});
+    const produced=await this.generation.generateAsset(text,{assetId:assetId||undefined,label:text,...(provider?{provider}:{})});
     if(produced.status==='generator_not_configured'){
       const error=new Error(produced.hint||'当前没有可用的 3D 生成能力');
       error.code='GENERATION_ROUTE_UNAVAILABLE';
@@ -125,13 +165,15 @@ export class StudioBuildController {
       error.admission=produced.admission;
       throw error;
     }
-    return {kind:'asset',status:produced.status,assetId:produced.id||assetId,asset:produced,prompt:text};
+    const artifactId=produced.generation?.artifactId||produced.artifactId||null;
+    const asset=artifactId&&!produced.artifactId?{...produced,artifactId}:produced;
+    return {kind:'asset',status:produced.status,assetId:produced.id||assetId,asset,prompt:text,provider:provider||produced.generation?.route?.asset?.provider||produced.generation?.route?.provider||null,route:produced.generation?.route||null};
   }
 
-  async generateAssetFromImage({imageResult,assetId=null,onProgress=()=>{}}={}) {
+  async generateAssetFromImage({imageResult,assetId=null,provider=null,onProgress=()=>{}}={}) {
     const source=imageResult?.artifact;
     if(!source?.id||!source?.hash) throw new Error('缺少可用于 3D 重建的 Image Artifact');
-    const capability=selectBuildCapability(this.generation,{category:'asset-generation',inputType:'image'});
+    const capability=selectBuildCapability(this.generation,{category:'asset-generation',inputType:'image',provider});
     if(!capability){const error=new Error('当前没有可用的 Image → 3D 能力');error.code='GENERATION_ROUTE_UNAVAILABLE';throw error;}
     const targetId=String(assetId||`generated_${Date.now().toString(36)}`).trim();
     const job=await this.generation.submitGenerationJob({
@@ -151,21 +193,23 @@ export class StudioBuildController {
       error.code='ASSET_NOT_READY';
       throw error;
     }
-    return {kind:'asset',status:produced.status,assetId:targetId,asset:produced,prompt:imageResult.prompt||'',sourceArtifactId:source.id};
+    const glb=completed.artifacts?.find?.((artifact)=>artifact.mime==='model/gltf-binary')||completed.artifacts?.[0]||null;
+    const asset=glb?.id?{...produced,artifactId:glb.id}:produced;
+    return {kind:'asset',status:produced.status,assetId:targetId,asset,prompt:imageResult.prompt||'',sourceArtifactId:source.id,provider:capability.provider,route:{provider:capability.provider,operation:capability.operation,profile:preferredProfile(capability)}};
   }
 
-  async generateWorld({prompt,onProgress=()=>{}}={}) {
+  async generateWorld({prompt,provider=null,onProgress=()=>{}}={}) {
     const text=String(prompt||'').trim();
     if(!text) throw new Error('请输入 World prompt');
     onProgress({phase:'reference'});
-    const result=await this.generation.generateTextWorldArtifacts({prompt:text});
+    const result=await this.generation.generateTextWorldArtifacts({prompt:text,...(provider?{worldProvider:provider}:{})});
     const manifest=result.artifacts?.['world-manifest'];
     if(!manifest?.artifact?.id){const error=new Error('World 生成结果缺少 world-manifest');error.code='WORLD_MANIFEST_MISSING';throw error;}
     return {
       kind:'world',status:result.status,prompt:text,
       manifestArtifactId:manifest.artifact.id,
       artifacts:Object.fromEntries(Object.entries(result.artifacts||{}).map(([role,value])=>[role,value.artifact?.id||null])),
-      route:result.route,jobs:result.jobs
+      route:result.route,jobs:result.jobs,provider:result.route?.world?.provider||provider||null
     };
   }
 

@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { BUILD_MODE_META, BUILD_MODES } from '../../build/BuildSession.js';
 import { useStudioStore, type BuildOutputRef } from '../state/studioStore';
 import './BuildWorkbench.css';
+import { ModelArtifactPreview, WorldArtifactPreview } from './BuildArtifactPreview';
 
 type BuildMode = 'image' | 'asset' | 'world';
 
@@ -20,6 +21,8 @@ type BuildError = {
 
 type ImageBuildResult = {
   kind: 'image';
+  provider?: string | null;
+  route?: { provider?: string; operation?: string; profile?: string | null } | null;
   prompt?: string;
   artifactId: string;
   artifact?: { id?: string; mime?: string; role?: string; hash?: string };
@@ -28,14 +31,18 @@ type ImageBuildResult = {
 
 type AssetBuildResult = {
   kind: 'asset';
+  provider?: string | null;
+  route?: any;
   prompt?: string;
   assetId: string;
   status: string;
-  asset?: { label?: string; artifactId?: string };
+  asset?: { label?: string; artifactId?: string; generation?: { artifactId?: string | null } };
 };
 
 type WorldBuildResult = {
   kind: 'world';
+  provider?: string | null;
+  route?: any;
   prompt?: string;
   manifestArtifactId: string;
   artifacts?: Record<string, string | null>;
@@ -70,13 +77,16 @@ type BuildSessionLike = {
   fail: (error: unknown) => unknown;
 };
 
+type ProviderOption = { id:string; label:string; operation?:string; profiles?:string[]; recommendedProfile?:string | null };
+
 type BuildControllerLike = {
   capabilities: () => CapabilityState;
+  providerOptions: (options: { mode:BuildMode; inputType?:'text' | 'image' }) => ProviderOption[];
   connect: (options?: { pairingId?: string | null }) => Promise<{ status?: string; reason?: string; pairingId?: string }>;
-  generateImage: (options: { prompt: string; onProgress?: (job: any) => void }) => Promise<ImageBuildResult>;
-  generateAsset: (options: { prompt: string; assetId?: string | null; onProgress?: (job: any) => void }) => Promise<AssetBuildResult>;
-  generateAssetFromImage: (options: { imageResult: ImageBuildResult; assetId?: string | null; onProgress?: (job: any) => void }) => Promise<AssetBuildResult>;
-  generateWorld: (options: { prompt: string; onProgress?: (job: any) => void }) => Promise<WorldBuildResult>;
+  generateImage: (options: { prompt: string; provider?:string | null; onProgress?: (job: any) => void }) => Promise<ImageBuildResult>;
+  generateAsset: (options: { prompt: string; assetId?: string | null; provider?:string | null; onProgress?: (job: any) => void }) => Promise<AssetBuildResult>;
+  generateAssetFromImage: (options: { imageResult: ImageBuildResult; assetId?: string | null; provider?:string | null; onProgress?: (job: any) => void }) => Promise<AssetBuildResult>;
+  generateWorld: (options: { prompt: string; provider?:string | null; onProgress?: (job: any) => void }) => Promise<WorldBuildResult>;
   placeAsset: (assetId: string) => Promise<unknown>;
   openWorld: (manifestArtifactId: string) => Promise<unknown>;
 };
@@ -134,6 +144,12 @@ function resultErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function routeLabel(result: BuildResult) {
+  const provider = result.provider || (result.kind === 'world' ? result.route?.world?.provider : result.route?.provider || result.route?.asset?.provider);
+  if (!provider) return undefined;
+  return String(provider);
+}
+
 function buildOutputRef(result: BuildResult): BuildOutputRef {
   const createdAt = Date.now();
   if (result.kind === 'image') {
@@ -144,11 +160,13 @@ function buildOutputRef(result: BuildResult): BuildOutputRef {
       artifactIds: [result.artifactId],
       prompt: result.prompt || '',
       status: 'ready',
+      routeLabel:routeLabel(result),
       createdAt
     };
   }
   if (result.kind === 'asset') {
-    const artifactIds = result.asset?.artifactId ? [result.asset.artifactId] : [];
+    const artifactId = result.asset?.artifactId || result.asset?.generation?.artifactId || null;
+    const artifactIds = artifactId ? [artifactId] : [];
     return {
       key: `asset:${result.assetId}`,
       kind: 'asset',
@@ -156,6 +174,7 @@ function buildOutputRef(result: BuildResult): BuildOutputRef {
       artifactIds,
       prompt: result.prompt || '',
       status: result.status,
+      routeLabel:routeLabel(result),
       createdAt
     };
   }
@@ -166,6 +185,7 @@ function buildOutputRef(result: BuildResult): BuildOutputRef {
     artifactIds: Object.values(result.artifacts || {}).filter((value): value is string => Boolean(value)),
     prompt: result.prompt || '',
     status: 'ready',
+    routeLabel:routeLabel(result),
     createdAt
   };
 }
@@ -216,6 +236,7 @@ function ImageResultView({
         <div className="build-result-copy">
           <strong>{result.prompt || 'Generated Image'}</strong>
           <code>{result.artifactId}</code>
+          {result.provider ? <small>{result.provider}</small> : null}
         </div>
       </div>
       <div className="build-result-actions">
@@ -226,10 +247,12 @@ function ImageResultView({
 }
 
 function AssetResultView({
+  world,
   controller,
   result,
   log
 }: {
+  world: WorldLike;
   controller: BuildControllerLike;
   result: AssetBuildResult;
   log: (text: string, kind?: string) => void;
@@ -253,10 +276,11 @@ function AssetResultView({
   return (
     <>
       <div className="build-result-body">
+        <ModelArtifactPreview world={world} artifactId={result.asset?.artifactId || result.asset?.generation?.artifactId} label={result.prompt || result.assetId} />
         <div className="build-result-copy">
           <strong>{result.asset?.label || result.prompt || result.assetId}</strong>
           <code>{result.assetId}</code>
-          <small>{result.status === 'asset-provisional' ? 'Asset provisional · 可进入当前工作区验证' : 'Asset ready · 已编译并注册'}</small>
+          <small>{[result.provider, result.status === 'asset-provisional' ? 'Asset provisional · 可进入当前工作区验证' : 'Asset ready · 已编译并注册'].filter(Boolean).join(' · ')}</small>
         </div>
       </div>
       <div className="build-result-actions">
@@ -269,10 +293,12 @@ function AssetResultView({
 }
 
 function WorldResultView({
+  world,
   controller,
   result,
   log
 }: {
+  world: WorldLike;
   controller: BuildControllerLike;
   result: WorldBuildResult;
   log: (text: string, kind?: string) => void;
@@ -297,10 +323,11 @@ function WorldResultView({
   return (
     <>
       <div className="build-result-body">
+        <WorldArtifactPreview world={world} artifacts={result.artifacts} label={result.prompt || 'Generated World'} />
         <div className="build-result-copy">
           <strong>{result.prompt || 'Generated World'}</strong>
           <code>{result.manifestArtifactId}</code>
-          <small>{artifactCount} artifacts · World bundle ready</small>
+          <small>{[result.provider, `${artifactCount} artifacts`, 'World bundle ready'].filter(Boolean).join(' · ')}</small>
         </div>
       </div>
       <div className="build-result-actions">
@@ -327,6 +354,7 @@ function BuildWorkbenchView({
   const [state, setState] = useState<BuildState>(() => session.snapshot());
   const [prompt, setPrompt] = useState('');
   const [assetId, setAssetId] = useState('');
+  const [providerId, setProviderId] = useState('auto');
   const [assetSource, setAssetSource] = useState<ImageBuildResult | null>(null);
   const [costConfirmed, setCostConfirmed] = useState(false);
   const [pairingId, setPairingId] = useState<string | null>(null);
@@ -373,6 +401,7 @@ function BuildWorkbenchView({
         session.setMode('asset');
         setPrompt(source.prompt || 'Image to 3D');
         setAssetSource(source);
+        setProviderId('auto');
         setCostConfirmed(false);
         setCapabilityNotice('已选择 Image Artifact 作为 3D 输入。确认外部生成计算资源后即可 Generate 3D。');
       } catch (error) {
@@ -386,7 +415,16 @@ function BuildWorkbenchView({
   }, [buildOutputs, consumeBuildWorkflow, log, session, workflowIntent, world]);
 
   const caps = useMemo(() => controller.capabilities(), [controller, capabilityRevision, state.mode, state.status]);
+  const providerInputType = state.mode === 'asset' && assetSource ? 'image' : 'text';
+  const providerOptions = useMemo(
+    () => controller.providerOptions({ mode:state.mode, inputType:providerInputType }),
+    [controller, capabilityRevision, providerInputType, state.mode, state.status]
+  );
+  const selectedProvider = providerId === 'auto' ? null : providerId;
   const meta = BUILD_MODE_META[state.mode];
+  useEffect(() => {
+    if (providerId !== 'auto' && !providerOptions.some((provider) => provider.id === providerId)) setProviderId('auto');
+  }, [providerId, providerOptions]);
   const running = state.status === 'running';
   const generateDisabled = running || !caps.paired || !caps[state.mode] || !costConfirmed || !prompt.trim();
 
@@ -432,6 +470,7 @@ function BuildWorkbenchView({
       if (mode === 'image') {
         result = await controller.generateImage({
           prompt: text,
+          provider:selectedProvider,
           onProgress: (job) => session.stage(1, job?.stage || job?.phase || job?.status || '生成中')
         });
       } else if (mode === 'asset') {
@@ -439,16 +478,19 @@ function BuildWorkbenchView({
           ? await controller.generateAssetFromImage({
               imageResult:assetSource,
               assetId:nextAssetId,
+              provider:selectedProvider,
               onProgress:(job) => session.stage(1, job?.stage || job?.phase || job?.status || '3D 重建中')
             })
           : await controller.generateAsset({
               prompt: text,
               assetId: nextAssetId,
+              provider:selectedProvider,
               onProgress: () => session.stage(1, '生成 3D')
             });
       } else {
         result = await controller.generateWorld({
           prompt: text,
+          provider:selectedProvider,
           onProgress: () => session.stage(1, '生成参考与世界')
         });
       }
@@ -468,6 +510,7 @@ function BuildWorkbenchView({
     session.setMode('asset');
     setPrompt(imageResult.prompt || 'Image to 3D');
     setAssetSource(imageResult);
+    setProviderId('auto');
     setCostConfirmed(false);
     setCapabilityNotice('已选择 Image Artifact 作为 3D 输入。确认外部生成计算资源后即可 Generate 3D。');
   };
@@ -476,6 +519,7 @@ function BuildWorkbenchView({
     if (!BUILD_MODES.includes(mode)) return;
     setCapabilityNotice(null);
     if (mode !== 'asset') setAssetSource(null);
+    setProviderId('auto');
     session.setMode(mode);
   };
 
@@ -487,7 +531,7 @@ function BuildWorkbenchView({
           <h1>Build Workbench</h1>
           <p>在当前世界中生成 Image、3D Asset 或完整 World。</p>
         </div>
-        <button id="build-open-advanced" className="build-advanced-button" type="button" onClick={() => root.classList.add('build-advanced-open')}>Advanced</button>
+        <button id="build-open-advanced" className="build-advanced-button" type="button" onClick={() => root.classList.add('build-advanced-open')}>{running ? 'Jobs / Cancel' : 'Advanced'}</button>
       </header>
 
       <div className="build-world-context">
@@ -533,6 +577,15 @@ function BuildWorkbenchView({
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
             />
+          </label>
+          <label className="build-provider-field">Provider <span>可选 · 默认自动路由</span>
+            <select value={providerId} disabled={running || !caps.paired} onChange={(event) => setProviderId(event.target.value)}>
+              <option value="auto">Auto · Recommended</option>
+              {providerOptions.map((provider) => (
+                <option key={provider.id} value={provider.id}>{provider.label} · {provider.id}</option>
+              ))}
+            </select>
+            {providerOptions.length > 1 ? <small className="build-provider-hint">切换 Provider 后再次 Generate；结果会按 Provider 保留在 Recent Outputs，便于对比。</small> : null}
           </label>
           {state.mode === 'asset' ? (
             <>
@@ -583,13 +636,13 @@ function BuildWorkbenchView({
 
         {state.result ? (
           <section id="build-result" className="build-result" aria-label="Build Result">
-            <div className="build-section-heading"><span>Result</span><small>READY</small></div>
+            <div className="build-section-heading"><span>Current Result</span><small>READY</small></div>
             {state.result.kind === 'image' ? (
               <ImageResultView world={world} result={state.result} onGenerate3D={prepare3DFromImage} />
             ) : state.result.kind === 'asset' ? (
-              <AssetResultView controller={controller} result={state.result} log={log} />
+              <AssetResultView world={world} controller={controller} result={state.result} log={log} />
             ) : (
-              <WorldResultView controller={controller} result={state.result} log={log} />
+              <WorldResultView world={world} controller={controller} result={state.result} log={log} />
             )}
           </section>
         ) : null}

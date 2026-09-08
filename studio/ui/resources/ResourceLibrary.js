@@ -6,8 +6,8 @@ export const resourceLibraryMarkup = () => `
 <section class="resource-console" aria-label="资源库">
   <header class="screen-heading">
     <div class="eyebrow">资源</div>
-    <h1>Resource Library</h1>
-    <p>Artifact 用于追踪来源；Asset 可直接拖入世界。</p>
+    <h1>Library</h1>
+    <p>持久化资源库。Recent Outputs 只保留最近构建结果，这里展示可复用的 Asset、Image 与 World。</p>
   </header>
   <div class="resource-controls">
     <div class="resource-kind-tabs" role="tablist" aria-label="资源类型">

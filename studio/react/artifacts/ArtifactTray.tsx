@@ -88,7 +88,7 @@ function outputKindLabel(output: BuildOutputRef) {
 function outputMeta(output: BuildOutputRef) {
   const artifactCount = output.artifactIds.length;
   const artifactText = artifactCount === 1 ? '1 artifact' : `${artifactCount} artifacts`;
-  return `${output.status} · ${artifactText}`;
+  return [output.status, output.routeLabel, artifactText].filter(Boolean).join(' · ');
 }
 
 function outputActionLabel(output: BuildOutputRef, busy: boolean) {
@@ -240,7 +240,7 @@ function ArtifactTrayView({ world, controller, agentVerifier, openBuild, log }: 
     <section className={`artifact-tray${collapsed ? ' is-collapsed' : ''}`} aria-label="Artifact Tray">
       <header className="artifact-tray-header">
         <div className="artifact-tray-title">
-          <span>ARTIFACTS</span>
+          <span>RECENT OUTPUTS</span>
           <small>{outputs.length}</small>
         </div>
         <div className="artifact-tray-actions">
@@ -255,8 +255,8 @@ function ArtifactTrayView({ world, controller, agentVerifier, openBuild, log }: 
         <div className="artifact-tray-scroll">
           {!outputs.length ? (
             <div className="artifact-tray-empty">
-              <strong>Build outputs</strong>
-              <span>Image、3D Asset 和 World 的结果会持续保留在这里。</span>
+              <strong>Recent outputs</strong>
+              <span>最近的 Image、3D Asset 和 World 会出现在这里；长期资源请到 Library。</span>
             </div>
           ) : outputs.map((output) => {
             const busy = busyKey === output.key;

@@ -15,7 +15,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     </option>`).join('');
 
   app.innerHTML = `
-    <main class="shell" data-world="${environmentDefinition.id}">
+    <main class="shell" data-world="${environmentDefinition.id}" data-context-view="create">
       <header class="brandbar">
         <div class="brand-lockup">
           <strong>AgentScape <em>Studio</em></strong>
@@ -120,6 +120,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
 
   const setView = (view) => {
     panel.dataset.view = view;
+    shell.dataset.contextView = view;
     useStudioStore.getState().setActiveContextView(view);
     for (const tab of tabs) {
       const active = tab.dataset.panelView === view;
