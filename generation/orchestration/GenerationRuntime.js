@@ -1,4 +1,6 @@
 import { createArtifactModule } from '../../artifact/ArtifactModule.js';
+import { sha256ArtifactHash } from '../../artifact/IncrementalSha256.js';
+import { ConnectorArtifactClient } from '../connector/ConnectorArtifactClient.js';
 import { ConnectorClient } from '../connector/ConnectorClient.js';
 import { ProviderRegistry } from '../providers/ProviderRegistry.js';
 import { GenerationOrchestrator } from './GenerationOrchestrator.js';
@@ -65,11 +67,76 @@ export class GenerationRuntime extends GenerationOrchestrator {
     this.assetModule=assetModule;
     this.assetCatalog=assetCatalog;
     this.connectorError=connectorError;
+    this.connectorArtifactClient=connector ? new ConnectorArtifactClient({connectorClient:connector}) : null;
   }
 
   async initialize(options={}) {
     await this.artifacts.hydrate?.();
     return super.initialize(options);
+  }
+
+  async uploadInputArtifact(bytes,{mime='image/png'}={}) {
+    if (!this.connectorArtifactClient || !this.connectorClient?.isPaired?.()) {
+      const error=new Error('A paired Connector is required to publish a local input image');
+      error.code='CONNECTION_REQUIRED';
+      throw error;
+    }
+    const data=bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+    if (!data.byteLength) {
+      const error=new Error('Local input image is empty');
+      error.code='LOCAL_IMAGE_EMPTY';
+      throw error;
+    }
+    const expectedHash=sha256ArtifactHash([data]);
+    const uploaded=await this.connectorArtifactClient.upload(data,{mime});
+    if (uploaded.hash!==expectedHash || uploaded.bytes!==data.byteLength || uploaded.mime!==mime) {
+      const error=new Error('Connector input Artifact does not match the approved local image');
+      error.code='LOCAL_IMAGE_UPLOAD_INTEGRITY_MISMATCH';
+      throw error;
+    }
+    const existing=this.artifacts.registry.get(uploaded.id);
+    if (existing && (existing.hash!==expectedHash || existing.bytes!==data.byteLength || existing.mime!==mime)) {
+      const error=new Error('Local Artifact identity conflicts with Connector upload');
+      error.code='LOCAL_IMAGE_ARTIFACT_CONFLICT';
+      throw error;
+    }
+    const now=new Date().toISOString();
+    if (!existing) {
+      const connector=this.connectorClient.session()?.connector;
+      this.artifacts.registry.register({
+        id:uploaded.id,role:uploaded.role,type:'image',schema:{id:'agentscape.image',version:'1'},
+        mime,format:'png',bytes:data.byteLength,hash:expectedHash,
+        producer:{
+          jobId:`local_${expectedHash.slice(7,23)}`,provider:'local-upload',
+          operation:'local-upload.image.upload.v1',attempt:1
+        },
+        lineage:{parents:[]},createdAt:now,retention:{class:'project'},integrity:{state:'declared'},
+        locations:connector ? [{
+          id:`connector_${uploaded.id}`,kind:'connector',scope:'application',state:'available',verifiedAt:now,
+          access:{kind:'connector-artifact',artifactId:uploaded.id,connector:{id:connector.id,instance:connector.instance}}
+        }] : []
+      });
+    }
+    const cacheKey=`cache_${uploaded.id}`;
+    if (!this.artifacts.byteStore.get(cacheKey)) {
+      const writer=this.artifacts.byteStore.begin({artifactId:uploaded.id,maxBytes:data.byteLength});
+      try {
+        await writer.write(data);
+        await writer.commit({key:cacheKey,hash:expectedHash,mime,bytes:data.byteLength});
+      } catch (error) {
+        if (writer.state==='open') await writer.abort();
+        throw error;
+      }
+      this.artifacts.registry.updateLocation(uploaded.id,{
+        id:`local_${uploaded.id}`,kind:'local-cache',scope:'application',state:'available',verifiedAt:now,
+        access:{kind:'cache-key',key:cacheKey}
+      });
+    }
+    const verified=this.artifacts.registry.verifyIntegrity(uploaded.id,{
+      hash:expectedHash,bytes:data.byteLength,mime,verifiedAt:now,method:'local-upload-sha256-v1'
+    });
+    await this.artifacts.persistArtifact?.(uploaded.id,cacheKey);
+    return verified;
   }
 
   setCompilerEndpoint(endpoint='') {

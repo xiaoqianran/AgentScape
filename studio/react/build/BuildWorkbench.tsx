@@ -84,6 +84,7 @@ type BuildControllerLike = {
   providerOptions: (options: { mode:BuildMode; inputType?:'text' | 'image' }) => ProviderOption[];
   connect: (options?: { pairingId?: string | null }) => Promise<{ status?: string; reason?: string; pairingId?: string }>;
   generateImage: (options: { prompt: string; provider?:string | null; onProgress?: (job: any) => void }) => Promise<ImageBuildResult>;
+  approveLocalImage: (options: { bytes: Uint8Array; prompt?: string }) => Promise<ImageBuildResult>;
   generateAsset: (options: { prompt: string; assetId?: string | null; provider?:string | null; onProgress?: (job: any) => void }) => Promise<AssetBuildResult>;
   generateAssetFromImage: (options: { imageResult: ImageBuildResult; assetId?: string | null; provider?:string | null; onProgress?: (job: any) => void }) => Promise<AssetBuildResult>;
   generateWorld: (options: { prompt: string; provider?:string | null; onProgress?: (job: any) => void }) => Promise<WorldBuildResult>;
@@ -118,6 +119,40 @@ type BuildWorkbenchProps = {
   environmentDefinition?: EnvironmentDefinition | null;
   log?: (text: string, kind?: string) => void;
 };
+
+type LocalImageDraft = {
+  name: string;
+  url: string;
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+};
+
+async function localImageDraftFromFile(file: File): Promise<LocalImageDraft> {
+  if (!file.type.startsWith('image/')) throw new Error('请选择 PNG、JPEG 或 WebP 图片');
+  const bitmap = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('浏览器无法创建本地图像处理 Canvas');
+    context.drawImage(bitmap, 0, 0);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((value) => value ? resolve(value) : reject(new Error('本地 PNG 转换失败')), 'image/png');
+    });
+    if (blob.size > 20 * 1024 * 1024) throw new Error('处理后的 PNG 超过 20 MiB，请选择更小的图片');
+    return {
+      name:file.name,
+      url:URL.createObjectURL(blob),
+      bytes:new Uint8Array(await blob.arrayBuffer()),
+      width:bitmap.width,
+      height:bitmap.height
+    };
+  } finally {
+    bitmap.close?.();
+  }
+}
 
 function localArtifactEntry(world: WorldLike, artifactId: string) {
   const descriptor = world.generation?.artifacts?.registry?.get?.(artifactId);
@@ -199,7 +234,7 @@ function imageBuildResultFromOutput(world: WorldLike, output: BuildOutputRef): I
     prompt:output.prompt,
     artifactId:descriptor.id,
     artifact:{ id:descriptor.id, mime:descriptor.mime, role:descriptor.role, hash:descriptor.hash },
-    jobId:descriptor.producer?.jobId || undefined
+    jobId:descriptor.producer?.provider === 'local-upload' ? undefined : descriptor.producer?.jobId || undefined
   };
 }
 
@@ -362,6 +397,9 @@ function BuildWorkbenchView({
   const [capabilityRevision, setCapabilityRevision] = useState(0);
   const [environmentRevision, setEnvironmentRevision] = useState(0);
   const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
+  const [localImageDraft, setLocalImageDraft] = useState<LocalImageDraft | null>(null);
+  const [localImageBusy, setLocalImageBusy] = useState(false);
+  const [localImageError, setLocalImageError] = useState<string | null>(null);
 
   useEffect(() => {
     session.onChange = (next) => setState(next);
@@ -390,6 +428,10 @@ function BuildWorkbenchView({
   useEffect(() => {
     root.dataset.buildMode = state.mode;
   }, [root, state.mode]);
+
+  useEffect(() => () => {
+    if (localImageDraft?.url) URL.revokeObjectURL(localImageDraft.url);
+  }, [localImageDraft?.url]);
 
   useEffect(() => {
     if (!workflowIntent) return;
@@ -458,6 +500,58 @@ function BuildWorkbenchView({
     }
   };
 
+  const selectLocalImage = async (file: File | null) => {
+    if (!file || localImageBusy) return;
+    setLocalImageBusy(true);
+    setLocalImageError(null);
+    try {
+      const draft = await localImageDraftFromFile(file);
+      setLocalImageDraft(draft);
+      setPrompt(file.name.replace(/\.[^.]+$/, '') || 'Local image');
+      setCapabilityNotice('图片仅在本地预览；确认前不会发送到 Connector 或云端。');
+    } catch (error) {
+      const message = resultErrorMessage(error);
+      setLocalImageError(message);
+      log(`本地图片读取失败：${message}`, 'error');
+    } finally {
+      setLocalImageBusy(false);
+    }
+  };
+
+  const clearLocalImage = () => {
+    setLocalImageDraft(null);
+    setLocalImageError(null);
+    setCapabilityNotice(null);
+  };
+
+  const approveLocalImage = async () => {
+    if (!localImageDraft || localImageBusy) return;
+    if (!caps.paired) {
+      setCapabilityNotice('确认图片前请先连接本机 Connector；确认后才会写入本地 Artifact。');
+      return;
+    }
+    setLocalImageBusy(true);
+    setLocalImageError(null);
+    const label = prompt.trim() || localImageDraft.name.replace(/\.[^.]+$/, '') || 'Local image';
+    session.begin(label, { mode:'image' });
+    session.stage(1, '人类已确认当前图片');
+    try {
+      const result = await controller.approveLocalImage({ bytes:localImageDraft.bytes, prompt:label });
+      session.stage(2, '已保存本地 Artifact，并发布给本机 Connector');
+      session.complete(result);
+      recordBuildOutput(buildOutputRef(result));
+      setCapabilityNotice('图片已确认并保存，可直接继续 Image → 3D。');
+      log(`图片已确认：${localImageDraft.name}`, 'result');
+    } catch (error) {
+      session.fail(error);
+      const message = resultErrorMessage(error);
+      setLocalImageError(message);
+      log(`确认图片失败：${message}`, 'error');
+    } finally {
+      setLocalImageBusy(false);
+    }
+  };
+
   const generate = async () => {
     const mode = session.snapshot().mode;
     const text = prompt.trim();
@@ -523,6 +617,63 @@ function BuildWorkbenchView({
     session.setMode(mode);
   };
 
+  const remoteGenerationControls = (
+    <div className="build-remote-controls">
+      <label className="build-prompt-label">Prompt
+        <textarea
+          id="build-prompt"
+          rows={4}
+          placeholder="描述你希望生成的内容…"
+          spellCheck={false}
+          disabled={running}
+          value={prompt}
+          onChange={(event) => setPrompt(event.target.value)}
+        />
+      </label>
+      <label className="build-provider-field">Provider <span>可选 · 默认自动路由</span>
+        <select value={providerId} disabled={running || !caps.paired} onChange={(event) => setProviderId(event.target.value)}>
+          <option value="auto">Auto · Recommended</option>
+          {providerOptions.map((provider) => (
+            <option key={provider.id} value={provider.id}>{provider.label} · {provider.id}</option>
+          ))}
+        </select>
+        {providerOptions.length > 1 ? <small className="build-provider-hint">切换 Provider 后再次 Generate；结果会按 Provider 保留在 Recent Outputs，便于对比。</small> : null}
+      </label>
+      {state.mode === 'asset' ? (
+        <>
+          {assetSource ? (
+            <div className="build-source-artifact">
+              <div>
+                <small>IMAGE SOURCE</small>
+                <strong>{assetSource.prompt || 'Image'}</strong>
+                <code>{assetSource.artifactId}</code>
+              </div>
+              <button type="button" disabled={running} onClick={() => setAssetSource(null)}>移除</button>
+            </div>
+          ) : null}
+          <label id="build-asset-id-field" className="build-asset-id-field">Asset ID <span>可选</span>
+            <input id="build-asset-id" placeholder="generated_asset_01" disabled={running} value={assetId} onChange={(event) => setAssetId(event.target.value)} />
+          </label>
+        </>
+      ) : null}
+      <label className="build-cost-confirm">
+        <input id="build-cost-confirm" type="checkbox" disabled={running} checked={costConfirmed} onChange={(event) => setCostConfirmed(event.target.checked)} />
+        允许本次 Build 使用外部生成计算资源。
+      </label>
+      <div className="build-primary-actions">
+        {!caps.paired ? (
+          <button id="build-connect" type="button" className="build-connect" disabled={connecting} onClick={() => void connect()}>
+            {pairingId ? '继续配对' : connecting ? '连接中…' : '连接生成器'}
+          </button>
+        ) : null}
+        <button id="build-generate" type="button" className="build-generate" disabled={generateDisabled} onClick={() => void generate()}>
+          {generateLabel(state.mode)}
+        </button>
+      </div>
+      <div id="build-capability-state" className="build-capability-state">{capabilityNotice || capabilityText(caps, state.mode)}</div>
+    </div>
+  );
+
   return (
     <section className="build-workbench" aria-label="Build Workbench">
       <header className="build-heading">
@@ -567,58 +718,72 @@ function BuildWorkbenchView({
             <strong id="build-mode-title">{meta.title}</strong>
             <span id="build-mode-description">{meta.description}</span>
           </div>
-          <label className="build-prompt-label">Prompt
-            <textarea
-              id="build-prompt"
-              rows={4}
-              placeholder="描述你希望生成的内容…"
-              spellCheck={false}
-              disabled={running}
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-            />
-          </label>
-          <label className="build-provider-field">Provider <span>可选 · 默认自动路由</span>
-            <select value={providerId} disabled={running || !caps.paired} onChange={(event) => setProviderId(event.target.value)}>
-              <option value="auto">Auto · Recommended</option>
-              {providerOptions.map((provider) => (
-                <option key={provider.id} value={provider.id}>{provider.label} · {provider.id}</option>
-              ))}
-            </select>
-            {providerOptions.length > 1 ? <small className="build-provider-hint">切换 Provider 后再次 Generate；结果会按 Provider 保留在 Recent Outputs，便于对比。</small> : null}
-          </label>
-          {state.mode === 'asset' ? (
+          {state.mode === 'image' ? (
             <>
-              {assetSource ? (
-                <div className="build-source-artifact">
-                  <div>
-                    <small>IMAGE SOURCE</small>
-                    <strong>{assetSource.prompt || 'Generated Image'}</strong>
-                    <code>{assetSource.artifactId}</code>
-                  </div>
-                  <button type="button" disabled={running} onClick={() => setAssetSource(null)}>移除</button>
+              <section className="build-local-image-intake" aria-label="本地图片准备">
+                <div className="build-local-image-heading">
+                  <div><strong>选择本地图片</strong><span>先在本机确认，再进入 3D 生成。</span></div>
+                  <label className="build-local-image-file">
+                    {localImageDraft ? '重新选择' : '选择图片'}
+                    <input
+                      id="build-local-image-file"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      disabled={localImageBusy || running}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] || null;
+                        event.currentTarget.value = '';
+                        void selectLocalImage(file);
+                      }}
+                    />
+                  </label>
                 </div>
-              ) : null}
-              <label id="build-asset-id-field" className="build-asset-id-field">Asset ID <span>可选</span>
-                <input id="build-asset-id" placeholder="generated_asset_01" disabled={running} value={assetId} onChange={(event) => setAssetId(event.target.value)} />
-              </label>
+                {localImageDraft ? (
+                  <div className="build-local-image-review">
+                    <div className="build-local-image-preview">
+                      <img src={localImageDraft.url} alt="本地待确认图片预览" />
+                    </div>
+                    <div className="build-local-image-meta">
+                      <strong>{localImageDraft.name}</strong>
+                      <span>{localImageDraft.width} × {localImageDraft.height} · PNG · {(localImageDraft.bytes.byteLength / 1024 / 1024).toFixed(2)} MiB</span>
+                      <small>当前仅在浏览器本地。确认前不会发送到 Connector 或远程生成服务。</small>
+                    </div>
+                    <div className="build-local-image-actions">
+                      {!caps.paired ? (
+                        <button type="button" className="build-connect" disabled={connecting} onClick={() => void connect()}>
+                          {pairingId ? '继续配对' : connecting ? '连接中…' : '连接本机 Connector'}
+                        </button>
+                      ) : null}
+                      <button
+                        id="build-local-image-approve"
+                        type="button"
+                        className="build-generate"
+                        disabled={localImageBusy || running || !caps.paired}
+                        onClick={() => void approveLocalImage()}
+                      >
+                        {localImageBusy ? '处理中…' : '确认这张图片'}
+                      </button>
+                      <button type="button" disabled={localImageBusy || running} onClick={clearLocalImage}>清除</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="build-local-image-empty">
+                    <strong>还没有选择图片</strong>
+                    <span>支持 PNG / JPEG / WebP；选择后先本地转为 PNG 并预览。</span>
+                  </div>
+                )}
+                {localImageError ? <div className="build-error">{localImageError}</div> : null}
+              </section>
+              <details className="build-cloud-image-options">
+                <summary>可选：从文字生成图片</summary>
+                <p>需要外部生成计算资源。适合没有现成参考图时使用。</p>
+                {remoteGenerationControls}
+              </details>
+              <div id="build-capability-state" className="build-capability-state build-local-image-state">
+                {capabilityNotice || (caps.paired ? '本机 Connector 已就绪；选择图片并确认即可。' : '可先选图预览；确认时再连接本机 Connector。')}
+              </div>
             </>
-          ) : null}
-          <label className="build-cost-confirm">
-            <input id="build-cost-confirm" type="checkbox" disabled={running} checked={costConfirmed} onChange={(event) => setCostConfirmed(event.target.checked)} />
-            允许本次 Build 使用外部生成计算资源。
-          </label>
-          <div className="build-primary-actions">
-            {!caps.paired ? (
-              <button id="build-connect" type="button" className="build-connect" disabled={connecting} onClick={() => void connect()}>
-                {pairingId ? '继续配对' : connecting ? '连接中…' : '连接生成器'}
-              </button>
-            ) : null}
-            <button id="build-generate" type="button" className="build-generate" disabled={generateDisabled} onClick={() => void generate()}>
-              {generateLabel(state.mode)}
-            </button>
-          </div>
-          <div id="build-capability-state" className="build-capability-state">{capabilityNotice || capabilityText(caps, state.mode)}</div>
+          ) : remoteGenerationControls}
         </section>
 
         <section className="build-pipeline" aria-label="Build Pipeline">

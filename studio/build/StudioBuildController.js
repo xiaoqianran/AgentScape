@@ -149,6 +149,17 @@ export class StudioBuildController {
     return {kind:'image',status:'ready',jobId:completed.jobId,artifactId:imported.artifact.id,artifact:imported.artifact,prompt:text,provider:capability.provider,route:{provider:capability.provider,operation:capability.operation,profile:preferredProfile(capability)}};
   }
 
+  async approveLocalImage({bytes,prompt='Local image'}={}) {
+    const data=bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+    if(!data.byteLength){const error=new Error('请选择本地图片');error.code='LOCAL_IMAGE_EMPTY';throw error;}
+    const artifact=await this.generation.uploadInputArtifact(data,{mime:'image/png'});
+    return {
+      kind:'image',status:'ready',artifactId:artifact.id,artifact,
+      prompt:String(prompt||'Local image').trim()||'Local image',
+      provider:'local-upload',route:{provider:'local-connector',operation:'artifact.upload'}
+    };
+  }
+
   async generateAsset({prompt,assetId=null,provider=null,onProgress=()=>{}}={}) {
     const text=String(prompt||'').trim();
     if(!text) throw new Error('请输入 3D Asset prompt');

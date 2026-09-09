@@ -6,7 +6,8 @@ export const CONNECTOR_SESSION_SCOPES = Object.freeze([
   'jobs.submit',
   'jobs.read',
   'jobs.cancel',
-  'artifacts.read'
+  'artifacts.read',
+  'artifacts.write'
 ]);
 
 const ALLOWED_SCOPE_SET = new Set(CONNECTOR_SESSION_SCOPES);

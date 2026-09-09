@@ -1,7 +1,7 @@
 export const BUILD_MODES = Object.freeze(['image','asset','world']);
 
 export const BUILD_MODE_META = Object.freeze({
-  image:{label:'Image',title:'生成参考图',description:'Text → Image Artifact',steps:['理解输入','生成图像','导入 Artifact']},
+  image:{label:'Image',title:'准备 3D 参考图',description:'本地选择 → 预览 → 确认 → Image Artifact',steps:['准备图片','确认图片','保存 Artifact']},
   asset:{label:'3D Asset',title:'生成 3D 资产',description:'Text / Image → 3D → Compile → Asset',steps:['理解输入','生成 3D','编译与准入','Asset Ready']},
   world:{label:'World',title:'生成世界',description:'Text → Reference → World → Environment',steps:['理解输入','生成参考','生成世界','导入 World Bundle']}
 });

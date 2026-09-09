@@ -12,6 +12,18 @@ describe('ConnectorArtifactClient',()=>{
     });
   });
 
+  it('uploads approved local PNG bytes through artifacts.write without inventing file paths',async()=>{
+    const bytes=new Uint8Array([137,80,78,71,13,10,26,10,1,2,3]);
+    const artifact={id:'artifact_local_01',role:'primary-image',mime:'image/png',bytes:bytes.byteLength,hash:`sha256:${'a'.repeat(64)}`};
+    const response={ok:true,status:201,redirected:false,json:vi.fn(async()=>({artifact}))};
+    const connectorClient={request:vi.fn(async()=>response),session:vi.fn(()=>({status:'paired',connector:{id:'unified-connector',instance:'instance_01'}}))};
+    const client=new ConnectorArtifactClient({connectorClient});
+    await expect(client.upload(bytes)).resolves.toEqual(artifact);
+    expect(connectorClient.request).toHaveBeenCalledWith('/connector/v1/artifacts',{
+      scope:'artifacts.write',method:'POST',headers:{'content-type':'image/png',accept:'application/json'},body:bytes
+    });
+  });
+
   it('rejects unsafe IDs before Connector transport',async()=>{
     const connectorClient={request:vi.fn(),session:vi.fn(()=>({status:'paired',connector:{id:'unified-connector',instance:'instance_01'}}))};
     const client=new ConnectorArtifactClient({connectorClient});

@@ -55,6 +55,16 @@ describe('StudioBuildController workflows',()=>{
     expect(generation.importGenerationResult).toHaveBeenCalledWith('job_image',{artifactId:'image_01'});
   });
 
+  it('publishes a Human-approved local image without invoking cloud Text → Image',async()=>{
+    const artifact={id:'image_local_01',role:'primary-image',mime:'image/png',hash:`sha256:${'a'.repeat(64)}`,bytes:12};
+    const generation={uploadInputArtifact:vi.fn(async()=>artifact)};
+    const controller=new StudioBuildController({world:{generation}});
+    const bytes=new Uint8Array(12);
+    const result=await controller.approveLocalImage({bytes,prompt:'station bench'});
+    expect(result).toMatchObject({kind:'image',status:'ready',artifactId:'image_local_01',provider:'local-upload',prompt:'station bench'});
+    expect(generation.uploadInputArtifact).toHaveBeenCalledWith(bytes,{mime:'image/png'});
+  });
+
   it('continues from an existing Image Artifact into 3D and compiles the resulting Asset',async()=>{
     const generation={
       connectorStatus:()=>({status:'paired'}),
@@ -73,6 +83,23 @@ describe('StudioBuildController workflows',()=>{
       provider:'modal-3d',parent:{jobId:'job_image'},inputs:{sourceArtifact:{id:'image_01',role:'primary-image',mime:'image/png',hash:'sha256:image'},quality:'standard'}
     }));
     expect(generation.generateAndCompileAsset).toHaveBeenCalledWith({jobId:'job_3d',assetId:'chair_01',label:'chair'});
+  });
+
+  it('uses a Human-uploaded Image Artifact for 3D without inventing a parent generation job',async()=>{
+    const generation={
+      listGenerationCapabilities:()=>({capabilities:[assetCapability]}),
+      submitGenerationJob:vi.fn(async()=>({status:'provider-succeeded',jobId:'job_3d_local',artifacts:[{id:'glb_local',role:'primary-glb',mime:'model/gltf-binary'}]})),
+      generateAndCompileAsset:vi.fn(async()=>({status:'asset-ready',assetId:'bench_01'}))
+    };
+    const controller=new StudioBuildController({world:{generation},pollIntervalMs:0});
+    await controller.generateAssetFromImage({
+      imageResult:{prompt:'bench',artifact:{id:'image_local',role:'primary-image',mime:'image/png',hash:`sha256:${'b'.repeat(64)}`}},
+      assetId:'bench_01'
+    });
+    expect(generation.submitGenerationJob).toHaveBeenCalledWith(expect.objectContaining({
+      parent:null,
+      inputs:{sourceArtifact:{id:'image_local',role:'primary-image',mime:'image/png',hash:`sha256:${'b'.repeat(64)}`},quality:'standard'}
+    }));
   });
 
   it('projects World generation and delegates result actions without owning runtime logic',async()=>{

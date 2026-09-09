@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { attachGenerationRuntime } from '../../generation/orchestration/GenerationRuntime.js';
 import { createAssetModule } from '../../asset/AssetModule.js';
 import { createArtifactModule } from '../../artifact/ArtifactModule.js';
+import { sha256ArtifactHash } from '../../artifact/IncrementalSha256.js';
 import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
 
 const createRuntime=()=>new WorldRuntime({appendChild(){}},{environmentFactory:()=>null,assetModule:createAssetModule()});
@@ -39,6 +40,30 @@ describe('WorldRuntime generation boundary',()=>{
     expect(generation.canGenerateAsset()).toBe(false);
     expect(generation.canGenerateTextWorld()).toBe(false);
     expect(typeof generation.generateTextWorldArtifacts).toBe('function');
+  });
+
+  it('keeps a Human-approved local image in both local Artifact storage and the paired Connector with matching SHA-256',async()=>{
+    const runtime=createRuntime();
+    const artifacts=createArtifactModule({persistentStore:null});
+    const bytes=new Uint8Array([137,80,78,71,13,10,26,10,1,2,3,4]);
+    const hash=sha256ArtifactHash([bytes]);
+    const connectorClient={
+      isPaired:vi.fn(()=>true),
+      session:vi.fn(()=>({status:'paired',connector:{id:'unified-connector',instance:'instance_01'}})),
+      request:vi.fn(async(_path,options)=>({
+        ok:true,status:201,redirected:false,
+        json:async()=>({artifact:{id:'artifact_local_01',role:'primary-image',mime:'image/png',bytes:options.body.byteLength,hash}})
+      }))
+    };
+    const generation=attachGenerationRuntime(runtime,{artifactModule:artifacts,connectorClient});
+    const descriptor=await generation.uploadInputArtifact(bytes);
+    expect(descriptor).toMatchObject({id:'artifact_local_01',hash,mime:'image/png',integrity:{state:'verified'}});
+    const local=descriptor.locations.find((location)=>location.kind==='local-cache');
+    const remote=descriptor.locations.find((location)=>location.kind==='connector');
+    expect(local?.state).toBe('available');
+    expect(remote?.access).toMatchObject({kind:'connector-artifact',artifactId:'artifact_local_01',connector:{id:'unified-connector',instance:'instance_01'}});
+    expect(artifacts.byteStore.get(local.access.key)?.data).toEqual(bytes);
+    expect(connectorClient.request).toHaveBeenCalledWith('/connector/v1/artifacts',expect.objectContaining({scope:'artifacts.write',method:'POST',body:bytes}));
   });
 
   it('delegates compiler endpoint changes to AssetModule without owning compiler internals',()=>{

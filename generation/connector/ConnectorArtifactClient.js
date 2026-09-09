@@ -9,6 +9,20 @@ export class ConnectorArtifactClient {
     this.connectorClient=connectorClient;
   }
 
+  async upload(bytes,{mime='image/png'}={}) {
+    const data=bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+    if (!data.byteLength) throw new ConnectorContractError('CONNECTOR_ARTIFACT_UPLOAD_INVALID','Artifact upload requires non-empty bytes');
+    const mediaType=String(mime || '').trim().toLowerCase();
+    if (mediaType!=='image/png') throw new ConnectorContractError('CONNECTOR_ARTIFACT_UPLOAD_UNSUPPORTED','Local input upload currently requires image/png');
+    const response=await this.connectorClient.request(ARTIFACTS_PATH,{
+      scope:'artifacts.write',method:'POST',headers:{'content-type':mediaType,accept:'application/json'},body:data
+    });
+    if (response?.redirected) throw new ConnectorContractError('CONNECTOR_ARTIFACT_REDIRECT','Connector artifact upload must not redirect',{status:response.status});
+    const payload=await response?.json?.().catch(()=>null);
+    if (!response?.ok || !payload?.artifact) throw new ConnectorContractError('CONNECTOR_ARTIFACT_UPLOAD_HTTP_ERROR',`Connector artifact upload HTTP ${response?.status ?? 'unknown'}`,{status:response?.status ?? null});
+    return payload.artifact;
+  }
+
   async open(artifactId,{accept='application/octet-stream',expectedConnector=null}={}) {
     const id=requireSafeArtifactId(artifactId);
     if (expectedConnector) {
