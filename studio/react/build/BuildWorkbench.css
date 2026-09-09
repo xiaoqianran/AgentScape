@@ -129,3 +129,30 @@
 .build-cloud-image-options > summary { cursor:pointer; color:var(--text-muted); font-size:9px; font-weight:620; }
 .build-cloud-image-options > p { margin:7px 0 10px; color:var(--text-muted); font-size:8px; line-height:1.45; }
 .build-local-image-state { margin-top:0; }
+
+.local-image-editor { display:grid; gap:8px; padding:8px; border:1px solid rgba(228,225,230,.12); border-radius:var(--radius-sm); background:rgba(8,8,10,.48); }
+.local-image-editor-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.local-image-editor-toolbar strong { color:var(--text); font-size:9px; font-weight:650; }
+.local-image-editor-toolbar small { color:var(--text-muted); font-size:7.5px; line-height:1.35; text-align:right; }
+.local-image-crop-grid { display:grid; gap:5px; }
+.local-image-crop-grid label,
+.local-image-brush-size { display:grid; grid-template-columns:34px minmax(0,1fr) 34px; gap:6px; align-items:center; color:var(--text-muted); font:7.5px/1 var(--font-mono); }
+.local-image-crop-grid input,
+.local-image-brush-size input { width:100%; accent-color:#bca2e8; }
+.local-image-crop-grid code,
+.local-image-brush-size code { color:#9b94a2; text-align:right; font:7px/1 var(--font-mono); }
+.local-image-editor-secondary,
+.local-image-mask-actions button { min-height:25px; padding:0 7px; border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--text-muted); background:rgba(8,8,10,.72); cursor:pointer; font:600 7.5px/1 var(--font-ui); }
+.local-image-editor-secondary:hover:not(:disabled),
+.local-image-mask-actions button:hover:not(:disabled),
+.local-image-mask-actions button[data-active="true"] { color:var(--text); border-color:rgba(210,188,255,.38); background:rgba(125,89,184,.12); }
+.local-image-editor-secondary:disabled,
+.local-image-mask-actions button:disabled { opacity:.42; cursor:default; }
+.local-image-mask-toolbar > div:first-child { display:grid; gap:2px; }
+.local-image-mask-toolbar > div:first-child small { text-align:left; }
+.local-image-mask-actions { display:flex; gap:4px; }
+.local-image-editor-canvas-wrap { position:relative; height:210px; display:grid; place-items:center; overflow:hidden; border:1px solid var(--line); border-radius:var(--radius-sm); background:#0a0a0c; touch-action:none; }
+.local-image-transparency-grid { position:absolute; inset:0; background-image:linear-gradient(45deg,rgba(255,255,255,.055) 25%,transparent 25%),linear-gradient(-45deg,rgba(255,255,255,.055) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,rgba(255,255,255,.055) 75%),linear-gradient(-45deg,transparent 75%,rgba(255,255,255,.055) 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
+.local-image-editor-canvas { position:relative; z-index:1; display:block; max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; cursor:crosshair; }
+.local-image-editor-status { display:flex; flex-wrap:wrap; gap:4px; }
+.local-image-editor-status span { padding:3px 5px; border:1px solid var(--line); border-radius:999px; color:#8f8996; font:7px/1 var(--font-mono); background:rgba(8,8,10,.55); }

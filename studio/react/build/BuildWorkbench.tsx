@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { BUILD_MODE_META, BUILD_MODES } from '../../build/BuildSession.js';
 import { useStudioStore, type BuildOutputRef } from '../state/studioStore';
 import './BuildWorkbench.css';
 import { ModelArtifactPreview, WorldArtifactPreview } from './BuildArtifactPreview';
+import { LocalImageEditor, type LocalImageEditorHandle } from './LocalImageEditor';
 
 type BuildMode = 'image' | 'asset' | 'world';
 
@@ -398,6 +399,7 @@ function BuildWorkbenchView({
   const [environmentRevision, setEnvironmentRevision] = useState(0);
   const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
   const [localImageDraft, setLocalImageDraft] = useState<LocalImageDraft | null>(null);
+  const localImageEditorRef = useRef<LocalImageEditorHandle | null>(null);
   const [localImageBusy, setLocalImageBusy] = useState(false);
   const [localImageError, setLocalImageError] = useState<string | null>(null);
 
@@ -533,15 +535,18 @@ function BuildWorkbenchView({
     setLocalImageBusy(true);
     setLocalImageError(null);
     const label = prompt.trim() || localImageDraft.name.replace(/\.[^.]+$/, '') || 'Local image';
-    session.begin(label, { mode:'image' });
-    session.stage(1, '人类已确认当前图片');
     try {
-      const result = await controller.approveLocalImage({ bytes:localImageDraft.bytes, prompt:label });
-      session.stage(2, '已保存本地 Artifact，并发布给本机 Connector');
+      const editor = localImageEditorRef.current;
+      if (!editor) throw new Error('本地图像编辑器尚未就绪');
+      const prepared = await editor.exportPng();
+      session.begin(label, { mode:'image' });
+      session.stage(1, `Human 已确认最终 RGBA · ${prepared.width}×${prepared.height}`);
+      const result = await controller.approveLocalImage({ bytes:prepared.bytes, prompt:label });
+      session.stage(2, '最终 RGBA 已保存为本地 Artifact，并发布给本机 Connector');
       session.complete(result);
       recordBuildOutput(buildOutputRef(result));
-      setCapabilityNotice('图片已确认并保存，可直接继续 Image → 3D。');
-      log(`图片已确认：${localImageDraft.name}`, 'result');
+      setCapabilityNotice('最终 RGBA 已确认并保存，可直接继续 Image → 3D。');
+      log(`最终 RGBA 已确认：${localImageDraft.name} · ${prepared.width}×${prepared.height}`, 'result');
     } catch (error) {
       session.fail(error);
       const message = resultErrorMessage(error);
@@ -740,14 +745,18 @@ function BuildWorkbenchView({
                 </div>
                 {localImageDraft ? (
                   <div className="build-local-image-review">
-                    <div className="build-local-image-preview">
-                      <img src={localImageDraft.url} alt="本地待确认图片预览" />
-                    </div>
                     <div className="build-local-image-meta">
                       <strong>{localImageDraft.name}</strong>
-                      <span>{localImageDraft.width} × {localImageDraft.height} · PNG · {(localImageDraft.bytes.byteLength / 1024 / 1024).toFixed(2)} MiB</span>
-                      <small>当前仅在浏览器本地。确认前不会发送到 Connector 或远程生成服务。</small>
+                      <span>{localImageDraft.width} × {localImageDraft.height} · Source PNG · {(localImageDraft.bytes.byteLength / 1024 / 1024).toFixed(2)} MiB</span>
+                      <small>Crop 与 Alpha Mask 全部只在浏览器本地处理；确认前不会发送到 Connector 或远程生成服务。</small>
                     </div>
+                    <LocalImageEditor
+                      ref={localImageEditorRef}
+                      sourceUrl={localImageDraft.url}
+                      sourceWidth={localImageDraft.width}
+                      sourceHeight={localImageDraft.height}
+                      disabled={localImageBusy || running}
+                    />
                     <div className="build-local-image-actions">
                       {!caps.paired ? (
                         <button type="button" className="build-connect" disabled={connecting} onClick={() => void connect()}>
@@ -761,7 +770,7 @@ function BuildWorkbenchView({
                         disabled={localImageBusy || running || !caps.paired}
                         onClick={() => void approveLocalImage()}
                       >
-                        {localImageBusy ? '处理中…' : '确认这张图片'}
+                        {localImageBusy ? '处理中…' : '确认最终 RGBA'}
                       </button>
                       <button type="button" disabled={localImageBusy || running} onClick={clearLocalImage}>清除</button>
                     </div>
