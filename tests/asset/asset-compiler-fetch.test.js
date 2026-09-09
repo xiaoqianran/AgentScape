@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AssetCompiler } from '../../asset/compiler/AssetCompiler.js';
-import { RESOURCE_BUDGET } from '../../asset/compiler/resourceBudget.js';
+import { RESOURCE_BUDGET } from '../../asset/resourceBudget.js';
 
 const compiler = () => new AssetCompiler({ store:{ put:vi.fn() } });
 

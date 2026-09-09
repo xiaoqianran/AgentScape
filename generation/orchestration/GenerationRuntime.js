@@ -1,5 +1,4 @@
-import { HttpCompilerProvider } from '../../asset/compiler/providers/HttpCompilerProvider.js';
-import { createArtifactModule } from '../artifacts/ArtifactModule.js';
+import { createArtifactModule } from '../../artifact/ArtifactModule.js';
 import { ConnectorClient } from '../connector/ConnectorClient.js';
 import { ProviderRegistry } from '../providers/ProviderRegistry.js';
 import { GenerationOrchestrator } from './GenerationOrchestrator.js';
@@ -26,10 +25,8 @@ export class GenerationRuntime extends GenerationOrchestrator {
     if (!assetModule?.configurePublication || typeof assetModule.publishAsset !== 'function') {
       throw new TypeError('GenerationRuntime requires AssetModule publication boundary');
     }
-    const assetManager=assetModule.manager;
     const assetCatalog=assetModule.catalog;
-    const compiledAssetStore=assetModule.compiledStore;
-    if (!assetManager?.getManifest || !assetCatalog?.resolveExisting || !compiledAssetStore) {
+    if (!assetCatalog?.resolveExisting || typeof assetModule.setCompilerEndpoint !== 'function') {
       throw new TypeError('GenerationRuntime requires a complete AssetModule');
     }
     const artifacts=artifactModule || createArtifactModule();
@@ -46,17 +43,13 @@ export class GenerationRuntime extends GenerationOrchestrator {
       }
     }
 
-    const compiler=compilerProvider || new HttpCompilerProvider({endpoint:String(compilerEndpoint || '').trim()});
-    let assetCompiler=null;
-    const getAssetCompiler=async()=>{
-      if (!assetCompiler) {
-        const { AssetCompiler }=await import('../../asset/compiler/AssetCompiler.js');
-        assetCompiler=new AssetCompiler({store:compiledAssetStore,provider:compiler,events,version});
-      }
-      return assetCompiler;
-    };
-
-    assetModule.configurePublication({artifacts,getAssetCompiler,events});
+    assetModule.configurePublication({
+      artifacts,
+      compilerProvider,
+      compilerEndpoint,
+      events,
+      version
+    });
     super({
       providerRegistry:providers,
       connectorClient:connector,
@@ -69,11 +62,9 @@ export class GenerationRuntime extends GenerationOrchestrator {
     });
 
     this.artifacts=artifacts;
-    this.assetManager=assetManager;
+    this.assetModule=assetModule;
     this.assetCatalog=assetCatalog;
-    this.compilerProvider=compiler;
     this.connectorError=connectorError;
-    this.getAssetCompiler=getAssetCompiler;
   }
 
   async initialize(options={}) {
@@ -82,7 +73,7 @@ export class GenerationRuntime extends GenerationOrchestrator {
   }
 
   setCompilerEndpoint(endpoint='') {
-    this.compilerProvider?.setEndpoint?.(String(endpoint || '').trim());
+    this.assetModule.setCompilerEndpoint(endpoint);
     return this;
   }
 
@@ -130,7 +121,7 @@ export class GenerationRuntime extends GenerationOrchestrator {
 }
 
 export function attachGenerationRuntime(runtime,options={}) {
-  if (!runtime?.assetModule || !runtime?.assets || !runtime?.assetCatalog || !runtime?.compiledAssetStore) {
+  if (!runtime?.assetModule) {
     throw new TypeError('attachGenerationRuntime requires a WorldRuntime domain shell');
   }
   if (runtime.generation) return runtime.generation;

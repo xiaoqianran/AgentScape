@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { ArtifactRegistry } from '../../generation/artifacts/ArtifactRegistry.js';
-import { MemoryArtifactByteStore } from '../../generation/artifacts/MemoryArtifactByteStore.js';
+import { ArtifactRegistry } from '../../artifact/ArtifactRegistry.js';
+import { MemoryArtifactByteStore } from '../../artifact/MemoryArtifactByteStore.js';
 import { GenerationOrchestrator } from '../../generation/orchestration/GenerationOrchestrator.js';
 import { loadGeneratedWorld } from '../../world/loadGeneratedWorld.js';
 

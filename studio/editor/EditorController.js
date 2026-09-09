@@ -47,7 +47,12 @@ export class EditorController {
     });
     this.transform.addEventListener('objectChange', () => {
       if (!this.selectedId || this.dragBlocked) return;
-      runtime.physics.syncTransform(this.selectedId, runtime.store.get(this.selectedId).object);
+      const object=runtime.store.get(this.selectedId).object;
+      runtime.applyObjectTransform(this.selectedId,{
+        position:object.position.toArray(),
+        quaternion:object.quaternion.toArray(),
+        scale:object.scale.toArray()
+      },{source:'editor'});
       runtime.events.emit('editor.transform', { id: this.selectedId, mode: this.transform.getMode() });
       this.box.update();
     });

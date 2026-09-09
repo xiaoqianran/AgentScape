@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MemoryArtifactByteStore } from '../../generation/artifacts/MemoryArtifactByteStore.js';
+import { MemoryArtifactByteStore } from '../../artifact/MemoryArtifactByteStore.js';
 
 const H1=`sha256:${'a'.repeat(64)}`;
 

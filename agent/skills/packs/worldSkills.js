@@ -3,7 +3,6 @@ import { buildWorldProposal } from '../../../world/spec/WorldPlannerProposal.js'
 import { createWorldRevisionProposal, WORLD_REVISION_PROPOSAL_TOOL_SCHEMA, WORLD_REVISION_REQUEST_TOOL_SCHEMA } from '../../../world/spec/WorldRevision.js';
 import { WorldBuilder } from '../../../world/build/WorldBuilder.js';
 import { meta } from '../skillPrimitives.js';
-import { PROMPT_HYBRID_WORLD_REQUEST_SCHEMA, PromptHybridWorldOrchestrator } from '../../../generation/orchestration/PromptHybridWorldOrchestrator.js';
 
 const newWorldRevisionId=()=>{
   const id=globalThis.crypto?.randomUUID?.();
@@ -11,7 +10,7 @@ const newWorldRevisionId=()=>{
   return `world-${id}`;
 };
 
-export function registerWorldSkills(add,runtime,{worldBuilder = new WorldBuilder(runtime),promptHybridWorldOrchestrator = new PromptHybridWorldOrchestrator(runtime,{worldBuilder})} = {}) {
+export function registerWorldSkills(add,runtime,{worldBuilder = new WorldBuilder(runtime)} = {}) {
   add('proposeWorldRevision', meta('针对最近一次 world-rejected 的 Runtime-issued revision context 提交 bounded typed edits。Runtime 决定 base/next revision、Finding scope 和 affectedEntityIds；本工具只生成 proposal，不修改 Scene。成功后必须 fresh-replan，再把返回 proposal 原样提交 recompileWorldRevision。', [], ['request'], { request:WORLD_REVISION_REQUEST_TOOL_SCHEMA }), (a,{context}) => {
     const repair=context?.worldRevisionRepair;
     if(!repair?.revisionContext){const error=new Error('No Runtime-issued world revision context is available');error.code='WORLD_REVISION_CONTEXT_REQUIRED';throw error;}
@@ -43,8 +42,4 @@ export function registerWorldSkills(add,runtime,{worldBuilder = new WorldBuilder
 
   add('runWorldPipeline', { ...meta('提交 strict World IR v1 到 canonical compiler：替换当前 world，而不是在旧 Scene 上追加；先暂停旧规则并清空旧 Scene，再统一解析资产、Behavior、Physics、Acceptance、实例化与验证。Agent 只执行 proposeWorldIR 已颁发的 revision/provenance；不支持的语义 fail-closed。若唯一 rejection 是可生成的 search miss，Runtime 最多自动重跑一次，只为缺失 asset 开启 generation。world-ready 才视为 verified；world-provisional 不冒充验证；world-rejected 精确恢复调用前 Scene 与 committed authority。', ['generation.read', 'generation.submit', 'artifact.import', 'world.write', 'asset.read', 'asset.write', 'physics.read'], ['plan'], { plan: WORLD_IR_TOOL_SCHEMA }), batchable:false, mutates:true }, async (a) => worldBuilder.run(a.plan));
 
-  add('buildGeneratedHybridWorld', {
-    ...meta('产品级 Generated Hybrid World 入口：用 environmentPrompt 经现有 Connector capability 自动走文生图→图生世界并导入 verified artifacts，再把 proposal 封装成 Runtime-owned WorldIR，在生成背景的 observation anchor 上通过 canonical WorldBuilder 组合 executable assets。模型不能提供 revision/provenance、Job 成功状态、Artifact bytes/hash 或 spawn 结果；整个世界替换失败会恢复调用前 Environment 与 Scene。', ['generation.read','generation.submit','artifact.import','world.write','asset.read','asset.write','physics.read'], ['request'], {request:PROMPT_HYBRID_WORLD_REQUEST_SCHEMA}),
-    batchable:false,mutates:true,history:false,manualMutation:true
-  }, (a)=>promptHybridWorldOrchestrator.run(a.request));
 }

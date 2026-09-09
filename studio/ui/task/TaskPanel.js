@@ -1,8 +1,13 @@
-import { generatedPlacementDemoTask } from '../../demos/generated-placement/index.js';
+import { generatedPlacementDemoTask } from '../../demos/generated-placement/generatedPlacementDemo.js';
+import { AGENT_RUNTIME_TESTS } from '../../agent/AgentRuntimeTestRunner.js';
 
 const GENERATED_PLACEMENT_TASK = generatedPlacementDemoTask();
 
 const QUICK_TASK_GROUPS = [
+  {
+    label: 'Runtime 验收',
+    tasks: AGENT_RUNTIME_TESTS
+  },
   {
     label: '常用任务',
     tasks: [
@@ -28,7 +33,7 @@ const quickTaskMarkup = () => QUICK_TASK_GROUPS.map((group) => `
   <section class="task-group">
     <div class="section-label">${group.label}</div>
     <div class="task-grid">
-      ${group.tasks.map((task) => `<button class="task-card${task.wide ? ' wide' : ''}" type="button" data-prompt="${escapeAttr(task.prompt)}"${task.demo ? ` data-demo="${escapeAttr(task.demo)}"` : ''}><strong>${task.title}</strong><span>${task.detail}</span></button>`).join('')}
+      ${group.tasks.map((task) => `<button class="task-card${task.wide ? ' wide' : ''}" type="button"${task.prompt ? ` data-prompt="${escapeAttr(task.prompt)}"` : ''}${task.id ? ` data-runtime-test="${escapeAttr(task.id)}"` : ''}${task.demo ? ` data-demo="${escapeAttr(task.demo)}"` : ''}><strong>${task.title}</strong><span>${task.detail}</span></button>`).join('')}
     </div>
   </section>`).join('');
 
@@ -59,7 +64,7 @@ export const taskPanelMarkup = () => `
   </section>`;
 
 export class TaskPanel {
-  constructor({ root, commandForm, commandInput, commandButton, setView, onRun = () => {}, onOpenSettings = () => {}, demoRunners = {} }) {
+  constructor({ root, commandForm, commandInput, commandButton, setView, onRun = () => {}, onOpenSettings = () => {}, demoRunners = {}, runtimeTestRunner = null }) {
     this.root = root;
     this.commandForm = commandForm;
     this.commandInput = commandInput;
@@ -69,6 +74,7 @@ export class TaskPanel {
     this.onRun = onRun;
     this.onOpenSettings = onOpenSettings;
     this.demoRunners = demoRunners;
+    this.runtimeTestRunner = runtimeTestRunner;
     this.agent = null;
     this.gateway = null;
     this.busy = false;
@@ -98,7 +104,9 @@ export class TaskPanel {
     this.stateAction.addEventListener('click', () => this.onOpenSettings());
     this.taskButtons.forEach((button) => button.addEventListener('click', () => {
       this.setView('task');
-      this.execute(button.dataset.prompt, button.querySelector('strong')?.textContent || '任务', button, button.dataset.demo || null);
+      const label = button.querySelector('strong')?.textContent || '任务';
+      if (button.dataset.runtimeTest) this.executeRuntimeTest(button.dataset.runtimeTest, label, button);
+      else this.execute(button.dataset.prompt, label, button, button.dataset.demo || null);
     }));
     this.commandForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -124,7 +132,7 @@ export class TaskPanel {
     this.available = Boolean(available);
     if (!this.busy) {
       if (this.available) this.setState('ready', '就绪', '选择常用任务，或在下方描述你自己的目标。');
-      else this.setState('offline', '智能体不可用', '智能体能力当前不可用；由部署适配器提供，无需在浏览器填写地址。', { action: '配置' });
+      else this.setState('offline', 'LLM Agent 未连接', 'Runtime 验收仍可直接运行；自然语言任务需要配置 Agent Gateway。', { action: '配置' });
     }
     this.updateControls();
   }
@@ -138,7 +146,7 @@ export class TaskPanel {
   }
 
   updateControls() {
-    for (const button of this.taskButtons) button.disabled = this.busy || !this.available;
+    for (const button of this.taskButtons) button.disabled = this.busy || (!button.dataset.runtimeTest && !this.available);
     this.commandInput.disabled = !this.available;
     this.commandInput.readOnly = this.busy;
     this.commandButton.disabled = this.busy || !this.available;
@@ -176,6 +184,32 @@ export class TaskPanel {
       this.onRun(run);
     } catch (error) {
       try { this.log(`执行记录错误：${error?.message || '未知错误'}`, 'error'); } catch {}
+    }
+  }
+
+  async executeRuntimeTest(testId, label = 'Runtime 验收', sourceButton = null) {
+    if (this.busy) return null;
+    if (!this.runtimeTestRunner) {
+      this.setState('error', 'Runtime 测试不可用', 'Agent Runtime Test Runner 未配置。');
+      return null;
+    }
+    const startedAt = performance.now();
+    const runId = `runtime_${Date.now().toString(36)}`;
+    this.setBusy(true, sourceButton);
+    this.setState('running', '正在执行 Runtime 验收', label);
+    try {
+      const result = await this.runtimeTestRunner.run(testId);
+      this.setState('success', 'Runtime 验收通过', `${label} · 不依赖 LLM。`);
+      this.log(`Runtime 验收通过：${label}`, 'result');
+      this.recordRun({ id:runId, title:`Runtime · ${label}`, prompt:testId, status:'success', durationMs:performance.now()-startedAt, detail:'确定性 Runtime 工具链验证通过。' });
+      return result;
+    } catch (error) {
+      this.setState('error', 'Runtime 验收失败', error.message);
+      this.log(`Runtime 验收失败：${error.message}`, 'error');
+      this.recordRun({ id:runId, title:`Runtime · ${label}`, prompt:testId, status:'error', durationMs:performance.now()-startedAt, detail:error.message });
+      return null;
+    } finally {
+      this.setBusy(false);
     }
   }
 

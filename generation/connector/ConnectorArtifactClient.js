@@ -1,5 +1,5 @@
 import { ConnectorContractError } from './ConnectorSession.js';
-import { requireSafeArtifactId } from '../artifacts/ArtifactDescriptor.js';
+import { requireSafeArtifactId } from '../../artifact/ArtifactDescriptor.js';
 
 const ARTIFACTS_PATH='/connector/v1/artifacts';
 

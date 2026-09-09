@@ -592,19 +592,28 @@ export class InteractionSystem {
     const plan=await this.findPickupPlan(actorId,targetId,{maxDistance});
     const pose=plan.pose;
     let locomotion=null;
+    let arrivalCorrection=null;
     if (pose.status!=='current-pose') {
       locomotion=await this.locomotion.navigate(actorId,pose.position,{speed});
       if (locomotion.status!=='arrived') return {status:'pickup-blocked',reason:'APPROACH_FAILED',actorId,targetId,pose,locomotion,held:false};
+      const actualPosition=this.physics.getPosition(actorId);
+      const remaining=actualPosition ? Math.hypot(actualPosition[0]-pose.position[0],actualPosition[2]-pose.position[2]) : Infinity;
+      if (remaining>ACTION_INTERACTION_CORRECTION_TOLERANCE) {
+        arrivalCorrection=await this.locomotion.navigate(actorId,pose.position,{speed,waypointTolerance:ACTION_INTERACTION_CORRECTION_TOLERANCE});
+        if (arrivalCorrection.status!=='arrived') return {
+          status:'pickup-blocked',reason:'APPROACH_CORRECTION_FAILED',actorId,targetId,pose,locomotion,arrivalCorrection,held:false
+        };
+      }
     }
     const reach=this.interactionStatus(actorId,targetId,{maxDistance});
-    if (!reach.interactable) return {status:'pickup-blocked',reason:reach.inRange?'LINE_OF_SIGHT_BLOCKED':'OUT_OF_RANGE',actorId,targetId,pose,locomotion,reach,held:false};
+    if (!reach.interactable) return {status:'pickup-blocked',reason:reach.inRange?'LINE_OF_SIGHT_BLOCKED':'OUT_OF_RANGE',actorId,targetId,pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,held:false};
     const actorPosition=this.physics.getPosition(actorId);
     const targetCenter=this.spatial.getBounds(targetId).center;
     const dx=targetCenter[0]-actorPosition[0], dz=targetCenter[2]-actorPosition[2];
     const facingYaw=Math.hypot(dx,dz)<1e-8 ? plan.facingYaw : Math.atan2(-dx,-dz);
     this.physics.setCharacterYaw(actorId,facingYaw);
     const anchorPose=this.physics.anchorPose(actorId,this.holdAnchor(actorId));
-    if (!anchorPose) return {status:'pickup-blocked',reason:'HOLD_ANCHOR_UNAVAILABLE',actorId,targetId,pose,locomotion,held:false};
+    if (!anchorPose) return {status:'pickup-blocked',reason:'HOLD_ANCHOR_UNAVAILABLE',actorId,targetId,pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),held:false};
     const supportIds=this.pickupSupportIds(targetId);
     let transfer;
     if (supportIds.length) {
@@ -614,7 +623,7 @@ export class InteractionSystem {
       transfer=direct.clear ? direct : this.transferPickupToAnchor(actorId,targetId,anchorPose,[]);
       if (transfer !== direct) transfer={...transfer,direct};
     }
-    if (!transfer.clear) return {status:'pickup-blocked',reason:'PICKUP_TRANSFER_BLOCKED',actorId,targetId,pose,locomotion,transfer,held:false};
+    if (!transfer.clear) return {status:'pickup-blocked',reason:'PICKUP_TRANSFER_BLOCKED',actorId,targetId,pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),transfer,held:false};
 
     if (!supportIds.length && transfer.mode!=='lift-horizontal-anchor') {
       this.physics.setHeld(targetId,true);
@@ -625,7 +634,7 @@ export class InteractionSystem {
     this.events.emit('interaction',{action:'pickup',id:targetId,actorId,heldBy:target.state.heldBy});
     return {
       status:'held',actorId,targetId,attachment:'kinematic-anchor',graspVerified:false,
-      pose,locomotion,reach,transfer,facingYaw,anchor:{name:'hold',position:anchorPose.position},supportIds
+      pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,transfer,facingYaw,anchor:{name:'hold',position:anchorPose.position},supportIds
     };
   }
 

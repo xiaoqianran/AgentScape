@@ -12,7 +12,7 @@ import { registerWorldSkills } from './packs/worldSkills.js';
 export function registerCoreSkills(registry,runtime,{worldBuilder,promptHybridWorldOrchestrator} = {}) {
   const add=(name,options,handler)=>registry.register({name,...options,handler});
   registerAssetSkills(add,runtime);
-  registerGenerationSkills(add,runtime);
+  registerGenerationSkills(add,runtime,{promptHybridWorldOrchestrator});
   registerSceneSkills(add,runtime);
   registerSpatialSkills(add,runtime);
   registerInteractionSkills(add,runtime);
@@ -20,6 +20,6 @@ export function registerCoreSkills(registry,runtime,{worldBuilder,promptHybridWo
   registerRecoverySkills(add,runtime);
   registerVerificationSkills(add,runtime);
   registerBatchSkills(add,runtime,registry);
-  registerWorldSkills(add,runtime,{worldBuilder,promptHybridWorldOrchestrator});
+  registerWorldSkills(add,runtime,{worldBuilder});
   return registry;
 }

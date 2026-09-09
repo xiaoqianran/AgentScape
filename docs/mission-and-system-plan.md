@@ -845,7 +845,8 @@ Agent / 智能体 ──────────────┘
 | World Runtime / 世界运行时 | `world/runtime/`, `core/` | 当前最成熟的事实层之一 |
 | Physics Capability Layer / 物理能力层 | 当前主要在 `world/runtime/systems/PhysicsSystem.js`，且 Recovery/Navigation 仍有 Rapier-specific coupling | 当前默认 Rapier；目标先做 PhysicsBackend contract + Rapier parity adapter，再考虑 validation/multi-backend |
 | Verification & Repair / 验证与修复 | `world/verification/` + verifier/recovery runtime code | 已有强执行验证链；需要统一到世界级 acceptance / finding contract |
-| Provider Infrastructure / Provider 基础设施 | `generation/providers/`, `generation/connector/`, `generation/`, `generation/jobs/`, `generation/artifacts/` | 作为支撑层继续 provider-neutral |
+| Provider Infrastructure / Provider 基础设施 | `generation/providers/`, `generation/connector/`, `generation/`, `generation/jobs/` | 作为支撑层继续 provider-neutral |
+| Artifact / 产物事实层 | `artifact/` | 一等中间产物；独立于 Provider 与 Asset，拥有 descriptor / integrity / lease / byte-store / persistence |
 | Human/Persistence / 人类编辑与持久化 | `studio/editor/`, `studio/persistence/`, `world/runtime/` | 保持同一 Runtime truth，不发展第二状态系统 |
 | Environment / 内容环境 | `world/content/` | 作为 world pack / benchmark / demo 服务核心系统 |
 

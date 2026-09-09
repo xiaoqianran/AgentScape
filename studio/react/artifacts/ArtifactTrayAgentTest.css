@@ -1,7 +1,7 @@
 .artifact-tray-item.has-agent-test {
   width:330px;
   min-width:330px;
-  grid-template-rows:minmax(0,1fr) 24px auto;
+  grid-template-rows:minmax(0,1fr) 24px 24px auto;
 }
 
 .artifact-tray-agent-test {

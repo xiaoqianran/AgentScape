@@ -4,7 +4,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PRODUCT_ROOTS = ["studio", "observatory", "agent", "generation", "asset", "world", "core"];
+const PRODUCT_ROOTS = ["studio", "observatory", "agent", "generation", "artifact", "asset", "world", "core"];
 const LEGACY_ROOTS = ["src", "server", "tools", "scripts", "experiments", "ops"];
 
 const walk = (dir) => {
@@ -35,16 +35,34 @@ const assetCore = productJs.filter((file) => {
     "asset/AssetManager.js",
     "asset/admission.js",
     "asset/schema.js",
-    "asset/parts.js",
-  "asset/admission.js"
+    "asset/parts.js"
   ].includes(name)
     || name.startsWith("asset/storage/")
     || (name.startsWith("asset/compiler/") && !name.startsWith("asset/compiler/providers/"));
 });
+const artifactCore = productJs.filter((file) => relative(file).startsWith("artifact/"));
 const worldCore = productJs.filter((file) => relative(file).startsWith("world/") && !relative(file).startsWith("world/content/"));
 const coreFiles = productJs.filter((file) => relative(file).startsWith("core/"));
 
 const failures = [];
+const functionalCoreFiles = productJs.filter((file) => {
+  const name=relative(file);
+  return name.startsWith("world/spec/")
+    || name.startsWith("world/compiler/")
+    || name.startsWith("world/verification/")
+    || name.startsWith("generation/jobs/")
+    || name.startsWith("generation/providers/")
+    || name === "artifact/ArtifactDescriptor.js"
+    || name === "artifact/ArtifactContentGate.js"
+    || name.startsWith("asset/compiler/passes/")
+    || ["asset/admission.js","asset/schema.js","asset/parts.js","agent/buildRecoveryProposals.js","agent/buildTaskObservation.js"].includes(name);
+});
+const EXTERNAL_IO_RE = /\b(?:fetch\s*\(|localStorage\b|sessionStorage\b|indexedDB\b|process\.env\b|WebSocket\b|EventSource\b|document\.createElement\b|window\.)/;
+for (const file of functionalCoreFiles) {
+  const source=fs.readFileSync(file,"utf8");
+  if (EXTERNAL_IO_RE.test(source)) failures.push(`Functional Core external I/O violation: ${relative(file)}`);
+}
+
 for (const legacy of LEGACY_ROOTS) {
   if (fs.existsSync(path.join(root, legacy))) failures.push(`Legacy root directory must not return: ${legacy}/`);
 }
@@ -60,7 +78,7 @@ const assertNoImports = (label, files, forbidden) => {
 };
 
 assertNoImports("Core boundary violation", coreFiles, [
-  /^(studio|observatory|agent|generation|asset|world)\//
+  /^(studio|observatory|agent|generation|artifact|asset|world)\//
 ]);
 
 assertNoImports("Asset Core boundary violation", assetCore, [
@@ -68,6 +86,16 @@ assertNoImports("Asset Core boundary violation", assetCore, [
   /^observatory\//,
   /^agent\//,
   /^generation\//,
+  /^artifact\//,
+  /^world\//
+]);
+
+assertNoImports("Artifact Core boundary violation", artifactCore, [
+  /^studio\//,
+  /^observatory\//,
+  /^agent\//,
+  /^generation\//,
+  /^asset\//,
   /^world\//
 ]);
 
@@ -76,6 +104,7 @@ assertNoImports("World Core boundary violation", worldCore, [
   /^observatory\//,
   /^agent\//,
   /^generation\//,
+  /^artifact\//,
   /^asset\/gateway\//,
   /^asset\/compiler\/providers\//
 ]);
@@ -94,6 +123,29 @@ for (const file of worldCore) {
   }
 }
 
+const agentFiles = productJs.filter((file) => relative(file).startsWith("agent/"));
+assertNoImports("Agent Generation deep-module boundary violation", agentFiles, [
+  /^generation\/jobs\//,
+  /^generation\/connector\//,
+  /^generation\/providers\//,
+  /^artifact\/storage\//
+]);
+assertNoImports("Agent World deep-module boundary violation", agentFiles, [
+  /^world\/runtime\/systems\//,
+  /^world\/runtime\/physics\//,
+  /^world\/runtime\/navigation\/(?!NavigationBackend\.js$)/
+]);
+
+const assetClients = productJs.filter((file) => {
+  const name=relative(file);
+  return !name.startsWith("asset/") && !name.startsWith("observatory/");
+});
+assertNoImports("Asset deep-module boundary violation", assetClients, [
+  /^asset\/compiler\//,
+  /^asset\/pipeline\//,
+  /^asset\/storage\//
+]);
+
 const productionJs = productJs.filter((file) => !relative(file).startsWith("observatory/"));
 assertNoImports("Observatory ownership violation", productionJs, [
   /^observatory\//
@@ -108,7 +160,7 @@ for (const file of productJs) {
   if (name !== "asset/AssetModule.js" && /\bnew\s+AssetManager\s*\(/.test(source)) {
     failures.push(`Asset state ownership violation: ${name} constructs AssetManager outside AssetModule`);
   }
-  if (name !== "generation/artifacts/ArtifactModule.js") {
+  if (name !== "artifact/ArtifactModule.js") {
     if (/\bnew\s+ArtifactRegistry\s*\(/.test(source)) failures.push(`Artifact state ownership violation: ${name} constructs ArtifactRegistry outside ArtifactModule`);
     if (/\bnew\s+MemoryArtifactByteStore\s*\(/.test(source)) failures.push(`Artifact state ownership violation: ${name} constructs MemoryArtifactByteStore outside ArtifactModule`);
   }
@@ -120,7 +172,7 @@ for (const file of productJs) {
     if (target === "asset/storage/AssetManifestStore.js" && name !== "asset/AssetModule.js") {
       failures.push(`Asset persistence boundary violation: ${name} imports AssetManifestStore outside AssetModule`);
     }
-    if (target === "generation/artifacts/storage/IndexedDbArtifactStore.js" && name !== "generation/artifacts/ArtifactModule.js") {
+    if (target === "artifact/storage/IndexedDbArtifactStore.js" && name !== "artifact/ArtifactModule.js") {
       failures.push(`Artifact persistence boundary violation: ${name} imports IndexedDbArtifactStore outside ArtifactModule`);
     }
   }
@@ -132,5 +184,5 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`domain architecture validation passed (core ${coreFiles.length}, asset core ${assetCore.length}, world core ${worldCore.length})`);
-console.log("Root architecture: studio / observatory / agent / generation / asset / world / core; observatory may inspect product runtime, but product runtime must not depend on observatory.");
+console.log(`domain architecture validation passed (core ${coreFiles.length}, artifact core ${artifactCore.length}, asset core ${assetCore.length}, world core ${worldCore.length})`);
+console.log("Root architecture: studio / observatory / agent / generation / artifact / asset / world / core; observatory may inspect product runtime, but product runtime must not depend on observatory.");

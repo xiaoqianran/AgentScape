@@ -19,17 +19,19 @@ AgentScape/
 
 ```text
 studio ───────┬────────► agent
-              ├────────► generation ─────► asset
+              ├────────► generation ─────► artifact
+              │                    └─────► asset
               └──────────────────────────► world
 
 observatory ───────────► production runtime/domain modules
 production modules ─X─► observatory
 
-agent ────────► generation / asset / world
-generation ──► asset
+agent ────────► generation / artifact / asset / world
+generation ──► artifact + injected Asset publication boundary
+asset ────────► Artifact public contracts
 world ────────► narrow Asset contracts
 
-studio / observatory / agent / generation / asset / world ──► core
+studio / observatory / agent / generation / artifact / asset / world ──► core
 core ──X──► product domains
 ```
 
@@ -64,8 +66,8 @@ AssetModule                  → asset/AssetModule.js
 AssetCompiler                → asset/compiler/AssetCompiler.js
 Artifact→Asset Pipeline      → asset/pipeline/VerifiedArtifactAssetPipeline.js
 EmbodiedGenAdapter           → asset/adapters/EmbodiedGenAdapter.js
-ArtifactModule               → generation/artifacts/ArtifactModule.js
-ArtifactRegistry             → generation/artifacts/ArtifactRegistry.js
+ArtifactModule               → artifact/ArtifactModule.js
+ArtifactRegistry             → artifact/ArtifactRegistry.js
 ConnectorClient              → generation/connector/ConnectorClient.js
 GenerationRuntime            → generation/orchestration/GenerationRuntime.js
 Observatory Physics Lab       → observatory/labs/physics/PhysicsLab.js

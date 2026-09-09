@@ -1,11 +1,9 @@
 import { generationJobCenterMarkup } from './generation/GenerationJobCenter.js';
 import { taskPanelMarkup } from './task/TaskPanel.js';
-import { objectInspectorMarkup } from './inspect/ObjectInspector.js';
 import { runsPanelMarkup } from './runs/RunsPanel.js';
 import { developerSettingsMarkup } from './developer/DeveloperSettings.js';
 import { resourceLibraryMarkup } from './resources/ResourceLibrary.js';
 import { sceneExplorerMarkup } from './scene/SceneExplorer.js';
-import { buildWorkbenchMarkup } from './build/BuildWorkbench.js';
 import { useStudioStore } from '../react/state/studioStore.ts';
 
 export function createAppShell({ app, environmentDefinition, environments }) {
@@ -80,7 +78,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
             <button type="button" data-panel-view="runs" aria-selected="false">记录</button>
           </nav>
           ${taskPanelMarkup()}
-          ${buildWorkbenchMarkup()}
+          <div class="build-workbench-host"></div>
           <div class="build-advanced-shell">
             <div class="build-advanced-header">
               <button id="build-close-advanced" type="button">← 返回 Build Workbench</button>
@@ -89,7 +87,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
             ${generationJobCenterMarkup()}
           </div>
           ${resourceLibraryMarkup()}
-          ${objectInspectorMarkup()}
+          <section class="inspector" aria-label="检查"></section>
           ${runsPanelMarkup()}
         </aside>
       </section>

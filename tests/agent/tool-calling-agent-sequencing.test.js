@@ -9,6 +9,7 @@ const policies={
   runWorldPipeline:{mutates:true,barrier:true,batchable:false,batchAcceptable:true}
 };
 const classify=(result)=>{
+  if(result?.error) return {state:'error',verified:false,reason:result.code || 'TOOL_ERROR'};
   const status=result?.status;
   if(status==='action-completed'||status==='held'||status==='placed'||status==='world-ready') return {state:'verified',verified:true,status};
   if(status==='world-provisional') return {state:'unverified',verified:false,status,reason:'WORLD_PROVISIONAL'};
@@ -154,6 +155,45 @@ it('forces a fresh planning round after every verified mutation before allowing 
   expect(result.execution.filter((entry)=>!entry.executed).map((entry)=>entry.tool)).toEqual(['approachAndPickup','approachAndPlace','approachAndPlace']);
 });
 
+
+it('normalizes common embodied small-model argument aliases before execution',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'open',name:'approachAndInteract',args:{agentId:'"agent_01"',targetId:'"cabinet_01"',action:'"open"'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'place',name:'approachAndPlace',args:{actorId:'agent_01',targetId:'table_01'}}]};
+    return {message:'done',toolCalls:[]};
+  })};
+  const calls=[];
+  const tools=makeTools({
+    approachAndInteract:async(args)=>{ calls.push(['open',args]); return {status:'action-completed',targetReached:true,settled:true}; },
+    approachAndPlace:async(args)=>{ calls.push(['place',args]); return {status:'placed',supportVerified:true,settled:true}; }
+  });
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:5}).run('open then place');
+  expect(calls).toEqual([
+    ['open',{actorId:'agent_01',targetId:'cabinet_01',action:'open'}],
+    ['place',{actorId:'agent_01',supportId:'table_01'}]
+  ]);
+  expect(result.taskStatus).toBe('completed');
+});
+it('does not create unresolved world state for a mutating tool invocation that throws before execution',async()=>{
+  let round=0,attempt=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'bad',name:'approachAndInteract',args:{actorId:'bad_agent',targetId:'cabinet_01',action:'open'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'good',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}]};
+    return {message:'done',final:true,toolCalls:[]};
+  })};
+  const tools=makeTools({approachAndInteract:async(args)=>{
+    attempt++;
+    if(args.actorId!=='agent_01') throw Object.assign(new Error('bad args'),{code:'BAD_ARGS'});
+    return {status:'action-completed',targetReached:true,settled:true};
+  }});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:5}).run('open the cabinet');
+  expect(attempt).toBe(2);
+  expect(result).toMatchObject({taskStatus:'completed',unresolvedMutations:[]});
+  expect(result.execution[0]).toMatchObject({tool:'approachAndInteract',outcome:{state:'error',reason:'BAD_ARGS'}});
+});
 
 it('keeps an earlier adverse mutation unresolved even if the model incorrectly advances to a later successful mutation',async()=>{
   let round=0;

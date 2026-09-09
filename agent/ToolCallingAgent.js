@@ -9,6 +9,39 @@ const stableValue = (value) => {
   return JSON.stringify(value);
 };
 
+const EMBODIED_STRING_ARGS = Object.freeze({
+  approachAndInteract:['actorId','targetId','action','partName'],
+  approachAndPickup:['actorId','targetId'],
+  approachAndPlace:['actorId','supportId','targetId','surfaceId']
+});
+
+const unwrapRedundantQuotedString = (value) => {
+  if (typeof value !== 'string') return value;
+  const trimmed=value.trim();
+  if (trimmed.length < 2 || trimmed[0] !== '"' || trimmed.at(-1) !== '"') return value;
+  try {
+    const parsed=JSON.parse(trimmed);
+    return typeof parsed === 'string' ? parsed : value;
+  } catch { return value; }
+};
+
+export const normalizeModelToolCall = (call) => {
+  if (!call || typeof call !== 'object') return call;
+  const args={...(call.args || {})};
+  for (const key of EMBODIED_STRING_ARGS[call.name] || []) {
+    if (key in args) args[key]=unwrapRedundantQuotedString(args[key]);
+  }
+  if (EMBODIED_STRING_ARGS[call.name] && args.actorId == null && args.agentId != null) {
+    args.actorId=unwrapRedundantQuotedString(args.agentId);
+    delete args.agentId;
+  }
+  if (call.name === 'approachAndPlace' && args.supportId == null && args.targetId != null) {
+    args.supportId=args.targetId;
+    delete args.targetId;
+  }
+  return {...call,args};
+};
+
 const mutationIdentity = (call, result = null) => {
   const args = call.args || {};
   const keys = ['actorId','id','targetId','supportId','blockerId','blockerPartName','blockerAction','action','assetId','instanceId','end'];
@@ -146,6 +179,7 @@ export class ToolCallingAgent {
           } } : {})
         }
       });
+      response.toolCalls = response.toolCalls.map(normalizeModelToolCall);
       if (!response.toolCalls.length) {
         const proposedFinal = response.message || '任务完成。';
         const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
@@ -307,6 +341,7 @@ export class ToolCallingAgent {
         executedTool = true;
         const acceptanceBefore=this.tools.runtime?.lastAcceptanceBundle || null;
         let result;
+        let invocationFailed=false;
         try {
           let internalContext=null;
           if(call.name==='proposeWorldIR' && pendingWorldProposalLineage) internalContext={worldProposalLineage:structuredClone(pendingWorldProposalLineage)};
@@ -317,6 +352,7 @@ export class ToolCallingAgent {
           }
           result = internalContext ? await this.tools.call(call.name,call.args,internalContext) : await this.tools.call(call.name,call.args);
         } catch (error) {
+          invocationFailed=true;
           result = { error:error.message, code:error.code || 'TOOL_ERROR' };
         }
         const acceptanceAfter=this.tools.runtime?.lastAcceptanceBundle || null;
@@ -385,7 +421,7 @@ export class ToolCallingAgent {
           const identity = policy.auxiliary && recoveryOf ? recoveryMutationIdentity(call,recoveryOf) : mutationIdentity(call,safeResult);
           barrier = { tool:call.name, outcome:structuredClone(policy.outcome) };
           lastMutation = { planningStep:step + 1, tool:call.name, identity, args:structuredClone(call.args || {}), outcome:structuredClone(policy.outcome) };
-          if (policy.tracksUnresolved !== false) {
+          if (policy.tracksUnresolved !== false && !invocationFailed) {
             // Any retry of the original semantic mutation starts a new evidence epoch.
             appliedAuxiliaryRecoveries.delete(identity);
             if (COMPLETE_OUTCOMES.has(policy.outcome.state)) {

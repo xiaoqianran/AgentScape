@@ -7,9 +7,10 @@ export const DEFAULT_BASE_URL = 'https://newapi-jp1.202820.xyz/v1';
 export const DEFAULT_HOST = '127.0.0.1';
 export const DEFAULT_PORT = 8788;
 export const DEFAULT_MODELS = Object.freeze([
-  'openai/gpt-oss-120b',
+  'google/diffusiongemma-26b-a4b-it',
   'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
-  'stepfun-ai/step-3.7-flash'
+  'nvidia/nemotron-3-super-120b-a12b',
+  'meta/muse-glimmer-30b'
 ]);
 export const DEFAULT_MODEL = DEFAULT_MODELS[0];
 export const ALTERNATE_MODEL = DEFAULT_MODELS[1];
@@ -105,18 +106,18 @@ export function createUpstreamPayload(request, model = DEFAULT_MODEL) {
     };
     messages.splice(messages[0]?.role === 'system' ? 1 : 0, 0, contextMessage);
   }
+  const tools = toOpenAITools(request.tools || []);
   return {
     model,
     temperature: 0,
     stream: false,
     messages,
-    tools: toOpenAITools(request.tools || []),
-    tool_choice: 'auto'
+    ...(tools.length ? { tools, tool_choice:'auto' } : {})
   };
 }
 
 export function isAllowedOrigin(origin, extraOrigins = []) {
-  if (!origin || !extraOrigins.length) return true;
+  if (!origin) return true;
   try {
     const url = new URL(origin);
     if ((url.protocol === 'http:' || url.protocol === 'https:') && ['127.0.0.1', 'localhost', '::1'].includes(url.hostname)) return true;

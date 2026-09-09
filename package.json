@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0",
+    "preview": "vite preview",
     "test": "vitest run --exclude tests/e2e/generated-cup-runtime-e2e.test.js",
     "test:watch": "vitest",
     "check": "npm run architecture:validate && npm run assets:validate && npm run world:viability && npm run typecheck && npm run test && npm run build",
@@ -24,7 +24,8 @@
     "test:modal-e2e": "vitest run tests/e2e/generated-cup-runtime-e2e.test.js",
     "test:studio": "vitest run tests/studio",
     "test:observatory": "vitest run tests/observatory",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:artifact": "vitest run tests/artifact"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",

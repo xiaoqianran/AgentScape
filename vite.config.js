@@ -19,7 +19,9 @@ function observatoryRoutePlugin() {
 }
 
 export default defineConfig(({ mode }) => {
-  Object.assign(process.env, loadEnv(mode, process.cwd(), ""));
+  const env = loadEnv(mode, process.cwd(), "");
+  Object.assign(process.env, env);
+  const devHost = String(env.AGENTSCAPE_DEV_HOST || "127.0.0.1").trim() || "127.0.0.1";
   return {
     base: "/",
     plugins: [react(), observatoryRoutePlugin(), capabilityDevPlugin()],
@@ -27,15 +29,13 @@ export default defineConfig(({ mode }) => {
       include: ["tests/**/*.test.js"]
     },
     server: {
-      host: "0.0.0.0",
-      allowedHosts: true,
+      host: devHost,
       watch: {
         ignored: ["**/.venv/**", "**/__pycache__/**", "**/.git/**", "**/dist/**"]
       }
     },
     preview: {
-      host: "0.0.0.0",
-      allowedHosts: true
+      host: devHost
     },
     build: {
       rollupOptions: {

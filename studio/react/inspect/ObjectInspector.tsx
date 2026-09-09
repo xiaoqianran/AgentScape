@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useStudioStore } from '../state/studioStore';
 
@@ -7,6 +8,7 @@ type ObjectInfo = {
   type: string;
   position: number[];
   rotation: number[];
+  scale: number;
   actions: string[];
 };
 
@@ -57,6 +59,12 @@ function ObjectInspectorView({ world, tools, log }: InspectorProps) {
 
   const id = selectedObjectId && world.store.has(selectedObjectId) ? selectedObjectId : null;
   const info = id ? world.getObjectInfo(id) : null;
+  const [scaleInput, setScaleInput] = useState('1');
+  const [scaleBusy, setScaleBusy] = useState(false);
+
+  useEffect(() => {
+    setScaleInput(info ? String(info.scale) : '1');
+  }, [id, info?.scale]);
 
   let spatialText = '';
   let visibleRelations: Relation[] = [];
@@ -80,6 +88,25 @@ function ObjectInspectorView({ world, tools, log }: InspectorProps) {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log(`错误：${message}`, 'error');
+    }
+  };
+
+  const applyScale = async () => {
+    if (!id || scaleBusy) return;
+    const value = Number(scaleInput);
+    if (!Number.isFinite(value) || value < 0.05 || value > 20) {
+      log('缩放范围必须是 0.05–20。', 'error');
+      return;
+    }
+    setScaleBusy(true);
+    try {
+      await tools.call('scaleObject', { id, scale:value });
+      useStudioStore.getState().syncInspector(id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log(`缩放失败：${message}`, 'error');
+    } finally {
+      setScaleBusy(false);
     }
   };
 
@@ -112,7 +139,28 @@ function ObjectInspectorView({ world, tools, log }: InspectorProps) {
             <dl className="properties">
               <div><dt>位置</dt><dd id="position">{info.position.join(', ')}</dd></div>
               <div><dt>旋转</dt><dd id="rotation">{info.rotation.join(', ')}°</dd></div>
+              <div><dt>缩放</dt><dd id="scale">{info.scale}×</dd></div>
             </dl>
+            <div className="transform-scale-editor">
+              <label htmlFor="object-scale">统一缩放</label>
+              <div className="inline-input">
+                <input
+                  id="object-scale"
+                  type="number"
+                  min="0.05"
+                  max="20"
+                  step="0.05"
+                  value={scaleInput}
+                  disabled={scaleBusy}
+                  onChange={(event) => setScaleInput(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter') void applyScale(); }}
+                />
+                <button type="button" disabled={scaleBusy} onClick={() => void applyScale()}>
+                  {scaleBusy ? '应用中…' : '应用'}
+                </button>
+              </div>
+              <small>仅统一缩放；复杂关节资产暂不支持。</small>
+            </div>
           </section>
 
           <section className="inspect-section">

@@ -17,7 +17,7 @@ import { ArticulationCandidatePass } from './passes/ArticulationCandidatePass.js
 import { ColliderFallbackPass } from './passes/ColliderFallbackPass.js';
 import { RemoteEnrichmentPass } from './passes/RemoteEnrichmentPass.js';
 import { ResourceBudgetPass } from './passes/ResourceBudgetPass.js';
-import { RESOURCE_BUDGET } from './resourceBudget.js';
+import { RESOURCE_BUDGET } from '../resourceBudget.js';
 import { CompileQualityPass } from './passes/CompileQualityPass.js';
 import { ManifestPass } from './passes/ManifestPass.js';
 

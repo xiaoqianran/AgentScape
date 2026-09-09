@@ -3,7 +3,7 @@ import { expect, it, vi } from 'vitest';
 import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
 
 it('updates the semantic scene graph immediately after direct spawn', async () => {
-  const object = { position:{ fromArray:vi.fn() }, userData:{} };
+  const object = new THREE.Group();
   const manifest = { id:'chair', actions:['move'] };
   const runtime = {
     assets:{ instantiate:vi.fn(async () => ({ object, manifest })) },
@@ -21,7 +21,7 @@ it('updates the semantic scene graph immediately after direct spawn', async () =
 
 
 it('applies revision-authored initial state only after physics attachment succeeds', async () => {
-  const object={position:{fromArray:vi.fn()},userData:{}};
+  const object=new THREE.Group();
   const manifest={id:'cabinet',actions:['move']};
   const runtime={
     assets:{instantiate:vi.fn(async()=>({object,manifest}))},

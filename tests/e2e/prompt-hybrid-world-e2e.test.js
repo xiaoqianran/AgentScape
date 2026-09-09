@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { createAssetModule } from '../../asset/AssetModule.js';
-import { createArtifactModule } from '../../generation/artifacts/ArtifactModule.js';
+import { createArtifactModule } from '../../artifact/ArtifactModule.js';
 import { loadGeneratedWorld } from '../../world/loadGeneratedWorld.js';
 import { PromptHybridWorldOrchestrator } from '../../generation/orchestration/PromptHybridWorldOrchestrator.js';
 import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';

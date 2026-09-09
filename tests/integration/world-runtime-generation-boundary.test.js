@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { attachGenerationRuntime } from '../../generation/orchestration/GenerationRuntime.js';
 import { createAssetModule } from '../../asset/AssetModule.js';
-import { createArtifactModule } from '../../generation/artifacts/ArtifactModule.js';
+import { createArtifactModule } from '../../artifact/ArtifactModule.js';
 import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
 
 const createRuntime=()=>new WorldRuntime({appendChild(){}},{environmentFactory:()=>null,assetModule:createAssetModule()});
@@ -11,7 +11,6 @@ describe('WorldRuntime generation boundary',()=>{
     const runtime=createRuntime();
     expect(runtime.assets).toBeTruthy();
     expect(runtime.assetCatalog).toBeTruthy();
-    expect(runtime.compiledAssetStore).toBeTruthy();
     for(const key of ['authoring','assetGenerator','compilerProvider','generation','generationState','generationConnectorError','getAssetCompiler']) {
       expect(Object.prototype.hasOwnProperty.call(runtime,key)).toBe(false);
     }
@@ -25,6 +24,9 @@ describe('WorldRuntime generation boundary',()=>{
     expect(runtime.assetModule.artifacts).toBeUndefined();
     expect(generation.assetCatalog).toBe(runtime.assetCatalog);
     expect(generation.artifacts).toBe(artifacts);
+    expect(generation.assetModule).toBe(runtime.assetModule);
+    expect(generation.compilerProvider).toBeUndefined();
+    expect(generation.getAssetCompiler).toBeUndefined();
     expect(generation.artifactRegistry).toBe(artifacts.registry);
     expect(generation.byteStore).toBe(artifacts.byteStore);
     expect(generation.publishAsset).toBe(runtime.assetModule.publishAsset);
@@ -37,6 +39,16 @@ describe('WorldRuntime generation boundary',()=>{
     expect(generation.canGenerateAsset()).toBe(false);
     expect(generation.canGenerateTextWorld()).toBe(false);
     expect(typeof generation.generateTextWorldArtifacts).toBe('function');
+  });
+
+  it('delegates compiler endpoint changes to AssetModule without owning compiler internals',()=>{
+    const runtime=createRuntime();
+    const compilerProvider={setEndpoint:vi.fn()};
+    const generation=attachGenerationRuntime(runtime,{connectorClient:null,compilerProvider});
+    generation.setCompilerEndpoint('http://127.0.0.1:9999/compile');
+    expect(compilerProvider.setEndpoint).toHaveBeenCalledWith('http://127.0.0.1:9999/compile');
+    expect(generation.compilerProvider).toBeUndefined();
+    expect(generation.getAssetCompiler).toBeUndefined();
   });
 
   it('is idempotent for one runtime',()=>{

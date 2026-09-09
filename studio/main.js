@@ -20,7 +20,7 @@ import { loadGeneratedWorld, loadGeneratedWorldManifest } from '../world/loadGen
 import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
 import { createAppShell } from './ui/AppShell.js';
 import { TaskPanel } from './ui/task/TaskPanel.js';
-import { GeneratedPlacementDemoRunner } from './demos/generated-placement/index.js';
+import { GeneratedPlacementDemoRunner } from './demos/generated-placement/GeneratedPlacementDemoRunner.js';
 import { mountObjectInspector } from './react/inspect/ObjectInspector.tsx';
 import { RunsPanel } from './ui/runs/RunsPanel.js';
 import { ResourceLibrary } from './ui/resources/ResourceLibrary.js';
@@ -31,6 +31,7 @@ import { mountArtifactTray } from './react/artifacts/ArtifactTray.tsx';
 import { BuildSession } from './build/BuildSession.js';
 import { StudioBuildController } from './build/StudioBuildController.js';
 import { AssetAgentVerifier } from './agent/AssetAgentVerifier.js';
+import { AgentRuntimeTestRunner } from './agent/AgentRuntimeTestRunner.js';
 import { bindSceneControls } from './ui/bindSceneControls.js';
 import { bindRuntimeEvents } from './ui/bindRuntimeEvents.js';
 import { bindDebugLayers } from './debug/bindDebugLayers.js';
@@ -93,6 +94,7 @@ async function main() {
   const runsPanel = new RunsPanel({ root: ui.panel });
   let taskPanel = null;
   const generatedPlacementDemo = new GeneratedPlacementDemoRunner({ world, log: (text, kind) => taskPanel?.log?.(text, kind) });
+  const runtimeTestRunner = new AgentRuntimeTestRunner({ tools, actorId:'agent_01', log:(text,kind)=>taskPanel?.log?.(text,kind) });
   taskPanel = new TaskPanel({
     root: ui.panel,
     commandForm: ui.commandForm,
@@ -100,7 +102,8 @@ async function main() {
     commandButton: ui.commandButton,
     setView: ui.setView,
     onRun: (run) => runsPanel.addRun(run),
-    demoRunners: { 'generated-placement': generatedPlacementDemo }
+    demoRunners: { 'generated-placement': generatedPlacementDemo },
+    runtimeTestRunner
   });
   const agent = new ToolCallingAgent({ tools, gateway, log: (text, kind) => taskPanel.log(text, kind) });
   taskPanel.attachAgent({ agent, gateway });

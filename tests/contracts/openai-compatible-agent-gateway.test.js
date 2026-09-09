@@ -50,7 +50,9 @@ describe('OpenAI-compatible local test gateway', () => {
       expect(url).toBe('https://upstream.test/v1/chat/completions');
       expect(options.headers.authorization).toBe('Bearer secret-local-only');
       const body=JSON.parse(options.body);
-      expect(body).toMatchObject({ model:'test-model', temperature:0, tool_choice:'auto' });
+      expect(body).toMatchObject({ model:'test-model', temperature:0 });
+      expect(body).not.toHaveProperty('tools');
+      expect(body).not.toHaveProperty('tool_choice');
       return new Response(JSON.stringify({ choices:[{ message:{ content:'done', tool_calls:[] } }] }), { status:200, headers:{'content-type':'application/json'} });
     });
     const complete=createAgentGateway({ baseUrl:'https://upstream.test/v1', apiKey:'secret-local-only', model:'test-model', fetchImpl });
@@ -77,9 +79,16 @@ describe('OpenAI-compatible local test gateway', () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
+  it('omits tools and tool_choice when no tools are supplied', () => {
+    const payload=createUpstreamPayload({ messages:[{role:'user',content:'x'}], tools:[] }, 'm');
+    expect(payload).toMatchObject({ model:'m', temperature:0, stream:false });
+    expect(payload).not.toHaveProperty('tools');
+    expect(payload).not.toHaveProperty('tool_choice');
+  });
+
   it('creates a deterministic payload and preserves the current provider-neutral world context', () => {
     const payload=createUpstreamPayload({
-      messages:[{role:'system',content:'system'},{role:'user',content:'x'}], tools:[],
+      messages:[{role:'system',content:'system'},{role:'user',content:'x'}], tools:[{name:'listObjects',description:'List objects',parameters:{type:'object',properties:{}}}],
       context:{world:[{id:'agent_01',type:'agent'}]}
     }, 'm');
     expect(payload).toMatchObject({ model:'m', temperature:0, stream:false, tool_choice:'auto' });
@@ -91,7 +100,7 @@ describe('OpenAI-compatible local test gateway', () => {
   it('allows loopback browser origins but rejects arbitrary websites by default', () => {
     expect(isAllowedOrigin('http://127.0.0.1:5173')).toBe(true);
     expect(isAllowedOrigin('http://localhost:9999')).toBe(true);
-    expect(isAllowedOrigin('https://evil.example')).toBe(true);
+    expect(isAllowedOrigin('https://evil.example')).toBe(false);
     expect(isAllowedOrigin('https://trusted.example', ['https://trusted.example'])).toBe(true);
     expect(isAllowedOrigin(null)).toBe(true);
   });

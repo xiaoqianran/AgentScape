@@ -23,6 +23,7 @@ import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
 import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
 import { SimulationSession } from './simulation/SimulationSession.js';
+import { physicsManifestForUniformScale, scalesEqual, uniformScaleValue } from './ObjectTransform.js';
 installThreeBvhRuntime();
 
 const mutationResultCommitted=(result)=>!(
@@ -43,7 +44,6 @@ export class WorldRuntime {
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.assetModule = assetModule;
-    this.compiledAssetStore = assetModule.compiledStore;
     this.assets = assetModule.manager;
     this.assetCatalog = assetModule.catalog;
     this.physicsFactory = physicsFactory;
@@ -174,17 +174,29 @@ export class WorldRuntime {
       throw error;
     }
   }
-  async spawn(assetId, { position = [0, 0, 0], id = `${assetId}_${crypto.randomUUID()}`, initialState = null } = {}) {
+  async spawn(assetId, { position = [0, 0, 0], quaternion = [0, 0, 0, 1], scale = 1, id = `${assetId}_${crypto.randomUUID()}`, initialState = null } = {}) {
     const { object, manifest } = await this.assets.instantiate(assetId);
+    const uniformScale = uniformScaleValue(scale);
+    if (!Array.isArray(position) || position.length !== 3 || !position.every(Number.isFinite)) {
+      const error=new TypeError('Object position requires finite vec3'); error.code='OBJECT_POSITION_INVALID'; throw error;
+    }
+    if (!Array.isArray(quaternion) || quaternion.length !== 4 || !quaternion.every(Number.isFinite)) {
+      const error=new TypeError('Object quaternion requires finite vec4'); error.code='OBJECT_ROTATION_INVALID'; throw error;
+    }
+    let physicsManifest;
+    try { physicsManifest = physicsManifestForUniformScale(manifest,uniformScale); }
+    catch (error) { disposeObject3D(object); throw error; }
     object.position.fromArray(position);
+    object.quaternion.fromArray(quaternion).normalize();
+    object.scale.setScalar(uniformScale);
     object.userData.instanceId = id;
     ensureBoundsTrees(object);
     let stored = false;
     try {
       this.scene.add(object);
-      this.store.add(id, { id, assetId, object, manifest, state: {} });
+      this.store.add(id, { id, assetId, object, manifest, state: {}, physicsScale:uniformScale });
       stored = true;
-      this.physics.attach(id, manifest, object);
+      this.physics.attach(id, physicsManifest, object);
       clearInteractionEvidenceForTarget(this,id);
       if (initialState && Object.keys(initialState).length) this.restoreObjectState(id, initialState);
       this.navigation?.invalidateIfStatic(this.store.get(id), 'object.spawned');
@@ -199,6 +211,68 @@ export class WorldRuntime {
       throw error;
     }
   }
+
+  applyObjectTransform(id,{position=null,quaternion=null,rotationDegrees=null,scale=null}={}, {source='runtime'}={}) {
+    const record=this.store.get(id);
+    const object=record.object;
+    const previous={
+      position:object.position.toArray(),
+      quaternion:object.quaternion.toArray(),
+      scale:uniformScaleValue(object.scale.toArray()),
+      physicsScale:Number.isFinite(record.physicsScale)?record.physicsScale:1
+    };
+    if (position!=null && (!Array.isArray(position) || position.length!==3 || !position.every(Number.isFinite))) {
+      const error=new TypeError('Object position requires finite vec3'); error.code='OBJECT_POSITION_INVALID'; throw error;
+    }
+    const nextPosition=position==null?previous.position:[...position];
+    if (quaternion!=null && (!Array.isArray(quaternion) || quaternion.length!==4 || !quaternion.every(Number.isFinite))) {
+      const error=new TypeError('Object quaternion requires finite vec4'); error.code='OBJECT_ROTATION_INVALID'; throw error;
+    }
+    let nextQuaternion=quaternion==null?[...previous.quaternion]:[...quaternion];
+    if (rotationDegrees!=null) {
+      if (!Array.isArray(rotationDegrees) || rotationDegrees.length!==3 || !rotationDegrees.every(Number.isFinite)) {
+        const error=new TypeError('Object rotation requires finite degree vec3'); error.code='OBJECT_ROTATION_INVALID'; throw error;
+      }
+      const euler=new THREE.Euler(...rotationDegrees.map(THREE.MathUtils.degToRad),'XYZ');
+      nextQuaternion=new THREE.Quaternion().setFromEuler(euler).toArray();
+    }
+    const nextScale=scale==null?previous.scale:uniformScaleValue(scale);
+    const scaleChanged=!scalesEqual(nextScale,previous.physicsScale);
+    if (scaleChanged && record.state?.heldBy) {
+      const error=new Error(`Cannot scale held object: ${id}`); error.code='OBJECT_SCALE_HELD_UNSUPPORTED'; throw error;
+    }
+    const nextPhysicsManifest=scaleChanged?physicsManifestForUniformScale(record.manifest,nextScale):null;
+    const previousPhysicsManifest=scaleChanged?physicsManifestForUniformScale(record.manifest,previous.physicsScale):null;
+
+    object.position.fromArray(nextPosition);
+    object.quaternion.fromArray(nextQuaternion).normalize();
+    object.scale.setScalar(nextScale);
+    object.updateMatrixWorld(true);
+    try {
+      if (scaleChanged) {
+        this.physics.remove(id);
+        this.physics.attach(id,nextPhysicsManifest,object);
+        record.physicsScale=nextScale;
+      } else this.physics.syncTransform(id,object);
+    } catch (error) {
+      object.position.fromArray(previous.position);
+      object.quaternion.fromArray(previous.quaternion);
+      object.scale.setScalar(previous.scale);
+      object.updateMatrixWorld(true);
+      if (scaleChanged) {
+        try { this.physics.remove(id); } catch {}
+        this.physics.attach(id,previousPhysicsManifest,object);
+        record.physicsScale=previous.physicsScale;
+      } else this.physics.syncTransform(id,object);
+      throw error;
+    }
+    this.navigation?.invalidateIfStatic(record,'object.transformed');
+    this.events.emit('object.transformed',{
+      id,source,position:[...nextPosition],quaternion:[...nextQuaternion],scale:nextScale,physicsRebuilt:scaleChanged
+    });
+    return {status:'object-transformed',id,position:[...nextPosition],quaternion:[...nextQuaternion],scale:nextScale,physicsRebuilt:scaleChanged};
+  }
+
   snapshot() {
     const scene = this.serialize({ name: 'History Snapshot' });
     delete scene.metadata.savedAt;
@@ -347,10 +421,12 @@ export class WorldRuntime {
     const record = this.store.get(id);
     const p = record.object.position;
     const duplicateId = `${record.assetId}_${crypto.randomUUID()}`;
-    await this.spawn(record.assetId, { position: [p.x + 0.6, p.y, p.z + 0.6], id: duplicateId });
-    const copy = this.store.get(duplicateId).object;
-    copy.quaternion.copy(record.object.quaternion);
-    this.physics.syncTransform(duplicateId, copy);
+    await this.spawn(record.assetId, {
+      position:[p.x + 0.6,p.y,p.z + 0.6],
+      quaternion:record.object.quaternion.toArray(),
+      scale:uniformScaleValue(record.object.scale.toArray()),
+      id:duplicateId
+    });
     this.events.emit('object.duplicated', { sourceId: id, id: duplicateId });
     return duplicateId;
   }
@@ -363,6 +439,7 @@ export class WorldRuntime {
       type: r.manifest.type,
       position: r.object.position.toArray().map(v => Number(v.toFixed(3))),
       rotation: r.object.rotation.toArray().slice(0, 3).map(v => Number(THREE.MathUtils.radToDeg(v).toFixed(1))),
+      scale: Number(uniformScaleValue(r.object.scale.toArray()).toFixed(3)),
       actions: [...r.manifest.actions]
     };
   }

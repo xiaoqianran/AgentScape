@@ -5,7 +5,7 @@ import { AssetCompiler } from "../../asset/compiler/AssetCompiler.js";
 import { GenerationOrchestrator } from "../../generation/orchestration/GenerationOrchestrator.js";
 import { createProviderRegistry } from "../../generation/providers/ProviderRegistry.js";
 import { createAssetModule } from "../../asset/AssetModule.js";
-import { createArtifactModule } from "../../generation/artifacts/ArtifactModule.js";
+import { createArtifactModule } from "../../artifact/ArtifactModule.js";
 
 const operation="modal-3d.asset.text_to_3d.v1";
 const capabilityHash="sha256:cap01";

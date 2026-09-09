@@ -14,10 +14,19 @@ const failures=[];
 
 for(const retired of [
   ['generation','orchestration','LegacyAuthoringShell.js'],
+  ['generation','artifacts'],
   ['asset','gateway','HttpAssetGenerator.js'],
   ['api','capabilities','asset-generate.js'],
   ['tooling','scripts','repos.sh'],
   ['sdk','python','agentscape','pipeline.py'],
+  ['studio','ui','build','BuildWorkbench.js'],
+  ['studio','ui','inspect','ObjectInspector.js'],
+  ['studio','demos','generated-placement','index.js'],
+  ['agent','prompt','basePolicy.js'],
+  ['agent','prompt','mutationPolicy.js'],
+  ['agent','prompt','recoveryPolicy.js'],
+  ['agent','prompt','worldPolicy.js'],
+  ['agent','prompt','embodiedPolicy.js'],
   ['sdk','python','agentscape','providers']
 ]) if(exists(...retired)) failures.push(`Retired surface must not return: ${retired.join('/')}`);
 
@@ -45,6 +54,9 @@ if(!exists('agent','prompt','index.js')) failures.push('Structured Agent prompt 
 if(!exists('agent','skills','packs')) failures.push('Domain skill packs are missing');
 
 const packageJson=JSON.parse(read('package.json'));
+const viteConfig=read('vite.config.js');
+if(/0\.0\.0\.0/.test(packageJson.scripts?.dev || '') || /0\.0\.0\.0/.test(packageJson.scripts?.preview || '')) failures.push('Studio dev/preview scripts must not expose 0.0.0.0 by default');
+if(/host:\s*[\"']0\.0\.0\.0[\"']/.test(viteConfig) || !viteConfig.includes('AGENTSCAPE_DEV_HOST') || !viteConfig.includes('127.0.0.1')) failures.push('Studio dev host must remain loopback-by-default; LAN exposure must be explicit');
 for(const name of Object.keys(packageJson.scripts || {})) if(name.startsWith('repos:')) failures.push(`Retired package script must not return: ${name}`);
 
 const sdkRemoved=[

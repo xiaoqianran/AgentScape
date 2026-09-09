@@ -183,6 +183,11 @@ kbd { margin-left:4px; color:var(--text-muted); font:inherit; }
 .properties div { display:grid; grid-template-columns:72px minmax(0,1fr); gap:8px; font-size:10.5px; }
 .properties dt { color:var(--text-muted); }
 .properties dd { min-width:0; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#bfc7d1; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+.transform-scale-editor { display:grid; gap:5px; margin-top:10px; }
+.transform-scale-editor > label { color:var(--text-muted); font-size:9.5px; }
+.transform-scale-editor input { min-width:0; width:100%; height:32px; border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--text); background:var(--bg-raised); padding:0 8px; outline:0; font:10px var(--font-mono); }
+.transform-scale-editor input:focus { border-color:rgba(210,188,255,.7); }
+.transform-scale-editor small { color:#697684; font-size:8.5px; line-height:1.4; }
 .detail-properties { padding:0 0 7px; }
 .spatial-info { margin-top:8px; color:#788492; font:9.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
 .relation-info { display:grid; gap:5px; }

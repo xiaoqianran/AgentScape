@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateArtifactContent } from '../../generation/artifacts/ArtifactContentGate.js';
+import { validateArtifactContent } from '../../artifact/ArtifactContentGate.js';
 
 const glb=({version=2,headerLength=24,magic=true,firstChunkType=0x4e4f534a,firstChunkLength=4,totalLength=24}={})=>{
   const bytes=new Uint8Array(totalLength);

@@ -21,12 +21,14 @@ OpenAI-compatible /v1/chat/completions
 默认：
 
 ```text
-nvidia/nemotron-3.5-lightning-30b-a3b
+google/diffusiongemma-26b-a4b-it
 ```
 
 备用：
 
 ```text
+nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+nvidia/nemotron-3-super-120b-a12b
 meta/muse-glimmer-30b
 ```
 
@@ -88,7 +90,7 @@ AGENTSCAPE_TEST_LLM_API_KEY=<your-secret>
 默认配置：
 
 ```text
-AGENTSCAPE_TEST_LLM_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b
+AGENTSCAPE_TEST_LLM_MODEL=google/diffusiongemma-26b-a4b-it
 AGENTSCAPE_TEST_LLM_HOST=127.0.0.1
 AGENTSCAPE_TEST_LLM_PORT=8788
 ```
@@ -96,7 +98,7 @@ AGENTSCAPE_TEST_LLM_PORT=8788
 切换备用模型只改：
 
 ```text
-AGENTSCAPE_TEST_LLM_MODEL=meta/muse-glimmer-30b
+AGENTSCAPE_TEST_LLM_MODEL=nvidia/nemotron-3-super-120b-a12b
 ```
 
 然后重启 Gateway。
@@ -403,25 +405,27 @@ assistant.tool_calls
 3. diagnose a possibly blocked route
 ```
 
-结果：
+历史结果（当时使用的模型，不代表当前默认链）：
 
 ```text
 nvidia/nemotron-3.5-lightning-30b-a3b   3 / 3
 meta/muse-glimmer-30b                   1 / 3
 ```
 
-Nemotron 正确直接选择过：
+当时 Nemotron 正确直接选择过：
 
 ```text
 navigateTo
 suggestNavigationActions
 ```
 
-Muse 在后两项首轮先选择了 `listObjects`。
+当时 Muse 在后两项首轮先选择了 `listObjects`。
 
-这只是一个**很小的 AgentScape tool-selection smoke**，不能解释为通用能力排名；所以 Muse 仍保留为 alternate，而不是被删除。
+这只是一个**很小的历史 AgentScape tool-selection smoke**，不能解释为当前模型的通用能力排名。当前默认/备用模型以本文开头与 Gateway `DEFAULT_MODELS` 为准。
 
 ## 12. 真实 AgentScape live probe
+
+> 本节及后续以 Nemotron / Muse 命名的 probe 是当时模型与当时上游的历史实测记录；除非明确写出当前模型 ID，否则不能据此推断当前 `DEFAULT_MODELS` 中新模型的成绩。
 
 当前默认 Nemotron 的完整 Probe 已真实通过：
 

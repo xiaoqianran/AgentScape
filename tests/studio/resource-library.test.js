@@ -23,6 +23,7 @@ describe('collectResourceLibrary', () => {
         {id:'chair',label:'Chair',type:'chair',source:'builtin',actions:['move'],tags:['seat']},
         {id:'generated_chair',label:'Generated Chair',type:'object',source:'compiled',actions:['move'],tags:[]}
       ]},
+      approvedAssets:[{assetId:'generated_chair',status:'approved'}],
       artifactRegistry:{list:()=>artifacts},
       environments:[
         {id:'world-a',title:'World A',number:'01',description:'A'},
@@ -39,5 +40,17 @@ describe('collectResourceLibrary', () => {
     expect(result.worlds.find((item)=>item.id==='world_manifest_01')).toMatchObject({source:'generated',provider:'modal-world',integrity:'verified'});
     expect(result.images.some((item)=>item.id==='glb_01')).toBe(false);
     expect(result.worlds.some((item)=>item.id==='glb_01')).toBe(false);
+  });
+
+  it('keeps unapproved compiled outputs out of the persistent Asset Library projection',()=>{
+    const result=collectResourceLibrary({
+      assetCatalog:{list:()=>[
+        {id:'chair',label:'Chair',type:'chair',source:'builtin',actions:['move'],tags:[]},
+        {id:'draft_asset',label:'Draft Asset',type:'object',source:'compiled',actions:['move'],tags:[]}
+      ]},
+      artifactRegistry:{list:()=>[]},
+      approvedAssets:[]
+    });
+    expect(result.assets.map((item)=>item.id)).toEqual(['chair']);
   });
 });

@@ -5,6 +5,11 @@ import { registerCoreSkills } from "../../agent/skills/registerCoreSkills.js";
 
 function setup() {
   const generation={
+    validateRequestPayload:vi.fn((request,{requireTarget=false}={})=>{
+      if(requireTarget&&!request.jobId&&!(request.provider&&request.operation)) return {ok:false,message:"jobId or provider+operation required"};
+      if(request.metadata?.apiKey) return {ok:false,message:"Generation request contains forbidden secret-like fields"};
+      return {ok:true};
+    }),
     listGenerationProviders:vi.fn(()=>({status:"providers-listed",providers:[]})),
     listGenerationCapabilities:vi.fn(()=>({status:"capabilities-listed",capabilities:[]})),
     submitGenerationJob:vi.fn(async()=>({status:"generation-pending",jobId:"job_01",phase:"pending"})),

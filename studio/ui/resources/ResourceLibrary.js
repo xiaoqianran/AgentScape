@@ -20,8 +20,12 @@ export const resourceLibraryMarkup = () => `
   <div id="resource-list" class="resource-list"></div>
 </section>`;
 
-export function collectResourceLibrary({ assetCatalog, artifactRegistry, environments = [], currentEnvironmentId = null } = {}) {
-  const assets = (assetCatalog?.list?.() || []).slice().sort(byLabel);
+export function collectResourceLibrary({ assetCatalog, artifactRegistry, approvedAssets = [], environments = [], currentEnvironmentId = null } = {}) {
+  const approvedIds = new Set((approvedAssets || []).map((entry) => entry.assetId));
+  const assets = (assetCatalog?.list?.() || [])
+    .filter((asset) => asset.source !== 'compiled' || approvedIds.has(asset.id))
+    .slice()
+    .sort(byLabel);
   const artifacts = artifactRegistry?.list?.() || [];
   const images = artifacts
     .filter((artifact) => String(artifact.mime || '').startsWith('image/'))
@@ -108,7 +112,7 @@ export class ResourceLibrary {
   init() {
     for (const button of this.kindButtons) button.addEventListener('click', () => this.setKind(button.dataset.resourceKind));
     this.search.addEventListener('input', () => this.render());
-    for (const type of ['generation.artifact.imported','assetProduction.registered','asset.compiled','asset.verified','environment.replaced']) {
+    for (const type of ['generation.artifact.imported','assetProduction.registered','asset.compiled','asset.verified','asset.library.changed','environment.replaced']) {
       this.unsubscribers.push(this.world.events.on(type, () => this.render()));
     }
     this.render();
@@ -131,6 +135,7 @@ export class ResourceLibrary {
     return collectResourceLibrary({
       assetCatalog:this.world.assetCatalog,
       artifactRegistry:this.world.generation.artifacts.registry,
+      approvedAssets:this.world.assetModule?.library?.listSync?.() || [],
       environments:this.environments,
       currentEnvironmentId:this.world.environment?.id || null
     });

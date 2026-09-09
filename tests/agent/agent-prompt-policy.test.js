@@ -11,6 +11,6 @@ describe('Agent prompt policy composition',()=>{
   });
   it('keeps mutation, recovery, world-admission, and embodied execution invariants explicit',()=>{
     const prompt=buildAgentSystemPrompt([]);
-    for(const invariant of ['fresh planning round','one recovery mutation','world-provisional remains unverified','approachAndInteract','approachAndPlace']) expect(prompt).toContain(invariant);
+    for(const invariant of ['fresh planning round','one recovery mutation','world-provisional remains unverified','approachAndInteract','approachAndPlace','Never repeat an identical semantic mutation']) expect(prompt).toContain(invariant);
   });
 });

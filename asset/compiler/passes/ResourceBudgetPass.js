@@ -1,6 +1,6 @@
 import { inspect } from '@gltf-transform/functions';
 
-import { RESOURCE_BUDGET } from '../resourceBudget.js';
+import { RESOURCE_BUDGET } from '../../resourceBudget.js';
 
 const textureDimension = (resolution = '') => Math.max(...resolution.split('x').map(Number).filter(Number.isFinite), 0);
 const countDrawCalls = (scene) => {

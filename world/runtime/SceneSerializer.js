@@ -1,3 +1,5 @@
+import { uniformScaleValue } from './ObjectTransform.js';
+
 export const SCENE_SCHEMA = 'agentscape.scene';
 export const SCENE_VERSION = 1;
 
@@ -75,6 +77,7 @@ export class SceneSerializer {
       if (object.transform?.position?.length !== 3) throw new Error(`${object.id}: invalid position`);
       if (object.transform?.quaternion?.length !== 4) throw new Error(`${object.id}: invalid quaternion`);
       if (object.transform?.scale?.length !== 3) throw new Error(`${object.id}: invalid scale`);
+      uniformScaleValue(object.transform.scale);
       const heldBy = object.state?.heldBy;
       if (heldBy) {
         if (!['human','agent'].includes(heldBy.kind)) throw new Error(`${object.id}: invalid heldBy.kind`);
@@ -113,13 +116,14 @@ export class SceneSerializer {
     await runtime.sceneGraph.batch(async () => {
       await runtime.clearObjects({silent:true});
       for (const item of scene.objects) {
-        await runtime.spawn(item.assetId, { id: item.id, position: item.transform.position });
+        await runtime.spawn(item.assetId, {
+          id:item.id,
+          position:item.transform.position,
+          quaternion:item.transform.quaternion,
+          scale:item.transform.scale
+        });
         const record = runtime.store.get(item.id);
-        record.object.quaternion.fromArray(item.transform.quaternion);
-        record.object.scale.fromArray(item.transform.scale);
         record.state = clone(item.state || {});
-        record.object.updateMatrixWorld(true);
-        runtime.physics.syncTransform(item.id, record.object);
         runtime.restoreObjectState(item.id, record.state);
       }
       runtime.interactions?.rebuildHeldOwnership?.();

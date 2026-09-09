@@ -8,6 +8,23 @@
 
 ---
 
+## 0. 架构方法
+
+当前仓库默认采用 **Experiment-oriented Modular Monolith**：先在一个可验证、可回滚的产品边界内快速实验，再只对已经出现真实压力的部分做 extraction。目录和类的数量不是目标，信息隐藏与变化轴才是目标。
+
+约束如下：
+
+- **Vertical Slice**：`generation / artifact / asset / world / agent / studio` 按产品能力与变化轴组织；禁止重新引入通用 `controller / service / repository / config` 横向业务层。
+- **Single-file First**：一个概念在单文件内仍清楚时保持合并；文件大、方法多本身不是拆分理由。拆分必须降低共享知识或解决独立变化、性能或部署压力。
+- **Functional Core / Imperative Shell**：判定、规划、投影、schema 归一化等尽量保持纯函数；网络、IndexedDB、DOM、Three.js、Physics mutation、进程配置留在组合/运行时外壳。纯函数可以先与 slice 共处一文件，只有复用或复杂度形成压力时再抽取。
+- **Deep Module**：组合根允许高 fan-out；Runtime system 允许内部复杂，只要外部接口保持窄且权威事实不泄漏。禁止为了缩短文件而制造浅 wrapper。
+- **Extract by Pressure**：`services/asset-compiler` 是当前明确的例外——CoACD、trimesh、yourdfpy、Python/native 依赖、服务器侧 URL/网络安全边界都不适合浏览器 Runtime，因此它是压力驱动的独立服务，不是“微服务优先”。
+- **Observatory**：可以深入依赖产品 internals 做诊断/实验；产品 Runtime 不能反向依赖 Observatory。
+
+一个简单判据：如果拆分后两个模块仍必须共同知道同一组内部细节，就先不要拆；如果一个 slice 开始直接构造另一个 slice 的内部实现，则优先把装配知识收回拥有者的深接口。
+
+---
+
 ## 1. AgentScape 到底是什么
 
 一句话：

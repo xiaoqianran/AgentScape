@@ -100,4 +100,17 @@ describe('agent carry ownership',()=>{
     ctx.navigation.dispose();ctx.physics.dispose();
   },25000);
 
+  it('corrects the final pickup approach before transferring a table-supported Cup to the hold anchor',async()=>{
+    // Translation-equivalent to the Studio monument-hall layout, kept inside this test floor.
+    const ctx=await setup({agent:[-3,0,4],table:[2.2,0,-.8],cup:[2.55,1.4,-.8]});
+    const pickup=await drive(ctx.interactions.approachAndPickup('agent_01','cup_01',{speed:2}),ctx);
+    expect(pickup).toMatchObject({
+      status:'held',actorId:'agent_01',targetId:'cup_01',
+      arrivalCorrection:{status:'arrived'},
+      transfer:{clear:true}
+    });
+    expect(ctx.interactions.carryStatus('agent_01')).toMatchObject({status:'held',targetId:'cup_01'});
+    ctx.navigation.dispose(); ctx.physics.dispose();
+  },25000);
+
 });

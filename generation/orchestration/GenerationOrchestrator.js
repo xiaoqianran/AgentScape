@@ -1,5 +1,5 @@
-import { ArtifactImporter } from "../artifacts/ArtifactImporter.js";
-import { IncrementalSha256 } from "../artifacts/IncrementalSha256.js";
+import { ArtifactImporter } from "../../artifact/ArtifactImporter.js";
+import { IncrementalSha256 } from "../../artifact/IncrementalSha256.js";
 import { ConnectorArtifactClient } from "../connector/ConnectorArtifactClient.js";
 import { ConnectorCapabilityAdapter } from "../connector/ConnectorCapabilityAdapter.js";
 import { ConnectorJobClient } from "../connector/ConnectorJobClient.js";
@@ -222,6 +222,20 @@ export class GenerationOrchestrator {
     this.sleep=sleep;
     this.pollIntervalMs=Math.max(0,Number(pollIntervalMs)||0);
     this.generationTimeoutMs=Math.max(1,Number(generationTimeoutMs)||DEFAULT_GENERATION_TIMEOUT_MS);
+  }
+
+  validateRequestPayload(request={}, { requireTarget=false }={}) {
+    if (requireTarget && !request.jobId && !(request.provider && request.operation)) {
+      return {ok:false,message:"jobId or provider+operation required"};
+    }
+    try {
+      for (const key of ["inputs","options","parent","retention","metadata"]) {
+        if (request[key]!=null) sanitizeJobData(request[key],key);
+      }
+      return {ok:true};
+    } catch {
+      return {ok:false,message:"Generation request contains forbidden secret-like fields"};
+    }
   }
 
   canGenerateTextAsset(options={}) {

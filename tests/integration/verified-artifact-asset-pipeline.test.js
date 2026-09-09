@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
-import { ArtifactRegistry } from '../../generation/artifacts/ArtifactRegistry.js';
-import { MemoryArtifactByteStore } from '../../generation/artifacts/MemoryArtifactByteStore.js';
+import { ArtifactRegistry } from '../../artifact/ArtifactRegistry.js';
+import { MemoryArtifactByteStore } from '../../artifact/MemoryArtifactByteStore.js';
 import { AssetCompiler } from '../../asset/compiler/AssetCompiler.js';
 import { AssetManager } from '../../asset/AssetManager.js';
 import { VerifiedArtifactAssetPipeline } from '../../asset/pipeline/VerifiedArtifactAssetPipeline.js';

@@ -18,6 +18,10 @@ type ArtifactDescriptor = {
 };
 
 type WorldLike = {
+  assetModule?: {
+    approveAsset?: (assetId: string, metadata?: Record<string, unknown>) => Promise<{ assetId?: string; status?: string }>;
+    library?: { listSync?: () => Array<{ assetId: string; status?: string }> };
+  };
   generation?: {
     artifacts?: {
       registry?: { get?: (id: string) => ArtifactDescriptor | null };
@@ -26,6 +30,7 @@ type WorldLike = {
   };
   events: {
     on: (type: string, listener: () => void) => (() => void) | undefined;
+    emit?: (type: string, payload?: unknown) => void;
   };
 };
 
@@ -168,6 +173,7 @@ function ArtifactTrayView({ world, controller, agentVerifier, openBuild, log }: 
   const requestBuildWorkflow = useStudioStore((state) => state.requestBuildWorkflow);
   const [collapsed, setCollapsed] = useState(() => outputs.length === 0);
   const [artifactRevision, setArtifactRevision] = useState(0);
+  const [libraryRevision, setLibraryRevision] = useState(0);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [placedInstances, setPlacedInstances] = useState<Record<string, string>>({});
   const [supportByOutput, setSupportByOutput] = useState<Record<string, string>>({});
@@ -179,7 +185,7 @@ function ArtifactTrayView({ world, controller, agentVerifier, openBuild, log }: 
 
   useEffect(() => {
     const unsubscribers: Array<() => void> = [];
-    for (const type of ['generation.artifact.imported', 'assetProduction.registered']) {
+    for (const type of ['generation.artifact.imported', 'assetProduction.registered', 'asset.library.changed']) {
       const unsubscribe = world.events.on(type, () => setArtifactRevision((value) => value + 1));
       if (unsubscribe) unsubscribers.push(unsubscribe);
     }
@@ -193,6 +199,25 @@ function ArtifactTrayView({ world, controller, agentVerifier, openBuild, log }: 
       for (const unsubscribe of unsubscribers) unsubscribe();
     };
   }, [world]);
+
+  const approvedIds = new Set((world.assetModule?.library?.listSync?.() || []).map((entry) => entry.assetId));
+  void libraryRevision;
+
+  const saveAsset = async (output: BuildOutputRef) => {
+    if (output.kind !== 'asset' || !world.assetModule?.approveAsset) return;
+    setBusyKey(`library:${output.key}`);
+    try {
+      await world.assetModule.approveAsset(output.primaryId, { label:outputLabel(output) });
+      setLibraryRevision((value) => value + 1);
+      world.events.emit?.('asset.library.changed', { assetId:output.primaryId, status:'approved' });
+      log(`已保存到本地资产库：${output.primaryId}`, 'result');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log(`保存资产失败：${message}`, 'error');
+    } finally {
+      setBusyKey(null);
+    }
+  };
 
   const runOutputAction = async (output: BuildOutputRef) => {
     selectOutput(output.key);
@@ -264,6 +289,8 @@ function ArtifactTrayView({ world, controller, agentVerifier, openBuild, log }: 
             const supports = output.kind === 'asset' ? agentVerifier.supportTargets().filter((item) => item.id !== instanceId) : [];
             const verification = verificationByOutput[output.key];
             const agentBusy = busyKey === `agent:${output.key}`;
+            const libraryBusy = busyKey === `library:${output.key}`;
+            const assetApproved = output.kind === 'asset' && approvedIds.has(output.primaryId);
             return (
               <article key={output.key} className={`artifact-tray-item${selectedKey === output.key ? ' active' : ''}${instanceId ? ' has-agent-test' : ''}`}>
                 <button type="button" className="artifact-tray-select" onClick={() => selectOutput(output.key)} title={output.primaryId}>
@@ -280,6 +307,16 @@ function ArtifactTrayView({ world, controller, agentVerifier, openBuild, log }: 
                 <button type="button" className="artifact-tray-continue" disabled={Boolean(busyKey)} onClick={() => void runOutputAction(output)}>
                   {outputActionLabel(output, busy)}
                 </button>
+                {output.kind === 'asset' ? (
+                  <button
+                    type="button"
+                    className="artifact-tray-save"
+                    disabled={Boolean(busyKey) || assetApproved}
+                    onClick={() => void saveAsset(output)}
+                  >
+                    {assetApproved ? '已保存到 Library' : libraryBusy ? '保存中…' : '保存到 Library'}
+                  </button>
+                ) : null}
                 {output.kind === 'asset' && instanceId ? (
                   <div className="artifact-tray-agent-test">
                     <div className="artifact-tray-agent-row">

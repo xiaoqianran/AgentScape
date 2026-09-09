@@ -133,6 +133,17 @@
 }
 .artifact-tray-continue:hover:not(:disabled) { background:rgba(125,89,184,.18); color:var(--text); }
 .artifact-tray-continue:disabled { opacity:.48; cursor:default; }
+.artifact-tray-save {
+  height:24px;
+  border:0;
+  border-top:1px solid var(--line);
+  color:var(--text-secondary);
+  background:rgba(255,255,255,.025);
+  cursor:pointer;
+  font:600 7.5px/1 var(--font-ui);
+}
+.artifact-tray-save:hover:not(:disabled) { color:var(--text); background:rgba(255,255,255,.06); }
+.artifact-tray-save:disabled { color:var(--success); opacity:.7; cursor:default; }
 
 .artifact-tray-thumb {
   width:52px;

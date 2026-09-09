@@ -1,5 +1,5 @@
 import { Document, Primitive, WebIO } from "@gltf-transform/core";
-import { IncrementalSha256 } from "../../../generation/artifacts/IncrementalSha256.js";
+import { IncrementalSha256 } from "../../../artifact/IncrementalSha256.js";
 
 export const FIXTURE_PROVIDER_ID = "observatory-fixture";
 export const FIXTURE_OPERATION = "observatory-fixture.asset.text_to_3d.v1";

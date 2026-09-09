@@ -5,8 +5,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { ArtifactRegistry } from '../../../generation/artifacts/ArtifactRegistry.js';
-import { MemoryArtifactByteStore } from '../../../generation/artifacts/MemoryArtifactByteStore.js';
+import { ArtifactRegistry } from '../../../artifact/ArtifactRegistry.js';
+import { MemoryArtifactByteStore } from '../../../artifact/MemoryArtifactByteStore.js';
 import { AssetCompiler } from '../../../asset/compiler/AssetCompiler.js';
 import { createAssetModule } from '../../../asset/AssetModule.js';
 

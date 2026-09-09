@@ -1,6 +1,6 @@
 import { assetAdmission } from '../admission.js';
 import { validateAssetManifest } from '../schema.js';
-import { requireSafeArtifactId } from '../../generation/artifacts/ArtifactDescriptor.js';
+import { requireSafeArtifactId } from '../../artifact/ArtifactDescriptor.js';
 import { createAssetRef } from '../AssetRef.js';
 
 const SAFE_ASSET_ID=/^[A-Za-z0-9_-]{1,160}$/;
@@ -263,4 +263,3 @@ export function createAssetPublisher({
     return result;
   };
 }
-
