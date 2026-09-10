@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeWorldSpec } from '../../world/spec/WorldSpec.js';
-import { WORLD_IR_SCHEMA, WORLD_IR_VERSION, normalizeWorldIR, parseWorldIR, serializeWorldIR, upgradeLegacyWorldSpec } from '../../world/spec/WorldIR.js';
-import { compileWorldIR, compileWorldInput, projectWorldIRToWorldSpec } from '../../world/compiler/WorldCompilation.js';
+import { normalizeWorldSpec } from '../../modules/world/spec/WorldSpec.js';
+import { WORLD_IR_SCHEMA, WORLD_IR_VERSION, normalizeWorldIR, parseWorldIR, serializeWorldIR, upgradeLegacyWorldSpec } from '../../modules/world/spec/WorldIR.js';
+import { compileWorldIR, compileWorldInput, projectWorldIRToWorldSpec } from '../../modules/world/compiler/WorldCompilation.js';
 
 describe('WorldIR',()=>{
   it('keeps legacy WorldSpec behind an explicit compatibility upgrade',()=>{

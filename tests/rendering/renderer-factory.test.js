@@ -5,8 +5,8 @@ import {
   normalizeRendererMode,
   rendererBackend,
   rendererDiagnostics
-} from '../../core/rendering/createRenderer.js';
-import { RendererProbe } from '../../core/rendering/RendererProbe.js';
+} from '../../modules/rendering/createRenderer.js';
+import { RendererProbe } from '../../modules/rendering/RendererProbe.js';
 
 class FakeRenderer {
   constructor(parameters = {}) {

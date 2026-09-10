@@ -4,8 +4,8 @@ import {
   worldLabelsForAgent,
   worldLabelsForNavigation,
   worldLabelsForPhysics
-} from "../../observatory/visual/WorldLabelLayer.js";
-import { CameraRig } from "../../observatory/visual/CameraRig.js";
+} from "../../apps/observatory/visual/WorldLabelLayer.js";
+import { CameraRig } from "../../apps/observatory/visual/CameraRig.js";
 
 describe("Observatory visual system", () => {
   it("maps normalized physics state into compact world labels", () => {

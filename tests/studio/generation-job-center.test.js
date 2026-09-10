@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { capabilityHint,generationJobActions,generationJobCenterMarkup,generationStatusLabel,parseGenerationInputs } from '../../studio/ui/generation/GenerationJobCenter.js';
+import { capabilityHint,generationJobActions,generationJobCenterMarkup,generationStatusLabel,parseGenerationInputs } from '../../apps/studio/ui/generation/GenerationJobCenter.js';
 
 describe('Generation Job Center view model',()=>{
   it('parses only object-shaped generation inputs',()=>{

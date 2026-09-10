@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
-import { bindDebugLayers } from '../../studio/debug/bindDebugLayers.js';
+import { bindDebugLayers } from '../../apps/studio/debug/bindDebugLayers.js';
 
 /**
  * 用最小 DOM stub 验证绑定逻辑，不引入 jsdom 依赖。

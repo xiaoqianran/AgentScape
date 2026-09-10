@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePersistedWorldArtifactBundle } from '../../generation/orchestration/PromptHybridWorldOrchestrator.js';
+import { resolvePersistedWorldArtifactBundle } from '../../application/generation/PromptHybridWorldOrchestrator.js';
 
 const HASH=(value)=>`sha256:${value.repeat(64).slice(0,64)}`;
 const roleMeta={

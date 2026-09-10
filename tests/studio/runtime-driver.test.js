@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RuntimeDriver } from '../../studio/runtime/RuntimeDriver.js';
+import { RuntimeDriver } from '../../apps/studio/runtime/RuntimeDriver.js';
 
 const createWorld = () => {
   const listeners = new Map();

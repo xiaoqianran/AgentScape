@@ -3,7 +3,7 @@ import {
   ConnectorJobEventClient,
   normalizeConnectorJobEvent,
   parseConnectorJobEventText
-} from '../../generation/connector/ConnectorJobEventClient.js';
+} from '../../modules/generation/connector/ConnectorJobEventClient.js';
 
 const event=(sequence=1,overrides={})=>({
   sequence,

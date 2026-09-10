@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe,expect,it } from 'vitest';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { ArticulationVerifier } from '../../world/verification/ArticulationVerifier.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 import { createJoltPhysicsSystem } from '../helpers/createJoltPhysicsSystem.js';
 
 const cabinetManifest={

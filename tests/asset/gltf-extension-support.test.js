@@ -3,8 +3,8 @@ import { EXTTextureWebP } from '@gltf-transform/extensions';
 import sharp from 'sharp';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { AssetCompiler } from '../../asset/compiler/AssetCompiler.js';
-import { createAssetGLTFIO } from '../../asset/compiler/gltfIO.js';
+import { AssetCompiler } from '../../modules/asset/compiler/AssetCompiler.js';
+import { createAssetGLTFIO } from '../../modules/asset/compiler/gltfIO.js';
 
 async function makeRequiredWebPGlb() {
   const document = new Document();

@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { ScenarioRunner } from "../../observatory/core/ScenarioRunner.js";
-import { SimulationClock } from "../../observatory/core/SimulationClock.js";
-import { PhysicsScenarioContext } from "../../observatory/labs/physics/PhysicsScenarioContext.js";
-import { createPhysicsBackend } from "../../observatory/labs/physics/backends.js";
-import { physicsScenarios } from "../../observatory/labs/physics/scenarios/index.js";
-import { comparePhysicsSnapshots } from "../../observatory/labs/physics/PhysicsStateComparator.js";
-import { compareManifestToPhysics } from "../../observatory/labs/physics/ManifestColliderSnapshot.js";
-import { assetManifests } from "../../asset/manifests/index.js";
+import { ScenarioRunner } from "../../apps/observatory/core/ScenarioRunner.js";
+import { SimulationClock } from "../../apps/observatory/core/SimulationClock.js";
+import { PhysicsScenarioContext } from "../../apps/observatory/labs/physics/PhysicsScenarioContext.js";
+import { createPhysicsBackend } from "../../apps/observatory/labs/physics/backends.js";
+import { physicsScenarios } from "../../apps/observatory/labs/physics/scenarios/index.js";
+import { comparePhysicsSnapshots } from "../../apps/observatory/labs/physics/PhysicsStateComparator.js";
+import { compareManifestToPhysics } from "../../apps/observatory/labs/physics/ManifestColliderSnapshot.js";
+import { assetManifests } from "../../modules/asset/manifests/index.js";
 
 const runScenario = async (backendId, scenario, frames) => {
   const backend = await createPhysicsBackend(backendId);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { SpatialSystem } from '../../world/runtime/systems/SpatialSystem.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';
 
 function boxObject(size, position = [0,0,0]) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), new THREE.MeshBasicMaterial());

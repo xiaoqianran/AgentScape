@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
+import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 
 describe('WorldRuntime simulation boundary', () => {
   it('preserves locomotion → physics → interaction order inside one fixed simulation tick', () => {

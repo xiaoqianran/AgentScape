@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { SceneSerializer } from '../../world/runtime/SceneSerializer.js';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
+import { SceneSerializer } from '../../modules/world/runtime/SceneSerializer.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 
 function fakeRuntime() {
   const store = new ObjectStore();

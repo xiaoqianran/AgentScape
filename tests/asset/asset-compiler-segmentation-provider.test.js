@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { WebIO } from '@gltf-transform/core';
 import { expect, it, vi } from 'vitest';
-import { AssetCompiler } from '../../asset/compiler/AssetCompiler.js';
+import { AssetCompiler } from '../../modules/asset/compiler/AssetCompiler.js';
 
 it('materializes face segmentation returned by an external compiler provider', async () => {
   const bytes=new Uint8Array(await readFile('public/assets/cabinet.glb'));

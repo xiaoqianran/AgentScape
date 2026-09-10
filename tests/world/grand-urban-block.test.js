@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
-import { createGrandUrbanBlock, GRAND_URBAN_BLOCK_COLLIDERS } from '../../world/content/grandUrbanBlock.js';
-import { disposeObject3D } from '../../core/disposeObject3D.js';
+import { createGrandUrbanBlock, GRAND_URBAN_BLOCK_COLLIDERS } from '../../modules/world/content/grandUrbanBlock.js';
+import { disposeObject3D } from '../../modules/rendering/disposeObject3D.js';
 
 describe('Grand Urban Block environment pack',()=>{
   it('uses modular architecture and instancing instead of one object per repeated detail',()=>{

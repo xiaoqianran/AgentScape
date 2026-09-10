@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ToolCallingAgent } from '../../agent/ToolCallingAgent.js';
+import { ToolCallingAgent } from '../../modules/agent/ToolCallingAgent.js';
 
 it('executes tool calls and feeds results back to the planner', async () => {
   const gateway = {

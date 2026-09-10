@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { AssetManager } from '../../asset/AssetManager.js';
-import { assetAdmission } from '../../asset/admission.js';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { composeObservedNearPlacement } from '../../world/compiler/WorldComposer.js';
+import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { assetAdmission } from '../../modules/asset/admission.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { composeObservedNearPlacement } from '../../modules/world/compiler/WorldComposer.js';
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
 

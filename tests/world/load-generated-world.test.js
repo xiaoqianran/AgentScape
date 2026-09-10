@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { geometryToTrimeshCollider, loadGeneratedWorld, loadGeneratedWorldManifest } from '../../world/loadGeneratedWorld.js';
+import { geometryToTrimeshCollider, loadGeneratedWorld, loadGeneratedWorldManifest } from '../../modules/world/loadGeneratedWorld.js';
 
 vi.mock('three/examples/jsm/loaders/PLYLoader.js',()=>({
   PLYLoader:class {

@@ -8,13 +8,13 @@ import {
   fromOpenAIResponse,
   toOpenAIMessages,
   toOpenAITools
-} from '../../tooling/scripts/openai-compatible-agent-gateway.mjs';
+} from '../../apps/server/openai-compatible-agent-gateway.mjs';
 
 describe('OpenAI-compatible local test gateway', () => {
   it('detects the CLI entry point across Windows and file URL path formats', () => {
-    const entry = 'D:\\repo\\tooling\\scripts\\openai-compatible-agent-gateway.mjs';
-    expect(isDirectEntry('file:///D:/repo/tooling/scripts/openai-compatible-agent-gateway.mjs', entry)).toBe(true);
-    expect(isDirectEntry('file:///D:/repo/tooling/scripts/openai-compatible-agent-gateway.mjs', 'D:\\repo\\other.mjs')).toBe(false);
+    const entry = 'D:\\repo\\apps\\server\\openai-compatible-agent-gateway.mjs';
+    expect(isDirectEntry('file:///D:/repo/apps/server/openai-compatible-agent-gateway.mjs', entry)).toBe(true);
+    expect(isDirectEntry('file:///D:/repo/apps/server/openai-compatible-agent-gateway.mjs', 'D:\\repo\\other.mjs')).toBe(false);
   });
   it('converts the canonical SkillRegistry tool shape without maintaining a second tool catalog', () => {
     expect(toOpenAITools([{ name:'navigateTo', description:'walk', parameters:{ type:'object', properties:{ id:{type:'string'} } } }])).toEqual([

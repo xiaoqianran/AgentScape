@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAssetModule } from '../../asset/AssetModule.js';
+import { createAssetModule } from '../../modules/asset/AssetModule.js';
 
 const manifest = {
   id:'fixture_asset', type:'object', source:{kind:'builtin'}, actions:['move'],

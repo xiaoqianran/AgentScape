@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TraceRecorder } from '../../core/TraceRecorder.js';
+import { TraceRecorder } from '../../foundation/TraceRecorder.js';
 
 describe('TraceRecorder', () => {
   it('creates and verifies a chained audit trace', () => {

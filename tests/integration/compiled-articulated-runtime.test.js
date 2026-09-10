@@ -1,11 +1,11 @@
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import { readFile } from 'node:fs/promises';
 import { expect, it, vi } from 'vitest';
-import { AssetCompiler } from '../../asset/compiler/AssetCompiler.js';
-import { AssetManager } from '../../asset/AssetManager.js';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { disposeObject3D } from '../../core/disposeObject3D.js';
-import { ArticulationVerifier } from '../../world/verification/ArticulationVerifier.js';
+import { AssetCompiler } from '../../modules/asset/compiler/AssetCompiler.js';
+import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { disposeObject3D } from '../../modules/rendering/disposeObject3D.js';
+import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 
 class MemoryStore {
   constructor(){ this.map=new Map(); }

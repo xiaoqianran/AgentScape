@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useStudioStore } from '../../studio/react/state/studioStore.ts';
+import { useStudioStore } from '../../apps/studio/react/state/studioStore.ts';
 
 const initial = {
   selectedObjectId:null,

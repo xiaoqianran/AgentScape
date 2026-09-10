@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { InteractionSystem } from '../../world/runtime/systems/InteractionSystem.js';
+import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
 
 describe('InteractionSystem human view input', () => {
   it('consumes explicit human view input without reading a renderer or camera', () => {

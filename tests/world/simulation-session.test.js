@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SimulationSession } from '../../world/runtime/simulation/SimulationSession.js';
+import { SimulationSession } from '../../modules/world/runtime/simulation/SimulationSession.js';
 
 describe('SimulationSession', () => {
   it('advances explicit steps with one fixed dt', () => {

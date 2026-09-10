@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConnectorJobClient } from '../../generation/connector/ConnectorJobClient.js';
-import { createProviderRegistry } from '../../generation/providers/ProviderRegistry.js';
+import { ConnectorJobClient } from '../../modules/generation/connector/ConnectorJobClient.js';
+import { createProviderRegistry } from '../../modules/generation/providers/ProviderRegistry.js';
 
 const CAP_SOURCE='connector:unified-connector';
 const operation='modal-3d.asset.image_to_3d.v1';

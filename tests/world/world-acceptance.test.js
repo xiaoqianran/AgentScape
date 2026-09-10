@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance, replayAcceptanceEvidence } from '../../world/verification/WorldAcceptance.js';
-import { recordInteractionEvidence } from '../../world/verification/InteractionEvidence.js';
+import { buildAcceptanceEvidenceBundle, compileWorldAcceptance, evaluateWorldAcceptance, replayAcceptanceEvidence } from '../../modules/world/verification/WorldAcceptance.js';
+import { recordInteractionEvidence } from '../../modules/world/verification/InteractionEvidence.js';
 
 describe('WorldAcceptance',()=>{
   const runtime={

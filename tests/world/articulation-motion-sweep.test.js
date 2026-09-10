@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ArticulationVerifier } from '../../world/verification/ArticulationVerifier.js';
+import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 
 function assetsFor(manifest) {
   return {

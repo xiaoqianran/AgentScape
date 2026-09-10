@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import { AssetCompiler } from "../../asset/compiler/AssetCompiler.js";
-import { GenerationOrchestrator } from "../../generation/orchestration/GenerationOrchestrator.js";
-import { createProviderRegistry } from "../../generation/providers/ProviderRegistry.js";
-import { createAssetModule } from "../../asset/AssetModule.js";
-import { createArtifactModule } from "../../artifact/ArtifactModule.js";
+import { AssetCompiler } from "../../modules/asset/compiler/AssetCompiler.js";
+import { GenerationOrchestrator } from "../../application/generation/GenerationOrchestrator.js";
+import { createProviderRegistry } from "../../modules/generation/providers/ProviderRegistry.js";
+import { createAssetModule } from "../../modules/asset/AssetModule.js";
+import { createArtifactModule } from "../../modules/artifact/ArtifactModule.js";
 
 const operation="modal-3d.asset.text_to_3d.v1";
 const capabilityHash="sha256:cap01";

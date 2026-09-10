@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConnectorJobClient } from '../../generation/connector/ConnectorJobClient.js';
-import { normalizeConnectorJobEvent } from '../../generation/connector/ConnectorJobEventClient.js';
-import { GenerationJobStore } from '../../generation/jobs/GenerationJobStore.js';
+import { ConnectorJobClient } from '../../modules/generation/connector/ConnectorJobClient.js';
+import { normalizeConnectorJobEvent } from '../../modules/generation/connector/ConnectorJobEventClient.js';
+import { GenerationJobStore } from '../../modules/generation/jobs/GenerationJobStore.js';
 import {
   GenerationJobEventCursor,
   GenerationJobReconciler
-} from '../../generation/jobs/GenerationJobReconciler.js';
-import { GenerationJobTransportOverlay } from '../../generation/jobs/GenerationJobTransportOverlay.js';
-import { createProviderRegistry } from '../../generation/providers/ProviderRegistry.js';
+} from '../../modules/generation/jobs/GenerationJobReconciler.js';
+import { GenerationJobTransportOverlay } from '../../modules/generation/jobs/GenerationJobTransportOverlay.js';
+import { createProviderRegistry } from '../../modules/generation/providers/ProviderRegistry.js';
 
 const job=(status='running',sequence=1,overrides={})=>({
   id:'job_01',provider:'modal-3d',operation:'modal-3d.asset.image_to_3d.v1',kind:'generation',

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { ArticulationVerifier } from '../../world/verification/ArticulationVerifier.js';
+import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 
 const manifest = {
   id:'slider', type:'drawer', source:{kind:'builtin'}, actions:['open','close'],

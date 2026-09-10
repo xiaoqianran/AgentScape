@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createWebGPUCompactionProbe, verifyCompactedIndices } from '../../core/rendering/WebGPUCompactionProbe.js';
+import { createWebGPUCompactionProbe, verifyCompactedIndices } from '../../apps/observatory/probes/rendering/WebGPUCompactionProbe.js';
 
 describe('WebGPU compaction probe', () => {
 

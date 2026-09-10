@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { createAssetModule } from '../../asset/AssetModule.js';
-import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
-import { SceneGraph } from '../../world/runtime/graph/SceneGraph.js';
-import { SpatialSystem } from '../../world/runtime/systems/SpatialSystem.js';
+import { createAssetModule } from '../../modules/asset/AssetModule.js';
+import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
+import { SceneGraph } from '../../modules/world/runtime/graph/SceneGraph.js';
+import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 
 const makeEnvironment=({id,label,wall=false}={})=>{

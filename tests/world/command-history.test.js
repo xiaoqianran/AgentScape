@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CommandHistory } from '../../world/runtime/CommandHistory.js';
+import { CommandHistory } from '../../modules/world/runtime/CommandHistory.js';
 
 describe('CommandHistory', () => {
   it('records, undoes and redoes state snapshots', async () => {

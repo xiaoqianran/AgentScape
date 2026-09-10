@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { executeArtifactTrayAction } from '../../studio/react/artifacts/ArtifactTray.tsx';
+import { executeArtifactTrayAction } from '../../apps/studio/react/artifacts/ArtifactTray.tsx';
 
 const output=(kind,primaryId)=>({
   key:`${kind}:${primaryId}`,

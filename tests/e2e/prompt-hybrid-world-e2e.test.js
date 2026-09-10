@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { createAssetModule } from '../../asset/AssetModule.js';
-import { createArtifactModule } from '../../artifact/ArtifactModule.js';
-import { loadGeneratedWorld } from '../../world/loadGeneratedWorld.js';
-import { PromptHybridWorldOrchestrator } from '../../generation/orchestration/PromptHybridWorldOrchestrator.js';
-import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
-import { SceneGraph } from '../../world/runtime/graph/SceneGraph.js';
-import { SpatialSystem } from '../../world/runtime/systems/SpatialSystem.js';
+import { createAssetModule } from '../../modules/asset/AssetModule.js';
+import { createArtifactModule } from '../../modules/artifact/ArtifactModule.js';
+import { loadGeneratedWorld } from '../../modules/world/loadGeneratedWorld.js';
+import { PromptHybridWorldOrchestrator } from '../../application/generation/PromptHybridWorldOrchestrator.js';
+import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
+import { SceneGraph } from '../../modules/world/runtime/graph/SceneGraph.js';
+import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 
 const text=(value)=>new TextEncoder().encode(value);

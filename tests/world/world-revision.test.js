@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildWorldRevisionContext, createWorldRevisionProposal, applyWorldRevisionProposal, classifyWorldRevisionImpact } from '../../world/spec/WorldRevision.js';
-import { compileValidationFindings } from '../../world/verification/Finding.js';
+import { buildWorldRevisionContext, createWorldRevisionProposal, applyWorldRevisionProposal, classifyWorldRevisionImpact } from '../../modules/world/spec/WorldRevision.js';
+import { compileValidationFindings } from '../../modules/world/verification/Finding.js';
 
 const ir=()=>({
   schema:'agentscape.world-ir',schemaVersion:1,

@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { AssetCompiler } from '../../asset/compiler/AssetCompiler.js';
-import { validateAssetManifest } from '../../asset/schema.js';
+import { AssetCompiler } from '../../modules/asset/compiler/AssetCompiler.js';
+import { validateAssetManifest } from '../../modules/asset/schema.js';
 
 class MemoryStore {
   constructor(){ this.map = new Map(); }

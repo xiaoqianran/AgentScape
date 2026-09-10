@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { NavigationScenarioContext } from "../../observatory/labs/navigation/NavigationScenarioContext.js";
-import { navigationScenarios } from "../../observatory/labs/navigation/scenarios/index.js";
+import { NavigationScenarioContext } from "../../apps/observatory/labs/navigation/NavigationScenarioContext.js";
+import { navigationScenarios } from "../../apps/observatory/labs/navigation/scenarios/index.js";
 
 const createContext = async () => new NavigationScenarioContext({ scene: new THREE.Scene() }).init();
 

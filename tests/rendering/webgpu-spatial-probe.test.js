@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareSpatialMasks, cpuDistanceMask, createSpatialProbePositions, runWebGPUSpatialProbe } from '../../core/rendering/WebGPUSpatialProbe.js';
+import { compareSpatialMasks, cpuDistanceMask, createSpatialProbePositions, runWebGPUSpatialProbe } from '../../apps/observatory/probes/rendering/WebGPUSpatialProbe.js';
 
 describe('WebGPU spatial probe', () => {
   it('builds deterministic vec3 positions', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runWebGPUComputeProbe, verifyComputeProbeOutput } from '../../core/rendering/WebGPUComputeProbe.js';
+import { runWebGPUComputeProbe, verifyComputeProbeOutput } from '../../apps/observatory/probes/rendering/WebGPUComputeProbe.js';
 
 describe('WebGPU compute probe', () => {
   it('verifies the deterministic compute sequence', () => {

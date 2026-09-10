@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { AssetManager } from '../../asset/AssetManager.js';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { SpatialSystem } from '../../world/runtime/systems/SpatialSystem.js';
-import { SceneGraph } from '../../world/runtime/graph/SceneGraph.js';
+import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';
+import { SceneGraph } from '../../modules/world/runtime/graph/SceneGraph.js';
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
-import { createCanonicalWorldPipeline } from '../../world/compiler/createWorldPipeline.js';
+import { createCanonicalWorldPipeline } from '../../modules/world/compiler/createWorldPipeline.js';
 
 it('compiles WorldIR cup NEAR an observed generated-world bench before spawn without objectizing the bench',async()=>{
   const assets=new AssetManager();

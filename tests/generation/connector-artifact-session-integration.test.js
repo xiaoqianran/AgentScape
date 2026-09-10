@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConnectorClient } from '../../generation/connector/ConnectorClient.js';
-import { ConnectorArtifactClient } from '../../generation/connector/ConnectorArtifactClient.js';
+import { ConnectorClient } from '../../modules/generation/connector/ConnectorClient.js';
+import { ConnectorArtifactClient } from '../../modules/generation/connector/ConnectorArtifactClient.js';
 
 const ENDPOINT='http://127.0.0.1:48123';
 const ORIGIN='https://xiaoqianran.github.io';

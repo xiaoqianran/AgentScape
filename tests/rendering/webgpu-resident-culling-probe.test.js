@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cpuCullCount, createDeterministicCullPositions, createGPUResidentCullingProbe } from '../../core/rendering/WebGPUResidentCullingProbe.js';
+import { cpuCullCount, createDeterministicCullPositions, createGPUResidentCullingProbe } from '../../apps/observatory/probes/rendering/WebGPUResidentCullingProbe.js';
 
 describe('WebGPU resident culling probe', () => {
   it('generates deterministic positions and CPU visibility counts', () => {

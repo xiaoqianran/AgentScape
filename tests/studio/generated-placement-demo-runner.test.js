@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GeneratedPlacementDemoRunner } from '../../studio/demos/generated-placement/GeneratedPlacementDemoRunner.js';
+import { GeneratedPlacementDemoRunner } from '../../apps/studio/demos/generated-placement/GeneratedPlacementDemoRunner.js';
 
 const spec={assetId:'generated_red_ceramic_vase',instanceId:'vase_01',assetPrompt:'red vase',assetLabel:'Red Ceramic Vase',supportId:'table_01',surfaceId:'top'};
 const memoryStorage=(seed=null)=>{let value=seed?JSON.stringify(seed):null;return {getItem:()=>value,setItem:(_,next)=>{value=next;},removeItem:()=>{value=null;},value:()=>value};};

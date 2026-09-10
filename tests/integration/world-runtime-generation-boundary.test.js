@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { attachGenerationRuntime } from '../../generation/orchestration/GenerationRuntime.js';
-import { createAssetModule } from '../../asset/AssetModule.js';
-import { createArtifactModule } from '../../artifact/ArtifactModule.js';
-import { sha256ArtifactHash } from '../../artifact/IncrementalSha256.js';
-import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
+import { attachGenerationRuntime } from '../../application/generation/GenerationRuntime.js';
+import { createAssetModule } from '../../modules/asset/AssetModule.js';
+import { createArtifactModule } from '../../modules/artifact/ArtifactModule.js';
+import { sha256ArtifactHash } from '../../modules/artifact/IncrementalSha256.js';
+import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 
 const createRuntime=()=>new WorldRuntime({appendChild(){}},{environmentFactory:()=>null,assetModule:createAssetModule()});
 
@@ -39,6 +39,16 @@ describe('WorldRuntime generation boundary',()=>{
     await expect(generation.initialize()).resolves.toEqual({status:'connection-required',reason:'CONNECTOR_NOT_CONFIGURED'});
     expect(generation.canGenerateAsset()).toBe(false);
     expect(generation.canGenerateTextWorld()).toBe(false);
+    expect(typeof generation.generateTextWorldArtifacts).toBe('function');
+  });
+
+  it('enforces approved-image at the legacy text-asset boundary without disabling the Generation runtime',async()=>{
+    const runtime=createRuntime();
+    const generation=attachGenerationRuntime(runtime,{connectorClient:null,assetInputPolicy:'approved-image'});
+    expect(generation.assetInputPolicy).toBe('approved-image');
+    expect(generation.canGenerateAsset()).toBe(false);
+    await expect(generation.generateAsset('wooden chair')).resolves.toMatchObject({status:'image_input_required',prompt:'wooden chair'});
+    await expect(generation.resolveAssetRequest({query:'missing_policy_asset_9f4c2',generate:true})).resolves.toMatchObject({status:'image_input_required',query:'missing_policy_asset_9f4c2',assets:[]});
     expect(typeof generation.generateTextWorldArtifacts).toBe('function');
   });
 

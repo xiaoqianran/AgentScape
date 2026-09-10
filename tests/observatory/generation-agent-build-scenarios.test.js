@@ -1,15 +1,15 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { assetAdmission } from "../../asset/admission.js";
-import { labDefinition } from "../../observatory/labs/generation/index.js";
-import { GenerationAgentScenarioContext } from "../../observatory/labs/generation/GenerationAgentScenarioContext.js";
+import { assetAdmission } from "../../modules/asset/admission.js";
+import { labDefinition } from "../../apps/observatory/labs/generation/index.js";
+import { GenerationAgentScenarioContext } from "../../apps/observatory/labs/generation/GenerationAgentScenarioContext.js";
 import {
   FIXTURE_ARTIFACT_ID,
   FIXTURE_ASSET_ID,
   FIXTURE_INSTANCE_ID,
   FIXTURE_PROVIDER_ID
-} from "../../observatory/labs/generation/FixtureGenerationConnector.js";
-import { generationAgentBuildScenario, generationConnectorDiscoveryScenario, generationEmbodiedBuildScenario } from "../../observatory/labs/generation/scenarios/index.js";
+} from "../../apps/observatory/labs/generation/FixtureGenerationConnector.js";
+import { generationAgentBuildScenario, generationConnectorDiscoveryScenario, generationEmbodiedBuildScenario } from "../../apps/observatory/labs/generation/scenarios/index.js";
 
 const createContext = async () => new GenerationAgentScenarioContext({ scene: new THREE.Scene() }).init();
 

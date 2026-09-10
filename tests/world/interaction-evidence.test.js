@@ -3,7 +3,7 @@ import {
   clearInteractionEvidenceForTarget,
   getInteractionEvidence,
   recordInteractionEvidence
-} from '../../world/verification/InteractionEvidence.js';
+} from '../../modules/world/verification/InteractionEvidence.js';
 
 const runtime=(revisionId='rev-1')=>({currentWorldRevision:{revision:{id:revisionId}},trace:{emit:()=>{}}});
 

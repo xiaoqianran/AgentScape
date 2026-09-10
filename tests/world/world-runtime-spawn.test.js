@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { expect, it, vi } from 'vitest';
-import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
+import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 
 it('updates the semantic scene graph immediately after direct spawn', async () => {
   const object = new THREE.Group();

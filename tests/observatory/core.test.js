@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { SimulationClock } from "../../observatory/core/SimulationClock.js";
-import { ScenarioRegistry } from "../../observatory/core/ScenarioRegistry.js";
-import { LabRegistry } from "../../observatory/core/LabRegistry.js";
+import { SimulationClock } from "../../apps/observatory/core/SimulationClock.js";
+import { ScenarioRegistry } from "../../apps/observatory/core/ScenarioRegistry.js";
+import { LabRegistry } from "../../apps/observatory/core/LabRegistry.js";
 
 describe("Observatory core", () => {
   it("advances a deterministic fixed-step clock", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { InteractionSystem } from '../../world/runtime/systems/InteractionSystem.js';
-import { DEFAULT_WAYPOINT_TOLERANCE } from '../../world/runtime/systems/LocomotionSystem.js';
+import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
+import { DEFAULT_WAYPOINT_TOLERANCE } from '../../modules/world/runtime/systems/LocomotionSystem.js';
 
 const setup=()=>{
   const physics={bodyMotionClear:vi.fn((_id,targetPosition)=>({clear:targetPosition[0]>.3}))};

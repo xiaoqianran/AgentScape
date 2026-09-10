@@ -1,12 +1,12 @@
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
-import { LocomotionSystem } from '../../world/runtime/systems/LocomotionSystem.js';
-import { assetManifests } from '../../asset/manifests/index.js';
-import { createRuinedCourtyard } from '../../world/content/ruinedCourtyard.js';
-import { disposeObject3D } from '../../core/disposeObject3D.js';
+import { LocomotionSystem } from '../../modules/world/runtime/systems/LocomotionSystem.js';
+import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { createRuinedCourtyard } from '../../modules/world/content/ruinedCourtyard.js';
+import { disposeObject3D } from '../../modules/rendering/disposeObject3D.js';
 
 it('walks a real kinematic Agent Body up the Ruined Courtyard stairs to the 1.2m east terrace',async()=>{
   const world=createRuinedCourtyard({loadAssets:false});

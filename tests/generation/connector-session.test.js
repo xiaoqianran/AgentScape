@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConnectorClient } from '../../generation/connector/ConnectorClient.js';
+import { ConnectorClient } from '../../modules/generation/connector/ConnectorClient.js';
 import {
   CONNECTOR_SESSION_SCOPES,
   ConnectorContractError,
   normalizeConnectorEndpoint
-} from '../../generation/connector/ConnectorSession.js';
+} from '../../modules/generation/connector/ConnectorSession.js';
 
 const ORIGIN='https://xiaoqianran.github.io';
 const ENDPOINT='http://127.0.0.1:48123';

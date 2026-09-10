@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createWebGPUIndirectDrawProbe, indexedIndirectCommand } from '../../core/rendering/WebGPUIndirectDrawProbe.js';
+import { createWebGPUIndirectDrawProbe, indexedIndirectCommand } from '../../apps/observatory/probes/rendering/WebGPUIndirectDrawProbe.js';
 
 describe('WebGPU indirect draw probe', () => {
   it('encodes indexed indirect draw parameters', () => {

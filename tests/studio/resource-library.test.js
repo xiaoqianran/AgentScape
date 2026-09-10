@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectResourceLibrary } from '../../studio/ui/resources/ResourceLibrary.js';
+import { collectResourceLibrary } from '../../apps/studio/ui/resources/ResourceLibrary.js';
 
 const artifacts = [
   {

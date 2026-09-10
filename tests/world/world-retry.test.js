@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { buildWorldRetryPlan } from '../../world/compiler/WorldRetry.js';
+import { buildWorldRetryPlan } from '../../modules/world/compiler/WorldRetry.js';
 
 const worldIR=({id='machine_01',revision='rev-1',query='rare machine',assetId=null,extraEntity={}}={})=>({
   schema:'agentscape.world-ir',schemaVersion:1,

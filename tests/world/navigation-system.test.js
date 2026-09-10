@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { EventBus } from '../../core/EventBus.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { EventBus } from '../../foundation/EventBus.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
 
 const floor = () => {

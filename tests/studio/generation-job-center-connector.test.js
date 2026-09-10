@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GenerationJobCenter } from '../../studio/ui/generation/GenerationJobCenter.js';
+import { GenerationJobCenter } from '../../apps/studio/ui/generation/GenerationJobCenter.js';
 
 describe('GenerationJobCenter Connector capability path',()=>{
   it('refuses submission until Connector pairing exists',async()=>{

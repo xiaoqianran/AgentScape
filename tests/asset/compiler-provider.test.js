@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { HttpCompilerProvider } from '../../asset/compiler/providers/HttpCompilerProvider.js';
+import { HttpCompilerProvider } from '../../modules/asset/compiler/providers/HttpCompilerProvider.js';
 
 it('uses a stage-based provider contract for heavy compiler passes', async () => {
   const fetchImpl = vi.fn(async () => ({ ok:true, json:async () => ({ physics:{mass:2} }) }));

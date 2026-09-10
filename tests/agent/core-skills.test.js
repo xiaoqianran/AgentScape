@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SkillRegistry } from '../../agent/skills/SkillRegistry.js';
-import { PolicyEngine } from '../../core/PolicyEngine.js';
-import { TraceRecorder } from '../../core/TraceRecorder.js';
-import { registerCoreSkills } from '../../agent/skills/registerCoreSkills.js';
-import { WorldBuilder } from '../../world/build/WorldBuilder.js';
+import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
+import { PolicyEngine } from '../../foundation/PolicyEngine.js';
+import { TraceRecorder } from '../../foundation/TraceRecorder.js';
+import { registerCoreSkills } from '../../application/skills/registerCoreSkills.js';
+import { WorldBuilder } from '../../modules/world/build/WorldBuilder.js';
 
 function runtime() {
   let value = 0;

@@ -1,10 +1,10 @@
 import { describe,expect,it,vi } from 'vitest';
-import { AssetManager } from '../../asset/AssetManager.js';
-import { AssetCatalog } from '../../asset/AssetCatalog.js';
-import { SkillRegistry } from '../../agent/skills/SkillRegistry.js';
-import { registerCoreSkills } from '../../agent/skills/registerCoreSkills.js';
-import { PolicyEngine } from '../../core/PolicyEngine.js';
-import { TraceRecorder } from '../../core/TraceRecorder.js';
+import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { AssetCatalog } from '../../modules/asset/AssetCatalog.js';
+import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
+import { registerCoreSkills } from '../../application/skills/registerCoreSkills.js';
+import { PolicyEngine } from '../../foundation/PolicyEngine.js';
+import { TraceRecorder } from '../../foundation/TraceRecorder.js';
 
 describe('bounded generated-world retry',()=>{
   it('turns only a first-attempt search miss into generation, then reruns the canonical pipeline once',async()=>{

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { WorldBuilder } from '../../world/build/WorldBuilder.js';
+import { WorldBuilder } from '../../modules/world/build/WorldBuilder.js';
 
 const harness = ({ pipelineRun, restore } = {}) => {
   const authority = { revision:{ id:'before' } };

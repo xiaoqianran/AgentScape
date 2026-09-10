@@ -1,10 +1,10 @@
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { SpatialSystem } from '../../world/runtime/systems/SpatialSystem.js';
-import { InteractionSystem } from '../../world/runtime/systems/InteractionSystem.js';
-import { assetManifests } from '../../asset/manifests/index.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';
+import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
+import { assetManifests } from '../../modules/asset/manifests/index.js';
 
 const drawerManifest={
   id:'drawer-test',type:'cabinet',source:{kind:'builtin'},actions:['open','close'],

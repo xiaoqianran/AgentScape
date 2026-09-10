@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { GltfAssetLoader } from '../../asset/loading/GltfAssetLoader.js';
+import { GltfAssetLoader } from '../../modules/asset/loading/GltfAssetLoader.js';
 
 describe('GltfAssetLoader', () => {
   it('keeps glTF animations on the returned scene', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BuildSession } from '../../studio/build/BuildSession.js';
+import { BuildSession } from '../../apps/studio/build/BuildSession.js';
 
 describe('BuildSession',()=>{
   it('keeps Build workflow state local to the Studio projection',()=>{

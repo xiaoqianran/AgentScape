@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { captureWorldAuthority, commitWorldAuthority, restoreWorldAuthority } from '../../world/runtime/WorldAuthority.js';
+import { captureWorldAuthority, commitWorldAuthority, restoreWorldAuthority } from '../../modules/world/runtime/WorldAuthority.js';
 
 const runtime=()=>({
   currentWorldRevision:{revision:{id:'rev-1'},provenance:{source:'planner'}},

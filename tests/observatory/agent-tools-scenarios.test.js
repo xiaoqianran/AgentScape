@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { AgentToolsScenarioContext } from "../../observatory/labs/agent/AgentToolsScenarioContext.js";
-import { agentToolsScenarios } from "../../observatory/labs/agent/scenarios/index.js";
+import { AgentToolsScenarioContext } from "../../apps/observatory/labs/agent/AgentToolsScenarioContext.js";
+import { agentToolsScenarios } from "../../apps/observatory/labs/agent/scenarios/index.js";
 
 const createContext = async () => new AgentToolsScenarioContext({ scene: new THREE.Scene() }).init();
 

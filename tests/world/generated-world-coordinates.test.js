@@ -7,7 +7,7 @@ import {
   transformGeneratedWorldBounds,
   transformGeneratedWorldPoint,
   validateGeneratedWorldCoordinates
-} from '../../core/generatedWorldCoordinates.js';
+} from '../../modules/world/generated/generatedWorldCoordinates.js';
 
 describe('generated world coordinate contract', () => {
   it('applies the same z-up to y-up transform to mesh geometry and visual objects', () => {

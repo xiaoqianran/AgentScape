@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createCapabilityDevMiddleware } from "../../tooling/dev/capabilityDevPlugin.js";
+import { createCapabilityDevMiddleware } from "../../dev/capabilityDevPlugin.js";
 
 function responseRecorder() {
   return {

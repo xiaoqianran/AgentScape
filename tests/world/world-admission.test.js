@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateWorldAdmission } from '../../world/compiler/WorldAdmission.js';
+import { evaluateWorldAdmission } from '../../modules/world/compiler/WorldAdmission.js';
 
 describe('evaluateWorldAdmission', () => {
   it('is the single final admission rule for full and incremental world compilation', () => {

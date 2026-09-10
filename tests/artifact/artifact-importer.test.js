@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { ArtifactImporter } from '../../artifact/ArtifactImporter.js';
-import { ArtifactRegistry } from '../../artifact/ArtifactRegistry.js';
-import { MemoryArtifactByteStore } from '../../artifact/MemoryArtifactByteStore.js';
+import { ArtifactImporter } from '../../modules/artifact/ArtifactImporter.js';
+import { ArtifactRegistry } from '../../modules/artifact/ArtifactRegistry.js';
+import { MemoryArtifactByteStore } from '../../modules/artifact/MemoryArtifactByteStore.js';
 
 const NOW=Date.parse('2026-08-24T09:00:00.000Z');
 const sha=(bytes)=>`sha256:${createHash('sha256').update(bytes).digest('hex')}`;

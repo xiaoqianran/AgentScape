@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { budgetGaussianData, DEFAULT_RUNTIME_SPLAT_BUDGET } from '../../core/rendering/loadGaussianSplatVisual.js';
+import { budgetGaussianData, DEFAULT_RUNTIME_SPLAT_BUDGET } from '../../modules/rendering/loadGaussianSplatVisual.js';
 
 const sequence=(Ctor,length)=>Ctor.from({length},(_,index)=>index);
 

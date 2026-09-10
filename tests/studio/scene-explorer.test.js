@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectSceneObjects } from '../../studio/ui/scene/SceneExplorer.js';
+import { collectSceneObjects } from '../../apps/studio/ui/scene/SceneExplorer.js';
 
 describe('collectSceneObjects', () => {
   it('projects runtime objects into stable sorted scene rows and preserves selection', () => {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { RenderingSystem } from '../../world/runtime/systems/RenderingSystem.js';
+import { RenderingSystem } from '../../modules/world/runtime/systems/RenderingSystem.js';
 
 const createHarness = () => {
   const domElement = { remove: vi.fn() };

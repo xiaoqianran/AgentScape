@@ -1,6 +1,6 @@
 import { describe,expect,it } from 'vitest';
-import { RapierPhysicsBackend } from '../../world/runtime/physics/RapierPhysicsBackend.js';
-import { JoltPhysicsBackend } from '../../world/runtime/physics/JoltPhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
+import { JoltPhysicsBackend } from '../../modules/world/runtime/physics/JoltPhysicsBackend.js';
 
 const BACKENDS=[
   ['rapier',()=>new RapierPhysicsBackend({gravity:{x:0,y:0,z:0}})],

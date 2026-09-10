@@ -1,9 +1,9 @@
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { EventBus } from '../../core/EventBus.js';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { InteractionSystem } from '../../world/runtime/systems/InteractionSystem.js';
+import { EventBus } from '../../foundation/EventBus.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
 
 it('closes the loop from a real Rapier door recommendation to current-world replanning after opening',async()=>{

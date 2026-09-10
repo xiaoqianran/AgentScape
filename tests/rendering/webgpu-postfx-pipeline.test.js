@@ -4,7 +4,7 @@ import {
   WebGpuPostFxPipeline,
   normalizeWebGpuPostFxOptions,
   supportsWebGpuPostFx
-} from '../../core/rendering/WebGpuPostFxPipeline.js';
+} from '../../modules/rendering/WebGpuPostFxPipeline.js';
 
 describe('WebGpuPostFxPipeline', () => {
   it('enables the GTAO + Bloom + FXAA chain only for a WebGPU backend', () => {

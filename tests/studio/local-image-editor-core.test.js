@@ -4,7 +4,7 @@ import {
   normalizeCropInsets,
   paintAlphaBrush,
   resetAlpha
-} from '../../studio/react/build/LocalImageEditorCore';
+} from '../../apps/studio/react/build/LocalImageEditorCore';
 
 describe('LocalImageEditorCore', () => {
   it('normalizes crop insets and preserves a non-empty image area', () => {

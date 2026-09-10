@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { physicsManifestForUniformScale, uniformScaleValue } from '../../world/runtime/ObjectTransform.js';
-import { WorldRuntime } from '../../world/runtime/WorldRuntime.js';
-import { assetManifests } from '../../asset/manifests/index.js';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
+import { physicsManifestForUniformScale, uniformScaleValue } from '../../modules/world/runtime/ObjectTransform.js';
+import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
+import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
-import { createAssetModule } from '../../asset/AssetModule.js';
-import { CommandHistory } from '../../world/runtime/CommandHistory.js';
-import { SkillRegistry } from '../../agent/skills/SkillRegistry.js';
-import { registerCoreSkills } from '../../agent/skills/registerCoreSkills.js';
-import { AgentTools } from '../../agent/AgentTools.js';
+import { createAssetModule } from '../../modules/asset/AssetModule.js';
+import { CommandHistory } from '../../modules/world/runtime/CommandHistory.js';
+import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
+import { registerCoreSkills } from '../../application/skills/registerCoreSkills.js';
+import { AgentTools } from '../../application/AgentTools.js';
 
 describe('Object transform contract',()=>{
   it('scales collider geometry and mass without mutating the source manifest',()=>{

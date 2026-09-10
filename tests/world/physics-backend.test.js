@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { PhysicsBackend, TransformPhysicsBackend } from '../../world/runtime/physics/PhysicsBackend.js';
-import { PhysicsSystem } from '../../world/runtime/systems/PhysicsSystem.js';
-import { RapierPhysicsBackend } from '../../world/runtime/physics/RapierPhysicsBackend.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { PhysicsBackend, TransformPhysicsBackend } from '../../modules/world/runtime/physics/PhysicsBackend.js';
+import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
+import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
 
 describe('PhysicsBackend contract',()=>{
   it('requires an explicit backend at the runtime state-owner boundary',()=>{

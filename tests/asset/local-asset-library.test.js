@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { LocalAssetLibrary } from '../../asset/LocalAssetLibrary.js';
-import { LocalAssetLibraryStore } from '../../asset/storage/LocalAssetLibraryStore.js';
+import { LocalAssetLibrary } from '../../modules/asset/LocalAssetLibrary.js';
+import { LocalAssetLibraryStore } from '../../modules/asset/storage/LocalAssetLibraryStore.js';
 
 const compiledManifest={
   id:'generated_chair',label:'Generated Chair',type:'object',actions:['move'],

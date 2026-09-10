@@ -1,17 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { PolicyEngine } from "../../core/PolicyEngine.js";
-import { SkillRegistry } from "../../agent/skills/SkillRegistry.js";
-import { registerCoreSkills } from "../../agent/skills/registerCoreSkills.js";
+import { PolicyEngine } from "../../foundation/PolicyEngine.js";
+import { SkillRegistry } from "../../application/skills/SkillRegistry.js";
+import { registerCoreSkills } from "../../application/skills/registerCoreSkills.js";
 
-function setup() {
+function setup({assetInputPolicy='any',capabilities=[]}={}) {
   const generation={
+    assetInputPolicy,
     validateRequestPayload:vi.fn((request,{requireTarget=false}={})=>{
       if(requireTarget&&!request.jobId&&!(request.provider&&request.operation)) return {ok:false,message:"jobId or provider+operation required"};
       if(request.metadata?.apiKey) return {ok:false,message:"Generation request contains forbidden secret-like fields"};
       return {ok:true};
     }),
     listGenerationProviders:vi.fn(()=>({status:"providers-listed",providers:[]})),
-    listGenerationCapabilities:vi.fn(()=>({status:"capabilities-listed",capabilities:[]})),
+    listGenerationCapabilities:vi.fn(()=>({status:"capabilities-listed",capabilities})),
     submitGenerationJob:vi.fn(async()=>({status:"generation-pending",jobId:"job_01",phase:"pending"})),
     getGenerationJob:vi.fn(async()=>({status:"provider-succeeded",jobId:"job_01",phase:"result_available"})),
     cancelGenerationJob:vi.fn(async()=>({status:"generation-cancelling",jobId:"job_01",phase:"cancelling"})),
@@ -86,6 +87,41 @@ describe("Agent-visible generation skills",()=>{
     expect(cancel.result.status).toBe("generation-cancelling");
     expect(imported.result.status).toBe("artifact-imported");
     expect(runtime.mutate).not.toHaveBeenCalled();
+  });
+
+  it("blocks Agent asset generation under approved-image while allowing image/world generation jobs",async()=>{
+    const capabilities=[
+      {operation:"modal-2d.image.text_to_image.v1",category:"image-generation"},
+      {operation:"modal-3d.asset.image_to_3d.v1",category:"asset-generation"},
+      {operation:"modal-world.world.image_to_world.v1",category:"world-generation"}
+    ];
+    const {registry,generation}=setup({assetInputPolicy:'approved-image',capabilities});
+
+    const blocked=await registry.invoke("submitGenerationJob",{
+      provider:"modal-3d",operation:"modal-3d.asset.image_to_3d.v1",inputs:{sourceArtifact:{id:"image_01"}}
+    },{profile:"builder"});
+    expect(blocked).toMatchObject({success:false,error:{code:"IMAGE_INPUT_REQUIRED"}});
+
+    await expect(registry.invoke("submitGenerationJob",{
+      provider:"modal-2d",operation:"modal-2d.image.text_to_image.v1",inputs:{prompt:"chair"}
+    },{profile:"builder"})).resolves.toMatchObject({success:true,result:{status:"generation-pending"}});
+    await expect(registry.invoke("submitGenerationJob",{
+      provider:"modal-world",operation:"modal-world.world.image_to_world.v1",inputs:{sourceArtifact:{id:"image_01"}}
+    },{profile:"builder"})).resolves.toMatchObject({success:true,result:{status:"generation-pending"}});
+    expect(generation.submitGenerationJob).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets approved-image Agent flows resume an existing asset job but not initiate a new asset compile",async()=>{
+    const {registry,generation}=setup({assetInputPolicy:'approved-image'});
+    const blocked=await registry.invoke("generateAndCompileAsset",{
+      assetId:"asset_01",provider:"modal-3d",operation:"modal-3d.asset.image_to_3d.v1",inputs:{sourceArtifact:{id:"image_01"}}
+    },{profile:"builder"});
+    expect(blocked).toMatchObject({success:false,error:{code:"IMAGE_INPUT_REQUIRED"}});
+    expect(generation.generateAndCompileAsset).not.toHaveBeenCalled();
+
+    const resumed=await registry.invoke("generateAndCompileAsset",{assetId:"asset_01",jobId:"job_01"},{profile:"builder"});
+    expect(resumed).toMatchObject({success:true,result:{status:"asset-provisional"}});
+    expect(generation.generateAndCompileAsset).toHaveBeenCalledWith({assetId:"asset_01",jobId:"job_01"});
   });
 
   it("never classifies provider success or artifact import as verified asset truth",()=>{

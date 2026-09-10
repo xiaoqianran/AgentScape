@@ -29,7 +29,7 @@ capability snapshot
 
 ## Ownership
 
-`GenerationRuntime` 位于 `generation/orchestration/GenerationRuntime.js`，负责 AgentScape 侧 composition：
+`GenerationRuntime` 位于 `application/generation/GenerationRuntime.js`，负责 AgentScape 侧 composition：
 
 - Connector pairing 与 capability snapshot；
 - Provider-neutral capability selection；
@@ -86,7 +86,7 @@ generateAndCompileAsset
 
 `generateAsset` 是一个高层 convenience tool，也仍然进入 `GenerationRuntime`，不会恢复 direct Provider client。
 
-Provider-specific import tool 不属于默认 Agent surface。上游 payload adapter（例如 `asset/adapters/EmbodiedGenAdapter.js`）只属于 Asset compatibility/import implementation，不代表 Provider topology。
+Provider-specific import tool 不属于默认 Agent surface。上游 payload adapter（例如 `modules/asset/adapters/EmbodiedGenAdapter.js`）只属于 Asset compatibility/import implementation，不代表 Provider topology。
 
 ## Python SDK
 

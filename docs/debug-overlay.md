@@ -37,7 +37,7 @@ WorldRuntime（State Owner，不知道本层存在）
 
 1. **不 import World Core 私有实现** —— 只消费 `store` / `manifest` / 公开只读 API。
 2. **不写入世界状态** —— 本层是纯消费者，所有图层都是可重建的派生几何。
-3. **不放在 `world/runtime/systems/`** —— 那里属于 World Core，被 `validate-domain-boundaries.mjs` 机械门禁约束。
+3. **不放在 `modules/world/runtime/systems/`** —— 那里属于 World Core，被 `validate-domain-boundaries.mjs` 机械门禁约束。
 
 第 3 条是刻意的：它逼出一个干净边界，而不是把调试代码塞进 physics/interaction 内部。
 
@@ -90,7 +90,7 @@ overlay.update();
 overlay.dispose();             // 卸载并释放几何
 ```
 
-页面绑定（已接入 `studio/main.js`）：
+页面绑定（已接入 `apps/studio/main.js`）：
 
 ```js
 import { bindDebugLayers } from './studio/debug/bindDebugLayers.js';

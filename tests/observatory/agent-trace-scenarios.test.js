@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { ToolCallingAgentScenarioContext } from "../../observatory/labs/agent/ToolCallingAgentScenarioContext.js";
-import { agentTraceScenarios } from "../../observatory/labs/agent/scenarios/traceIndex.js";
+import { ToolCallingAgentScenarioContext } from "../../apps/observatory/labs/agent/ToolCallingAgentScenarioContext.js";
+import { agentTraceScenarios } from "../../apps/observatory/labs/agent/scenarios/traceIndex.js";
 
 const createContext = async () => new ToolCallingAgentScenarioContext({ scene: new THREE.Scene() }).init();
 

@@ -775,7 +775,7 @@ restore Dynamic Physics
 
 ## 25. 1.18：Carry 终于有 Verified Place 出口
 
-1.17 的下一阶段已经在 1.18 落地：`approachAndPlace(actorId,supportId)` 会从当前 `heldByAgent` 自动推导 held object，采用 carry-aware interaction stand-off、三段 collision-checked release transfer，并在 detach 后等待 Dynamic settle。只有与 SceneGraph `ON/SUPPORTS` 同源的 `supportStatus` 成立才返回 `placed + supportVerified=true`。详见 [`agent-place.md`](./agent-place.md)。
+1.17 的下一阶段已经在 1.18 落地：`approachAndPlace(actorId,supportId)` 会从当前 `heldByAgent` 自动推导 held object，采用 carry-aware interaction stand-off、三段 collision-checked release transfer，并在 detach 后等待 Dynamic settle。只有与 SceneGraph `ON/SUPPORTS` 同源的 `supportStatus` 成立才返回 `placed + supportVerified=true`。详见 [`agent-place.md`](agent-place.md)。
 
 ---
 

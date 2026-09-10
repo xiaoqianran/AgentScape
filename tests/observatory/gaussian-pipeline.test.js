@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { detectGaussianFormat, prepareGaussianRuntimeVisual } from '../../observatory/workbench/gaussianPipeline.js';
+import { detectGaussianFormat, prepareGaussianRuntimeVisual } from '../../apps/observatory/workbench/gaussianPipeline.js';
 
 describe('Observatory Gaussian upload pipeline', () => {
   it('detects PLY and SPZ by extension or signature', () => {

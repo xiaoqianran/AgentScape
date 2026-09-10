@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
-import { createProviderRegistry } from '../../generation/providers/ProviderRegistry.js';
-import { GenerationOrchestrator } from '../../generation/orchestration/GenerationOrchestrator.js';
-import { createArtifactModule } from '../../artifact/ArtifactModule.js';
+import { createProviderRegistry } from '../../modules/generation/providers/ProviderRegistry.js';
+import { GenerationOrchestrator } from '../../application/generation/GenerationOrchestrator.js';
+import { createArtifactModule } from '../../modules/artifact/ArtifactModule.js';
 
 const enc=(v)=>new TextEncoder().encode(v);
 const sha=(b)=>`sha256:${createHash('sha256').update(b).digest('hex')}`;

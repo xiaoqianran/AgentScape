@@ -14,7 +14,7 @@
 
 91% 不是“代码写完 91%”，也不表示 AgentScape 的最终使命已经完成 91%。这个数字只粗略衡量当前定义下 **“普通 GLB → 可信 Agent World + 当前 generated-world vertical slice”** 的成熟度。1.34 已闭合 Prompt→WorldSpec→deterministic composition→canonical admission→missing-asset bounded regeneration；基础 Runtime / Asset→Executable 纵向链已经成熟，当前 generated-world 主线剩余主要是 non-retriable finding 的受约束 WorldSpec revision 与更复杂的全局空间约束。
 
-最终使命、World IR、五大核心系统和多 AI 分工，统一见 [`mission-and-system-plan.md`](./mission-and-system-plan.md)。
+最终使命、World IR、五大核心系统和多 AI 分工，统一见 [`mission-and-system-plan.md`](mission-and-system-plan.md)。
 
 ---
 
@@ -121,14 +121,14 @@ runtime-world-usable
 
 但 canonical world admission 仍为 `provisional`，原因是当前 Asset/Layout evidence 仍带 `ASSET_PROVISIONAL / LAYOUT_PROVISIONAL`。因此“Runtime 可用”和“所有 admission evidence 已 ready”必须继续区分。
 
-本阶段同时补齐：canonical `INSIDE`、Manifest `receptacles`、cabinet shell collider、carry-aware overlap validation、placement clear-endpoint LOS，以及 restore-time Physics World rebuild。详见 [`world-viability.md`](./world-viability.md)。
+本阶段同时补齐：canonical `INSIDE`、Manifest `receptacles`、cabinet shell collider、carry-aware overlap validation、placement clear-endpoint LOS，以及 restore-time Physics World rebuild。详见 [`world-viability.md`](world-viability.md)。
 
 ---
 
 
 ## 1.36 Developer Observatory — Production Runtime 可观测面
 
-2026-08-29，`observatory/` 正式成为与 Studio 平级的 Developer Product Surface，但不拥有第二套业务 Runtime：
+2026-08-29，`apps/observatory/` 正式成为与 Studio 平级的 Developer Product Surface，但不拥有第二套业务 Runtime：
 
 ```text
 Production Runtime
@@ -199,7 +199,7 @@ Generation / Agent Build Lab
 → 更复杂的 Agent-generated World / Asset failure recovery
 ```
 
-详见 [`observatory.md`](./observatory.md)。
+详见 [`observatory.md`](observatory.md)。
 
 ---
 
@@ -258,7 +258,7 @@ canReach / findPath
 
 分成两种真实能力。当前 `NavigationSystem` 使用 lazy Recast/Detour，支持端点吸附、静态连通性、路径 waypoint 与 path cost；真实 cabinet GLB 已进入 E2E。
 
-1.9 当时的边界是：dynamic object / executable Part 不进入 static base，查询只承诺 `scope=static`。这个边界在 1.10 **没有被删除**，而是保留为 Recast base，再由 TileCache + Rapier collider 形成 current-world overlay；因此不要把 1.9 的 static base 与 1.10 的最终查询 scope 混为一谈。详细契约见 [`navigation.md`](./navigation.md)。
+1.9 当时的边界是：dynamic object / executable Part 不进入 static base，查询只承诺 `scope=static`。这个边界在 1.10 **没有被删除**，而是保留为 Recast base，再由 TileCache + Rapier collider 形成 current-world overlay；因此不要把 1.9 的 static base 与 1.10 的最终查询 scope 混为一谈。详细契约见 [`navigation.md`](navigation.md)。
 
 ---
 

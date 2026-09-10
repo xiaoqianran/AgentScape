@@ -1,5 +1,7 @@
 # AgentScape Python SDK
 
+Module work queue: [tasks.jsonl](tasks.jsonl). Tasks are aggregated by the repository planning CLI without copying their state.
+
 The Python SDK is a **Unified Connector client**. It does not expose Provider-private clients, credentials, or retired repository topology.
 
 ## Supported surface

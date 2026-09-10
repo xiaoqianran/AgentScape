@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConnectorCapabilityAdapter } from '../../generation/connector/ConnectorCapabilityAdapter.js';
-import { createProviderRegistry } from '../../generation/providers/ProviderRegistry.js';
+import { ConnectorCapabilityAdapter } from '../../modules/generation/connector/ConnectorCapabilityAdapter.js';
+import { createProviderRegistry } from '../../modules/generation/providers/ProviderRegistry.js';
 
 const NOW=Date.parse('2026-08-27T00:00:00.000Z');
 const SESSION={

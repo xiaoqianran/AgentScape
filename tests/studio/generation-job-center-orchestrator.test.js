@@ -1,6 +1,6 @@
 import { describe,expect,it,vi } from 'vitest';
-import { GenerationOrchestrator } from '../../generation/orchestration/GenerationOrchestrator.js';
-import { createProviderRegistry } from '../../generation/providers/ProviderRegistry.js';
+import { GenerationOrchestrator } from '../../application/generation/GenerationOrchestrator.js';
+import { createProviderRegistry } from '../../modules/generation/providers/ProviderRegistry.js';
 
 const job={
   id:'job_01',provider:'modal-3d',operation:'modal-3d.asset.text_to_3d.v1',status:'running',phase:'executing',stage:'mesh',progress:{value:0.5},attempt:1,

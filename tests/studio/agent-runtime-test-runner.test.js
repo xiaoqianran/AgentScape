@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AgentRuntimeTestRunner } from '../../studio/agent/AgentRuntimeTestRunner.js';
+import { AgentRuntimeTestRunner } from '../../apps/studio/agent/AgentRuntimeTestRunner.js';
 
 const toolsFrom = (handler) => ({ call: vi.fn(handler) });
 

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { InteractionScenarioContext } from "../../observatory/labs/interaction/InteractionScenarioContext.js";
-import { interactionScenarios } from "../../observatory/labs/interaction/scenarios/index.js";
+import { InteractionScenarioContext } from "../../apps/observatory/labs/interaction/InteractionScenarioContext.js";
+import { interactionScenarios } from "../../apps/observatory/labs/interaction/scenarios/index.js";
 
 const createContext = async () => new InteractionScenarioContext({ scene: new THREE.Scene() }).init();
 

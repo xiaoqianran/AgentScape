@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { StudioBuildController, buildInputs, buildProviderOptions, selectBuildCapability } from '../../studio/build/StudioBuildController.js';
+import { StudioBuildController, buildInputs, buildProviderOptions, selectBuildCapability } from '../../apps/studio/build/StudioBuildController.js';
 
 const imageCapability={
   provider:'modal-2d',operation:'image.text_to_image',category:'image-generation',status:'available',
@@ -18,6 +18,23 @@ describe('StudioBuildController helpers',()=>{
     expect(selectBuildCapability(generation,{category:'image-generation',inputType:'text'})).toBe(imageCapability);
     expect(selectBuildCapability(generation,{category:'asset-generation',inputType:'image'})).toBe(assetCapability);
     expect(buildInputs(imageCapability,{prompt:'chair'})).toEqual({prompt:'chair',seed:42});
+  });
+
+  it('treats the Studio 3D route as image-only even when a text-to-3D capability exists',()=>{
+    const textAssetCapability={
+      provider:'text-3d',operation:'asset.text_to_3d',category:'asset-generation',status:'available',
+      input:{types:['text'],schema:{required:['prompt'],properties:{prompt:{type:'string'}}}},output:{roles:['primary-glb']},profiles:{recommended:{}}
+    };
+    const generation={
+      connectorStatus:()=>({status:'paired'}),
+      listGenerationCapabilities:()=>({capabilities:[textAssetCapability]}),
+      listGenerationProviders:()=>({providers:[{id:'text-3d',displayName:'Text 3D'}]}),
+      canGenerateAsset:()=>true,
+      canGenerateTextWorld:()=>false
+    };
+    const controller=new StudioBuildController({world:{generation}});
+    expect(controller.capabilities()).toMatchObject({asset:false,discovered:{asset:false}});
+    expect(controller.providerOptions({mode:'asset',inputType:'image'})).toEqual([]);
   });
 
   it('projects available provider choices from the capability snapshot without hardcoding model ids',()=>{

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { expect, it, vi } from 'vitest';
-import { AssetManager } from '../../asset/AssetManager.js';
+import { AssetManager } from '../../modules/asset/AssetManager.js';
 
 it('disposes a loaded instance when required-node validation fails', async () => {
   const assets = new AssetManager({ manifests:{} });

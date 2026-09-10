@@ -180,7 +180,7 @@ record.state.partTargets.door = open  // active/requested motor target
 record.state.parts.door = open        // verified completion only
 ```
 
-Motor 正在运动时，path query 看到的仍是中间物理姿态；Action-aware diagnosis 会把 `partTargets=open` 视为 already requested，避免重复建议。高层失败会 hold-current 并清 active request。详见 [`live-articulation.md`](./live-articulation.md)。
+Motor 正在运动时，path query 看到的仍是中间物理姿态；Action-aware diagnosis 会把 `partTargets=open` 视为 already requested，避免重复建议。高层失败会 hold-current 并清 active request。详见 [`live-articulation.md`](live-articulation.md)。
 
 ## 世界单位与 Recast voxel
 

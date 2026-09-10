@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ArtifactRegistry } from '../../artifact/ArtifactRegistry.js';
-import { MemoryArtifactByteStore } from '../../artifact/MemoryArtifactByteStore.js';
-import { createArtifactModule } from '../../artifact/ArtifactModule.js';
+import { ArtifactRegistry } from '../../modules/artifact/ArtifactRegistry.js';
+import { MemoryArtifactByteStore } from '../../modules/artifact/MemoryArtifactByteStore.js';
+import { createArtifactModule } from '../../modules/artifact/ArtifactModule.js';
 
 const HASH='sha256:9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a';
 const descriptor={

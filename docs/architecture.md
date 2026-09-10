@@ -1,10 +1,12 @@
 # AgentScape 当前架构全景
 
+> 目录与任务归属已迁移到 apps / application / modules / foundation，当前规范见 [repository-layout.md](repository-layout.md)。下文保留 1.34.2 运行机制说明；旧目录图不再作为目录约束。Skills 与跨域 GenerationRuntime 已归 application，内部运行契约本次保持。
+
 本文描述 **1.34.2** 的真实架构，不描述未来设想。
 
 目标不是解释每个类，而是说明：**状态在哪里、谁可以修改它、数据怎样跨层流动、哪些边界不能绕过。**
 
-> AgentScape 的最终使命、World IR / 世界中间表示、五大核心系统与多 AI 工作分解见 [`mission-and-system-plan.md`](./mission-and-system-plan.md)。本文只记录已经存在的 Runtime / Compiler / Agent / Verification 事实，避免把目标架构误写成当前实现。
+> AgentScape 的最终使命、World IR / 世界中间表示、五大核心系统与多 AI 工作分解见 [`mission-and-system-plan.md`](mission-and-system-plan.md)。本文只记录已经存在的 Runtime / Compiler / Agent / Verification 事实，避免把目标架构误写成当前实现。
 
 ---
 
@@ -566,7 +568,7 @@ animation keyframe budget
 
 1.8 已把 verifier 从“能不能动”升级为完整 Motion Sweep。1.9 补上 `findFreeSpace ≠ reachable` 的静态 NavMesh；1.10 再把动态 obstacle truth 接到同一查询链：Static Recast geometry 作为 base，TileCache 在每次查询前从当前 Rapier collider 差分同步 dynamic Root 与 articulated Part。
 
-因此 Runtime 有 Physics 时 `findPath/canReach` 返回 `scope=current`；如果某个 Rapier shape 无法安全映射，报告会显式给 `dynamicObstacles.coverage=partial`，而不是隐藏不确定性。详见 [`navigation.md`](./navigation.md)。
+因此 Runtime 有 Physics 时 `findPath/canReach` 返回 `scope=current`；如果某个 Rapier shape 无法安全映射，报告会显式给 `dynamicObstacles.coverage=partial`，而不是隐藏不确定性。详见 [`navigation.md`](navigation.md)。
 
 ---
 
@@ -594,13 +596,13 @@ NavMesh 不写入 SceneSerializer，因为它可以从当前 World 重建；这�
 
 1.9 的 static base 仍然不 bake dynamic object / articulated Part。1.10 用 TileCache 把它们作为**查询时动态覆盖层**：NavigationSystem 不监听 Physics 每帧位置，而是在 `canReach/findPath` 前读取 `PhysicsSystem.navigationObstacles()`，只对变化的 collider 做 remove/add，再 pump TileCache 到 `upToDate`。
 
-这样 dynamic obstacle 不触发全量 Recast rebuild，Static NavMesh 的 `buildVersion` 保持稳定；同时查询看到的是当前 Rapier pose，而不是 Manifest target 或 UI state。详细契约见 [`navigation.md`](./navigation.md)。
+这样 dynamic obstacle 不触发全量 Recast rebuild，Static NavMesh 的 `buildVersion` 保持稳定；同时查询看到的是当前 Rapier pose，而不是 Manifest target 或 UI state。详细契约见 [`navigation.md`](navigation.md)。
 
 ---
 
 ## 14. Curated Environment Pack
 
-1.11 将 Pages 默认环境从测试地面升级为 `Monument Hall`，但没有把美术结构塞进 `WorldRuntime`。新增的 `world/content/monumentHall.js` 是内容层：
+1.11 将 Pages 默认环境从测试地面升级为 `Monument Hall`，但没有把美术结构塞进 `WorldRuntime`。新增的 `modules/world/content/monumentHall.js` 是内容层：
 
 ```text
 MonumentHall pack
@@ -619,7 +621,7 @@ Runtime 只负责挂载这个 pack，并把同一份 collider / geometry 交给 
 
 ## 15. Environment Catalog：第二世界不增加第二 Runtime
 
-1.12 加入 `Ruined Courtyard` 后，`WorldRuntime` 不再 import 具体 Monument Hall，而接收 `environmentFactory`。世界元数据放在 `world/content/environments.js`。
+1.12 加入 `Ruined Courtyard` 后，`WorldRuntime` 不再 import 具体 Monument Hall，而接收 `environmentFactory`。世界元数据放在 `modules/world/content/environments.js`。
 
 ```text
 Pages ?world=...
@@ -636,7 +638,7 @@ WorldRuntime
 
 世界切换选择 reload，而不是热切换两个 Runtime。Autosave 使用 world-id namespace；Scene metadata 也记录 environment id，跨世界 restore 在 destructive mutation 前拒绝。
 
-详细契约见 [`worlds.md`](./worlds.md)。
+详细契约见 [`worlds.md`](worlds.md)。
 
 ---
 
@@ -678,7 +680,7 @@ restore obstacle
 provisional recommendation
 ```
 
-自动编译资产必须有 runtime articulation verification 才能成为 recommendation；未验证资产只能作为 blocker evidence。执行 `open` 后必须再次 `findPath` 获取 current Rapier/TileCache truth。详见 [`action-aware-navigation.md`](./action-aware-navigation.md)。
+自动编译资产必须有 runtime articulation verification 才能成为 recommendation；未验证资产只能作为 blocker evidence。执行 `open` 后必须再次 `findPath` 获取 current Rapier/TileCache truth。详见 [`action-aware-navigation.md`](action-aware-navigation.md)。
 
 ---
 
@@ -706,7 +708,7 @@ Three / ObjectStore
 
 `navigateTo` 会等待 arrived/blocked 后才让 SkillRegistry 的 `runtime.mutate()` commit，整个跨帧行走只有一个 History command。为了避免长 mutation 与其它写操作争用同一个 CommandHistory pending slot，WorldRuntime 增加单一 `mutationOwner`；并发写明确返回 `WORLD_MUTATION_BUSY`。
 
-当前不接 Detour Crowd：单 Agent 的真实瓶颈是 physical move-and-slide，而不是群体 avoidance。详见 [`locomotion.md`](./locomotion.md)。
+当前不接 Detour Crowd：单 Agent 的真实瓶颈是 physical move-and-slide，而不是群体 avoidance。详见 [`locomotion.md`](locomotion.md)。
 
 ---
 
@@ -735,7 +737,7 @@ setArticulationAction
 
 InteractionSystem 只组织已有 truth owners：Navigation 仍拥有 path，Locomotion 仍拥有执行状态，Physics 仍拥有碰撞/LOS/joint motor。
 
-`interaction-requested` 只表示 motor target 已接受，不等于 joint settled。详情见 [`interaction-range.md`](./interaction-range.md)。
+`interaction-requested` 只表示 motor target 已接受，不等于 joint settled。详情见 [`interaction-range.md`](interaction-range.md)。
 
 ---
 
@@ -761,7 +763,7 @@ Locomotion each frame
 CARRIED_OBJECT_BLOCKED | move
 ```
 
-Held object 在 carry 期间不进入 TileCache dynamic obstacle snapshot；其空间占用由 carry clearance 负责，drop 后恢复普通 Dynamic obstacle。详见 [`agent-carry.md`](./agent-carry.md)。
+Held object 在 carry 期间不进入 TileCache dynamic obstacle snapshot；其空间占用由 carry clearance 负责，drop 后恢复普通 Dynamic obstacle。详见 [`agent-carry.md`](agent-carry.md)。
 
 ---
 
@@ -789,7 +791,7 @@ Interaction settle window
 Spatial.supportStatus
 ```
 
-`SpatialSystem.supportStatus` 同时成为 SceneGraph `ON/SUPPORTS` 与 Place post-condition 的唯一几何 predicate。`placed` 只在 Dynamic body 稳定后且 `supportStatus.on=true` 时返回。详见 [`agent-place.md`](./agent-place.md)。
+`SpatialSystem.supportStatus` 同时成为 SceneGraph `ON/SUPPORTS` 与 Place post-condition 的唯一几何 predicate。`placed` 只在 Dynamic body 稳定后且 `supportStatus.on=true` 时返回。详见 [`agent-place.md`](agent-place.md)。
 
 ---
 
@@ -807,7 +809,7 @@ setArticulationAction
 → high-level transaction promote or finalize
 ```
 
-`state.parts` 现在只表示在明确 mutation owner 内 promote 的 verified action；observer result 只保存在 runtime ephemeral map。失败时高层会把 motor target 重设为当前 coordinate，并清理 active request，避免报告 STALL 后 Part 又偷偷继续运动。详见 [`live-articulation.md`](./live-articulation.md)。
+`state.parts` 现在只表示在明确 mutation owner 内 promote 的 verified action；observer result 只保存在 runtime ephemeral map。失败时高层会把 motor target 重设为当前 coordinate，并清理 active request，避免报告 STALL 后 Part 又偷偷继续运动。详见 [`live-articulation.md`](live-articulation.md)。
 
 ---
 
@@ -831,7 +833,7 @@ ToolCallingAgent
    fresh replan
 ```
 
-`unresolvedMutations` 防止早期 STALL/blocked 被后续某个成功 mutation 洗白；只有同一语义 mutation identity 后续 verified 才清掉。`executeBatch` 使用同一 outcome classifier，并 preflight 拒绝跨 Physics 帧的 unbatchable embodied skills。真实 LocalPlanner→SkillRegistry→Rapier/Recast E2E 已验证 open→pickup→place 成功链与 Door STALL stop。完整设计见 [`verified-task-sequencing.md`](./verified-task-sequencing.md)。
+`unresolvedMutations` 防止早期 STALL/blocked 被后续某个成功 mutation 洗白；只有同一语义 mutation identity 后续 verified 才清掉。`executeBatch` 使用同一 outcome classifier，并 preflight 拒绝跨 Physics 帧的 unbatchable embodied skills。真实 LocalPlanner→SkillRegistry→Rapier/Recast E2E 已验证 open→pickup→place 成功链与 Door STALL stop。完整设计见 [`verified-task-sequencing.md`](verified-task-sequencing.md)。
 
 完整多步 E2E 还暴露 Place arrival yaw 问题，因此 place 在 release 前会使用 `reorientHeldToward` 分段原地 yaw，每一步都对 held object 做 Rapier clearance；interaction candidate 也会预检朝向 release 后 HoldAnchor 的 reach。
 
@@ -860,7 +862,7 @@ ToolCallingAgent unresolved ledger
 
 首次 planning 仍发送完整 `listObjects`；发生 mutation 后只发送 `{world:{count,index:[id/asset]}} + compact task`。Relevant object 来自 actor/lastMutation/unresolved args；articulation 复用 `articulationStatus` 并压缩字段。Recovery Hint 永远 `provisional`。
 
-ToolCallingAgent 另外维护 bounded read-only recovery rounds；它不选择 recovery action，只在 unresolved 世界状态长期不变、模型持续做只读诊断时以 `recovery-observation-limit` 结构化结束。Mutation identity 会用实际 Runtime result 补齐 implicit Part，避免同一 Door retry 形成重复 unresolved。详见 [`task-observation.md`](./task-observation.md)。
+ToolCallingAgent 另外维护 bounded read-only recovery rounds；它不选择 recovery action，只在 unresolved 世界状态长期不变、模型持续做只读诊断时以 `recovery-observation-limit` 结构化结束。Mutation identity 会用实际 Runtime result 补齐 implicit Part，避免同一 Door retry 形成重复 unresolved。详见 [`task-observation.md`](task-observation.md)。
 
 ---
 
@@ -885,7 +887,7 @@ blockerCandidates
 articulationStatus / task-observation
 ```
 
-Candidate 只表示 `current-contact-at-failure`，不是唯一因果结论。Contact 没有被写进 SceneGraph，也没有新增持久 FailureStore。完整设计见 [`failure-attribution.md`](./failure-attribution.md)。
+Candidate 只表示 `current-contact-at-failure`，不是唯一因果结论。Contact 没有被写进 SceneGraph，也没有新增持久 FailureStore。完整设计见 [`failure-attribution.md`](failure-attribution.md)。
 
 ---
 
@@ -911,7 +913,7 @@ original post-condition verified
 
 `auxiliary=true` 只控制 ToolCallingAgent 的 unresolved ledger：recovery 自己不会成为新的用户任务债务，但仍然经过 History transaction、Policy、Trace 与 mutation barrier。Recovery success 也绝不会删除原始 unresolved；只有同一原始 mutation identity 后续 verified 才能清除。 同一 original failure evidence epoch 中，已 verified 的同一 auxiliary recovery 还会被 `RECOVERY_ALREADY_APPLIED` gate 阻止重复执行；只有 original mutation 真正 retry 后才开始新的 recovery evidence epoch。
 
-`findPickupPlan` 同时被 recovery proposal 与普通 `approachAndPickup` 共用，候选要求 Detour/LOS/range + predicted hold transfer clear，并预留 Locomotion waypoint tolerance；真正执行后再次按实际 pose 做 transfer recheck。详见 [`verified-recovery.md`](./verified-recovery.md)。
+`findPickupPlan` 同时被 recovery proposal 与普通 `approachAndPickup` 共用，候选要求 Detour/LOS/range + predicted hold transfer clear，并预留 Locomotion waypoint tolerance；真正执行后再次按实际 pose 做 transfer recheck。详见 [`verified-recovery.md`](verified-recovery.md)。
 
 ---
 
@@ -919,7 +921,7 @@ original post-condition verified
 
 1.24 继续复用 `buildRecoveryProposals`，没有新增 Planner/Manager。Object candidate identity 从 collider-level 收敛为 `objectId + partName`，因此同一 Object 接触从 collider #0 切换到 #1 不会误判 stale；Environment 仍用 `environmentId + colliderIndex` 保留具体 fixed geometry。
 
-当前 contacts 会按 semantic candidate 聚合 `pairCount/contactCount/activeContactCount/minDistance/totalImpulse/colliderIndices`。这些只作为 Physics evidence。真正 executable proposals 在 1.26 起统一按 recovery interaction/approach route cost + stableBlockerKey 排序，并明确 `ranking.causal=false`；root `recommended` 指向 rank-1 proposal。每个 failure evidence epoch 仍最多执行一个 auxiliary recovery，然后必须 retry original mutation。详见 [`recovery-ranking.md`](./recovery-ranking.md)。
+当前 contacts 会按 semantic candidate 聚合 `pairCount/contactCount/activeContactCount/minDistance/totalImpulse/colliderIndices`。这些只作为 Physics evidence。真正 executable proposals 在 1.26 起统一按 recovery interaction/approach route cost + stableBlockerKey 排序，并明确 `ranking.causal=false`；root `recommended` 指向 rank-1 proposal。每个 failure evidence epoch 仍最多执行一个 auxiliary recovery，然后必须 retry original mutation。详见 [`recovery-ranking.md`](recovery-ranking.md)。
 
 ---
 
@@ -947,7 +949,7 @@ settleTasks             ← Place/Cleanup 唯一 settle owner
 released + settled + sweepClear + contactClear
 ```
 
-`PhysicsSystem.bodyPoseClear` 从既有 `bodyMotionClear` endpoint overlap 检查中抽出；motion clear 仍在 path cast 后调用同一个 endpoint truth。`recovery-cleaned` 是 auxiliary verified outcome，绝不删除 original unresolved。完整设计见 [`recovery-cleanup.md`](./recovery-cleanup.md)。
+`PhysicsSystem.bodyPoseClear` 从既有 `bodyMotionClear` endpoint overlap 检查中抽出；motion clear 仍在 path cast 后调用同一个 endpoint truth。`recovery-cleaned` 是 auxiliary verified outcome，绝不删除 original unresolved。完整设计见 [`recovery-cleanup.md`](recovery-cleanup.md)。
 
 ---
 
@@ -973,7 +975,7 @@ approachAndInteract(blocker Part)
 fresh original retry
 ```
 
-真实两柜 E2E 还暴露普通 Locomotion 0.18m arrival tolerance 可能让实际 Agent 停在已规划 safe stance 之前、进入 action sweep。最终没有全局放大 sweep，而是在 `approachAndInteract` final exact sweep 失败时，向同一 planned pose 做一次 0.05m correction，再重新检查 range/LOS/exact sweep。完整设计见 [`articulated-recovery.md`](./articulated-recovery.md)。
+真实两柜 E2E 还暴露普通 Locomotion 0.18m arrival tolerance 可能让实际 Agent 停在已规划 safe stance 之前、进入 action sweep。最终没有全局放大 sweep，而是在 `approachAndInteract` final exact sweep 失败时，向同一 planned pose 做一次 0.05m correction，再重新检查 range/LOS/exact sweep。完整设计见 [`articulated-recovery.md`](articulated-recovery.md)。
 
 ---
 
@@ -999,7 +1001,7 @@ execution-time rerank
 existing approachAndInteract
 ```
 
-完全 tie 不产生 rank；execution-time selected action 改变则 `COUNTERFACTUAL_SELECTION_CHANGED`。没有新增 state owner、motor owner 或 mutation path。完整 contract 见 [`counterfactual-articulated-recovery.md`](./counterfactual-articulated-recovery.md)。
+完全 tie 不产生 rank；execution-time selected action 改变则 `COUNTERFACTUAL_SELECTION_CHANGED`。没有新增 state owner、motor owner 或 mutation path。完整 contract 见 [`counterfactual-articulated-recovery.md`](counterfactual-articulated-recovery.md)。
 
 ---
 
@@ -1021,7 +1023,7 @@ existing recoverArticulatedBlocker
 execution-time rerank + original retry
 ```
 
-只有所有 executable actions 的 Physics coverage 完整、`current.conflictSamples / pairIntersections` baseline 一致且大于零时才采用 v2；否则 `buildRecoveryProposals` 显式降级到 1.27 `three-aabb-fallback` 并记录 reason。Revolute hypothetical pose 当前仅支持 `childAnchor≈0`；非零 anchor 返回 `REVOLUTE_CHILD_ANCHOR_UNSUPPORTED`，不猜 pivot。完整 contract 见 [`physics-counterfactual-geometry.md`](./physics-counterfactual-geometry.md)。
+只有所有 executable actions 的 Physics coverage 完整、`current.conflictSamples / pairIntersections` baseline 一致且大于零时才采用 v2；否则 `buildRecoveryProposals` 显式降级到 1.27 `three-aabb-fallback` 并记录 reason。Revolute hypothetical pose 当前仅支持 `childAnchor≈0`；非零 anchor 返回 `REVOLUTE_CHILD_ANCHOR_UNSUPPORTED`，不猜 pivot。完整 contract 见 [`physics-counterfactual-geometry.md`](physics-counterfactual-geometry.md)。
 
 ---
 
@@ -1037,19 +1039,19 @@ observation    = post-recovery current-contact fact
 verification   = later original action retry post-condition
 ```
 
-三者不共用 success 语义；`consistent` 也明确 `originalRetryRequired=true`。没有新增持久 Calibration state。详见 [`counterfactual-calibration.md`](./counterfactual-calibration.md)。
+三者不共用 success 语义；`consistent` 也明确 `originalRetryRequired=true`。没有新增持久 Calibration state。详见 [`counterfactual-calibration.md`](counterfactual-calibration.md)。
 
 ---
 
 ## 33. Convergence / Nested-frame：Physics Evidence 也必须自检
 
-1.30 新增 `articulationPairCounterfactualConvergence`：selected Physics rank-1 action 用更密的 independent original/blocker sample counts 重跑一次 shape-pair query，并比较 `targetSweepClear` 与 `conflictReduction>0` 的定性结论。翻转则 `PHYSICS_COUNTERFACTUAL_UNSTABLE`，proposal 降级 Three fallback。Nested child query 明确 `frameAssumption=parent-pose-at-query`；pair query 明确 `parent-poses-static-during-hypothesis`。真实 Door→Slider fixture 在 parent 已运动后用 local-to-parent pose 对拍 child motor，避免把 dynamic parent reaction 错当成 hypothetical frame error。详见 [`counterfactual-convergence.md`](./counterfactual-convergence.md)。
+1.30 新增 `articulationPairCounterfactualConvergence`：selected Physics rank-1 action 用更密的 independent original/blocker sample counts 重跑一次 shape-pair query，并比较 `targetSweepClear` 与 `conflictReduction>0` 的定性结论。翻转则 `PHYSICS_COUNTERFACTUAL_UNSTABLE`，proposal 降级 Three fallback。Nested child query 明确 `frameAssumption=parent-pose-at-query`；pair query 明确 `parent-poses-static-during-hypothesis`。真实 Door→Slider fixture 在 parent 已运动后用 local-to-parent pose 对拍 child motor，避免把 dynamic parent reaction 错当成 hypothetical frame error。详见 [`counterfactual-convergence.md`](counterfactual-convergence.md)。
 
 ---
 
 ## 34. Third-object World Counterfactual
 
-1.31 复用 `colliderProvenance` 和 Rapier `intersectionsWithShape` 增加 `articulationWorldCounterfactual`。它比较 blocker current / target / action-envelope hypothetical poses 对 live world colliders 的命中集合，以 `introduced collision = hypothetical hits - current hits` 作为 hard veto。Self、Agent 和 original failed Part pair 被排除，但 original object 的其它 Parts/root 仍参与。Known third-object/environment collision 不允许被 pairwise Physics rank 或 Three fallback resurrect。完整 contract 见 [`third-object-counterfactual.md`](./third-object-counterfactual.md)。
+1.31 复用 `colliderProvenance` 和 Rapier `intersectionsWithShape` 增加 `articulationWorldCounterfactual`。它比较 blocker current / target / action-envelope hypothetical poses 对 live world colliders 的命中集合，以 `introduced collision = hypothetical hits - current hits` 作为 hard veto。Self、Agent 和 original failed Part pair 被排除，但 original object 的其它 Parts/root 仍参与。Known third-object/environment collision 不允许被 pairwise Physics rank 或 Three fallback resurrect。完整 contract 见 [`third-object-counterfactual.md`](third-object-counterfactual.md)。
 
 ---
 
@@ -1075,7 +1077,7 @@ WorldValidator / RepairEngine
 worldAdmission
 ```
 
-Agent skill 永远运行完整 canonical pipeline；内部 stage selection 不暴露给 LLM。Asset admission rejected 时不产生 partial spawn；final world rejected 时 skill 恢复调用前 scene。`world-ready / world-provisional / world-rejected` 与 `asset-ready / asset-provisional / asset-rejected` 已进入 Skill outcome semantics。完整 contract 见 [`generated-world-admission.md`](./generated-world-admission.md)。
+Agent skill 永远运行完整 canonical pipeline；内部 stage selection 不暴露给 LLM。Asset admission rejected 时不产生 partial spawn；final world rejected 时 skill 恢复调用前 scene。`world-ready / world-provisional / world-rejected` 与 `asset-ready / asset-provisional / asset-rejected` 已进入 Skill outcome semantics。完整 contract 见 [`generated-world-admission.md`](generated-world-admission.md)。
 
 ---
 
@@ -1083,7 +1085,7 @@ Agent skill 永远运行完整 canonical pipeline；内部 stage selection 不�
 
 1.33 在 `asset_admission` 与 `instantiate` 之间加入纯计算 `compose_layout`。`WorldComposer` 从 Manifest root collider 推导 footprint，从 Environment Pack 读取可搜索 bounds，并调用 `PhysicsSystem.manifestPoseClear` 对候选 world pose 做 non-mutating Rapier shape query；同批尚未 spawn 的 assets 用 conservative footprint reservation。WorldSpec 没有 position 时由 Runtime 确定性选位，explicit position 则只验证、不偷偷改写。
 
-`NEAR` 关系也不再要求 LLM 猜 distance：省略时由 subject/target footprint + clearance 推导，按固定 ±X/±Z 顺序做 Rapier preflight。`layoutAdmission / relationAdmission` 会进入最终 `worldAdmission`。`ON` 继续复用现有 `InteractionSystem.place / SpatialSystem.findFreeSpace`，没有第二套 support solver。详见 [`deterministic-world-composer.md`](./deterministic-world-composer.md)。
+`NEAR` 关系也不再要求 LLM 猜 distance：省略时由 subject/target footprint + clearance 推导，按固定 ±X/±Z 顺序做 Rapier preflight。`layoutAdmission / relationAdmission` 会进入最终 `worldAdmission`。`ON` 继续复用现有 `InteractionSystem.place / SpatialSystem.findFreeSpace`，没有第二套 support solver。详见 [`deterministic-world-composer.md`](deterministic-world-composer.md)。
 
 ---
 
@@ -1091,4 +1093,4 @@ Agent skill 永远运行完整 canonical pipeline；内部 stage selection 不�
 
 1.34 新增纯 `buildWorldRetryPlan`，只把 pipeline rejection reports 压成 machine-readable findings/actions。唯一自动 retry 是 `search missing + generator configured`：只给缺失 request 打开 `generate=true`，restore 调用前 scene，再完整跑一次 canonical pipeline；固定 budget=2，第二次失败即 exhausted。Layout / relation / post-repair validation failure 都不会被 Runtime 自动放宽。
 
-ToolCallingAgent 同时维护 run-local `attemptedWorldPlans`，阻止完全相同 WorldSpec 在后续 planning round 再执行；但 unresolved semantic identity 仍是 `runWorldPipeline:{}`，因此真正修订后的 WorldSpec 成功可以清掉原失败。没有新增 World/Asset state owner。详见 [`bounded-world-regeneration.md`](./bounded-world-regeneration.md)。
+ToolCallingAgent 同时维护 run-local `attemptedWorldPlans`，阻止完全相同 WorldSpec 在后续 planning round 再执行；但 unresolved semantic identity 仍是 `runWorldPipeline:{}`，因此真正修订后的 WorldSpec 成功可以清掉原失败。没有新增 World/Asset state owner。详见 [`bounded-world-regeneration.md`](bounded-world-regeneration.md)。

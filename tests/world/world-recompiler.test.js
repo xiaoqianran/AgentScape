@@ -1,8 +1,8 @@
 import { describe,expect,it,vi } from 'vitest';
-import { recompileWorldRevision } from '../../world/compiler/WorldRecompiler.js';
-import { buildWorldRevisionContext,createWorldRevisionProposal } from '../../world/spec/WorldRevision.js';
-import { compileValidationFindings } from '../../world/verification/Finding.js';
-import { recordInteractionEvidence } from '../../world/verification/InteractionEvidence.js';
+import { recompileWorldRevision } from '../../modules/world/compiler/WorldRecompiler.js';
+import { buildWorldRevisionContext,createWorldRevisionProposal } from '../../modules/world/spec/WorldRevision.js';
+import { compileValidationFindings } from '../../modules/world/verification/Finding.js';
+import { recordInteractionEvidence } from '../../modules/world/verification/InteractionEvidence.js';
 
 const baseIR=()=>({
   schema:'agentscape.world-ir',schemaVersion:1,

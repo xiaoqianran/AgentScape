@@ -453,7 +453,7 @@ normal completion
 OpenAI-compatible 转换器现在放在：
 
 ```text
-tooling/scripts/openai-compatible-agent-gateway.mjs
+apps/server/openai-compatible-agent-gateway.mjs
 ```
 
 而不是：
@@ -469,7 +469,7 @@ Browser Runtime
 不应该拥有 provider credential responsibility
 ```
 
-`agent/gateway/HttpLLMGateway.js` 继续只认识 AgentScape 的 provider-neutral Gateway。
+`modules/agent/gateway/HttpLLMGateway.js` 继续只认识 AgentScape 的 provider-neutral Gateway。
 
 这样将来 Anthropic / Gemini / internal gateway 仍不需要污染 Runtime。
 
@@ -544,7 +544,7 @@ AGENTSCAPE_TEST_LLM_TRACE=1 npm run agent:probe -- interaction
 npm run agent:probe -- pickup
 ```
 
-Probe 禁止模型调用低层 Human `pickup`，要求最终使用 `approachAndPickup`。当前 Nemotron 与 Muse 都真实通过，并在 pickup 后调用 `getCarryStatus`。返回 contract 明确 `attachment=kinematic-anchor`、`graspVerified=false`。详见 [`agent-carry.md`](./agent-carry.md)。
+Probe 禁止模型调用低层 Human `pickup`，要求最终使用 `approachAndPickup`。当前 Nemotron 与 Muse 都真实通过，并在 pickup 后调用 `getCarryStatus`。返回 contract 明确 `attachment=kinematic-anchor`、`graspVerified=false`。详见 [`agent-carry.md`](agent-carry.md)。
 
 ## 18. 1.18 Agent-held Place Probe
 
@@ -566,7 +566,7 @@ coordinate ≈ target
 error <= tolerance
 ```
 
-Nemotron 与 Muse 都已真实通过 interaction completion probe；具体 planning steps 会随采样波动，不作为能力判断。Nemotron 某些 run 会先尝试不合适的纯 `navigateTo` 再纠正，Muse 常见先 `findInteractionPose` 预览。成功标准始终是最终调用 `approachAndInteract`，并且只在 completion contract 成立后宣布 Door 已打开。新的 `getArticulationStatus` 只用于失败诊断或后续状态查询，成功后不需要冗余调用。详见 [`live-articulation.md`](./live-articulation.md)。
+Nemotron 与 Muse 都已真实通过 interaction completion probe；具体 planning steps 会随采样波动，不作为能力判断。Nemotron 某些 run 会先尝试不合适的纯 `navigateTo` 再纠正，Muse 常见先 `findInteractionPose` 预览。成功标准始终是最终调用 `approachAndInteract`，并且只在 completion contract 成立后宣布 Door 已打开。新的 `getArticulationStatus` 只用于失败诊断或后续状态查询，成功后不需要冗余调用。详见 [`live-articulation.md`](live-articulation.md)。
 
 ## 20. 1.20 Verified Multi-step Sequence Probes
 

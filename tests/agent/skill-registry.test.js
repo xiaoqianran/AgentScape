@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SkillRegistry } from '../../agent/skills/SkillRegistry.js';
-import { PolicyEngine } from '../../core/PolicyEngine.js';
-import { TraceRecorder } from '../../core/TraceRecorder.js';
+import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
+import { PolicyEngine } from '../../foundation/PolicyEngine.js';
+import { TraceRecorder } from '../../foundation/TraceRecorder.js';
 
 function setup() {
   const trace = new TraceRecorder();

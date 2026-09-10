@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
-import { ArtifactRegistry } from '../../artifact/ArtifactRegistry.js';
-import { MemoryArtifactByteStore } from '../../artifact/MemoryArtifactByteStore.js';
-import { AssetCompiler } from '../../asset/compiler/AssetCompiler.js';
-import { AssetManager } from '../../asset/AssetManager.js';
-import { VerifiedArtifactAssetPipeline } from '../../asset/pipeline/VerifiedArtifactAssetPipeline.js';
+import { ArtifactRegistry } from '../../modules/artifact/ArtifactRegistry.js';
+import { MemoryArtifactByteStore } from '../../modules/artifact/MemoryArtifactByteStore.js';
+import { AssetCompiler } from '../../modules/asset/compiler/AssetCompiler.js';
+import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { VerifiedArtifactAssetPipeline } from '../../modules/asset/pipeline/VerifiedArtifactAssetPipeline.js';
 
 const NOW=Date.parse('2026-08-24T10:00:00.000Z');
 const sha=(bytes)=>`sha256:${createHash('sha256').update(bytes).digest('hex')}`;

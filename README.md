@@ -1,5 +1,7 @@
 # AgentScape
 
+当前源码布局采用 `apps / application / modules / foundation`。模块任务就近保存在各自的 `tasks.jsonl`，运行 `npm run planning:list` 聚合查看；目录与已知迁移限制见 [Repository Layout](docs/repository-layout.md)。
+
 > **把生成式 3D 资产变成可被 LLM 安全操作、可验证的浏览器 3D 世界。**
 
 AgentScape 是一个运行在浏览器中的 **Agent-ready 3D Runtime**。它把 Three.js、Rapier、Recast/Detour、资产 Manifest、空间语义、Skill Registry、验证/修复和 Tool-calling Agent 放在同一条 Runtime 边界后面，让人类编辑器与 AI Agent 操作同一个真实世界状态。

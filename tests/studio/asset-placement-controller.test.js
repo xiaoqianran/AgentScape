@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { AssetPlacementController, placementBounds } from '../../studio/editor/AssetPlacementController.js';
-import { assetManifests } from '../../asset/manifests/index.js';
+import { AssetPlacementController, placementBounds } from '../../apps/studio/editor/AssetPlacementController.js';
+import { assetManifests } from '../../modules/asset/manifests/index.js';
 
 function fakeElement() {
   const classes=new Set();

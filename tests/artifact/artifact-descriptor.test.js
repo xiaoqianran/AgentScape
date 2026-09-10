@@ -5,7 +5,7 @@ import {
   normalizeArtifactHash,
   normalizeArtifactLocation,
   requireSafeArtifactId
-} from '../../artifact/ArtifactDescriptor.js';
+} from '../../modules/artifact/ArtifactDescriptor.js';
 
 const H1=`sha256:${'a'.repeat(64)}`;
 const HP=`sha256:${'b'.repeat(64)}`;
@@ -74,7 +74,7 @@ describe('Artifact descriptor contract',()=>{
     ]) expect(()=>normalizeArtifactHash(bad)).toThrow(ArtifactContractError);
 
     expect(requireSafeArtifactId('artifact_A-01')).toBe('artifact_A-01');
-    for (const bad of ['../artifact','artifact/child','artifact?x=1','artifact:remote','']) {
+    for (const bad of ['./','modules/artifact/child','artifact?x=1','artifact:remote','']) {
       expect(()=>requireSafeArtifactId(bad)).toThrow(expect.objectContaining({code:'ARTIFACT_ID_INVALID'}));
     }
   });

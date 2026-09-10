@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ProviderRegistry, createProviderRegistry } from '../../generation/providers/ProviderRegistry.js';
+import { ProviderRegistry, createProviderRegistry } from '../../modules/generation/providers/ProviderRegistry.js';
 
 const provider=(id,{status='available',health='healthy',operation=`${id}.asset.text_to_3d.v1`,input=['text'],output=['asset']}={})=>({
   id,version:'1',status,health,contractVersion:'1',

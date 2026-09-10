@@ -402,4 +402,4 @@ RRT / TAMP motion planning
 
 ## 与 1.16 Embodied Interaction 的关系
 
-1.14 的 `suggestNavigationActions` 回答“哪个可交互 obstacle 可能让路径重新出现”；1.16 的 `approachAndInteract` 回答“Agent 应站在哪里才能安全请求这个 articulation action”。前者是 navigation blocker counterfactual，后者是 interaction precondition，不应合成一个 Planner。详见 [`interaction-range.md`](./interaction-range.md)。
+1.14 的 `suggestNavigationActions` 回答“哪个可交互 obstacle 可能让路径重新出现”；1.16 的 `approachAndInteract` 回答“Agent 应站在哪里才能安全请求这个 articulation action”。前者是 navigation blocker counterfactual，后者是 interaction precondition，不应合成一个 Planner。详见 [`interaction-range.md`](interaction-range.md)。

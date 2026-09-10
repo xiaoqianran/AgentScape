@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { EmbodiedGenAdapter } from '../../asset/adapters/EmbodiedGenAdapter.js';
-import { validateAssetManifest } from '../../asset/schema.js';
+import { EmbodiedGenAdapter } from '../../modules/asset/adapters/EmbodiedGenAdapter.js';
+import { validateAssetManifest } from '../../modules/asset/schema.js';
 
 describe('EmbodiedGenAdapter', () => {
   it('normalizes an external simulation asset into AgentScape manifest', () => {

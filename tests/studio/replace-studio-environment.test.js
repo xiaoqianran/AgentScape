@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { replaceStudioEnvironment } from '../../studio/runtime/replaceStudioEnvironment.js';
+import { replaceStudioEnvironment } from '../../apps/studio/runtime/replaceStudioEnvironment.js';
 
 function fixture({replaceFails=false,restoreFails=false,disposeFails=false}={}) {
   const previous={id:'previous-world',dispose:disposeFails?vi.fn(()=>{throw new Error('dispose failed');}):vi.fn()};

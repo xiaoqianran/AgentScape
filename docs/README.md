@@ -6,7 +6,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 
 ## 1. 学习主线
 
-### [`mission-and-system-plan.md`](./mission-and-system-plan.md) — 最终使命、目标架构与多 AI 分工
+### [`mission-and-system-plan.md`](mission-and-system-plan.md) — 最终使命、目标架构与多 AI 分工
 
 回答：
 
@@ -15,7 +15,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - World IR、资产、交互规则、Runtime、验证修复如何形成完整编译链？
 - 如果多个 AI 并行开发，怎样按 Architecture Ownership 分工而不制造多套 Truth？
 
-### [`evolution.md`](./evolution.md) — 从第一个 Runtime 到当前版本
+### [`evolution.md`](evolution.md) — 从第一个 Runtime 到当前版本
 
 回答：
 
@@ -26,7 +26,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 
 这是理解 AgentScape 最重要的一篇。
 
-### [`architecture.md`](./architecture.md) — 当前系统全景
+### [`architecture.md`](architecture.md) — 当前系统全景
 
 回答：
 
@@ -35,7 +35,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - 一次 `open` 动作最终经过哪些模块？
 - 一个普通 GLB 如何变成 Agent 可以真实操作的对象？
 
-### [`engineering-method.md`](./engineering-method.md) — 我们如何研究和做工程决策
+### [`engineering-method.md`](engineering-method.md) — 我们如何研究和做工程决策
 
 回答：
 
@@ -45,7 +45,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - 什么情况下复用库，什么情况下只借鉴思想？
 - 一个新能力怎样从“想法”走到可以 commit？
 
-### [`decisions-and-lessons.md`](./decisions-and-lessons.md) — 关键决策、踩坑和反例
+### [`decisions-and-lessons.md`](decisions-and-lessons.md) — 关键决策、踩坑和反例
 
 回答：
 
@@ -56,7 +56,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - 为什么 whole-asset collider 不能继续用于 articulated Root？
 - 为什么“测试绿”还不够，必须跑真实 GLB / Rapier / FastAPI E2E？
 
-### [`status-and-roadmap.md`](./status-and-roadmap.md) — 当前完成度与下一阶段
+### [`status-and-roadmap.md`](status-and-roadmap.md) — 当前完成度与下一阶段
 
 回答：
 
@@ -67,44 +67,44 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 
 ## 2. 当前仓库与 Provider 边界
 
-- [`repository-layout.md`](./repository-layout.md)：当前根目录、产品系统、Observatory Developer Surface、真实工程边界与禁止回退规则。
-- [`observatory.md`](./observatory.md)：Developer Runtime Observatory：Physics/Spatial 单步、replay、backend comparison 与 debug contract。
-- [`world-viability.md`](./world-viability.md)：产品级 World Viability Gate：INSIDE cabinet → OPEN → PICKUP → CARRY → PLACE → Acceptance → Restore。
-- [`multi-repository-architecture.md`](./multi-repository-architecture.md)：当前已收敛的 `AgentScape + modal-provider` 仓库边界。
-- [`provider-integration-plan.md`](./provider-integration-plan.md)：Provider contract、2D→3D 主链、Gateway 与 EmbodiedGen ownership。
-- [`repository-baseline.md`](./repository-baseline.md)：2026-08-29 当前仓库基线与已退役 standalone inventory。
+- [`repository-layout.md`](repository-layout.md)：当前根目录、产品系统、Observatory Developer Surface、真实工程边界与禁止回退规则。
+- [`observatory.md`](observatory.md)：Developer Runtime Observatory：Physics/Spatial 单步、replay、backend comparison 与 debug contract。
+- [`world-viability.md`](world-viability.md)：产品级 World Viability Gate：INSIDE cabinet → OPEN → PICKUP → CARRY → PLACE → Acceptance → Restore。
+- [`multi-repository-architecture.md`](multi-repository-architecture.md)：当前已收敛的 `AgentScape + modal-provider` 仓库边界。
+- [`provider-integration-plan.md`](provider-integration-plan.md)：Provider contract、2D→3D 主链、Gateway 与 EmbodiedGen ownership。
+- [`repository-baseline.md`](repository-baseline.md)：2026-08-29 当前仓库基线与已退役 standalone inventory。
 
 ## 3. 当前协议与实现文档
 
-- [`physics.md`](./physics.md)：PhysicsSystem / PhysicsBackend 深层契约、Rapier/Jolt/Transform parity、evidence quality 与 backend selection。
-- [`navigation.md`](./navigation.md)：1.10 Current-world Navigation Truth：Recast/Detour、TileCache、Rapier 动态障碍与查询时同步。
-- [`action-aware-navigation.md`](./action-aware-navigation.md)：1.14 单动作反事实诊断：blocker provenance、verified action eligibility 与动作后重规划。
-- [`locomotion.md`](./locomotion.md)：1.15 Embodied Locomotion：Agent Body、Rapier CharacterController、跨帧 History 与 blocked 执行语义。
-- [`interaction-range.md`](./interaction-range.md)：1.16 Embodied Interaction：固定交互距离、Rapier LOS、可达交互位与 articulation action sweep。
-- [`agent-carry.md`](./agent-carry.md)：1.17 Agent Carry：Hold Anchor、heldBy ownership、pickup transfer shape cast 与携带碰撞。
-- [`agent-place.md`](./agent-place.md)：1.18 Agent-held Place：carry-aware release pose、三段 shape-cast transfer、Dynamic settle 与 support post-condition。
-- [`live-articulation.md`](./live-articulation.md)：1.19 Live Articulation Completion：joint coordinate、STALL/TIMEOUT、requested-vs-verified state 与 motor finalization。
-- [`verified-task-sequencing.md`](./verified-task-sequencing.md)：1.20 Verified Multi-step Task Sequencing：mutation barrier、semantic outcome、unresolved ledger、真实 open→pickup→place E2E。
-- [`task-observation.md`](./task-observation.md)：1.21 Compact Task Observation：relevant-world evidence、provisional recovery hints、bounded recovery context。
-- [`failure-attribution.md`](./failure-attribution.md)：1.22 Failure Attribution：Rapier active contact、collider provenance 与 non-causal blocker candidates。
-- [`verified-recovery.md`](./verified-recovery.md)：1.23 Verified Recovery：Policy/capability preflight、auxiliary blocker pickup 与原任务 retry verification。
-- [`recovery-ranking.md`](./recovery-ranking.md)：1.24 Multi-candidate Recovery：typed eligibility、current-contact aggregation 与 non-causal route-cost ranking。
-- [`recovery-cleanup.md`](./recovery-cleanup.md)：1.25 Verified Recovery Cleanup：world-space release、shared transfer/settle 与 hands-full recovery continuation。
-- [`articulated-recovery.md`](./articulated-recovery.md)：1.26 Articulated Blocker Recovery：verified Part state、unique alternate action 与 auxiliary articulated recovery。
-- [`counterfactual-articulated-recovery.md`](./counterfactual-articulated-recovery.md)：1.27 Counterfactual Articulated Recovery：multi-action Three-AABB evidence、tie refusal 与 execution-time rerank。
-- [`physics-counterfactual-geometry.md`](./physics-counterfactual-geometry.md)：1.28 Physics-backed Counterfactual：hypothetical Rapier shape-pairs、Physics-first ranking 与 explicit Three fallback。
-- [`counterfactual-calibration.md`](./counterfactual-calibration.md)：1.29 Counterfactual Calibration：non-zero childAnchor、adaptive sampling、prismatic coverage 与 observed contact consistency。
-- [`counterfactual-convergence.md`](./counterfactual-convergence.md)：1.30 Counterfactual Convergence：denser resampling gate、nested parent-frame validation 与 explicit frame assumptions。
-- [`third-object-counterfactual.md`](./third-object-counterfactual.md)：1.31 Third-object Coverage：Rapier world-query、introduced collision hard veto 与 execution-time revalidation。
-- [`generated-world-admission.md`](./generated-world-admission.md)：Generated World canonical admission：WorldIR、GenerationRuntime、Asset/World admission 与 rollback。
-- [`deterministic-world-composer.md`](./deterministic-world-composer.md)：1.33 Deterministic World Composer：strong WorldSpec、auto layout、Rapier preflight 与 Runtime-derived NEAR。
-- [`bounded-world-regeneration.md`](./bounded-world-regeneration.md)：1.34 Bounded World Regeneration：missing-asset-only retry、fixed attempt budget 与 exact-plan duplicate gate。
-- [`asset-sourcing.md`](./asset-sourcing.md)：Curated scene packs 的素材来源、许可、风格与 Web 资源准入。
-- [`worlds.md`](./worlds.md)：WORLD 01/02、Environment Catalog、世界切换、存档隔离与场景真值。
-- [`asset-compiler.md`](./asset-compiler.md)：Agent-Ready Asset Compiler 的完整契约。
-- [`generation-runtime.md`](./generation-runtime.md)：唯一生成控制面：Connector capability / Job / Artifact → Asset publication。
-- [`llm-gateway.md`](./llm-gateway.md)：LLM Tool Calling Gateway。
-- [`test-agent.md`](./test-agent.md)：1.15.1 本地 OpenAI-compatible 测试 Agent、Secret 边界、tool-call history 与 live probe。
+- [`physics.md`](physics.md)：PhysicsSystem / PhysicsBackend 深层契约、Rapier/Jolt/Transform parity、evidence quality 与 backend selection。
+- [`navigation.md`](navigation.md)：1.10 Current-world Navigation Truth：Recast/Detour、TileCache、Rapier 动态障碍与查询时同步。
+- [`action-aware-navigation.md`](action-aware-navigation.md)：1.14 单动作反事实诊断：blocker provenance、verified action eligibility 与动作后重规划。
+- [`locomotion.md`](locomotion.md)：1.15 Embodied Locomotion：Agent Body、Rapier CharacterController、跨帧 History 与 blocked 执行语义。
+- [`interaction-range.md`](interaction-range.md)：1.16 Embodied Interaction：固定交互距离、Rapier LOS、可达交互位与 articulation action sweep。
+- [`agent-carry.md`](agent-carry.md)：1.17 Agent Carry：Hold Anchor、heldBy ownership、pickup transfer shape cast 与携带碰撞。
+- [`agent-place.md`](agent-place.md)：1.18 Agent-held Place：carry-aware release pose、三段 shape-cast transfer、Dynamic settle 与 support post-condition。
+- [`live-articulation.md`](live-articulation.md)：1.19 Live Articulation Completion：joint coordinate、STALL/TIMEOUT、requested-vs-verified state 与 motor finalization。
+- [`verified-task-sequencing.md`](verified-task-sequencing.md)：1.20 Verified Multi-step Task Sequencing：mutation barrier、semantic outcome、unresolved ledger、真实 open→pickup→place E2E。
+- [`task-observation.md`](task-observation.md)：1.21 Compact Task Observation：relevant-world evidence、provisional recovery hints、bounded recovery context。
+- [`failure-attribution.md`](failure-attribution.md)：1.22 Failure Attribution：Rapier active contact、collider provenance 与 non-causal blocker candidates。
+- [`verified-recovery.md`](verified-recovery.md)：1.23 Verified Recovery：Policy/capability preflight、auxiliary blocker pickup 与原任务 retry verification。
+- [`recovery-ranking.md`](recovery-ranking.md)：1.24 Multi-candidate Recovery：typed eligibility、current-contact aggregation 与 non-causal route-cost ranking。
+- [`recovery-cleanup.md`](recovery-cleanup.md)：1.25 Verified Recovery Cleanup：world-space release、shared transfer/settle 与 hands-full recovery continuation。
+- [`articulated-recovery.md`](articulated-recovery.md)：1.26 Articulated Blocker Recovery：verified Part state、unique alternate action 与 auxiliary articulated recovery。
+- [`counterfactual-articulated-recovery.md`](counterfactual-articulated-recovery.md)：1.27 Counterfactual Articulated Recovery：multi-action Three-AABB evidence、tie refusal 与 execution-time rerank。
+- [`physics-counterfactual-geometry.md`](physics-counterfactual-geometry.md)：1.28 Physics-backed Counterfactual：hypothetical Rapier shape-pairs、Physics-first ranking 与 explicit Three fallback。
+- [`counterfactual-calibration.md`](counterfactual-calibration.md)：1.29 Counterfactual Calibration：non-zero childAnchor、adaptive sampling、prismatic coverage 与 observed contact consistency。
+- [`counterfactual-convergence.md`](counterfactual-convergence.md)：1.30 Counterfactual Convergence：denser resampling gate、nested parent-frame validation 与 explicit frame assumptions。
+- [`third-object-counterfactual.md`](third-object-counterfactual.md)：1.31 Third-object Coverage：Rapier world-query、introduced collision hard veto 与 execution-time revalidation。
+- [`generated-world-admission.md`](generated-world-admission.md)：Generated World canonical admission：WorldIR、GenerationRuntime、Asset/World admission 与 rollback。
+- [`deterministic-world-composer.md`](deterministic-world-composer.md)：1.33 Deterministic World Composer：strong WorldSpec、auto layout、Rapier preflight 与 Runtime-derived NEAR。
+- [`bounded-world-regeneration.md`](bounded-world-regeneration.md)：1.34 Bounded World Regeneration：missing-asset-only retry、fixed attempt budget 与 exact-plan duplicate gate。
+- [`asset-sourcing.md`](asset-sourcing.md)：Curated scene packs 的素材来源、许可、风格与 Web 资源准入。
+- [`worlds.md`](worlds.md)：WORLD 01/02、Environment Catalog、世界切换、存档隔离与场景真值。
+- [`asset-compiler.md`](asset-compiler.md)：Agent-Ready Asset Compiler 的完整契约。
+- [`generation-runtime.md`](generation-runtime.md)：唯一生成控制面：Connector capability / Job / Artifact → Asset publication。
+- [`llm-gateway.md`](llm-gateway.md)：LLM Tool Calling Gateway。
+- [`test-agent.md`](test-agent.md)：1.15.1 本地 OpenAI-compatible 测试 Agent、Secret 边界、tool-call history 与 live probe。
 
 服务端补充：
 
@@ -114,9 +114,9 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 
 这些文档保留“我们参考了什么，以及最终为什么没有照搬”。
 
-- [`research/engine-architecture-study.md`](./research/engine-architecture-study.md)：Gizmo、Limina、SceneSmith 等对 Runtime 架构的影响。
-- [`research/asset-compiler-study.md`](./research/asset-compiler-study.md)：ObjaTHOR、glTF-Transform、CoACD、Articulation 等资产编译研究。
-- [`research/alternatives-study.md`](./research/alternatives-study.md)：2026-08 对可能替代 AgentScape 的开源项目重新审计。
+- [`research/engine-architecture-study.md`](research/engine-architecture-study.md)：Gizmo、Limina、SceneSmith 等对 Runtime 架构的影响。
+- [`research/asset-compiler-study.md`](research/asset-compiler-study.md)：ObjaTHOR、glTF-Transform、CoACD、Articulation 等资产编译研究。
+- [`research/alternatives-study.md`](research/alternatives-study.md)：2026-08 对可能替代 AgentScape 的开源项目重新审计。
 
 ## 一张图理解整个项目
 

@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { SimulationClock } from "../../observatory/core/SimulationClock.js";
-import { ScenarioRunner } from "../../observatory/core/ScenarioRunner.js";
-import { SpatialScenarioContext } from "../../observatory/labs/spatial/SpatialScenarioContext.js";
-import { spatialScenarios } from "../../observatory/labs/spatial/scenarios/index.js";
+import { SimulationClock } from "../../apps/observatory/core/SimulationClock.js";
+import { ScenarioRunner } from "../../apps/observatory/core/ScenarioRunner.js";
+import { SpatialScenarioContext } from "../../apps/observatory/labs/spatial/SpatialScenarioContext.js";
+import { spatialScenarios } from "../../apps/observatory/labs/spatial/scenarios/index.js";
 
 const createContext = async () => new SpatialScenarioContext({ scene: new THREE.Scene() }).init();
 

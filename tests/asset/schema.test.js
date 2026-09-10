@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateAssetManifest } from '../../asset/schema.js';
+import { validateAssetManifest } from '../../modules/asset/schema.js';
 
 describe('asset manifest validation', () => {
   it('accepts a minimal valid manifest', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildWorldProposal } from '../../world/spec/WorldPlannerProposal.js';
-import { WORLD_PLANNER_PROPOSAL_SCHEMA } from '../../world/spec/WorldIRToolSchema.js';
+import { buildWorldProposal } from '../../modules/world/spec/WorldPlannerProposal.js';
+import { WORLD_PLANNER_PROPOSAL_SCHEMA } from '../../modules/world/spec/WorldIRToolSchema.js';
 
 const proposal=()=>({
   intent:{name:'Planner Lab',task:'place the cup on the table'},

@@ -1184,4 +1184,4 @@ Live articulation observer
 
 ## 43. 1.22：STALL Observer 增加失败瞬间 Contact Evidence
 
-1.19 的 STALL 判定仍然只依据 joint target error + rolling coordinate movement；1.22 不改变这个 failure detector。只有 STALL 已确定后，observer 才调用 `PhysicsSystem.articulationContacts()` 采样失败瞬间 active Rapier contacts，并附 `contact-evidence / blockerCandidates`。因此 contact 不是 STALL 判定条件，也不会把“正在接触”偷换成唯一因果。详见 [`failure-attribution.md`](./failure-attribution.md)。
+1.19 的 STALL 判定仍然只依据 joint target error + rolling coordinate movement；1.22 不改变这个 failure detector。只有 STALL 已确定后，observer 才调用 `PhysicsSystem.articulationContacts()` 采样失败瞬间 active Rapier contacts，并附 `contact-evidence / blockerCandidates`。因此 contact 不是 STALL 判定条件，也不会把“正在接触”偷换成唯一因果。详见 [`failure-attribution.md`](failure-attribution.md)。

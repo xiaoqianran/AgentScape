@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AssetManager } from '../../asset/AssetManager.js';
-import { AssetCatalog } from '../../asset/AssetCatalog.js';
-import { createCanonicalWorldPipeline, createWorldPipeline } from '../../world/compiler/createWorldPipeline.js';
-import { PhysicsBackend } from '../../world/runtime/physics/PhysicsBackend.js';
+import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { AssetCatalog } from '../../modules/asset/AssetCatalog.js';
+import { createCanonicalWorldPipeline, createWorldPipeline } from '../../modules/world/compiler/createWorldPipeline.js';
+import { PhysicsBackend } from '../../modules/world/runtime/physics/PhysicsBackend.js';
 
 const physicsProfile=(backend,{runtimeCapabilities=[]}={})=>({
   identity:backend.identity,

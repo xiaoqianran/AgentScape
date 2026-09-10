@@ -1,13 +1,13 @@
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { EventBus } from '../../core/EventBus.js';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { SpatialSystem } from '../../world/runtime/systems/SpatialSystem.js';
+import { EventBus } from '../../foundation/EventBus.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
-import { LocomotionSystem } from '../../world/runtime/systems/LocomotionSystem.js';
-import { InteractionSystem } from '../../world/runtime/systems/InteractionSystem.js';
-import { assetManifests } from '../../asset/manifests/index.js';
+import { LocomotionSystem } from '../../modules/world/runtime/systems/LocomotionSystem.js';
+import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
+import { assetManifests } from '../../modules/asset/manifests/index.js';
 
 const floor=()=>{const m=new THREE.Mesh(new THREE.BoxGeometry(12,.2,12));m.position.y=-.1;m.updateMatrixWorld(true);return m;};
 const cupVisual=()=>{const g=new THREE.Group();const m=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.32,16));m.position.y=.16;g.add(m);return g;};

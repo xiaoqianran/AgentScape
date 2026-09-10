@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { SkillRegistry } from '../../agent/skills/SkillRegistry.js';
+import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
 
 describe('dropHeld verified post-condition',()=>{
   const registry=()=>{

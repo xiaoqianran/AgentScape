@@ -16,3 +16,4 @@ __pycache__/
 
 .tmp/
 .tmp-*
+.live-generated/

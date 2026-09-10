@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { SkillRegistry } from '../../agent/skills/SkillRegistry.js';
-import { registerCoreSkills } from '../../agent/skills/registerCoreSkills.js';
+import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
+import { registerCoreSkills } from '../../application/skills/registerCoreSkills.js';
 
 it('writes articulation verification back and promotes readiness when it was the last advisory', async () => {
   const manifest = {

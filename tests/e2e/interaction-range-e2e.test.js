@@ -1,13 +1,13 @@
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { EventBus } from '../../core/EventBus.js';
-import { ObjectStore } from '../../world/runtime/ObjectStore.js';
-import { SpatialSystem } from '../../world/runtime/systems/SpatialSystem.js';
+import { EventBus } from '../../foundation/EventBus.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
-import { LocomotionSystem } from '../../world/runtime/systems/LocomotionSystem.js';
-import { InteractionSystem } from '../../world/runtime/systems/InteractionSystem.js';
-import { assetManifests } from '../../asset/manifests/index.js';
+import { LocomotionSystem } from '../../modules/world/runtime/systems/LocomotionSystem.js';
+import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
+import { assetManifests } from '../../modules/asset/manifests/index.js';
 
 const floor = () => {
   const value = new THREE.Mesh(new THREE.BoxGeometry(10,.2,10));

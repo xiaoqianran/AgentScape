@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { buildAgentSystemPrompt } from '../../agent/prompt/index.js';
+import { buildAgentSystemPrompt } from '../../modules/agent/prompt/index.js';
 
 describe('Agent prompt policy composition',()=>{
   it('derives the available tool surface from structured definitions instead of a hidden hard-coded tool list',()=>{

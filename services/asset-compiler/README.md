@@ -1,5 +1,7 @@
 # AgentScape 重型资产编译服务
 
+本服务任务就近维护在 [tasks.jsonl](tasks.jsonl)，由仓库 Planning CLI 聚合，根任务文件不保存副本。
+
 这是可选的服务器侧 Compiler，用于不适合在浏览器主线程执行的几何任务。当前实现的重型 Pass 是 CoACD 凸分解。
 
 ## 启动

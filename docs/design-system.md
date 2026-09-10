@@ -2,7 +2,7 @@
 
 The canonical visual specification for both **Studio** and **Observatory** is [`../DESIGN.md`](../DESIGN.md).
 
-All frontend work in `studio/` and `observatory/` should treat that file as the source of truth for:
+All frontend work in `apps/studio/` and `apps/observatory/` should treat that file as the source of truth for:
 
 - color tokens and tonal hierarchy;
 - Inter / JetBrains Mono typography;

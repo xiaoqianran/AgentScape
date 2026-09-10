@@ -1,6 +1,6 @@
 # AgentScape Observatory
 
-`observatory/` 与 `studio/` 平级：Studio 负责完整产品组合；Observatory 负责把生产 Runtime 拆层观察、单步和验证。
+`apps/observatory/` 与 `apps/studio/` 平级：Studio 负责完整产品组合；Observatory 负责把生产 Runtime 拆层观察、单步和验证。
 
 ```text
                  AgentScape Runtime
@@ -14,7 +14,7 @@
 ## 设计约束
 
 1. Observatory 不拥有第二套 Physics / Navigation / Interaction 实现。
-2. Scenario 必须驱动 `world/runtime/` 与 `agent/` 的生产代码。
+2. Scenario 必须驱动 `modules/world/runtime/` 与 `modules/agent/` 的生产代码。
 3. Debug geometry/state 必须来自 Runtime Debug Contract，不允许 UI 穿透 backend 私有 world。
 4. 所有实验默认固定时间步，可 Run / Pause / Single Step / Reset。
 5. Synthetic fixture 与真实 Asset scenario 分开，便于判断是 Backend 问题还是 Asset/Compiler 问题。
