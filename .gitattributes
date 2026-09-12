@@ -1,3 +1,5 @@
+* text=auto eol=lf
+
 /tests/fixtures/embodiedgen-affordance-v1/agentscape_part_segmentation.v1.json text eol=lf
 /tests/fixtures/embodiedgen-affordance-v1/part_semantics.v1.json text eol=lf
 /tests/fixtures/embodiedgen-affordance-v1/raw_grasps.franka.v1.json text eol=lf
