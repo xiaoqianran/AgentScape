@@ -497,6 +497,25 @@ try {
     }
   }
 
+  // Phase 6b: localise the first broken riser. One query per adjacent pair, so the break point is
+  // read off directly instead of inferred from a long path.
+  report.consecutive = { unit:'tread(k) -> tread(k+1)', rows:[] };
+  for (let k = 0; k < STAIR_N - 1; k += 1) {
+    const result = await navigation.findPath(tread(k, 0.62).point, tread(k + 1, 0.62).point);
+    report.consecutive.rows.push({
+      pair:`${k}->${k + 1}`,
+      fromAngle:round(tread(k, 0.62).angleDeg),
+      fromY:round(tread(k, 0.62).yTop),
+      reachable:result.reachable,
+      reason:result.reason ?? null,
+      waypoints:result.path ? result.path.length : 0,
+      startSnap:round(result.start?.snapDistance),
+      endSnap:round(result.end?.snapDistance)
+    });
+  }
+  report.consecutive.brokenPairs = report.consecutive.rows.filter((row) => !row.reachable).map((row) => row.pair);
+  report.consecutive.firstBroken = report.consecutive.brokenPairs[0] || null;
+
   // Phase 7: validate the fix in situ. Rebuild the staircase inside the real cabin and bake the whole
   // cabin again, so the test includes the walls, the upper-floor slab and the opening.
   // The spec keeps radiusOuter at 1.10 so the slab opening (HOLE_R) still clears, and satisfies
