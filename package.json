@@ -37,11 +37,11 @@
     "@gltf-transform/functions": "^4.4.2",
     "@recast-navigation/core": "^0.43.1",
     "@recast-navigation/generators": "^0.43.1",
-    "@sparkjsdev/spark": "^2.1.0",
+    "@sparkjsdev/spark": "~2.1.0",
     "jolt-physics": "1.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "three": "^0.185.1",
+    "three": "^0.186.0",
     "three-gsmesh": "^0.0.3",
     "three-mesh-bvh": "^0.9.1",
     "zustand": "^5.0.15"
@@ -53,6 +53,6 @@
     "sharp": "^0.35.3",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   }
 }
