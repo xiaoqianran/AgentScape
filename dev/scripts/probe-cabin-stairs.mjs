@@ -189,6 +189,38 @@ try {
   for (const entry of railNodePreviousFlags) entry.node.userData.navigationIgnore = entry.previous;
   report.experiment.flagsRestored = railNodePreviousFlags.length;
 
+  // Phase 2b: furniture A/B. 1454 meshes are navigation-ignored but 61 furniture meshes are not,
+  // and the ground floor breaks exactly when the stair widens towards them. Exclude the furniture
+  // in a separate navigation system so no later phase is disturbed.
+  {
+    const furnitureObjects = new Set((cabin.interactions || []).map((item) => item.object).filter(Boolean));
+    const furnitureMeshes = [];
+    for (const object of furnitureObjects) object.traverse((node) => { if (node.isMesh) furnitureMeshes.push(node); });
+    const previousFlags = furnitureMeshes.map((mesh) => ({ mesh, value:mesh.userData.navigationIgnore }));
+    let newlyExcluded = 0;
+    for (const entry of previousFlags) {
+      if (!entry.mesh.userData.navigationIgnore) { entry.mesh.userData.navigationIgnore = true; newlyExcluded += 1; }
+    }
+    const system = new NavigationSystem({ store, environmentRoots:[cabin.root], backend:new RecastNavigationBackend() });
+    try {
+      report.furnitureExcluded = {
+        furnitureObjects:furnitureObjects.size,
+        furnitureMeshes:furnitureMeshes.length,
+        newlyExcluded,
+        cases:{
+          'outside -> 1F-inside (door open)':summarize(await system.findPath([0, 0, 6], inside)),
+          '1F-inside -> stair-bottom':summarize(await system.findPath(inside, treads.bottom.point)),
+          '1F-inside -> 2F':summarize(await system.findPath(inside, upper)),
+          '2F -> 1F-inside':summarize(await system.findPath(upper, inside))
+        },
+        navMesh:navMeshStats(system)
+      };
+    } finally {
+      system.dispose();
+      for (const entry of previousFlags) entry.mesh.userData.navigationIgnore = entry.value;
+    }
+  }
+
   // Phase 3: physical clearance above every tread, measured with Rapier rather than inferred.
   report.derived = { baseline:derivedVoxels({}, {}) };
   const physics = new PhysicsSystem({ backend:new RapierPhysicsBackend() });
@@ -447,6 +479,29 @@ try {
       if (child.visible && !child.isInstancedMesh && !child.isSkinnedMesh && hasPosition) audit.visibleNonInstancedWithPosition += 1;
     });
     report.stairSubtree.groupMeshAudit = audit;
+
+    // Which meshes actually feed the navmesh, and does any furniture get in? magicCabin.js sets
+    // navigationIgnore on everything and clears it only for architectureRoots, so this settles
+    // whether furniture can be the cause of a ground-floor change.
+    let navMeshes = 0;
+    let ignoredMeshes = 0;
+    cabin.root.traverse((node) => {
+      if (!node.isMesh) return;
+      if (node.userData?.navigationIgnore) ignoredMeshes += 1; else navMeshes += 1;
+    });
+    const furnitureObjects = new Set((cabin.interactions || []).map((item) => item.object).filter(Boolean));
+    let furnitureMeshesReachingNavmesh = 0;
+    for (const object of furnitureObjects) {
+      object.traverse((node) => {
+        if (node.isMesh && !node.userData?.navigationIgnore) furnitureMeshesReachingNavmesh += 1;
+      });
+    }
+    report.stairSubtree.navmeshInput = {
+      navMeshes,
+      ignoredMeshes,
+      furnitureObjects:furnitureObjects.size,
+      furnitureMeshesReachingNavmesh
+    };
     // Ask the collector itself: the audit above says all 30 meshes are eligible, but the bake
     // only ever saw 15. Call collectStaticMeshes directly so the number and skip reasons agree.
     const probeSystem = new NavigationSystem({
@@ -773,6 +828,9 @@ function summarize(result) {
     startSnapped: result.start?.snapped ?? null,
     endSnapped: result.end?.snapped ?? null,
     finalDistance: round(result.finalDistance),
+    // Last waypoint of a partial path shows where the route stopped, i.e. one side of the break.
+    lastWaypoint: result.path && result.path.length ? result.path[result.path.length - 1] : null,
+    waypointTail: result.path ? result.path.slice(-4) : [],
     snapDistance: round(result.snapDistance),
     snapped: result.snapped ?? null,
     buildVersion: result.buildVersion ?? null
