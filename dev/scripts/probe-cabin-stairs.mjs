@@ -1,6 +1,7 @@
 // Read-only diagnostic probe: locate where the cabin cross-storey navigation breaks.
 // Mirrors tests/world/magic-cabin.test.js fixtures. Does not mutate the repository.
 // Run: node dev/scripts/probe-cabin-stairs.mjs
+import * as THREE from 'three';
 import { createMagicCabin } from '../../modules/world/content/magicCabin.js';
 import { cabinCanvasHost } from '../../tests/helpers/cabinCanvasHost.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
@@ -232,6 +233,165 @@ try {
     }
   }
 
+  // Phase 5: isolate the staircase subtree and bake it alone.
+  // collectStaticMeshes traverses environmentRoots only, so a single subtree is a true isolation.
+  const ancestorChain = (node) => { const chain = []; for (let cur = node; cur; cur = cur.parent) chain.push(cur); return chain; };
+  const deepestCommonAncestor = (nodes) => {
+    if (!nodes.length) return null;
+    let shared = ancestorChain(nodes[0]);
+    for (const node of nodes.slice(1)) {
+      const chain = new Set(ancestorChain(node));
+      shared = shared.filter((candidate) => chain.has(candidate));
+    }
+    return shared[0] || null;
+  };
+  const allMeshes = [];
+  cabin.root.traverse((node) => { if (node.isMesh) allMeshes.push(node); });
+  const extrudeMeshes = allMeshes.filter((node) => node.geometry?.type === 'ExtrudeGeometry');
+  // The 0.02-radius handrail posts exist only on the staircase, so they locate its subtree.
+  const railPostMeshes = allMeshes.filter((node) => {
+    const parameters = node.geometry?.parameters || {};
+    return node.geometry?.type === 'CylinderGeometry'
+      && Number(parameters.radiusTop) === 0.02
+      && Number(parameters.radiusBottom) === 0.02;
+  });
+  const extrudeRoot = deepestCommonAncestor(extrudeMeshes);
+  const railRoot = deepestCommonAncestor(railPostMeshes);
+
+  // Diagnostic only: record where the staircase geometry actually sits, so the eventual
+  // geometry fix knows which object to edit. This is not used for the bake below.
+  report.stairSubtree = {
+    totalMeshes:allMeshes.length,
+    extrudeMeshes:extrudeMeshes.length,
+    railPostMeshes:railPostMeshes.length,
+    extrudeCommonAncestor:extrudeRoot ? { name:extrudeRoot.name || null, type:extrudeRoot.type, isCabinRoot:extrudeRoot === cabin.root, childCount:extrudeRoot.children.length } : null,
+    railPostCommonAncestor:railRoot ? { name:railRoot.name || null, type:railRoot.type, isCabinRoot:railRoot === cabin.root, childCount:railRoot.children.length } : null,
+    topLevelChildren:[],
+    conclusion:null
+  };
+  const childrenWithMeshes = [];
+  for (const child of cabin.root.children) {
+    let meshes = 0;
+    let extrudes = 0;
+    child.traverse((node) => {
+      if (!node.isMesh) return;
+      meshes += 1;
+      if (node.geometry?.type === 'ExtrudeGeometry') extrudes += 1;
+    });
+    if (!meshes) continue;
+    const summary = {
+      name:child.name || null,
+      type:child.type,
+      meshes,
+      extrudeMeshes:extrudes,
+      childCount:child.children.length
+    };
+    const serialized = { ...summary };
+    serialized.meshes = meshes;
+    serialized.extrudeMeshes = extrudes;
+    report.stairSubtree.topLevelChildren.push(serialized);
+    childrenWithMeshes.push({ node:child, summary });
+  }
+  // The staircase is the single top-level child carrying all 14 tread wedges.
+  const stairGroupEntry = childrenWithMeshes
+    .filter((entry) => entry.summary.extrudeMeshes >= 10)
+    .sort((first, second) => second.summary.extrudeMeshes - first.summary.extrudeMeshes)[0] || null;
+  report.stairSubtree.stairGroup = stairGroupEntry ? stairGroupEntry.summary : null;
+  report.stairSubtree.conclusion = railRoot && railRoot !== cabin.root
+    ? 'handrail posts share a separable subtree; a true isolation bake is available'
+    : 'staircase geometry is not grouped under one subtree in the final scene graph';
+
+  // Analytic feasibility of one tread versus one merged ribbon, independent of any bake.
+  const treadHalfAngleRad = (D_THETA * 0.46) * DEG;
+  report.treadGeometry = {
+    halfAngleRad:round(treadHalfAngleRad),
+    halfAngleDeg:round(treadHalfAngleRad / DEG),
+    radialDepth:round(TREAD_R_O - TREAD_R_I),
+    arcWidthAtInner:round(TREAD_R_I * 2 * treadHalfAngleRad),
+    arcWidthAtMid:round(0.62 * 2 * treadHalfAngleRad),
+    arcWidthAtOuter:round(TREAD_R_O * 2 * treadHalfAngleRad),
+    requiredWalkableRadius:0.3,
+    isolatedTread:maxInscribedRadius({ radiusInner:TREAD_R_I, radiusOuter:TREAD_R_O, halfAngleRad:treadHalfAngleRad }),
+    mergedRibbon:{ maxInscribedRadius:round((TREAD_R_O - TREAD_R_I) / 2), note:'upper bound: ignores the angular gaps between treads' }
+  };
+  report.treadGeometry.isolatedTread.survivesErosion = report.treadGeometry.isolatedTread.maxInscribedRadius >= report.treadGeometry.requiredWalkableRadius;
+
+  // Phase 5b: bake a synthetic staircase with the same dimensions but no surrounding cabin.
+  // This isolates the tread geometry class itself, independently of how the cabin is assembled.
+  const syntheticGroup = new THREE.Group();
+  syntheticGroup.name = 'synthetic-spiral-stairs';
+  for (let k = 0; k < STAIR_N; k += 1) {
+    const mesh = new THREE.Mesh(syntheticTreadGeometry(synthAngleRad(k)));
+    mesh.position.y = synthStepTop(k);
+    syntheticGroup.add(mesh);
+  }
+  const synthPoint = (k, r) => {
+    const a = synthAngleRad(k);
+    return [round(r * Math.cos(a)), round(synthStepTop(k) - 0.03), round(r * Math.sin(a))];
+  };
+  const synthRuns = [
+    { label:'synthetic-stairs', config:{} },
+    { label:'synthetic-stairs-large-climb', config:{ maxClimb:1 } }
+  ];
+  report.isolation = {
+    method:'synthetic staircase rebuilt from the same dimensions, baked alone',
+    syntheticMeshCount:STAIR_N,
+    runs:{}
+  };
+  for (const run of synthRuns) {
+    const system = new NavigationSystem({
+      store,
+      environmentRoots:[syntheticGroup],
+      config:run.config,
+      backend:new RecastNavigationBackend()
+    });
+    try {
+      report.isolation.runs[run.label] = {
+        config:run.config,
+        derived:derivedVoxels({}, run.config),
+        cases:{
+          'step0 -> step7':summarize(await system.findPath(synthPoint(0, 0.62), synthPoint(7, 0.62))),
+          'step7 -> step13':summarize(await system.findPath(synthPoint(7, 0.62), synthPoint(13, 0.62))),
+          'step0 -> step13':summarize(await system.findPath(synthPoint(0, 0.62), synthPoint(13, 0.62)))
+        },
+        navMesh:navMeshStats(system)
+      };
+    } finally {
+      system.dispose();
+    }
+  }
+
+  // Phase 5c: bake the real staircase group alone, using the authored treads and handrail.
+  if (stairGroupEntry) {
+    report.realIsolation = { group:stairGroupEntry.summary, runs:{} };
+    const realRuns = [
+      { label:'isolated-real-stairs', config:{} },
+      { label:'isolated-real-stairs-large-climb', config:{ maxClimb:1 } }
+    ];
+    for (const run of realRuns) {
+      const system = new NavigationSystem({
+        store,
+        environmentRoots:[stairGroupEntry.node],
+        config:run.config,
+        backend:new RecastNavigationBackend()
+      });
+      try {
+        report.realIsolation.runs[run.label] = {
+          config:run.config,
+          derived:derivedVoxels({}, run.config),
+          cases:{
+            'stair-bottom -> stair-mid(k7)':summarize(await system.findPath(treads.bottom.point, treads.mid.point)),
+            'stair-mid(k7) -> stair-top(k13)':summarize(await system.findPath(treads.mid.point, treads.top.point)),
+            'stair-bottom -> stair-top(k13)':summarize(await system.findPath(treads.bottom.point, treads.top.point))
+          },
+          navMesh:navMeshStats(system)
+        };
+      } finally {
+        system.dispose();
+      }
+    }
+  }
+
   report.status = 'completed';
 } catch (error) {
   report.status = 'failed';
@@ -239,6 +399,45 @@ try {
 } finally {
   navigation.dispose();
   cabin.dispose();
+}
+
+// The synthetic staircase reproduces the authored spiral dimensions without the cabin around it.
+// After rotateX(PI/2) a shape point (x,y) lands at world (x, 0, y), so the query points below
+// use x = r*cos(angle), z = r*sin(angle).
+function synthAngleRad(step) {
+  return (THETA_END - (STAIR_N - 1 - step) * D_THETA) * DEG;
+}
+
+function synthStepTop(step) {
+  return (step + 1) * STEP_H;
+}
+
+function syntheticTreadGeometry(angleCenterRad) {
+  const half = (D_THETA * 0.46) * DEG;
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, TREAD_R_O, angleCenterRad - half, angleCenterRad + half, false);
+  shape.absarc(0, 0, TREAD_R_I, angleCenterRad + half, angleCenterRad - half, true);
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth:0.06, bevelEnabled:false });
+  geometry.rotateX(Math.PI / 2);
+  return geometry;
+}
+
+// Largest circle that fits inside one wedge-shaped tread, sampled on a polar grid.
+// Boundary distance is measured against the inner arc, the outer arc and the two radial edges.
+function maxInscribedRadius({ radiusInner, radiusOuter, halfAngleRad, stepRadius = 0.005, stepAngle = 0.002 }) {
+  let best = 0;
+  let at = null;
+  for (let r = radiusInner; r <= radiusOuter + 1e-9; r += stepRadius) {
+    for (let offset = -halfAngleRad; offset <= halfAngleRad + 1e-9; offset += stepAngle) {
+      const toEdge = r * Math.sin(halfAngleRad - Math.abs(offset));
+      const limit = Math.min(r - radiusInner, radiusOuter - r, toEdge);
+      if (limit > best) {
+        best = limit;
+        at = { radius:round(r), angleOffsetDeg:round(offset / DEG) };
+      }
+    }
+  }
+  return { maxInscribedRadius:round(best), at };
 }
 
 // Mirrors RecastNavigationBackend.recastConfig so a variant can be read as voxel counts.
