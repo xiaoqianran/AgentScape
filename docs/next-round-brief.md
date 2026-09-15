@@ -266,7 +266,21 @@ commit 6  chore: add cabin tooling, baseline docs and dependency locks
 
 ### 3.1 世界交互契约（environment affordances）
 
-契约由 `createCabinAffordances({hinges,switches,texts,drawers,books})` 在运行时生成，数量是推导值，不是常量。正确读数方式是 `listWorldAffordances` 返回的 `total` 或 `magicCabin.diagnostics().affordanceCount`。
+契约由 `createCabinAffordances({hinges,switches,texts,drawers,books})` 在运行时生成。正确读数方式是 `listWorldAffordances` 返回的 `total` 或 `magicCabin.diagnostics().affordanceCount`。
+
+**实测值（2026-09-16，`node dev/scripts/probe-cabin-stairs.mjs`）：**
+
+```text
+cabin.interactions.length            = 150   （点击节点）
+cabin.affordances.length             = 56    （Agent 交互契约）
+cabin.diagnostics().affordanceCount  = 56
+cabin.colliders.length               = 233
+cabin.diagnostics().movingColliderGroups = 19
+```
+
+最初 brief 里写的「150 个点击节点、56 个 Agent 交互契约」**两个数字都已实测确认**。
+注意：56 是运行时推导值（9 hinge + 2 drawer + 5 switch + 1+N text + N book），不是源码常量，
+因此上述清单变更后必须重新读取，不能沿用 56。
 
 | kind | 数量 | 契约 ID | 楼层 |
 |---|---|---|---|
@@ -789,20 +803,74 @@ Rapier character controller: autostepHeight 0.3 / autostepMinWidth 0.2 / snapToG
                              （Jolt 镜像同一组参数）
 ```
 
-判断：
+### 已实测结论（2026-09-16，只读探针）
+
+复现入口：
+
+```bash
+node dev/scripts/probe-cabin-stairs.mjs
+```
+
+该脚本复用 `tests/world/magic-cabin.test.js` 的夹具，不改源码、不改仓库状态。
+
+**仍然成立的结论：**
 
 - `stepH = 0.208 ≤ 0.30`，**踏步高本身不是瓶颈**；Rapier `autostepHeight = 0.3` 也够。
 - 因此**不要**提高 `maxClimb` 或 `autostepHeight`——它们是 5 个世界共用的阈值，为一个世界改会破坏其他世界的一致性。
-- 待验证假设（本文件的推断，**尚未实测**）：栏杆柱位于 `r = 1.03`、间距约 0.35 m，
-  而 Recast `walkableRadius = 0.30 m` 会从每根柱向外腐蚀 0.3 m；
-  相邻腐蚀圆几乎相接，会在 `r ≈ 0.71–1.35` 形成**环形屏障**；
-  叠加中心立柱腐蚀后，可走环带只剩 `r ≈ 0.38–0.71`，
-  而二楼楼板开口 `HOLE_R = 1.20` 需从 `r ≥ 1.50` 起才可走 → **上下两层被切断**。
-  同时 `RAIL_R = 1.24 > HOLE_R = 1.20`，栏杆环落在楼板开口之外，进一步占用通行带。
-- 若假设成立，最小改法是几何参数（走迁移脚本），**不是加代理**：
-  `HOLE_R` 1.20 → 1.6~1.8；把栏杆柱移到 `r ≥ 1.45`（或 `underPlatform` 段之外不放柱）；
-  必要时微调 `treadHalf`。`STAIR_N` 与 `stepH` 可保持不变。
 
-**先验证再动手**：用真实 Recast 跑一次跨层 `findPath`（二楼→一楼、一楼→二楼），
-并打印 `navigation.status().lastBuild`，确认是断连还是几何无法通过。
-`tests/world/navigation-backend.test.js` 与 `tests/world/magic-cabin.test.js` 已有可复用的 Recast 夹具。
+**已实测的可达性（buildVersion 2，关门状态下重建过一次）：**
+
+```text
+outside -> 1F-inside (door closed)   blocked  PARTIAL_PATH
+outside -> 1F-inside (door open)     REACHABLE cost 10.308  wp 6
+1F-inside -> stair-bottom            REACHABLE cost  5.449  wp 6
+1F-inside -> stair-mid(k7)           blocked  END_OFF_NAVMESH   snap 1.748 -> [−0.376, 0.178, −1.462]
+1F-inside -> stair-upperMid(k10)     blocked  END_OFF_NAVMESH   snap 1.297 -> [−1.017, 3.190, −1.087]
+1F-inside -> stair-top(k13)          blocked  PARTIAL_PATH      cost 5.032  wp 5
+stair-mid(k7) -> stair-top(k13)      blocked  START_OFF_NAVMESH snap 1.748
+stair-top(k13) -> 2F                 REACHABLE cost  2.450  wp 4
+stair-topInner(r .35) -> 2F          REACHABLE cost  2.463  wp 4
+2F -> stair-top(k13)                 REACHABLE cost  2.450  wp 4
+1F-inside -> 2F                      blocked  PARTIAL_PATH
+2F -> 1F-inside                      blocked  PARTIAL_PATH
+```
+
+**navMesh 高度分布（180 个三角形，×0.25 m 分桶）：**
+
+```json
+{"0.00":122,"0.25":6,"0.50":2,"0.75":4,"3.25":38,"5.50":4,"6.00":4}
+```
+
+楼梯足迹内（`r ≤ 1.6`）14 个三角形：`{0.00:7, 0.25:2, 3.25:5}`，`minY 0.09 / maxY 3.19`。
+
+**由此得到的关键事实：**
+
+1. **y ≈ 0.75 → 3.25 之间根本没有任何 navmesh。** 螺旋楼梯中段（约第 4 阶以上）在烘焙结果里完全不存在，而不是“被腐蚀变窄”。
+2. 二楼平面本身是通的（`2F ↔ stair-top` 双向可达），一楼也是通的；**唯一缺失的是楼梯中段这一段**。
+3. 因此 `1F ↔ 2F` 双向都是 `PARTIAL_PATH`——两个岛屿，不是几何无法通过。
+
+**原假设已被实证否证（必须删除）：**
+
+> 原假设：“栏杆柱间距 0.35 m，叠加 `walkableRadius = 0.30 m` 腐蚀形成环形屏障”。
+
+A/B 检验：把 23 个栏杆节点（4 个 `TubeGeometry` 扶手管 + 19 个 `radiusTop=0.02` 栏杆柱）
+标记为 `navigationIgnore` 后重新烘焙：
+
+```text
+三角形  180 -> 179       楼梯足迹内三角形  14 -> 13
+高度分布 完全不变（仅 3.25 档少 1）
+所有跨层/跨楼梯用例的 reason 与 snapDistance 完全不变
+```
+
+**栏杆不是原因。该假设作废，不要沿着它改几何。**
+
+**下一步的决定性实验**（尚未执行，按代价从低到高）：
+
+1. 从楼梯中段踏步沿竖直方向向上的 Rapier 射线，测量到第一个实体的距离，
+   直接验证 `walkableHeight = 17 voxels = 1.7 m` 的净空要求是否被满足。
+2. 用 `new RecastNavigationBackend({ cellSize, cellHeight })` 做分辨率 A/B：
+   若中段 navmesh 出现，则问题在体素化/区域过滤（`minRegionArea` / `mergeRegionArea`）；
+   若不出现，则问题在几何或净空。
+3. 若以上均不能解释，才考虑楼梯几何重做。
+
+在完成 1 与 2 之前，**不得**对楼梯几何下结论，也不得把阶段 2 标记为“已知原因”。
