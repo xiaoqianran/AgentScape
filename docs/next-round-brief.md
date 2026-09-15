@@ -408,15 +408,21 @@ tests/asset/**
 6. 处理原装饰模型与新资产的替换，避免重复显示或碰撞体重叠（注意一楼已存在装饰性餐桌）。
 7. 明确本实现验证到什么程度，不把运动学持有关系说成抓握力学验证。
 
-**资产来源三选一（开工前决定并写明，不许各做一半）：**
+**资产来源：无需决策 —— 方案 (a) 已在仓库中实现（详见 §9.2）**
 
-| 方案 | 说明 | 成本 |
-|---|---|---|
-| (a) 推荐先做 | 一楼确定性落位标准 `cabinet` + `cup` + `table`（manifest 已完备） | 低；需处理「两张桌子」的视觉重复 |
-| (b) 阶段 1.5 | 把一楼 `storageChest` 升级为真实关节 + 内腔资产 | 高；风格零改动 |
-| (c) | 二楼 wardrobe | **与一楼限定冲突，不可用** | — |
+`modules/world/content/environments.js` 的 magic-cabin 条目已带
+`bootstrap:{agent:[6,0,-5], table:[7,0,2], cabinet:[7,0,5], cup:[7.35,1.4,2]}`，
+`modules/agent/bootstrapWorld.js` 已按此 spawn `table_01 / cabinet_01 / cup_01`。
 
-注意：一楼装饰性餐桌（environment platform box）**不能**充当 `approachAndPlace` 的 `supportId`——support 必须是 ObjectStore 中带 `manifest.surfaces` 的对象。
+本任务**唯一**的资产侧改动：把 `bootstrap.cup` 从桌面改到柜内
+（`[7.35,1.4,2]` → 建议 `[7,0.16,4.99]`），使「从柜中取杯」成立。
+
+可选升级（保留、不在本轮）：把一楼 `storageChest`（`(0,0,-0.78)`，已有 `storageLid`）
+升级为真实关节 + 内腔资产。二楼 wardrobe **与一楼限定冲突，不可用**。
+
+注意：一楼装饰性餐桌（environment platform box）**不能**充当 `approachAndPlace` 的 `supportId`——
+support 必须是 ObjectStore 中带 `manifest.surfaces` 的对象。若视觉上出现「两张桌子」，
+需在交付说明中说明取舍。
 
 **验收**：
 
@@ -695,19 +701,108 @@ npm run check
 
 ---
 
-## 9. 待 AI 0 回答的三个判断题
+## 9. AI 0 的三道判断题 — 已核实答案（2026-09-16）
 
-分发后，这三个问题的答案决定后续轮次数量：
+### 9.1 `createMagicCabin` 接 `environmentFactory` —— 不需要任何适配
 
-1. `createMagicCabin` 作为 `createSession` / `WorldRuntime` 的 `environmentFactory` 需要改哪几行适配？
+`createMagicCabin()`（`modules/world/content/magicCabin.js`）返回的对象已满足 `WorldRuntime.installEnvironment` 的全部要求：
 
-   ```text
-   WorldRuntime.installEnvironment 要求：
-     environment.root.isObject3D === true
-     Array.isArray(environment.colliders) === true
-   而 cabinContents 返回的是 root: scene。
-   形状契约不一致时必须先修适配，不得绕过 Runtime 手搭系统。
-   ```
+```text
+返回字段：id / root / floor / colliders / layout / camera / rendering /
+        interactions / affordances / setCamera / views / catalog /
+        storageKey / setCutaway / snapshot / validateSnapshot / restore /
+        diagnostics / step / dispose
 
-2. 「读取任务」选 α / β / γ 哪个？以及一楼任务文本放在哪里？
-3. 阶段 2 是「调碰撞代理」还是「重做楼梯几何」？若答案是重做几何，应把它从 P1 降级为独立项目，而不是阶段列表里的一行。
+installEnvironment 校验：root.isObject3D = true（content.root，name='MagicCabin'）
+                       Array.isArray(colliders) = true（architectureRoots 的 trimesh
+                       + platformBoxes 的 box + moving 门窗/平台）
+
+调用链：environments.js load() → apps/studio/main.js:67 environmentFactory
+        → :75 createSession({environmentFactory}) → WorldRuntime.addEnvironment
+```
+
+结论：**无需改适配**。此前的担心（`cabinContents` 返回 `root: scene`）不成立——`magicCabin.js` 宿主层已经把 `content.root` 暴露为 `root`。
+
+### 9.2 资产方案 —— 方案 (a) 已经在仓库里实现了
+
+`modules/world/content/environments.js` 的 magic-cabin 条目已带落位配置：
+
+```text
+bootstrap:{agent:[6,0,-5], table:[7,0,2], cabinet:[7,0,5], cup:[7.35,1.4,2]}
+coffeeCorner:{table:[7,0,2], cabinet:[7,0,5]}
+```
+
+`modules/agent/bootstrapWorld.js` 会按此 spawn `agent_01 / table_01 / cabinet_01 / cup_01`，
+由 `apps/studio/main.js:257,270` 与 `apps/studio/ui/bindSceneControls.js:39` 调用。
+
+所以「往屋里搬一套标准资产」这一步**已完成**，不需要在 (a)/(b)/(c) 之间决策。
+剩下的**唯一资产侧改动**：`bootstrap.cup` 目前放在**桌面**上（`[7.35,1.4,2]`，table 在 `[7,0,2]`），
+而任务要求「从柜中取杯」，需要把 cup 起点改到柜内：
+
+```text
+cabinet 位于 [7,0,5]，receptacle interior localPosition [0,0.975,-0.01]
+柜体底面 collider 顶面 y = 0.10；cup 碰撞体为 cylinder halfHeight .16、translation [0,0.16,0]
+→ 建议 cup:[7,0.16,4.99]（略高于落点，靠 settle 稳定）
+```
+
+另注：`coffeeCorner` 在 `**/*.js` 范围内**未发现消费者**，疑似遗留配置，需 AI 0 确认删除或接线。
+
+### 9.3 「读取任务」——选 β，且实现不必动迁移脚本
+
+现状（已核实）：一楼**没有任何 text 契约**。`texts` 只有 `cabin:sign`（屋外路牌）与 `cabin:note-N`（**二楼**计划板便签）。
+二楼坐标证据：`boardG.position.set(-2.9, FY, 2.8)`，`const FY = FLOOR_TOP = 3.12`。
+
+推荐 **β**：在一楼新增一个任务文本契约。落点选宿主层，不要动生成的 `cabinContents.js`：
+
+```text
+在 modules/world/content/magicCabin.js 中向 content.affordances 追加一个 text 契约：
+  object：宿主新建的 THREE.Object3D，挂到 root 的一楼餐桌附近
+  get/set：宿主级变量（不依赖 content.textState）
+  同时把它纳入 environment.snapshot() / validateSnapshot() / restore()
+  （现有 schemaVersion 仍为 1，新增字段需同步 validateSnapshot）
+```
+
+要点：这是**宿主扩展**，不是迁移内容，交付说明必须分开标注；原作者署名与源文件 SHA-256 不变。
+若 AI 0 改选 α，则链路变为「读屋外路牌 → 开门 → …」，必须在文档中明确记录该降级。
+
+### 9.4 阶段 2 楼梯 —— 改几何参数，不加代理，也不动公共阈值
+
+实测参数：
+
+```text
+FLOOR_TOP = 3.12            STAIR_N = 14
+stepH = 3.12 / (14+1) = 0.208 m
+rI = 0.14   rO = 1.10       HOLE_R = 1.20   RAIL_R = 1.24
+rPost = rO - 0.07 = 1.03    dTheta = 270/14 ≈ 19.29°
+栏杆柱：每个踏步一根，位于 r = 1.03，半径 0.02，间距约 1.03 × 0.337 ≈ 0.35 m
+```
+
+导航与角色阈值：
+
+```text
+NavigationSystem DEFAULT_CONFIG: agentRadius 0.3 / agentHeight 1.7 / maxClimb 0.3 /
+                                 maxSlope 45 / maxSnapDistance 0.75 / endTolerance 0.3
+RecastNavigationBackend tuning:  cellSize 0.15 / cellHeight 0.1
+  → walkableClimb  = voxelFloor(0.3, 0.1) = 3 voxels = 0.30 m
+  → walkableRadius = voxelCeil(0.3, 0.15) = 2 cells  = 0.30 m
+Rapier character controller: autostepHeight 0.3 / autostepMinWidth 0.2 / snapToGround 0.3
+                             （Jolt 镜像同一组参数）
+```
+
+判断：
+
+- `stepH = 0.208 ≤ 0.30`，**踏步高本身不是瓶颈**；Rapier `autostepHeight = 0.3` 也够。
+- 因此**不要**提高 `maxClimb` 或 `autostepHeight`——它们是 5 个世界共用的阈值，为一个世界改会破坏其他世界的一致性。
+- 待验证假设（本文件的推断，**尚未实测**）：栏杆柱位于 `r = 1.03`、间距约 0.35 m，
+  而 Recast `walkableRadius = 0.30 m` 会从每根柱向外腐蚀 0.3 m；
+  相邻腐蚀圆几乎相接，会在 `r ≈ 0.71–1.35` 形成**环形屏障**；
+  叠加中心立柱腐蚀后，可走环带只剩 `r ≈ 0.38–0.71`，
+  而二楼楼板开口 `HOLE_R = 1.20` 需从 `r ≥ 1.50` 起才可走 → **上下两层被切断**。
+  同时 `RAIL_R = 1.24 > HOLE_R = 1.20`，栏杆环落在楼板开口之外，进一步占用通行带。
+- 若假设成立，最小改法是几何参数（走迁移脚本），**不是加代理**：
+  `HOLE_R` 1.20 → 1.6~1.8；把栏杆柱移到 `r ≥ 1.45`（或 `underPlatform` 段之外不放柱）；
+  必要时微调 `treadHalf`。`STAIR_N` 与 `stepH` 可保持不变。
+
+**先验证再动手**：用真实 Recast 跑一次跨层 `findPath`（二楼→一楼、一楼→二楼），
+并打印 `navigation.status().lastBuild`，确认是断连还是几何无法通过。
+`tests/world/navigation-backend.test.js` 与 `tests/world/magic-cabin.test.js` 已有可复用的 Recast 夹具。
