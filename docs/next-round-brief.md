@@ -1112,6 +1112,57 @@ RAIL_R 1.24 → 1.75（必须在 HOLE_R 之外）
 另外：生成器里的 `body.replace` 目前**锚点找不到时静默无操作**，建议改成找不到就报错退出，
 否则几何改动失败时不会有任何提示。
 
+### 已具备迭代条件（环境更正）
+
+**上一版 brief 写的“这台机器没有可用 Python、迁移跑道阻塞”是错的。** 当时只查了
+`C:\Users\yuminghui\`，而这个用户的 home 在 `D:\Users\yuminghui\`。实际：
+
+```text
+仓库自带 venv : sdk/python/.venv/Scripts/python.exe   → Python 3.12.13
+scoop 已装 uv  : D:\Users\yuminghui\scoop\shims\uv.exe
+uv 管理的解释器 : cpython 3.11.16 / 3.14.7
+```
+
+迁移是**逐字节可复现**的：
+
+```powershell
+.\sdk\python\.venv\Scripts\python.exe dev/scripts/migrate-magic-cabin.py
+# Extracted 6036 source lines; SHA256 65a6ec7a...
+# cabinContents.js 哈希前后均为 0016A2A7...   git status 为空
+```
+
+所以改生成器 → 重新生成 → 跑探针的迭代循环约 3 秒一轮。生成器已加入 `must_replace`：
+锚点不唯一或找不到就 `SystemExit`，不再静默无操作（提交 `165945d`）。
+
+### 生成器参数扫描（已实测，均未收敛）
+
+保持 N=14 / 扫掠 270° / `treadHalf` 0.46 不变，只动半径。每行都是真实重新生成后重烘整屋的结果：
+
+| 改动 | 中段 navmesh（1.00–2.50） | `1F-inside -> 2F` | `outside -> 1F-inside` | 结论 |
+|---|---|---|---|---|
+| 无（按现状） | 无 | PARTIAL_PATH | REACHABLE | 基线 |
+| `rO` 1.1 → **1.4** | 无 | PARTIAL_PATH | REACHABLE | **无任何变化**（直方图与基线逐格相同） |
+| `HOLE_R` 1.2 → **1.5**，`RAIL_R` → 1.6 | 无 | PARTIAL_PATH | REACHABLE | **无任何变化** |
+| `HOLE_R` → 1.5 + `rO` → **1.75** | **出现**（1.00:2, 1.25:1） | PARTIAL_PATH | **REACHABLE → blocked（回归）** | 部分改善 + 回归 |
+
+**由此得到的两条结论：**
+
+1. `rO` 或 `HOLE_R` **单独**改都完全无效（两次实测都是零变化）。必须同时改——
+   这与“需要 `rO > HOLE_R` 形成平面重叠”的结构推论一致。
+2. 组合组（`HOLE_R` 1.5 + `rO` 1.75）确实第一次让中段出现 navmesh，并让
+   `stair-bottom -> stair-mid(k7)` 变成 **REACHABLE**（跨 7 个踏步，此前从未连通过）；
+   但它同时把 `outside -> 1F-inside` 和 `1F-inside -> stair-bottom` **打坏了**。
+   回归来源尚未定位——楼梯外伸到 1.75 后可能与楼梯下储物箱、家具代理或墙面相交。
+3. 因此**未提交任何几何改动**。只提交了 `must_replace` 守卫（`165945d`），
+   并已重新生成把 `cabinContents.js` 恢复为与 HEAD 逐字节一致。
+
+### 下一步
+
+在探针里做一轮**带隔离对照的**参数扫描，同时监控三件事：
+`1F↔2F` 是否连通、`outside -> 1F-inside` 是否仍可达、中段 navmesh 是否出现。
+回归项必须与改善项一起看，不能再只看单一指标。
+建议先定位那条回归：把 `rO` 从 1.75 逐步收回（1.6 / 1.5），看回归在哪个值上出现、中段何时消失。
+
 ### 修正上一版的建议
 
 上一版把“加大径向宽度”与“缩小 `STAIR_N` / 放大切向角宽”并列为可选项。
