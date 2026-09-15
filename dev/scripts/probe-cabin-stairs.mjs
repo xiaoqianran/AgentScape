@@ -83,8 +83,29 @@ const treads = {
   topInner: tread(TOP_STEP, TREAD_R_I + 0.21)
 };
 
-const inside = [2, 0, -2];
+// The ground-floor sample is a measurement input, not a constant. A fixed coordinate silently
+// poisons every cross-floor result once the staircase geometry changes, so the authored point is
+// kept for continuity and a derived ring of alternatives is probed and verified alongside it.
+const insideAuthored = [2, 0, -2];
+const inside = insideAuthored;
 const upper = [-2, FLOOR_TOP, 0];
+
+// Ground-floor candidates at floor level, placed relative to the slab opening so the set tracks the
+// geometry. A candidate whose start snaps a long way was never on the navmesh and must not be read
+// as a broken ground floor. The offsets bracket the authored point (r = 2.83).
+const groundRing = [];
+for (const angleDeg of [90, 115, 135, 160, 180, 205, 225, 250, 270]) {
+  for (const offset of [0.6, 0.9, 1.3, 1.7]) {
+    const radius = round(HOLE_R + offset);
+    const th = angleDeg * DEG;
+    groundRing.push({
+      angleDeg,
+      radius,
+      offset,
+      point:[round(radius * Math.sin(th)), 0, round(radius * Math.cos(th))]
+    });
+  }
+}
 
 const cabin = createMagicCabin(cabinCanvasHost());
 const store = new ObjectStore();
@@ -610,10 +631,15 @@ try {
 
   // Phase 7: validate the fix in situ. Rebuild the staircase inside the real cabin and bake the whole
   // cabin again, so the test includes the walls, the upper-floor slab and the opening.
-  // The spec keeps radiusOuter at 1.10 so the slab opening (HOLE_R) still clears, and satisfies
-  // radiusOuter * sin(halfAngle) >= agentRadius. Only stairN, the sweep and the tread overlap change.
+  // The usable outer bound is min(rO, HOLE_R) because the slab sits overhead beyond the opening, so
+  // the feasibility criterion must be evaluated with that cap rather than with rO alone.
   {
-    const spec = { stairN:11, sweepDeg:360, overlapFactor:0.52, radiusInner:TREAD_R_I, radiusOuter:TREAD_R_O, railHeight:0.85, thickness:0.06 };
+    const defaultSpec = { stairN:11, sweepDeg:360, overlapFactor:0.52, radiusInner:TREAD_R_I, radiusOuter:TREAD_R_O, railHeight:0.85, thickness:0.06 };
+    // The in-situ spec is overridable so several candidates can be measured against the same bake
+    // path without editing the file between runs.
+    const spec = process.env.PROBE_INSITU_SPEC
+      ? { ...defaultSpec, ...JSON.parse(process.env.PROBE_INSITU_SPEC) }
+      : defaultSpec;
     const dThetaDeg = spec.sweepDeg / spec.stairN;
     const halfAngleRad = spec.overlapFactor * dThetaDeg * DEG;
     const riser = FLOOR_TOP / (spec.stairN + 1);
@@ -677,19 +703,36 @@ try {
 
     const system = new NavigationSystem({ store, environmentRoots:[cabin.root], backend:new RecastNavigationBackend() });
     try {
+      const collection = system.collectStaticMeshes();
       const middleStep = Math.floor(spec.stairN / 2);
       report.rebuiltInCabin = {
+        label:spec.label ?? 'default',
+        envOverride:Boolean(process.env.PROBE_INSITU_SPEC),
         spec,
         replacementApplied:Boolean(stairParent),
+        collection:{
+          cabinMeshes:collection.meshes.length,
+          geometryTypes:collection.meshes.reduce((tally, mesh) => {
+            const type = mesh.geometry?.type || 'unknown';
+            tally[type] = (tally[type] || 0) + 1;
+            return tally;
+          }, {})
+        },
         derived:{
           riser:round(riser),
           riserWithinClimb:riser <= 0.3,
           dThetaDeg:round(dThetaDeg),
           halfAngleDeg:round(halfAngleRad / DEG),
           tangentialHalfWidthAtOuter:round(spec.radiusOuter * Math.sin(halfAngleRad)),
-          analyticInscribedRadius:maxInscribedRadius({ radiusInner:spec.radiusInner, radiusOuter:spec.radiusOuter, halfAngleRad }).maxInscribedRadius,
           slabOpeningRadius:HOLE_R,
-          radialClearance:round(HOLE_R - spec.radiusOuter)
+          radialClearance:round(HOLE_R - spec.radiusOuter),
+          // A tread directly above the platform is capped by the slab overhead, so the usable outer
+          // bound is min(rO, HOLE_R). Baking the staircase without the slab hides this cap, which is
+          // why the synthetic sweep could show a winner that does not transfer into the cabin.
+          effectiveOuterRadius:round(Math.min(spec.radiusOuter, HOLE_R)),
+          uncappedInscribedRadius:maxInscribedRadius({ radiusInner:spec.radiusInner, radiusOuter:spec.radiusOuter, halfAngleRad }).maxInscribedRadius,
+          analyticInscribedRadius:maxInscribedRadius({ radiusInner:spec.radiusInner, radiusOuter:Math.min(spec.radiusOuter, HOLE_R), halfAngleRad }).maxInscribedRadius,
+          meetsAgentRadius:maxInscribedRadius({ radiusInner:spec.radiusInner, radiusOuter:Math.min(spec.radiusOuter, HOLE_R), halfAngleRad }).maxInscribedRadius >= 0.3
         },
         baselineCrossFloor:report.cases['1F-inside -> 2F'],
         baselineHistogram:report.navMesh.yHistogram,
@@ -705,10 +748,40 @@ try {
       };
       report.rebuiltInCabin.midHeightsPresent = ['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50']
         .reduce((tally, key) => { tally[key] = report.rebuiltInCabin.navMesh.yHistogram[key] || 0; return tally; }, {});
+      // Which ground-floor point actually sits on this bake? The authored point is only one candidate.
+      report.rebuiltInCabin.groundProbe = await probeGroundRing(system, 'rebuilt-cabin');
+      // Bake the rebuilt group on its own. If the ribbon appears here but not in the cabin, the cabin
+      // is the blocker rather than the tread shape; if it does not appear either, this construction
+      // differs from the synthetic sweep that did produce one.
+      {
+        const alone = new NavigationSystem({ store, environmentRoots:[rebuilt], backend:new RecastNavigationBackend() });
+        try {
+          report.rebuiltInCabin.alone = {
+            cases:{
+              'lowest -> middle':summarize(await alone.findPath(pointOnTread(0), pointOnTread(middleStep))),
+              'middle -> highest':summarize(await alone.findPath(pointOnTread(middleStep), pointOnTread(spec.stairN - 1))),
+              'lowest -> highest':summarize(await alone.findPath(pointOnTread(0), pointOnTread(spec.stairN - 1)))
+            },
+            navMesh:navMeshStats(alone)
+          };
+        } finally {
+          alone.dispose();
+        }
+      }
     } finally {
       system.dispose();
     }
   }
+
+  // Phase 8: decide whether the ground-floor regression is real or an artifact of a stale sample
+  // point. The ring brackets the authored point on every side, and each row reports its own snap.
+  report.groundProbe = {
+    authoredPoint:insideAuthored,
+    candidates:groundRing.length,
+    authoredPointCrossFloor:report.cases['1F-inside -> 2F'],
+    baseline:await probeGroundRing(navigation, 'baseline-cabin'),
+    rebuilt:report.rebuiltInCabin ? report.rebuiltInCabin.groundProbe : null
+  };
 
   report.status = 'completed';
 } catch (error) {
@@ -812,6 +885,47 @@ function navMeshStats(navigation) {
     trianglesScanned:triangles,
     yHistogram,
     stairFootprint
+  };
+}
+
+// Query every ground-floor candidate against one bake. The snap distance is reported first: a point
+// that never landed on the navmesh explains a blocked result without any geometry being at fault.
+// Rows are grouped by radius so a ring that all sits inside the stair's erosion shadow is obvious.
+async function probeGroundRing(system, label) {
+  const rows = [];
+  for (const candidate of groundRing) {
+    const there = await system.findPath(candidate.point, upper);
+    const back = await system.findPath(upper, candidate.point);
+    rows.push({
+      angleDeg:candidate.angleDeg,
+      radius:candidate.radius,
+      offset:candidate.offset,
+      point:candidate.point,
+      toUpperReachable:there.reachable,
+      toUpperReason:there.reason ?? null,
+      toUpperStartSnap:round(there.start?.snapDistance),
+      toUpperWaypoints:there.path ? there.path.length : 0,
+      fromUpperReachable:back.reachable,
+      fromUpperReason:back.reason ?? null,
+      fromUpperEndSnap:round(back.end?.snapDistance),
+      roundTrip:Boolean(there.reachable && back.reachable)
+    });
+  }
+  // The system's own snapping floor is around 0.07-0.09 m even for points clearly on the mesh, so a
+  // 0.05 m cut would classify every candidate as off-mesh. Compare candidates against that floor.
+  // Number.isFinite, not !== null: an absent snap arrives as undefined and would poison the minimum.
+  const snaps = rows.map((row) => row.toUpperStartSnap).filter((value) => Number.isFinite(value));
+  const onNavMesh = rows.filter((row) => row.toUpperStartSnap !== null && row.toUpperStartSnap <= 0.10);
+  return {
+    label,
+    startSnapThreshold:0.10,
+    observedMinStartSnap:snaps.length ? Math.min(...snaps) : null,
+    candidates:rows.length,
+    onNavMesh:onNavMesh.length,
+    startOffNavMesh:rows.filter((row) => row.toUpperReason === 'START_OFF_NAVMESH').length,
+    roundTrips:rows.filter((row) => row.roundTrip).length,
+    cleanPoints:onNavMesh.map((row) => `${row.angleDeg}deg/r${row.radius}`),
+    rows
   };
 }
 
