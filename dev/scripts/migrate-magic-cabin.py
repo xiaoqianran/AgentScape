@@ -10,6 +10,17 @@ html = source.read_text(encoding='utf-8')
 def between(start, end):
     return html[html.index(start):html.index(end, html.index(start))]
 
+def must_replace(text, old, new, label):
+    """Rewrite one anchor, or stop.
+
+    str.replace is a silent no-op when the anchor is absent, which would let a geometry change
+    appear to succeed while the generated file keeps the old values.
+    """
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f'migration anchor "{label}" matched {count} times, expected exactly 1')
+    return text.replace(old, new)
+
 body = between('            const MAT =', '            const MEMB_MAT =')
 # All UI is scoped to the host supplied by Studio; no global IDs or second event loop.
 body = re.sub(r"document.getElementById\('([^']+)'\)", r"editorHost.querySelector('#\1')", body)
