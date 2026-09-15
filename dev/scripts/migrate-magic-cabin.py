@@ -40,6 +40,15 @@ body = body.replace('new THREE.PlaneGeometry(130, 130)', 'new THREE.PlaneGeometr
 body = body.replace("if (!/^https?:\\/\\//i.test(u))", "if (!/^(https?:\\/\\/|data:image\\/)/i.test(u))")
 body = body.replace('img.onerror = function () { tryLoadPic(url, idx + 1); };', 'img.onerror = function () { if (!disposed) tryLoadPic(url, idx + 1); };')
 body = body.replace('if (!img.width || !img.height) { tryLoadPic', 'if (disposed) return;\n                    if (!img.width || !img.height) { tryLoadPic')
+# The upper-floor guard rail was drawn with THREE.Line, and colliders are only generated from
+# Meshes, so the rail was decorative: the only solid parts were the 0.025-radius posts, and the
+# human view walked straight through the gap into the stair opening. Rebuild the same two arcs as
+# thin tubes so the drawn rail becomes a real one. Geometry, radius and height are unchanged.
+body = must_replace(
+    body,
+    "for (const hy of [RAIL_H, 0.45]) { const pts = []; for (let deg = 60; deg <= 300; deg += 5) { const th = deg * D2R; pts.push([Math.sin(th) * RAIL_R, FLOOR_TOP + hy, Math.cos(th) * RAIL_R]); } put(line(pts), 0, 0, 0); }",
+    "for (const hy of [RAIL_H, 0.45]) { const pts = []; for (let deg = 60; deg <= 300; deg += 5) { const th = deg * D2R; pts.push(new THREE.Vector3(Math.sin(th) * RAIL_R, FLOOR_TOP + hy, Math.cos(th) * RAIL_R)); } put(edge(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 72, 0.035, 6, false)), 0, 0, 0); }",
+    'upper-floor guard rail collider')
 # Preserve stable source variable names for otherwise unlabeled interactive objects.
 labels = {
     'orbG':'转动星象仪','potG':'拔出 / 塞回药剂瓶塞','corkG':'拔出 / 塞回瓶塞',

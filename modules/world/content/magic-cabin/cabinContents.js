@@ -304,7 +304,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
 
             const RAIL_R = 1.24, RAIL_H = 0.85, D2R = Math.PI / 180;
             for (let deg = 60; deg <= 300; deg += 30) { const th = deg * D2R; put(edge(new THREE.CylinderGeometry(0.025, 0.025, RAIL_H, 6)), Math.sin(th) * RAIL_R, FLOOR_TOP + RAIL_H / 2, Math.cos(th) * RAIL_R, 0, 0, 0); }
-            for (const hy of [RAIL_H, 0.45]) { const pts = []; for (let deg = 60; deg <= 300; deg += 5) { const th = deg * D2R; pts.push([Math.sin(th) * RAIL_R, FLOOR_TOP + hy, Math.cos(th) * RAIL_R]); } put(line(pts), 0, 0, 0); }
+            for (const hy of [RAIL_H, 0.45]) { const pts = []; for (let deg = 60; deg <= 300; deg += 5) { const th = deg * D2R; pts.push(new THREE.Vector3(Math.sin(th) * RAIL_R, FLOOR_TOP + hy, Math.cos(th) * RAIL_R)); } put(edge(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 72, 0.035, 6, false)), 0, 0, 0); }
             const eX = Math.sin(60 * D2R), eZ = Math.cos(60 * D2R);
             for (const r of [0.38, 0.8]) put(edge(new THREE.CylinderGeometry(0.025, 0.025, RAIL_H, 6)), eX * r, FLOOR_TOP + RAIL_H / 2, eZ * r, 0, 0, 0);
             for (const hy of [RAIL_H, 0.45]) put(line([[eX * 0.15, FLOOR_TOP + hy, eZ * 0.15], [eX * RAIL_R, FLOOR_TOP + hy, eZ * RAIL_R]]), 0, 0, 0);
