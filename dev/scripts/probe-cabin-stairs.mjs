@@ -141,6 +141,7 @@ try {
       '1F-inside -> 2F':report.cases['1F-inside -> 2F']
     }
   };
+  const railNodePreviousFlags = railNodes.map((node) => ({ node, previous:node.userData.navigationIgnore }));
   for (const node of railNodes) node.userData.navigationIgnore = true;
   navigation.invalidate('probe-rail-excluded');
   report.experiment.afterCases = {
@@ -151,6 +152,9 @@ try {
     '2F -> 1F-inside':summarize(await navigation.findPath(upper, inside))
   };
   report.experiment.after = navMeshStats(navigation);
+  // Restore the flags: leaving them set silently excluded the handrail from every later bake.
+  for (const entry of railNodePreviousFlags) entry.node.userData.navigationIgnore = entry.previous;
+  report.experiment.flagsRestored = railNodePreviousFlags.length;
 
   // Phase 3: physical clearance above every tread, measured with Rapier rather than inferred.
   report.derived = { baseline:derivedVoxels({}, {}) };
@@ -389,6 +393,107 @@ try {
       } finally {
         system.dispose();
       }
+    }
+  }
+
+  // Phase 5d: why does the staircase group report 30 meshes but contribute only 15 to the bake?
+  if (stairGroupEntry) {
+    const audit = { isMeshCount:0, visible:0, instanced:0, skinned:0, missingPositionAttribute:0, visibleNonInstancedWithPosition:0 };
+    stairGroupEntry.node.traverse((child) => {
+      if (!child.isMesh) return;
+      audit.isMeshCount += 1;
+      const hasPosition = Boolean(child.geometry?.getAttribute?.('position'));
+      if (child.visible) audit.visible += 1;
+      if (child.isInstancedMesh) audit.instanced += 1;
+      if (child.isSkinnedMesh) audit.skinned += 1;
+      if (!hasPosition) audit.missingPositionAttribute += 1;
+      if (child.visible && !child.isInstancedMesh && !child.isSkinnedMesh && hasPosition) audit.visibleNonInstancedWithPosition += 1;
+    });
+    report.stairSubtree.groupMeshAudit = audit;
+    // Ask the collector itself: the audit above says all 30 meshes are eligible, but the bake
+    // only ever saw 15. Call collectStaticMeshes directly so the number and skip reasons agree.
+    const probeSystem = new NavigationSystem({
+      store,
+      environmentRoots:[stairGroupEntry.node],
+      backend:new RecastNavigationBackend()
+    });
+    try {
+      const collected = probeSystem.collectStaticMeshes();
+      report.stairSubtree.collectedByBackend = {
+        meshCount:collected.meshes.length,
+        skipped:collected.skipped,
+        geometryTypes:collected.meshes.reduce((tally, mesh) => {
+          const type = mesh.geometry?.type || 'unknown';
+          tally[type] = (tally[type] || 0) + 1;
+          return tally;
+        }, {})
+      };
+    } finally {
+      probeSystem.dispose();
+    }
+  }
+
+  // Phase 6: which geometry change actually makes the spiral navigable?
+  // Each candidate is rebuilt from scratch and baked alone, so the comparison is like for like.
+  const geometryCandidates = [
+    { label:'baseline-as-authored', sweepDeg:270, stairN:14, halfFactor:0.46, radiusInner:0.14, radiusOuter:1.1 },
+    { label:'closed-gap-only', sweepDeg:270, stairN:14, halfFactor:0.52, radiusInner:0.14, radiusOuter:1.1 },
+    { label:'wider-sweep-360', sweepDeg:360, stairN:14, halfFactor:0.52, radiusInner:0.14, radiusOuter:1.1 },
+    { label:'fewer-steps-N11', sweepDeg:270, stairN:11, halfFactor:0.52, radiusInner:0.1, radiusOuter:1.25 },
+    { label:'wider-radial', sweepDeg:270, stairN:14, halfFactor:0.52, radiusInner:0.08, radiusOuter:1.4 },
+    { label:'combined', sweepDeg:360, stairN:11, halfFactor:0.52, radiusInner:0.08, radiusOuter:1.4 }
+  ];
+  report.geometrySweep = {};
+  for (const spec of geometryCandidates) {
+    const dThetaDeg = spec.sweepDeg / spec.stairN;
+    const halfAngleDeg = spec.halfFactor * dThetaDeg;
+    const halfAngleRad = halfAngleDeg * DEG;
+    const riser = FLOOR_TOP / (spec.stairN + 1);
+    const startDeg = -60 - dThetaDeg / 2;
+    const angleAt = (step) => (startDeg - (spec.stairN - 1 - step) * dThetaDeg) * DEG;
+    const midRadius = (spec.radiusInner + spec.radiusOuter) / 2;
+    const pointAt = (step) => {
+      const angle = angleAt(step);
+      return [round(midRadius * Math.cos(angle)), round((step + 1) * riser - 0.03), round(midRadius * Math.sin(angle))];
+    };
+
+    const group = new THREE.Group();
+    group.name = `synthetic-${spec.label}`;
+    for (let k = 0; k < spec.stairN; k += 1) {
+      const angle = angleAt(k);
+      const shape = new THREE.Shape();
+      shape.absarc(0, 0, spec.radiusOuter, angle - halfAngleRad, angle + halfAngleRad, false);
+      shape.absarc(0, 0, spec.radiusInner, angle + halfAngleRad, angle - halfAngleRad, true);
+      const wedge = new THREE.ExtrudeGeometry(shape, { depth:0.06, bevelEnabled:false });
+      wedge.rotateX(Math.PI / 2);
+      const mesh = new THREE.Mesh(wedge);
+      mesh.position.y = (k + 1) * riser;
+      group.add(mesh);
+    }
+
+    const system = new NavigationSystem({ store, environmentRoots:[group], backend:new RecastNavigationBackend() });
+    try {
+      const middleStep = Math.floor(spec.stairN / 2);
+      report.geometrySweep[spec.label] = {
+        spec,
+        derived:{
+          riser:round(riser),
+          riserWithinClimb:riser <= 0.3,
+          dThetaDeg:round(dThetaDeg),
+          halfAngleDeg:round(halfAngleDeg),
+          radialWidth:round(spec.radiusOuter - spec.radiusInner),
+          tangentialHalfWidthAtOuter:round(spec.radiusOuter * Math.sin(halfAngleRad)),
+          analyticInscribedRadius:maxInscribedRadius({ radiusInner:spec.radiusInner, radiusOuter:spec.radiusOuter, halfAngleRad }).maxInscribedRadius
+        },
+        cases:{
+          'lowest -> middle':summarize(await system.findPath(pointAt(0), pointAt(middleStep))),
+          'middle -> highest':summarize(await system.findPath(pointAt(middleStep), pointAt(spec.stairN - 1))),
+          'lowest -> highest':summarize(await system.findPath(pointAt(0), pointAt(spec.stairN - 1)))
+        },
+        navMesh:navMeshStats(system)
+      };
+    } finally {
+      system.dispose();
     }
   }
 
