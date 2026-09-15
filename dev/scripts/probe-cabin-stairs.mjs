@@ -6,6 +6,8 @@ import { cabinCanvasHost } from '../../tests/helpers/cabinCanvasHost.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { NavigationSystem } from '../../modules/world/runtime/systems/NavigationSystem.js';
 import { RecastNavigationBackend } from '../../modules/world/runtime/navigation/RecastNavigationBackend.js';
+import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
+import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
 
 globalThis.ProgressEvent ||= class ProgressEvent { constructor(type, init = {}) { this.type = type; Object.assign(this, init); } };
 globalThis.localStorage ||= { getItem:() => null, setItem() {}, removeItem() {} };
@@ -149,6 +151,87 @@ try {
   };
   report.experiment.after = navMeshStats(navigation);
 
+  // Phase 3: physical clearance above every tread, measured with Rapier rather than inferred.
+  report.derived = { baseline:derivedVoxels({}, {}) };
+  const physics = new PhysicsSystem({ backend:new RapierPhysicsBackend() });
+  await physics.init();
+  try {
+    physics.addEnvironment(cabin.colliders, { id:cabin.id });
+    const probeRadii = [0.35, 0.6, 0.9];
+    report.clearance = {
+      method:'rapier-vertical-raycast',
+      castOriginAboveTread:0.05,
+      castLength:4,
+      requiredClearance:1.7,
+      byTread:[]
+    };
+    for (let k = 0; k < STAIR_N; k += 1) {
+      const base = tread(k, 0.6);
+      const normDeg = ((base.angleDeg % 360) + 360) % 360;
+      const entry = {
+        step:k,
+        angleDeg:base.angleDeg,
+        normDeg:round(normDeg),
+        yTop:base.yTop,
+        inCoveredSector:(normDeg <= 60 || normDeg >= 300),
+        clearances:{}
+      };
+      for (const r of probeRadii) {
+        const th = base.angleDeg * DEG;
+        const x = r * Math.sin(th);
+        const z = r * Math.cos(th);
+        const hit = physics.raycast([x, base.yTop + 0.05, z], [x, base.yTop + 0.05 + 4, z]);
+        entry.clearances[`r${r}`] = hit
+          ? {
+            clearance:round(0.05 + hit.distance),
+            meets1_7:0.05 + hit.distance >= 1.7,
+            owner:hit.id ?? null,
+            part:hit.part ?? null,
+            environment:hit.environment ?? null,
+            environmentId:hit.provenance?.environmentId ?? null,
+            point:Array.isArray(hit.point) ? hit.point.map(round) : null
+          }
+          : { clearance:null, meets1_7:true, note:'no solid within 4 m' };
+      }
+      report.clearance.byTread.push(entry);
+    }
+  } finally {
+    physics.dispose();
+  }
+
+  // Phase 4: does the bake tuning decide whether the mid-storey ribbon exists at all?
+  const variants = [
+    { label:'finer-voxels', backend:{ cellSize:0.08, cellHeight:0.05 }, config:{} },
+    { label:'smaller-agent-radius', backend:{}, config:{ agentRadius:0.15 } },
+    { label:'large-climb', backend:{}, config:{ maxClimb:1 } }
+  ];
+  report.tuningVariants = {};
+  for (const variant of variants) {
+    const system = new NavigationSystem({
+      store,
+      environmentRoots:[cabin.root],
+      config:variant.config,
+      backend:new RecastNavigationBackend(variant.backend)
+    });
+    try {
+      report.tuningVariants[variant.label] = {
+        backendTuning:variant.backend,
+        config:variant.config,
+        derived:derivedVoxels(variant.backend, variant.config),
+        cases:{
+          '1F-inside -> 2F':summarize(await system.findPath(inside, upper)),
+          '1F-inside -> stair-mid(k7)':summarize(await system.findPath(inside, treads.mid.point)),
+          'stair-mid(k7) -> stair-top(k13)':summarize(await system.findPath(treads.mid.point, treads.top.point)),
+          'stair-top(k13) -> 2F':summarize(await system.findPath(treads.top.point, upper)),
+          '2F -> 1F-inside':summarize(await system.findPath(upper, inside))
+        },
+        navMesh:navMeshStats(system)
+      };
+    } finally {
+      system.dispose();
+    }
+  }
+
   report.status = 'completed';
 } catch (error) {
   report.status = 'failed';
@@ -156,6 +239,28 @@ try {
 } finally {
   navigation.dispose();
   cabin.dispose();
+}
+
+// Mirrors RecastNavigationBackend.recastConfig so a variant can be read as voxel counts.
+function derivedVoxels(tuning, config) {
+  const cellSize = tuning.cellSize ?? 0.15;
+  const cellHeight = tuning.cellHeight ?? 0.1;
+  const agentRadius = config.agentRadius ?? 0.3;
+  const agentHeight = config.agentHeight ?? 1.7;
+  const maxClimb = config.maxClimb ?? 0.3;
+  const ceil = (value, cell) => Math.ceil(value / cell - 1e-9);
+  const floor = (value, cell) => Math.floor(value / cell + 1e-9);
+  return {
+    cellSize,
+    cellHeight,
+    agentRadius,
+    agentHeight,
+    maxClimb,
+    walkableRadiusCells:Math.max(0, ceil(agentRadius, cellSize)),
+    walkableRadiusMetres:round(Math.max(0, ceil(agentRadius, cellSize)) * cellSize),
+    walkableHeightCells:Math.max(3, ceil(agentHeight, cellHeight)),
+    walkableClimbCells:Math.max(0, floor(maxClimb, cellHeight))
+  };
 }
 
 function navMeshStats(navigation) {
@@ -201,6 +306,11 @@ function summarize(result) {
     sameIsland: result.sameIsland ?? null,
     cost: round(result.cost),
     waypoints: result.path ? result.path.length : 0,
+    startSnap: round(result.start?.snapDistance),
+    endSnap: round(result.end?.snapDistance),
+    startSnapped: result.start?.snapped ?? null,
+    endSnapped: result.end?.snapped ?? null,
+    finalDistance: round(result.finalDistance),
     snapDistance: round(result.snapDistance),
     snapped: result.snapped ?? null,
     buildVersion: result.buildVersion ?? null
