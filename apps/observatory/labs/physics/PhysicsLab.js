@@ -68,7 +68,7 @@ export class PhysicsLab {
       rendererTiming: this.rendererTiming,
       onRendererFailure: this.onRendererFailure,
       controlsTarget: [0, 1.4, 0],
-      shadowType: THREE.PCFSoftShadowMap,
+      shadowType: THREE.PCFShadowMap,
     }));
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.viewport);

@@ -86,7 +86,7 @@ export class RenderingSystem {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.container.appendChild(this.renderer.domElement);
 
     this.postFx = this.postFxFactory({
@@ -258,10 +258,13 @@ export class RenderingSystem {
   }
 
   update() {
+    // A disabled control rig must not overwrite a camera pose owned by another controller.
+    if (this.controls?.enabled === false) return;
     this.controls?.update();
   }
 
   render(timestamp = performance.now()) {
+    const started=performance.now();
     if (this.postFx?.enabled) {
       try {
         this.postFx.render();
@@ -272,7 +275,7 @@ export class RenderingSystem {
     } else {
       this.renderer.render(this.scene, this.camera);
     }
-    this.probe?.afterRender(timestamp);
+    this.probe?.afterRender(timestamp,performance.now()-started);
   }
 
   disablePostFx(error) {

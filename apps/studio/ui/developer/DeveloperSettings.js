@@ -141,10 +141,12 @@ export class DeveloperSettings {
     const features = rendererFeatureSummary(info.features);
     const limits = rendererLimitSummary(info.limits);
     const generatedVisual = rendererGeneratedVisualSummary(info.generatedVisual);
+    const milliseconds=value=>Number.isFinite(value)?`${value.toFixed(2)} ms`:'—';
+    const performanceSummary=`帧间隔 P50/P95 ${milliseconds(info.frameIntervalMs?.p50)} / ${milliseconds(info.frameIntervalMs?.p95)} · 渲染提交 CPU P95 ${milliseconds(info.renderCpuMs?.p95)} · Draw calls ${info.workload?.drawCalls ?? '—'} · 三角形 ${info.workload?.triangles ?? '—'}`;
     renderTechnicalReport(
       this.rendererReport,
       `${backend} · ${health}`,
-      `模式 ${mode} · fallback ${info.fallback ? '是' : '否'} · GPU timing ${timing} · WebGPU ${compatibility} · ${features} · ${limits} · ${generatedVisual}`
+      `模式 ${mode} · fallback ${info.fallback ? '是' : '否'} · GPU timing ${timing} · ${performanceSummary} · WebGPU ${compatibility} · ${features} · ${limits} · ${generatedVisual}`
     );
   }
 

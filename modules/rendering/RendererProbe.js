@@ -59,6 +59,9 @@ export class RendererProbe {
     this.health = 'ready';
     this.lastError = null;
     this.gpuTimeMs = null;
+    this.frameIntervals=[];
+    this.lastFrameAt=null;
+    this.renderCpuMs=[];
     this.timingIntervalMs = Math.max(250, Number(timingIntervalMs) || 1000);
     this.nextTimingAt = 0;
     this.timingPromise = null;
@@ -81,7 +84,15 @@ export class RendererProbe {
     };
   }
 
-  afterRender(timestamp = 0) {
+  afterRender(timestamp = 0, renderCpuMs = null) {
+    if(Number.isFinite(timestamp)) {
+      const interval=this.lastFrameAt==null?null:timestamp-this.lastFrameAt;
+      // Background-tab suspension starts a fresh window instead of inflating frame percentiles.
+      if(interval>1000){this.frameIntervals.length=0;this.renderCpuMs.length=0;}
+      else if(interval>0)pushSample(this.frameIntervals,interval);
+      this.lastFrameAt=timestamp;
+    }
+    if(Number.isFinite(renderCpuMs) && renderCpuMs>=0)pushSample(this.renderCpuMs,renderCpuMs);
     if (!this.renderer?.backend?.trackTimestamp || this.health === 'lost') return;
     if (this.timingPromise || timestamp < this.nextTimingAt) return;
     this.nextTimingAt = timestamp + this.timingIntervalMs;
@@ -101,6 +112,14 @@ export class RendererProbe {
       health: this.health,
       gpuTiming: Boolean(this.renderer?.backend?.trackTimestamp),
       gpuTimeMs: this.gpuTimeMs,
+      frameIntervalMs:percentiles(this.frameIntervals),
+      renderCpuMs:percentiles(this.renderCpuMs),
+      workload:{
+        drawCalls:this.renderer?.info?.render?.drawCalls ?? this.renderer?.info?.render?.calls ?? null,
+        triangles:this.renderer?.info?.render?.triangles ?? null,
+        geometries:this.renderer?.info?.memory?.geometries ?? null,
+        textures:this.renderer?.info?.memory?.textures ?? null
+      },
       compatibilityMode: this.device.compatibilityMode,
       timestampSupported: this.device.timestampSupported,
       features: [...this.device.features],
@@ -115,6 +134,13 @@ export class RendererProbe {
     this.renderer.onError = this.previousError;
     this.renderer = null;
   }
+}
+
+function pushSample(samples,value) {if(samples.length===240)samples.shift();samples.push(value);}
+function percentiles(samples) {
+  if(!samples.length)return {samples:0,p50:null,p95:null};
+  const sorted=[...samples].sort((a,b)=>a-b);
+  return {samples:sorted.length,p50:sorted[Math.ceil(sorted.length*.5)-1],p95:sorted[Math.ceil(sorted.length*.95)-1]};
 }
 
 function normalizeRendererError(detail, fallbackType) {

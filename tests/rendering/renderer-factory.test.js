@@ -29,6 +29,19 @@ class FallbackRenderer extends FakeRenderer {
 }
 
 describe('renderer factory', () => {
+  it('reports bounded frame and CPU percentiles without inventing GPU measurements',()=>{
+    const renderer=new FakeRenderer();
+    renderer.info={render:{drawCalls:45,triangles:1200},memory:{geometries:20,textures:3}};
+    const probe=new RendererProbe(renderer);
+    for(let i=0;i<300;i++)probe.afterRender(i*16,2);
+    expect(probe.snapshot()).toMatchObject({
+      gpuTimeMs:null,frameIntervalMs:{samples:240,p50:16,p95:16},renderCpuMs:{samples:240,p50:2,p95:2},
+      workload:{drawCalls:45,triangles:1200,geometries:20,textures:3}
+    });
+    probe.afterRender(10000,3);
+    expect(probe.snapshot().frameIntervalMs.samples).toBe(0);
+    probe.dispose();
+  });
   it('normalizes explicit renderer modes without browser feature detection', () => {
     expect(normalizeRendererMode()).toBe(RENDERER_MODE.AUTO);
     expect(normalizeRendererMode('WEBGPU')).toBe(RENDERER_MODE.WEBGPU);
