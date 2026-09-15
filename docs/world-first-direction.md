@@ -30,3 +30,27 @@
 `tests/world/world-affordances.test.js` 验证注册工具、状态序列、条件阻断、超时取消、快照、灯光状态与真实 Rapier 遮挡。序列测试中的接近位置部分使用测试桩，不是完整 Agent 自主导航任务。既有小屋测试验证生产 Recast 的进门与二楼平面路径；跨层路径仍未通过。
 
 `node dev/scripts/benchmark-cabin.mjs` 只测内容更新 CPU，排除渲染、物理和导航。它不能证明浏览器帧率。按用户要求，本轮不使用浏览器验证；没有像素验收、GPU 实测或 Blender 对比数据。
+
+### 已验证基线（2026-09-16 阶段 0 基线冻结）
+
+工作区在这六个提交上跑通 `npm run check`，exit code 0，提交前后各跑一次结果一致：
+
+```text
+architecture:validate   PASS  repository / domain / convergence
+                              planning:validate  tasks 1152, ready 832
+assets:validate         PASS  cabinet.glb, 3 named nodes
+world:viability         PASS  verdict = runtime-world-usable
+typecheck               PASS
+test                    PASS  237 Test Files / 1114 Tests
+build                   PASS  411 modules
+```
+
+与上面两条边界一起读，不得混写：
+
+- `docs/physics.md` 记录的「180 test files / 858 tests @ 1bf17a6」已过时，实测为 237 / 1114。不要用旧数字判断规模。
+- `world:viability` 的 `verdict = runtime-world-usable` 与 `worldAdmission = provisional` 是两个不同结论，不得合并。
+- 构建存在多个超过 500 kB 的 chunk（`spark.module` 4.95 MB、`jolt-physics.wasm-compat` 3.56 MB、`physics` 2.85 MB、`three` 1.55 MB），属当前已知状态，供阶段 3 参考。
+- 本轮仍未产生浏览器帧率、GPU 实测或像素验收数据。
+
+基线提交：`632ff9a` `34aea9a` `98694ce` `b5b2991` `3db3f4c` `3e87b24`，父提交 `53aefc8`。
+
