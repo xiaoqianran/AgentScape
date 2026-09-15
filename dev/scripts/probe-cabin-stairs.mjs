@@ -2,6 +2,7 @@
 // Mirrors tests/world/magic-cabin.test.js fixtures. Does not mutate the repository.
 // Run: node dev/scripts/probe-cabin-stairs.mjs
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
 import { createMagicCabin } from '../../modules/world/content/magicCabin.js';
 import { cabinCanvasHost } from '../../tests/helpers/cabinCanvasHost.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
@@ -13,18 +14,50 @@ import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/Rapier
 globalThis.ProgressEvent ||= class ProgressEvent { constructor(type, init = {}) { this.type = type; Object.assign(this, init); } };
 globalThis.localStorage ||= { getItem:() => null, setItem() {}, removeItem() {} };
 
-// Stair geometry constants as authored in the migrated content.
+// Stair constants are read back from the generated content instead of being hardcoded here.
+// A geometry change in the generator would otherwise leave the probe sampling the wrong places
+// while still reporting confident numbers. Missing patterns fall back and warn.
 const DEG = Math.PI / 180;
-const FLOOR_TOP = 3.12;
-const STAIR_N = 14;
+const CONTENT_URL = new URL('../../modules/world/content/magic-cabin/cabinContents.js', import.meta.url);
+
+function readAuthoredStair() {
+  const source = readFileSync(CONTENT_URL, 'utf8');
+  const pick = (pattern, fallback, label) => {
+    const match = source.match(pattern);
+    if (!match) {
+      console.warn(`probe: cannot read ${label} from cabinContents.js; using fallback ${fallback}`);
+      return fallback;
+    }
+    return Number(match[1]);
+  };
+  return {
+    floorTop:pick(/const HOLE_R = [\d.]+, FLOOR_TOP = ([\d.]+);/, 3.12, 'FLOOR_TOP'),
+    holeRadius:pick(/const HOLE_R = ([\d.]+), FLOOR_TOP = [\d.]+;/, 1.2, 'HOLE_R'),
+    railRadius:pick(/const RAIL_R = ([\d.]+),/, 1.24, 'RAIL_R'),
+    stairN:pick(/const STAIR_N = (\d+);/, 14, 'STAIR_N'),
+    sweepDeg:pick(/const dTheta = ([\d.]+) \/ N;/, 270, 'sweep'),
+    radiusInner:pick(/const rI = ([\d.]+), rO = [\d.]+;/, 0.14, 'rI'),
+    radiusOuter:pick(/const rI = [\d.]+, rO = ([\d.]+);/, 1.1, 'rO'),
+    overlap:pick(/const treadHalf = dTheta \* ([\d.]+);/, 0.46, 'treadHalf factor'),
+    thetaStart:pick(/const thetaEnd = (-?[\d.]+) - dTheta \/ 2;/, -60, 'thetaEnd start')
+  };
+}
+
+const AUTHORED = readAuthoredStair();
+const FLOOR_TOP = AUTHORED.floorTop;
+const STAIR_N = AUTHORED.stairN;
 const STEP_H = FLOOR_TOP / (STAIR_N + 1);
-const D_THETA = 270 / STAIR_N;
-const THETA_END = -60 - D_THETA / 2;
-const TREAD_R_I = 0.14;
-const TREAD_R_O = 1.1;
-const HOLE_R = 1.2;
-const RAIL_R = 1.24;
+const D_THETA = AUTHORED.sweepDeg / STAIR_N;
+const THETA_END = AUTHORED.thetaStart - D_THETA / 2;
+const TREAD_R_I = AUTHORED.radiusInner;
+const TREAD_R_O = AUTHORED.radiusOuter;
+const TREAD_OVERLAP = AUTHORED.overlap;
+const HOLE_R = AUTHORED.holeRadius;
+const RAIL_R = AUTHORED.railRadius;
 const RAIL_POST_R = TREAD_R_O - 0.07;
+const MID_STEP = Math.round((STAIR_N - 1) / 2);
+const UPPER_STEP = Math.min(STAIR_N - 1, Math.round((STAIR_N - 1) * 0.77));
+const TOP_STEP = STAIR_N - 1;
 
 const round = (value) => (Number.isFinite(value) ? Number(Number(value).toFixed(3)) : value);
 
@@ -43,11 +76,11 @@ function tread(stepIndex, radius) {
 
 const treads = {
   bottom: tread(0, 0.6),
-  mid: tread(7, 0.6),
-  upperMid: tread(10, 0.6),
-  top: tread(13, 0.6),
-  topOuter: tread(13, 0.95),
-  topInner: tread(13, 0.35)
+  mid: tread(MID_STEP, 0.6),
+  upperMid: tread(UPPER_STEP, 0.6),
+  top: tread(TOP_STEP, 0.6),
+  topOuter: tread(TOP_STEP, Math.max(TREAD_R_I + 0.2, TREAD_R_O - 0.15)),
+  topInner: tread(TOP_STEP, TREAD_R_I + 0.21)
 };
 
 const inside = [2, 0, -2];
@@ -306,17 +339,21 @@ try {
     : 'staircase geometry is not grouped under one subtree in the final scene graph';
 
   // Analytic feasibility of one tread versus one merged ribbon, independent of any bake.
-  const treadHalfAngleRad = (D_THETA * 0.46) * DEG;
+  // The usable outer bound is min(rO, HOLE_R): beyond the opening the slab sits overhead and the
+  // low clearance rejects those cells, so rO alone would overstate the tread.
+  const treadHalfAngleRad = (D_THETA * TREAD_OVERLAP) * DEG;
+  const TREAD_R_EFF = Math.min(TREAD_R_O, HOLE_R);
   report.treadGeometry = {
     halfAngleRad:round(treadHalfAngleRad),
     halfAngleDeg:round(treadHalfAngleRad / DEG),
     radialDepth:round(TREAD_R_O - TREAD_R_I),
+    effectiveOuterRadius:round(TREAD_R_EFF),
     arcWidthAtInner:round(TREAD_R_I * 2 * treadHalfAngleRad),
     arcWidthAtMid:round(0.62 * 2 * treadHalfAngleRad),
-    arcWidthAtOuter:round(TREAD_R_O * 2 * treadHalfAngleRad),
+    arcWidthAtOuter:round(TREAD_R_EFF * 2 * treadHalfAngleRad),
     requiredWalkableRadius:0.3,
-    isolatedTread:maxInscribedRadius({ radiusInner:TREAD_R_I, radiusOuter:TREAD_R_O, halfAngleRad:treadHalfAngleRad }),
-    mergedRibbon:{ maxInscribedRadius:round((TREAD_R_O - TREAD_R_I) / 2), note:'upper bound: ignores the angular gaps between treads' }
+    isolatedTread:maxInscribedRadius({ radiusInner:TREAD_R_I, radiusOuter:TREAD_R_EFF, halfAngleRad:treadHalfAngleRad }),
+    mergedRibbon:{ maxInscribedRadius:round((TREAD_R_EFF - TREAD_R_I) / 2), note:'upper bound: ignores the angular gaps between treads' }
   };
   report.treadGeometry.isolatedTread.survivesErosion = report.treadGeometry.isolatedTread.maxInscribedRadius >= report.treadGeometry.requiredWalkableRadius;
 
@@ -639,7 +676,7 @@ function synthStepTop(step) {
 }
 
 function syntheticTreadGeometry(angleCenterRad) {
-  const half = (D_THETA * 0.46) * DEG;
+  const half = (D_THETA * TREAD_OVERLAP) * DEG;
   const shape = new THREE.Shape();
   shape.absarc(0, 0, TREAD_R_O, angleCenterRad - half, angleCenterRad + half, false);
   shape.absarc(0, 0, TREAD_R_I, angleCenterRad + half, angleCenterRad - half, true);
