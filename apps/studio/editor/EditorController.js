@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
 export class EditorController {
-  constructor(runtime) {
+  constructor(runtime, { selectionOnRelease = false } = {}) {
     this.runtime = runtime;
     this.selectedId = null;
     this.raycaster = new THREE.Raycaster();
@@ -24,8 +24,19 @@ export class EditorController {
     this.transform.setRotationSnap(THREE.MathUtils.degToRad(5));
     runtime.scene.add(this.transform.getHelper());
 
-    this.onPointerDown = (event) => this.pick(event);
+    this.onPointerDown = (event) => {
+      if (!selectionOnRelease) return this.pick(event);
+      this.clickStart = event.button === 0 && !this.transform.axis ? { x:event.clientX, y:event.clientY, id:event.pointerId } : null;
+    };
+    this.onPointerUp = (event) => {
+      const start = this.clickStart;
+      this.clickStart = null;
+      if (start && start.id === event.pointerId && Math.hypot(event.clientX-start.x,event.clientY-start.y)<6) this.pick(event);
+    };
+    this.onPointerCancel = () => { this.clickStart = null; };
     this.element.addEventListener('pointerdown', this.onPointerDown);
+    this.element.addEventListener('pointerup', this.onPointerUp);
+    this.element.addEventListener('pointercancel', this.onPointerCancel);
 
     this.transform.addEventListener('dragging-changed', ({ value }) => {
       this.controls.enabled = !value;
@@ -112,6 +123,8 @@ export class EditorController {
 
   dispose() {
     this.element.removeEventListener('pointerdown', this.onPointerDown);
+    this.element.removeEventListener('pointerup', this.onPointerUp);
+    this.element.removeEventListener('pointercancel', this.onPointerCancel);
     this.transform.detach();
     this.transform.dispose();
     this.box.geometry.dispose();

@@ -13,7 +13,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     </option>`).join('');
 
   app.innerHTML = `
-    <main class="shell" data-world="${environmentDefinition.id}" data-context-view="create">
+    <main class="shell${environmentDefinition.worldFirst ? ' world-first' : ''}" data-world="${environmentDefinition.id}" data-context-view="create">
       <header class="brandbar">
         <div class="brand-lockup">
           <strong>AgentScape <em>Studio</em></strong>
@@ -117,6 +117,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
   let onLayoutChange = () => {};
 
   const setView = (view) => {
+    shell.classList.add('context-open');
     panel.dataset.view = view;
     shell.dataset.contextView = view;
     useStudioStore.getState().setActiveContextView(view);
@@ -142,6 +143,23 @@ export function createAppShell({ app, environmentDefinition, environments }) {
   runtimeStatus.addEventListener('click', () => runtimeRecoveryAction?.());
 
   tabs.forEach((tab) => tab.addEventListener('click', () => setView(tab.dataset.panelView)));
+  let dock = null;
+  if (environmentDefinition.worldFirst) {
+    dock = document.createElement('nav');
+    dock.className = 'world-dock';
+    dock.setAttribute('aria-label', '世界工具');
+    for (const [view, label] of [['world','返回世界'],['create','Build'],['task','Agent'],['resources','资源'],['inspect','Inspect'],['runs','记录']]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.addEventListener('click', () => {
+        if (view === 'world') shell.classList.remove('context-open');
+        else setView(view);
+      });
+      dock.append(button);
+    }
+    shell.append(dock);
+  }
   app.querySelector('#build-close-advanced')?.addEventListener('click', () => panel.classList.remove('build-advanced-open'));
   app.querySelector('#world-select').addEventListener('change', (event) => {
     const url = new URL(location.href);
@@ -157,6 +175,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
   return {
     shell,
     panel,
+    dock,
     scenePanel: app.querySelector('.scene-panel'),
     viewport: app.querySelector('#viewport'),
     commandForm,
@@ -165,6 +184,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     developerButton: app.querySelector('#open-developer'),
     developerDialog: app.querySelector('#developer-dialog'),
     setView,
+    worldFirst: Boolean(environmentDefinition.worldFirst),
     setRuntimeStatus,
     setRuntimeRecoveryAction,
     setLayoutChangeHandler(handler) { onLayoutChange = handler || (() => {}); }

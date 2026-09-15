@@ -233,8 +233,10 @@ export class StudioBuildController {
 
   async placeAsset(assetId) {
     if(!assetId) throw new Error('缺少可放置的 Asset ID');
-    if(!this.placement?.placeAtCenter) throw new Error('当前 Studio 没有配置资产放置控制器');
-    return this.placement.placeAtCenter(assetId);
+    // A pinned generation anchor wins; without one the asset still lands on the view center.
+    if(typeof this.placement?.placeAtAnchor==='function') return this.placement.placeAtAnchor(assetId);
+    if(typeof this.placement?.placeAtCenter==='function') return this.placement.placeAtCenter(assetId);
+    throw new Error('当前 Studio 没有配置资产放置控制器');
   }
 
   async openWorld(manifestArtifactId) {

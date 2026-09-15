@@ -15,6 +15,9 @@ import { ENVIRONMENTS, resolveEnvironment } from '../../modules/world/content/en
 import { loadGeneratedWorld, loadGeneratedWorldManifest } from '../../modules/world/loadGeneratedWorld.js';
 import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
 import { createAppShell } from './ui/AppShell.js';
+import { mountWorldContext } from './ui/WorldContext.js';
+import { createInlineEditors, CABIN_INLINE_EDITORS, mountWorldInteraction } from './ui/WorldInteraction.js';
+import { HumanViewController } from './ui/HumanViewController.js';
 import { TaskPanel } from './ui/task/TaskPanel.js';
 import { GeneratedPlacementDemoRunner } from './demos/generated-placement/GeneratedPlacementDemoRunner.js';
 import { mountObjectInspector } from './react/inspect/ObjectInspector.tsx';
@@ -22,6 +25,7 @@ import { RunsPanel } from './ui/runs/RunsPanel.js';
 import { ResourceLibrary } from './ui/resources/ResourceLibrary.js';
 import { DeveloperSettings } from './ui/developer/DeveloperSettings.js';
 import { mountSceneExplorer } from './react/scene/SceneExplorer.tsx';
+import { useStudioStore } from './react/state/studioStore.ts';
 import { mountBuildWorkbench } from './react/build/BuildWorkbench.tsx';
 import { mountArtifactTray } from './react/artifacts/ArtifactTray.tsx';
 import { BuildSession } from './build/BuildSession.js';
@@ -62,11 +66,13 @@ async function main() {
     : resolveEnvironment(params.get('world'));
   const environmentFactory = await environmentDefinition.load();
   const ui = createAppShell({ app, environmentDefinition, environments: ENVIRONMENTS });
+  const inlineDescriptors = environmentDefinition.cabin ? CABIN_INLINE_EDITORS : (environmentDefinition.inlineEditors || null);
+  const inlineEditorHost = inlineDescriptors ? createInlineEditors(ui.shell, inlineDescriptors) : null;
   ui.setRuntimeStatus('loading', '启动中');
   const capabilityStatus = await capabilityStatusPromise;
 
   const { world, generation } = createSession(ui.viewport, {
-    environmentFactory,
+    environmentFactory: options => environmentFactory({ ...options, editorHost:inlineEditorHost }),
     rendererMode: params.get('renderer') || 'auto',
     rendererTiming: params.get('gpuTiming') === '1',
     generation: {
@@ -77,14 +83,27 @@ async function main() {
   });
   world.generationState = await generation.initialize({ pair: false });
   await world.init();
+  let editorRef = null;
+  const humanView = ui.worldFirst
+    ? new HumanViewController({ world, ui, blockLook:() => Boolean(editorRef?.transform?.axis) })
+    : null;
   const runtimeDriver = new RuntimeDriver(world, {
-    syncInput: () => world.interactions?.setHumanViewPose(world.rendering?.viewPose?.() || null)
+    // The human view owns the camera while it is active; orbit keeps owning it otherwise.
+    syncInput: (frameTime) => {
+      humanView?.update(frameTime);
+      world.interactions?.setHumanViewPose(humanView?.viewPose?.() || world.rendering?.viewPose?.() || null);
+    }
   }).start();
-  window.addEventListener('beforeunload', () => { runtimeDriver.dispose(); world.dispose(); }, { once:true });
+  window.addEventListener('beforeunload', () => { humanView?.dispose(); runtimeDriver.dispose(); world.dispose(); }, { once:true });
 
   const tools = new AgentTools(world, { profile: 'builder', actor: 'agent_01' });
   const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });
-  const editor = new EditorController(world);
+  const editor = new EditorController(world, { selectionOnRelease: ui.worldFirst });
+  editorRef = editor;
+  const worldInteraction = mountWorldInteraction({ world, ui, editor, host:inlineEditorHost });
+  window.addEventListener('beforeunload',()=>worldInteraction?.dispose(),{once:true});
+  const worldContext = ui.worldFirst ? mountWorldContext({ world, editor, tools, ui }) : null;
+  window.addEventListener('beforeunload', () => worldContext?.dispose(), { once:true });
   const sceneExplorer = mountSceneExplorer({ root: ui.scenePanel, world, editor, environmentDefinition });
   const runsPanel = new RunsPanel({ root: ui.panel });
   let taskPanel = null;
@@ -110,6 +129,27 @@ async function main() {
     editor,
     log: (text, kind) => taskPanel.log(text, kind)
   });
+  // World-level entry for ground placement: the generated object lands where the user points.
+  if (ui.dock) {
+    const placementButton = document.createElement('button');
+    placementButton.type = 'button';
+    placementButton.id = 'generation-anchor';
+    placementButton.textContent = '生成落点';
+    placementButton.addEventListener('click', () => {
+      const ready = useStudioStore.getState().buildOutputs.find((output) => output.kind === 'asset');
+      if (ready && placement.armGroundPlacement(ready.primaryId)) {
+        taskPanel.log(`点击地面放置生成物：${ready.prompt || ready.primaryId}`, 'tool');
+        return;
+      }
+      if (placement.anchor) {
+        placement.clearAnchor();
+        taskPanel.log('已清除生成落点', 'result');
+        return;
+      }
+      placement.armGenerationAnchor();
+    });
+    ui.dock.append(placementButton);
+  }
   const openGeneratedWorld = async (manifestArtifactId) => {
     const nextEnvironment=await materializePersistedWorldEnvironment(world,manifestArtifactId);
     const result=await replaceStudioEnvironment(world,nextEnvironment,{reason:'studio-generated-world'});

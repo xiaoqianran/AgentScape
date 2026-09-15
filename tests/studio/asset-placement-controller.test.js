@@ -36,6 +36,8 @@ function harness({pose={checked:true,clear:true,blockedBy:[]}}={}) {
   return {controller,world,tools,editor,log,element,physics};
 }
 
+const groundSurface = () => ({ point:new THREE.Vector3(1, 0, 2), normal:new THREE.Vector3(0, 1, 0), object:null });
+
 describe('AssetPlacementController',()=>{
   it('derives a stable preview volume from manifest colliders',()=>{
     const bounds=placementBounds(assetManifests.cup);
@@ -75,6 +77,71 @@ describe('AssetPlacementController',()=>{
     expect(result).toMatchObject({status:'placement-blocked',assetId:'chair'});
     expect(tools.call).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(expect.stringContaining('无法放置 chair'),'error');
+    controller.dispose();
+  });
+
+  it('follows the real cursor with a ghost while armed for ground placement',()=>{
+    const {controller,physics}=harness();
+    controller.surfacePoint=groundSurface;
+    expect(controller.armGroundPlacement('chair')).toBe(true);
+    expect(controller.armMode).toBe('asset');
+    expect(controller.preview.group.visible).toBe(false);
+
+    controller.onArmMove({clientX:10,clientY:20,pointerId:1});
+    expect(controller.preview.group.visible).toBe(true);
+    expect(controller.preview.group.position.toArray()).toEqual([1,0.02,2]);
+    expect(physics.manifestPoseClear).toHaveBeenCalledWith(expect.objectContaining({id:'chair'}),[1,0.02,2]);
+    controller.dispose();
+  });
+
+  it('pins a ground anchor first and reuses it when the generated asset is placed',async()=>{
+    const {controller,tools,physics,log}=harness();
+    controller.surfacePoint=groundSurface;
+    expect(controller.armGenerationAnchor()).toBe(true);
+    expect(controller.armMode).toBe('anchor');
+    expect(controller.anchorMarker.group.visible).toBe(false);
+
+    controller.onArmMove({clientX:10,clientY:20,pointerId:1});
+    expect(controller.anchorMarker.group.visible).toBe(true);
+    expect(controller.anchorMarker.group.position.toArray()).toEqual([1,0.02,2]);
+
+    controller.onArmDown({button:0,clientX:10,clientY:20,pointerId:1});
+    controller.onArmUp({clientX:10,clientY:20,pointerId:1});
+    expect(controller.armMode).toBe(null);
+    expect(controller.anchor.position).toEqual([1,0.02,2]);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('生成落点已固定'),'result');
+
+    const result=await controller.placeAtAnchor('chair');
+    expect(result).toMatchObject({status:'placement-committed',assetId:'chair'});
+    expect(physics.manifestPoseClear).toHaveBeenCalledWith(expect.objectContaining({id:'chair'}),[1,0.02,2]);
+    expect(tools.call).toHaveBeenCalledWith('spawnAsset',{assetId:'chair',position:[1,0.02,2]});
+
+    expect(controller.clearAnchor()).toBe(true);
+    expect(controller.anchor).toBe(null);
+    controller.dispose();
+  });
+
+  it('stays armed after a blocked ground click so another spot can be chosen',async()=>{
+    const {controller,tools,log}=harness({pose:{checked:true,clear:false,blockedBy:['environment:$environment']}});
+    controller.surfacePoint=groundSurface;
+    controller.armGroundPlacement('chair');
+    controller.onArmDown({button:0,clientX:10,clientY:20,pointerId:1});
+    controller.onArmUp({clientX:10,clientY:20,pointerId:1});
+    await Promise.resolve();
+    expect(tools.call).not.toHaveBeenCalled();
+    expect(controller.armMode).toBe('asset');
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('无法放置 chair'),'error');
+    controller.dispose();
+  });
+
+  it('cancels an armed placement with Escape and clears the ghost resources',()=>{
+    const {controller,element}=harness();
+    controller.surfacePoint=groundSurface;
+    controller.armGenerationAnchor();
+    controller.onArmKeyDown({key:'Escape'});
+    expect(controller.armMode).toBe(null);
+    expect(controller.anchor).toBe(null);
+    expect(element.classList.contains('asset-placement-armed')).toBe(false);
     controller.dispose();
   });
 });

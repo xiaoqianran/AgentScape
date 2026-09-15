@@ -119,6 +119,18 @@ describe('StudioBuildController workflows',()=>{
     }));
   });
 
+  it('prefers a pinned ground anchor over the view center for generated assets',async()=>{
+    const placeAtAnchor=vi.fn(async()=>({status:'placement-committed'}));
+    const placeAtCenter=vi.fn(async()=>({status:'placement-committed'}));
+    const controller=new StudioBuildController({
+      world:{generation:{listGenerationCapabilities:()=>({capabilities:[]})}},
+      placement:{placeAtAnchor,placeAtCenter}
+    });
+    await controller.placeAsset('chair_01');
+    expect(placeAtAnchor).toHaveBeenCalledWith('chair_01');
+    expect(placeAtCenter).not.toHaveBeenCalled();
+  });
+
   it('projects World generation and delegates result actions without owning runtime logic',async()=>{
     const placeAtCenter=vi.fn(async()=>({status:'placed'}));
     const openGeneratedWorld=vi.fn(async()=>({status:'environment-ready'}));

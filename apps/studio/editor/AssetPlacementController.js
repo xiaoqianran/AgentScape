@@ -76,6 +76,37 @@ function createGhost(bounds) {
   return { group, mesh, geometry, material };
 }
 
+// A pinned generation anchor is a view-only marker: it reserves a ground point, nothing more.
+function createAnchorMarker() {
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x7ce0b0, wireframe: true, transparent: true, opacity: 0.85, depthTest: false, toneMapped: false
+  });
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), material);
+  box.position.y = 0.45;
+  box.renderOrder = 1000;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.03, 8, 32), material);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.03;
+  ring.renderOrder = 1000;
+  const group = new THREE.Group();
+  group.name = '$generation-anchor';
+  group.userData.editorPlacementGhost = true;
+  group.visible = false;
+  group.add(box, ring);
+  return { group, material, geometries: [box.geometry, ring.geometry] };
+}
+
+function createHint(mode) {
+  if (!globalThis.document) return null;
+  const hint = document.createElement('p');
+  hint.className = 'asset-placement-hint';
+  hint.setAttribute('role', 'status');
+  hint.textContent = mode === 'anchor'
+    ? '点击地面固定生成落点 · Esc 取消'
+    : '点击地面放置生成物 · Esc 取消';
+  return hint;
+}
+
 export class AssetPlacementController {
   constructor({ world, tools, editor = null, log = () => {} } = {}) {
     if (!world?.rendering?.viewport || !world?.assets || !world?.physics) throw new TypeError('AssetPlacementController requires initialized WorldRuntime');
@@ -97,6 +128,12 @@ export class AssetPlacementController {
     this.position = null;
     this.pose = null;
     this.surface = null;
+    this.armMode = null;
+    this.armStart = null;
+    this.hint = null;
+    this.anchor = null;
+    this.anchorMarker = createAnchorMarker();
+    world.scene.add(this.anchorMarker.group);
 
     this.onDragEnter = (event) => this.handleDragOver(event);
     this.onDragOver = (event) => this.handleDragOver(event);
@@ -105,6 +142,30 @@ export class AssetPlacementController {
       this.element.classList.remove('asset-drop-target');
     };
     this.onDrop = (event) => this.handleDrop(event);
+    this.onArmMove = (event) => {
+      if (this.armMode === 'asset') this.updateCandidate(event.clientX, event.clientY);
+      else this.updateAnchorCandidate(event.clientX, event.clientY);
+    };
+    this.onArmDown = (event) => {
+      this.armStart = event.button === 0 ? { x:event.clientX, y:event.clientY, id:event.pointerId } : null;
+    };
+    this.onArmUp = (event) => {
+      const start = this.armStart;
+      this.armStart = null;
+      if (!start || start.id !== event.pointerId || Math.hypot(event.clientX - start.x, event.clientY - start.y) >= 6) return;
+      if (this.armMode === 'asset') {
+        // A tap may arrive without any pointermove, so the candidate is refreshed here.
+        this.updateCandidate(event.clientX, event.clientY);
+        this.commit().catch((error) => this.log(`放置资产失败：${error.message}`, 'error'));
+        return;
+      }
+      this.pinAnchor(event.clientX, event.clientY);
+    };
+    this.onArmKeyDown = (event) => {
+      if (event.key !== 'Escape' || !this.armMode) return;
+      this.cancelDrag();
+      this.log('已取消放置', 'tool');
+    };
     this.element.addEventListener('dragenter', this.onDragEnter);
     this.element.addEventListener('dragover', this.onDragOver);
     this.element.addEventListener('dragleave', this.onDragLeave);
@@ -123,6 +184,93 @@ export class AssetPlacementController {
     this.preview.group.visible = false;
     this.world.events.emit('editor.asset-placement-started', { assetId:id });
     return true;
+  }
+
+  // Ground placement: the ghost follows the real cursor and only a real surface can commit.
+  armGroundPlacement(assetId) {
+    if (!this.beginDrag(assetId)) return false;
+    this.enterArmMode('asset');
+    return true;
+  }
+
+  // Generation anchor: the user picks the landing point before the asset exists.
+  armGenerationAnchor() {
+    this.cancelDrag();
+    this.enterArmMode('anchor');
+    return true;
+  }
+
+  enterArmMode(mode) {
+    this.exitArmMode();
+    this.armMode = mode;
+    this.hint = createHint(mode);
+    if (this.hint) this.element.parentElement?.append?.(this.hint);
+    this.element.classList.add('asset-placement-armed');
+    this.element.addEventListener('pointermove', this.onArmMove);
+    this.element.addEventListener('pointerdown', this.onArmDown);
+    this.element.addEventListener('pointerup', this.onArmUp);
+    globalThis.window?.addEventListener?.('keydown', this.onArmKeyDown);
+    this.world.events.emit('editor.asset-placement-armed', { mode, assetId:this.activeAssetId });
+    return true;
+  }
+
+  exitArmMode() {
+    if (!this.armMode) return false;
+    this.armMode = null;
+    this.armStart = null;
+    this.element.classList.remove('asset-placement-armed');
+    this.element.removeEventListener('pointermove', this.onArmMove);
+    this.element.removeEventListener('pointerdown', this.onArmDown);
+    this.element.removeEventListener('pointerup', this.onArmUp);
+    globalThis.window?.removeEventListener?.('keydown', this.onArmKeyDown);
+    this.hint?.remove?.();
+    this.hint = null;
+    return true;
+  }
+
+  updateAnchorCandidate(clientX, clientY) {
+    const surface = this.surfacePoint(clientX, clientY);
+    if (!surface) {
+      this.anchorMarker.group.visible = false;
+      return null;
+    }
+    const position = surface.point.clone().addScaledVector(surface.normal, CLEARANCE);
+    this.anchorMarker.group.position.copy(position);
+    this.anchorMarker.group.visible = true;
+    return position.toArray();
+  }
+
+  pinAnchor(clientX, clientY) {
+    const position = this.updateAnchorCandidate(clientX, clientY);
+    if (!position) return null;
+    this.anchor = { position, createdAt: Date.now() };
+    this.exitArmMode();
+    this.world.events.emit('editor.generation-anchor-pinned', { position:[...position] });
+    this.log(`生成落点已固定：${position.map((value) => value.toFixed(2)).join(', ')}`, 'result');
+    return this.anchor;
+  }
+
+  clearAnchor() {
+    if (!this.anchor) return false;
+    this.anchor = null;
+    this.anchorMarker.group.visible = false;
+    this.world.events.emit('editor.generation-anchor-cleared', {});
+    return true;
+  }
+
+  async placeAtAnchor(assetId) {
+    if (!this.anchor) return this.placeAtCenter(assetId);
+    if (!this.beginDrag(assetId)) return { status:'placement-cancelled', reason:'ASSET_NOT_FOUND' };
+    const position = [...this.anchor.position];
+    const pose = this.world.physics.manifestPoseClear(this.manifest, position);
+    const valid = pose.checked ? pose.clear : true;
+    this.position = position;
+    this.pose = { ...pose, valid };
+    this.preview.group.position.fromArray(position);
+    this.preview.material.color.setHex(pose.checked ? (valid ? 0x6ecf98 : 0xdf7f86) : 0xd9b36c);
+    this.preview.material.opacity = valid ? 0.72 : 0.9;
+    this.preview.group.visible = true;
+    return this.commit();
   }
 
   assetIdFromTransfer(dataTransfer) {
@@ -197,6 +345,7 @@ export class AssetPlacementController {
     if (!this.transferAcceptsAsset(event.dataTransfer)) return;
     event.preventDefault();
     event.stopPropagation();
+    this.exitArmMode();
     if (!this.activeAssetId) {
       const assetId = this.assetIdFromTransfer(event.dataTransfer);
       if (!assetId || !this.beginDrag(assetId)) return;
@@ -217,9 +366,11 @@ export class AssetPlacementController {
       const blockedBy = pose.blockedBy?.join(', ') || 'collision';
       this.log(`无法放置 ${assetId}：${blockedBy}`, 'error');
       this.world.events.emit('editor.asset-placement-blocked', { assetId, position, blockedBy:pose.blockedBy || [] });
-      this.cancelDrag();
+      // An armed ground placement stays armed so the user can pick another spot.
+      if (!this.armMode) this.cancelDrag();
       return { status:'placement-blocked', assetId, position, blockedBy:pose.blockedBy || [] };
     }
+    this.exitArmMode();
     this.clearPreview();
     this.activeAssetId = null;
     this.manifest = null;
@@ -258,6 +409,7 @@ export class AssetPlacementController {
   }
 
   cancelDrag() {
+    this.exitArmMode();
     if (this.activeAssetId) this.world.events.emit('editor.asset-placement-cancelled', { assetId:this.activeAssetId });
     this.clearPreview();
     this.activeAssetId = null;
@@ -270,6 +422,10 @@ export class AssetPlacementController {
 
   dispose() {
     this.cancelDrag();
+    this.clearAnchor();
+    this.world.scene.remove(this.anchorMarker.group);
+    for (const geometry of this.anchorMarker.geometries) geometry.dispose();
+    this.anchorMarker.material.dispose();
     this.element.removeEventListener('dragenter', this.onDragEnter);
     this.element.removeEventListener('dragover', this.onDragOver);
     this.element.removeEventListener('dragleave', this.onDragLeave);
