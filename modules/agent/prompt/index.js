@@ -16,16 +16,20 @@ For a request that explicitly requires a new generated background/world plus int
 runWorldPipeline is the canonical mutation/admission boundary. world-ready is verified; world-provisional remains unverified; world-rejected is failure. The Runtime may perform its own bounded missing-asset generation retry. Do not bypass canonical world admission by manually chaining low-level generation and spawn operations and then claiming completion.
 Persisted acceptance evidence is historical after restore. Use replayWorldAcceptance before relying on it. For a bounded rejected revision, use Runtime-issued proposeWorldRevision/recompileWorldRevision contracts rather than authoring base revision identity or Finding scope yourself.`;
 
-const EMBODIED_POLICY = `Prefer Runtime placement/navigation/interaction tools over guessed coordinates. For embodied movement use navigateTo; for open/close use approachAndInteract; for pickup use approachAndPickup; for placing a held object use approachAndPlace. These high-level tools own interaction-pose search, navigation, Physics checks, live completion, settle, and post-condition verification as documented by their tool contracts.
-When the task already names the actor and target, call the matching high-level embodied tool directly. For open/close, do not call listObjects, findInteractionPose, or navigateTo first; call approachAndInteract directly. For pickup, call approachAndPickup directly. For placing a currently held object onto a named support, call approachAndPlace directly. Use listObjects or diagnostic spatial tools only when an id/target is genuinely unknown, or after a high-level embodied action fails and diagnosis/recovery is required. Do not duplicate navigation already owned by a high-level embodied tool.
+const EMBODIED_POLICY = `Prefer Runtime placement/navigation/interaction tools over guessed coordinates. For ObjectStore assets, use navigateTo for embodied movement, approachAndInteract for open/close, approachAndPickup for pickup and approachAndPlace for placing a held object. These high-level tools own interaction-pose search, navigation, Physics checks, live completion, settle, and post-condition verification as documented by their tool contracts.
+When the task already names the actor and an ObjectStore asset target, call the matching high-level embodied tool directly. For open/close, do not call listObjects, findInteractionPose, or navigateTo first; call approachAndInteract directly. For pickup, call approachAndPickup directly. For placing a currently held object onto a named support, call approachAndPlace directly. Use listObjects or diagnostic spatial tools only when an id/target is genuinely unknown, or after a high-level embodied action fails and diagnosis/recovery is required. Do not duplicate navigation already owned by a high-level embodied tool.
 Do not reinterpret request-only articulation as completion. Do not confuse held ownership with grasp-force verification. Do not confuse supportId with the held object or surfaceId with an object id. Use low-level scene primitives only when the task actually requires low-level editing rather than embodied execution.`;
+
+const AFFORDANCE_POLICY = `An environment can also expose worldAffordances in the task observation. These objects are discovered with listWorldAffordances and inspected with inspectWorldAffordance; listObjects is only the ObjectStore asset index. For an environment affordance such as cabin:front-door, use executeWorldAction with its discovered action, not approachAndInteract or other asset-only tools. Respect reach and occlusion conditions. navigateTo may approach a reachable floor position near the observed target; the target's own position is not necessarily a standable floor point. Do not teleport to bypass blocked access. Report unsupported cross-floor access instead of inventing a route.
+Only world-action-completed with verified=true confirms this contract's state post-condition. physicsVerified=false and evidenceKind=animated-transform/device-state/text-state never mean force-verified articulation, pickup, support, or containment. Decorative click animations are not Agent capabilities. Discover actual ids and actions instead of guessing capability from appearance.`;
 
 export const AGENT_POLICIES = Object.freeze([
   BASE_POLICY,
   MUTATION_POLICY,
   RECOVERY_POLICY,
   WORLD_POLICY,
-  EMBODIED_POLICY
+  EMBODIED_POLICY,
+  AFFORDANCE_POLICY
 ]);
 
 export function buildAgentSystemPrompt(toolDefinitions=[]) {

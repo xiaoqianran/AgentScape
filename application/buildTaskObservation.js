@@ -85,6 +85,10 @@ export function buildTaskObservation(runtime, {
   }
 
   const articulation = [];
+  if(runtime.affordances?.contracts().length) {
+    observation.worldAffordances={count:runtime.affordances.contracts().length,discoverWith:'listWorldAffordances',lastResult:runtime.affordances.lastResult?structuredClone(runtime.affordances.lastResult):null};
+    observation.worldAffordances.focus=ids.map(id=>runtime.affordances.inspect(id,{actorId:actor})).filter(Boolean);
+  }
   for (const id of ids) {
     if (!runtime.store?.has(id)) continue;
     const parts = runtime.store.get(id).manifest?.parts || {};

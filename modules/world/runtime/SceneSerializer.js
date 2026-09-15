@@ -40,6 +40,7 @@ export class SceneSerializer {
         savedAt: new Date().toISOString(),
         generator: `AgentScape/${runtime.version || 'unknown'}`,
         environment: runtime.environment?.id || null,
+        ...(runtime.environment?.snapshot ? {environmentState:clone(runtime.environment.snapshot())} : {}),
         ...(worldRevision?{worldRevision}:{})
       },
       assets,
@@ -103,6 +104,8 @@ export class SceneSerializer {
     for (const item of scene.objects) {
       if (!runtime.assets.has(item.assetId)) throw new Error(`Scene references unknown asset: ${item.assetId}`);
     }
+    if(scene.metadata?.environmentState)runtime.environment?.validateSnapshot?.(scene.metadata.environmentState);
+    runtime.affordances?.cancel('SCENE_RESTORE');
 
     if (typeof runtime.physics?.resetWorld === 'function') {
       runtime.locomotion?.cancelAll?.();
@@ -130,6 +133,8 @@ export class SceneSerializer {
       runtime.sceneGraph.changed();
     });
 
+    if(scene.metadata?.environmentState) runtime.environment?.restore?.(scene.metadata.environmentState);
+    runtime.navigation?.invalidate?.('scene-restored');
     if (scene.camera) runtime.rendering?.applyCameraState?.(scene.camera);
     runtime.currentWorldRevision=scene.metadata?.worldRevision ? clone(scene.metadata.worldRevision) : null;
     runtime.restoredAcceptanceEvidence=scene.verification?.acceptanceEvidence ? clone(scene.verification.acceptanceEvidence) : null;

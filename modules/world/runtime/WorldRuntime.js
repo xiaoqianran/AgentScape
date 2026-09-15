@@ -23,6 +23,7 @@ import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
 import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
 import { SimulationSession } from './simulation/SimulationSession.js';
+import { WorldAffordances } from './interaction/WorldAffordances.js';
 import { physicsManifestForUniformScale, scalesEqual, uniformScaleValue } from './ObjectTransform.js';
 installThreeBvhRuntime();
 
@@ -41,6 +42,7 @@ export class WorldRuntime {
     if (typeof navigationBackendFactory !== 'function') throw new TypeError('WorldRuntime navigationBackendFactory must be a function');
     if (rendererFactory !== null && typeof rendererFactory !== 'function') throw new TypeError('WorldRuntime rendererFactory must be a function');
     this.version = '1.34.2';
+    this.affordances = new WorldAffordances(this);
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.assetModule = assetModule;
@@ -118,6 +120,7 @@ export class WorldRuntime {
   }
 
   teardownEnvironmentSystems(reason='ENVIRONMENT_REPLACED') {
+    this.affordances?.cancel(reason);
     this.interactions?.cancelPending(reason);
     this.locomotion?.cancelAll(reason);
     this.navigation?.dispose();
@@ -446,6 +449,8 @@ export class WorldRuntime {
 
   listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
   stepSimulation(dt) {
+    this.environment?.step?.(dt,{physics:this.physics,navigation:this.navigation});
+    this.affordances?.update(dt);
     this.locomotion?.update(dt);
     if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate();
     this.interactions?.update(dt);
@@ -453,6 +458,7 @@ export class WorldRuntime {
   renderingDiagnostics() { return this.rendering?.diagnostics?.() || null; }
   resize() { return this.rendering?.resize?.() ?? false; }
   dispose() {
+    this.affordances?.cancel('RUNTIME_DISPOSED');
     this.interactions?.cancelPending('RUNTIME_DISPOSED');
     for (const [id, record] of this.store.list()) {
       this.physics.remove(id);

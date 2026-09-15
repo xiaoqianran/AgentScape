@@ -228,6 +228,12 @@ export class PhysicsSystem {
     return this.addEnvironment([{ shape:'box', halfExtents:[5, 0.1, 4], translation:[0, -0.1, 0] }]);
   }
 
+  setEnvironmentPose(body, pose) {
+    if (!this.solverEnabled || !body) return false;
+    this.backend.setBodyPose(body, pose);
+    return true;
+  }
+
   addColliders(body, colliders = [], mass, friction, provenance = null) {
     if (!this.solverEnabled || !body || !this.backend.hasCapability('collision')) return [];
     const created=this.backend.createColliders(this.world,body,colliders,{mass,friction});
@@ -993,6 +999,7 @@ export class PhysicsSystem {
       id:owner?.id || null,
       part:owner?.part || null,
       environment:!owner,
+      provenance:this.provenanceOfCollider(hit.collider),
       distance:hit.timeOfImpact,
       point:[
         origin[0] + normalized[0] * hit.timeOfImpact,

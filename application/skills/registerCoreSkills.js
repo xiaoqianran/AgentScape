@@ -8,6 +8,7 @@ import { registerRecoverySkills } from './packs/recoverySkills.js';
 import { registerVerificationSkills } from './packs/verificationSkills.js';
 import { registerBatchSkills } from './packs/batchSkills.js';
 import { registerWorldSkills } from './packs/worldSkills.js';
+import { registerAffordanceSkills } from './packs/affordanceSkills.js';
 
 export function registerCoreSkills(registry,runtime,{worldBuilder,promptHybridWorldOrchestrator} = {}) {
   const add=(name,options,handler)=>registry.register({name,...options,handler});
@@ -16,6 +17,7 @@ export function registerCoreSkills(registry,runtime,{worldBuilder,promptHybridWo
   registerSceneSkills(add,runtime);
   registerSpatialSkills(add,runtime);
   registerInteractionSkills(add,runtime);
+  registerAffordanceSkills(add,runtime);
   registerAcceptanceSkills(add,runtime);
   registerRecoverySkills(add,runtime);
   registerVerificationSkills(add,runtime);

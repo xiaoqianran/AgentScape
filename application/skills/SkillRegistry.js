@@ -25,6 +25,8 @@ function classifyResult(result) {
     if (result.committed === true && result.rolledBack === false) return { state:'verified', verified:true, status:'committed' };
     const status = typeof result.status === 'string' ? result.status : null;
     if (status) {
+      if(status==='world-action-completed') return result.verified===true && typeof result.evidenceKind==='string' && result.after
+        ? {state:'verified',verified:true,status} : {state:'unverified',verified:false,status,reason:'POST_CONDITION_NOT_VERIFIED'};
       if (VERIFIED_STATUSES.has(status)) {
         const contractVerified = status === 'action-completed'
           ? result.targetReached === true && result.settled === true
