@@ -3,7 +3,7 @@ import { DEFAULT_ENVIRONMENT, ENVIRONMENTS, resolveEnvironment } from '../../mod
 
 describe('Environment catalog',()=>{
   it('keeps curated worlds as content metadata instead of Runtime branches',()=>{
-    expect(ENVIRONMENTS.map((item)=>item.id)).toEqual(['monument-hall','ruined-courtyard','grand-urban-block']);
+    expect(ENVIRONMENTS.map((item)=>item.id)).toEqual(['magic-cabin','woodland-workshop','monument-hall','ruined-courtyard','grand-urban-block']);
     expect(new Set(ENVIRONMENTS.map((item)=>item.id)).size).toBe(ENVIRONMENTS.length);
     for(const item of ENVIRONMENTS){
       expect(typeof item.load).toBe('function');
@@ -28,6 +28,7 @@ describe('Environment catalog',()=>{
 
   it('requires every curated environment pack to expose deterministic composer layout bounds',async()=>{
     for(const definition of ENVIRONMENTS){
+      if (definition.cabin) continue; // Canvas-backed content is exercised with a scoped host in magic-cabin.test.js.
       const factory=await definition.load();
       const world=factory({loadAssets:false});
       expect(world.layout).toMatchObject({

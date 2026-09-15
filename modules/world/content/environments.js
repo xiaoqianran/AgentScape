@@ -1,5 +1,26 @@
 export const ENVIRONMENTS = Object.freeze([
   Object.freeze({
+    id:'magic-cabin',number:'世界 05',title:'魔女小屋 · 原版迁移',headline:'走进原来的二层小屋。',
+    description:'原版线稿小屋：旋转楼梯、两层生活空间、门窗、书籍、魔法陈设与原地编辑。',
+    facts:['原版双层房屋','丰富物件交互','世界优先'],worldFirst:true,cabin:true,
+    load:()=>import('./magicCabin.js').then(module=>module.createMagicCabin),
+    bootstrap:{agent:[6,0,-5],table:[7,0,2],cabinet:[7,0,5],cup:[7.35,1.4,2]},
+    coffeeCorner:{table:[7,0,2],cabinet:[7,0,5]}
+  }),
+  Object.freeze({
+    id:'woodland-workshop', number:'世界 04', title:'林间工坊', headline:'在世界里，开始创造。',
+    description:'开放式工坊与林间庭院。点选物体直接操作，按需打开构建与检查工具。',
+    facts:['世界优先交互','真实物理资产','开放式工坊'],
+    worldFirst:true,
+    inlineEditors:[
+      { id:'board', label:'告示板文字', maxLength:24 },
+      { id:'sign', label:'木牌文字', maxLength:12 }
+    ],
+    load:()=>import('./woodlandWorkshop.js').then(module=>module.createWoodlandWorkshop),
+    bootstrap:{agent:[0,0,3],table:[2.5,0,-3],cabinet:[-3,0,-5],cup:[2.85,1.4,-3]},
+    coffeeCorner:{table:[2.5,0,-3],cabinet:[-3,0,-5]}
+  }),
+  Object.freeze({
     id:'monument-hall', number:'世界 01', title:'纪念大厅', headline:'为智能留出空间。',
     description:'一个 32 × 24 米的纪念性空间，物理、导航与智能体行为共享同一个现实世界。',
     facts:['RAPIER 物理引擎','RECAST / DETOUR 导航','智能体就绪资产'],
@@ -26,5 +47,5 @@ export const ENVIRONMENTS = Object.freeze([
 ]);
 
 const byId=new Map(ENVIRONMENTS.map((value)=>[value.id,value]));
-export const DEFAULT_ENVIRONMENT=ENVIRONMENTS[0];
+export const DEFAULT_ENVIRONMENT=ENVIRONMENTS.find(value=>value.id==='monument-hall');
 export const resolveEnvironment=(id)=>byId.get(id)||DEFAULT_ENVIRONMENT;
