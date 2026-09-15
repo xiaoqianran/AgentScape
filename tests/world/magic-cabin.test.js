@@ -75,11 +75,13 @@ describe('migrated original magic cabin',()=>{
     const cabin=createMagicCabin(cabinCanvasHost());
     const navigation=createRecastNavigationSystem({store:new ObjectStore(),environmentRoots:[cabin.root]});
     try {
-      expect((await navigation.findPath([0,0,6],[2,0,-2])).reachable).toBe(false);
+      expect((await navigation.findPath([0,0,6],[0,0,2])).reachable).toBe(false);
       cabin.interactions.find(item=>item.label.includes('大门')).activate();
       for(let i=0;i<180;i++) cabin.step(1/60);
       navigation.invalidate('door-opened');
-      expect((await navigation.findPath([0,0,6],[2,0,-2])).reachable).toBe(true);
+      expect((await navigation.findPath([0,0,6],[0,0,2])).reachable).toBe(true);
+      expect((await navigation.findPath([0,0,6],[-2,3.12,0])).reachable).toBe(true);
+      expect((await navigation.findPath([-2,3.12,0],[0,0,6])).reachable).toBe(true);
       expect((await navigation.findPath([2,3.12,-1],[-2,3.12,0])).reachable).toBe(true);
     } finally {navigation.dispose();cabin.dispose();}
   },30000);

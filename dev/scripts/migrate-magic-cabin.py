@@ -49,6 +49,40 @@ body = must_replace(
     "for (const hy of [RAIL_H, 0.45]) { const pts = []; for (let deg = 60; deg <= 300; deg += 5) { const th = deg * D2R; pts.push([Math.sin(th) * RAIL_R, FLOOR_TOP + hy, Math.cos(th) * RAIL_R]); } put(line(pts), 0, 0, 0); }",
     "for (const hy of [RAIL_H, 0.45]) { const pts = []; for (let deg = 60; deg <= 300; deg += 5) { const th = deg * D2R; pts.push(new THREE.Vector3(Math.sin(th) * RAIL_R, FLOOR_TOP + hy, Math.cos(th) * RAIL_R)); } put(edge(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 72, 0.035, 6, false)), 0, 0, 0); }",
     'upper-floor guard rail collider')
+# The spiral staircase was authored for looks. At agentRadius 0.30 m a single tread's largest
+# inscribed circle is 0.146 m, so no tread can hold a walkable cell and the whole flight baked to
+# zero triangles. Widen the tread overlap, push the treads further out radially and enlarge the slab
+# opening so consecutive treads merge into a ribbon that survives erosion. Ten steps at 0.284 m also
+# keeps the riser inside maxClimb = 0.30 m, which fourteen steps did only by a wide margin.
+body = must_replace(
+    body,
+    'const STAIR_N = 14;',
+    'const STAIR_N = 10;',
+    'stair step count')
+body = must_replace(
+    body,
+    'const dTheta = 270 / N; const rI = 0.14, rO = 1.1;',
+    'const dTheta = 270 / N; const rI = 0.14, rO = 1.9;',
+    'stair tread radii')
+body = must_replace(
+    body,
+    'const treadHalf = dTheta * 0.46;',
+    'const treadHalf = dTheta * 0.52;',
+    'stair tread overlap')
+# The walkable band is capped at min(rO, HOLE_R) because the slab sits overhead beyond the opening,
+# so the opening has to grow with the treads or the wider flight still bakes away.
+body = must_replace(
+    body,
+    'const HOLE_R = 1.2, FLOOR_TOP = 3.12;',
+    'const HOLE_R = 1.7, FLOOR_TOP = 3.12;',
+    'upper-floor opening radius')
+# The rail ring used to hug the old 1.2 m opening; move it out with the opening. The arcs are rebuilt
+# from RAIL_R below, so changing the declaration is enough.
+body = must_replace(
+    body,
+    'const RAIL_R = 1.24, RAIL_H = 0.85',
+    'const RAIL_R = 1.74, RAIL_H = 0.85',
+    'upper-floor rail ring radius')
 # Preserve stable source variable names for otherwise unlabeled interactive objects.
 labels = {
     'orbG':'转动星象仪','potG':'拔出 / 塞回药剂瓶塞','corkG':'拔出 / 塞回瓶塞',

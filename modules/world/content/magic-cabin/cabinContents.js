@@ -198,7 +198,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
             put(new THREE.Mesh(new THREE.PlaneGeometry(28, 28), FILL), 0, -0.01, 0, -Math.PI / 2, 0, 0);
             for (let z = -9; z <= 9; z += 1.5) put(line([[-10, 0.01, z], [10, 0.01, z]]), 0, 0, 0);
 
-            const HOLE_R = 1.2, FLOOR_TOP = 3.12;
+            const HOLE_R = 1.7, FLOOR_TOP = 3.12;
             const DOOR_HOLE = { c: 0, hw: 0.78, y0: 0, y1: 2.35 };
             const WIN_F_L = { c: -2.4, hw: 0.58, y0: 1.1, y1: 2.1 };
             const WIN_F_R = { c: 2.4, hw: 0.58, y0: 1.1, y1: 2.1 };
@@ -302,7 +302,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
             const landingGeo = new THREE.ExtrudeGeometry(landingShape, { depth: 0.12, bevelEnabled: false, curveSegments: 10 });
             landingGeo.rotateX(Math.PI / 2); put(edge(landingGeo), 0, FLOOR_TOP + 0.01, 0);
 
-            const RAIL_R = 1.24, RAIL_H = 0.85, D2R = Math.PI / 180;
+            const RAIL_R = 1.74, RAIL_H = 0.85, D2R = Math.PI / 180;
             for (let deg = 60; deg <= 300; deg += 30) { const th = deg * D2R; put(edge(new THREE.CylinderGeometry(0.025, 0.025, RAIL_H, 6)), Math.sin(th) * RAIL_R, FLOOR_TOP + RAIL_H / 2, Math.cos(th) * RAIL_R, 0, 0, 0); }
             for (const hy of [RAIL_H, 0.45]) { const pts = []; for (let deg = 60; deg <= 300; deg += 5) { const th = deg * D2R; pts.push(new THREE.Vector3(Math.sin(th) * RAIL_R, FLOOR_TOP + hy, Math.cos(th) * RAIL_R)); } put(edge(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 72, 0.035, 6, false)), 0, 0, 0); }
             const eX = Math.sin(60 * D2R), eZ = Math.cos(60 * D2R);
@@ -411,14 +411,16 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
             const magicMeshes = [];
             function regMagic(o, onClick) { o.userData.onClick = onClick; o.traverse(m => { if (m.isMesh && !m.userData.noHit) { m.userData.magicRoot = o; magicMeshes.push(m); } }); return o; }
 
-            const STAIR_N = 14;
+            const STAIR_N = 10;
             function buildStairs() {
-                const g = new THREE.Group(); const N = STAIR_N; const riseTotal = FLOOR_TOP; const stepH = riseTotal / (N + 1); const dTheta = 270 / N; const rI = 0.14, rO = 1.1; const railH = 0.85, rPost = rO - 0.07; const treadHalf = dTheta * 0.46; const thick = 0.06;
+                const g = new THREE.Group(); const N = STAIR_N; const riseTotal = FLOOR_TOP; const stepH = riseTotal / (N + 1); const dTheta = 270 / N; const rI = 0.14, rO = 1.9; const railH = 0.85, rPost = rO - 0.07; const treadHalf = dTheta * 0.52; const thick = 0.06;
                 put(log(FLOOR_TOP + RAIL_H, 0.08), 0, (FLOOR_TOP + RAIL_H) / 2, 0, 0, 0, 0, g);
                 function treadGeo(a0, a1) { const s = new THREE.Shape(); s.moveTo(rI * Math.sin(a0), rI * Math.cos(a0)); s.lineTo(rO * Math.sin(a0), rO * Math.cos(a0)); const nSeg = 5; for (let j = 1; j <= nSeg; j++) { const a = a0 + (a1 - a0) * j / nSeg; s.lineTo(rO * Math.sin(a), rO * Math.cos(a)); } s.lineTo(rI * Math.sin(a1), rI * Math.cos(a1)); s.closePath(); const gg = new THREE.ExtrudeGeometry(s, { depth: thick, bevelEnabled: false }); gg.rotateX(Math.PI / 2); gg.translate(0, thick, 0); return gg; }
                 const thetaEnd = -60 - dTheta / 2; const railPts = [];
                 for (let k = 0; k < N; k++) { const thDeg = thetaEnd - (N - 1 - k) * dTheta; const th = thDeg * D2R; const yTop = (k + 1) * stepH; const tread = edge(treadGeo(th - treadHalf * D2R, th + treadHalf * D2R)); tread.position.y = yTop - thick; g.add(tread); const norm = ((thDeg % 360) + 360) % 360; const underPlatform = (norm <= 60 || norm >= 300) && (yTop + railH > FLOOR_TOP - 0.1); if (!underPlatform) { put(edge(new THREE.CylinderGeometry(0.02, 0.02, railH, 6)), rPost * Math.sin(th), yTop + railH / 2, rPost * Math.cos(th), 0, 0, 0, g); } railPts.push(V(rPost * Math.sin(th), yTop + railH, rPost * Math.cos(th))); }
-                g.add(edge(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts), 64, 0.03, 6, false))); return g;
+                g.add(edge(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts), 64, 0.03, 6, false)));
+                
+                return g;
             }
             const stairs = buildStairs(); scene.add(stairs); architectureRoots.push(stairs);
 
