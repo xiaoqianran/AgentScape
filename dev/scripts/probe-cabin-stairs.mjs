@@ -497,6 +497,108 @@ try {
     }
   }
 
+  // Phase 7: validate the fix in situ. Rebuild the staircase inside the real cabin and bake the whole
+  // cabin again, so the test includes the walls, the upper-floor slab and the opening.
+  // The spec keeps radiusOuter at 1.10 so the slab opening (HOLE_R) still clears, and satisfies
+  // radiusOuter * sin(halfAngle) >= agentRadius. Only stairN, the sweep and the tread overlap change.
+  {
+    const spec = { stairN:11, sweepDeg:360, overlapFactor:0.52, radiusInner:TREAD_R_I, radiusOuter:TREAD_R_O, railHeight:0.85, thickness:0.06 };
+    const dThetaDeg = spec.sweepDeg / spec.stairN;
+    const halfAngleRad = spec.overlapFactor * dThetaDeg * DEG;
+    const riser = FLOOR_TOP / (spec.stairN + 1);
+    const startDeg = -60 - dThetaDeg / 2;
+    const postRadius = spec.radiusOuter - 0.07;
+    const angleAt = (step) => (startDeg - (spec.stairN - 1 - step) * dThetaDeg) * DEG;
+    const pointOnTread = (step, radius = 0.62) => {
+      const th = angleAt(step);
+      return [round(radius * Math.sin(th)), round((step + 1) * riser - 0.03), round(radius * Math.cos(th))];
+    };
+
+    // Same construction as the migrated buildStairs(), with the constants lifted into the spec.
+    const treadGeometry = (a0, a1) => {
+      const shape = new THREE.Shape();
+      shape.moveTo(spec.radiusInner * Math.sin(a0), spec.radiusInner * Math.cos(a0));
+      shape.lineTo(spec.radiusOuter * Math.sin(a0), spec.radiusOuter * Math.cos(a0));
+      const segments = 5;
+      for (let j = 1; j <= segments; j += 1) {
+        const a = a0 + (a1 - a0) * j / segments;
+        shape.lineTo(spec.radiusOuter * Math.sin(a), spec.radiusOuter * Math.cos(a));
+      }
+      shape.lineTo(spec.radiusInner * Math.sin(a1), spec.radiusInner * Math.cos(a1));
+      shape.closePath();
+      const geometry = new THREE.ExtrudeGeometry(shape, { depth:spec.thickness, bevelEnabled:false });
+      geometry.rotateX(Math.PI / 2);
+      geometry.translate(0, spec.thickness, 0);
+      return geometry;
+    };
+
+    const rebuilt = new THREE.Group();
+    rebuilt.name = 'rebuilt-stairs';
+    const railPoints = [];
+    for (let k = 0; k < spec.stairN; k += 1) {
+      const th = angleAt(k);
+      const thDeg = startDeg - (spec.stairN - 1 - k) * dThetaDeg;
+      const yTop = (k + 1) * riser;
+      const tread = new THREE.Mesh(treadGeometry(th - halfAngleRad, th + halfAngleRad));
+      tread.position.y = yTop - spec.thickness;
+      rebuilt.add(tread);
+      const norm = ((thDeg % 360) + 360) % 360;
+      const underPlatform = (norm <= 60 || norm >= 300) && (yTop + spec.railHeight > FLOOR_TOP - 0.1);
+      if (!underPlatform) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, spec.railHeight, 6));
+        post.position.set(postRadius * Math.sin(th), yTop + spec.railHeight / 2, postRadius * Math.cos(th));
+        rebuilt.add(post);
+        railPoints.push(new THREE.Vector3(postRadius * Math.sin(th), yTop + spec.railHeight, postRadius * Math.cos(th)));
+      }
+    }
+    const newel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, FLOOR_TOP + spec.railHeight, 12));
+    newel.position.set(0, (FLOOR_TOP + spec.railHeight) / 2, 0);
+    rebuilt.add(newel);
+    if (railPoints.length > 1) {
+      rebuilt.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPoints), 64, 0.03, 6, false)));
+    }
+
+    const stairParent = stairGroupEntry ? stairGroupEntry.node.parent : null;
+    if (stairParent) {
+      stairParent.remove(stairGroupEntry.node);
+      stairParent.add(rebuilt);
+    }
+
+    const system = new NavigationSystem({ store, environmentRoots:[cabin.root], backend:new RecastNavigationBackend() });
+    try {
+      const middleStep = Math.floor(spec.stairN / 2);
+      report.rebuiltInCabin = {
+        spec,
+        replacementApplied:Boolean(stairParent),
+        derived:{
+          riser:round(riser),
+          riserWithinClimb:riser <= 0.3,
+          dThetaDeg:round(dThetaDeg),
+          halfAngleDeg:round(halfAngleRad / DEG),
+          tangentialHalfWidthAtOuter:round(spec.radiusOuter * Math.sin(halfAngleRad)),
+          analyticInscribedRadius:maxInscribedRadius({ radiusInner:spec.radiusInner, radiusOuter:spec.radiusOuter, halfAngleRad }).maxInscribedRadius,
+          slabOpeningRadius:HOLE_R,
+          radialClearance:round(HOLE_R - spec.radiusOuter)
+        },
+        baselineCrossFloor:report.cases['1F-inside -> 2F'],
+        baselineHistogram:report.navMesh.yHistogram,
+        cases:{
+          'outside -> 1F-inside':summarize(await system.findPath([0, 0, 6], inside)),
+          '1F-inside -> 2F':summarize(await system.findPath(inside, upper)),
+          '2F -> 1F-inside':summarize(await system.findPath(upper, inside)),
+          '1F-inside -> stair-mid(k5)':summarize(await system.findPath(inside, pointOnTread(middleStep))),
+          'stair-mid(k5) -> stair-top(k10)':summarize(await system.findPath(pointOnTread(middleStep), pointOnTread(spec.stairN - 1))),
+          '1F-inside -> stair-top(k10)':summarize(await system.findPath(inside, pointOnTread(spec.stairN - 1)))
+        },
+        navMesh:navMeshStats(system)
+      };
+      report.rebuiltInCabin.midHeightsPresent = ['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50']
+        .reduce((tally, key) => { tally[key] = report.rebuiltInCabin.navMesh.yHistogram[key] || 0; return tally; }, {});
+    } finally {
+      system.dispose();
+    }
+  }
+
   report.status = 'completed';
 } catch (error) {
   report.status = 'failed';
