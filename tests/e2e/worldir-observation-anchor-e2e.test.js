@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';
 import { SceneGraph } from '../../modules/world/runtime/graph/SceneGraph.js';
@@ -8,7 +9,8 @@ import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.
 import { createCanonicalWorldPipeline } from '../../modules/world/compiler/createWorldPipeline.js';
 
 it('compiles WorldIR cup NEAR an observed generated-world bench before spawn without objectizing the bench',async()=>{
-  const assets=new AssetManager();
+  const assets=new AssetRegistry();
+  const assetLoader=new AssetLoader({registry:assets});
   const store=new ObjectStore();
   const scene=new THREE.Scene();
   const spatial=new SpatialSystem({store,scene});
@@ -29,10 +31,10 @@ it('compiles WorldIR cup NEAR an observed generated-world bench before spawn wit
   });
   const spawned=[];
   const runtime={
-    events:null,trace:null,assets,store,scene,spatial,sceneGraph,physics,
+    events:null,trace:null,assetRegistry:assets,assetLoader,store,scene,spatial,sceneGraph,physics,
     environment:{id:'generated-garden',layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
     spawn:async(assetId,{id,position,initialState=null}={})=>{
-      const {object,manifest}=await assets.instantiate(assetId);
+      const {object,manifest}=await assetLoader.instantiate(assetId);
       object.position.fromArray(position); object.updateWorldMatrix(true,true); scene.add(object);
       store.add(id,{id,assetId,object,manifest,state:{}}); physics.addObject(id,manifest,object);
       spawned.push({id,assetId,position:[...position],initialState}); sceneGraph.changed(); return id;

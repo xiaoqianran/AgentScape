@@ -157,7 +157,7 @@ AssetCompiler
 Agent-Ready Manifest + optimized GLB
    │
    ▼
-AssetManager
+AssetRegistry / AssetLoader
    │
    ▼
 WorldRuntime / Rapier

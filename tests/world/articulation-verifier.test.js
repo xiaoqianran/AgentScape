@@ -23,7 +23,7 @@ it('verifies a prismatic part by executing both action targets in an isolated Ra
       return { object:root, manifest };
     }
   };
-  const report = await new ArticulationVerifier({ assets, steps:240 }).verify('slider');
+  const report = await new ArticulationVerifier({ assetRegistry:assets, assetLoader:assets, steps:240 }).verify('slider');
   expect(report.ok).toBe(true);
   expect(report.parts[0].jointType).toBe('prismatic');
   expect(report.parts[0].actions).toHaveLength(2);

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AssetCatalog } from '../../modules/asset/AssetCatalog.js';
-import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
 import { createCanonicalWorldPipeline } from '../../modules/world/compiler/createWorldPipeline.js';
 
 const readyManifest = (id, type = 'object') => ({
@@ -13,15 +13,15 @@ const readyManifest = (id, type = 'object') => ({
 });
 
 const runtime = () => {
-  const assets = new AssetManager({ manifests: {} });
+  const assets = new AssetRegistry({ manifests: {} });
   assets.registerManifest(readyManifest('table_fixture', 'table'));
-  const assetCatalog = new AssetCatalog({ assetManager: assets });
+  const assetCatalog = new AssetCatalog({ registry: assets });
   const authoring = { resolveAssetRequest: vi.fn(() => { throw new Error('canonical World must not call legacy authoring'); }) };
   const spawned = [];
   return {
     events: null,
     trace: null,
-    assets,
+    assetRegistry:assets,
     assetCatalog,
     authoring,
     environment: { layout: { bounds: { min: [-4, -4], max: [4, 4] }, groundY: 0, margin: .5 } },

@@ -28,7 +28,7 @@ export function registerSpatialSkills(add,runtime) {
   add('planAssetNearObservedEntity', meta('为已注册资产规划一个靠近 Generated World 观测实例、且经当前 Physics Environment 碰撞预检通过的位置。这里只规划，不实例化；真正生成对象仍必须调用 spawnAsset。', ['asset.read','world.read','spatial.read'], ['assetId','id'], { assetId:string, id:string, distance:{type:'number',minimum:0}, maxDistance:{type:'number',minimum:0} }), (a) => {
     const observed=observedEntity(a.id);
     if (!observed) return {status:'observed-entity-missing',id:a.id};
-    const manifest=runtime.assets.getManifest(a.assetId);
+    const manifest=runtime.assetRegistry.getManifest(a.assetId);
     const result=composeObservedNearPlacement(manifest,observed,{
       layout:runtime.environment?.layout,
       poseClear:(candidate,position)=>runtime.physics.checkManifestPose(candidate,position),

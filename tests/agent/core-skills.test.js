@@ -17,7 +17,7 @@ function runtime() {
     clearObjects:vi.fn(async()=>{}),loadRuleGraph:vi.fn(),
     assetCatalog: { list:()=>[], search:()=>[], summary:(x)=>x },
     generation: { canGenerateAsset:()=>false, generateAsset:async(prompt)=>({status:'generator_not_configured',prompt}) },
-    assets: {
+    assetRegistry: {
       registerManifest:vi.fn(),has:()=>true,
       getManifest:vi.fn((id)=>({id,type:'object',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[]}}))
     },
@@ -68,13 +68,13 @@ describe('core skills', () => {
     const r=runtime();
     const registry=registerCoreSkills(new SkillRegistry({policy:r.policy,trace:r.trace,runtime:r}),r,{worldBuilder:r.worldBuilder});
 
-    r.assets.getManifest=vi.fn(()=>({id:'eg',type:'object',source:{kind:'glb',url:'https://assets.test/eg.glb'},actions:['move'],physics:{body:'dynamic',colliders:[]},provenance:{admission:{status:'provisional',reasons:['UNVERIFIED_PROVIDER_SEMANTICS']}}}));
+    r.assetRegistry.getManifest=vi.fn(()=>({id:'eg',type:'object',source:{kind:'glb',url:'https://assets.test/eg.glb'},actions:['move'],physics:{body:'dynamic',colliders:[]},provenance:{admission:{status:'provisional',reasons:['UNVERIFIED_PROVIDER_SEMANTICS']}}}));
     const provisional=await registry.invoke('spawnAsset',{assetId:'eg',position:[0,0,0],instanceId:'eg_01'},{profile:'builder',actor:'test'});
     expect(provisional).toMatchObject({success:true,result:{status:'asset-provisional',id:'x',assetId:'eg',admission:{status:'provisional'}}});
     expect(registry.executionPolicy('spawnAsset',provisional.result).outcome).toMatchObject({state:'unverified',verified:false,reason:'ASSET_PROVISIONAL'});
 
     r.spawn.mockClear();
-    r.assets.getManifest=vi.fn(()=>({id:'bad',type:'object',source:{kind:'glb',url:'https://assets.test/bad.glb'},actions:['move'],physics:{body:'fixed',colliders:[]},compiler:{quality:{status:'rejected'}}}));
+    r.assetRegistry.getManifest=vi.fn(()=>({id:'bad',type:'object',source:{kind:'glb',url:'https://assets.test/bad.glb'},actions:['move'],physics:{body:'fixed',colliders:[]},compiler:{quality:{status:'rejected'}}}));
     const rejected=await registry.invoke('spawnAsset',{assetId:'bad',position:[0,0,0]},{profile:'builder',actor:'test'});
     expect(rejected).toMatchObject({success:true,result:{status:'asset-rejected',assetId:'bad',admission:{status:'rejected'}}});
     expect(r.spawn).not.toHaveBeenCalled();
@@ -606,7 +606,7 @@ it('queries generated-world observed entities without promoting them to runtime 
     expect(listed).toMatchObject({success:true,result:[{id:'semantic-instance:hyworld2-target-0',observationId:'hyworld2-target-0',label:'door',localization:{kind:'point-scale',center:[0,0,1.7],scale:.47}}]});
     const one=await registry.invoke('getObservedEntity',{id:'hyworld2-target-0'},{profile:'builder',actor:'test'});
     expect(one).toMatchObject({success:true,result:{id:'semantic-instance:hyworld2-target-0',observationId:'hyworld2-target-0',label:'door',confidence:.95}});
-    r.assets.getManifest=vi.fn(()=>({id:'cup',physics:{body:'dynamic',colliders:[{shape:'cylinder',radius:.15,halfHeight:.16,translation:[0,.16,0]}]}}));
+    r.assetRegistry.getManifest=vi.fn(()=>({id:'cup',physics:{body:'dynamic',colliders:[{shape:'cylinder',radius:.15,halfHeight:.16,translation:[0,.16,0]}]}}));
     const planned=await registry.invoke('planAssetNearObservedEntity',{assetId:'cup',id:'hyworld2-target-0'},{profile:'builder',actor:'test'});
     expect(planned).toMatchObject({success:true,result:{status:'placement-ready',assetId:'cup',observedEntityId:'semantic-instance:hyworld2-target-0',collisionVerified:true}});
     expect(r.physics.checkManifestPose).toHaveBeenCalled();

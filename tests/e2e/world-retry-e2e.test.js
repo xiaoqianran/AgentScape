@@ -1,5 +1,5 @@
 import { describe,expect,it,vi } from 'vitest';
-import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
 import { AssetCatalog } from '../../modules/asset/AssetCatalog.js';
 import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../../application/skills/registerCoreSkills.js';
@@ -8,8 +8,8 @@ import { TraceRecorder } from '../../foundation/TraceRecorder.js';
 
 describe('bounded generated-world retry',()=>{
   it('turns only a first-attempt search miss into generation, then reruns the canonical pipeline once',async()=>{
-    const assets=new AssetManager();
-    const assetCatalog=new AssetCatalog({assetManager:assets});
+    const assets=new AssetRegistry();
+    const assetCatalog=new AssetCatalog({registry:assets});
     const generatedManifest={
       id:'retry_fixture_qx9',type:'fixture',label:'Retry Fixture',
       source:{kind:'glb',url:'https://assets.test/retry-fixture.glb'},
@@ -28,7 +28,7 @@ describe('bounded generated-world retry',()=>{
     const spawned=[];
     const snapshot={name:'before'};
     const runtime={
-      events:null,trace:new TraceRecorder(),policy:new PolicyEngine(),assets,assetCatalog,generation,
+      events:null,trace:new TraceRecorder(),policy:new PolicyEngine(),assetRegistry:assets,assetCatalog,generation,
       environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
       physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(assetId,{position,id})=>{spawned.push({assetId,position,id});return id;}),

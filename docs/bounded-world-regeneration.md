@@ -200,7 +200,7 @@ Retry 不创建第二套 Asset/Scene store。
 生成成功的 Manifest 仍由：
 
 ```text
-AssetManager
+AssetRegistry / AssetLoader
 ```
 
 拥有；scene objects 仍由：
@@ -243,7 +243,7 @@ enable-generation(fixture_01)
 Runtime retry orchestration
 → Generator
 → Artifact / Compiler
-→ AssetManager.registerManifest
+→ AssetRegistry.registerManifest
 → retry WorldIR.assetId
 → canonical resolve(existing assetId)
 → compose layout

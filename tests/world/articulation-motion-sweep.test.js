@@ -29,7 +29,7 @@ function slider({ target=.5, motor={stiffness:80,damping:12}, rootColliders=[] }
 describe('ArticulationVerifier motion sweep',()=>{
   it('uses the initial zero-pose penetration as the baseline for the whole open-close trajectory',async()=>{
     const manifest=slider({rootColliders:[{shape:'box',halfExtents:[.5,.5,.5]}]});
-    const report=await new ArticulationVerifier({assets:assetsFor(manifest),steps:240}).verify(manifest.id);
+    const report=await new ArticulationVerifier({assetRegistry:assetsFor(manifest),assetLoader:assetsFor(manifest),steps:240}).verify(manifest.id);
     expect(report.ok).toBe(true);
     expect(report.parts[0].baselinePenetrations.length).toBeGreaterThan(0);
     expect(report.parts[0].actions.every((action)=>action.targetReached)).toBe(true);
@@ -39,7 +39,7 @@ describe('ArticulationVerifier motion sweep',()=>{
 
   it('reports deeper penetration of a collider pair that already overlaps at the zero pose',async()=>{
     const manifest=slider({rootColliders:[{shape:'box',halfExtents:[.4,.2,.2],translation:[.35,0,0]}]});
-    const report=await new ArticulationVerifier({assets:assetsFor(manifest),steps:240,collisionTolerance:.001}).verify(manifest.id);
+    const report=await new ArticulationVerifier({assetRegistry:assetsFor(manifest),assetLoader:assetsFor(manifest),steps:240,collisionTolerance:.001}).verify(manifest.id);
     expect(report.ok).toBe(false);
     const baseline=report.parts[0].baselinePenetrations[0];
     const open=report.parts[0].actions.find((action)=>action.action==='open');
@@ -51,7 +51,7 @@ describe('ArticulationVerifier motion sweep',()=>{
 
   it('reports a new penetration during motion as an EXECUTION collision regression',async()=>{
     const manifest=slider({rootColliders:[{shape:'box',halfExtents:[.05,.2,.2],translation:[.45,0,0]}]});
-    const report=await new ArticulationVerifier({assets:assetsFor(manifest),steps:240,collisionTolerance:.001}).verify(manifest.id);
+    const report=await new ArticulationVerifier({assetRegistry:assetsFor(manifest),assetLoader:assetsFor(manifest),steps:240,collisionTolerance:.001}).verify(manifest.id);
     expect(report.ok).toBe(false);
     const open=report.parts[0].actions.find((action)=>action.action==='open');
     expect(open.targetReached).toBe(true);
@@ -62,7 +62,7 @@ describe('ArticulationVerifier motion sweep',()=>{
 
   it('distinguishes a stalled motor from a post-condition target miss',async()=>{
     const manifest=slider({motor:{stiffness:0,damping:0}});
-    const report=await new ArticulationVerifier({assets:assetsFor(manifest),steps:90,stallWindow:20}).verify(manifest.id);
+    const report=await new ArticulationVerifier({assetRegistry:assetsFor(manifest),assetLoader:assetsFor(manifest),steps:90,stallWindow:20}).verify(manifest.id);
     expect(report.ok).toBe(false);
     const open=report.parts[0].actions.find((action)=>action.action==='open');
     expect(open.stalled).toBe(true);
@@ -74,7 +74,7 @@ describe('ArticulationVerifier motion sweep',()=>{
 
   it('rejects a target outside the declared joint limits before stepping',async()=>{
     const manifest=slider({target:.8});
-    const report=await new ArticulationVerifier({assets:assetsFor(manifest),steps:30}).verify(manifest.id);
+    const report=await new ArticulationVerifier({assetRegistry:assetsFor(manifest),assetLoader:assetsFor(manifest),steps:30}).verify(manifest.id);
     const open=report.parts[0].actions.find((action)=>action.action==='open');
     expect(open.stepsRun).toBe(0);
     expect(open.accepted).toBe(false);
@@ -91,7 +91,7 @@ it('tracks revolute joint coordinates and verifies an open-close return trajecto
       joint:{type:'revolute',axis:[0,1,0],limits:[-1,0],parentAnchor:[0,0,0],childAnchor:[0,0,0],motor:{stiffness:60,damping:10}}
     }}
   };
-  const report=await new ArticulationVerifier({assets:assetsFor(manifest),steps:240}).verify(manifest.id);
+  const report=await new ArticulationVerifier({assetRegistry:assetsFor(manifest),assetLoader:assetsFor(manifest),steps:240}).verify(manifest.id);
   expect(report.ok).toBe(true);
   const open=report.parts[0].actions.find((action)=>action.action==='open');
   expect(open.finalCoordinate).toBeCloseTo(-1,1);

@@ -94,7 +94,8 @@ export class GenerationAgentScenarioContext {
       policy: this.policy,
       trace: this.trace,
       assetModule: this.world.assetModule,
-      assets: this.world.assets,
+      assetRegistry: this.world.assetModule.registry,
+      assetLoader: this.world.assetModule.loader,
       assetCatalog: this.world.assetModule.catalog,
       compiledAssetStore: this.world.assetModule.compiledStore,
       store: this.world.store,
@@ -264,8 +265,8 @@ export class GenerationAgentScenarioContext {
   }
 
   generatedAssetState() {
-    if (!this.runtime.assets.has(FIXTURE_ASSET_ID)) return null;
-    const manifest = this.runtime.assets.getManifest(FIXTURE_ASSET_ID);
+    if (!this.runtime.assetRegistry.has(FIXTURE_ASSET_ID)) return null;
+    const manifest = this.runtime.assetRegistry.getManifest(FIXTURE_ASSET_ID);
     return {
       id: manifest.id,
       type: manifest.type,

@@ -2,7 +2,8 @@ import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.
 import { readFile } from 'node:fs/promises';
 import { expect, it, vi } from 'vitest';
 import { AssetCompiler } from '../../modules/asset/compiler/AssetCompiler.js';
-import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { disposeObject3D } from '../../modules/rendering/disposeObject3D.js';
 import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
@@ -42,9 +43,10 @@ it('loads a materialized articulated compile result and attaches distinct root/P
   expect(result.partCollision.final.generated[0].meshNodes).toEqual(['Door__part_door']);
   expect(result.quality.advisory.map((item)=>item.code)).toEqual(expect.arrayContaining(['COLLIDER_COARSE','PART_COLLIDER_COARSE','ARTICULATION_UNVERIFIED']));
 
-  const assets=new AssetManager({manifests:{},compiledStore:store});
+  const assets=new AssetRegistry({manifests:{}});
+  const assetLoader=new AssetLoader({registry:assets,compiledStore:store});
   assets.registerManifest(result.manifest);
-  const {object,manifest}=await assets.instantiate(result.manifest.id);
+  const {object,manifest}=await assetLoader.instantiate(result.manifest.id);
   expect(object.getObjectByName('Door__part_door')).toBeTruthy();
 
   const physics=createRapierPhysicsSystem();
@@ -69,7 +71,7 @@ it('loads a materialized articulated compile result and attaches distinct root/P
   physics.dispose();
   disposeObject3D(object);
 
-  const verification=await new ArticulationVerifier({assets,steps:240}).verify(result.manifest.id);
+  const verification=await new ArticulationVerifier({assetRegistry:assets,assetLoader,steps:240}).verify(result.manifest.id);
   expect(verification.ok).toBe(true);
   expect(verification.parts[0].actions.map((action)=>action.targetReached)).toEqual([true,true]);
   expect(verification.parts[0].actions.every((action)=>action.collisionRegressions.length===0)).toBe(true);

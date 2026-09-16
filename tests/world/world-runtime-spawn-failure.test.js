@@ -7,7 +7,7 @@ it('rolls back Three/store resources when physics attachment fails', async () =>
   const material = new THREE.MeshStandardMaterial(); material.dispose = vi.fn();
   const object = new THREE.Mesh(geometry, material);
   const runtime = {
-    assets:{ instantiate:vi.fn(async () => ({ object, manifest:{ id:'x', actions:['move'] } })) },
+    assetLoader:{ instantiate:vi.fn(async () => ({ object, manifest:{ id:'x', actions:['move'] } })) },
     scene:{ add:vi.fn(), remove:vi.fn() },
     store:{ add:vi.fn(), delete:vi.fn() },
     physics:{ addObject:vi.fn(() => { throw new Error('physics failed'); }), removeObject:vi.fn() },

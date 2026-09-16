@@ -12,7 +12,7 @@ export class InteractionScenarioContext {
   constructor({ scene }) {
     this.scene = scene;
     this.assetModule = createAssetModule();
-    this.assets = this.assetModule.manager;
+    this.assetLoader = this.assetModule.loader;
     this.store = new ObjectStore();
     this.events = new EventBus();
     this.eventLog = [];
@@ -42,7 +42,7 @@ export class InteractionScenarioContext {
   }
 
   async addAsset({ id, assetId, position = [0, 0, 0] }) {
-    const { object, manifest } = await this.assets.instantiate(assetId);
+    const { object, manifest } = await this.assetLoader.instantiate(assetId);
     object.position.fromArray(position);
     object.userData.instanceId = id;
     this.scene.add(object);

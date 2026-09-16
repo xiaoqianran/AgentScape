@@ -26,7 +26,8 @@ function penetrationMap(physics, instanceId, partName, refresh = false) {
 
 export class ArticulationVerifier {
   constructor({
-    assets,
+    assetRegistry,
+    assetLoader,
     physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }),
     steps = 180,
     dt = 1 / 60,
@@ -37,7 +38,10 @@ export class ArticulationVerifier {
     stallWindow = 30,
     stallTolerance = 0.002
   } = {}) {
-    this.assets = assets;
+    if (!assetRegistry?.getManifest) throw new TypeError('ArticulationVerifier requires AssetRegistry');
+    if (!assetLoader?.instantiate) throw new TypeError('ArticulationVerifier requires AssetLoader');
+    this.assetRegistry = assetRegistry;
+    this.assetLoader = assetLoader;
     this.physicsFactory = physicsFactory;
     this.steps = steps;
     this.dt = dt;
@@ -50,11 +54,11 @@ export class ArticulationVerifier {
   }
 
   async verify(assetId) {
-    const manifest = this.assets.getManifest(assetId);
+    const manifest = this.assetRegistry.getManifest(assetId);
     const parts = Object.entries(manifest.parts || {}).filter(([, part]) => part.joint && part.physics && Object.keys(part.targets || {}).length);
     if (!parts.length) return { ok: true, assetId, tested: 0, parts: [], note: 'no executable articulation' };
 
-    const { object } = await this.assets.instantiate(assetId);
+    const { object } = await this.assetLoader.instantiate(assetId);
     const physics = this.physicsFactory();
     const store = new ObjectStore();
     const instanceId = `verify_${assetId}`;

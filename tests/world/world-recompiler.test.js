@@ -149,7 +149,7 @@ const behaviorRuntime=({revisionId='behavior-rev-1',actions=['pickup','place','m
     currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{requirements:[]},lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
     pipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
-    store:{get:vi.fn(()=>record)},assets:{getManifest:vi.fn(()=>({id:'crate',actions}))},
+    store:{get:vi.fn(()=>record)},assetRegistry:{getManifest:vi.fn(()=>({id:'crate',actions}))},
     validator:{run:vi.fn(()=>{observedRevisions.push(runtimeRef.currentWorldRevision?.revision?.id || null);return {ok:true,counts:{hard:0,advisory:0},findings:[]};})},
     sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},
     loadRuleGraph:vi.fn(),trace:{emit:vi.fn()},_observedRevisions:observedRevisions
@@ -247,7 +247,7 @@ const physicsRuntime=({revisionId='physics-rev-1',capabilities=['rigid-body','co
     lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
     pipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
-    store:{get:vi.fn(()=>record)},assets:{getManifest:vi.fn(()=>({id:'crate',actions:['move'],physics:{body:'dynamic'}}))},
+    store:{get:vi.fn(()=>record)},assetRegistry:{getManifest:vi.fn(()=>({id:'crate',actions:['move'],physics:{body:'dynamic'}}))},
     physics:{
       backend,
       profile:()=>({
@@ -338,7 +338,7 @@ const positionRuntime=({revisionId='position-rev-1',boxPosition=[0,.01,0],poseCl
     currentBehaviorBundle:{ruleGraph:[]},currentPhysicsRequirements:{requirements:[]},lastAcceptanceBundle:{old:true},restoredAcceptanceEvidence:{historical:true},
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
     pipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
-    store:{get:vi.fn((id)=>records[id])},assets:{getManifest:vi.fn((id)=>positionManifest(id))},interactions,
+    store:{get:vi.fn((id)=>records[id])},assetRegistry:{getManifest:vi.fn((id)=>positionManifest(id))},interactions,
     physics:{checkManifestPose:vi.fn(poseClear),setPosition:vi.fn()},navigation:{invalidateIfStatic:vi.fn()},environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
     validator:{run:vi.fn(()=>{observedRevisions.push(runtimeRef.currentWorldRevision?.revision?.id || null);return structuredClone(validation);})},sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},
     loadRuleGraph:vi.fn(),trace:{emit:vi.fn()},_observedRevisions:observedRevisions

@@ -47,8 +47,8 @@ export function searchAssetManifests(manifests, query, { limit = 8 } = {}) {
 }
 
 export class AssetCatalog {
-  constructor({ registry, assetManager = null } = {}) {
-    this.registry = registry || assetManager?.registry || assetManager;
+  constructor({ registry } = {}) {
+    this.registry = registry;
     if (!this.registry?.listManifests || typeof this.registry.getManifest !== 'function') {
       throw new TypeError('AssetCatalog requires an AssetRegistry');
     }

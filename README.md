@@ -319,7 +319,7 @@ modal-provider
 npm run test:modal-e2e
 ```
 
-该测试启动相邻仓库中的真实 Python `modal-gen-client`，覆盖 Agent → 两阶段配对 → 2D → 3D → Artifact → AssetManager → `WorldRuntime.spawn()` → `place()`。测试 Provider 使用确定性本地实现，不调用付费 Modal GPU；需要本机可用 `uv`，并保持 `modal-provider` 与 `AgentScape` 为相邻目录。
+该测试启动相邻仓库中的真实 Python `modal-gen-client`，覆盖 Agent → 两阶段配对 → 2D → 3D → Artifact → AssetRegistry / AssetLoader → `WorldRuntime.spawn()` → `place()`。测试 Provider 使用确定性本地实现，不调用付费 Modal GPU；需要本机可用 `uv`，并保持 `modal-provider` 与 `AgentScape` 为相邻目录。
 
 该跨仓库测试作为独立 gate 运行，不混入默认 `npm test` / `npm run check`，避免外部 Python 进程启动时间受 Vitest 并行负载干扰。
 

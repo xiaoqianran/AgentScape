@@ -189,7 +189,7 @@ Total                   ~4.25 MB
 
 ```text
 GLB / Manifest
-→ AssetManager
+→ AssetRegistry / AssetLoader
 → ObjectStore
 → editable world object
 ```

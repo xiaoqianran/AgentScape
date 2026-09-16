@@ -11,7 +11,7 @@ it('writes articulation verification back and promotes readiness when it was the
   let current = structuredClone(manifest);
   const runtime = {
     articulationVerifier:{ verify:vi.fn(async()=>({ok:true,assetId:'cab',tested:1,parts:[]})) },
-    assets:{
+    assetRegistry:{
       getManifest:()=>current,
       registerManifest:(next)=>{ current=structuredClone(next); }
     },
@@ -38,7 +38,7 @@ it('persists staged motion verification failures and keeps the asset provisional
   let current=structuredClone(manifest);
   const runtime={
     articulationVerifier:{verify:vi.fn(async()=>verification)},
-    assets:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
+    assetRegistry:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
     events:{emit:vi.fn()}
   };
   const registry=registerCoreSkills(new SkillRegistry({runtime}),runtime);
@@ -60,7 +60,7 @@ it('syncs only verification metadata into already-spawned records after verifica
   const liveObject={userData:{manifest:structuredClone(manifest)}};
   const runtime={
     articulationVerifier:{verify:vi.fn(async()=>({ok:true,assetId:'cab',tested:1,parts:[{part:'door',ok:true,actions:[{action:'open',ok:true}],reversibility:{ok:true}}]}))},
-    assets:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
+    assetRegistry:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
     store:{values:()=>[{assetId:'cab',manifest:liveManifest,object:liveObject}]},
     events:{emit:vi.fn()}
   };
@@ -83,7 +83,7 @@ it('runtime articulation success removes only runtime blocker and preserves prov
   let current=structuredClone(manifest);
   const runtime={
     articulationVerifier:{verify:vi.fn(async()=>({ok:true,assetId:'cab',tested:1,parts:[]}))},
-    assets:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
+    assetRegistry:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
     events:{emit:vi.fn()}
   };
   const registry=registerCoreSkills(new SkillRegistry({runtime}),runtime);

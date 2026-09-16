@@ -2,14 +2,14 @@ export const assetCabinetScenario = {
   id: "physics.asset.cabinet-hinge",
   title: "资产柜体",
   subtitle: "真实 cabinet.glb",
-  description: "通过生产 AssetManager 加载真实 cabinet.glb，验证 GLB 节点、清单碰撞体、物理碰撞体与旋转关节。",
+  description: "通过生产 AssetLoader 加载真实 cabinet.glb，验证 GLB 节点、清单碰撞体、物理碰撞体与旋转关节。",
   kind: "asset",
   browserOnly: true,
   inspect: "asset_cabinet_01",
   async setup(ctx) {
     ctx.addBox({ id: "floor", type: "fixed", position: [0, -0.1, 0], halfExtents: [5, 0.1, 4] });
     const { createAssetModule } = await import("../../../../../modules/asset/AssetModule.js");
-    const assets = createAssetModule().manager;
+    const assets = createAssetModule().loader;
     const { object, manifest } = await assets.instantiate("cabinet");
     ctx.addAssetInstance({
       id: "asset_cabinet_01",

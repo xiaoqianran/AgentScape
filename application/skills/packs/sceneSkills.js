@@ -4,7 +4,7 @@ import { meta, number, string, vec3 } from '../skillPrimitives.js';
 export function registerSceneSkills(add,runtime) {
   add('listObjects', meta('列出当前世界中的对象及其位置和能力。', ['world.read']), () => runtime.listObjects());
   add('spawnAsset', { ...meta('实例化一个已注册资产。若资产 admission 不是 ready，仍可作为编辑态实例化，但返回 asset-provisional，不能当作 verified world mutation。', ['world.write'], ['assetId', 'position'], { assetId: string, position: vec3, instanceId: string }), mutates: true }, async (a) => {
-    const admission=assetAdmission(runtime.assets.getManifest(a.assetId));
+    const admission=assetAdmission(runtime.assetRegistry.getManifest(a.assetId));
     if (admission.status==='rejected') return {status:'asset-rejected',assetId:a.assetId,admission};
     const id=await runtime.spawn(a.assetId,{position:a.position,id:a.instanceId});
     return admission.status==='ready' ? id : {status:'asset-provisional',id,assetId:a.assetId,admission};

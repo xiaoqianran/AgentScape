@@ -409,7 +409,7 @@ compile
 
 ```text
 AssetCompiler
-→ AssetManager
+→ AssetRegistry / AssetLoader
 → GLTFLoader
 → PhysicsSystem
 → Rapier

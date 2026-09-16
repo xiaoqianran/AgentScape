@@ -74,17 +74,17 @@ function buildProvenance({artifact,assetId,admission}) {
 }
 
 export class VerifiedArtifactAssetPipeline {
-  constructor({artifactRegistry,byteStore,assetCompiler,assetManager,onManifestRegistered=null,events=null,now=()=>Date.now(),idFactory=defaultIdFactory}={}) {
+  constructor({artifactRegistry,byteStore,assetCompiler,assetRegistry,onManifestRegistered=null,events=null,now=()=>Date.now(),idFactory=defaultIdFactory}={}) {
     if (!artifactRegistry?.get || !artifactRegistry?.acquireLease || !artifactRegistry?.releaseLease) {
       throw new AssetProductionError('ASSET_PIPELINE_INVALID','VerifiedArtifactAssetPipeline requires ArtifactRegistry');
     }
     if (!byteStore?.get) throw new AssetProductionError('ASSET_PIPELINE_INVALID','VerifiedArtifactAssetPipeline requires a readable Artifact byte store');
     if (!assetCompiler?.compile) throw new AssetProductionError('ASSET_PIPELINE_INVALID','VerifiedArtifactAssetPipeline requires AssetCompiler');
-    if (!assetManager?.registerManifest) throw new AssetProductionError('ASSET_PIPELINE_INVALID','VerifiedArtifactAssetPipeline requires AssetManager');
+    if (!assetRegistry?.registerManifest) throw new AssetProductionError('ASSET_PIPELINE_INVALID','VerifiedArtifactAssetPipeline requires AssetRegistry');
     this.artifactRegistry=artifactRegistry;
     this.byteStore=byteStore;
     this.assetCompiler=assetCompiler;
-    this.assetManager=assetManager;
+    this.assetRegistry=assetRegistry;
     this.onManifestRegistered=typeof onManifestRegistered==='function'?onManifestRegistered:null;
     this.events=events;
     this.now=now;
@@ -132,8 +132,8 @@ export class VerifiedArtifactAssetPipeline {
 
   async produce(request={}) {
     const input=this.inspectInput(request);
-    if (this.assetManager.has?.(input.assetId)) {
-      const existing=this.assetManager.getManifest(input.assetId);
+    if (this.assetRegistry.has?.(input.assetId)) {
+      const existing=this.assetRegistry.getManifest(input.assetId);
       const source=existing?.provenance?.assetProduction?.sourceArtifact;
       if (source?.id===input.artifact.id && source?.hash===input.artifact.hash) {
         const admission=assetAdmission(existing,{generated:true});
@@ -215,7 +215,7 @@ export class VerifiedArtifactAssetPipeline {
 
       let registered;
       try {
-        registered=this.assetManager.registerManifest(manifest);
+        registered=this.assetRegistry.registerManifest(manifest);
       } catch (error) {
         throw new AssetProductionError('MANIFEST_REGISTRATION_FAILED','Compiled manifest could not be registered',{
           artifactId:input.artifact.id,assetId:input.assetId,cause:error?.code||error?.name||'Error'
@@ -226,7 +226,7 @@ export class VerifiedArtifactAssetPipeline {
       const result={
         status,stage:'registered',registered:Boolean(registered),
         artifactId:input.artifact.id,assetId:input.assetId,
-        manifest:this.assetManager.getManifest?.(input.assetId)||clone(manifest),
+        manifest:this.assetRegistry.getManifest?.(input.assetId)||clone(manifest),
         compiler:{quality:clone(compiled.quality||null)},admission,
         provenance:buildProvenance({artifact:input.artifact,assetId:input.assetId,admission})
       };
@@ -242,7 +242,7 @@ export class VerifiedArtifactAssetPipeline {
 
 
 export function createAssetPublisher({
-  artifactRegistry, byteStore, getAssetCompiler, assetManager, onManifestRegistered = null, events = null,
+  artifactRegistry, byteStore, getAssetCompiler, assetRegistry, onManifestRegistered = null, events = null,
   now = () => Date.now(), idFactory = defaultIdFactory
 } = {}) {
   if (typeof getAssetCompiler !== 'function') {
@@ -253,7 +253,7 @@ export function createAssetPublisher({
     if (!pipeline) {
       const assetCompiler = await getAssetCompiler();
       pipeline = new VerifiedArtifactAssetPipeline({
-        artifactRegistry, byteStore, assetCompiler, assetManager, onManifestRegistered, events, now, idFactory
+        artifactRegistry, byteStore, assetCompiler, assetRegistry, onManifestRegistered, events, now, idFactory
       });
     }
     const result = await pipeline.produce(request);

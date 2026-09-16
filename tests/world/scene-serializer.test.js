@@ -16,7 +16,7 @@ function fakeRuntime() {
   });
   return {
     version: '0.8.0', store,
-    assets: { getManifest: vi.fn(() => ({ id: 'cabinet', type: 'cabinet', source: { kind: 'glb', url: 'assets/cabinet.glb' }, actions: ['open'] })) },
+    assetRegistry: { getManifest: vi.fn(() => ({ id: 'cabinet', type: 'cabinet', source: { kind: 'glb', url: 'assets/cabinet.glb' }, actions: ['open'] })) },
     rendering: { cameraState:()=>({position:[4,5,6],target:[0,1,0]}), applyCameraState:vi.fn() }
   };
 }
@@ -38,7 +38,7 @@ describe('SceneSerializer', () => {
   it('preflights unknown asset references before clearing the current world', async () => {
     const serializer = new SceneSerializer();
     const runtime = {
-      assets: {
+      assetRegistry: {
         assertCompatibleManifest: vi.fn(),
         has: vi.fn(() => false)
       },
@@ -58,7 +58,7 @@ describe('SceneSerializer', () => {
   it('preflights manifest conflicts before clearing the current world', async () => {
     const serializer = new SceneSerializer();
     const runtime = {
-      assets: {
+      assetRegistry: {
         assertCompatibleManifest: vi.fn(() => { throw new Error('Asset id conflict: chair'); }),
         has: vi.fn(() => true)
       },
@@ -86,7 +86,7 @@ it('persists environment identity and rejects cross-world restore before mutatio
 
   const runtime={
     environment:{id:'monument-hall'},
-    assets:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
+    assetRegistry:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
     clearObjects:vi.fn(),
     sceneGraph:{batch:vi.fn(async(operation)=>operation())}
   };
@@ -114,7 +114,7 @@ it('rebuilds the Physics world before destructive scene restore when the runtime
   const physics={resetWorld:vi.fn(),addEnvironment:vi.fn(),syncTransform:vi.fn()};
   const runtime={
     environment:{id:'hall',colliders:[{shape:'box',halfExtents:[1,.1,1]}]},
-    assets:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
+    assetRegistry:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
     physics,
     locomotion:{cancelAll:vi.fn()},interactions:{cancelPending:vi.fn(),rebuildHeldOwnership:vi.fn()},
     sceneGraph:{batch:vi.fn(async(operation)=>operation()),changed:vi.fn()},
@@ -141,7 +141,7 @@ it('persists world revision and acceptance evidence without promoting restored e
 
   const restored={
     environment:null,
-    assets:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
+    assetRegistry:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
     sceneGraph:{batch:vi.fn(async(operation)=>operation()),changed:vi.fn()},
     clearObjects:vi.fn(),spawn:vi.fn(async()=>{}),store:{get:vi.fn(()=>({object:new THREE.Group(),state:{}}))},
     physics:{syncTransform:vi.fn()},restoreObjectState:vi.fn(),interactions:{rebuildHeldOwnership:vi.fn()},
@@ -183,7 +183,7 @@ it('restores the previous world when applying a loaded scene fails midway', asyn
   const serializer=new SceneSerializer();
   const runtime={
     environment:null,
-    assets:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
+    assetRegistry:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
     snapshot:vi.fn(()=>({schema:'agentscape.scene',schemaVersion:1,assets:[],objects:[],relations:[]})),
     clearObjects:vi.fn(),
     spawn:vi.fn(async()=>{throw new Error('spawn failed');}),

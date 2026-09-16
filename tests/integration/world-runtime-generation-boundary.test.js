@@ -10,7 +10,7 @@ const createRuntime=()=>new WorldRuntime({appendChild(){}},{environmentFactory:(
 describe('WorldRuntime generation boundary',()=>{
   it('constructs a provider-neutral World core without Generation composition',()=>{
     const runtime=createRuntime();
-    expect(runtime.assets).toBeTruthy();
+    expect(runtime.assetRegistry).toBeTruthy();
     expect(runtime.assetCatalog).toBeTruthy();
     for(const key of ['authoring','assetGenerator','compilerProvider','generation','generationState','generationConnectorError','getAssetCompiler']) {
       expect(Object.prototype.hasOwnProperty.call(runtime,key)).toBe(false);

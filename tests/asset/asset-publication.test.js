@@ -114,7 +114,7 @@ describe('Asset module publishAsset public API', () => {
       assetRef: { assetId: 'asset_publish_01' },
       admission: { status: 'ready', reasons: [] }
     });
-    expect(module.manager.has('asset_publish_01')).toBe(true);
+    expect(module.registry.has('asset_publish_01')).toBe(true);
     expect(module.catalog.resolveExisting('Published Asset')).toMatchObject({
       status: 'found',
       assets: [{ id: 'asset_publish_01' }]
@@ -200,6 +200,6 @@ describe('Asset module publishAsset public API', () => {
       admission: { status: 'rejected', reasons: ['COMPILER_REJECTED'] }
     });
     expect(result).not.toHaveProperty('assetRef');
-    expect(module.manager.has('asset_rejected')).toBe(false);
+    expect(module.registry.has('asset_rejected')).toBe(false);
   });
 });

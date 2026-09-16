@@ -40,7 +40,7 @@ describe('WorldRuntime environment replacement',()=>{
     runtime.installEnvironment(first); runtime.createEnvironmentSystems();
 
     expect(runtime.sceneGraph.list({predicate:'HAS_INSTANCE'})).toMatchObject([{object:'semantic-instance:door-1'}]);
-    const cup=runtime.assets.getManifest('cup');
+    const cup=runtime.assetRegistry.getManifest('cup');
     expect(runtime.physics.checkManifestPose(cup,[2,.01,2])).toMatchObject({checked:true,clear:true});
 
     const result=await runtime.replaceEnvironment(second,{disposePrevious:false,reason:'test'});

@@ -6,7 +6,7 @@ it('updates the semantic scene graph immediately after direct spawn', async () =
   const object = new THREE.Group();
   const manifest = { id:'chair', actions:['move'] };
   const runtime = {
-    assets:{ instantiate:vi.fn(async () => ({ object, manifest })) },
+    assetLoader:{ instantiate:vi.fn(async () => ({ object, manifest })) },
     scene:{ add:vi.fn() },
     store:{ add:vi.fn() },
     physics:{ addObject:vi.fn(), removeObject:vi.fn() },
@@ -24,7 +24,7 @@ it('applies revision-authored initial state only after physics attachment succee
   const object=new THREE.Group();
   const manifest={id:'cabinet',actions:['move']};
   const runtime={
-    assets:{instantiate:vi.fn(async()=>({object,manifest}))},
+    assetLoader:{instantiate:vi.fn(async()=>({object,manifest}))},
     scene:{add:vi.fn()},store:{add:vi.fn()},
     physics:{addObject:vi.fn(),removeObject:vi.fn()},
     restoreObjectState:vi.fn(),sceneGraph:{changed:vi.fn()},events:{emit:vi.fn()}
@@ -39,12 +39,12 @@ it('applies revision-authored initial state only after physics attachment succee
 });
 
 
-it('builds BVH bounds when an object enters WorldRuntime instead of relying on AssetManager side effects', async () => {
+it('builds BVH bounds when an object enters WorldRuntime instead of relying on asset loading side effects', async () => {
   const object=new THREE.Mesh(new THREE.BoxGeometry(1,1,1));
   object.userData={};
   const manifest={id:'box',actions:['move']};
   const runtime={
-    assets:{instantiate:vi.fn(async()=>({object,manifest}))},
+    assetLoader:{instantiate:vi.fn(async()=>({object,manifest}))},
     scene:{add:vi.fn(),remove:vi.fn()},
     store:{add:vi.fn(),delete:vi.fn()},
     physics:{addObject:vi.fn(),removeObject:vi.fn()},
