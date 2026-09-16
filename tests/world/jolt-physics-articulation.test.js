@@ -106,7 +106,7 @@ describe('PhysicsSystem Jolt articulation parity',()=>{
   });
 
 
-  it('grows the native joint collision filter without losing existing disabled pairs',async()=>{
+  it('grows the native group collision filter without losing existing disabled joint pairs',async()=>{
     const physics=createJoltPhysicsSystem(); await physics.init();
     try {
       const backend=physics.backend;
@@ -119,11 +119,11 @@ describe('PhysicsSystem Jolt articulation parity',()=>{
       }
       const jointSpec={joint:{type:'prismatic',axis:[1,0,0],limits:[0,.5],parentAnchor:[0,0,0],childAnchor:[0,0,0]}};
       const first=backend.createJoint(world,jointSpec,bodies[0],bodies[1]);
-      expect(world.jointFilterCapacity).toBeGreaterThanOrEqual(16);
+      expect(world.groupFilterCapacity).toBeGreaterThanOrEqual(16);
       const second=backend.createJoint(world,jointSpec,bodies[18],bodies[19]);
-      expect(world.jointFilterCapacity).toBeGreaterThanOrEqual(32);
-      expect(world.jointFilter.IsCollisionEnabled(first.parentBody.subGroupId,first.childBody.subGroupId)).toBe(false);
-      expect(world.jointFilter.IsCollisionEnabled(second.parentBody.subGroupId,second.childBody.subGroupId)).toBe(false);
+      expect(world.groupFilterCapacity).toBeGreaterThanOrEqual(32);
+      expect(world.groupFilter.IsCollisionEnabled(first.parentBody.subGroupId,first.childBody.subGroupId)).toBe(false);
+      expect(world.groupFilter.IsCollisionEnabled(second.parentBody.subGroupId,second.childBody.subGroupId)).toBe(false);
     } finally { physics.dispose(); }
   });
 

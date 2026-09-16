@@ -11,10 +11,15 @@ const array3=(value)=>[value.x,value.y,value.z];
 const array4=(value)=>[value.x,value.y,value.z,value.w];
 
 
-const createBodyDesc=(type,position)=>{
+const createBodyDesc=(type,position,{canSleep=true,lockTranslation=null,lockRotation=null}={})=>{
   const desc=type==='dynamic' ? RAPIER.RigidBodyDesc.dynamic()
     : type==='kinematic' ? RAPIER.RigidBodyDesc.kinematicPositionBased()
       : RAPIER.RigidBodyDesc.fixed();
+  if(type==='dynamic') {
+    desc.setCanSleep(Boolean(canSleep));
+    if(lockTranslation) desc.restrictTranslations(!lockTranslation[0],!lockTranslation[1],!lockTranslation[2]);
+    if(lockRotation) desc.restrictRotations(!lockRotation[0],!lockRotation[1],!lockRotation[2]);
+  }
   if(position) {
     const p=v3(position);
     desc.setTranslation(p.x,p.y,p.z);
@@ -36,12 +41,18 @@ const createColliderDesc=(spec)=>{
 
 const createJoint=(world,part,parentBody,childBody)=>{
   const vec=(a=[0,0,0])=>({x:a[0],y:a[1],z:a[2]});
-  const data=part.joint.type==='revolute'
-    ? RAPIER.JointData.revolute(vec(part.joint.parentAnchor),vec(part.joint.childAnchor),vec(part.joint.axis))
-    : RAPIER.JointData.prismatic(vec(part.joint.parentAnchor),vec(part.joint.childAnchor),vec(part.joint.axis));
+  let data;
+  if(part.joint.type==='revolute') data=RAPIER.JointData.revolute(vec(part.joint.parentAnchor),vec(part.joint.childAnchor),vec(part.joint.axis));
+  else if(part.joint.type==='prismatic') data=RAPIER.JointData.prismatic(vec(part.joint.parentAnchor),vec(part.joint.childAnchor),vec(part.joint.axis));
+  else if(part.joint.type==='fixed') {
+    const parent=parentBody.rotation(),child=childBody.rotation();
+    const inverseParent={x:-parent.x,y:-parent.y,z:-parent.z,w:parent.w};
+    const multiply=(a,b)=>({x:a.w*b.x+a.x*b.w+a.y*b.z-a.z*b.y,y:a.w*b.y-a.x*b.z+a.y*b.w+a.z*b.x,z:a.w*b.z+a.x*b.y-a.y*b.x+a.z*b.w,w:a.w*b.w-a.x*b.x-a.y*b.y-a.z*b.z});
+    data=RAPIER.JointData.fixed(vec(part.joint.parentAnchor),multiply(inverseParent,child),vec(part.joint.childAnchor),{x:0,y:0,z:0,w:1});
+  } else throw new TypeError(`RapierPhysicsBackend unsupported joint type: ${part.joint.type}`);
   const joint=world.createImpulseJoint(data,parentBody,childBody,true);
   joint.setContactsEnabled(false);
-  if(part.joint.limits) joint.setLimits(part.joint.limits[0],part.joint.limits[1]);
+  if(part.joint.type!=='fixed' && part.joint.limits) joint.setLimits(part.joint.limits[0],part.joint.limits[1]);
   return joint;
 };
 
@@ -84,7 +95,11 @@ export class RapierPhysicsBackend extends PhysicsBackend {
 
   async init() { await RAPIER.init(); return this; }
   createWorld() { return new RAPIER.World(this.gravity); }
-  step(world, dt) { world.timestep=dt; world.step(); }
+  step(world, dt) {
+    world.timestep=dt;
+    world.step();
+    world.bodies.forEach((body)=>{ if(body.isDynamic()) { body.resetForces(false); body.resetTorques(false); } });
+  }
   dispose(world) { world?.free?.(); }
   debugSnapshot(world,{nativeGeometry=true}={}) {
     return {
@@ -94,8 +109,8 @@ export class RapierPhysicsBackend extends PhysicsBackend {
     };
   }
 
-  createBody(world,{type='fixed',position=null,rotation=null}={}) {
-    const body=world.createRigidBody(createBodyDesc(type,position));
+  createBody(world,{type='fixed',position=null,rotation=null,canSleep=true,lockTranslation=null,lockRotation=null}={}) {
+    const body=world.createRigidBody(createBodyDesc(type,position,{canSleep,lockTranslation,lockRotation}));
     if(rotation) body.setRotation(q4(rotation),true);
     return body;
   }
@@ -198,6 +213,17 @@ export class RapierPhysicsBackend extends PhysicsBackend {
     else body.applyImpulse(v3(impulse),wake);
     return true;
   }
+  applyForce(body,force,{point=null,wake=true}={}) {
+    if(!body || this.bodyType(body)!=='dynamic') return false;
+    if(point) body.addForceAtPoint(v3(force),v3(point),wake);
+    else body.addForce(v3(force),wake);
+    return true;
+  }
+  applyTorque(body,torque,{wake=true}={}) {
+    if(!body || this.bodyType(body)!=='dynamic') return false;
+    body.addTorque(v3(torque),wake);
+    return true;
+  }
   setBodyMaterial(body,{friction=null,restitution=null}={}) {
     if(!body) return false;
     for(const collider of this.colliders(body)) {
@@ -213,11 +239,28 @@ export class RapierPhysicsBackend extends PhysicsBackend {
     if(gravityScale!=null) body.setGravityScale(gravityScale,wake);
     return true;
   }
+  setBodyCcd(body,enabled) {
+    if(!body || this.bodyType(body)!=='dynamic') return false;
+    body.enableCcd(Boolean(enabled));
+    return true;
+  }
+  setBodySensor(body,enabled) {
+    if(!body) return false;
+    for(const collider of this.colliders(body)) collider.setSensor(Boolean(enabled));
+    return true;
+  }
+  setBodyCollisionFilter(body,filter=null) {
+    if(!body) return false;
+    const groups=filter ? ((((filter.membership & 0xffff) << 16) | (filter.filter & 0xffff)) >>> 0) : 0xffffffff;
+    for(const collider of this.colliders(body)) collider.setCollisionGroups(groups);
+    return true;
+  }
+  sleepBody(body) { if(!body || this.bodyType(body)!=='dynamic') return false; body.sleep(); return true; }
   wakeBody(body) { body?.wakeUp?.(); return Boolean(body); }
 
   createJoint(world,part,parentBody,childBody) { return createJoint(world,part,parentBody,childBody); }
   setJointTarget(joint,target,{stiffness=40,damping=8}={}) {
-    if(!joint) return false;
+    if(!joint || joint.type?.()===RAPIER.JointType.Fixed) return false;
     joint.configureMotorPosition(target,stiffness,damping);
     return true;
   }

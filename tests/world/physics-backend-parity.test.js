@@ -58,6 +58,73 @@ describe.each(BACKENDS)('%s backend-neutral parity',(_name,createBackend)=>{
       backend.setBodyMotion(body,{linearVelocity:[0,0,0],angularVelocity:[0,0,0]});
       expect(backend.applyImpulse(body,[1,0,0])).toBe(true);
       expect(backend.bodyMotion(body).linearVelocity[0]).toBeGreaterThan(.5);
+
+      backend.setBodyMotion(body,{linearVelocity:[0,0,0],angularVelocity:[0,0,0]});
+      expect(backend.applyForce(body,[6,0,0])).toBe(true);
+      expect(backend.applyTorque(body,[0,3,0])).toBe(true);
+      backend.step(world,1/60);
+      const afterForce=backend.bodyMotion(body);
+      expect(afterForce.linearVelocity[0]).toBeGreaterThan(0);
+      expect(Math.abs(afterForce.angularVelocity[1])).toBeGreaterThan(0);
+      backend.step(world,1/60);
+      const afterSecondStep=backend.bodyMotion(body);
+      expect(afterSecondStep.linearVelocity[0]).toBeLessThanOrEqual(afterForce.linearVelocity[0]+1e-3);
+      expect(Math.abs(afterSecondStep.angularVelocity[1])).toBeLessThanOrEqual(Math.abs(afterForce.angularVelocity[1])+1e-3);
+      expect(backend.setBodyCcd(body,true)).toBe(true);
+      expect(backend.setBodySensor(body,true)).toBe(true);
+      expect(backend.setBodySensor(body,false)).toBe(true);
+    });
+  });
+
+  it('enforces mutual membership/filter collision permission',async()=>{
+    const run=async(allowed)=>withWorld(createBackend,(backend,world)=>{
+      const actor=backend.createBody(world,{type:'dynamic',position:[0,0,0]});
+      backend.createColliders(world,actor,[{shape:'box',halfExtents:[.25,.25,.25]}],{mass:1});
+      const wall=backend.createBody(world,{type:'fixed',position:[1,0,0]});
+      backend.createColliders(world,wall,[{shape:'box',halfExtents:[.1,1,1]}]);
+      backend.setBodyCollisionFilter(actor,{membership:1,filter:2});
+      backend.setBodyCollisionFilter(wall,{membership:2,filter:allowed?1:4});
+      backend.setBodyMotion(actor,{linearVelocity:[2,0,0],angularVelocity:[0,0,0]});
+      for(let i=0;i<60;i++) backend.step(world,1/60);
+      return backend.bodyPose(actor).position[0];
+    });
+    const blocked=await run(true);
+    const passed=await run(false);
+    expect(blocked).toBeLessThan(.8);
+    expect(passed).toBeGreaterThan(1.2);
+  });
+
+  it('supports a fixed joint without exposing motor semantics',async()=>{
+    await withWorld(createBackend,(backend,world)=>{
+      const parent=backend.createBody(world,{type:'fixed',position:[0,0,0],rotation:[0,0,0,1]});
+      const child=backend.createBody(world,{type:'dynamic',position:[1,0,0],rotation:[0,0,0,1]});
+      backend.createColliders(world,parent,[{shape:'box',halfExtents:[.2,.2,.2]}]);
+      backend.createColliders(world,child,[{shape:'box',halfExtents:[.2,.2,.2]}],{mass:1});
+      const joint=backend.createJoint(world,{joint:{type:'fixed',parentAnchor:[1,0,0],childAnchor:[0,0,0]}},parent,child);
+      expect(joint).toBeTruthy();
+      expect(backend.setJointTarget(joint,1)).toBe(false);
+      backend.applyImpulse(child,[0,4,0]);
+      for(let i=0;i<10;i++) backend.step(world,1/60);
+      const pose=backend.bodyPose(child);
+      expect(Math.abs(pose.position[0]-1)).toBeLessThan(.05);
+      expect(Math.abs(pose.position[1])).toBeLessThan(.1);
+    });
+  });
+
+  it('preserves an existing relative orientation with a fixed joint',async()=>{
+    await withWorld(createBackend,(backend,world)=>{
+      const sy=Math.sin(Math.PI/8),cy=Math.cos(Math.PI/8);
+      const sz=Math.sin(-Math.PI/10),cz=Math.cos(-Math.PI/10);
+      const parent=backend.createBody(world,{type:'fixed',position:[0,0,0],rotation:[0,sy,0,cy]});
+      const child=backend.createBody(world,{type:'dynamic',position:[1,0,0],rotation:[0,0,sz,cz]});
+      backend.createColliders(world,parent,[{shape:'box',halfExtents:[.2,.2,.2]}]);
+      backend.createColliders(world,child,[{shape:'box',halfExtents:[.2,.2,.2]}],{mass:1});
+      const before=backend.bodyPose(child).rotation;
+      backend.createJoint(world,{joint:{type:'fixed',parentAnchor:[0,0,0],childAnchor:[0,0,0]}},parent,child);
+      for(let i=0;i<10;i++) backend.step(world,1/60);
+      const after=backend.bodyPose(child).rotation;
+      const dot=Math.abs(before[0]*after[0]+before[1]*after[1]+before[2]*after[2]+before[3]*after[3]);
+      expect(dot).toBeGreaterThan(.999);
     });
   });
 
