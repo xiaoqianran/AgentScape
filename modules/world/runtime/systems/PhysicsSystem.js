@@ -47,6 +47,11 @@ export class PhysicsSystem {
     this.world = null;
     this.entries = new Map();
     this.colliderProvenance = new Map();
+    this.colliderHandles = new Map();
+    this.colliderRuntime = new Map();
+    this.collisionPairs = new Map();
+    this.collisionEvents = [];
+    this.collisionGroupBits = new Map();
     this.rootRotation = new THREE.Quaternion();
     this.inverseRootRotation = new THREE.Quaternion();
     this.partWorldRotation = new THREE.Quaternion();
@@ -73,6 +78,11 @@ export class PhysicsSystem {
     const previousController=this.characterController;
     this.entries.clear();
     this.colliderProvenance.clear();
+    this.colliderHandles.clear();
+    this.colliderRuntime.clear();
+    this.collisionPairs.clear();
+    this.collisionEvents.length=0;
+    this.collisionGroupBits.clear();
     this.characterController=null;
     if(previousWorld && previousController) this.backend.removeCharacterController(previousWorld,previousController);
     if(previousWorld) this.backend.dispose(previousWorld);
@@ -85,7 +95,7 @@ export class PhysicsSystem {
 
   runtimeCapabilities() {
     const capabilities=['transform-state','articulation-pose'];
-    if (this.backend.hasCapability('collision') && this.backend.hasCapability('scene-query')) capabilities.push('counterfactual-query');
+    if (this.backend.hasCapability('collision') && this.backend.hasCapability('scene-query')) capabilities.push('counterfactual-query','collision-events');
     return capabilities;
   }
 
@@ -217,10 +227,10 @@ export class PhysicsSystem {
     };
   }
 
-  addEnvironment(colliders = [], { id = '$environment' } = {}) {
+  addEnvironment(colliders = [], { id = '$environment', collision = null, sensor = false, collisionEvents = false } = {}) {
     if (!this.solverEnabled) return null;
     const body=this.backend.createBody(this.world,{type:'fixed'});
-    this.addColliders(body,colliders,{provenance:{kind:'environment',environmentId:id}});
+    this.addColliders(body,colliders,{collision,sensor,collisionEvents,provenance:{kind:'environment',environmentId:id}});
     return body;
   }
 
@@ -234,18 +244,51 @@ export class PhysicsSystem {
     return true;
   }
 
-  addColliders(body,colliders=[],{mass,friction,restitution,provenance=null}={}) {
+  _collisionBit(name) {
+    if(this.collisionGroupBits.has(name)) return this.collisionGroupBits.get(name);
+    if(this.collisionGroupBits.size>=16) throw new Error('Physics collision groups exceed Rapier-compatible limit of 16');
+    const bit=1 << this.collisionGroupBits.size;
+    this.collisionGroupBits.set(name,bit);
+    return bit;
+  }
+
+  _compileCollisionFilter(collision) {
+    if(!collision) return null;
+    let membership=0,filter=0;
+    for(const name of collision.groups || []) membership|=this._collisionBit(name);
+    for(const name of collision.collidesWith || []) filter|=this._collisionBit(name);
+    return {membership:membership & 0xffff,filter:filter & 0xffff};
+  }
+
+  _collisionPairAllowed(leftRuntime,rightRuntime) {
+    const left=leftRuntime?.collisionFilter || {membership:0xffff,filter:0xffff};
+    const right=rightRuntime?.collisionFilter || {membership:0xffff,filter:0xffff};
+    return (left.membership & right.filter)!==0 && (right.membership & left.filter)!==0;
+  }
+
+  addColliders(body,colliders=[],{mass,friction,restitution,sensor=false,collisionEvents=false,collision=null,provenance=null}={}) {
     if (!this.solverEnabled || !body || !this.backend.hasCapability('collision')) return [];
+    const collisionFilter=this._compileCollisionFilter(collision);
     const created=this.backend.createColliders(this.world,body,colliders,{mass,friction,restitution});
+    this.backend.setBodyCollisionFilter(body,collisionFilter);
     created.forEach((collider,colliderIndex)=>{
-      if(provenance) this.colliderProvenance.set(this.backend.colliderKey(collider),{...provenance,colliderIndex});
+      const key=this.backend.colliderKey(collider);
+      this.colliderHandles.set(key,collider);
+      if(provenance) this.colliderProvenance.set(key,{...provenance,colliderIndex});
+      this.colliderRuntime.set(key,{sensor:Boolean(sensor),collisionEvents:Boolean(collisionEvents),collisionFilter});
     });
+    if(sensor) this.backend.setBodySensor(body,true);
     return created;
   }
 
   unregisterBodyColliders(body) {
     if (!body) return;
-    for(const collider of this.backend.colliders(body)) this.colliderProvenance.delete(this.backend.colliderKey(collider));
+    for(const collider of this.backend.colliders(body)) {
+      const key=this.backend.colliderKey(collider);
+      this.colliderProvenance.delete(key);
+      this.colliderHandles.delete(key);
+      this.colliderRuntime.delete(key);
+    }
   }
 
   provenanceOfCollider(collider) {
@@ -263,11 +306,13 @@ export class PhysicsSystem {
       object.getWorldPosition(worldPos);
       object.getWorldQuaternion(worldRot);
       const body=this.backend.createBody(this.world,{
-        type:manifest.physics?.body || 'fixed', position:worldPos, rotation:worldRot
+        type:manifest.physics?.body || 'fixed', position:worldPos, rotation:worldRot,
+        canSleep:manifest.physics?.canSleep ?? true, lockTranslation:manifest.physics?.lockTranslation, lockRotation:manifest.physics?.lockRotation
       });
       createdBodies.push(body);
       this.addColliders(body,manifest.physics?.colliders,{...manifest.physics,provenance:{kind:'object',objectId:id,partName:ROOT_PART}});
       this.backend.setBodyDynamics(body,manifest.physics || {});
+      if(manifest.physics?.ccd != null) this.backend.setBodyCcd(body,manifest.physics.ccd);
 
       const entry = { body, root: object, rootSpec:manifest.physics || {}, parts: new Map(), lastPosition: worldPos.clone(), lastRotation: worldRot.clone() };
       const bodies = new Map([[ROOT_PART, body]]);
@@ -284,11 +329,13 @@ export class PhysicsSystem {
         node.getWorldPosition(partWorld);
         node.getWorldQuaternion(partRotation);
         const child=this.backend.createBody(this.world,{
-          type:part.physics.body || 'dynamic', position:partWorld, rotation:partRotation
+          type:part.physics.body || 'dynamic', position:partWorld, rotation:partRotation,
+          canSleep:part.physics?.canSleep ?? true, lockTranslation:part.physics?.lockTranslation, lockRotation:part.physics?.lockRotation
         });
         createdBodies.push(child);
         this.addColliders(child,part.physics.colliders,{...part.physics,provenance:{kind:'object',objectId:id,partName}});
         this.backend.setBodyDynamics(child,part.physics);
+        if(part.physics?.ccd != null) this.backend.setBodyCcd(child,part.physics.ccd);
 
         const joint=this.backend.createJoint(this.world,part,parentBody,child);
         bodies.set(partName, child);
@@ -665,6 +712,18 @@ export class PhysicsSystem {
     return body ? this.backend.applyImpulse(body,impulse,{point,wake}) : false;
   }
 
+  applyForce(id,force,{ partName = ROOT_PART, point = null, wake = true } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    return body ? this.backend.applyForce(body,force,{point,wake}) : false;
+  }
+
+  applyTorque(id,torque,{ partName = ROOT_PART, wake = true } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    return body ? this.backend.applyTorque(body,torque,{wake}) : false;
+  }
+
   setMaterial(id,material={}, { partName = ROOT_PART } = {}) {
     const entry=this.entries.get(id);
     const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
@@ -677,6 +736,51 @@ export class PhysicsSystem {
     return body ? this.backend.setBodyDynamics(body,dynamics) : false;
   }
 
+  setCcd(id,enabled,{ partName = ROOT_PART } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    return body ? this.backend.setBodyCcd(body,Boolean(enabled)) : false;
+  }
+
+  sleep(id,{ partName = ROOT_PART } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    return body ? this.backend.sleepBody(body) : false;
+  }
+
+  wake(id,{ partName = ROOT_PART } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    return body ? this.backend.wakeBody(body) : false;
+  }
+
+  setSensor(id,enabled,{ partName = ROOT_PART } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    if(!body) return false;
+    const ok=this.backend.setBodySensor(body,Boolean(enabled));
+    if(ok) for(const collider of this.backend.colliders(body)) {
+      const key=this.backend.colliderKey(collider);
+      const runtime=this.colliderRuntime.get(key) || {sensor:false,collisionEvents:false,collisionFilter:null};
+      this.colliderRuntime.set(key,{...runtime,sensor:Boolean(enabled)});
+    }
+    return ok;
+  }
+
+  setCollisionFilter(id,collision,{ partName = ROOT_PART } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    if(!body) return false;
+    const collisionFilter=this._compileCollisionFilter(collision);
+    const ok=this.backend.setBodyCollisionFilter(body,collisionFilter);
+    if(ok) for(const collider of this.backend.colliders(body)) {
+      const key=this.backend.colliderKey(collider);
+      const runtime=this.colliderRuntime.get(key) || {sensor:false,collisionEvents:false,collisionFilter:null};
+      this.colliderRuntime.set(key,{...runtime,collisionFilter});
+    }
+    return ok;
+  }
+
   getPartRestPose(id, partName) {
     const part = this.entries.get(id)?.parts.get(partName);
     if (!part) return null;
@@ -686,7 +790,7 @@ export class PhysicsSystem {
   getArticulationState(id, partName, { target = null } = {}) {
     const entry = this.entries.get(id);
     const part = entry?.parts.get(partName);
-    if (!entry || !part?.node?.parent) return null;
+    if (!entry || !part?.node?.parent || part.spec?.joint?.type === 'fixed') return null;
     const parentFrame = part.parentName === ROOT_PART ? entry.root : entry.parts.get(part.parentName)?.node;
     if (!parentFrame) return null;
     entry.root.updateWorldMatrix(true, true);
@@ -1107,7 +1211,8 @@ export class PhysicsSystem {
       return true;
     }
     const motor=part.spec.joint.motor || {};
-    this.backend.setJointTarget(part.joint,target,motor);
+    const applied=this.backend.setJointTarget(part.joint,target,motor);
+    if(!applied) return false;
     this.backend.wakeBody(part.body);
     return true;
   }
@@ -1118,7 +1223,8 @@ export class PhysicsSystem {
     if (!part || !state) return false;
     if (!part.joint || !part.body) return this.hasCapability('articulation-pose');
     const motor=part.spec.joint.motor || {};
-    this.backend.setJointTarget(part.joint,state.coordinate,motor);
+    const applied=this.backend.setJointTarget(part.joint,state.coordinate,motor);
+    if(!applied) return false;
     this.backend.wakeBody(part.body);
     return true;
   }
@@ -1235,6 +1341,11 @@ export class PhysicsSystem {
   dispose() {
     this.entries.clear();
     this.colliderProvenance.clear();
+    this.colliderHandles.clear();
+    this.colliderRuntime.clear();
+    this.collisionPairs.clear();
+    this.collisionEvents.length=0;
+    this.collisionGroupBits.clear();
     if(this.world && this.characterController) this.backend.removeCharacterController(this.world,this.characterController);
     this.characterController = null;
     this.backend.dispose(this.world);
@@ -1243,7 +1354,55 @@ export class PhysicsSystem {
 
   step(dt, store) {
     this.backend.step(this.world, dt);
+    this.updateCollisionEvents();
     return this.writeback(store);
+  }
+
+  getCollisionEvents({ clear = true } = {}) {
+    const events=this.collisionEvents.map((event)=>structuredClone(event));
+    if(clear) this.collisionEvents.length=0;
+    return events;
+  }
+
+  updateCollisionEvents() {
+    if(!this.world || !this.backend.hasCapability('collision')) return;
+    const watched=[...this.colliderRuntime.entries()].filter(([,runtime])=>runtime.sensor || runtime.collisionEvents);
+    if(!watched.length) { this.collisionPairs.clear(); return; }
+    this.backend.syncSceneQueries(this.world);
+    const current=new Map();
+    const descriptor=(key)=>{
+      const p=this.colliderProvenance.get(key);
+      if(!p) return {kind:'unknown',colliderKey:key};
+      if(p.kind==='environment') return {kind:'environment',environmentId:p.environmentId || '$environment',colliderIndex:p.colliderIndex ?? null};
+      return {kind:'object',objectId:p.objectId,partName:p.partName || ROOT_PART,colliderIndex:p.colliderIndex ?? null};
+    };
+    const addPair=(leftKey,rightKey)=>{
+      if(leftKey==null || rightKey==null || leftKey===rightKey) return;
+      const a=leftKey<rightKey?leftKey:rightKey,b=leftKey<rightKey?rightKey:leftKey,key=String(a)+':'+String(b);
+      if(current.has(key)) return;
+      const ar=this.colliderRuntime.get(a),br=this.colliderRuntime.get(b);
+      if(!this._collisionPairAllowed(ar,br)) return;
+      current.set(key,{key,sensor:Boolean(ar?.sensor || br?.sensor),a:descriptor(a),b:descriptor(b)});
+    };
+    for(const [sourceKey,sourceRuntime] of watched) {
+      const source=this.colliderHandles.get(sourceKey);
+      if(!source) continue;
+      if(sourceRuntime.sensor) {
+        const snapshot=this.backend.colliderSnapshot(source);
+        if(!snapshot) continue;
+        this.backend.intersectionsWithShape(this.world,snapshot.position,snapshot.rotation,snapshot.shapeRef,(other)=>{
+          const otherKey=this.backend.colliderKey(other);
+          const otherBody=this.backend.colliderParent(other),sourceBody=this.backend.colliderParent(source);
+          if(otherKey!==sourceKey && this.backend.bodyKey(otherBody)!==this.backend.bodyKey(sourceBody)) addPair(sourceKey,otherKey);
+          return true;
+        },{excludeCollider:source});
+      } else {
+        for(const pair of this.backend.contactPairs(this.world,source)) addPair(sourceKey,this.backend.colliderKey(pair.other));
+      }
+    }
+    for(const [key,pair] of current) if(!this.collisionPairs.has(key)) this.collisionEvents.push({type:pair.sensor?'sensor-entered':'collision-started',a:pair.a,b:pair.b});
+    for(const [key,pair] of this.collisionPairs) if(!current.has(key)) this.collisionEvents.push({type:pair.sensor?'sensor-exited':'collision-ended',a:pair.a,b:pair.b});
+    this.collisionPairs=current;
   }
 
   writeback(store) {
