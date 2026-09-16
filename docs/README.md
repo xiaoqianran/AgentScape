@@ -80,6 +80,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - [`navigation.md`](navigation.md)：1.10 Current-world Navigation Truth：Recast/Detour、TileCache、Rapier 动态障碍与查询时同步。
 - [`action-aware-navigation.md`](action-aware-navigation.md)：1.14 单动作反事实诊断：blocker provenance、verified action eligibility 与动作后重规划。
 - [`locomotion.md`](locomotion.md)：1.15 Embodied Locomotion：Agent Body、Rapier CharacterController、跨帧 History 与 blocked 执行语义。
+- [`interaction.md`](interaction.md)：Interaction 当前冻结边界、对接 API、依赖方向与内部 runtime。
 - [`interaction-range.md`](interaction-range.md)：1.16 Embodied Interaction：固定交互距离、Rapier LOS、可达交互位与 articulation action sweep。
 - [`agent-carry.md`](agent-carry.md)：1.17 Agent Carry：Hold Anchor、heldBy ownership、pickup transfer shape cast 与携带碰撞。
 - [`agent-place.md`](agent-place.md)：1.18 Agent-held Place：carry-aware release pose、三段 shape-cast transfer、Dynamic settle 与 support post-condition。

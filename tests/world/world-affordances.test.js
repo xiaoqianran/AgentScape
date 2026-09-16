@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMagicCabin } from '../../modules/world/content/magicCabin.js';
-import { WorldAffordances } from '../../modules/world/runtime/interaction/WorldAffordances.js';
+import { WorldAffordances } from '../../modules/world/runtime/affordance/WorldAffordances.js';
 import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
 import { RapierPhysicsBackend } from '../../modules/physics/RapierPhysicsBackend.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';

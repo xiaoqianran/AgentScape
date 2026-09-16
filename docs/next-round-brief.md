@@ -82,7 +82,7 @@ D:\a_programming_list\A-Python-Project\wk08\web-012-line-art-style-magic-cabin\i
 ```text
 docs/world-first-direction.md                     当前唯一优先级依据
 modules/world/content/magic-cabin/README.md        迁移范围与已知限制
-modules/world/runtime/interaction/WorldAffordances.js
+modules/world/runtime/affordance/WorldAffordances.js
 docs/next-round-brief.md                           本文
 application/skills/packs/affordanceSkills.js
 modules/agent/prompt/index.js                      工具选择边界
@@ -145,7 +145,7 @@ npm       12.0.2
 modules/world/content/magic-cabin/**          整个小屋内容
 modules/world/content/magicCabin.js
 modules/world/content/woodlandWorkshop.js
-modules/world/runtime/interaction/WorldAffordances.js
+modules/world/runtime/affordance/WorldAffordances.js
 application/skills/packs/affordanceSkills.js
 apps/studio/ui/WorldInteraction.js
 apps/studio/ui/HumanViewController.js
@@ -220,7 +220,7 @@ commit 1  feat(world): migrate original magic cabin world pack
           tests/helpers/cabinCanvasHost.js
 
 commit 2  feat(world): add environment affordance contracts and agent skills
-          modules/world/runtime/interaction/WorldAffordances.js
+          modules/world/runtime/affordance/WorldAffordances.js
           application/skills/packs/affordanceSkills.js
           application/skills/registerCoreSkills.js
           application/skills/SkillRegistry.js
