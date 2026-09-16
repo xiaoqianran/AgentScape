@@ -138,7 +138,6 @@ export class NavigationSystem {
           ? `physics:${this.physics?.profile?.().identity || 'unknown'}:colliders`
           : 'none',
         synchronization:'query-time',
-        actionAwareDiagnostics:true,
         actionAwareDiagnostics:this.runtimeCapabilities().includes('action-aware-diagnostics'),
         counterfactual:this.runtimeCapabilities().includes('counterfactual-routing')?'single-obstacle-suppression':'none'
       },
@@ -174,7 +173,12 @@ export class NavigationSystem {
     this.environmentRoots.forEach((root, index) => collect(root, `environment:${index}`));
     for (const [id, record] of this.store?.entries?.() || []) {
       if (!this.isStaticRecord(record)) continue;
-      const excludedPartNodes = new Set(Object.values(record.manifest.parts || {}).map((part) => part.node).filter(Boolean));
+      const excludedPartNodes = new Set(
+        Object.values(record.manifest.parts || {})
+          .filter((part) => part?.joint || (part?.physics?.body && part.physics.body !== 'fixed'))
+          .map((part) => part.node)
+          .filter(Boolean)
+      );
       collect(record.object, id, excludedPartNodes);
     }
     return { meshes, skipped };
@@ -278,12 +282,7 @@ export class NavigationSystem {
   }
 
   queryReadyPath(start,end,{maxSnapDistance,endTolerance,scope,build,dynamicObstacles,suppressedObstacleIds=[]}) {
-    let raw;
-    try{
-      raw=this.backend.queryRoute(start,end,{halfExtents:this.queryHalfExtents(maxSnapDistance),suppressedObstacleIds});
-    }catch(error){
-      throw error;
-    }
+    const raw=this.backend.queryPath(start,end,{halfExtents:this.queryHalfExtents(maxSnapDistance),suppressedObstacleIds});
     if(!raw?.success){
       return {reachable:false,scope,reason:raw?.code||'NAVIGATION_QUERY_FAILED',sameIsland:null,path:[],cost:null,buildVersion:build?.buildVersion||this.buildVersion,dynamicObstacles};
     }

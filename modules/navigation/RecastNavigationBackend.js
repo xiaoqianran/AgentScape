@@ -203,7 +203,7 @@ export class RecastNavigationBackend extends NavigationBackend {
     };
   }
 
-  queryRoute(start,end,{halfExtents,suppressedObstacleIds=[]}={}){
+  queryPath(start,end,{halfExtents,suppressedObstacleIds=[]}={}){
     if(!suppressedObstacleIds.length) return this.rawRoute(start,end,halfExtents);
     const removed=[];
     let restorationError=null;

@@ -10,7 +10,7 @@ export class NavigationBackend {
 
   async build(){ throw new Error(`${this.identity} navigation backend does not implement build()`); }
   syncObstacles(){ throw new Error(`${this.identity} navigation backend does not implement syncObstacles()`); }
-  queryRoute(){ throw new Error(`${this.identity} navigation backend does not implement queryRoute()`); }
+  queryPath(){ throw new Error(`${this.identity} navigation backend does not implement queryPath()`); }
   debugGeometry(){ return []; }
   clear(){}
   dispose(){ this.clear(); }

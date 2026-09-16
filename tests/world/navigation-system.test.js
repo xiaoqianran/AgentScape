@@ -90,10 +90,15 @@ describe('NavigationSystem', () => {
     const body = wall({ z:20, depth:1 }); body.name='Body'; root.add(body);
     const door = new THREE.Group(); door.name='DoorPart';
     const panel = wall({ depth:8 }); panel.name='DoorPanel'; door.add(panel); root.add(door);
+    const shelf = new THREE.Group(); shelf.name='ShelfPart';
+    const shelfMesh = wall({ z:20, depth:1 }); shelfMesh.name='ShelfMesh'; shelf.add(shelfMesh); root.add(shelf);
     root.updateMatrixWorld(true);
     store.add('cabinet', {
       id:'cabinet', assetId:'cabinet', object:root,
-      manifest:{ physics:{body:'fixed'}, parts:{door:{node:'DoorPart',physics:{body:'dynamic'},joint:{type:'revolute'}}} }, state:{}
+      manifest:{ physics:{body:'fixed'}, parts:{
+        door:{node:'DoorPart',physics:{body:'dynamic'},joint:{type:'revolute'}},
+        shelf:{node:'ShelfPart',physics:{body:'fixed'}}
+      } }, state:{}
     });
     const navigation = createRecastNavigationSystem({ store, environmentRoots:[floor()] });
     const result = await navigation.findPath([-4,0,0], [4,0,0]);
@@ -101,6 +106,8 @@ describe('NavigationSystem', () => {
     expect(result.scope).toBe('static');
     expect(navigation.status().capabilities.dynamicObstacles).toBe(false);
     expect(navigation.status().lastBuild.skipped).toContainEqual(expect.objectContaining({node:'DoorPanel',reason:'dynamic-part'}));
+    expect(navigation.status().lastBuild.skipped).not.toContainEqual(expect.objectContaining({node:'ShelfMesh',reason:'dynamic-part'}));
+    expect(navigation.status().lastBuild.meshCount).toBe(3); // floor + fixed body + fixed shelf; dynamic door excluded.
     navigation.dispose();
   }, 15000);
 

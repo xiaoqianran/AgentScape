@@ -602,7 +602,7 @@
 | NAV-034 | P1 | XS | READY | test | Recast `clear()` 可重复调用 | `RecastNavigationBackend.js` | — | 第二次不抛/无旧 native ref | — | — |
 | NAV-035 | P1 | XS | READY | test | Recast library load 并发只初始化一次 | same | — | init promise dedupe | — | — |
 | NAV-036 | P1 | S | READY | test | rawRoute waypoint 顺序 start→end 固定 | same | — | 不倒序、不重复相邻点 | — | — |
-| NAV-037 | P1 | XS | READY | test | queryRoute suppressed IDs 不修改 canonical obstacle map | same | NAV-028 | before/after map 相同 | — | — |
+| NAV-037 | P1 | XS | READY | test | queryPath suppressed IDs 不修改 canonical obstacle map | same | NAV-028 | before/after map 相同 | — | — |
 | NAV-038 | P2 | S | DISCOVERY | research | 定义 off-mesh link 最小 contract | `docs/navigation.md` | — | start/end/type/cost/requiredCapability 字段明确 | — | — |
 | NAV-039 | P2 | S | BLOCKED | contract | 为 navigation artifact 增加 off-mesh link schema validator | nav schema | NAV-038 | 只验证，不执行 | — | — |
 | NAV-040 | P2 | S | DISCOVERY | research | 定义 Recast Crowd 是否归 Navigation 或 Locomotion | docs | — | ownership decision + rejection alternatives | — | — |

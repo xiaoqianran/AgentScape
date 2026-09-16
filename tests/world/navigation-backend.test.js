@@ -12,7 +12,7 @@ class DirectNavigationBackend extends NavigationBackend {
   isReady(){ return this.ready; }
   async build(geometry){ this.ready=true; this.builds+=1; this.geometryCount=geometry.length; return {success:true}; }
   syncObstacles(descriptors=[]){ this.obstacles=structuredClone(descriptors); return {success:true,tracked:this.obstacles.length,changed:0,operations:0,updates:0,descriptors:this.obstacles}; }
-  queryRoute(start,end){
+  queryPath(start,end){
     const toPoint=(v)=>({x:v[0],y:v[1],z:v[2]});
     return {success:true,start:{success:true,point:toPoint(start)},end:{success:true,point:toPoint(end)},computed:{success:true,path:[toPoint(start),toPoint(end)],error:null}};
   }
@@ -30,7 +30,7 @@ describe('NavigationBackend contract',()=>{
     expect(declaredNavigationCapabilityMethodGaps(new RecastNavigationBackend())).toEqual([]);
     expect(declaredNavigationCapabilityMethodGaps(new DirectNavigationBackend())).toEqual([]);
     class LyingBackend extends NavigationBackend { constructor(){ super('lying',{capabilities:['route-query']}); } }
-    expect(declaredNavigationCapabilityMethodGaps(new LyingBackend())).toEqual([{capability:'route-query',method:'queryRoute'}]);
+    expect(declaredNavigationCapabilityMethodGaps(new LyingBackend())).toEqual([{capability:'route-query',method:'queryPath'}]);
   });
 
   it('lets NavigationSystem run through a non-Recast backend without changing world semantics',async()=>{

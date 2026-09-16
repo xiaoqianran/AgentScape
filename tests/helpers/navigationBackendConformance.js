@@ -3,9 +3,9 @@ import { NavigationBackend } from '../../modules/navigation/NavigationBackend.js
 
 export const NAVIGATION_CAPABILITY_METHODS=Object.freeze({
   'static-routing':['build','isReady'],
-  'route-query':['queryRoute'],
+  'route-query':['queryPath'],
   'dynamic-obstacles':['syncObstacles'],
-  'obstacle-suppression':['queryRoute'],
+  'obstacle-suppression':['queryPath'],
   'debug-geometry':['debugGeometry']
 });
 
@@ -36,7 +36,7 @@ export async function expectRouteExecution(backend,{config}={}){
   });
   expect(built).toMatchObject({success:true});
   expect(backend.isReady()).toBe(true);
-  const route=backend.queryRoute([-1,0,0],[1,0,0],{halfExtents:{x:.75,y:1.7,z:.75}});
+  const route=backend.queryPath([-1,0,0],[1,0,0],{halfExtents:{x:.75,y:1.7,z:.75}});
   expect(route).toMatchObject({success:true,start:{success:true},end:{success:true},computed:{success:true}});
   expect(route.computed.path.length).toBeGreaterThan(0);
   return route;
