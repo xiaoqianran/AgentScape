@@ -1,5 +1,4 @@
 import { disposeObject3D } from './disposeObject3D.js';
-import { applyGeneratedWorldObjectTransform } from '../world/generated/GeneratedWorldCoordinates.js';
 
 const asArrayBuffer=(bytes)=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
 export const DEFAULT_RUNTIME_SPLAT_BUDGET=500_000;
@@ -40,7 +39,7 @@ export function budgetGaussianData(data,maxSplats=DEFAULT_RUNTIME_SPLAT_BUDGET){
   };
 }
 
-export async function loadGaussianSplatVisual({source,coordinateSystem='y-up',metersPerUnit=1,maxSplats=DEFAULT_RUNTIME_SPLAT_BUDGET}={}) {
+export async function loadGaussianSplatVisual({source,maxSplats=DEFAULT_RUNTIME_SPLAT_BUDGET}={}) {
   if(!source) throw new TypeError('Gaussian splat visual source is required');
   const format=String(source.format||source.url?.split(/[?#]/,1)[0]?.split('.').at(-1)||'').toLowerCase();
   if(format!=='spz') throw new TypeError(`Unsupported generated visual format: ${format||'unknown'}`);
@@ -63,8 +62,7 @@ export async function loadGaussianSplatVisual({source,coordinateSystem='y-up',me
   const budgeted=budgetGaussianData(parsed,maxSplats);
   if(!budgeted.splatCount) throw new Error('Generated SPZ visual contains no splats');
   const object=new GSMesh(budgeted.data,{sortIntervalFrames:3});
-  object.name='GeneratedWorldGaussianSplat';
-  applyGeneratedWorldObjectTransform(object,coordinateSystem,metersPerUnit);
+  object.name='GaussianSplatVisual';
   return {
     object,
     format:'spz',

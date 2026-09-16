@@ -9,7 +9,6 @@ import { SpatialSystem } from './systems/SpatialSystem.js';
 import { NavigationSystem } from './systems/NavigationSystem.js';
 import { RecastNavigationBackend } from '../../navigation/RecastNavigationBackend.js';
 import { LocomotionSystem } from './systems/LocomotionSystem.js';
-import { RenderingSystem } from './systems/RenderingSystem.js';
 import { SceneSerializer } from './SceneSerializer.js';
 import { CommandHistory } from './CommandHistory.js';
 import { SceneGraph } from './graph/SceneGraph.js';
@@ -34,16 +33,15 @@ const mutationResultCommitted=(result)=>!(
 );
 
 export class WorldRuntime {
-  constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend(), rendererFactory = null, rendererMode = 'auto', rendererTiming = false } = {}) {
+  constructor({ environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend() } = {}) {
     if (!assetModule?.registry || !assetModule?.loader || !assetModule?.catalog || !assetModule?.compiledStore) {
       throw new TypeError('WorldRuntime requires an Asset module');
     }
     if (typeof physicsFactory !== 'function') throw new TypeError('WorldRuntime physicsFactory must be a function');
     if (typeof navigationBackendFactory !== 'function') throw new TypeError('WorldRuntime navigationBackendFactory must be a function');
-    if (rendererFactory !== null && typeof rendererFactory !== 'function') throw new TypeError('WorldRuntime rendererFactory must be a function');
     this.version = '1.34.2';
     this.affordances = new WorldAffordances(this);
-    this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
+    this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.assetModule = assetModule;
     this.assetRegistry = assetModule.registry;
@@ -51,9 +49,7 @@ export class WorldRuntime {
     this.assetCatalog = assetModule.catalog;
     this.physicsFactory = physicsFactory;
     this.navigationBackendFactory = navigationBackendFactory;
-    this.rendererFactory = rendererFactory;
-    this.rendererMode = rendererMode;
-    this.rendererTiming = Boolean(rendererTiming);
+    this.scene = new THREE.Scene();
     this.rendering = null;
     this.articulationVerifier = new ArticulationVerifier({ assetRegistry:this.assetRegistry, assetLoader:this.assetLoader, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null;
     this.simulation = new SimulationSession({
@@ -64,21 +60,28 @@ export class WorldRuntime {
       events:this.events
     });
   }
+  attachRendering(rendering) {
+    if (!rendering || typeof rendering.init !== 'function' || typeof rendering.dispose !== 'function') {
+      throw new TypeError('WorldRuntime rendering must provide init() and dispose()');
+    }
+    if (rendering.scene && rendering.scene !== this.scene) {
+      throw new TypeError('WorldRuntime rendering must use the Runtime scene');
+    }
+    if (this.rendering && this.rendering !== rendering) {
+      const error = new Error('WorldRuntime rendering is already attached');
+      error.code = 'WORLD_RENDERING_ALREADY_ATTACHED';
+      throw error;
+    }
+    this.rendering = rendering;
+    return rendering;
+  }
   async init() {
     await this.assetModule.hydrate?.();
     await this.physics.init();
-    this.scene = new THREE.Scene();
-    const renderingOptions = {
-      container:this.container,
-      scene:this.scene,
-      events:this.events,
-      rendererMode:this.rendererMode,
-      rendererTiming:this.rendererTiming
-    };
-    if (this.rendererFactory) renderingOptions.rendererFactory = this.rendererFactory;
-    this.rendering = new RenderingSystem(renderingOptions);
-    await this.rendering.init();
-    this.assetLoader.configureRenderer?.(this.rendering.renderer);
+    if (this.rendering) {
+      await this.rendering.init();
+      if (this.rendering.renderer) this.assetLoader.configureRenderer?.(this.rendering.renderer);
+    }
     this.spatial = new SpatialSystem({ store: this.store, scene: this.scene });
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });

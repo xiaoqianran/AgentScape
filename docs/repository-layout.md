@@ -50,7 +50,7 @@ application/generation 保留已有三份协调实现，避免在迁移中重新
 ## 本次迁移的范围与保留限制
 
 已完成目录迁移、引用更新、模块任务分发、Studio 装配入口提取、领域错误归位和分层检查。
-未将目录调整混同为全部运行时解耦：world.generation/world.skills 仍是现有兼容连接；WorldRuntime 仍组装 RenderingSystem；SkillRegistry 仍负责既有结果分类；PolicyEngine 暂保留默认产品角色。
+未将目录调整混同为全部运行时解耦：world.generation/world.skills 仍是现有兼容连接；RenderingSystem 由 application composition 可选装配到 WorldRuntime；SkillRegistry 仍负责既有结果分类；PolicyEngine 暂保留默认产品角色。
 这些限制应按实际任务逐步改进，不能把当前目录结构当作它们已解决的证据。
 
 验证继续复用 npm run check，不为每个模块建立单独框架。

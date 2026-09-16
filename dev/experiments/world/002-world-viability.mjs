@@ -133,7 +133,7 @@ async function createHeadlessMonumentRuntime() {
     kind:'glb',
     url:`data:model/gltf-binary;base64,${cabinetBytes.toString('base64')}`
   };
-  const runtime = new WorldRuntime({appendChild(){}},{
+  const runtime = new WorldRuntime({
     environmentFactory:null,
     assetModule:createAssetModule({manifests})
   });

@@ -44,7 +44,7 @@ async function createHeadlessRuntime(){
   globalThis.localStorage ||= {getItem:()=>null,setItem:()=>{},removeItem:()=>{}};
   globalThis.ProgressEvent ||= class ProgressEvent { constructor(type,init={}){this.type=type;Object.assign(this,init);} };
   const { WorldRuntime }=await import("../../modules/world/runtime/WorldRuntime.js");
-  const runtime=new WorldRuntime({appendChild(){}},{environmentFactory:null,assetModule:createAssetModule()});
+  const runtime=new WorldRuntime({environmentFactory:null,assetModule:createAssetModule()});
   await runtime.physics.init();
   runtime.scene=new THREE.Scene();
   runtime.rendering={viewPose:()=>({position:[0,0,0],rotation:[0,0,0,1]}),cameraState:()=>({position:[0,0,0],target:[0,0,-1]}),applyCameraState:()=>true,update(){}};

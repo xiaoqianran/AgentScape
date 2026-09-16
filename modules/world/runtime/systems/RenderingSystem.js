@@ -5,6 +5,7 @@ import { createRenderer } from '../../../rendering/createRenderer.js';
 import { RendererProbe } from '../../../rendering/RendererProbe.js';
 import { WebGpuPostFxPipeline } from '../../../rendering/WebGpuPostFxPipeline.js';
 import { loadGaussianSplatVisual } from '../../../rendering/loadGaussianSplatVisual.js';
+import { applyGeneratedWorldObjectTransform } from '../../generated/GeneratedWorldCoordinates.js';
 
 export class RenderingSystem {
   constructor({
@@ -147,16 +148,17 @@ export class RenderingSystem {
     visual.status = 'loading';
     this.generatedVisualState = { status:'loading', format, splatCount:0 };
     try {
-      const loaded = await this.generatedVisualLoader({
-        source:visual.source || visual,
-        coordinateSystem:environment.generated.coordinateSystem || 'y-up',
-        metersPerUnit:environment.generated.metersPerUnit ?? 1
-      });
+      const loaded = await this.generatedVisualLoader({ source:visual.source || visual });
       if (version !== this.environmentVersion || !this.renderer) {
         loaded?.dispose?.();
         return false;
       }
       if (!loaded?.object?.isObject3D) throw new TypeError('Generated visual loader must return an Object3D');
+      applyGeneratedWorldObjectTransform(
+        loaded.object,
+        environment.generated.coordinateSystem || 'y-up',
+        environment.generated.metersPerUnit ?? 1
+      );
       environment.root?.add?.(loaded.object);
       const fallbackMaterial = environment.floor?.material || null;
       if (fallbackMaterial) fallbackMaterial.visible = false;

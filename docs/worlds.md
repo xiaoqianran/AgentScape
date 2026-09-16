@@ -76,7 +76,7 @@ Pages 通过：
 选择内容条目，然后：
 
 ```text
-new WorldRuntime(viewport, {
+createSession(viewport, {
   environmentFactory: definition.create
 })
 ```

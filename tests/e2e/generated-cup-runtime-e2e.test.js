@@ -31,7 +31,7 @@ async function runtimeFixture() {
     return fetch(input, options);
   };
   const assetModule = createAssetModule();
-  const runtime = new WorldRuntime({ appendChild() {} }, {
+  const runtime = new WorldRuntime({
     environmentFactory: () => null,
     assetModule,
     physicsFactory: () => new PhysicsSystem({ backend: new RapierPhysicsBackend() })

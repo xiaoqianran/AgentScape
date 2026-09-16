@@ -62,7 +62,7 @@ async function buildRuntime(worldId) {
   const cabinetBytes = await readFile('public/assets/cabinet.glb');
   const manifests = structuredClone(assetManifests);
   manifests.cabinet.source = { kind: 'glb', url: 'data:model/gltf-binary;base64,' + cabinetBytes.toString('base64') };
-  const runtime = new WorldRuntime({ appendChild() {} }, {
+  const runtime = new WorldRuntime({
     environmentFactory: null,
     assetModule: createAssetModule({ manifests })
   });

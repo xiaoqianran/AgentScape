@@ -5,7 +5,7 @@ import { createArtifactModule } from '../../modules/artifact/ArtifactModule.js';
 import { sha256ArtifactHash } from '../../modules/artifact/IncrementalSha256.js';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 
-const createRuntime=()=>new WorldRuntime({appendChild(){}},{environmentFactory:()=>null,assetModule:createAssetModule()});
+const createRuntime=()=>new WorldRuntime({environmentFactory:()=>null,assetModule:createAssetModule()});
 
 describe('WorldRuntime generation boundary',()=>{
   it('constructs a provider-neutral World core without Generation composition',()=>{
@@ -96,7 +96,7 @@ describe('WorldRuntime generation boundary',()=>{
   it('accepts a physics factory without binding World core to Rapier',()=>{
     const physics={identity:'custom-physics-runtime'};
     const physicsFactory=()=>physics;
-    const runtime=new WorldRuntime({appendChild(){}},{environmentFactory:()=>null,assetModule:createAssetModule(),physicsFactory});
+    const runtime=new WorldRuntime({environmentFactory:()=>null,assetModule:createAssetModule(),physicsFactory});
     expect(runtime.physics).toBe(physics);
     expect(runtime.physicsFactory).toBe(physicsFactory);
     expect(runtime.articulationVerifier.physicsFactory).toBe(physicsFactory);
@@ -105,7 +105,7 @@ describe('WorldRuntime generation boundary',()=>{
   it('accepts a navigation backend factory without binding World core to Recast',()=>{
     const backend={identity:'custom-navigation-backend'};
     const navigationBackendFactory=()=>backend;
-    const runtime=new WorldRuntime({appendChild(){}},{environmentFactory:()=>null,assetModule:createAssetModule(),navigationBackendFactory});
+    const runtime=new WorldRuntime({environmentFactory:()=>null,assetModule:createAssetModule(),navigationBackendFactory});
     expect(runtime.navigationBackendFactory).toBe(navigationBackendFactory);
     expect(runtime.navigationBackendFactory()).toBe(backend);
   });
