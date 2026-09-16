@@ -52,6 +52,21 @@ export function validatePhysics(physics, context = {}) {
   if (!physics) return;
   if (physics.body && !BODY_TYPES.has(physics.body)) throw Errors.invalidManifest(`Unsupported physics body: ${physics.body}`, context);
   if (physics.navigationObstacle != null && typeof physics.navigationObstacle !== 'boolean') throw Errors.invalidManifest('physics.navigationObstacle must be boolean', context);
+  if (physics.ccd != null && typeof physics.ccd !== 'boolean') throw Errors.invalidManifest('physics.ccd must be boolean', context);
+  if (physics.sensor != null && typeof physics.sensor !== 'boolean') throw Errors.invalidManifest('physics.sensor must be boolean', context);
+  if (physics.collisionEvents != null && typeof physics.collisionEvents !== 'boolean') throw Errors.invalidManifest('physics.collisionEvents must be boolean', context);
+  if (physics.canSleep != null && typeof physics.canSleep !== 'boolean') throw Errors.invalidManifest('physics.canSleep must be boolean', context);
+  for (const key of ['lockTranslation','lockRotation']) {
+    if (physics[key] != null && (!Array.isArray(physics[key]) || physics[key].length !== 3 || !physics[key].every((value)=>typeof value === 'boolean'))) throw Errors.invalidManifest(`physics.${key} must be boolean[3]`, context);
+  }
+  if (physics.collision != null) {
+    if (!physics.collision || typeof physics.collision !== 'object' || Array.isArray(physics.collision)) throw Errors.invalidManifest('physics.collision must be an object', context);
+    const { groups, collidesWith } = physics.collision;
+    if (!Array.isArray(groups) || groups.length === 0 || groups.some((value) => typeof value !== 'string' || !value.trim())) throw Errors.invalidManifest('physics.collision.groups requires non-empty string[]', context);
+    if (new Set(groups).size !== groups.length) throw Errors.invalidManifest('physics.collision.groups must be unique', context);
+    if (!Array.isArray(collidesWith) || collidesWith.some((value) => typeof value !== 'string' || !value.trim())) throw Errors.invalidManifest('physics.collision.collidesWith requires string[]', context);
+    if (new Set(collidesWith).size !== collidesWith.length) throw Errors.invalidManifest('physics.collision.collidesWith must be unique', context);
+  }
   if (physics.mass != null && (!Number.isFinite(physics.mass) || physics.mass <= 0)) throw Errors.invalidManifest('physics.mass must be positive finite', context);
   for (const key of ['friction','restitution','linearDamping','angularDamping']) {
     if (physics[key] != null && (!Number.isFinite(physics[key]) || physics[key] < 0)) throw Errors.invalidManifest(`physics.${key} must be finite and >= 0`, context);
@@ -85,9 +100,14 @@ export function validateAssetManifest(manifest) {
     const context = { id: manifest.id, part: name };
     if (!part.node) throw Errors.invalidManifest(`Part ${name} requires node`, context);
     if (part.actions && (!Array.isArray(part.actions) || new Set(part.actions).size !== part.actions.length)) throw Errors.invalidManifest(`Part ${name} actions must be a unique array`, context);
-    if (part.joint && !['revolute', 'prismatic'].includes(part.joint.type)) throw Errors.invalidManifest(`Unsupported joint type: ${part.joint.type}`, context);
+    if (part.joint && !['revolute', 'prismatic', 'fixed'].includes(part.joint.type)) throw Errors.invalidManifest(`Unsupported joint type: ${part.joint.type}`, context);
     if (part.joint) {
-      if (!Array.isArray(part.joint.axis) || part.joint.axis.length !== 3 || !part.joint.axis.every(Number.isFinite) || Math.hypot(...part.joint.axis) < 1e-6) throw Errors.invalidManifest(`Part ${name} joint requires non-zero finite axis[3]`, context);
+      if (part.joint.type === 'fixed') {
+        if (part.joint.axis != null) throw Errors.invalidManifest(`Part ${name} fixed joint must not define axis`, context);
+        if (part.joint.limits != null) throw Errors.invalidManifest(`Part ${name} fixed joint must not define limits`, context);
+        if (part.joint.motor != null) throw Errors.invalidManifest(`Part ${name} fixed joint must not define motor`, context);
+        if (Object.keys(part.targets || {}).length) throw Errors.invalidManifest(`Part ${name} fixed joint must not define targets`, context);
+      } else if (!Array.isArray(part.joint.axis) || part.joint.axis.length !== 3 || !part.joint.axis.every(Number.isFinite) || Math.hypot(...part.joint.axis) < 1e-6) throw Errors.invalidManifest(`Part ${name} joint requires non-zero finite axis[3]`, context);
       for (const anchor of ['parentAnchor','childAnchor']) {
         if (!Array.isArray(part.joint[anchor]) || part.joint[anchor].length !== 3 || !part.joint[anchor].every(Number.isFinite)) throw Errors.invalidManifest(`Part ${name} joint requires finite ${anchor}[3]`, context);
       }

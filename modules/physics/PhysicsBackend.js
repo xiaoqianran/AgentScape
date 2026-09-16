@@ -37,8 +37,14 @@ export class PhysicsBackend {
   bodyMotion() { missing(this.identity,'bodyMotion'); }
   setBodyMotion() { missing(this.identity,'setBodyMotion'); }
   applyImpulse() { missing(this.identity,'applyImpulse'); }
+  applyForce() { missing(this.identity,'applyForce'); }
+  applyTorque() { missing(this.identity,'applyTorque'); }
   setBodyMaterial() { missing(this.identity,'setBodyMaterial'); }
   setBodyDynamics() { missing(this.identity,'setBodyDynamics'); }
+  setBodyCcd() { missing(this.identity,'setBodyCcd'); }
+  setBodySensor() { missing(this.identity,'setBodySensor'); }
+  setBodyCollisionFilter() { missing(this.identity,'setBodyCollisionFilter'); }
+  sleepBody() { missing(this.identity,'sleepBody'); }
   wakeBody() { missing(this.identity,'wakeBody'); }
   createJoint() { missing(this.identity,'createJoint'); }
   setJointTarget() { missing(this.identity,'setJointTarget'); }

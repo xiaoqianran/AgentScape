@@ -2,8 +2,8 @@ import { expect } from 'vitest';
 import { PhysicsBackend } from '../../modules/physics/PhysicsBackend.js';
 
 export const CAPABILITY_METHODS=Object.freeze({
-  'rigid-body':['createBody','removeBody','bodyKey','bodyType','setBodyType','bodyPose','setBodyPose','translateBody','clearBodyMotion','bodyMotion','setBodyMotion','applyImpulse','setBodyDynamics','wakeBody'],
-  'collision':['createColliders','colliders','colliderKey','colliderParent','colliderSnapshot','setBodyMaterial'],
+  'rigid-body':['createBody','removeBody','bodyKey','bodyType','setBodyType','bodyPose','setBodyPose','translateBody','clearBodyMotion','bodyMotion','setBodyMotion','applyImpulse','applyForce','applyTorque','setBodyDynamics','setBodyCcd','sleepBody','wakeBody'],
+  'collision':['createColliders','colliders','colliderKey','colliderParent','colliderSnapshot','setBodyMaterial','setBodySensor','setBodyCollisionFilter'],
   'articulated-body':['createJoint','setJointTarget'],
   'joints':['createJoint','setJointTarget'],
   'character-controller':['createCharacterController','removeCharacterController','cancelCharacterMovement','moveCharacter'],
