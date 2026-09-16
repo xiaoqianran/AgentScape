@@ -6,7 +6,7 @@ import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
 const manifest = (overrides = {}) => ({
   id:'fixture',
   type:'object',
-  source:{ kind:'factory' },
+  source:{ kind:'builtin' },
   actions:['move'],
   ...overrides
 });
