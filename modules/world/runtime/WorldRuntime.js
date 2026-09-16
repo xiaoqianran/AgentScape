@@ -35,7 +35,7 @@ const mutationResultCommitted=(result)=>!(
 
 export class WorldRuntime {
   constructor(container, { environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend(), rendererFactory = null, rendererMode = 'auto', rendererTiming = false } = {}) {
-    if (!assetModule?.manager || !assetModule?.catalog || !assetModule?.compiledStore) {
+    if (!assetModule?.registry || !assetModule?.loader || !assetModule?.catalog || !assetModule?.compiledStore) {
       throw new TypeError('WorldRuntime requires an Asset module');
     }
     if (typeof physicsFactory !== 'function') throw new TypeError('WorldRuntime physicsFactory must be a function');
@@ -46,7 +46,8 @@ export class WorldRuntime {
     this.container = container; this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.assetModule = assetModule;
-    this.assets = assetModule.manager;
+    this.assetRegistry = assetModule.registry;
+    this.assetLoader = assetModule.loader;
     this.assetCatalog = assetModule.catalog;
     this.physicsFactory = physicsFactory;
     this.navigationBackendFactory = navigationBackendFactory;
@@ -54,7 +55,7 @@ export class WorldRuntime {
     this.rendererMode = rendererMode;
     this.rendererTiming = Boolean(rendererTiming);
     this.rendering = null;
-    this.articulationVerifier = new ArticulationVerifier({ assets: this.assets, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null;
+    this.articulationVerifier = new ArticulationVerifier({ assetRegistry:this.assetRegistry, assetLoader:this.assetLoader, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null;
     this.simulation = new SimulationSession({
       fixedDt:1/60,
       executeStep:(dt)=>this.stepSimulation(dt),
@@ -77,7 +78,7 @@ export class WorldRuntime {
     if (this.rendererFactory) renderingOptions.rendererFactory = this.rendererFactory;
     this.rendering = new RenderingSystem(renderingOptions);
     await this.rendering.init();
-    this.assets.configureRenderer?.(this.rendering.renderer);
+    this.assetLoader.configureRenderer?.(this.rendering.renderer);
     this.spatial = new SpatialSystem({ store: this.store, scene: this.scene });
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
@@ -178,7 +179,7 @@ export class WorldRuntime {
     }
   }
   async spawn(assetId, { position = [0, 0, 0], quaternion = [0, 0, 0, 1], scale = 1, id = `${assetId}_${crypto.randomUUID()}`, initialState = null } = {}) {
-    const { object, manifest } = await this.assets.instantiate(assetId);
+    const { object, manifest } = await this.assetLoader.instantiate(assetId);
     const uniformScale = uniformScaleValue(scale);
     if (!Array.isArray(position) || position.length !== 3 || !position.every(Number.isFinite)) {
       const error=new TypeError('Object position requires finite vec3'); error.code='OBJECT_POSITION_INVALID'; throw error;
@@ -217,7 +218,6 @@ export class WorldRuntime {
       throw error;
     }
   }
-
   applyObjectTransform(id,{position=null,quaternion=null,rotationDegrees=null,scale=null}={}, {source='runtime'}={}) {
     const record=this.store.get(id);
     const object=record.object;
