@@ -84,7 +84,7 @@ describe('Object transform contract',()=>{
     const physics={
       addObject:vi.fn(),removeObject:vi.fn(),syncTransform:vi.fn(),resetWorld:vi.fn(),addEnvironment:vi.fn()
     };
-    const runtime=new WorldRuntime({appendChild(){}},{
+    const runtime=new WorldRuntime({
       environmentFactory:()=>null,
       assetModule:createAssetModule({manifestStore:null,libraryStore:null}),
       physicsFactory:()=>physics

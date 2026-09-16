@@ -23,7 +23,7 @@ const makeEnvironment=({id,label,wall=false}={})=>{
 };
 
 async function runtimeFixture(){
-  const runtime=new WorldRuntime({appendChild(){}},{environmentFactory:()=>null,assetModule:createAssetModule(),physicsFactory:createRapierPhysicsSystem});
+  const runtime=new WorldRuntime({environmentFactory:()=>null,assetModule:createAssetModule(),physicsFactory:createRapierPhysicsSystem});
   runtime.scene=new THREE.Scene();
   await runtime.physics.init();
   runtime.rendering={applyEnvironment:vi.fn()};

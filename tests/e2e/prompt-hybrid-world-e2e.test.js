@@ -79,7 +79,7 @@ const generationResult=()=>({
 
 async function runtimeFixture(){
   const artifactModule=createArtifactModule();
-  const runtime=new WorldRuntime({appendChild(){}},{environmentFactory:()=>null,assetModule:createAssetModule(),physicsFactory:createRapierPhysicsSystem});
+  const runtime=new WorldRuntime({environmentFactory:()=>null,assetModule:createAssetModule(),physicsFactory:createRapierPhysicsSystem});
   runtime.scene=new THREE.Scene(); await runtime.physics.init();
   runtime.rendering={applyEnvironment:vi.fn(),cameraState:()=>null};
   runtime.spatial=new SpatialSystem({store:runtime.store,scene:runtime.scene});

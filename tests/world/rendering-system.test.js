@@ -149,11 +149,12 @@ describe('RenderingSystem', () => {
     rendering.applyEnvironment(environment);
     expect(await rendering.visualTask).toBe(true);
 
-    expect(generatedVisualLoader).toHaveBeenCalledWith({
-      source:environment.generated.visual.source,
-      coordinateSystem:'z-up',
-      metersPerUnit:2
-    });
+    expect(generatedVisualLoader).toHaveBeenCalledWith({ source:environment.generated.visual.source });
+    expect(visualObject.scale.x).toBeCloseTo(2);
+    expect(visualObject.scale.y).toBeCloseTo(2);
+    expect(visualObject.scale.z).toBeCloseTo(2);
+    expect(visualObject.quaternion.x).toBeCloseTo(-Math.SQRT1_2);
+    expect(visualObject.quaternion.w).toBeCloseTo(Math.SQRT1_2);
     expect(root.children).toContain(visualObject);
     expect(floor.visible).toBe(true);
     expect(floor.material.visible).toBe(false);

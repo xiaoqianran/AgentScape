@@ -105,6 +105,11 @@ assertNoImports("Artifact Core boundary violation", artifactCore, [
   /^modules\/world\//
 ]);
 
+const renderingCore = productJs.filter((file) => relative(file).startsWith("modules/rendering/"));
+assertNoImports("Rendering boundary violation", renderingCore, [
+  /^modules\/world\//
+]);
+
 assertNoImports("World Core boundary violation", worldCore, [
   /^apps\/studio\//,
   /^apps\/observatory\//,

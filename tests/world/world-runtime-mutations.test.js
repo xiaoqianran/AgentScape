@@ -11,7 +11,7 @@ const MANIFEST = {
 async function createRuntime() {
   const physics = createRapierPhysicsSystem();
   await physics.init();
-  const runtime = new WorldRuntime({ appendChild(){} }, {
+  const runtime = new WorldRuntime({
     environmentFactory: null,
     assetModule: {
       registry: { getManifest: () => structuredClone(MANIFEST), has: () => true },
