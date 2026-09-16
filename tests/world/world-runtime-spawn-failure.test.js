@@ -10,7 +10,7 @@ it('rolls back Three/store resources when physics attachment fails', async () =>
     assets:{ instantiate:vi.fn(async () => ({ object, manifest:{ id:'x', actions:['move'] } })) },
     scene:{ add:vi.fn(), remove:vi.fn() },
     store:{ add:vi.fn(), delete:vi.fn() },
-    physics:{ attach:vi.fn(() => { throw new Error('physics failed'); }), remove:vi.fn() },
+    physics:{ addObject:vi.fn(() => { throw new Error('physics failed'); }), removeObject:vi.fn() },
     sceneGraph:{ update:vi.fn() }, events:{ emit:vi.fn() }
   };
 

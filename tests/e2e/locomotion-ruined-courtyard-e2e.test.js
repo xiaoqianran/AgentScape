@@ -20,7 +20,7 @@ it('walks a real kinematic Agent Body up the Ruined Courtyard stairs to the 1.2m
   const object=new THREE.Group(); object.position.set(0,0,12); object.updateMatrixWorld(true);
   const manifest=structuredClone(assetManifests.agent);
   store.add('agent_01',{id:'agent_01',assetId:'agent',object,manifest,state:{}});
-  physics.attach('agent_01',manifest,object);
+  physics.addObject('agent_01',manifest,object);
   physics.step(1/60,store);
 
   const locomotion=new LocomotionSystem({store,physics,navigation});

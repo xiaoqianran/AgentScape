@@ -88,8 +88,17 @@ export function bindSceneControls({ root, world, editor, sceneStore, tools, envi
     }
   });
 
-  undoButton.addEventListener('click', async () => { editor.select(null); await world.history.undo(); });
-  redoButton.addEventListener('click', async () => { editor.select(null); await world.history.redo(); });
+  // 撤销/重做都可能在恢复场景时失败。失败必须可见，且历史记录本身不会因此丢失。
+  const runHistory = async (direction) => {
+    editor.select(null);
+    try {
+      await world.history[direction]();
+    } catch (error) {
+      log(`${direction === 'undo' ? '撤销' : '重做'}失败：${error.message}`, 'error');
+    }
+  };
+  undoButton.addEventListener('click', () => runHistory('undo'));
+  redoButton.addEventListener('click', () => runHistory('redo'));
   root.querySelector('#duplicate').addEventListener('click', () => editor.duplicateSelected().catch((error) => log(`错误：${error.message}`, 'error')));
   root.querySelector('#delete').addEventListener('click', () => editor.deleteSelected()?.catch?.((error) => log(`错误：${error.message}`, 'error')));
 
@@ -98,11 +107,10 @@ export function bindSceneControls({ root, world, editor, sceneStore, tools, envi
     const command = event.ctrlKey || event.metaKey;
     if (command && event.key.toLowerCase() === 'z') {
       event.preventDefault();
-      editor.select(null);
-      if (event.shiftKey) world.history.redo(); else world.history.undo();
+      if (event.shiftKey) runHistory('redo'); else runHistory('undo');
       return;
     }
-    if (command && event.key.toLowerCase() === 'y') { event.preventDefault(); editor.select(null); world.history.redo(); return; }
+    if (command && event.key.toLowerCase() === 'y') { event.preventDefault(); runHistory('redo'); return; }
     if (event.key.toLowerCase() === 'w') editor.setMode('translate');
     if (event.key.toLowerCase() === 'e') editor.setMode('rotate');
     if (event.key === 'Delete' || event.key === 'Backspace') editor.deleteSelected();

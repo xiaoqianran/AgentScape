@@ -22,7 +22,7 @@ async function cabinetPhysics(){
   const store=new ObjectStore();
   const object=cabinetObject(); const manifest=structuredClone(assetManifests.cabinet);
   store.add('cabinet',{id:'cabinet',assetId:'cabinet',object,manifest,state:{}});
-  physics.attach('cabinet',manifest,object);
+  physics.addObject('cabinet',manifest,object);
   return {physics,store};
 }
 
@@ -58,7 +58,7 @@ describe('Physics collider contact provenance',()=>{
     const {physics,store}=await cabinetPhysics();
     const blocker=new THREE.Group(); blocker.position.set(-.64,1,1.08); blocker.updateMatrixWorld(true);
     store.add('blocker_01',{id:'blocker_01',assetId:'blocker',object:blocker,manifest:blockerManifest,state:{}});
-    physics.attach('blocker_01',blockerManifest,blocker);
+    physics.addObject('blocker_01',blockerManifest,blocker);
     const blockerCollider=physics.entries.get('blocker_01').body.collider(0);
     expect(physics.provenanceOfCollider(blockerCollider)).toEqual({kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0});
     runOpen(physics,store);
@@ -66,7 +66,7 @@ describe('Physics collider contact provenance',()=>{
     expect(hit).toMatchObject({target:{kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0},external:true});
     const handle=blockerCollider.handle;
     expect(physics.colliderProvenance.has(handle)).toBe(true);
-    expect(physics.remove('blocker_01')).toBe(true);
+    expect(physics.removeObject('blocker_01')).toBe(true);
     expect(physics.colliderProvenance.has(handle)).toBe(false);
     physics.dispose();
     expect(physics.colliderProvenance.size).toBe(0);

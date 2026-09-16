@@ -3,7 +3,7 @@ import { createAssetModule } from "../../../../modules/asset/AssetModule.js";
 import { EventBus } from "../../../../foundation/EventBus.js";
 import { ObjectStore } from "../../../../modules/world/runtime/ObjectStore.js";
 import { PhysicsSystem } from "../../../../modules/world/runtime/systems/PhysicsSystem.js";
-import { RapierPhysicsBackend } from "../../../../modules/world/runtime/physics/RapierPhysicsBackend.js";
+import { RapierPhysicsBackend } from "../../../../modules/physics/RapierPhysicsBackend.js";
 import { SpatialSystem } from "../../../../modules/world/runtime/systems/SpatialSystem.js";
 import { InteractionSystem } from "../../../../modules/world/runtime/systems/InteractionSystem.js";
 import { installThreeBvhRuntime, ensureBoundsTrees } from "../../../../modules/world/runtime/spatial/ThreeBvhRuntime.js";
@@ -49,7 +49,7 @@ export class InteractionScenarioContext {
     object.updateMatrixWorld(true);
     ensureBoundsTrees(object);
     this.store.add(id, { id, assetId, object, manifest, state: {} });
-    this.physics.attach(id, manifest, object);
+    this.physics.addObject(id, manifest, object);
     this.visuals.push(object);
     return object;
   }
@@ -73,7 +73,7 @@ export class InteractionScenarioContext {
       physics: { body: "fixed", colliders: [{ shape: "box", halfExtents: size.map((v) => v / 2) }] }
     };
     this.store.add(id, { id, assetId: manifest.id, object, manifest, state: {} });
-    this.physics.attach(id, manifest, object);
+    this.physics.addObject(id, manifest, object);
     this.visuals.push(object);
     return object;
   }

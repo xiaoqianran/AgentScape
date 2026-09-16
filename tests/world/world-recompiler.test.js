@@ -339,7 +339,7 @@ const positionRuntime=({revisionId='position-rev-1',boxPosition=[0,.01,0],poseCl
     snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),clearObjects:vi.fn(async()=>{}),
     pipeline:{run:vi.fn(async()=>({state:{reports:{worldAdmission:{status:'ready',reasons:[]}}},timeline:[]}))},
     store:{get:vi.fn((id)=>records[id])},assets:{getManifest:vi.fn((id)=>positionManifest(id))},interactions,
-    physics:{manifestPoseClear:vi.fn(poseClear),setPosition:vi.fn()},navigation:{invalidateIfStatic:vi.fn()},environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
+    physics:{checkManifestPose:vi.fn(poseClear),setPosition:vi.fn()},navigation:{invalidateIfStatic:vi.fn()},environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
     validator:{run:vi.fn(()=>{observedRevisions.push(runtimeRef.currentWorldRevision?.revision?.id || null);return structuredClone(validation);})},sceneGraph:{changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[])},
     loadRuleGraph:vi.fn(),trace:{emit:vi.fn()},_observedRevisions:observedRevisions
   };
@@ -354,7 +354,7 @@ it('incrementally moves one relation-free entity only after shared layout/Physic
   expect(rt.interactions.move).not.toHaveBeenCalled();
   expect(rt.physics.setPosition).toHaveBeenCalledWith('box',[-2,.01,0]);
   expect(rt.navigation.invalidateIfStatic).toHaveBeenCalledWith(expect.objectContaining({id:'box'}),'world.revision.position');
-  expect(rt.physics.manifestPoseClear).toHaveBeenCalledWith(expect.objectContaining({id:'crate'}),[-2,.01,0],{excludeIds:['box']});
+  expect(rt.physics.checkManifestPose).toHaveBeenCalledWith(expect.objectContaining({id:'crate'}),[-2,.01,0],{excludeIds:['box']});
   expect(rt._observedRevisions).toEqual(['position-rev-1']);
   expect(rt.clearObjects).not.toHaveBeenCalled();
   expect(rt.pipeline.run).not.toHaveBeenCalled();

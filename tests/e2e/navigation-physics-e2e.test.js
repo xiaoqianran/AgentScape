@@ -10,7 +10,7 @@ it('derives current-world reachability from live Rapier dynamic colliders withou
   const barrier=new THREE.Group(); barrier.position.set(0,1,0); barrier.updateMatrixWorld(true);
   const manifest={physics:{body:'dynamic',mass:1,colliders:[{shape:'box',halfExtents:[.25,1,4]}]}};
   store.add('barrier',{id:'barrier',assetId:'barrier',object:barrier,manifest,state:{}});
-  physics.attach('barrier',manifest,barrier);
+  physics.addObject('barrier',manifest,barrier);
 
   const floor=new THREE.Mesh(new THREE.BoxGeometry(10,.2,8)); floor.position.y=-.1; floor.updateMatrixWorld(true);
   const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[floor]});

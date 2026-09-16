@@ -9,7 +9,7 @@ const record={
 function setup(step=()=>0){
   let calls=0;
   const physics={
-    articulationState:vi.fn((_id,_part,{target}={})=>{
+    getArticulationState:vi.fn((_id,_part,{target}={})=>{
       const coordinate=step(calls++);
       return {coordinate,target,error:Math.abs(coordinate-(target??0)),tolerance:.08,jointType:'revolute',limits:[-1,0],coordinateReference:'rest-zero-pose'};
     })

@@ -13,7 +13,7 @@ import { GenerationRuntime } from "../../../../application/generation/Generation
 import { ConnectorClient } from "../../../../modules/generation/connector/ConnectorClient.js";
 import { SceneGraph } from "../../../../modules/world/runtime/graph/SceneGraph.js";
 import { NavigationSystem } from "../../../../modules/world/runtime/systems/NavigationSystem.js";
-import { RecastNavigationBackend } from "../../../../modules/world/runtime/navigation/RecastNavigationBackend.js";
+import { RecastNavigationBackend } from "../../../../modules/navigation/RecastNavigationBackend.js";
 import { LocomotionSystem } from "../../../../modules/world/runtime/systems/LocomotionSystem.js";
 import { InteractionScenarioContext } from "../interaction/InteractionScenarioContext.js";
 import {

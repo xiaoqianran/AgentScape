@@ -100,7 +100,7 @@ export class NavigationSystem {
 
   runtimeCapabilities() {
     const capabilities=['action-aware-diagnostics'];
-    const hasObstacleSource=typeof this.physics?.navigationObstacles==='function';
+    const hasObstacleSource=typeof this.physics?.getNavigationObstacles==='function';
     if(hasObstacleSource&&this.backend.hasCapability?.('dynamic-obstacles')&&this.backend.hasCapability?.('obstacle-suppression')) capabilities.push('counterfactual-routing');
     return capabilities;
   }
@@ -120,7 +120,7 @@ export class NavigationSystem {
   status() {
     const backendProfile=this.profile();
     const backendReady=this.backend.isReady?.()===true;
-    const hasObstacleSource=typeof this.physics?.navigationObstacles==='function'||this.physics?.hasCapability?.('collision')===true;
+    const hasObstacleSource=typeof this.physics?.getNavigationObstacles==='function'||this.physics?.hasCapability?.('collision')===true;
     const dynamicObstacles=this.backend.hasCapability?.('dynamic-obstacles')===true&&hasObstacleSource;
     return {
       state: !backendReady ? (this.lastBuild?.success === false ? 'failed' : 'unbuilt') : this.dirty ? 'dirty' : 'ready',
@@ -231,7 +231,7 @@ export class NavigationSystem {
   }
 
   reconcileDynamicObstacles() {
-    if(!this.backend.hasCapability?.('dynamic-obstacles')||typeof this.physics?.navigationObstacles!=='function'){
+    if(!this.backend.hasCapability?.('dynamic-obstacles')||typeof this.physics?.getNavigationObstacles!=='function'){
       if(this.backend.isReady?.()) this.backend.syncObstacles?.([]);
       this.obstacles.clear();
       const result={success:true,coverage:'none',tracked:0,skipped:[],changed:0,operations:0,updates:0,syncVersion:this.obstacleSyncVersion};
@@ -239,7 +239,7 @@ export class NavigationSystem {
       return result;
     }
 
-    const snapshot=this.physics.navigationObstacles();
+    const snapshot=this.physics.getNavigationObstacles();
     const synced=this.backend.syncObstacles(snapshot.items||[]);
     this.obstacles=new Map((synced.descriptors||[]).map((descriptor)=>[descriptor.id,structuredClone(descriptor)]));
     if(!synced.success) return this.obstacleSyncFailure(synced.code,snapshot,synced.changed||0,synced.operations||0,synced.updates||0);
@@ -321,7 +321,7 @@ export class NavigationSystem {
   }
 
   async findPath(start, end, { maxSnapDistance = this.config.maxSnapDistance, endTolerance = this.config.endTolerance } = {}) {
-    const scope = this.physics?.navigationObstacles ? 'current' : 'static';
+    const scope = this.physics?.getNavigationObstacles ? 'current' : 'static';
     if (!finitePoint(start) || !finitePoint(end) || !Number.isFinite(maxSnapDistance) || maxSnapDistance < 0) {
       return { reachable:false, scope, reason:'INVALID_INPUT', path:[], cost:null, sameIsland:null };
     }

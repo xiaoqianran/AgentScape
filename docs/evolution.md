@@ -1423,7 +1423,7 @@ Rapier 里当前正在移动的物体
 ```text
 findPath / canReach
       ↓
-PhysicsSystem.navigationObstacles()
+PhysicsSystem.getNavigationObstacles()
       ↓
 当前 Rapier collider snapshot
       ↓
@@ -1440,7 +1440,7 @@ Detour query
 
 为了避免官方 64-request queue 溢出，AgentScape 在 48 个 queued operations 前主动 pump TileCache；真实 70-obstacle 回归已验证。静态 NavMesh 不因此 rebuild：dynamic barrier 移走前后 reachability 从 false→true，但 `buildVersion` 一直保持 1。
 
-Rapier 还有一个容易漏掉的细节：直接 `RigidBody.setTranslation()` 后，Collider world pose 要到 scene query pipeline 刷新后才更新。因此 `navigationObstacles()` 在读取 collider snapshot 前调用一次 `world.updateSceneQueries()`；这个成本只发生在导航查询，不污染 Physics 热路径。
+Rapier 还有一个容易漏掉的细节：直接 `RigidBody.setTranslation()` 后，Collider world pose 要到 scene query pipeline 刷新后才更新。因此 `getNavigationObstacles()` 在读取 collider snapshot 前调用一次 `world.updateSceneQueries()`；这个成本只发生在导航查询，不污染 Physics 热路径。
 
 最重要的语义边界：
 
@@ -1549,7 +1549,7 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 
 ## 40. 1.19：Motor Request 终于不再是假完成态
 
-1.16 的具身 open/close 已经有 interaction pose、range、LOS 和 action sweep，但最终仍停在 `interaction-requested`。1.19 把现有 Motion Sweep 的 coordinate/tolerance/stall 思想带回 live Runtime，却没有把离线 verifier 搬进热路径：PhysicsSystem 新增 revolute/prismatic `articulationState`，InteractionSystem 用时间窗口观察当前 joint。
+1.16 的具身 open/close 已经有 interaction pose、range、LOS 和 action sweep，但最终仍停在 `interaction-requested`。1.19 把现有 Motion Sweep 的 coordinate/tolerance/stall 思想带回 live Runtime，却没有把离线 verifier 搬进热路径：PhysicsSystem 新增 revolute/prismatic `getArticulationState`，InteractionSystem 用时间窗口观察当前 joint。
 
 真实 blocker E2E 证明 Door 在 Agent 已到位后仍可能被外部物体卡住；现在高层直接返回 `action-failed / STALL`。同时审计又发现 request 时立即写 `state.parts=open` 会污染 durable truth，于是拆成 `partTargets=requested` 与 `parts=verified`；background observer 不拥有 durable mutation，只有仍在运行的高层 transaction 才能 promote success。失败则在同一 transaction 内 hold-current 并清 active request。
 
@@ -1603,7 +1603,7 @@ Release 本身使用 lift/traverse/lower 三段 Rapier shape cast；detach 后�
 
 ## 46. 1.25：拿走 Blocker 之后第一次会安全腾出手
 
-1.24 排出了多个 recovery candidates，但第一个 pickup recovery 会占用唯一 Hold Anchor；继续恢复第二个 blocker 会命中 `HANDS_FULL`。1.25 没有用 `dropHeld` 草率清手，也没有改写 `SpatialSystem.findFreeSpace`，而是新增 world-space cleanup：原 action sweep 外生成固定 candidates，Rapier downward ray 找真实 Environment 支撑，Detour 找 release stance，planner 用 `bodyPoseClear` 检查 endpoint，executor 仍用 Place 共用的三段 `bodyMotionClear` transfer，释放 Dynamic 后进入同一个 settleTasks owner。
+1.24 排出了多个 recovery candidates，但第一个 pickup recovery 会占用唯一 Hold Anchor；继续恢复第二个 blocker 会命中 `HANDS_FULL`。1.25 没有用 `dropHeld` 草率清手，也没有改写 `SpatialSystem.findFreeSpace`，而是新增 world-space cleanup：原 action sweep 外生成固定 candidates，Rapier downward ray 找真实 Environment 支撑，Detour 找 release stance，planner 用 `checkBodyPose` 检查 endpoint，executor 仍用 Place 共用的三段 `checkBodyMotion` transfer，释放 Dynamic 后进入同一个 settleTasks owner。
 
 真实开发还顺手修掉 settle target removal 的 lifecycle 缺口：support/failed target 被删除时 Place/Cleanup pending Promise 都会立即得到 unverified result。双模型 `recovery-cleanup` probe 已跑通 `first blocker recovery → original retry still STALL → cleanup held blocker → recover second blocker → original retry verified`，且 cleanup 前后 original unresolved 始终保持 1。
 

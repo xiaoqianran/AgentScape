@@ -18,11 +18,11 @@ async function setup({tablePhysics=true, blocker=null}={}){
   const physics=createRapierPhysicsSystem(); await physics.init();
   const env=[{shape:'box',halfExtents:[6,.1,6],translation:[0,-.1,0]}]; if(blocker) env.push(blocker); physics.addEnvironment(env);
   const agent=new THREE.Group(); agent.position.set(0,0,3.2); scene.add(agent); agent.updateMatrixWorld(true);
-  const am=structuredClone(assetManifests.agent); store.add('agent_01',{id:'agent_01',assetId:'agent',object:agent,manifest:am,state:{}}); physics.attach('agent_01',am,agent);
+  const am=structuredClone(assetManifests.agent); store.add('agent_01',{id:'agent_01',assetId:'agent',object:agent,manifest:am,state:{}}); physics.addObject('agent_01',am,agent);
   const cup=cupVisual(); cup.position.set(0,.95,2.58); scene.add(cup); cup.updateMatrixWorld(true);
-  const cm=structuredClone(assetManifests.cup); store.add('cup_01',{id:'cup_01',assetId:'cup',object:cup,manifest:cm,state:{heldBy:{kind:'agent',id:'agent_01',anchor:'hold'}}}); physics.attach('cup_01',cm,cup);
+  const cm=structuredClone(assetManifests.cup); store.add('cup_01',{id:'cup_01',assetId:'cup',object:cup,manifest:cm,state:{heldBy:{kind:'agent',id:'agent_01',anchor:'hold'}}}); physics.addObject('cup_01',cm,cup);
   const table=tableVisual(); table.position.set(0,0,0); scene.add(table); table.updateMatrixWorld(true);
-  const tm=structuredClone(assetManifests.table); store.add('table_01',{id:'table_01',assetId:'table',object:table,manifest:tm,state:{}}); if(tablePhysics) physics.attach('table_01',tm,table);
+  const tm=structuredClone(assetManifests.table); store.add('table_01',{id:'table_01',assetId:'table',object:table,manifest:tm,state:{}}); if(tablePhysics) physics.addObject('table_01',tm,table);
   physics.step(1/60,store);
   const spatial=new SpatialSystem({store,scene}), events=new EventBus();
   const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[ground],events});
@@ -60,7 +60,7 @@ describe('agent-held place/release truth',()=>{
     // Let LOS still hit a target-owned physics body well below the declared top surface.
     const tableRecord=ctx.store.get('table_01');
     const fake=structuredClone(tableRecord.manifest); fake.physics={body:'fixed',colliders:[{shape:'box',halfExtents:[1.1,.1,.05],translation:[0,1,.4]}]};
-    ctx.physics.attach('table_01',fake,tableRecord.object);
+    ctx.physics.addObject('table_01',fake,tableRecord.object);
     const result=await drive(ctx.interactions.approachAndPlace('agent_01','table_01',{surfaceId:'top',speed:2.5}),ctx);
     expect(result).toMatchObject({status:'place-failed',reason:'SUPPORT_NOT_REACHED',supportVerified:false,settled:true,stillHeld:false});
     expect(result.support.on).toBe(false);

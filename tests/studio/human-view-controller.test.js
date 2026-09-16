@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HUMAN_EYE_HEIGHT, HUMAN_QUERY_MANIFEST, HumanViewController } from '../../apps/studio/ui/HumanViewController.js';
 import { createWoodlandWorkshop } from '../../modules/world/content/woodlandWorkshop.js';
 import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
-import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../modules/physics/RapierPhysicsBackend.js';
 import { disposeObject3D } from '../../modules/rendering/disposeObject3D.js';
 
 function domStub() {
@@ -66,7 +66,7 @@ function harness({ pose = { checked:true, clear:true, blockedBy:[] } } = {}) {
   };
   const scene = new THREE.Scene();
   const physics = {
-    manifestPoseClear: vi.fn(() => ({ ...pose, blockedBy:[...(pose.blockedBy || [])] })),
+    checkManifestPose: vi.fn(() => ({ ...pose, blockedBy:[...(pose.blockedBy || [])] })),
     // Vertical casts report the ground under the query; the third-person cast reports a wall.
     raycast: vi.fn((origin, target) => ({
       point: [target[0], 0, target[2]],
@@ -119,7 +119,7 @@ describe('HumanViewController', () => {
     const moved = controller.position.clone();
     expect(moved.z).toBeLessThan(start.z);
     expect(moved.x).toBeCloseTo(start.x, 6);
-    expect(h.physics.manifestPoseClear).toHaveBeenCalledWith(
+    expect(h.physics.checkManifestPose).toHaveBeenCalledWith(
       expect.objectContaining({ physics:{ colliders:[expect.objectContaining({ shape:'capsule' })] } }),
       expect.any(Array)
     );
@@ -138,7 +138,7 @@ describe('HumanViewController', () => {
     expect(controller.position.y).toBe(0.9);
     const start = controller.position.clone();
 
-    h.physics.manifestPoseClear.mockReturnValue({ checked:true, clear:false, blockedBy:['environment:$environment'] });
+    h.physics.checkManifestPose.mockReturnValue({ checked:true, clear:false, blockedBy:['environment:$environment'] });
     h.windowTarget.listeners.get('keydown')(key('keydown', 'KeyD'));
     controller.update(0);
     controller.update(16.7);
@@ -151,7 +151,7 @@ describe('HumanViewController', () => {
     const h = harness();
     h.controls.target.set(0.2, 1.7, -7.4);
     h.camera.position.set(-0.6, 2.4, 3.2);
-    h.physics.manifestPoseClear.mockImplementation((manifest, position) => ({
+    h.physics.checkManifestPose.mockImplementation((manifest, position) => ({
       checked:true, clear:position[2] > -3, blockedBy:position[2] > -3 ? [] : ['environment:$environment']
     }));
     const controller = new HumanViewController({ world:h.world, windowTarget:h.windowTarget });
@@ -159,7 +159,7 @@ describe('HumanViewController', () => {
     expect(controller.position.x).toBeCloseTo(-0.6, 6);
     expect(controller.position.z).toBeCloseTo(3.2, 6);
     // The spawn probe is deliberately wider than the walking capsule.
-    expect(h.physics.manifestPoseClear.mock.calls[0][0].physics.colliders[0].radius).toBeGreaterThan(0.3);
+    expect(h.physics.checkManifestPose.mock.calls[0][0].physics.colliders[0].radius).toBeGreaterThan(0.3);
     controller.dispose();
   });
 
@@ -224,10 +224,10 @@ describe('HumanViewController', () => {
     await physics.init();
     try {
       physics.addEnvironment(environment.colliders, { id:environment.id });
-      const inside = physics.manifestPoseClear(HUMAN_QUERY_MANIFEST, [0, 0.02, -2]);
+      const inside = physics.checkManifestPose(HUMAN_QUERY_MANIFEST, [0, 0.02, -2]);
       expect(inside.checked).toBe(true);
       expect(inside.clear).toBe(true);
-      const wall = physics.manifestPoseClear(HUMAN_QUERY_MANIFEST, [0, 0.02, -8]);
+      const wall = physics.checkManifestPose(HUMAN_QUERY_MANIFEST, [0, 0.02, -8]);
       expect(wall.checked).toBe(true);
       expect(wall.clear).toBe(false);
       expect(wall.blockedBy.join(' ')).toContain('environment');

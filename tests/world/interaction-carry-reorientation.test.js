@@ -11,7 +11,7 @@ function setup(clearance){
   const physics={
     getPosition:vi.fn((id)=>id==='agent_01'?[0,0,0]:[0,.95,-.62]),
     getRotation:vi.fn(()=>[0,0,0,1]),
-    bodyMotionClear:vi.fn(clearance),
+    checkBodyMotion:vi.fn(clearance),
     setCharacterYaw:vi.fn(()=>true),
     setHeldPose:vi.fn(()=>true)
   };
@@ -26,7 +26,7 @@ describe('carry reorientation truth',()=>{
     const result=interactions.reorientHeldToward('agent_01','cup_01',[1,0,0],{maxStep:Math.PI/4});
     expect(result).toMatchObject({clear:false,reason:'CARRY_REORIENT_BLOCKED',step:2,steps:2});
     expect(result.checks).toHaveLength(2);
-    expect(physics.bodyMotionClear).toHaveBeenCalledTimes(2);
+    expect(physics.checkBodyMotion).toHaveBeenCalledTimes(2);
     expect(physics.setCharacterYaw).toHaveBeenLastCalledWith('agent_01',0);
     expect(physics.setHeldPose).toHaveBeenLastCalledWith('cup_01',[0,.95,-.62],[0,0,0,1]);
   });
@@ -38,7 +38,7 @@ describe('carry reorientation truth',()=>{
     expect(result.steps).toBe(3);
     expect(result.yaw).toBeCloseTo(-Math.PI/2,6);
     expect(physics.setCharacterYaw).toHaveBeenLastCalledWith('agent_01',expect.closeTo(-Math.PI/2,6));
-    expect(physics.bodyMotionClear).toHaveBeenCalledTimes(3);
+    expect(physics.checkBodyMotion).toHaveBeenCalledTimes(3);
   });
 
   it('projects a hold anchor through the Agent yaw using the same placement frame', () => {

@@ -457,7 +457,7 @@ support 必须是 ObjectStore 中带 `manifest.surfaces` 的对象。若视觉�
 ```text
 modules/world/runtime/systems/NavigationSystem.js
 modules/world/runtime/systems/LocomotionSystem.js
-modules/world/runtime/navigation/**
+modules/navigation/**
 modules/world/content/magic-cabin/**            仅通过迁移脚本或宿主适配器修改，见第 5 节
 tests/world/navigation-*, locomotion-*, magic-cabin.test.js
 ```

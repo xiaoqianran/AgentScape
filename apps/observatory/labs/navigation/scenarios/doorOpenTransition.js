@@ -14,7 +14,7 @@ export const navigationDoorOpenTransitionScenario = {
     const closed = await ctx.findPath([-4, 0, 0], [4, 0, 0]);
     const targetAccepted = ctx.physics.setArticulationTarget("door-blocker", "door", -1.2);
     ctx.stepPhysics(320);
-    const articulation = ctx.physics.articulationState("door-blocker", "door", { target: -1.2 });
+    const articulation = ctx.physics.getArticulationState("door-blocker", "door", { target: -1.2 });
     const opened = await ctx.findPath([-4, 0, 0], [4, 0, 0]);
     ctx.transition = { closed, targetAccepted, articulation, opened };
   },

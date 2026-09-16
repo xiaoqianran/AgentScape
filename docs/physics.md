@@ -32,7 +32,33 @@ World / Interaction / Navigation / Locomotion / Validator
 - counterfactual query orchestration；
 - effective capability/execution profile。
 
-它不拥有 Rapier/Jolt native world schema。
+它不拥有 Rapier/Jolt native world schema。运行时动力学通过 `setMotion / applyImpulse / setMaterial / setDynamics` 使用 objectId/partName 语义，不向调用方暴露 native body。
+
+### Runtime phases and naming
+
+```text
+World / Asset / Commands
+        ↓
+       Sync
+        ↓
+       Step
+        ↓
+    Writeback
+        ↓
+  World / Three.js
+```
+
+公开命名约定固定为：
+
+- `addObject / removeObject`：生命周期；
+- `syncTransform`：World → Physics 同步；
+- `step`：solver simulation；
+- `writeback`：Physics → World 同步；
+- `get* / set*`：读取 / 设置语义状态；
+- `apply*`：施加物理作用；
+- `check*`：返回结构化检查结果。
+
+`check*` 不使用 `is*`，因为返回值包含 `checked / clear / reason / capability / blockedBy` 等证据，而不是单一 boolean。
 
 ## 3. PhysicsBackend 是什么
 
@@ -40,7 +66,8 @@ World / Interaction / Navigation / Locomotion / Validator
 
 ```text
 world lifecycle
-body lifecycle / type / pose / motion
+body lifecycle / type / pose / motion / impulse / dynamics
+body material (friction / restitution)
 collider lifecycle / provenance snapshot
 joint creation / target
 character movement
@@ -231,7 +258,7 @@ Navigation 不读 native collider：
 PhysicsBackend colliderSnapshot
         │
         ▼
-PhysicsSystem.navigationObstacles()
+PhysicsSystem.getNavigationObstacles()
         │
         ├─ box
         ├─ cylinder

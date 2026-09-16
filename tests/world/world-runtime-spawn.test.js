@@ -9,7 +9,7 @@ it('updates the semantic scene graph immediately after direct spawn', async () =
     assets:{ instantiate:vi.fn(async () => ({ object, manifest })) },
     scene:{ add:vi.fn() },
     store:{ add:vi.fn() },
-    physics:{ attach:vi.fn(), remove:vi.fn() },
+    physics:{ addObject:vi.fn(), removeObject:vi.fn() },
     sceneGraph:{ changed:vi.fn() },
     events:{ emit:vi.fn() }
   };
@@ -26,7 +26,7 @@ it('applies revision-authored initial state only after physics attachment succee
   const runtime={
     assets:{instantiate:vi.fn(async()=>({object,manifest}))},
     scene:{add:vi.fn()},store:{add:vi.fn()},
-    physics:{attach:vi.fn(),remove:vi.fn()},
+    physics:{addObject:vi.fn(),removeObject:vi.fn()},
     restoreObjectState:vi.fn(),sceneGraph:{changed:vi.fn()},events:{emit:vi.fn()}
   };
 
@@ -34,7 +34,7 @@ it('applies revision-authored initial state only after physics attachment succee
     id:'cabinet_01',position:[0,0,0],initialState:{locked:false}
   });
 
-  expect(runtime.physics.attach).toHaveBeenCalledBefore(runtime.restoreObjectState);
+  expect(runtime.physics.addObject).toHaveBeenCalledBefore(runtime.restoreObjectState);
   expect(runtime.restoreObjectState).toHaveBeenCalledWith('cabinet_01',{locked:false});
 });
 
@@ -47,7 +47,7 @@ it('builds BVH bounds when an object enters WorldRuntime instead of relying on A
     assets:{instantiate:vi.fn(async()=>({object,manifest}))},
     scene:{add:vi.fn(),remove:vi.fn()},
     store:{add:vi.fn(),delete:vi.fn()},
-    physics:{attach:vi.fn(),remove:vi.fn()},
+    physics:{addObject:vi.fn(),removeObject:vi.fn()},
     sceneGraph:{changed:vi.fn()},events:{emit:vi.fn()}
   };
   await WorldRuntime.prototype.spawn.call(runtime,'box',{id:'box_01',position:[0,0,0]});

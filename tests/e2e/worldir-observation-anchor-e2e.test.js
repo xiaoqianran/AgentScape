@@ -34,7 +34,7 @@ it('compiles WorldIR cup NEAR an observed generated-world bench before spawn wit
     spawn:async(assetId,{id,position,initialState=null}={})=>{
       const {object,manifest}=await assets.instantiate(assetId);
       object.position.fromArray(position); object.updateWorldMatrix(true,true); scene.add(object);
-      store.add(id,{id,assetId,object,manifest,state:{}}); physics.attach(id,manifest,object);
+      store.add(id,{id,assetId,object,manifest,state:{}}); physics.addObject(id,manifest,object);
       spawned.push({id,assetId,position:[...position],initialState}); sceneGraph.changed(); return id;
     },
     interactions:{place:()=>{throw new Error('ON not expected')},placeInside:()=>{throw new Error('INSIDE not expected')},move:()=>{throw new Error('observation NEAR must compile before spawn')}},
@@ -65,7 +65,7 @@ it('compiles WorldIR cup NEAR an observed generated-world bench before spawn wit
   expect(spawned).toHaveLength(1);
   expect(spawned[0].id).toBe('cup_01');
   expect(spawned[0].position).toEqual(result.state.reports.layoutAdmission.observationAnchors[0].position);
-  expect(physics.manifestPoseClear(assets.getManifest('cup'),spawned[0].position,{excludeIds:['cup_01']})).toMatchObject({checked:true,clear:true});
+  expect(physics.checkManifestPose(assets.getManifest('cup'),spawned[0].position,{excludeIds:['cup_01']})).toMatchObject({checked:true,clear:true});
   expect(store.list().map(([id])=>id)).toEqual(['cup_01']);
   expect(store.list().some(([id])=>id.startsWith('semantic-instance:'))).toBe(false);
   expect(sceneGraph.list({predicate:'HAS_INSTANCE'})).toHaveLength(2);

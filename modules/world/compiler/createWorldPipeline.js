@@ -141,7 +141,7 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
     const regularAssets=assets.filter((item)=>!anchoredSubjects.has(item.id));
     const base=composeWorldLayout(regularAssets,{
       getManifest:(assetId)=>runtime.assets.getManifest(assetId),
-      poseClear:(manifest,position)=>runtime.physics.manifestPoseClear(manifest,position),
+      poseClear:(manifest,position)=>runtime.physics.checkManifestPose(manifest,position),
       layout:runtime.environment?.layout
     });
     if(base.status==='rejected'){
@@ -169,7 +169,7 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
       const manifest=runtime.assets.getManifest(assetId);
       const result=composeObservedNearPlacement(manifest,resolution.entity,{
         layout:runtime.environment?.layout,
-        poseClear:(candidate,position)=>runtime.physics.manifestPoseClear(candidate,position),
+        poseClear:(candidate,position)=>runtime.physics.checkManifestPose(candidate,position),
         distance:relation.distance,
         occupied
       });
@@ -283,7 +283,7 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
         const targetPosition=target.object.position.toArray();
         const result=composeNearPlacement(subject.manifest,target.manifest,targetPosition,{
           subjectY:subject.object.position.y,distance:relation.distance,
-          poseClear:(manifest,position)=>runtime.physics.manifestPoseClear(manifest,position,{excludeIds:[relation.subject]})
+          poseClear:(manifest,position)=>runtime.physics.checkManifestPose(manifest,position,{excludeIds:[relation.subject]})
         });
         if (!result.checked) {
           issues.push({...relation,reason:result.reason,details:result});

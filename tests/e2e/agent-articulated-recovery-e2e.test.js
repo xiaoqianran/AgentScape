@@ -31,7 +31,7 @@ async function setup({blockerAction='open',blockerTarget=-1.35}={}){
   const add=(id,assetId,object,manifest,position,{yaw=0,state={}}={})=>{
     object.position.fromArray(position); object.rotation.y=yaw; scene.add(object); object.updateMatrixWorld(true);
     store.add(id,{id,assetId,object,manifest:structuredClone(manifest),state:structuredClone(state)});
-    physics.attach(id,store.get(id).manifest,object);
+    physics.addObject(id,store.get(id).manifest,object);
   };
   add('agent_01','agent',new THREE.Group(),assetManifests.agent,[2.5,0,4]);
   add('cabinet_A','cabinet',cabinetObject(),assetManifests.cabinet,[0,0,0],{state:{parts:{door:'close'}}});
@@ -45,7 +45,7 @@ async function setup({blockerAction='open',blockerTarget=-1.35}={}){
 
   expect(physics.setArticulationTarget('cabinet_B','door',blockerTarget)).toBe(true);
   for(let i=0;i<260;i++) physics.step(1/60,store);
-  const initial=physics.articulationState('cabinet_B','door',{target:blockerTarget});
+  const initial=physics.getArticulationState('cabinet_B','door',{target:blockerTarget});
   expect(initial.error).toBeLessThan(.08);
   store.get('cabinet_B').state.parts.door=blockerAction;
 

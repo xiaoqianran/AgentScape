@@ -3,7 +3,7 @@ import { InteractionSystem } from '../../modules/world/runtime/systems/Interacti
 import { DEFAULT_WAYPOINT_TOLERANCE } from '../../modules/world/runtime/systems/LocomotionSystem.js';
 
 const setup=()=>{
-  const physics={bodyMotionClear:vi.fn((_id,targetPosition)=>({clear:targetPosition[0]>.3}))};
+  const physics={checkBodyMotion:vi.fn((_id,targetPosition)=>({clear:targetPosition[0]>.3}))};
   const spatial={getBounds:vi.fn(()=>({center:[0,0,0]}))};
   const system=new InteractionSystem({store:{list:()=>[],get:()=>({manifest:{physics:{colliders:[{shape:'capsule',radius:.18}]}}})},physics,spatial,locomotion:{},events:{emit(){}}});
   system.assertAgentCarryable=vi.fn(()=>({}));
@@ -28,7 +28,7 @@ describe('deterministic pickup plan',()=>{
       plannedMaxDistance:1.5-DEFAULT_WAYPOINT_TOLERANCE
     });
     expect(plan.facingYaw).toBeCloseTo(Math.PI/2,6);
-    expect(physics.bodyMotionClear).toHaveBeenCalled();
+    expect(physics.checkBodyMotion).toHaveBeenCalled();
   });
 
   it('fails with a pickup-specific reason when no candidate can clear the hold transfer',async()=>{

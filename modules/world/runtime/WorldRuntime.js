@@ -3,11 +3,11 @@ import { installThreeBvhRuntime, ensureBoundsTrees } from './spatial/ThreeBvhRun
 import { EventBus } from '../../../foundation/EventBus.js';
 import { ObjectStore } from './ObjectStore.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
-import { RapierPhysicsBackend } from './physics/RapierPhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../physics/RapierPhysicsBackend.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
 import { SpatialSystem } from './systems/SpatialSystem.js';
 import { NavigationSystem } from './systems/NavigationSystem.js';
-import { RecastNavigationBackend } from './navigation/RecastNavigationBackend.js';
+import { RecastNavigationBackend } from '../../navigation/RecastNavigationBackend.js';
 import { LocomotionSystem } from './systems/LocomotionSystem.js';
 import { RenderingSystem } from './systems/RenderingSystem.js';
 import { SceneSerializer } from './SceneSerializer.js';
@@ -195,11 +195,13 @@ export class WorldRuntime {
     object.userData.instanceId = id;
     ensureBoundsTrees(object);
     let stored = false;
+    let attached = false;
     try {
       this.scene.add(object);
       this.store.add(id, { id, assetId, object, manifest, state: {}, physicsScale:uniformScale });
       stored = true;
-      this.physics.attach(id, physicsManifest, object);
+      this.physics.addObject(id, physicsManifest, object);
+      attached = true;
       clearInteractionEvidenceForTarget(this,id);
       if (initialState && Object.keys(initialState).length) this.restoreObjectState(id, initialState);
       this.navigation?.invalidateIfStatic(this.store.get(id), 'object.spawned');
@@ -207,7 +209,8 @@ export class WorldRuntime {
       this.events.emit('object.spawned', { id, assetId, position });
       return id;
     } catch (error) {
-      this.physics.remove(id);
+      // 只撤销本次调用取得的资源：attach 未成功时不得触碰同名旧对象的物理实体。
+      if (attached) this.physics.removeObject(id);
       if (stored) this.store.delete(id);
       this.scene.remove(object);
       disposeObject3D(object);
@@ -253,8 +256,8 @@ export class WorldRuntime {
     object.updateMatrixWorld(true);
     try {
       if (scaleChanged) {
-        this.physics.remove(id);
-        this.physics.attach(id,nextPhysicsManifest,object);
+        this.physics.removeObject(id);
+        this.physics.addObject(id,nextPhysicsManifest,object);
         record.physicsScale=nextScale;
       } else this.physics.syncTransform(id,object);
     } catch (error) {
@@ -263,8 +266,8 @@ export class WorldRuntime {
       object.scale.setScalar(previous.scale);
       object.updateMatrixWorld(true);
       if (scaleChanged) {
-        try { this.physics.remove(id); } catch {}
-        this.physics.attach(id,previousPhysicsManifest,object);
+        try { this.physics.removeObject(id); } catch {}
+        this.physics.addObject(id,previousPhysicsManifest,object);
         record.physicsScale=previous.physicsScale;
       } else this.physics.syncTransform(id,object);
       throw error;
@@ -297,9 +300,14 @@ export class WorldRuntime {
   }
 
   async mutate(label, operation, meta = {}) {
-    if (this.history?.suspended) return operation();
     if (this.mutationOwner) {
       const error = new Error(`World mutation already in progress: ${this.mutationOwner}`);
+      error.code = 'WORLD_MUTATION_BUSY';
+      throw error;
+    }
+    // 历史恢复期间不得再开新的历史事务；需要「不记历史的互斥修改」请用 exclusiveMutation。
+    if (this.history?.suspended) {
+      const error = new Error('World history is suspended during restore');
       error.code = 'WORLD_MUTATION_BUSY';
       throw error;
     }
@@ -410,7 +418,7 @@ export class WorldRuntime {
     this.locomotion?.cancel(id, 'OBJECT_REMOVED');
     this.interactions?.beforeRemove(id,{silent});
     this.navigation?.invalidateIfStatic(record, 'object.removed');
-    this.physics.remove(id);
+    this.physics.removeObject(id);
     this.scene.remove(record.object);
     disposeObject3D(record.object);
     this.store.delete(id);
@@ -461,7 +469,7 @@ export class WorldRuntime {
     this.affordances?.cancel('RUNTIME_DISPOSED');
     this.interactions?.cancelPending('RUNTIME_DISPOSED');
     for (const [id, record] of this.store.list()) {
-      this.physics.remove(id);
+      this.physics.removeObject(id);
       this.scene.remove(record.object);
       disposeObject3D(record.object);
       this.store.delete(id);

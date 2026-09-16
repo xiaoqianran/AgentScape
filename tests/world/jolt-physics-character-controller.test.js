@@ -11,7 +11,7 @@ const agentManifest={
 const attachAgent=(physics,store,id='agent',position=[-2,0,0])=>{
   const object=new THREE.Group(); object.position.set(...position); object.updateMatrixWorld(true);
   store.add(id,{id,assetId:'agent',object,manifest:agentManifest,state:{}});
-  physics.attach(id,agentManifest,object);
+  physics.addObject(id,agentManifest,object);
   return object;
 };
 
@@ -37,7 +37,7 @@ describe('Jolt character controller parity',()=>{
       expect(last.grounded).toBe(true);
       expect(last.collisions.length).toBeGreaterThan(0);
       expect(last.collisions[0]).toMatchObject({colliderHandle:expect.any(Number),normal:expect.any(Array)});
-      expect(physics.navigationObstacles().items.find((item)=>item.objectId==='agent')).toBeUndefined();
+      expect(physics.getNavigationObstacles().items.find((item)=>item.objectId==='agent')).toBeUndefined();
     } finally { physics.dispose(); }
   });
 
@@ -135,7 +135,7 @@ describe('Jolt character controller parity',()=>{
     const blockerObject=new THREE.Group(); blockerObject.position.set(0,.6,0); blockerObject.updateMatrixWorld(true);
     const blockerManifest={physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.2,.6,1]}]}};
     store.add('blocker',{id:'blocker',assetId:'blocker',object:blockerObject,manifest:blockerManifest,state:{}});
-    physics.attach('blocker',blockerManifest,blockerObject);
+    physics.addObject('blocker',blockerManifest,blockerObject);
     const object=attachAgent(physics,store,'agent',[-1,0,0]);
     try {
       const blocked=physics.moveCharacter('agent',[2,0,0]);

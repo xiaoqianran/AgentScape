@@ -18,7 +18,7 @@ function harness({pose={checked:true,clear:true,blockedBy:[]}}={}) {
   const element=fakeElement();
   const scene=new THREE.Scene();
   const events={emit:vi.fn()};
-  const physics={manifestPoseClear:vi.fn(()=>pose)};
+  const physics={checkManifestPose:vi.fn(()=>pose)};
   const world={
     rendering:{viewport:()=>({camera:new THREE.PerspectiveCamera(45,2,0.1,100),element})},
     assets:{getManifest:vi.fn((id)=>structuredClone(assetManifests[id]))},
@@ -52,7 +52,7 @@ describe('AssetPlacementController',()=>{
     controller.surfacePoint=()=>({point:new THREE.Vector3(2,1,3),normal:new THREE.Vector3(0,1,0),object:null});
     const candidate=controller.updateCandidate(100,50);
     expect(candidate.position).toEqual([2,1.02,3]);
-    expect(physics.manifestPoseClear).toHaveBeenCalledWith(expect.objectContaining({id:'chair'}),[2,1.02,3]);
+    expect(physics.checkManifestPose).toHaveBeenCalledWith(expect.objectContaining({id:'chair'}),[2,1.02,3]);
     controller.dispose();
   });
 
@@ -90,7 +90,7 @@ describe('AssetPlacementController',()=>{
     controller.onArmMove({clientX:10,clientY:20,pointerId:1});
     expect(controller.preview.group.visible).toBe(true);
     expect(controller.preview.group.position.toArray()).toEqual([1,0.02,2]);
-    expect(physics.manifestPoseClear).toHaveBeenCalledWith(expect.objectContaining({id:'chair'}),[1,0.02,2]);
+    expect(physics.checkManifestPose).toHaveBeenCalledWith(expect.objectContaining({id:'chair'}),[1,0.02,2]);
     controller.dispose();
   });
 
@@ -113,7 +113,7 @@ describe('AssetPlacementController',()=>{
 
     const result=await controller.placeAtAnchor('chair');
     expect(result).toMatchObject({status:'placement-committed',assetId:'chair'});
-    expect(physics.manifestPoseClear).toHaveBeenCalledWith(expect.objectContaining({id:'chair'}),[1,0.02,2]);
+    expect(physics.checkManifestPose).toHaveBeenCalledWith(expect.objectContaining({id:'chair'}),[1,0.02,2]);
     expect(tools.call).toHaveBeenCalledWith('spawnAsset',{assetId:'chair',position:[1,0.02,2]});
 
     expect(controller.clearAnchor()).toBe(true);

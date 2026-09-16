@@ -431,7 +431,7 @@ Attributed STALL 现在可以进入一条严格受限的 pickup-blocker recovery
 
 ## 17. 1.25 已完成：Verified Recovery Cleanup / Held Blocker Placement
 
-`recoverPickupBlocker` 成功后会记录 transient `recoveryHeld` provenance，但 durable ownership 仍只有 `state.heldBy`，Scene restore 不恢复 recovery intent。新的 `findRecoveryCleanupPlan` 不复用 support-surface `findFreeSpace`：它围绕 original articulation sweep 生成 world-space perimeter candidates，Rapier downward ray 找 Environment 支撑，Detour 验证 Agent stance，并以 `bodyPoseClear` 检查最终 held-body endpoint。真正 `cleanupRecoveryBlocker` 到达后重新规划、reorient held body，并与普通 Place 共用 `transferHeldToRelease` 三段 `bodyMotionClear`；释放 Dynamic 后仍进入同一个 `settleTasks` owner。 Cleanup proposal 同样复用 `SkillRegistry.authorization(cleanupRecoveryBlocker)`；Policy denied 时只返回 denied evidence，不暴露 executable cleanup tool，也不继续做 cleanup geometry search。
+`recoverPickupBlocker` 成功后会记录 transient `recoveryHeld` provenance，但 durable ownership 仍只有 `state.heldBy`，Scene restore 不恢复 recovery intent。新的 `findRecoveryCleanupPlan` 不复用 support-surface `findFreeSpace`：它围绕 original articulation sweep 生成 world-space perimeter candidates，Rapier downward ray 找 Environment 支撑，Detour 验证 Agent stance，并以 `checkBodyPose` 检查最终 held-body endpoint。真正 `cleanupRecoveryBlocker` 到达后重新规划、reorient held body，并与普通 Place 共用 `transferHeldToRelease` 三段 `checkBodyMotion`；释放 Dynamic 后仍进入同一个 `settleTasks` owner。 Cleanup proposal 同样复用 `SkillRegistry.authorization(cleanupRecoveryBlocker)`；Policy denied 时只返回 denied evidence，不暴露 executable cleanup tool，也不继续做 cleanup geometry search。
 
 只有 `released + settled + sweepClear + contactClear` 全部成立，SkillRegistry 才把 `recovery-cleaned` 判为 verified。Cleanup 是 auxiliary housekeeping，不会清 original unresolved。`suggestRecoveryActions` 只在新的 blocker 因 `HANDS_FULL` 不可 pickup、且手里确实是上一轮 recovery blocker 时提供 `cleanupRecommended`；普通任务 held object 不会被擅自清理。真实 Rapier/Recast cleanup E2E 已验证 blocker settle 后离开 Door sweep 且 contact clear；Nemotron/Muse `recovery-cleanup` probe 已跑通双 blocker：recover #1 → retry still STALL → cleanup #1 → recover #2 → final original retry verified。CodeGraph 审计还推动 `beforeRemove` 同时取消 `settle.objectId/targetId`，避免 target 删除留下 pending settle。
 
@@ -497,7 +497,7 @@ Pipeline 新增 `normalize_spec / asset_admission`；任何 unresolved/rejected 
 
 `runWorldPipeline.plan` 现在暴露 strong WorldSpec schema，明确 `id=world instance / assetId=catalog asset`，position 只有用户明确约束时才应填写。现有 ToolCallingAgent 继续作为唯一 Planner：strict live probe 要求先 search table/chair/cup，再提交单次 WorldSpec，禁止 generate/import/spawn bypass；Nemotron 与 Muse 都能正确表达 `cup ON table / chair NEAR table` 且不提供坐标。
 
-Runtime 新增纯 `WorldComposer`：从 Manifest root colliders 推导 footprint，三个 curated Environment Pack 暴露 deterministic search bounds；同批资产先做 conservative footprint reservation，再用 `PhysicsSystem.manifestPoseClear` 在 spawn 前查询 live Rapier Environment / existing objects。Articulated asset 若只覆盖 root collider，layout 明确 provisional。`NEAR` 省略 distance 时由两侧 footprint + clearance 推导，并按 ±X/±Z 固定顺序做 Physics preflight；显式距离小于安全 spacing 则拒绝。`layoutAdmission / relationAdmission` 最终都进入 world admission。
+Runtime 新增纯 `WorldComposer`：从 Manifest root colliders 推导 footprint，三个 curated Environment Pack 暴露 deterministic search bounds；同批资产先做 conservative footprint reservation，再用 `PhysicsSystem.checkManifestPose` 在 spawn 前查询 live Rapier Environment / existing objects。Articulated asset 若只覆盖 root collider，layout 明确 provisional。`NEAR` 省略 distance 时由两侧 footprint + clearance 推导，并按 ±X/±Z 固定顺序做 Physics preflight；显式距离小于安全 spacing 则拒绝。`layoutAdmission / relationAdmission` 最终都进入 world admission。
 
 ---
 
@@ -841,7 +841,7 @@ Embodied interaction range / Rapier LOS E2E PASS
 Live articulation completion E2E PASS
 External blocker → action-failed / STALL PASS
 High-level post-approach STALL / stateFinalized PASS
-Revolute / prismatic live articulationState PASS
+Revolute / prismatic live getArticulationState PASS
 Target tolerance + coordinate-stability settle PASS
 TIMEOUT / SUPERSEDED / observer cancellation PASS
 Requested partTargets / verified parts restore compatibility PASS
@@ -1006,7 +1006,7 @@ Low-level provisional/rejected spawn outcome guard PASS
 Strong WorldSpec tool schema PASS
 Deterministic missing-position auto layout PASS
 Manifest root collider footprint coverage PASS
-Rapier manifestPoseClear pre-spawn Environment query PASS
+Rapier checkManifestPose pre-spawn Environment query PASS
 Curated Environment layout contract PASS
 Articulated root-only layout provisional guard PASS
 Runtime-derived NEAR collider spacing PASS

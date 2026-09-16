@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { PhysicsBackend, TransformPhysicsBackend } from '../../modules/world/runtime/physics/PhysicsBackend.js';
+import { PhysicsBackend, TransformPhysicsBackend } from '../../modules/physics/PhysicsBackend.js';
 import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
 import { compileWorldPhysicsRequirements,admitWorldPhysics } from '../../modules/world/compiler/WorldPhysicsAdmission.js';
 

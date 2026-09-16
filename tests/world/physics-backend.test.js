@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
-import { PhysicsBackend, TransformPhysicsBackend } from '../../modules/world/runtime/physics/PhysicsBackend.js';
+import { PhysicsBackend, TransformPhysicsBackend } from '../../modules/physics/PhysicsBackend.js';
 import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
-import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../modules/physics/RapierPhysicsBackend.js';
 
 describe('PhysicsBackend contract',()=>{
   it('requires an explicit backend at the runtime state-owner boundary',()=>{
@@ -70,21 +70,21 @@ describe('PhysicsBackend contract',()=>{
       }
     };
     store.add('cabinet',{id:'cabinet',assetId:'cabinet',object:root,manifest,state:{}});
-    physics.attach('cabinet',manifest,root);
+    physics.addObject('cabinet',manifest,root);
 
     expect(physics.getPosition('cabinet')).toEqual([1,2,3]);
     expect(physics.setPosition('cabinet',[4,5,6])).toBe(true);
     expect(physics.getPosition('cabinet')).toEqual([4,5,6]);
     expect(physics.setArticulationTarget('cabinet','door',0.5)).toBe(true);
-    expect(physics.articulationState('cabinet','door',{target:0.5})).toMatchObject({coordinate:expect.closeTo(0.5,5),target:0.5});
-    expect(physics.bodyMotionState('cabinet')).toMatchObject({source:'transform-state',linearSpeed:0,angularSpeed:0});
+    expect(physics.getArticulationState('cabinet','door',{target:0.5})).toMatchObject({coordinate:expect.closeTo(0.5,5),target:0.5});
+    expect(physics.getMotion('cabinet')).toMatchObject({source:'transform-state',linearSpeed:0,angularSpeed:0});
     expect(physics.raycast([0,0,0],[1,0,0])).toBeNull();
-    expect(physics.bodyPoseClear('cabinet',[0,0,0])).toMatchObject({clear:false,code:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision'});
-    expect(physics.navigationObstacles()).toMatchObject({items:[],skipped:[{capability:'collision'}]});
+    expect(physics.checkBodyPose('cabinet',[0,0,0])).toMatchObject({clear:false,code:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision'});
+    expect(physics.getNavigationObstacles()).toMatchObject({items:[],skipped:[{capability:'collision'}]});
 
     root.position.x=7;
     expect(physics.step(1/60,store)).toBe(true);
-    expect(physics.remove('cabinet')).toBe(true);
+    expect(physics.removeObject('cabinet')).toBe(true);
     physics.dispose();
   });
 

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AssetManager } from '../../modules/asset/AssetManager.js';
 import { AssetCatalog } from '../../modules/asset/AssetCatalog.js';
 import { createCanonicalWorldPipeline, createWorldPipeline } from '../../modules/world/compiler/createWorldPipeline.js';
-import { PhysicsBackend } from '../../modules/world/runtime/physics/PhysicsBackend.js';
+import { PhysicsBackend } from '../../modules/physics/PhysicsBackend.js';
 
 const physicsProfile=(backend,{runtimeCapabilities=[]}={})=>({
   identity:backend.identity,
@@ -21,7 +21,7 @@ describe('generated world pipeline',()=>{
     const compatible=await createWorldPipeline({
       events:null,trace:null,
       assets:{has:()=>false},assetCatalog:{resolveExisting:(query)=>({status:'missing',query,assets:[]})},
-      environment:{layout:{}},physics:{manifestPoseClear:()=>({checked:true,clear:true,blockedBy:[]})},
+      environment:{layout:{}},physics:{checkManifestPose:()=>({checked:true,clear:true,blockedBy:[]})},
       spawn:async()=>null,interactions:{place:()=>{},move:()=>{}},sceneGraph:{changed:()=>{},update:()=>{}},
       validator:{run:()=>({counts:{hard:0,advisory:0},findings:[]})},repair:{repair:async()=>{}},serialize:()=>({}),store:{get:()=>null}
     }).run({name:'legacy',assets:[{id:'missing',query:'missing'}]});
@@ -49,7 +49,7 @@ describe('generated world pipeline',()=>{
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:1,relations:0}};
     const runtime={
       events:null,trace:null,assets,assetCatalog,generation,
-      environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(assetId,{position,id})=>{spawned.push({assetId,position,id}); return id || `${assetId}_1`; }),
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},
@@ -80,7 +80,7 @@ describe('generated world pipeline',()=>{
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:0,relations:0}};
     const runtime={
       events:null,trace:null,assets,assetCatalog,generation,spawn:vi.fn(),
-      environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({})),store:{get:vi.fn()}
     };
@@ -111,7 +111,7 @@ describe('generated world pipeline',()=>{
     const runtime={
       events:null,trace:null,assets,assetCatalog:new AssetCatalog({assetManager:assets}),
       environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
-      physics:{manifestPoseClear:vi.fn((_manifest,position)=>Math.abs(position[0])<.1&&Math.abs(position[2])<.1
+      physics:{checkManifestPose:vi.fn((_manifest,position)=>Math.abs(position[0])<.1&&Math.abs(position[2])<.1
         ? {checked:true,clear:false,blockedBy:['environment:center-obstacle']}
         : {checked:true,clear:true,blockedBy:[]})},
       spawn:vi.fn(async(assetId,{position,id})=>{spawned.push({assetId,position,id});return id;}),
@@ -140,7 +140,7 @@ describe('generated world pipeline',()=>{
     const runtime={
       events:null,trace:null,assets,
       environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
-      physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(assetId,{position:at,id})=>{records.set(id,{id,assetId,manifest:assets.getManifest(assetId),object:{position:position(at)}});return id;}),
       interactions:{place:vi.fn(),move},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),
@@ -169,7 +169,7 @@ describe('generated world pipeline',()=>{
     const runtime={
       events:null,trace:null,assets,
       environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
-      physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(_assetId,{id})=>id),interactions:{place,move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}
     };
@@ -191,7 +191,7 @@ describe('generated world pipeline',()=>{
     const runtime={
       events:null,trace:null,assets,
       environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
-      physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(assetId,{id})=>{records.set(id,{id,assetId,state:{enabled:false}});return id;}),
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),
@@ -226,7 +226,7 @@ describe('generated world pipeline',()=>{
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:1,relations:0}};
     const runtime={
       events:null,trace:null,assets,
-      environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(assetId,{id})=>{records.set(id,{id,assetId,state:{enabled:false}});return id;}),
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:id=>records.get(id)},
@@ -252,7 +252,7 @@ describe('generated world pipeline',()=>{
     const assets=new AssetManager();
     assets.registerManifest({id:'static-door',type:'fixture',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.4,.8,.1]}]}});
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:0,relations:0}};
-    const runtime={events:null,trace:null,assets,environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()},currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},restoredAcceptanceEvidence:{worldRevisionId:'rev-old'},lastAcceptanceBundle:{worldRevisionId:'rev-old',result:{status:'world-accepted'}}};
+    const runtime={events:null,trace:null,assets,environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()},currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},restoredAcceptanceEvidence:{worldRevisionId:'rev-old'},lastAcceptanceBundle:{worldRevisionId:'rev-old',result:{status:'world-accepted'}}};
     const result=await createWorldPipeline(runtime).run({
       schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-behavior-reject'},provenance:{source:'planner'},intent:{name:'Behavior Reject'},
       entities:[{id:'door_01',asset:{assetId:'static-door'},capabilityIntent:['open']}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[{id:'door-exists',kind:'object-exists',targetId:'door_01'}]
@@ -281,7 +281,7 @@ describe('generated world pipeline',()=>{
     assets.registerManifest({id:'physics-crate',type:'container',source:{kind:'builtin'},actions:['move'],physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.4,.4,.4]}]}});
     const backend=new PhysicsBackend('test',['rigid-body','collision'],{executionModes:['realtime'],qualities:{realtime:true,deterministic:true}});
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:1,relations:0}};
-    const runtime={events:null,trace:null,assets,environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{backend,profile:()=>physicsProfile(backend),manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(async(_assetId,{id})=>id),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}};
+    const runtime={events:null,trace:null,assets,environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{backend,profile:()=>physicsProfile(backend),checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(async(_assetId,{id})=>id),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}};
     const result=await createWorldPipeline(runtime).run({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-physics'},provenance:{source:'planner'},intent:{name:'Physics World'},entities:[{id:'crate_01',asset:{assetId:'physics-crate'},physicsRequirement:{bodyClass:'rigid',requiredCapabilities:['collision'],executionMode:'realtime',qualityPolicy:{deterministicRequired:true}}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[{id:'valid',kind:'world-valid'}]});
     expect(result.state.artifacts.physicsRequirements).toMatchObject({worldRevisionId:'rev-physics',requirements:[{entityId:'crate_01',bodyClass:'rigid',requiredCapabilities:['rigid-body','collision']}]});
     expect(result.state.reports.physicsAdmission).toMatchObject({status:'ready',backend:{identity:'test'}});
@@ -299,7 +299,7 @@ describe('generated world pipeline',()=>{
     assets.registerManifest({id:'soft-fixture',type:'object',source:{kind:'builtin'},actions:['move'],physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.4,.4,.4]}]}});
     const backend=new PhysicsBackend('rigid-only',['rigid-body','collision'],{executionModes:['realtime'],qualities:{realtime:true,deterministic:true}});
     const validation={ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:0,relations:0}};
-    const runtime={events:null,trace:null,assets,environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{backend,profile:()=>physicsProfile(backend),manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()},currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},lastAcceptanceBundle:{worldRevisionId:'rev-old',result:{status:'world-accepted'}}};
+    const runtime={events:null,trace:null,assets,environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{backend,profile:()=>physicsProfile(backend),checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(),interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()},currentWorldRevision:{revision:{id:'rev-old'},provenance:{source:'existing'}},lastAcceptanceBundle:{worldRevisionId:'rev-old',result:{status:'world-accepted'}}};
     const result=await createWorldPipeline(runtime).run({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'rev-soft'},provenance:{source:'planner'},intent:{name:'Soft World'},entities:[{id:'soft_01',asset:{assetId:'soft-fixture'},physicsRequirement:{bodyClass:'soft',executionMode:'realtime'}}],spatial:{relations:[],constraints:[]},interactions:[],rules:[],acceptance:[{id:'soft-exists',kind:'object-exists',targetId:'soft_01'}]});
     expect(result.state.reports.physicsAdmission).toMatchObject({status:'rejected',issues:[{code:'PHYSICS_BACKEND_CAPABILITY_MISSING',entityId:'soft_01',capability:'soft-body'}]});
     expect(result.state.reports.relationAdmission).toMatchObject({status:'not-evaluated',reason:'UPSTREAM_ADMISSION_REJECTED'});
@@ -327,7 +327,7 @@ it('runs rich World IR without routing semantic fields through legacy WorldSpec'
   const runtime={
     events:null,trace:null,assets,
     environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
-    physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+    physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
     spawn:vi.fn(async(_assetId,{id})=>id),interactions:{place:vi.fn(),move:vi.fn()},
     sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},
     repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}
@@ -355,7 +355,7 @@ it('executes canonical INSIDE relation through a verified receptacle placement i
   assets.registerManifest({id:'storage-cup',type:'cup',source:{kind:'builtin'},actions:['move'],physics:{body:'dynamic',colliders:[{shape:'cylinder',halfHeight:.1,radius:.1,translation:[0,.1,0]}]}});
   const validation={schema:1,ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:2,relations:1},findings:[]};
   const placeInside=vi.fn(()=>({status:'inside',containmentVerified:true,receptacleId:'interior',position:[0,.2,0]}));
-  const runtime={events:null,trace:null,assets,environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(async(_assetId,{id})=>id),interactions:{place:vi.fn(),placeInside,move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}};
+  const runtime={events:null,trace:null,assets,environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},spawn:vi.fn(async(_assetId,{id})=>id),interactions:{place:vi.fn(),placeInside,move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},validator:{run:vi.fn(()=>structuredClone(validation))},repair:{repair:vi.fn()},serialize:vi.fn(()=>({schema:'agentscape.scene'})),store:{get:vi.fn()}};
   const pipeline=createCanonicalWorldPipeline(runtime);
   const result=await pipeline.run({schema:'agentscape.world-ir',schemaVersion:1,revision:{id:'inside'},provenance:{source:'test'},intent:{name:'Inside'},entities:[{id:'cabinet_01',asset:{assetId:'storage-cabinet'}},{id:'cup_01',asset:{assetId:'storage-cup'}}],spatial:{relations:[{subject:'cup_01',predicate:'INSIDE',object:'cabinet_01',receptacleId:'interior'}]},interactions:[],rules:[],acceptance:[]});
   expect(result.state.reports.relationAdmission).toMatchObject({status:'ready',applied:[{subject:'cup_01',predicate:'INSIDE',object:'cabinet_01',receptacleId:'interior'}]});

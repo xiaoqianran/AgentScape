@@ -331,7 +331,7 @@ Agent 应稍后重新 `findPath`，而不是重复发动作。
 ```text
 counterfactual restore failed
         ↓
-PhysicsSystem.navigationObstacles()
+PhysicsSystem.getNavigationObstacles()
         ↓
 从当前 Rapier truth 立即 reconcile
         ↓
@@ -363,7 +363,7 @@ InteractionSystem.open
     ↓
 Rapier motor moves Door
     ↓
-PhysicsSystem.navigationObstacles()
+PhysicsSystem.getNavigationObstacles()
     ↓
 TileCache reconcile current pose
     ↓

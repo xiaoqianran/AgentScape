@@ -30,7 +30,7 @@ describe('bounded generated-world retry',()=>{
     const runtime={
       events:null,trace:new TraceRecorder(),policy:new PolicyEngine(),assets,assetCatalog,generation,
       environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
-      physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+      physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(assetId,{position,id})=>{spawned.push({assetId,position,id});return id;}),
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>({ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:spawned.length,relations:0}}))},

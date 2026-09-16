@@ -57,7 +57,7 @@ const vec3Equal=(a,b,tolerance=1e-6)=>Array.isArray(a)&&Array.isArray(b)&&a.leng
 const canIncrementPosition=(runtime,baseWorldIR,nextIR,impact)=>{
   if(impact.mode!=='incremental-position' || impact.affectedEntityIds.length!==1) return false;
   if(runtime.currentWorldRevision?.revision?.id!==baseWorldIR.revision?.id) return false;
-  if(!runtime.store?.get || !runtime.assets?.getManifest || !runtime.physics?.manifestPoseClear || !runtime.physics?.setPosition || !runtime.validator?.run) return false;
+  if(!runtime.store?.get || !runtime.assets?.getManifest || !runtime.physics?.checkManifestPose || !runtime.physics?.setPosition || !runtime.validator?.run) return false;
   const id=impact.affectedEntityIds[0];
   if(nextIR.spatial.relations.some((relation)=>relation.subject===id || relation.object===id)) return false;
   const baseEntity=baseWorldIR.entities.find((entity)=>entity.id===id);
@@ -234,7 +234,7 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
   const position=entity?.transform?.position;
   const preflight=preflightWorldPosition(manifest,position,{
     layout:runtime.environment?.layout,occupied,
-    poseClear:(candidateManifest,candidatePosition)=>runtime.physics.manifestPoseClear(candidateManifest,candidatePosition,{excludeIds:[id]})
+    poseClear:(candidateManifest,candidatePosition)=>runtime.physics.checkManifestPose(candidateManifest,candidatePosition,{excludeIds:[id]})
   });
   const layoutAdmission={
     status:preflight.clear?(preflight.status || 'ready'):'rejected',

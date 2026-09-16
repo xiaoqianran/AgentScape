@@ -17,7 +17,7 @@ it('uses Environment Pack colliders as real fixed Rapier geometry', async () => 
   const manifest={physics:{body:'dynamic',mass:1,colliders:[{shape:'box',halfExtents:[.2,.2,.2]}]}};
   const store=new ObjectStore();
   store.add('probe',{id:'probe',assetId:'probe',object,manifest,state:{}});
-  const entry=physics.attach('probe',manifest,object);
+  const entry=physics.addObject('probe',manifest,object);
   entry.body.setLinvel({x:2,y:0,z:0},true);
   for(let i=0;i<120;i++) physics.step(1/60,store);
 
@@ -48,8 +48,8 @@ it('preflights a manifest collider pose against live Environment geometry withou
   ],{id:'layout-test'});
   const manifest={physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.3,.5,.3],translation:[0,.5,0]}]}};
   const entriesBefore=physics.entries.size;
-  expect(physics.manifestPoseClear(manifest,[0,.01,0])).toMatchObject({checked:true,clear:false,blockedBy:['environment:layout-test']});
-  expect(physics.manifestPoseClear(manifest,[2,.01,2])).toMatchObject({checked:true,clear:true,blockedBy:[]});
+  expect(physics.checkManifestPose(manifest,[0,.01,0])).toMatchObject({checked:true,clear:false,blockedBy:['environment:layout-test']});
+  expect(physics.checkManifestPose(manifest,[2,.01,2])).toMatchObject({checked:true,clear:true,blockedBy:[]});
   expect(physics.entries.size).toBe(entriesBefore);
   physics.dispose();
 });

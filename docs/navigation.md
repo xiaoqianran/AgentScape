@@ -119,7 +119,7 @@ scope = "current"
 
 ## 动态障碍的唯一事实来源
 
-动态导航不读取 Three.js visual bounds，而从 `PhysicsSystem.navigationObstacles()` 读取当前 Rapier collider。Stable obstacle id：
+动态导航不读取 Three.js visual bounds，而从 `PhysicsSystem.getNavigationObstacles()` 读取当前 Rapier collider。Stable obstacle id：
 
 ```text
 <objectId>:<partName>:<colliderIndex>

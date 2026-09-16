@@ -31,7 +31,7 @@ describe('part hierarchy', () => {
     validateAssetManifest(manifest);
     const root=new THREE.Group(); const door=new THREE.Group(); door.name='Door'; const slider=new THREE.Group(); slider.name='Slider'; door.add(slider); root.add(door); root.updateMatrixWorld(true);
     const store=new ObjectStore(); store.add('n',{id:'n',assetId:'nested',object:root,manifest,state:{}});
-    const physics=createRapierPhysicsSystem(); await physics.init(); physics.attach('n',manifest,root);
+    const physics=createRapierPhysicsSystem(); await physics.init(); physics.addObject('n',manifest,root);
     const entry=physics.entries.get('n');
     expect(entry.parts.get('slider').parentName).toBe('door');
     expect(entry.parts.get('slider').joint.body1().handle).toBe(entry.parts.get('door').body.handle);

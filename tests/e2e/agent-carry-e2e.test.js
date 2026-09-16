@@ -17,15 +17,15 @@ async function setup({agent=[0,0,3],cup=[0,0,0],table=null,wall=null}={}){
   const physics=createRapierPhysicsSystem(); await physics.init();
   const env=[{shape:'box',halfExtents:[5,.1,5],translation:[0,-.1,0]}]; if(wall) env.push(wall); physics.addEnvironment(env);
   const a=new THREE.Group(); a.position.fromArray(agent); scene.add(a); a.updateMatrixWorld(true);
-  const am=structuredClone(assetManifests.agent); store.add('agent_01',{id:'agent_01',assetId:'agent',object:a,manifest:am,state:{}}); physics.attach('agent_01',am,a);
+  const am=structuredClone(assetManifests.agent); store.add('agent_01',{id:'agent_01',assetId:'agent',object:a,manifest:am,state:{}}); physics.addObject('agent_01',am,a);
   if(table){
     const t=new THREE.Group();
     const top=new THREE.Mesh(new THREE.BoxGeometry(2.4,.16,1.25)); top.position.y=1; t.add(top);
     t.position.fromArray(table); scene.add(t); t.updateMatrixWorld(true);
-    const tm=structuredClone(assetManifests.table); store.add('table_01',{id:'table_01',assetId:'table',object:t,manifest:tm,state:{}}); physics.attach('table_01',tm,t);
+    const tm=structuredClone(assetManifests.table); store.add('table_01',{id:'table_01',assetId:'table',object:t,manifest:tm,state:{}}); physics.addObject('table_01',tm,t);
   }
   const c=cupVisual(); c.position.fromArray(cup); scene.add(c); c.updateMatrixWorld(true);
-  const cm=structuredClone(assetManifests.cup); store.add('cup_01',{id:'cup_01',assetId:'cup',object:c,manifest:cm,state:{}}); physics.attach('cup_01',cm,c);
+  const cm=structuredClone(assetManifests.cup); store.add('cup_01',{id:'cup_01',assetId:'cup',object:c,manifest:cm,state:{}}); physics.addObject('cup_01',cm,c);
   for(let i=0;i<(table?120:10);i++) physics.step(1/60,store);
   const spatial=new SpatialSystem({store,scene}); const events=new EventBus();
   const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[ground],events});
@@ -58,7 +58,7 @@ describe('agent carry ownership',()=>{
     expect(pickup).toMatchObject({status:'held',actorId:'agent_01',targetId:'cup_01',attachment:'kinematic-anchor',graspVerified:false,transfer:{clear:true}});
     expect(ctx.store.get('cup_01').state.heldBy).toEqual({kind:'agent',id:'agent_01',anchor:'hold'});
     expect(ctx.physics.entries.get('cup_01').body.isKinematic()).toBe(true);
-    expect(ctx.physics.navigationObstacles().items.some((item)=>item.objectId==='cup_01')).toBe(false);
+    expect(ctx.physics.getNavigationObstacles().items.some((item)=>item.objectId==='cup_01')).toBe(false);
     expect(ctx.interactions.carryStatus('agent_01')).toMatchObject({status:'held',targetId:'cup_01',graspVerified:false});
 
     const move=await drive(ctx.locomotion.navigate('agent_01',[2,0,2],{speed:2.5}),ctx);
@@ -71,7 +71,7 @@ describe('agent carry ownership',()=>{
     expect(dropped).toMatchObject({status:'dropped',targetId:'cup_01',released:true,settled:true,stillHeld:false});
     expect(ctx.store.get('cup_01').state.heldBy).toBeUndefined();
     expect(ctx.physics.entries.get('cup_01').body.isDynamic()).toBe(true);
-    expect(ctx.physics.navigationObstacles().items.some((item)=>item.objectId==='cup_01')).toBe(true);
+    expect(ctx.physics.getNavigationObstacles().items.some((item)=>item.objectId==='cup_01')).toBe(true);
     ctx.navigation.dispose(); ctx.physics.dispose();
   },25000);
 

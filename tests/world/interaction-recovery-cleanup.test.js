@@ -29,8 +29,8 @@ describe('InteractionSystem recovery cleanup contracts',()=>{
     system.physics={
       getPosition:vi.fn((id)=>id==='agent_01'?[0,0,2]:[0,.95,1.38]),
       raycast:vi.fn((origin)=>({environment:true,distance:origin[1],point:[origin[0],0,origin[2]]})),
-      bodyMotionClear:vi.fn(()=>({clear:true})),
-      bodyPoseClear:vi.fn(()=>({clear:true}))
+      checkBodyMotion:vi.fn(()=>({clear:true})),
+      checkBodyPose:vi.fn(()=>({clear:true}))
     };
     system.holdAnchor=vi.fn(()=>({translation:[0,.95,-.62],rotation:[0,0,0,1]}));
     system.actorMetrics=vi.fn(()=>({radius:.32,height:1.7}));
@@ -48,7 +48,7 @@ describe('InteractionSystem recovery cleanup contracts',()=>{
     );
     expect(sweepBox.intersectsBox(releaseBox)).toBe(false);
     expect(system.physics.raycast).toHaveBeenCalled();
-    expect(system.physics.bodyPoseClear).toHaveBeenCalledWith('blocker_01',expect.any(Array),expect.any(Array),{excludeIds:['agent_01']});
+    expect(system.physics.checkBodyPose).toHaveBeenCalledWith('blocker_01',expect.any(Array),expect.any(Array),{excludeIds:['agent_01']});
     expect(system.navigation.findPath).toHaveBeenCalled();
   });
 
@@ -75,7 +75,7 @@ describe('InteractionSystem recovery cleanup contracts',()=>{
     const physics={
       getPosition:vi.fn(()=>[0,.95,0]),
       getRotation:vi.fn(()=>[0,0,0,1]),
-      bodyMotionClear:vi.fn(()=>({clear:true})),
+      checkBodyMotion:vi.fn(()=>({clear:true})),
       setHeldPose:vi.fn((_id,position)=>positions.push([...position]))
     };
     const spatial={getBounds:vi.fn(()=>({size:[.4,.6,.4]}))};
@@ -86,7 +86,7 @@ describe('InteractionSystem recovery cleanup contracts',()=>{
     expect(positions).toEqual([[0,.95,0],[1,.95,1],[1,.05,1]]);
 
     positions.length=0;
-    physics.bodyMotionClear
+    physics.checkBodyMotion
       .mockImplementationOnce(()=>({clear:true}))
       .mockImplementationOnce(()=>({clear:false,code:'CARRY_SWEEP_BLOCKED',blockedBy:['wall']}));
     const blocked=system.transferHeldToRelease('agent_01','blocker_01',[1,.05,1]);
@@ -113,7 +113,7 @@ describe('InteractionSystem recovery cleanup contracts',()=>{
     system.physics={
       getPosition:vi.fn((id)=>id==='agent_01'?[0,0,2]:[0,.95,1.38]),
       raycast:vi.fn((origin)=>({environment:true,distance:origin[1],point:[origin[0],0,origin[2]]})),
-      bodyPoseClear:vi.fn(()=>({clear:false,code:'CARRY_TARGET_BLOCKED',blockedBy:['crate_99']}))
+      checkBodyPose:vi.fn(()=>({clear:false,code:'CARRY_TARGET_BLOCKED',blockedBy:['crate_99']}))
     };
     system.holdAnchor=vi.fn(()=>({translation:[0,.95,-.62],rotation:[0,0,0,1]}));
     system.actorMetrics=vi.fn(()=>({radius:.32,height:1.7}));
@@ -122,7 +122,7 @@ describe('InteractionSystem recovery cleanup contracts',()=>{
     system.navigation={findPath:vi.fn(async(start,end)=>({reachable:true,cost:1,path:[start,end],end:{snapped:end}}))};
     const plan=await system.findRecoveryCleanupPlan('agent_01','cabinet_01',{partName:'door',action:'open',blockerId:'blocker_01'});
     expect(plan).toMatchObject({status:'cleanup-unavailable',reason:'NO_SAFE_CLEANUP_SPACE',blockerId:'blocker_01'});
-    expect(system.physics.bodyPoseClear).toHaveBeenCalled();
+    expect(system.physics.checkBodyPose).toHaveBeenCalled();
   });
 
 

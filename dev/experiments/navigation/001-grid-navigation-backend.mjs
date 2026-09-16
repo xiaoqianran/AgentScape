@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import * as THREE from 'three';
-import { NavigationBackend } from '../../../modules/world/runtime/navigation/NavigationBackend.js';
+import { NavigationBackend } from '../../../modules/navigation/NavigationBackend.js';
 import { NavigationSystem } from '../../../modules/world/runtime/systems/NavigationSystem.js';
 import { ObjectStore } from '../../../modules/world/runtime/ObjectStore.js';
 
@@ -111,7 +111,7 @@ floor.rotation.x=-Math.PI/2;
 floor.updateMatrixWorld(true);
 const physics={
   profile:()=>({identity:'experiment-physics'}),
-  navigationObstacles:()=>({items:[{id:'wall',shape:'box',sourceShape:'box',quality:'exact',position:[0,0,0],halfExtents:[.3,1,1.25],angle:0}],skipped:[]})
+  getNavigationObstacles:()=>({items:[{id:'wall',shape:'box',sourceShape:'box',quality:'exact',position:[0,0,0],halfExtents:[.3,1,1.25],angle:0}],skipped:[]})
 };
 const backend=new GridNavigationBackend({cellSize:.25});
 const navigation=new NavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor],backend});

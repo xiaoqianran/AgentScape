@@ -7,7 +7,7 @@ it('disposes objects without rebuilding semantic relations during teardown', () 
   const store = new Map([['a', { object }]]);
   const runtime = {
     store:{ list:()=>[...store], delete:(id)=>store.delete(id) },
-    physics:{ remove:vi.fn(), dispose:vi.fn() },
+    physics:{ removeObject:vi.fn(), dispose:vi.fn() },
     navigation:{ dispose:vi.fn() },
     interactions:{ cancelPending:vi.fn() },
     scene:{ remove:vi.fn(), traverse:(fn)=>{} },

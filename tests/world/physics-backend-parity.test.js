@@ -1,6 +1,6 @@
 import { describe,expect,it } from 'vitest';
-import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
-import { JoltPhysicsBackend } from '../../modules/world/runtime/physics/JoltPhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../modules/physics/RapierPhysicsBackend.js';
+import { JoltPhysicsBackend } from '../../modules/physics/JoltPhysicsBackend.js';
 
 const BACKENDS=[
   ['rapier',()=>new RapierPhysicsBackend({gravity:{x:0,y:0,z:0}})],
@@ -40,6 +40,24 @@ describe.each(BACKENDS)('%s backend-neutral parity',(_name,createBackend)=>{
       const penetration=backend.penetrations(world,source).find((entry)=>entry.other===target);
       expect(penetration).toBeTruthy();
       closeTo(penetration.distance,-.75,1e-3);
+    });
+  });
+
+  it('keeps basic dynamics commands backend-neutral',async()=>{
+    await withWorld(createBackend,(backend,world)=>{
+      const body=backend.createBody(world,{type:'dynamic',position:[0,0,0]});
+      backend.createColliders(world,body,[{shape:'box',halfExtents:[.5,.5,.5]}],{mass:1,friction:.4,restitution:.25});
+
+      expect(backend.setBodyMotion(body,{linearVelocity:[1,2,3],angularVelocity:[0,.5,0]})).toBe(true);
+      const motion=backend.bodyMotion(body);
+      motion.linearVelocity.forEach((value,index)=>closeTo(value,[1,2,3][index],1e-4));
+      motion.angularVelocity.forEach((value,index)=>closeTo(value,[0,.5,0][index],1e-4));
+
+      expect(backend.setBodyMaterial(body,{friction:.6,restitution:.5})).toBe(true);
+      expect(backend.setBodyDynamics(body,{linearDamping:.1,angularDamping:.2,gravityScale:0})).toBe(true);
+      backend.setBodyMotion(body,{linearVelocity:[0,0,0],angularVelocity:[0,0,0]});
+      expect(backend.applyImpulse(body,[1,0,0])).toBe(true);
+      expect(backend.bodyMotion(body).linearVelocity[0]).toBeGreaterThan(.5);
     });
   });
 

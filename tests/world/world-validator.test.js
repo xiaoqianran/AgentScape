@@ -52,10 +52,10 @@ describe('WorldValidator', () => {
     const r=runtime({collision:true});
     r.sceneGraph.list=()=>[{subject:'a',predicate:'INSIDE',object:'b'}];
     r.store={has:()=>true,get:(id)=>({id,manifest:{physics:{colliders:[{shape:'box',halfExtents:[.1,.1,.1]}]}}})};
-    r.physics={getPosition:()=>[0,0,0],manifestPoseClear:()=>({checked:true,clear:true,blockedBy:[]})};
+    r.physics={getPosition:()=>[0,0,0],checkManifestPose:()=>({checked:true,clear:true,blockedBy:[]})};
     expect(new WorldValidator(r).run().hard.some((item)=>item.code==='P_OVERLAP')).toBe(false);
 
-    r.physics.manifestPoseClear=()=>({checked:true,clear:false,blockedBy:['object:b:$root']});
+    r.physics.checkManifestPose=()=>({checked:true,clear:false,blockedBy:['object:b:$root']});
     expect(new WorldValidator(r).run().hard).toEqual(expect.arrayContaining([expect.objectContaining({code:'P_OVERLAP',object:'a',other:'b'})]));
   });
 

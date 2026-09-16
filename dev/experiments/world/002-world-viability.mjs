@@ -11,8 +11,8 @@ import { NavigationSystem } from '../../../modules/world/runtime/systems/Navigat
 import { LocomotionSystem } from '../../../modules/world/runtime/systems/LocomotionSystem.js';
 import { InteractionSystem } from '../../../modules/world/runtime/systems/InteractionSystem.js';
 import { PhysicsSystem } from '../../../modules/world/runtime/systems/PhysicsSystem.js';
-import { RapierPhysicsBackend } from '../../../modules/world/runtime/physics/RapierPhysicsBackend.js';
-import { RecastNavigationBackend } from '../../../modules/world/runtime/navigation/RecastNavigationBackend.js';
+import { RapierPhysicsBackend } from '../../../modules/physics/RapierPhysicsBackend.js';
+import { RecastNavigationBackend } from '../../../modules/navigation/RecastNavigationBackend.js';
 import { SceneGraph } from '../../../modules/world/runtime/graph/SceneGraph.js';
 import { CommandHistory } from '../../../modules/world/runtime/CommandHistory.js';
 import { WorldValidator } from '../../../modules/world/verification/WorldValidator.js';
@@ -92,7 +92,7 @@ async function runRuinedCourtyardLocomotion() {
   agentObject.position.set(0,0,12); agentObject.updateMatrixWorld(true); scene.add(agentObject);
   const manifest = structuredClone(assetManifests.agent);
   store.add('agent_01',{id:'agent_01',assetId:'agent',object:agentObject,manifest,state:{}});
-  physics.attach('agent_01',manifest,agentObject);
+  physics.addObject('agent_01',manifest,agentObject);
   physics.step(1/60,store);
   try {
     const path = await navigation.findPath([0,0,12],[12,1.2,4.8]);

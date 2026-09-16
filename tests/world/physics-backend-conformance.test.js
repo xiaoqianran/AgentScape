@@ -1,7 +1,7 @@
 import { describe,expect,it } from 'vitest';
-import { PhysicsBackend,TransformPhysicsBackend } from '../../modules/world/runtime/physics/PhysicsBackend.js';
-import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
-import { JoltPhysicsBackend } from '../../modules/world/runtime/physics/JoltPhysicsBackend.js';
+import { PhysicsBackend,TransformPhysicsBackend } from '../../modules/physics/PhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../modules/physics/RapierPhysicsBackend.js';
+import { JoltPhysicsBackend } from '../../modules/physics/JoltPhysicsBackend.js';
 import {
   createConformanceWorld,declaredCapabilityMethodGaps,expectCollisionRoundTrip,expectSemanticBodyRoundTrip,unexpectedPublicBackendMethods
 } from '../helpers/physicsBackendConformance.js';

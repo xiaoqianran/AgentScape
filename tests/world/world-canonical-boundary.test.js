@@ -27,7 +27,7 @@ const runtime = () => {
     environment: { layout: { bounds: { min: [-4, -4], max: [4, 4] }, groundY: 0, margin: .5 } },
     physics: {
       backend: { capabilities: new Set() },
-      manifestPoseClear: () => ({ checked: true, clear: true, blockedBy: [] })
+      checkManifestPose: () => ({ checked: true, clear: true, blockedBy: [] })
     },
     spawn: vi.fn(async (assetId, { id, position }) => { spawned.push({ assetId, id, position }); return id; }),
     interactions: { place: vi.fn(), move: vi.fn() },

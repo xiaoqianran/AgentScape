@@ -37,7 +37,7 @@ function runtime() {
     spatial: { getBounds:vi.fn(), findNearby:vi.fn(), raycast:vi.fn(), isColliding:vi.fn(), getSupportSurface:vi.fn(), findFreeSpace:vi.fn() },
     navigation: { canReach:vi.fn(async()=>({reachable:true,cost:3})), findPath:vi.fn(async()=>({reachable:true,path:[[0,0,0],[3,0,0]],cost:3})), suggestActions:vi.fn(async()=>({status:'action-candidate'})), status:vi.fn(()=>({state:'ready'})) },
     environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
-    physics:{manifestPoseClear:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
+    physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
     sceneGraph: { list:vi.fn(()=>[]), describe:vi.fn(), update:vi.fn() },
     validator: { run:vi.fn(()=>({ ok:true, counts:{hard:0,advisory:0}, hard:[], advisory:[], coverage:{objects:0,relations:0} })) },
     repair: { repair:vi.fn() },
@@ -609,7 +609,7 @@ it('queries generated-world observed entities without promoting them to runtime 
     r.assets.getManifest=vi.fn(()=>({id:'cup',physics:{body:'dynamic',colliders:[{shape:'cylinder',radius:.15,halfHeight:.16,translation:[0,.16,0]}]}}));
     const planned=await registry.invoke('planAssetNearObservedEntity',{assetId:'cup',id:'hyworld2-target-0'},{profile:'builder',actor:'test'});
     expect(planned).toMatchObject({success:true,result:{status:'placement-ready',assetId:'cup',observedEntityId:'semantic-instance:hyworld2-target-0',collisionVerified:true}});
-    expect(r.physics.manifestPoseClear).toHaveBeenCalled();
+    expect(r.physics.checkManifestPose).toHaveBeenCalled();
     r.navigation.findPath=vi.fn(async(_start,_end,options)=>({reachable:true,end:{snapped:[0,0,1]},path:[[0,0,0],[0,0,1]],cost:1,options}));
     const approach=await registry.invoke('findObservedEntityApproach',{id:'hyworld2-target-0',start:[0,0,0]},{profile:'builder',actor:'test'});
     expect(approach).toMatchObject({success:true,result:{status:'approach-ready',id:'semantic-instance:hyworld2-target-0',approach:[0,0,1],targetCenter:[0,0,1.7]}});

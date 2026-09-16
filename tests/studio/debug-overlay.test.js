@@ -31,7 +31,7 @@ async function setup({ withNav = true } = {}) {
   scene.add(agent); agent.updateMatrixWorld(true);
   const agentManifest = structuredClone(assetManifests.agent);
   store.add('agent_01', { id: 'agent_01', assetId: 'agent', object: agent, manifest: agentManifest, state: {} });
-  physics.attach('agent_01', agentManifest, agent);
+  physics.addObject('agent_01', agentManifest, agent);
 
   const table = new THREE.Group();
   const top = new THREE.Mesh(new THREE.BoxGeometry(2.4, .16, 1.25));
@@ -40,7 +40,7 @@ async function setup({ withNav = true } = {}) {
   scene.add(table); table.updateMatrixWorld(true);
   const tableManifest = structuredClone(assetManifests.table);
   store.add('table_01', { id: 'table_01', assetId: 'table', object: table, manifest: tableManifest, state: {} });
-  physics.attach('table_01', tableManifest, table);
+  physics.addObject('table_01', tableManifest, table);
 
   const cup = new THREE.Group();
   const cupMesh = new THREE.Mesh(new THREE.CylinderGeometry(.15, .15, .32, 16));
@@ -49,7 +49,7 @@ async function setup({ withNav = true } = {}) {
   scene.add(cup); cup.updateMatrixWorld(true);
   const cupManifest = structuredClone(assetManifests.cup);
   store.add('cup_01', { id: 'cup_01', assetId: 'cup', object: cup, manifest: cupManifest, state: {} });
-  physics.attach('cup_01', cupManifest, cup);
+  physics.addObject('cup_01', cupManifest, cup);
 
   for (let i = 0; i < 120; i++) physics.step(1 / 60, store);
 

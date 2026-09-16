@@ -31,7 +31,7 @@ describe('Object transform contract',()=>{
     const manifest=structuredClone(assetManifests.cup);
     const store=new ObjectStore();
     store.add('cup_01',{id:'cup_01',assetId:'cup',object,manifest,state:{},physicsScale:1});
-    const physics={remove:vi.fn(),attach:vi.fn(),syncTransform:vi.fn()};
+    const physics={removeObject:vi.fn(),addObject:vi.fn(),syncTransform:vi.fn()};
     const runtime={
       store,physics,
       navigation:{invalidateIfStatic:vi.fn()},
@@ -40,9 +40,9 @@ describe('Object transform contract',()=>{
     const result=WorldRuntime.prototype.applyObjectTransform.call(runtime,'cup_01',{scale:.5},{source:'test'});
     expect(result).toMatchObject({status:'object-transformed',id:'cup_01',scale:.5,physicsRebuilt:true});
     expect(object.scale.toArray()).toEqual([.5,.5,.5]);
-    expect(physics.remove).toHaveBeenCalledWith('cup_01');
-    expect(physics.attach).toHaveBeenCalledWith('cup_01',expect.objectContaining({physics:expect.objectContaining({mass:.0375})}),object);
-    expect(physics.attach.mock.calls[0][1].physics.colliders[0]).toMatchObject({halfHeight:.08,radius:.075,translation:[0,.08,0]});
+    expect(physics.removeObject).toHaveBeenCalledWith('cup_01');
+    expect(physics.addObject).toHaveBeenCalledWith('cup_01',expect.objectContaining({physics:expect.objectContaining({mass:.0375})}),object);
+    expect(physics.addObject.mock.calls[0][1].physics.colliders[0]).toMatchObject({halfHeight:.08,radius:.075,translation:[0,.08,0]});
     expect(manifest.physics.colliders[0]).toMatchObject({halfHeight:.16,radius:.15,translation:[0,.16,0]});
     expect(store.get('cup_01').physicsScale).toBe(.5);
   });
@@ -52,13 +52,13 @@ describe('Object transform contract',()=>{
     const manifest=structuredClone(assetManifests.chair);
     const store=new ObjectStore();
     store.add('chair_01',{id:'chair_01',assetId:'chair',object,manifest,state:{},physicsScale:1});
-    const physics={remove:vi.fn(),attach:vi.fn(),syncTransform:vi.fn()};
+    const physics={removeObject:vi.fn(),addObject:vi.fn(),syncTransform:vi.fn()};
     const runtime={store,physics,navigation:{invalidateIfStatic:vi.fn()},events:{emit:vi.fn()}};
     const result=WorldRuntime.prototype.applyObjectTransform.call(runtime,'chair_01',{position:[2,0,3],rotationDegrees:[0,90,0]},{source:'agent'});
     expect(result.physicsRebuilt).toBe(false);
     expect(object.position.toArray()).toEqual([2,0,3]);
     expect(physics.syncTransform).toHaveBeenCalledWith('chair_01',object);
-    expect(physics.remove).not.toHaveBeenCalled();
+    expect(physics.removeObject).not.toHaveBeenCalled();
   });
 
   it('rebuilds a real Rapier collider at the same uniform scale as the visual instance',async()=>{
@@ -68,7 +68,7 @@ describe('Object transform contract',()=>{
     const manifest=structuredClone(assetManifests.cup);
     const store=new ObjectStore();
     store.add('cup_01',{id:'cup_01',assetId:'cup',object,manifest,state:{},physicsScale:1});
-    physics.attach('cup_01',manifest,object);
+    physics.addObject('cup_01',manifest,object);
     const runtime={store,physics,navigation:{invalidateIfStatic:()=>{}},events:{emit:()=>{}}};
 
     WorldRuntime.prototype.applyObjectTransform.call(runtime,'cup_01',{scale:.5},{source:'test'});
@@ -82,7 +82,7 @@ describe('Object transform contract',()=>{
 
   it('records Human/Agent transform skills in the same History and restores scaled Physics state on undo/redo',async()=>{
     const physics={
-      attach:vi.fn(),remove:vi.fn(),syncTransform:vi.fn(),resetWorld:vi.fn(),addEnvironment:vi.fn()
+      addObject:vi.fn(),removeObject:vi.fn(),syncTransform:vi.fn(),resetWorld:vi.fn(),addEnvironment:vi.fn()
     };
     const runtime=new WorldRuntime({appendChild(){}},{
       environmentFactory:()=>null,

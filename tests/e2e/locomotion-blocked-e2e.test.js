@@ -21,7 +21,7 @@ it('returns blocked when Rapier sees a wall that the planned NavMesh did not inc
   const object=new THREE.Group(); object.position.set(-3,0,0); object.updateMatrixWorld(true);
   const manifest=structuredClone(assetManifests.agent);
   store.add('agent_01',{id:'agent_01',assetId:'agent',object,manifest,state:{}});
-  physics.attach('agent_01',manifest,object); physics.step(1/60,store);
+  physics.addObject('agent_01',manifest,object); physics.step(1/60,store);
   const locomotion=new LocomotionSystem({store,physics,navigation});
 
   let result=null;

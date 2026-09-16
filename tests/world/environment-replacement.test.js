@@ -41,7 +41,7 @@ describe('WorldRuntime environment replacement',()=>{
 
     expect(runtime.sceneGraph.list({predicate:'HAS_INSTANCE'})).toMatchObject([{object:'semantic-instance:door-1'}]);
     const cup=runtime.assets.getManifest('cup');
-    expect(runtime.physics.manifestPoseClear(cup,[2,.01,2])).toMatchObject({checked:true,clear:true});
+    expect(runtime.physics.checkManifestPose(cup,[2,.01,2])).toMatchObject({checked:true,clear:true});
 
     const result=await runtime.replaceEnvironment(second,{disposePrevious:false,reason:'test'});
     expect(result).toMatchObject({status:'environment-ready',environmentId:'second',previousEnvironmentId:'first'});
@@ -50,7 +50,7 @@ describe('WorldRuntime environment replacement',()=>{
     expect(runtime.scene.children).not.toContain(first.root);
     expect(first.dispose).not.toHaveBeenCalled();
     expect(runtime.sceneGraph.list({predicate:'HAS_INSTANCE'})).toMatchObject([{object:'semantic-instance:bench-1'}]);
-    expect(runtime.physics.manifestPoseClear(cup,[2,.01,2])).toMatchObject({checked:true,clear:false,blockedBy:['environment:second']});
+    expect(runtime.physics.checkManifestPose(cup,[2,.01,2])).toMatchObject({checked:true,clear:false,blockedBy:['environment:second']});
     expect(runtime.navigation.environmentRoots).toEqual([second.root]);
     const route=await runtime.navigation.findPath([-2,0,-2],[2,0,-2]);
     expect(route.reachable).toBe(true);

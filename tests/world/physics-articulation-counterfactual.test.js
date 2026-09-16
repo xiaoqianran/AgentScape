@@ -20,7 +20,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
     const add=(id,position,yaw=0,manifest=assetManifests.cabinet)=>{
       const object=cabinetObject(); object.position.fromArray(position); object.rotation.y=yaw; object.updateMatrixWorld(true);
       store.add(id,{id,assetId:'cabinet',object,manifest:structuredClone(manifest),state:{parts:{door:'close'}}});
-      physics.attach(id,store.get(id).manifest,object);
+      physics.addObject(id,store.get(id).manifest,object);
     };
     const blockerManifest=structuredClone(assetManifests.cabinet);
     blockerManifest.parts.door.actions=[...blockerManifest.parts.door.actions,'ajar'];
@@ -35,8 +35,8 @@ describe('Rapier articulated counterfactual geometry',()=>{
     physics.holdArticulationCurrent('cabinet_A','door');
     for(let i=0;i<10;i++) physics.step(1/60,store);
 
-    const beforeA=physics.articulationState('cabinet_A','door');
-    const beforeB=physics.articulationState('cabinet_B','door');
+    const beforeA=physics.getArticulationState('cabinet_A','door');
+    const beforeB=physics.getArticulationState('cabinet_B','door');
     const open=physics.articulationPairCounterfactual('cabinet_A','door',-1.35,'cabinet_B','door',-1.35,{samples:17});
     const close=physics.articulationPairCounterfactual('cabinet_A','door',-1.35,'cabinet_B','door',0,{samples:17});
     expect(open).toMatchObject({checked:true,geometry:'rapier-shape-pairs',causal:false,samples:{original:17,blocker:17,mode:'fixed'},targetSweepClear:false});
@@ -55,8 +55,8 @@ describe('Rapier articulated counterfactual geometry',()=>{
     expect(convergence.dense.samples.original).toBeGreaterThan(convergence.base.samples.original);
     expect(convergence.dense.samples.blocker).toBeGreaterThan(convergence.base.samples.blocker);
     expect(convergence.maxRatioDrift).toBeLessThan(.2);
-    const afterA=physics.articulationState('cabinet_A','door');
-    const afterB=physics.articulationState('cabinet_B','door');
+    const afterA=physics.getArticulationState('cabinet_A','door');
+    const afterB=physics.getArticulationState('cabinet_B','door');
     expect(afterA.coordinate).toBeCloseTo(beforeA.coordinate,8);
     expect(afterB.coordinate).toBeCloseTo(beforeB.coordinate,8);
     physics.dispose();
@@ -77,7 +77,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
     const root=new THREE.Group();
     const door=new THREE.Group(); door.name='Door'; door.position.set(1,1,0); root.add(door); root.updateMatrixWorld(true);
     store.add('pivot',{id:'pivot',assetId:'pivot-door',object:root,manifest,state:{parts:{door:'close'}}});
-    physics.attach('pivot',manifest,root);
+    physics.addObject('pivot',manifest,root);
     for(let i=0;i<20;i++) physics.step(1/60,store);
 
     const predicted=physics.articulationColliderPoses('pivot','door',-1);
@@ -87,7 +87,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
 
     expect(physics.setArticulationTarget('pivot','door',-1)).toBe(true);
     for(let i=0;i<300;i++) physics.step(1/60,store);
-    const state=physics.articulationState('pivot','door',{target:-1});
+    const state=physics.getArticulationState('pivot','door',{target:-1});
     expect(state.error).toBeLessThan(.08);
     const body=physics.entries.get('pivot').parts.get('door').body;
     const collider=body.collider(0);
@@ -117,7 +117,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
     };
     const root=new THREE.Group(); const drawer=new THREE.Group(); drawer.name='Drawer'; root.add(drawer); root.updateMatrixWorld(true);
     store.add('drawer',{id:'drawer',assetId:'adaptive-drawer',object:root,manifest,state:{parts:{drawer:'close'}}});
-    physics.attach('drawer',manifest,root);
+    physics.addObject('drawer',manifest,root);
     for(let i=0;i<10;i++) physics.step(1/60,store);
     const short=physics.articulationCounterfactualSampleCount('drawer','drawer',0,.08);
     const long=physics.articulationCounterfactualSampleCount('drawer','drawer',0,.6);
@@ -142,7 +142,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
     const add=(id,position,manifest)=>{
       const root=new THREE.Group(); root.position.fromArray(position); const slide=new THREE.Group(); slide.name='Slide'; root.add(slide); root.updateMatrixWorld(true);
       store.add(id,{id,assetId:'slider',object:root,manifest,state:{parts:{slide:'close'}}});
-      physics.attach(id,manifest,root);
+      physics.addObject(id,manifest,root);
     };
     const originalManifest=sliderManifest([1,0,0],.6);
     const blockerManifest=sliderManifest([0,0,1],.5);
@@ -150,8 +150,8 @@ describe('Rapier articulated counterfactual geometry',()=>{
     add('blocker',[.3,0,0],blockerManifest);
     for(let i=0;i<20;i++) physics.step(1/60,store);
 
-    const beforeOriginal=physics.articulationState('original','slide');
-    const beforeBlocker=physics.articulationState('blocker','slide');
+    const beforeOriginal=physics.getArticulationState('original','slide');
+    const beforeBlocker=physics.getArticulationState('blocker','slide');
     const predictedTarget=physics.articulationColliderPoses('blocker','slide',.5);
     const evidence=physics.articulationPairCounterfactual('original','slide',.6,'blocker','slide',.5);
     expect(evidence).toMatchObject({
@@ -163,12 +163,12 @@ describe('Rapier articulated counterfactual geometry',()=>{
     expect(evidence.conflictReduction).toBe(evidence.current.conflictSamples);
     expect(evidence.samples.original).toBeGreaterThanOrEqual(5);
     expect(evidence.samples.blocker).toBeGreaterThanOrEqual(5);
-    expect(physics.articulationState('original','slide').coordinate).toBeCloseTo(beforeOriginal.coordinate,8);
-    expect(physics.articulationState('blocker','slide').coordinate).toBeCloseTo(beforeBlocker.coordinate,8);
+    expect(physics.getArticulationState('original','slide').coordinate).toBeCloseTo(beforeOriginal.coordinate,8);
+    expect(physics.getArticulationState('blocker','slide').coordinate).toBeCloseTo(beforeBlocker.coordinate,8);
 
     expect(physics.setArticulationTarget('blocker','slide',.5)).toBe(true);
     for(let i=0;i<240;i++) physics.step(1/60,store);
-    const blockerState=physics.articulationState('blocker','slide',{target:.5});
+    const blockerState=physics.getArticulationState('blocker','slide',{target:.5});
     expect(blockerState.error).toBeLessThan(.03);
     const collider=physics.entries.get('blocker').parts.get('slide').body.collider(0);
     const actual=collider.translation();
@@ -200,17 +200,17 @@ describe('Rapier articulated counterfactual geometry',()=>{
     const slider=new THREE.Group(); slider.name='Slider'; slider.position.set(.45,0,0); door.add(slider);
     root.updateMatrixWorld(true);
     store.add('nested',{id:'nested',assetId:'nested-frame',object:root,manifest,state:{parts:{door:'close',slider:'close'}}});
-    physics.attach('nested',manifest,root);
+    physics.addObject('nested',manifest,root);
     for(let i=0;i<20;i++) physics.step(1/60,store);
     // Keep the free prismatic child at its verified close coordinate while the parent moves.
     expect(physics.setArticulationTarget('nested','slider',0)).toBe(true);
 
     expect(physics.setArticulationTarget('nested','door',-.5)).toBe(true);
     for(let i=0;i<300;i++) physics.step(1/60,store);
-    const doorState=physics.articulationState('nested','door',{target:-.5});
+    const doorState=physics.getArticulationState('nested','door',{target:-.5});
     expect(doorState.error).toBeLessThan(.08);
 
-    const sliderBefore=physics.articulationState('nested','slider');
+    const sliderBefore=physics.getArticulationState('nested','slider');
     expect(Math.abs(sliderBefore.coordinate)).toBeLessThan(.03);
     const predicted=physics.articulationColliderPoses('nested','slider',.35);
     expect(predicted).toMatchObject({checked:true,jointType:'prismatic',coordinate:.35});
@@ -230,7 +230,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
 
     expect(physics.setArticulationTarget('nested','slider',.35)).toBe(true);
     for(let i=0;i<260;i++) physics.step(1/60,store);
-    const sliderState=physics.articulationState('nested','slider',{target:.35});
+    const sliderState=physics.getArticulationState('nested','slider',{target:.35});
     expect(sliderState.error).toBeLessThan(.03);
     const collider=physics.entries.get('nested').parts.get('slider').body.collider(0);
     const rawPos=collider.translation(); const rawRot=collider.rotation();
@@ -257,18 +257,18 @@ describe('Rapier articulated counterfactual geometry',()=>{
     };
     const root=new THREE.Group(); const slide=new THREE.Group(); slide.name='Slide'; root.add(slide); root.updateMatrixWorld(true);
     store.add('slider',{id:'slider',assetId:'world-query-slider',object:root,manifest,state:{parts:{slide:'close'}}});
-    physics.attach('slider',manifest,root);
+    physics.addObject('slider',manifest,root);
     // Original object is deliberately in the sweep but must be excluded by the caller's pairwise owner.
     const original=new THREE.Group(); original.position.set(.25,0,0); original.updateMatrixWorld(true);
     const originalManifest={id:'original',type:'block',source:{kind:'builtin'},actions:[],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.08,.08,.08]}]}};
-    store.add('original',{id:'original',assetId:'block',object:original,manifest:originalManifest,state:{}}); physics.attach('original',originalManifest,original);
+    store.add('original',{id:'original',assetId:'block',object:original,manifest:originalManifest,state:{}}); physics.addObject('original',originalManifest,original);
     const third=new THREE.Group(); third.position.set(.5,0,0); third.updateMatrixWorld(true);
     const thirdManifest={id:'third',type:'block',source:{kind:'builtin'},actions:[],physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.08,.08,.08]}]}};
-    store.add('third',{id:'third',assetId:'block',object:third,manifest:thirdManifest,state:{}}); physics.attach('third',thirdManifest,third);
+    store.add('third',{id:'third',assetId:'block',object:third,manifest:thirdManifest,state:{}}); physics.addObject('third',thirdManifest,third);
     physics.addEnvironment([{shape:'box',halfExtents:[.04,.12,.12],translation:[.62,0,0]}],{id:'test-wall'});
     for(let i=0;i<10;i++) physics.step(1/60,store);
 
-    const before=physics.articulationState('slider','slide');
+    const before=physics.getArticulationState('slider','slide');
     const evidence=physics.articulationWorldCounterfactual('slider','slide',.6,{excludeParts:[{objectId:'original',partName:'$root'}],samples:13});
     expect(evidence).toMatchObject({
       checked:true,geometry:'rapier-world-shape-query',causal:false,
@@ -282,7 +282,7 @@ describe('Rapier articulated counterfactual geometry',()=>{
     expect(actionKeys.some((key)=>key.startsWith('environment:test-wall:'))).toBe(true);
     expect(actionKeys.some((key)=>key.startsWith('object:original:'))).toBe(false);
     expect(targetKeys.some((key)=>key.startsWith('environment:test-wall:'))).toBe(true);
-    expect(physics.articulationState('slider','slide').coordinate).toBeCloseTo(before.coordinate,8);
+    expect(physics.getArticulationState('slider','slide').coordinate).toBeCloseTo(before.coordinate,8);
     physics.dispose();
   });
 

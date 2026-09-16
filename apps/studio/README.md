@@ -16,9 +16,9 @@
 
 世界内原地编辑（魔女小屋同样适用）：世界定义用 `inlineEditors` 声明表单，`apps/studio/ui/WorldInteraction.js` 构建带稳定 `#<id>Input` / `#<id>Ok` 契约的浮层，世界内容模块再绑定保存。林间工坊的告示板与木牌文字都画在真实 CanvasTexture 上，点击物件即原地编辑，并保存在当前浏览器。
 
-视角控制：`apps/studio/ui/HumanViewController.js` 提供轨道 / 第一人称 / 第三人称三种模式，轨道仍为默认。人类体是只用于查询的胶囊 manifest，不进入 ObjectStore / Physics / Navigation：移动前用生产 Rapier 的 `manifestPoseClear` 判定无碰撞，地面高度来自 `physics.raycast`，第三人称相机会被真实墙体拉近。人类视点通过 `InteractionSystem.setHumanViewPose` 成为当前交互视点。
+视角控制：`apps/studio/ui/HumanViewController.js` 提供轨道 / 第一人称 / 第三人称三种模式，轨道仍为默认。人类体是只用于查询的胶囊 manifest，不进入 ObjectStore / Physics / Navigation：移动前用生产 Rapier 的 `checkManifestPose` 判定无碰撞，地面高度来自 `physics.raycast`，第三人称相机会被真实墙体拉近。人类视点通过 `InteractionSystem.setHumanViewPose` 成为当前交互视点。
 
-生成落点：底部工具栏的「生成落点」可在世界里指定生成物落点。已有完成的 3D 结果时直接以真实 cursor 拖动 ghost，并按 `manifestPoseClear` 判定可放 / 不可放；否则先固定一个地面 anchor。之后 Build 与资源栏的「加入当前世界」优先落在该落点，没有落点则仍落在视图中心。
+生成落点：底部工具栏的「生成落点」可在世界里指定生成物落点。已有完成的 3D 结果时直接以真实 cursor 拖动 ghost，并按 `checkManifestPose` 判定可放 / 不可放；否则先固定一个地面 anchor。之后 Build 与资源栏的「加入当前世界」优先落在该落点，没有落点则仍落在视图中心。
 
 图片生成仍使用现有 Build 流程与连接器配置；生成任务运行中的占位 ghost 与 Observatory 未改动。
 

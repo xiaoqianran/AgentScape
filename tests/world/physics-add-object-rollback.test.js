@@ -13,7 +13,7 @@ it('removes temporary rigid bodies when attachment fails mid-construction', asyn
     }
   };
 
-  expect(() => physics.attach('bad', manifest, object)).toThrow();
+  expect(() => physics.addObject('bad', manifest, object)).toThrow();
   expect(physics.entries.has('bad')).toBe(false);
   expect(physics.world.bodies.len()).toBe(0);
   physics.dispose();

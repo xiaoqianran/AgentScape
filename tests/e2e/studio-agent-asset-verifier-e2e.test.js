@@ -28,16 +28,16 @@ async function setup({carryable=true}={}){
 
   const agent=new THREE.Group(); agent.position.set(0,0,3.2); scene.add(agent); agent.updateMatrixWorld(true);
   const agentManifest=structuredClone(assetManifests.agent);
-  store.add('agent_01',{id:'agent_01',assetId:'agent',object:agent,manifest:agentManifest,state:{}}); physics.attach('agent_01',agentManifest,agent);
+  store.add('agent_01',{id:'agent_01',assetId:'agent',object:agent,manifest:agentManifest,state:{}}); physics.addObject('agent_01',agentManifest,agent);
 
   const cup=cupVisual(); cup.position.set(-1,0,1.1); scene.add(cup); cup.updateMatrixWorld(true);
   const cupManifest=structuredClone(assetManifests.cup);
   if(!carryable) cupManifest.actions=['move'];
-  store.add('generated_prop_01',{id:'generated_prop_01',assetId:'generated-test-prop',object:cup,manifest:cupManifest,state:{}}); physics.attach('generated_prop_01',cupManifest,cup);
+  store.add('generated_prop_01',{id:'generated_prop_01',assetId:'generated-test-prop',object:cup,manifest:cupManifest,state:{}}); physics.addObject('generated_prop_01',cupManifest,cup);
 
   const table=tableVisual(); table.position.set(1.5,0,-1.2); scene.add(table); table.updateMatrixWorld(true);
   const tableManifest=structuredClone(assetManifests.table);
-  store.add('table_01',{id:'table_01',assetId:'table',object:table,manifest:tableManifest,state:{}}); physics.attach('table_01',tableManifest,table);
+  store.add('table_01',{id:'table_01',assetId:'table',object:table,manifest:tableManifest,state:{}}); physics.addObject('table_01',tableManifest,table);
 
   for(let i=0;i<60;i++) physics.step(1/60,store);
   const events=new EventBus();

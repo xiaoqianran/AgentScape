@@ -126,7 +126,7 @@ export class InteractionSystem {
     for(let i=1;i<=steps;i++) {
       const yaw = current + delta*(i/steps);
       const pose = this.holdPoseAt(actorPosition,yaw,anchor);
-      const check = this.physics.bodyMotionClear(heldId,pose.position,pose.rotation,{excludeIds:[actorId]});
+      const check = this.physics.checkBodyMotion(heldId,pose.position,pose.rotation,{excludeIds:[actorId]});
       checks.push({yaw,clear:check.clear,...(!check.clear?{code:check.code,blockedBy:check.blockedBy || []}:{})});
       if(!check.clear) {
         this.physics.setCharacterYaw(actorId,current);
@@ -288,7 +288,7 @@ export class InteractionSystem {
     if (!target.manifest.receptacles?.length) return {status:'inside-blocked',reason:'TARGET_HAS_NO_RECEPTACLE',id,targetId,receptacleId};
     const position=this.spatial.findFreeSpaceInside(id,targetId,{
       receptacleId,clearance,ignore:[],
-      poseClear:(candidate)=>this.physics.manifestPoseClear(record.manifest,candidate,{excludeIds:[id]})
+      poseClear:(candidate)=>this.physics.checkManifestPose(record.manifest,candidate,{excludeIds:[id]})
     });
     if (!position) return {status:'inside-blocked',reason:'NO_FREE_RECEPTACLE_SPACE',id,targetId,receptacleId};
     record.object.position.copy(position);
@@ -331,7 +331,7 @@ export class InteractionSystem {
     }
 
     const target = part.targets[action];
-    const live = this.physics.articulationState(targetId,name,{target});
+    const live = this.physics.getArticulationState(targetId,name,{target});
     if (!live) return { checked:false, reason:'JOINT_COORDINATE_UNAVAILABLE', partName:name };
     const axis = new THREE.Vector3(...live.localAxis);
     const currentCoordinate = live.coordinate;
@@ -537,8 +537,8 @@ export class InteractionSystem {
       const yaw=Math.hypot(dx,dz)<1e-8 ? 0 : Math.atan2(-dx,-dz);
       const anchorPose=this.holdPoseAt(position,yaw,anchor);
       const transfer=supportIds.length
-        ? this.physics.bodyPoseClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]})
-        : this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
+        ? this.physics.checkBodyPose(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]})
+        : this.physics.checkBodyMotion(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
       return {yaw,anchorPose,transfer};
     };
     const plannedMaxDistance=Math.max(.05,maxDistance-DEFAULT_WAYPOINT_TOLERANCE);
@@ -565,19 +565,19 @@ export class InteractionSystem {
 
     this.physics.setHeld(targetId,true);
     const lift=[originalPosition[0],liftY,originalPosition[2]];
-    const liftSweep=this.physics.bodyMotionClear(targetId,lift,originalRotation,{excludeIds:[actorId,...supportIds]});
-    const liftPose=liftSweep.clear ? this.physics.bodyPoseClear(targetId,lift,originalRotation,{excludeIds:[actorId]}) : liftSweep;
+    const liftSweep=this.physics.checkBodyMotion(targetId,lift,originalRotation,{excludeIds:[actorId,...supportIds]});
+    const liftPose=liftSweep.clear ? this.physics.checkBodyPose(targetId,lift,originalRotation,{excludeIds:[actorId]}) : liftSweep;
     phases.push({phase:'lift',point:[...lift],clear:Boolean(liftSweep.clear && liftPose.clear),sweep:liftSweep,pose:liftPose});
     if (!liftSweep.clear || !liftPose.clear) return rollback('PICKUP_LIFT_BLOCKED');
     this.physics.setHeldPose(targetId,lift,originalRotation);
 
     const horizontal=[anchorPose.position[0],liftY,anchorPose.position[2]];
-    const horizontalCheck=this.physics.bodyMotionClear(targetId,horizontal,anchorPose.rotation,{excludeIds:[actorId]});
+    const horizontalCheck=this.physics.checkBodyMotion(targetId,horizontal,anchorPose.rotation,{excludeIds:[actorId]});
     phases.push({phase:'horizontal',point:[...horizontal],...horizontalCheck});
     if (!horizontalCheck.clear) return rollback('PICKUP_HORIZONTAL_BLOCKED');
     this.physics.setHeldPose(targetId,horizontal,anchorPose.rotation);
 
-    const anchorCheck=this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
+    const anchorCheck=this.physics.checkBodyMotion(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
     phases.push({phase:'anchor',point:[...anchorPose.position],...anchorCheck});
     if (!anchorCheck.clear) return rollback('PICKUP_ANCHOR_BLOCKED');
     this.physics.setHeldPose(targetId,anchorPose.position,anchorPose.rotation);
@@ -619,7 +619,7 @@ export class InteractionSystem {
     if (supportIds.length) {
       transfer=this.transferPickupToAnchor(actorId,targetId,anchorPose,supportIds);
     } else {
-      const direct=this.physics.bodyMotionClear(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
+      const direct=this.physics.checkBodyMotion(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
       transfer=direct.clear ? direct : this.transferPickupToAnchor(actorId,targetId,anchorPose,[]);
       if (transfer !== direct) transfer={...transfer,direct};
     }
@@ -685,7 +685,7 @@ export class InteractionSystem {
       const verifiedAction = record.state.parts?.[name] || null;
       const targetAction = pending?.action || requestedAction || verifiedAction;
       const target = targetAction && Number.isFinite(part.targets?.[targetAction]) ? part.targets[targetAction] : null;
-      const live = this.physics.articulationState(id,name,{target});
+      const live = this.physics.getArticulationState(id,name,{target});
       return {
         partName:name,
         status:pending ? 'moving' : (last?.status || (verifiedAction ? 'verified-state' : 'idle')),
@@ -705,7 +705,7 @@ export class InteractionSystem {
     const existing = this.articulationTasks.get(key);
     if (existing && existing.action === action && Math.abs(existing.target-target) <= 1e-9) return existing.promise;
     if (existing) this.finishArticulationTask(existing,{status:'action-unverified',reason:'SUPERSEDED',targetReached:false,settled:false,elapsed:Number(existing.elapsed.toFixed(3))});
-    const state = this.physics.articulationState(id,partName,{target});
+    const state = this.physics.getArticulationState(id,partName,{target});
     if (!state) return Promise.resolve({status:'action-unverified',reason:'JOINT_STATE_UNAVAILABLE',id,partName,action,target,targetReached:false,settled:false,elapsed:0});
     let resolveTask;
     const task = {
@@ -742,7 +742,7 @@ export class InteractionSystem {
     const wrap = (jointType,value) => jointType === 'revolute' ? Math.atan2(Math.sin(value),Math.cos(value)) : value;
     for (const task of [...this.articulationTasks.values()]) {
       task.elapsed += dt;
-      const state = this.physics.articulationState(task.id,task.partName,{target:task.target});
+      const state = this.physics.getArticulationState(task.id,task.partName,{target:task.target});
       if (!state || !Number.isFinite(state.coordinate) || !Number.isFinite(state.error)) {
         this.finishArticulationTask(task,{status:'action-unverified',reason:'JOINT_STATE_UNAVAILABLE',targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
         continue;
@@ -794,7 +794,7 @@ export class InteractionSystem {
     ];
     const transfer=[];
     for (const target of transferPoints) {
-      const check=this.physics.bodyMotionClear(heldId,target,rotation,{excludeIds:[actorId]});
+      const check=this.physics.checkBodyMotion(heldId,target,rotation,{excludeIds:[actorId]});
       transfer.push({point:[...target],...check});
       if (!check.clear) {
         this.physics.setHeldPose(heldId,originalPosition,rotation);
@@ -890,7 +890,7 @@ export class InteractionSystem {
   updatePlacementSettles(dt) {
     for (const task of [...this.settleTasks.values()]) {
       task.elapsed+=dt;
-      const motionState=this.physics.bodyMotionState(task.objectId);
+      const motionState=this.physics.getMotion(task.objectId);
       if (!motionState) {
         const motion=null;
         const result=task.kind==='recovery-cleanup'
@@ -1066,7 +1066,7 @@ export class InteractionSystem {
         const predicted=this.holdPoseAt(position,yaw,anchor);
         const releaseDistance=new THREE.Vector3(...predicted.position).distanceTo(release);
         if (releaseDistance>DEFAULT_INTERACTION_DISTANCE-DEFAULT_WAYPOINT_TOLERANCE) continue;
-        const endpointClear=this.physics.bodyPoseClear(heldId,candidate.release,predicted.rotation,{excludeIds:[actorId]});
+        const endpointClear=this.physics.checkBodyPose(heldId,candidate.release,predicted.rotation,{excludeIds:[actorId]});
         if (!endpointClear.clear) continue;
         plans.push({
           status:'cleanup-proposed',actorId,targetId,partName:source.sweep.partName,action:resolvedAction,blockerId:heldId,

@@ -28,17 +28,17 @@ describe('Generated World hybrid composition',()=>{
     const observation={id:'hyworld2-target-1',label:'bench',localization:{kind:'point-scale',center:[0,0,0],scale:.2}};
     const plan=composeObservedNearPlacement(manifest,observation,{
       layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5},
-      poseClear:(candidate,position)=>physics.manifestPoseClear(candidate,position)
+      poseClear:(candidate,position)=>physics.checkManifestPose(candidate,position)
     });
     expect(plan).toMatchObject({checked:true,status:'ready',collisionVerified:true,observationId:'hyworld2-target-1'});
-    expect(physics.manifestPoseClear(manifest,plan.position)).toMatchObject({checked:true,clear:true});
+    expect(physics.checkManifestPose(manifest,plan.position)).toMatchObject({checked:true,clear:true});
 
     const {object}=await assets.instantiate('cup');
     object.position.fromArray(plan.position); object.updateMatrixWorld(true);
     store.add('hybrid_cup_01',{id:'hybrid_cup_01',assetId:'cup',object,manifest,state:{}});
-    physics.attach('hybrid_cup_01',manifest,object);
+    physics.addObject('hybrid_cup_01',manifest,object);
     for(let i=0;i<240;i++) physics.step(1/60,store);
-    const motion=physics.bodyMotionState('hybrid_cup_01');
+    const motion=physics.getMotion('hybrid_cup_01');
     expect(motion.sleeping || (motion.linearSpeed<.04 && motion.angularSpeed<.12)).toBe(true);
     expect(store.has('hybrid_cup_01')).toBe(true);
     expect(store.list().some(([id])=>id.startsWith('semantic-instance:'))).toBe(false);

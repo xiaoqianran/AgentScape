@@ -31,7 +31,7 @@ export function registerSpatialSkills(add,runtime) {
     const manifest=runtime.assets.getManifest(a.assetId);
     const result=composeObservedNearPlacement(manifest,observed,{
       layout:runtime.environment?.layout,
-      poseClear:(candidate,position)=>runtime.physics.manifestPoseClear(candidate,position),
+      poseClear:(candidate,position)=>runtime.physics.checkManifestPose(candidate,position),
       distance:a.distance,maxDistance:a.maxDistance
     });
     return result.checked ? {...result,status:'placement-ready',assetId:a.assetId,observedEntityId:observed.id,observationId:observed.observationId} : {...result,status:'placement-rejected',assetId:a.assetId,observedEntityId:observed.id,observationId:observed.observationId};

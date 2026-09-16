@@ -384,7 +384,7 @@ candidate Agent position
 ```text
 face current target
 → recompute actual HoldAnchor
-→ real bodyMotionClear
+→ real checkBodyMotion
 ```
 
 不是用 planner preview 冒充实际 execution。

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { ObjectStore } from "../../../../modules/world/runtime/ObjectStore.js";
 import { NavigationSystem } from "../../../../modules/world/runtime/systems/NavigationSystem.js";
-import { RecastNavigationBackend } from "../../../../modules/world/runtime/navigation/RecastNavigationBackend.js";
+import { RecastNavigationBackend } from "../../../../modules/navigation/RecastNavigationBackend.js";
 
 export class NavigationScenarioContext {
   constructor({ scene }) {
@@ -40,7 +40,7 @@ export class NavigationScenarioContext {
     if (this.physics) return this.physics;
     const [{ PhysicsSystem }, { RapierPhysicsBackend }] = await Promise.all([
       import("../../../../modules/world/runtime/systems/PhysicsSystem.js"),
-      import("../../../../modules/world/runtime/physics/RapierPhysicsBackend.js")
+      import("../../../../modules/physics/RapierPhysicsBackend.js")
     ]);
     this.physics = new PhysicsSystem({ backend: new RapierPhysicsBackend() });
     await this.physics.init();
@@ -127,7 +127,7 @@ export class NavigationScenarioContext {
       manifest,
       state: { parts: { door: "close" } }
     });
-    this.physics.attach(id, manifest, root);
+    this.physics.addObject(id, manifest, root);
     this.visuals.push(root);
     this.navigation.invalidate(`fixture:${id}`);
     this.markDebugDirty();
@@ -173,7 +173,7 @@ export class NavigationScenarioContext {
       diagnosis: this.lastDiagnosis ? structuredClone(this.lastDiagnosis) : null,
       transition: this.transition ? structuredClone(this.transition) : null,
       build: this.lastBuild ? structuredClone(this.lastBuild) : null,
-      physicsObstacles: this.physics ? this.physics.navigationObstacles() : null
+      physicsObstacles: this.physics ? this.physics.getNavigationObstacles() : null
     };
   }
 

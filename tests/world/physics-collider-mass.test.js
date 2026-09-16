@@ -9,7 +9,7 @@ it('treats manifest mass as rigid-body total mass instead of duplicating it per 
     {shape:'box',halfExtents:[.5,.5,.5],translation:[-1,0,0]},
     {shape:'box',halfExtents:[.5,.5,.5],translation:[1,0,0]}
   ]}};
-  const entry=physics.attach('x',manifest,object);
+  const entry=physics.addObject('x',manifest,object);
   expect(entry.body.numColliders()).toBe(2);
   expect(entry.body.collider(0).mass()).toBeCloseTo(2,6);
   expect(entry.body.collider(1).mass()).toBeCloseTo(2,6);

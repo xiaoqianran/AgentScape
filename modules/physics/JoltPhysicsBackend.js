@@ -280,7 +280,7 @@ export class JoltPhysicsBackend extends PhysicsBackend {
     world.bodies.delete(body.key);
   }
 
-  createColliders(world,body,specs=[],{mass,friction}={}){
+  createColliders(world,body,specs=[],{mass,friction,restitution}={}){
     const Jolt=this.Jolt;
     const semantic=specs.map((spec,index)=>{
       const record={
@@ -302,6 +302,7 @@ export class JoltPhysicsBackend extends PhysicsBackend {
     for(const collider of semantic) world.colliders.set(collider.key,collider);
 
     if(friction!=null) world.bodyInterface.SetFriction(body.native.GetID(),friction);
+    if(restitution!=null) world.bodyInterface.SetRestitution(body.native.GetID(),restitution);
     if(mass!=null && mass>0 && this.bodyType(body)==='dynamic') body.native.GetMotionProperties()?.ScaleToMass(mass);
     return [...semantic];
   }
@@ -369,6 +370,41 @@ export class JoltPhysicsBackend extends PhysicsBackend {
       linearVelocity:lv,angularVelocity:av,
       linearSpeed:Math.hypot(...lv),angularSpeed:Math.hypot(...av)
     };
+  }
+  setBodyMotion(body,{linearVelocity=null,angularVelocity=null,wake=true}={}){
+    if(!body || this.bodyType(body)!=='dynamic') return false;
+    const Jolt=this.Jolt,id=body.native.GetID();
+    if(linearVelocity) withVec3(Jolt,linearVelocity,(v)=>body.world.bodyInterface.SetLinearVelocity(id,v));
+    if(angularVelocity) withVec3(Jolt,angularVelocity,(v)=>body.world.bodyInterface.SetAngularVelocity(id,v));
+    if(wake) this.wakeBody(body);
+    return true;
+  }
+  applyImpulse(body,impulse,{point=null,wake=true}={}){
+    if(!body || this.bodyType(body)!=='dynamic') return false;
+    const Jolt=this.Jolt,id=body.native.GetID();
+    if(point){
+      const impulseVec=new Jolt.Vec3(...impulse),position=new Jolt.RVec3(...point);
+      try { body.world.bodyInterface.AddImpulse(id,impulseVec,position); }
+      finally { Jolt.destroy(position); Jolt.destroy(impulseVec); }
+    } else withVec3(Jolt,impulse,(v)=>body.world.bodyInterface.AddImpulse(id,v));
+    if(wake) this.wakeBody(body);
+    return true;
+  }
+  setBodyMaterial(body,{friction=null,restitution=null}={}){
+    if(!body) return false;
+    const api=body.world.bodyInterface,id=body.native.GetID();
+    if(friction!=null) api.SetFriction(id,friction);
+    if(restitution!=null) api.SetRestitution(id,restitution);
+    return true;
+  }
+  setBodyDynamics(body,{linearDamping=null,angularDamping=null,gravityScale=null,wake=true}={}){
+    if(!body || this.bodyType(body)!=='dynamic') return false;
+    const motion=body.native.GetMotionProperties?.();
+    if(linearDamping!=null) motion?.SetLinearDamping(linearDamping);
+    if(angularDamping!=null) motion?.SetAngularDamping(angularDamping);
+    if(gravityScale!=null) body.world.bodyInterface.SetGravityFactor(body.native.GetID(),gravityScale);
+    if(wake) this.wakeBody(body);
+    return true;
   }
   wakeBody(body){ body?.world.bodyInterface.ActivateBody(body.native.GetID()); return Boolean(body); }
 

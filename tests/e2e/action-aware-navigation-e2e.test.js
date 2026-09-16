@@ -21,7 +21,7 @@ it('closes the loop from a real Rapier door recommendation to current-world repl
     }}
   };
   store.add('gate',{id:'gate',assetId:'gate',object:root,manifest,state:{parts:{door:'close'}}});
-  physics.attach('gate',manifest,root);
+  physics.addObject('gate',manifest,root);
 
   const floor=new THREE.Mesh(new THREE.BoxGeometry(10,.2,8)); floor.position.y=-.1; floor.updateMatrixWorld(true);
   const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[floor],events});

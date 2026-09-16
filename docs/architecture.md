@@ -594,7 +594,7 @@ Environment floor + fixed world geometry
 
 NavMesh 不写入 SceneSerializer，因为它可以从当前 World 重建；这和 SceneGraph 的 derived-state 原则一致。区别在于 NavMesh 构建更重，所以只有 fixed geometry 变化才 dirty，并且 rebuild 只在下一次 query 发生。
 
-1.9 的 static base 仍然不 bake dynamic object / articulated Part。1.10 用 TileCache 把它们作为**查询时动态覆盖层**：NavigationSystem 不监听 Physics 每帧位置，而是在 `canReach/findPath` 前读取 `PhysicsSystem.navigationObstacles()`，只对变化的 collider 做 remove/add，再 pump TileCache 到 `upToDate`。
+1.9 的 static base 仍然不 bake dynamic object / articulated Part。1.10 用 TileCache 把它们作为**查询时动态覆盖层**：NavigationSystem 不监听 Physics 每帧位置，而是在 `canReach/findPath` 前读取 `PhysicsSystem.getNavigationObstacles()`，只对变化的 collider 做 remove/add，再 pump TileCache 到 `upToDate`。
 
 这样 dynamic obstacle 不触发全量 Recast rebuild，Static NavMesh 的 `buildVersion` 保持稳定；同时查询看到的是当前 Rapier pose，而不是 Manifest target 或 UI state。详细契约见 [`navigation.md`](navigation.md)。
 
@@ -780,11 +780,11 @@ carry-aware findInteractionPose
    ↓
 LocomotionSystem
    ↓
-3 × Physics.bodyMotionClear
+3 × Physics.checkBodyMotion
    ↓
 releaseHeld → Dynamic
    ↓
-Physics bodyMotionState
+Physics getMotion
    ↓
 Interaction settle window
    ↓
@@ -803,7 +803,7 @@ Spatial.supportStatus
 setArticulationAction
 → state.partTargets = requested
 → Rapier motor
-→ PhysicsSystem.articulationState
+→ PhysicsSystem.getArticulationState
 → InteractionSystem live observer
 → completed | failed | unverified
 → high-level transaction promote or finalize
@@ -927,7 +927,7 @@ original post-condition verified
 
 ## 28. Recovery Cleanup：共享 Transfer / Settle，不复制 Placement Runtime
 
-1.25 在 InteractionSystem 内增加 transient `recoveryHeld` provenance，但 durable ownership 仍只有 `state.heldBy`；Scene reload 会重建 held ownership并清空 recovery intent。Cleanup planner 不复用 support-surface `findFreeSpace`，而是围绕原 `actionSweepBounds` 生成 world-space release candidates，用 Rapier downward ray 找 Environment 支撑、Detour 找 Agent stance，并用 `bodyPoseClear` 验证 endpoint。
+1.25 在 InteractionSystem 内增加 transient `recoveryHeld` provenance，但 durable ownership 仍只有 `state.heldBy`；Scene reload 会重建 held ownership并清空 recovery intent。Cleanup planner 不复用 support-surface `findFreeSpace`，而是围绕原 `actionSweepBounds` 生成 world-space release candidates，用 Rapier downward ray 找 Environment 支撑、Detour 找 Agent stance，并用 `checkBodyPose` 验证 endpoint。
 
 ```text
 recoverPickupBlocker
@@ -949,7 +949,7 @@ settleTasks             ← Place/Cleanup 唯一 settle owner
 released + settled + sweepClear + contactClear
 ```
 
-`PhysicsSystem.bodyPoseClear` 从既有 `bodyMotionClear` endpoint overlap 检查中抽出；motion clear 仍在 path cast 后调用同一个 endpoint truth。`recovery-cleaned` 是 auxiliary verified outcome，绝不删除 original unresolved。完整设计见 [`recovery-cleanup.md`](recovery-cleanup.md)。
+`PhysicsSystem.checkBodyPose` 从既有 `checkBodyMotion` endpoint overlap 检查中抽出；motion clear 仍在 path cast 后调用同一个 endpoint truth。`recovery-cleaned` 是 auxiliary verified outcome，绝不删除 original unresolved。完整设计见 [`recovery-cleanup.md`](recovery-cleanup.md)。
 
 ---
 
@@ -1083,7 +1083,7 @@ Agent skill 永远运行完整 canonical pipeline；内部 stage selection 不�
 
 ## 36. Deterministic World Composer：LLM 不拥有坐标 Truth
 
-1.33 在 `asset_admission` 与 `instantiate` 之间加入纯计算 `compose_layout`。`WorldComposer` 从 Manifest root collider 推导 footprint，从 Environment Pack 读取可搜索 bounds，并调用 `PhysicsSystem.manifestPoseClear` 对候选 world pose 做 non-mutating Rapier shape query；同批尚未 spawn 的 assets 用 conservative footprint reservation。WorldSpec 没有 position 时由 Runtime 确定性选位，explicit position 则只验证、不偷偷改写。
+1.33 在 `asset_admission` 与 `instantiate` 之间加入纯计算 `compose_layout`。`WorldComposer` 从 Manifest root collider 推导 footprint，从 Environment Pack 读取可搜索 bounds，并调用 `PhysicsSystem.checkManifestPose` 对候选 world pose 做 non-mutating Rapier shape query；同批尚未 spawn 的 assets 用 conservative footprint reservation。WorldSpec 没有 position 时由 Runtime 确定性选位，explicit position 则只验证、不偷偷改写。
 
 `NEAR` 关系也不再要求 LLM 猜 distance：省略时由 subject/target footprint + clearance 推导，按固定 ±X/±Z 顺序做 Rapier preflight。`layoutAdmission / relationAdmission` 会进入最终 `worldAdmission`。`ON` 继续复用现有 `InteractionSystem.place / SpatialSystem.findFreeSpace`，没有第二套 support solver。详见 [`deterministic-world-composer.md`](deterministic-world-composer.md)。
 

@@ -10,7 +10,7 @@ import { MemoryArtifactByteStore } from '../../../modules/artifact/MemoryArtifac
 import { AssetCompiler } from '../../../modules/asset/compiler/AssetCompiler.js';
 import { createAssetModule } from '../../../modules/asset/AssetModule.js';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const candidates = [
   {
     path: path.join(root, 'research/modal-lab/041-modal-3d-provider/results/fastsam3d-plus-plus.glb'),
@@ -113,6 +113,7 @@ const assetModule = createAssetModule({
 });
 const compiler = new AssetCompiler({ store: compilerStore, version: 'asset-experiment-001' });
 assetModule.configurePublication({
+  artifacts: { registry, byteStore },
   getAssetCompiler: async () => compiler,
   idFactory: () => 'experiment_asset_lease'
 });

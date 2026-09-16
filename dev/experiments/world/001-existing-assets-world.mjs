@@ -30,7 +30,7 @@ const runtime = {
   environment: { layout: { bounds: { min: [-5, -5], max: [5, 5] }, groundY: 0, margin: .5 } },
   physics: {
     backend: { capabilities: new Set() },
-    manifestPoseClear: () => ({ checked: true, clear: true, blockedBy: [] })
+    checkManifestPose: () => ({ checked: true, clear: true, blockedBy: [] })
   },
   async spawn(assetId, { id, position }) {
     objects.set(id, { id, assetId, manifest: assets.getManifest(assetId), position: [...position] });

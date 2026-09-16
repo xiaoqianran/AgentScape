@@ -14,6 +14,14 @@ describe('asset manifest validation', () => {
     expect(() => validateAssetManifest({ id:'x', type:'x', source:{kind:'builtin'}, actions:[], physics:{body:'fixed',colliders:[{shape:'convexHull',vertices:[0,0,0,1,0,0,0,1,0,0,0,Infinity]}]} })).toThrow();
   });
 
+  it('validates declarative dynamics fields', () => {
+    const base={id:'ball',type:'prop',source:{kind:'builtin'},actions:[],physics:{body:'dynamic',mass:1,friction:.5,restitution:.7,linearDamping:.1,angularDamping:.2,gravityScale:0}};
+    expect(()=>validateAssetManifest(base)).not.toThrow();
+    expect(()=>validateAssetManifest({...base,physics:{...base.physics,restitution:1.1}})).toThrow(/restitution/);
+    expect(()=>validateAssetManifest({...base,physics:{...base.physics,linearDamping:-.1}})).toThrow(/linearDamping/);
+    expect(()=>validateAssetManifest({...base,physics:{...base.physics,mass:0}})).toThrow(/mass/);
+  });
+
   it('requires articulated top-level actions to map to explicit executable part targets', () => {
     expect(() => validateAssetManifest({ id:'cab', type:'cabinet', source:{kind:'builtin'}, actions:['open'] })).toThrow(/executable part target/);
     const manifest = { id:'cab', type:'cabinet', source:{kind:'builtin'}, actions:['open','close'], parts:{ panel:{ node:'Panel', actions:['open','close'], targets:{open:-1,close:0}, physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.1,.1,.1]}]}, joint:{type:'revolute',axis:[0,1,0],limits:[-1,0],parentAnchor:[0,0,0],childAnchor:[0,0,0]} } } };

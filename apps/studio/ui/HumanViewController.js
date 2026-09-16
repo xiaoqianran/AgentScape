@@ -196,8 +196,8 @@ export class HumanViewController {
 
   clear(x, z, y, manifest = this.manifest) {
     const physics = this.world.physics;
-    if (typeof physics?.manifestPoseClear !== 'function') return true;
-    const pose = physics.manifestPoseClear(manifest, [x, y, z]);
+    if (typeof physics?.checkManifestPose !== 'function') return true;
+    const pose = physics.checkManifestPose(manifest, [x, y, z]);
     if (!pose?.checked) return true;
     return Boolean(pose.clear);
   }

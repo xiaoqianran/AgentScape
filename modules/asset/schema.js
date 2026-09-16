@@ -52,6 +52,12 @@ export function validatePhysics(physics, context = {}) {
   if (!physics) return;
   if (physics.body && !BODY_TYPES.has(physics.body)) throw Errors.invalidManifest(`Unsupported physics body: ${physics.body}`, context);
   if (physics.navigationObstacle != null && typeof physics.navigationObstacle !== 'boolean') throw Errors.invalidManifest('physics.navigationObstacle must be boolean', context);
+  if (physics.mass != null && (!Number.isFinite(physics.mass) || physics.mass <= 0)) throw Errors.invalidManifest('physics.mass must be positive finite', context);
+  for (const key of ['friction','restitution','linearDamping','angularDamping']) {
+    if (physics[key] != null && (!Number.isFinite(physics[key]) || physics[key] < 0)) throw Errors.invalidManifest(`physics.${key} must be finite and >= 0`, context);
+  }
+  if (physics.restitution != null && physics.restitution > 1) throw Errors.invalidManifest('physics.restitution must be <= 1', context);
+  if (physics.gravityScale != null && !Number.isFinite(physics.gravityScale)) throw Errors.invalidManifest('physics.gravityScale must be finite', context);
   for (const collider of physics.colliders || []) {
     if (!SHAPES.has(collider.shape)) throw Errors.invalidManifest(`Unsupported collider shape: ${collider.shape}`, context);
     if (collider.translation && (collider.translation.length !== 3 || !collider.translation.every(Number.isFinite))) throw Errors.invalidManifest('Collider translation requires finite [3]', context);

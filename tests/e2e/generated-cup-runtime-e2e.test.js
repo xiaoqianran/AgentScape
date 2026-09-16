@@ -9,7 +9,7 @@ import { attachGenerationRuntime } from '../../application/generation/Generation
 import { ConnectorClient } from '../../modules/generation/connector/ConnectorClient.js';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 import { SceneGraph } from '../../modules/world/runtime/graph/SceneGraph.js';
-import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../modules/physics/RapierPhysicsBackend.js';
 import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
 import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
 import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';

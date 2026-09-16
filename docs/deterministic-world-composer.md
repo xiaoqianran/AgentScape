@@ -165,12 +165,12 @@ radiusA + radiusB + clearance
 
 这只是 batch pre-layout；spawn 后仍由 Runtime validation 负责最终 truth。
 
-## 10. `PhysicsSystem.manifestPoseClear`
+## 10. `PhysicsSystem.checkManifestPose`
 
 为了在 spawn 前检查 Environment / 已存在对象，1.33 增加纯查询：
 
 ```text
-manifestPoseClear(manifest, position)
+checkManifestPose(manifest, position)
 ```
 
 它从 Manifest root collider spec 创建临时 Rapier Shape 并调用：
@@ -287,7 +287,7 @@ Runtime 以 target 为中心按固定顺序检查：
 -Z
 ```
 
-每个候选都用 `manifestPoseClear()` 检查当前 live world。
+每个候选都用 `checkManifestPose()` 检查当前 live world。
 
 第一条 clear candidate 被采用。
 

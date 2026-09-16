@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe,expect,it } from 'vitest';
-import { NavigationBackend } from '../../modules/world/runtime/navigation/NavigationBackend.js';
-import { RecastNavigationBackend } from '../../modules/world/runtime/navigation/RecastNavigationBackend.js';
+import { NavigationBackend } from '../../modules/navigation/NavigationBackend.js';
+import { RecastNavigationBackend } from '../../modules/navigation/RecastNavigationBackend.js';
 import { NavigationSystem } from '../../modules/world/runtime/systems/NavigationSystem.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 

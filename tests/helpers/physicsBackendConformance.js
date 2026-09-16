@@ -1,9 +1,9 @@
 import { expect } from 'vitest';
-import { PhysicsBackend } from '../../modules/world/runtime/physics/PhysicsBackend.js';
+import { PhysicsBackend } from '../../modules/physics/PhysicsBackend.js';
 
 export const CAPABILITY_METHODS=Object.freeze({
-  'rigid-body':['createBody','removeBody','bodyKey','bodyType','setBodyType','bodyPose','setBodyPose','translateBody','clearBodyMotion','bodyMotion','wakeBody'],
-  'collision':['createColliders','colliders','colliderKey','colliderParent','colliderSnapshot'],
+  'rigid-body':['createBody','removeBody','bodyKey','bodyType','setBodyType','bodyPose','setBodyPose','translateBody','clearBodyMotion','bodyMotion','setBodyMotion','applyImpulse','setBodyDynamics','wakeBody'],
+  'collision':['createColliders','colliders','colliderKey','colliderParent','colliderSnapshot','setBodyMaterial'],
   'articulated-body':['createJoint','setJointTarget'],
   'joints':['createJoint','setJointTarget'],
   'character-controller':['createCharacterController','removeCharacterController','cancelCharacterMovement','moveCharacter'],

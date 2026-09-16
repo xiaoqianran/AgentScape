@@ -24,7 +24,7 @@ it('disables parent-child contacts so a prismatic joint can open and close throu
   store.add('d',{id:'d',assetId:'drawer',object:root,manifest,state:{}});
   const physics = createRapierPhysicsSystem();
   await physics.init();
-  physics.attach('d',manifest,root);
+  physics.addObject('d',manifest,root);
   const joint = physics.entries.get('d').parts.get('drawer').joint;
   expect(joint.contactsEnabled()).toBe(false);
   physics.setArticulationTarget('d','drawer',.5);

@@ -12,7 +12,7 @@ describe('PhysicsSystem ray ownership filters',()=>{
     const store=new ObjectStore();
     for(const [id,x] of [['near',-1],['far',1]]){
       const object=new THREE.Group(); object.position.set(x,0,0); object.updateMatrixWorld(true);
-      const m=manifest(id); store.add(id,{id,assetId:id,object,manifest:m,state:{}}); physics.attach(id,m,object);
+      const m=manifest(id); store.add(id,{id,assetId:id,object,manifest:m,state:{}}); physics.addObject(id,m,object);
     }
     physics.step(1/60,store);
     expect(physics.raycast([-3,.5,0],[3,.5,0])).toMatchObject({id:'near',environment:false});

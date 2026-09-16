@@ -15,7 +15,7 @@ const record = {
 const make = () => {
   const physics = {
     setArticulationTarget:vi.fn(()=>true),
-    articulationState:vi.fn((_id,_part,{target}={})=>({coordinate:0,target,error:Math.abs(target ?? 0),tolerance:.08,jointType:'revolute',limits:[-1,1],coordinateReference:'rest-zero-pose'}))
+    getArticulationState:vi.fn((_id,_part,{target}={})=>({coordinate:0,target,error:Math.abs(target ?? 0),tolerance:.08,jointType:'revolute',limits:[-1,1],coordinateReference:'rest-zero-pose'}))
   };
   const events = { emit:vi.fn() };
   const system = new InteractionSystem({ store:{ get:()=>record }, physics, spatial:{}, events });

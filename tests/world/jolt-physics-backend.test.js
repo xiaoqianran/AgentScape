@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { JoltPhysicsBackend } from '../../modules/world/runtime/physics/JoltPhysicsBackend.js';
+import { JoltPhysicsBackend } from '../../modules/physics/JoltPhysicsBackend.js';
 import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
 import {
   createConformanceWorld,declaredCapabilityMethodGaps,expectCollisionRoundTrip,expectSemanticBodyRoundTrip

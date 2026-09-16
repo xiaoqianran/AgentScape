@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMagicCabin } from '../../modules/world/content/magicCabin.js';
 import { WorldAffordances } from '../../modules/world/runtime/interaction/WorldAffordances.js';
 import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
-import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../modules/physics/RapierPhysicsBackend.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../../application/skills/registerCoreSkills.js';
@@ -122,7 +122,7 @@ describe('Agent world affordance contracts',()=>{
     runtime.store.get('agent_01').object=actor;
     const target=runtime.affordances.position(runtime.affordances.get('cabin:front-door'));
     actor.position.set(target[0],0,target[2]+.75);
-    physics.attach('agent_01',{physics:{body:'fixed',colliders:[{shape:'capsule',radius:.15,halfHeight:.4}]}},actor);
+    physics.addObject('agent_01',{physics:{body:'fixed',colliders:[{shape:'capsule',radius:.15,halfHeight:.4}]}},actor);
     environment.step(1/60,{physics});physics.step(1/60,runtime.store);
     const access=runtime.affordances.access(runtime.affordances.get('cabin:front-door'),'agent_01');
     expect(access).toMatchObject({available:true});

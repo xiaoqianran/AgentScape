@@ -10,11 +10,11 @@ export function isPhysicsBackend(id) {
 
 export async function createPhysicsBackend(id = "rapier") {
   if (id === "rapier") {
-    const { RapierPhysicsBackend } = await import("../../../../modules/world/runtime/physics/RapierPhysicsBackend.js");
+    const { RapierPhysicsBackend } = await import("../../../../modules/physics/RapierPhysicsBackend.js");
     return new RapierPhysicsBackend();
   }
   if (id === "jolt") {
-    const { JoltPhysicsBackend } = await import("../../../../modules/world/runtime/physics/JoltPhysicsBackend.js");
+    const { JoltPhysicsBackend } = await import("../../../../modules/physics/JoltPhysicsBackend.js");
     return new JoltPhysicsBackend();
   }
   throw new Error(`Unsupported executable physics backend: ${id}`);

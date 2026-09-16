@@ -23,7 +23,7 @@ describe('Rapier character controller integration',()=>{
     ]);
     const object=new THREE.Group(); object.position.set(-2,0,0); object.updateMatrixWorld(true);
     const store=new ObjectStore(); store.add('agent',{id:'agent',assetId:'agent',object,manifest:agentManifest,state:{}});
-    physics.attach('agent',agentManifest,object);
+    physics.addObject('agent',agentManifest,object);
     for(let i=0;i<180;i++){
       const result=physics.moveCharacter('agent',[.035,-.01,0]);
       expect(result.success).toBe(true);
@@ -32,7 +32,7 @@ describe('Rapier character controller integration',()=>{
     expect(object.position.x).toBeLessThan(-.38);
     expect(object.position.x).toBeGreaterThan(-.8);
     expect(object.position.y).toBeGreaterThan(-.02);
-    expect(physics.navigationObstacles().items.find((item)=>item.objectId==='agent')).toBeUndefined();
+    expect(physics.getNavigationObstacles().items.find((item)=>item.objectId==='agent')).toBeUndefined();
     physics.dispose();
   });
 });
@@ -42,7 +42,7 @@ it('turns the symmetric kinematic capsule toward the walking direction', async (
   physics.addEnvironment([{shape:'box',halfExtents:[2,.1,2],translation:[0,-.1,0]}]);
   const object=new THREE.Group(); object.updateMatrixWorld(true);
   const store=new ObjectStore(); store.add('agent',{id:'agent',assetId:'agent',object,manifest:agentManifest,state:{}});
-  physics.attach('agent',agentManifest,object);
+  physics.addObject('agent',agentManifest,object);
   expect(physics.faceCharacter('agent',[1,0,0])).toBe(true);
   physics.step(1/60,store);
   expect(Math.abs(object.quaternion.y)).toBeGreaterThan(.6);
@@ -53,7 +53,7 @@ it('sets an explicit kinematic character yaw in both Rapier and the Three root',
   const physics=createRapierPhysicsSystem(); await physics.init();
   const object=new THREE.Group(); object.updateMatrixWorld(true);
   const store=new ObjectStore(); store.add('agent',{id:'agent',assetId:'agent',object,manifest:agentManifest,state:{}});
-  physics.attach('agent',agentManifest,object);
+  physics.addObject('agent',agentManifest,object);
   expect(physics.setCharacterYaw('agent',Math.PI/2)).toBe(true);
   const body=physics.entries.get('agent').body;
   const q=body.rotation();

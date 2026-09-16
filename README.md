@@ -139,7 +139,7 @@ WorldComposer
    ├── Manifest root collider footprint
    ├── Environment layout bounds
    ├── same-batch overlap reservation
-   └── Rapier manifestPoseClear
+   └── Rapier checkManifestPose
    ▼
 instantiate
    │

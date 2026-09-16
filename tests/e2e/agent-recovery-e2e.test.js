@@ -38,7 +38,7 @@ async function setup({environmentBlocker=false}={}){
   const add=(id,assetId,object,manifest,position,state={})=>{
     object.position.fromArray(position); scene.add(object); object.updateMatrixWorld(true);
     store.add(id,{id,assetId,object,manifest:structuredClone(manifest),state:structuredClone(state)});
-    physics.attach(id,store.get(id).manifest,object);
+    physics.addObject(id,store.get(id).manifest,object);
   };
   add('agent_01','agent',new THREE.Group(),assetManifests.agent,[0,0,4]);
   add('cabinet_01','cabinet',cabinetObject(),assetManifests.cabinet,[0,0,0],{parts:{door:'close'}});

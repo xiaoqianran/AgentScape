@@ -35,7 +35,7 @@ export class WorldValidator {
         const record=this.runtime.store?.has?.(contained.subject) ? this.runtime.store.get(contained.subject) : null;
         const position=this.runtime.physics?.getPosition?.(contained.subject);
         const pose=record && position
-          ? this.runtime.physics?.manifestPoseClear?.(record.manifest,position,{excludeIds:[contained.subject]})
+          ? this.runtime.physics?.checkManifestPose?.(record.manifest,position,{excludeIds:[contained.subject]})
           : null;
         const penetratesContainer=pose?.checked === true
           && pose.clear === false

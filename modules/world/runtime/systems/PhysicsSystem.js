@@ -154,7 +154,7 @@ export class PhysicsSystem {
       for(const [partName,part] of entry.parts) {
         pushBody(objectId,partName,part.body);
         if(part.joint) {
-          const articulation=this.articulationState(objectId,partName);
+          const articulation=this.getArticulationState(objectId,partName);
           const pose=this.backend.bodyPose(part.body);
           const localAxis=part.spec?.joint?.axis ? [...part.spec.joint.axis] : null;
           const localAnchor=part.spec?.joint?.childAnchor ? [...part.spec.joint.childAnchor] : [0,0,0];
@@ -220,7 +220,7 @@ export class PhysicsSystem {
   addEnvironment(colliders = [], { id = '$environment' } = {}) {
     if (!this.solverEnabled) return null;
     const body=this.backend.createBody(this.world,{type:'fixed'});
-    this.addColliders(body, colliders, undefined, undefined, { kind:'environment', environmentId:id });
+    this.addColliders(body,colliders,{provenance:{kind:'environment',environmentId:id}});
     return body;
   }
 
@@ -234,9 +234,9 @@ export class PhysicsSystem {
     return true;
   }
 
-  addColliders(body, colliders = [], mass, friction, provenance = null) {
+  addColliders(body,colliders=[],{mass,friction,restitution,provenance=null}={}) {
     if (!this.solverEnabled || !body || !this.backend.hasCapability('collision')) return [];
-    const created=this.backend.createColliders(this.world,body,colliders,{mass,friction});
+    const created=this.backend.createColliders(this.world,body,colliders,{mass,friction,restitution});
     created.forEach((collider,colliderIndex)=>{
       if(provenance) this.colliderProvenance.set(this.backend.colliderKey(collider),{...provenance,colliderIndex});
     });
@@ -254,8 +254,8 @@ export class PhysicsSystem {
     return owner ? structuredClone(owner) : null;
   }
 
-  attach(id, manifest, object) {
-    if (!this.solverEnabled) return this.attachTransformState(id, manifest, object);
+  addObject(id, manifest, object) {
+    if (!this.solverEnabled) return this.addTransformState(id, manifest, object);
     const createdBodies = [];
     try {
       const worldPos = new THREE.Vector3();
@@ -266,7 +266,8 @@ export class PhysicsSystem {
         type:manifest.physics?.body || 'fixed', position:worldPos, rotation:worldRot
       });
       createdBodies.push(body);
-      this.addColliders(body, manifest.physics?.colliders, manifest.physics?.mass, manifest.physics?.friction, { kind:'object', objectId:id, partName:ROOT_PART });
+      this.addColliders(body,manifest.physics?.colliders,{...manifest.physics,provenance:{kind:'object',objectId:id,partName:ROOT_PART}});
+      this.backend.setBodyDynamics(body,manifest.physics || {});
 
       const entry = { body, root: object, rootSpec:manifest.physics || {}, parts: new Map(), lastPosition: worldPos.clone(), lastRotation: worldRot.clone() };
       const bodies = new Map([[ROOT_PART, body]]);
@@ -286,7 +287,8 @@ export class PhysicsSystem {
           type:part.physics.body || 'dynamic', position:partWorld, rotation:partRotation
         });
         createdBodies.push(child);
-        this.addColliders(child, part.physics.colliders, part.physics.mass, part.physics.friction, { kind:'object', objectId:id, partName });
+        this.addColliders(child,part.physics.colliders,{...part.physics,provenance:{kind:'object',objectId:id,partName}});
+        this.backend.setBodyDynamics(child,part.physics);
 
         const joint=this.backend.createJoint(this.world,part,parentBody,child);
         bodies.set(partName, child);
@@ -303,7 +305,7 @@ export class PhysicsSystem {
     }
   }
 
-  attachTransformState(id, manifest, object) {
+  addTransformState(id, manifest, object) {
     object.updateMatrixWorld(true);
     const worldPos = new THREE.Vector3();
     const worldRot = new THREE.Quaternion();
@@ -415,7 +417,7 @@ export class PhysicsSystem {
     }
   }
 
-  remove(id) {
+  removeObject(id) {
     const entry = this.entries.get(id);
     if (!entry) return false;
     if (!entry.body) { this.entries.delete(id); return true; }
@@ -499,7 +501,7 @@ export class PhysicsSystem {
     return { position:anchorPosition.toArray(), rotation:worldRotation.toArray() };
   }
 
-  manifestPoseClear(manifest, targetPosition, { excludeIds = [] } = {}) {
+  checkManifestPose(manifest, targetPosition, { excludeIds = [] } = {}) {
     if (!this.backend.hasCapability('collision')) return {checked:false,clear:false,reason:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision'};
     const colliders=manifest?.physics?.colliders || [];
     if (!colliders.length) return {checked:false,clear:false,reason:'ROOT_COLLIDER_UNAVAILABLE'};
@@ -528,7 +530,7 @@ export class PhysicsSystem {
     return {checked:true,clear:true,blockedBy:[],coverage:Object.keys(manifest.parts || {}).length?'root-only':'full-root'};
   }
 
-  bodyPoseClear(id, targetPosition, targetRotation = null, { excludeIds = [] } = {}) {
+  checkBodyPose(id, targetPosition, targetRotation = null, { excludeIds = [] } = {}) {
     if (!this.backend.hasCapability('collision')) return {clear:false,code:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision'};
     const entry = this.entries.get(id);
     if (!entry || entry.parts.size) return { clear:false, code:'CARRY_BODY_UNSUPPORTED' };
@@ -565,7 +567,7 @@ export class PhysicsSystem {
     return { clear:true };
   }
 
-  bodyMotionClear(id, targetPosition, targetRotation = null, { excludeIds = [] } = {}) {
+  checkBodyMotion(id, targetPosition, targetRotation = null, { excludeIds = [] } = {}) {
     if (!this.backend.hasCapability('collision')) return {clear:false,code:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision'};
     const entry = this.entries.get(id);
     if (!entry || entry.parts.size) return { clear:false, code:'CARRY_BODY_UNSUPPORTED' };
@@ -604,7 +606,7 @@ export class PhysicsSystem {
         }
       }
     }
-    return this.bodyPoseClear(id,targetPosition,targetRotation,{excludeIds});
+    return this.checkBodyPose(id,targetPosition,targetRotation,{excludeIds});
   }
 
   cancelCharacterMovement(id) {
@@ -636,9 +638,9 @@ export class PhysicsSystem {
     return world.toArray();
   }
 
-  bodyMotionState(id) {
+  getMotion(id, { partName = ROOT_PART } = {}) {
     const entry = this.entries.get(id);
-    const body = entry?.body;
+    const body = partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
     if (!entry) return null;
     if (!body) return {
       sleeping:true,
@@ -651,13 +653,37 @@ export class PhysicsSystem {
     return this.backend.bodyMotion(body);
   }
 
+  setMotion(id,motion={}, { partName = ROOT_PART } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    return body ? this.backend.setBodyMotion(body,motion) : false;
+  }
+
+  applyImpulse(id,impulse,{ partName = ROOT_PART, point = null, wake = true } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    return body ? this.backend.applyImpulse(body,impulse,{point,wake}) : false;
+  }
+
+  setMaterial(id,material={}, { partName = ROOT_PART } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    return body ? this.backend.setBodyMaterial(body,material) : false;
+  }
+
+  setDynamics(id,dynamics={}, { partName = ROOT_PART } = {}) {
+    const entry=this.entries.get(id);
+    const body=partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
+    return body ? this.backend.setBodyDynamics(body,dynamics) : false;
+  }
+
   getPartRestPose(id, partName) {
     const part = this.entries.get(id)?.parts.get(partName);
     if (!part) return null;
     return { position:part.restLocalPosition.toArray(), rotation:part.restLocalRotation.toArray() };
   }
 
-  articulationState(id, partName, { target = null } = {}) {
+  getArticulationState(id, partName, { target = null } = {}) {
     const entry = this.entries.get(id);
     const part = entry?.parts.get(partName);
     if (!entry || !part?.node?.parent) return null;
@@ -700,7 +726,7 @@ export class PhysicsSystem {
     const entry=this.entries.get(id);
     const part=entry?.parts.get(partName);
     if (!entry || !part?.node?.parent || !Number.isFinite(coordinate)) return {checked:false,reason:'PART_POSE_UNAVAILABLE',id,partName,coordinate};
-    const state=this.articulationState(id,partName);
+    const state=this.getArticulationState(id,partName);
     if (!state) return {checked:false,reason:'JOINT_COORDINATE_UNAVAILABLE',id,partName,coordinate};
     const childAnchor=new THREE.Vector3(...(part.spec.joint.childAnchor || [0,0,0]));
     const parentRotation=new THREE.Quaternion();
@@ -788,8 +814,8 @@ export class PhysicsSystem {
   }
 
   articulationPairCounterfactual(originalId, originalPartName, originalTarget, blockerId, blockerPartName, blockerTarget, { samples = null } = {}) {
-    const originalState=this.articulationState(originalId,originalPartName,{target:originalTarget});
-    const blockerState=this.articulationState(blockerId,blockerPartName,{target:blockerTarget});
+    const originalState=this.getArticulationState(originalId,originalPartName,{target:originalTarget});
+    const blockerState=this.getArticulationState(blockerId,blockerPartName,{target:blockerTarget});
     if (!originalState || !blockerState) return {checked:false,reason:'JOINT_COORDINATE_UNAVAILABLE'};
     if (!Number.isFinite(originalTarget) || !Number.isFinite(blockerTarget)) return {checked:false,reason:'TARGET_UNAVAILABLE'};
     const fixedSamples=Number.isFinite(samples) ? Math.max(2,Math.min(33,Math.trunc(samples))) : null;
@@ -866,7 +892,7 @@ export class PhysicsSystem {
   }
 
   articulationWorldCounterfactual(id, partName, target, { excludeObjectIds = [], excludeParts = [], samples = null } = {}) {
-    const state=this.articulationState(id,partName,{target});
+    const state=this.getArticulationState(id,partName,{target});
     if (!state || !Number.isFinite(target)) return {checked:false,reason:'JOINT_COORDINATE_UNAVAILABLE',id,partName};
     const fixedSamples=Number.isFinite(samples) ? Math.max(2,Math.min(33,Math.trunc(samples))) : null;
     const sampling=fixedSamples ? {checked:true,count:fixedSamples,mode:'fixed'} : this.articulationCounterfactualSampleCount(id,partName,state.coordinate,target);
@@ -1066,7 +1092,7 @@ export class PhysicsSystem {
       if (!this.hasCapability('articulation-pose')) return false;
       const limits = part.spec.joint.limits || [];
       if (limits.length === 2 && (target < limits[0] || target > limits[1])) return false;
-      const state = this.articulationState(id, partName);
+      const state = this.getArticulationState(id, partName);
       if (!state) return false;
       const axis = new THREE.Vector3(...state.localAxis).normalize();
       if (part.spec.joint.type === 'prismatic') {
@@ -1088,7 +1114,7 @@ export class PhysicsSystem {
 
   holdArticulationCurrent(id, partName) {
     const part = this.entries.get(id)?.parts.get(partName);
-    const state = this.articulationState(id,partName);
+    const state = this.getArticulationState(id,partName);
     if (!part || !state) return false;
     if (!part.joint || !part.body) return this.hasCapability('articulation-pose');
     const motor=part.spec.joint.motor || {};
@@ -1097,7 +1123,7 @@ export class PhysicsSystem {
     return true;
   }
 
-  navigationObstacles() {
+  getNavigationObstacles() {
     if (!this.backend.hasCapability('collision')) return {items:[],skipped:[{reason:'physics-capability-unavailable',capability:'collision'}]};
     this.backend.syncSceneQueries(this.world);
     const items = [];
@@ -1217,6 +1243,10 @@ export class PhysicsSystem {
 
   step(dt, store) {
     this.backend.step(this.world, dt);
+    return this.writeback(store);
+  }
+
+  writeback(store) {
     let changed = false;
     if (!this.solverEnabled) {
       for (const [id, entry] of this.entries) {

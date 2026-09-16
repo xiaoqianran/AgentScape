@@ -388,7 +388,7 @@ Cup 也被 anchor 强推过去
 1. KCC 计算 Agent corrected movement
 2. 读取 Agent nextTranslation / nextRotation
 3. 计算 next hold anchor pose
-4. 对 carried object 从当前 pose → next anchor 做 bodyMotionClear
+4. 对 carried object 从当前 pose → next anchor 做 checkBodyMotion
 5. clear 才同时 setNextKinematicTranslation
 ```
 
@@ -467,7 +467,7 @@ Cup 在 Agent 前方
 entry.held = true
 ```
 
-`navigationObstacles()` 跳过 held root。
+`getNavigationObstacles()` 跳过 held root。
 
 这不是忽略占用：
 
@@ -781,4 +781,4 @@ restore Dynamic Physics
 
 ## 1.23：Pickup Plan 成为 Suggestion 与 Execution 的共享几何入口
 
-Recovery E2E 暴露普通 pickup 过去会把最后一段 navigation yaw 偶然带入 hold-anchor transfer。1.23 新增 `findPickupPlan`：interaction candidate 必须在面向目标后的预测 HoldAnchor 下通过 `bodyMotionClear`，并将 1.5m planned range 收紧 `DEFAULT_WAYPOINT_TOLERANCE` 作为 arrival margin。`approachAndPickup` 到达后仍重新面向当前目标，并使用实际 body pose 再做一次 transfer check。该 plan 同时服务普通 pickup 与 blocker recovery proposal。
+Recovery E2E 暴露普通 pickup 过去会把最后一段 navigation yaw 偶然带入 hold-anchor transfer。1.23 新增 `findPickupPlan`：interaction candidate 必须在面向目标后的预测 HoldAnchor 下通过 `checkBodyMotion`，并将 1.5m planned range 收紧 `DEFAULT_WAYPOINT_TOLERANCE` 作为 arrival margin。`approachAndPickup` 到达后仍重新面向当前目标，并使用实际 body pose 再做一次 transfer check。该 plan 同时服务普通 pickup 与 blocker recovery proposal。

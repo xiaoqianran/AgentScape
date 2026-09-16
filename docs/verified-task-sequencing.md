@@ -1431,7 +1431,7 @@ current yaw
 
 ```text
 predict HoldAnchor pose
-→ Physics.bodyMotionClear(held object)
+→ Physics.checkBodyMotion(held object)
 → clear 才旋转 Agent + held object
 ```
 
@@ -1464,7 +1464,7 @@ Agent + held object 能安全原地转
 任意 yaw step：
 
 ```text
-bodyMotionClear = false
+checkBodyMotion = false
 ```
 
 返回：
@@ -1498,7 +1498,7 @@ step 2 blocked by wall
 断言：
 
 ```text
-bodyMotionClear called twice
+checkBodyMotion called twice
 Agent yaw restored
 Cup pose restored
 ```

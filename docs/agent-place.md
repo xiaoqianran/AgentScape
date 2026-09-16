@@ -529,7 +529,7 @@ max(
 每个 segment：
 
 ```text
-PhysicsSystem.bodyMotionClear(
+PhysicsSystem.checkBodyMotion(
   heldId,
   nextPoint,
   currentRotation,
@@ -572,7 +572,7 @@ Transfer 只排除 holder Agent。
 Table collider 仍参与：
 
 ```text
-bodyMotionClear
+checkBodyMotion
 ```
 
 所以：
@@ -736,12 +736,12 @@ stable >= 0.35s
 
 ---
 
-## 21. `bodyMotionState()`
+## 21. `getMotion()`
 
 PhysicsSystem 新增只读：
 
 ```text
-bodyMotionState(id)
+getMotion(id)
 ```
 
 返回：
@@ -1364,7 +1364,7 @@ cylinder / capsule colliders
 no pitch/roll carry rotation
 ```
 
-这是因为当前 `bodyMotionClear` 是 linear shape cast。
+这是因为当前 `checkBodyMotion` 是 linear shape cast。
 
 一般 Box + orientation change 需要 rotational sweep / 更完整 manipulation planner。
 
@@ -1416,4 +1416,4 @@ pickup
 
 ## 41. 1.20：完整任务暴露了 Arrival Yaw 与 Release Reach
 
-单独 Place 测试常让 Agent 已经面向 Table，但真实 `open → pickup → place` 任务中，Agent 到达 interaction pose 后的 yaw 来自最后一个 locomotion waypoint。1.20 因此让 Place candidate 额外验证“如果 Agent 在该候选处朝向 release，预测 HoldAnchor 到 release 是否仍在固定交互距离减 waypoint tolerance 内”。到达后再用 `reorientHeldToward` 分段旋转，每一步都调用 `bodyMotionClear` 检查 held-object 圆弧占用；遇阻恢复原 yaw / held pose 并返回 `CARRY_REORIENT_BLOCKED`。这不是机械臂 IK，只是把 carried-object occupancy truth 延伸到原地转向。详见 [`verified-task-sequencing.md`](verified-task-sequencing.md)。
+单独 Place 测试常让 Agent 已经面向 Table，但真实 `open → pickup → place` 任务中，Agent 到达 interaction pose 后的 yaw 来自最后一个 locomotion waypoint。1.20 因此让 Place candidate 额外验证“如果 Agent 在该候选处朝向 release，预测 HoldAnchor 到 release 是否仍在固定交互距离减 waypoint tolerance 内”。到达后再用 `reorientHeldToward` 分段旋转，每一步都调用 `checkBodyMotion` 检查 held-object 圆弧占用；遇阻恢复原 yaw / held pose 并返回 `CARRY_REORIENT_BLOCKED`。这不是机械臂 IK，只是把 carried-object occupancy truth 延伸到原地转向。详见 [`verified-task-sequencing.md`](verified-task-sequencing.md)。

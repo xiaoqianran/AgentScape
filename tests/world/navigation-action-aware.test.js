@@ -23,7 +23,7 @@ const manifest=(sourceKind='builtin',verified=false)=>({
 const setup=(recordManifest,state={parts:{door:'close'}})=>{
   const store=new ObjectStore();
   store.add('cabinet',{id:'cabinet',assetId:'cabinet',object:new THREE.Group(),manifest:recordManifest,state});
-  const physics={navigationObstacles:()=>({items:[doorObstacle()],skipped:[]})};
+  const physics={getNavigationObstacles:()=>({items:[doorObstacle()],skipped:[]})};
   const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[floor()]});
   return {store,navigation};
 };

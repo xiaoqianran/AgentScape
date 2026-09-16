@@ -7,9 +7,9 @@ import { createMagicCabin } from '../../modules/world/content/magicCabin.js';
 import { cabinCanvasHost } from '../../tests/helpers/cabinCanvasHost.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { NavigationSystem } from '../../modules/world/runtime/systems/NavigationSystem.js';
-import { RecastNavigationBackend } from '../../modules/world/runtime/navigation/RecastNavigationBackend.js';
+import { RecastNavigationBackend } from '../../modules/navigation/RecastNavigationBackend.js';
 import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
-import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../modules/physics/RapierPhysicsBackend.js';
 
 globalThis.ProgressEvent ||= class ProgressEvent { constructor(type, init = {}) { this.type = type; Object.assign(this, init); } };
 globalThis.localStorage ||= { getItem:() => null, setItem() {}, removeItem() {} };

@@ -18,7 +18,7 @@ async function setup({blocker=false}={}){
   if(blocker) physics.addEnvironment([{shape:'box',halfExtents:[.18,1,.18],translation:[-.64,1,1.08]}],{id:'door-stall-blocker'});
   const object=cabinetObject(); const manifest=structuredClone(assetManifests.cabinet);
   store.add('cabinet',{id:'cabinet',assetId:'cabinet',object,manifest,state:{parts:{door:'close'}}});
-  physics.attach('cabinet',manifest,object); physics.step(1/60,store);
+  physics.addObject('cabinet',manifest,object); physics.step(1/60,store);
   const interactions=new InteractionSystem({store,physics,spatial:{},events:{emit(){}}});
   return {store,physics,interactions};
 }

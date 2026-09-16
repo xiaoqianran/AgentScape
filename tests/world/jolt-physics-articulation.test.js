@@ -36,10 +36,10 @@ describe('PhysicsSystem Jolt articulation parity',()=>{
     const {root,node,store}=fixture('cabinet_01',cabinetManifest,'doorHinge',[-.82,1,.39]);
     const physics=createJoltPhysicsSystem(); await physics.init();
     try {
-      physics.attach('cabinet_01',cabinetManifest,root);
+      physics.addObject('cabinet_01',cabinetManifest,root);
       expect(physics.setArticulationTarget('cabinet_01','door',-1)).toBe(true);
       for(let i=0;i<240;i++) physics.step(1/60,store);
-      const state=physics.articulationState('cabinet_01','door',{target:-1});
+      const state=physics.getArticulationState('cabinet_01','door',{target:-1});
       expect(state).toMatchObject({jointType:'revolute',target:-1,tolerance:.08,coordinateReference:'rest-zero-pose'});
       expect(state.coordinate).toBeLessThan(-.7);
       expect(state.error).toBeLessThan(.2);
@@ -51,20 +51,20 @@ describe('PhysicsSystem Jolt articulation parity',()=>{
     const {root,node,store}=fixture('drawer_01',drawerManifest,'Slide');
     const physics=createJoltPhysicsSystem(); await physics.init();
     try {
-      physics.attach('drawer_01',drawerManifest,root);
+      physics.addObject('drawer_01',drawerManifest,root);
       expect(physics.setArticulationTarget('drawer_01','drawer',.5)).toBe(true);
       for(let i=0;i<240;i++) physics.step(1/60,store);
-      let state=physics.articulationState('drawer_01','drawer',{target:.5});
+      let state=physics.getArticulationState('drawer_01','drawer',{target:.5});
       expect(state.coordinate).toBeGreaterThan(.4);
       expect(state.error).toBeLessThan(.1);
       expect(physics.setArticulationTarget('drawer_01','drawer',.8)).toBe(true);
       for(let i=0;i<240;i++) physics.step(1/60,store);
-      state=physics.articulationState('drawer_01','drawer');
+      state=physics.getArticulationState('drawer_01','drawer');
       expect(state.coordinate).toBeLessThanOrEqual(.53);
 
       expect(physics.setArticulationTarget('drawer_01','drawer',0)).toBe(true);
       for(let i=0;i<240;i++) physics.step(1/60,store);
-      state=physics.articulationState('drawer_01','drawer',{target:0});
+      state=physics.getArticulationState('drawer_01','drawer',{target:0});
       expect(Math.abs(state.coordinate)).toBeLessThan(.05);
     } finally { physics.dispose(); }
   });
@@ -73,14 +73,14 @@ describe('PhysicsSystem Jolt articulation parity',()=>{
     const {root,store}=fixture('drawer_01',drawerManifest,'Slide');
     const physics=createJoltPhysicsSystem(); await physics.init();
     try {
-      physics.attach('drawer_01',drawerManifest,root);
+      physics.addObject('drawer_01',drawerManifest,root);
       expect(physics.articulationContacts('drawer_01','drawer')).toEqual([]);
       const penetration=physics.articulationPenetrations('drawer_01','drawer',{refresh:true});
       expect(penetration).toHaveLength(1);
       expect(penetration[0].targetPart).toBe('$root');
       physics.setArticulationTarget('drawer_01','drawer',.5);
       for(let i=0;i<240;i++) physics.step(1/60,store);
-      expect(physics.articulationState('drawer_01','drawer',{target:.5}).error).toBeLessThan(.1);
+      expect(physics.getArticulationState('drawer_01','drawer',{target:.5}).error).toBeLessThan(.1);
     } finally { physics.dispose(); }
   });
 
@@ -131,9 +131,9 @@ describe('PhysicsSystem Jolt articulation parity',()=>{
     const {root}=fixture('drawer_01',drawerManifest,'Slide');
     const physics=createJoltPhysicsSystem(); await physics.init();
     try {
-      physics.attach('drawer_01',drawerManifest,root);
+      physics.addObject('drawer_01',drawerManifest,root);
       expect(physics.world.joints.size).toBe(1);
-      physics.remove('drawer_01');
+      physics.removeObject('drawer_01');
       expect(physics.world.joints.size).toBe(0);
       expect(physics.world.disabledJointPairs.size).toBe(0);
     } finally { physics.dispose(); }

@@ -49,7 +49,7 @@ it('loads a materialized articulated compile result and attaches distinct root/P
 
   const physics=createRapierPhysicsSystem();
   await physics.init();
-  const entry=physics.attach('cabinet_1',manifest,object);
+  const entry=physics.addObject('cabinet_1',manifest,object);
   expect(entry.parts.has('door')).toBe(true);
   expect(entry.body.numColliders()).toBe(result.manifest.physics.colliders.length);
   expect(entry.parts.get('door').body.numColliders()).toBe(result.manifest.parts.door.physics.colliders.length);

@@ -17,7 +17,7 @@ const barrier = (z=0) => ({
 describe('NavigationSystem dynamic obstacles',()=>{
   it('updates TileCache from current physics obstacles without rebuilding the static NavMesh',async()=>{
     let items=[barrier(0)];
-    const physics={navigationObstacles:()=>({items:structuredClone(items),skipped:[]})};
+    const physics={getNavigationObstacles:()=>({items:structuredClone(items),skipped:[]})};
     const navigation=createRecastNavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()]});
 
     const blocked=await navigation.findPath([-4,0,0],[4,0,0]);
@@ -39,7 +39,7 @@ describe('NavigationSystem dynamic obstacles',()=>{
   },15000);
 
   it('reports partial dynamic coverage when PhysicsSystem skips an unsupported collider',async()=>{
-    const physics={navigationObstacles:()=>({items:[],skipped:[{id:'x:$root:0',reason:'unsupported-shape',shapeType:99}]})};
+    const physics={getNavigationObstacles:()=>({items:[],skipped:[{id:'x:$root:0',reason:'unsupported-shape',shapeType:99}]})};
     const navigation=createRecastNavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()]});
     const result=await navigation.findPath([-4,0,0],[4,0,0]);
     expect(result.reachable).toBe(true);
@@ -55,7 +55,7 @@ describe('NavigationSystem dynamic obstacles',()=>{
       shape:'cylinder',sourceShape:'cylinder',quality:'exact-upright',
       position:[-4+(i%14)*.6,0,-3+Math.floor(i/14)*1.2],radius:.05,height:.5
     }));
-    const physics={navigationObstacles:()=>({items,skipped:[]})};
+    const physics={getNavigationObstacles:()=>({items,skipped:[]})};
     const navigation=createRecastNavigationSystem({store:new ObjectStore(),physics,environmentRoots:[floor()],backendOptions:{maxObstacles:96}});
     const result=await navigation.findPath([-4,0,3],[4,0,3]);
     expect(result.dynamicObstacles).toMatchObject({coverage:'complete',tracked:70,changed:70,operations:70});

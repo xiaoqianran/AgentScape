@@ -843,7 +843,7 @@ colliderProvenance.has(handle) = true
 执行：
 
 ```text
-physics.remove(blocker_01)
+physics.removeObject(blocker_01)
 ```
 
 后：

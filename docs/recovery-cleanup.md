@@ -268,13 +268,13 @@ teleport blocker
 
 ## 12. Endpoint Occupancy 与 Motion Sweep 分层
 
-1.25 从已有 `bodyMotionClear()` 中抽出：
+1.25 从已有 `checkBodyMotion()` 中抽出：
 
 ```text
-PhysicsSystem.bodyPoseClear()
+PhysicsSystem.checkBodyPose()
 ```
 
-`bodyPoseClear()` 只回答：
+`checkBodyPose()` 只回答：
 
 > carried body 如果处于这个最终 pose，当前是否与其它 Physics collider 重叠？
 
@@ -282,9 +282,9 @@ PhysicsSystem.bodyPoseClear()
 
 ---
 
-## 13. `bodyMotionClear()` 没有复制 Physics Truth
+## 13. `checkBodyMotion()` 没有复制 Physics Truth
 
-原来 `bodyMotionClear()` 同时：
+原来 `checkBodyMotion()` 同时：
 
 ```text
 castShape path sweep
@@ -295,7 +295,7 @@ castShape path sweep
 
 ```text
 path castShape
-→ bodyPoseClear(endpoint)
+→ checkBodyPose(endpoint)
 ```
 
 因此 Physics endpoint occupancy 仍只有一份实现。
@@ -311,7 +311,7 @@ Cleanup proposal 阶段，Agent 尚未站到 release stance。
 因此 planner 使用：
 
 ```text
-bodyPoseClear(release)
+checkBodyPose(release)
 ```
 
 只确认 release endpoint 本身当前可占用。
@@ -329,7 +329,7 @@ transferHeldToRelease()
 它使用：
 
 ```text
-bodyMotionClear()
+checkBodyMotion()
 ```
 
 逐段验证实际 carried-body trajectory。
@@ -362,7 +362,7 @@ Place 与 Recovery Cleanup 都调用它。
 每一段调用：
 
 ```text
-PhysicsSystem.bodyMotionClear()
+PhysicsSystem.checkBodyMotion()
 ```
 
 如果任何一段 blocked：
@@ -504,7 +504,7 @@ CLEANUP_PLAN_CHANGED
 reorientHeldToward()
 ```
 
-它逐步旋转 Agent，并对 held body 每一步调用 `bodyMotionClear()`。
+它逐步旋转 Agent，并对 held body 每一步调用 `checkBodyMotion()`。
 
 如果转身过程中 blocker 会撞环境：
 

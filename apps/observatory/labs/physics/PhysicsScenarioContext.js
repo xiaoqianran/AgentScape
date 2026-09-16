@@ -42,7 +42,7 @@ export class PhysicsScenarioContext {
       physics: { body: type, mass, friction, colliders: [{ shape: "box", halfExtents }] }
     };
     this.store.add(id, { id, assetId: id, object, manifest, state: {} });
-    this.physics.attach(id, manifest, object);
+    this.physics.addObject(id, manifest, object);
     this.entities.set(id, { id, kind: "rigid-body", initialPosition: [...position] });
     this.visuals.push(object);
     return object;
@@ -55,7 +55,7 @@ export class PhysicsScenarioContext {
     this.scene.add(object);
     object.updateMatrixWorld(true);
     this.store.add(id, { id, assetId, object, manifest, state: structuredClone(initialState) });
-    this.physics.attach(id, manifest, object);
+    this.physics.addObject(id, manifest, object);
     if (inspectPart) {
       if (Number.isFinite(target)) this.physics.setArticulationTarget(id, inspectPart, target);
       this.entities.set(id, { id, kind: "articulation", partName: inspectPart, target });
@@ -93,7 +93,7 @@ export class PhysicsScenarioContext {
 
 
     this.store.add(id, { id, assetId: manifest.id, object: root, manifest, state: { parts: { door: "close" } } });
-    this.physics.attach(id, manifest, root);
+    this.physics.addObject(id, manifest, root);
     this.physics.setArticulationTarget(id, "door", target);
     this.entities.set(id, { id, kind: "articulation", partName: "door", target });
     this.visuals.push(root);
@@ -102,8 +102,8 @@ export class PhysicsScenarioContext {
 
   step(dt) { this.physics.step(dt, this.store); }
   position(id) { return this.physics.getPosition(id); }
-  motion(id) { return this.physics.bodyMotionState(id); }
-  articulation(id, partName, target) { return this.physics.articulationState(id, partName, { target }); }
+  motion(id) { return this.physics.getMotion(id); }
+  articulation(id, partName, target) { return this.physics.getArticulationState(id, partName, { target }); }
 
   inspect(id) {
     const entity = this.entities.get(id);

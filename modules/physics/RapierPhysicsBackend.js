@@ -100,7 +100,7 @@ export class RapierPhysicsBackend extends PhysicsBackend {
     return body;
   }
   removeBody(world,body) { if(body) world.removeRigidBody(body); }
-  createColliders(world,body,specs=[],{mass,friction}={}) {
+  createColliders(world,body,specs=[],{mass,friction,restitution}={}) {
     const colliderMass=mass!=null && specs.length ? mass/specs.length : null;
     const created=[];
     for(const spec of specs) {
@@ -110,6 +110,7 @@ export class RapierPhysicsBackend extends PhysicsBackend {
       if(spec.rotation) desc.setRotation(q4(spec.rotation));
       if(colliderMass!=null) desc.setMass(colliderMass);
       if(friction!=null) desc.setFriction(friction);
+      if(restitution!=null) desc.setRestitution(restitution);
       created.push(world.createCollider(desc,body));
     }
     return created;
@@ -184,6 +185,33 @@ export class RapierPhysicsBackend extends PhysicsBackend {
       linearSpeed:Math.hypot(linear.x,linear.y,linear.z),
       angularSpeed:Math.hypot(angular.x,angular.y,angular.z)
     };
+  }
+  setBodyMotion(body,{linearVelocity=null,angularVelocity=null,wake=true}={}) {
+    if(!body || this.bodyType(body)!=='dynamic') return false;
+    if(linearVelocity) body.setLinvel(v3(linearVelocity),wake);
+    if(angularVelocity) body.setAngvel(v3(angularVelocity),wake);
+    return true;
+  }
+  applyImpulse(body,impulse,{point=null,wake=true}={}) {
+    if(!body || this.bodyType(body)!=='dynamic') return false;
+    if(point) body.applyImpulseAtPoint(v3(impulse),v3(point),wake);
+    else body.applyImpulse(v3(impulse),wake);
+    return true;
+  }
+  setBodyMaterial(body,{friction=null,restitution=null}={}) {
+    if(!body) return false;
+    for(const collider of this.colliders(body)) {
+      if(friction!=null) collider.setFriction(friction);
+      if(restitution!=null) collider.setRestitution(restitution);
+    }
+    return true;
+  }
+  setBodyDynamics(body,{linearDamping=null,angularDamping=null,gravityScale=null,wake=true}={}) {
+    if(!body || this.bodyType(body)!=='dynamic') return false;
+    if(linearDamping!=null) body.setLinearDamping(linearDamping);
+    if(angularDamping!=null) body.setAngularDamping(angularDamping);
+    if(gravityScale!=null) body.setGravityScale(gravityScale,wake);
+    return true;
   }
   wakeBody(body) { body?.wakeUp?.(); return Boolean(body); }
 

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createMagicCabin } from '../../modules/world/content/magicCabin.js';
 import { cabinCanvasHost } from '../helpers/cabinCanvasHost.js';
 import { PhysicsSystem } from '../../modules/world/runtime/systems/PhysicsSystem.js';
-import { RapierPhysicsBackend } from '../../modules/world/runtime/physics/RapierPhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../modules/physics/RapierPhysicsBackend.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 
@@ -53,7 +53,7 @@ describe('migrated original magic cabin',()=>{
       physics.world.forEachCollider(()=>count++);
       expect(count).toBeGreaterThan(cabin.colliders.length);
       const probe={physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.1,.1,.1]}]}};
-      expect(physics.manifestPoseClear(probe,[2,3.08,0]).clear).toBe(false);
+      expect(physics.checkManifestPose(probe,[2,3.08,0]).clear).toBe(false);
     } finally {physics.dispose();cabin.dispose();}
   },30000);
 

@@ -262,7 +262,7 @@ export class AssetPlacementController {
     if (!this.anchor) return this.placeAtCenter(assetId);
     if (!this.beginDrag(assetId)) return { status:'placement-cancelled', reason:'ASSET_NOT_FOUND' };
     const position = [...this.anchor.position];
-    const pose = this.world.physics.manifestPoseClear(this.manifest, position);
+    const pose = this.world.physics.checkManifestPose(this.manifest, position);
     const valid = pose.checked ? pose.clear : true;
     this.position = position;
     this.pose = { ...pose, valid };
@@ -328,7 +328,7 @@ export class AssetPlacementController {
     }
     const rootPosition = surface.point.clone().addScaledVector(surface.normal, CLEARANCE);
     const position = rootPosition.toArray();
-    const pose = this.world.physics.manifestPoseClear(this.manifest, position);
+    const pose = this.world.physics.checkManifestPose(this.manifest, position);
     const valid = pose.checked ? pose.clear : true;
     this.preview.group.position.copy(rootPosition);
     this.preview.group.visible = true;

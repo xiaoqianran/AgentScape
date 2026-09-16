@@ -35,12 +35,12 @@ async function setup({ wall=null }={}) {
   const agent=new THREE.Group(); agent.position.set(0,0,4); agent.updateMatrixWorld(true); scene.add(agent);
   const agentManifest=structuredClone(assetManifests.agent);
   store.add('agent_01',{id:'agent_01',assetId:'agent',object:agent,manifest:agentManifest,state:{}});
-  physics.attach('agent_01',agentManifest,agent);
+  physics.addObject('agent_01',agentManifest,agent);
 
   const cabinet=cabinetObject(); scene.add(cabinet);
   const cabinetManifest=structuredClone(assetManifests.cabinet);
   store.add('cabinet_01',{id:'cabinet_01',assetId:'cabinet',object:cabinet,manifest:cabinetManifest,state:{parts:{door:'close'}}});
-  physics.attach('cabinet_01',cabinetManifest,cabinet);
+  physics.addObject('cabinet_01',cabinetManifest,cabinet);
   physics.step(1/60,store);
 
   const spatial=new SpatialSystem({store,scene});

@@ -54,7 +54,7 @@
 | World IR | revision/provenance/entities/spatial/physics/interactions/rules/acceptance | `modules/world/spec/*` | 全局 constraints 仍 fail-closed；planner revision 还可扩展 |
 | World Compiler | resolve/admission/layout/behavior/physics/instantiate/relation/verify | `modules/world/compiler/*` | 增量重编译目前只覆盖有限 impact classes |
 | Runtime | 对象、事务、撤销、序列化、环境切换、authority | `modules/world/runtime/WorldRuntime.js` | snapshot/authority 和异步系统仍需更多竞态测试 |
-| Physics | `PhysicsSystem` 语义层 + Rapier/Jolt/Transform backend | `modules/world/runtime/physics/*`, `PhysicsSystem.js` | backend 抽象已经存在；不要再建 PhysicsManager。未来重点是 parity/quality/新 capability |
+| Physics | `PhysicsSystem` 语义层 + Rapier/Jolt/Transform backend | `modules/physics/*`, `PhysicsSystem.js` | backend 抽象已经存在；不要再建 PhysicsManager。未来重点是 parity/quality/新 capability |
 | Navigation | Recast/Detour NavMesh + TileCache 动态障碍 | `NavigationSystem.js`, `navigation/*` | Crowd/off-mesh/大世界增量 tile 尚未产品化 |
 | Locomotion | path → character movement → grounded/block result | `LocomotionSystem.js`, Physics backend | 动态重规划/多 agent 避让仍有限 |
 | Spatial | bounds、near、raycast、collision、support、receptacle/free-space | `SpatialSystem.js`, `SceneGraph.js` | 语义关系仍偏几何启发式 |
@@ -417,9 +417,9 @@
 | PHY-064 | P1 | S | READY | test | PhysicsSystem attach root→child part 建 body/joint 顺序 | `PhysicsSystem.js` | — | parent body 一定先于 child | — | — |
 | PHY-065 | P1 | S | READY | test | nested articulated part parent body 缺失时整体 attach rollback | same | PHY-064 | created bodies 全删除 | — | — |
 | PHY-066 | P1 | S | READY | test | transform-only backend 仍保存 articulation rest pose | same | — | 无 solver body 也可读 part state | — | — |
-| PHY-067 | P1 | XS | READY | test | articulationState prismatic coordinate 以 rest-zero 为基准 | same | — | 移动 d → coordinate≈d | — | — |
-| PHY-068 | P1 | XS | READY | test | articulationState revolute coordinate wrap 到 [-π,π] | same | — | 穿过 ±π 不产生 2π 跳变 | — | — |
-| PHY-069 | P1 | XS | READY | test | articulationState tolerance hinge=.08 / slider=.03 固定 | same | — | 两种 joint tolerance 不漂移 | — | — |
+| PHY-067 | P1 | XS | READY | test | getArticulationState prismatic coordinate 以 rest-zero 为基准 | same | — | 移动 d → coordinate≈d | — | — |
+| PHY-068 | P1 | XS | READY | test | getArticulationState revolute coordinate wrap 到 [-π,π] | same | — | 穿过 ±π 不产生 2π 跳变 | — | — |
+| PHY-069 | P1 | XS | READY | test | getArticulationState tolerance hinge=.08 / slider=.03 固定 | same | — | 两种 joint tolerance 不漂移 | — | — |
 | PHY-070 | P1 | S | READY | test | articulationColliderPoses hinge 围绕 child anchor 旋转 | same | PHY-068 | pivot 不漂移 | — | — |
 | PHY-071 | P1 | S | READY | test | articulationColliderPoses prismatic 沿 world axis 平移 | same | PHY-067 | 位移方向/距离正确 | — | — |
 | PHY-072 | P1 | XS | READY | test | invalid articulation axis 返回 checked=false 而非 NaN | same | — | reason=`JOINT_AXIS_UNAVAILABLE` | — | — |
@@ -441,12 +441,12 @@
 | PHY-083 | P1 | XS | READY | test | setHeldTarget 使用 next pose 而非瞬移 current pose | same | PHY-023 | step 前 current 不跳 | — | — |
 | PHY-084 | P1 | XS | READY | test | anchorPose 将 local translation 正确旋转到 world | same | — | 90° yaw fixture 正确 | — | — |
 | PHY-085 | P1 | XS | READY | test | anchorPose 合成 root + local quaternion | same | — | quaternion normalized | — | — |
-| PHY-086 | P1 | XS | READY | test | bodyPoseClear 在无 collision backend 返回 capability unavailable | same | PHY-008 | 不伪装为 clear | — | — |
-| PHY-087 | P1 | XS | READY | test | bodyPoseClear 对 articulated carry object 明确 unsupported | same | — | `CARRY_BODY_UNSUPPORTED` | — | — |
-| PHY-088 | P1 | XS | READY | test | bodyPoseClear 当前只接受 capsule/cylinder carry collider | same | — | box 返回 `CARRY_COLLIDER_UNSUPPORTED` | — | — |
-| PHY-089 | P1 | S | READY | test | bodyPoseClear target overlap 返回具体 blockedBy owner | same | — | `CARRY_TARGET_BLOCKED` + object id | — | — |
-| PHY-090 | P1 | S | READY | test | bodyMotionClear sweep hit 返回 toi + blockedBy | same | — | `CARRY_SWEEP_BLOCKED` | — | — |
-| PHY-091 | P1 | XS | READY | test | bodyMotionClear sweep clear 后仍执行 final pose overlap check | same | PHY-090 | endpoint overlap 不能漏检 | — | — |
+| PHY-086 | P1 | XS | READY | test | checkBodyPose 在无 collision backend 返回 capability unavailable | same | PHY-008 | 不伪装为 clear | — | — |
+| PHY-087 | P1 | XS | READY | test | checkBodyPose 对 articulated carry object 明确 unsupported | same | — | `CARRY_BODY_UNSUPPORTED` | — | — |
+| PHY-088 | P1 | XS | READY | test | checkBodyPose 当前只接受 capsule/cylinder carry collider | same | — | box 返回 `CARRY_COLLIDER_UNSUPPORTED` | — | — |
+| PHY-089 | P1 | S | READY | test | checkBodyPose target overlap 返回具体 blockedBy owner | same | — | `CARRY_TARGET_BLOCKED` + object id | — | — |
+| PHY-090 | P1 | S | READY | test | checkBodyMotion sweep hit 返回 toi + blockedBy | same | — | `CARRY_SWEEP_BLOCKED` | — | — |
+| PHY-091 | P1 | XS | READY | test | checkBodyMotion sweep clear 后仍执行 final pose overlap check | same | PHY-090 | endpoint overlap 不能漏检 | — | — |
 
 ### 9.6 Character controller / Locomotion physics
 
@@ -859,7 +859,7 @@
 | WCP-008 | P1 | XS | READY | test | unsupported fallback policy fail-closed | same | — | 不自动替换语义 | — | — |
 | WCP-009 | P1 | S | READY | test | Composer 相同输入 deterministic layout | `WorldComposer.js` | — | 两次输出 position 完全相同 | — | — |
 | WCP-010 | P1 | XS | READY | test | Composer candidate 数 bounded | same | — | 大 relation 集不会无界搜索 | — | — |
-| WCP-011 | P1 | XS | READY | test | ON 关系 placement 先经过 manifestPoseClear | same | PHY-086 | blocked candidate 不采用 | — | — |
+| WCP-011 | P1 | XS | READY | test | ON 关系 placement 先经过 checkManifestPose | same | PHY-086 | blocked candidate 不采用 | — | — |
 | WCP-012 | P1 | XS | READY | test | INSIDE 关系 placement 走 receptacle free-space | same | SPA-023 | inside candidate 可验证 | — | — |
 | WCP-013 | P1 | XS | READY | test | NEAR relation 满足最大距离/不强制接触 | same | — | relation geometry 合理 | — | — |
 | WCP-014 | P1 | S | READY | test | 多 relation 同 entity 冲突时返回 layout finding | same | — | 不静默覆盖前一个 placement | — | — |

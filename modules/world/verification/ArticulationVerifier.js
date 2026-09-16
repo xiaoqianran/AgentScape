@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ObjectStore } from '../runtime/ObjectStore.js';
 import { PhysicsSystem } from '../runtime/systems/PhysicsSystem.js';
-import { RapierPhysicsBackend } from '../runtime/physics/RapierPhysicsBackend.js';
+import { RapierPhysicsBackend } from '../../physics/RapierPhysicsBackend.js';
 import { disposeObject3D } from '../../rendering/disposeObject3D.js';
 
 const finiteVec3 = (v) => [v.x, v.y, v.z].every(Number.isFinite);
@@ -62,7 +62,7 @@ export class ArticulationVerifier {
 
     try {
       await physics.init();
-      physics.attach(instanceId, manifest, object);
+      physics.addObject(instanceId, manifest, object);
       const reports = [];
       for (const [partName, part] of parts) reports.push(this.verifyPart({ physics, store, object, instanceId, partName, part }));
       return { ok: reports.every((report) => report.ok), assetId, tested: reports.length, parts: reports };

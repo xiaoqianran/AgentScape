@@ -112,7 +112,7 @@ export class LocomotionSystem {
     for (const [carriedId] of carried) {
       const anchor = this.store.get(task.id).manifest.embodiment?.holdAnchor;
       const pose = this.physics.anchorPose(task.id, anchor, { next:true });
-      const clearance = pose && this.physics.bodyMotionClear(carriedId, pose.position, pose.rotation, { excludeIds:[task.id] });
+      const clearance = pose && this.physics.checkBodyMotion(carriedId, pose.position, pose.rotation, { excludeIds:[task.id] });
       if (!pose || !clearance?.clear) {
         this.physics.cancelCharacterMovement(task.id);
         this.finish(task, 'blocked', { reason:'CARRIED_OBJECT_BLOCKED', position:current, carry:{id:carriedId, clearance:clearance || null} });

@@ -102,7 +102,7 @@ current scene instance
 新增：
 
 ```text
-PhysicsSystem.articulationState(
+PhysicsSystem.getArticulationState(
   objectId,
   partName,
   { target? }
