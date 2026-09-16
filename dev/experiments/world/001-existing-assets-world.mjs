@@ -15,9 +15,9 @@ const manifest = (id, type, halfExtents) => ({
 });
 
 const assetModule = createAssetModule({ manifests: {} });
-const assets = assetModule.manager;
-assets.registerManifest(manifest('experiment_table', 'table', [1.2, .5, .7]));
-assets.registerManifest(manifest('experiment_cup', 'cup', [.16, .16, .16]));
+const assetRegistry = assetModule.registry;
+assetRegistry.registerManifest(manifest('experiment_table', 'table', [1.2, .5, .7]));
+assetRegistry.registerManifest(manifest('experiment_cup', 'cup', [.16, .16, .16]));
 const assetCatalog = assetModule.catalog;
 const objects = new Map();
 const relations = [];
@@ -25,7 +25,7 @@ const relations = [];
 const runtime = {
   events: null,
   trace: null,
-  assets,
+  assets:assetRegistry,
   assetCatalog,
   environment: { layout: { bounds: { min: [-5, -5], max: [5, 5] }, groundY: 0, margin: .5 } },
   physics: {
@@ -33,7 +33,7 @@ const runtime = {
     checkManifestPose: () => ({ checked: true, clear: true, blockedBy: [] })
   },
   async spawn(assetId, { id, position }) {
-    objects.set(id, { id, assetId, manifest: assets.getManifest(assetId), position: [...position] });
+    objects.set(id, { id, assetId, manifest: assetRegistry.getManifest(assetId), position: [...position] });
     return id;
   },
   interactions: {
