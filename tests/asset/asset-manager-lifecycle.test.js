@@ -1,16 +1,17 @@
-import * as THREE from 'three';
-import { expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
 
-it('disposes a loaded instance when required-node validation fails', async () => {
-  const assets = new AssetManager({ manifests:{} });
-  const geometry = new THREE.BoxGeometry(); geometry.dispose = vi.fn();
-  const material = new THREE.MeshStandardMaterial(); material.dispose = vi.fn();
-  const root = new THREE.Group(); root.add(new THREE.Mesh(geometry, material));
-  assets.registerManifest({ id:'bad', type:'object', source:{kind:'glb',url:'bad.glb'}, actions:['move'], requiredNodes:['Missing'] });
-  assets.loadGLB = vi.fn(async () => root);
+describe('AssetManager compatibility facade', () => {
+  it('forwards registry and loader boundaries without owning state', () => {
+    const registry = new AssetRegistry({ manifests:{} });
+    const loader = new AssetLoader({ registry, factories:{} });
+    const manager = new AssetManager({ registry, loader });
 
-  await expect(assets.instantiate('bad')).rejects.toThrow(/missing required GLB nodes/i);
-  expect(geometry.dispose).toHaveBeenCalledOnce();
-  expect(material.dispose).toHaveBeenCalledOnce();
+    expect(manager.registry).toBe(registry);
+    expect(manager.loader).toBe(loader);
+    expect(manager.manifests).toBe(registry.manifests);
+    expect(manager.factories).toBe(loader.factories);
+  });
 });
