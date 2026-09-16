@@ -8,8 +8,8 @@ export { AssetProductionError };
 
 export class AssetPublisher {
   constructor(options = {}) {
-    const assetRegistry = options.assetRegistry || options.assetManager;
-    this.pipeline = new VerifiedArtifactAssetPipeline({ ...options, assetManager:assetRegistry });
+    const assetRegistry = options.assetRegistry;
+    this.pipeline = new VerifiedArtifactAssetPipeline({ ...options, assetRegistry });
   }
 
   async publish(request = {}) {
@@ -22,7 +22,6 @@ export function createAssetPublisher({
   byteStore,
   getAssetCompiler,
   assetRegistry,
-  assetManager = null,
   onManifestRegistered = null,
   events = null,
   now = () => Date.now(),
@@ -32,7 +31,7 @@ export function createAssetPublisher({
     throw new AssetProductionError('ASSET_PUBLISHER_INVALID', 'Asset publisher requires getAssetCompiler()');
   }
 
-  const registry = assetRegistry || assetManager?.registry || assetManager;
+  const registry = assetRegistry;
   if (!registry?.registerManifest || !registry?.getManifest) {
     throw new AssetProductionError('ASSET_PUBLISHER_INVALID', 'Asset publisher requires AssetRegistry');
   }

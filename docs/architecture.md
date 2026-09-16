@@ -121,7 +121,7 @@ Agent Tool Catalog 又认为 door 可以 open
                              │
        ┌────────────────┬────┼───────────────┬───────────────┐
        ▼                ▼    ▼               ▼               ▼
-  AssetManager     SpatialSystem      NavigationSystem   PhysicsSystem
+  AssetRegistry / AssetLoader     SpatialSystem      NavigationSystem   PhysicsSystem
                                         │
                                   Recast / Detour
        │                │               │               │
@@ -160,7 +160,7 @@ pickup
 ```text
 WorldRuntime
 ├── EventBus
-├── AssetManager
+├── AssetRegistry / AssetLoader
 ├── ObjectStore
 ├── PhysicsSystem
 ├── InteractionSystem
@@ -1057,7 +1057,7 @@ verification   = later original action retry post-condition
 
 ## 35. Generated World Admission：Generator 不拥有 Runtime Truth
 
-1.32 没有新增 WorldManager。`normalizeWorldSpec` 先规范化 intent；`AssetLibrary` 复用 `EmbodiedGenAdapter` 将 raw provider payload 转成 Manifest，并通过统一 `assetAdmission` 判断 ready/provisional/rejected；`createWorldPipeline` 继续复用现有 AssetManager、ObjectStore、WorldValidator、RepairEngine 与 SceneSerializer。
+1.32 没有新增 WorldManager。`normalizeWorldSpec` 先规范化 intent；`AssetLibrary` 复用 `EmbodiedGenAdapter` 将 raw provider payload 转成 Manifest，并通过统一 `assetAdmission` 判断 ready/provisional/rejected；`createWorldPipeline` 继续复用现有 AssetRegistry / AssetLoader、ObjectStore、WorldValidator、RepairEngine 与 SceneSerializer。
 
 ```text
 WorldSpec
@@ -1066,7 +1066,7 @@ AssetLibrary.resolve / generate
   ↓
 EmbodiedGenAdapter (when provider=embodiedgen)
   ↓
-AssetManager manifest truth
+AssetRegistry manifest truth
   ↓
 asset_admission
   ↓

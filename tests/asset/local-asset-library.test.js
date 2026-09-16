@@ -12,7 +12,7 @@ describe('LocalAssetLibrary',()=>{
     const store=new LocalAssetLibraryStore({indexedDBImpl:null});
     const manager={has:vi.fn((id)=>id==='generated_chair'),getManifest:vi.fn(()=>compiledManifest)};
     const compiledStore={has:vi.fn(async(key)=>key==='compiled/generated_chair.glb')};
-    const library=new LocalAssetLibrary({assetManager:manager,compiledStore,store,now:()=> '2026-09-09T00:00:00.000Z'});
+    const library=new LocalAssetLibrary({assetRegistry:manager,compiledStore,store,now:()=> '2026-09-09T00:00:00.000Z'});
 
     expect(library.listSync()).toEqual([]);
     await expect(library.approve('generated_chair',{sourceImageArtifactId:'image_01'})).resolves.toMatchObject({
@@ -21,7 +21,7 @@ describe('LocalAssetLibrary',()=>{
     expect(compiledStore.has).toHaveBeenCalledWith('compiled/generated_chair.glb');
     expect(library.listSync()).toHaveLength(1);
 
-    const restored=new LocalAssetLibrary({assetManager:manager,compiledStore,store});
+    const restored=new LocalAssetLibrary({assetRegistry:manager,compiledStore,store});
     await restored.hydrate();
     expect(restored.listSync()).toMatchObject([{assetId:'generated_chair',status:'approved'}]);
   });
@@ -29,13 +29,13 @@ describe('LocalAssetLibrary',()=>{
   it('rejects builtin assets and compiled manifests without durable GLB bytes',async()=>{
     const store=new LocalAssetLibraryStore({indexedDBImpl:null});
     const builtin=new LocalAssetLibrary({
-      assetManager:{has:()=>true,getManifest:()=>({id:'chair',source:{kind:'builtin'}})},
+      assetRegistry:{has:()=>true,getManifest:()=>({id:'chair',source:{kind:'builtin'}})},
       compiledStore:{has:async()=>true},store
     });
     await expect(builtin.approve('chair')).rejects.toMatchObject({code:'ASSET_LIBRARY_COMPILED_REQUIRED'});
 
     const missing=new LocalAssetLibrary({
-      assetManager:{has:()=>true,getManifest:()=>compiledManifest},
+      assetRegistry:{has:()=>true,getManifest:()=>compiledManifest},
       compiledStore:{has:async()=>false},store
     });
     await expect(missing.approve('generated_chair')).rejects.toMatchObject({code:'ASSET_LIBRARY_BYTES_MISSING'});

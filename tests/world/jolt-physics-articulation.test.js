@@ -95,7 +95,8 @@ describe('PhysicsSystem Jolt articulation parity',()=>{
       }
     };
     const report=await new ArticulationVerifier({
-      assets,
+      assetRegistry:assets,
+      assetLoader:assets,
       steps:240,
       physicsFactory:createJoltPhysicsSystem
     }).verify('drawer');

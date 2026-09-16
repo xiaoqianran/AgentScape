@@ -264,7 +264,7 @@ live ObjectStore record 拿到当时 manifest
       ↓
 之后 verifyAssetArticulation
       ↓
-AssetManager manifest 更新
+AssetRegistry manifest 更新
 ```
 
 如果 live record 不更新，Navigation 仍会看到旧的 `unverified` 状态。

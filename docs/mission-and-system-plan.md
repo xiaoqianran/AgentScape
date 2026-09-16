@@ -455,7 +455,7 @@ Verified State / 已验证状态
           ┌────────────────────────┼────────────────────────┐
           │                        │                        │
           ▼                        ▼                        ▼
-ObjectStore / 对象库      AssetManager / 资产管理    EventBus / 事件总线
+ObjectStore / 对象库      AssetRegistry / AssetLoader / 资产注册与加载    EventBus / 事件总线
           │
           ▼
 ┌──────────────────────────────────────────────────────────────────┐
@@ -479,7 +479,7 @@ ObjectStore / 对象库      AssetManager / 资产管理    EventBus / 事件总
 - Three.js visual scene
 - Rapier physics world
 - Recast / Detour navigation
-- ObjectStore / AssetManager / SceneGraph
+- ObjectStore / AssetRegistry / AssetLoader / SceneGraph
 - locomotion / interaction / articulation execution
 
 ### 永久约束 / Invariants

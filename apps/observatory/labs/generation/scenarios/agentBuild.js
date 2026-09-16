@@ -62,7 +62,7 @@ export const generationAgentBuildScenario = {
     ]);
     ctx.sceneGraph.update();
     const artifact = ctx.generation.artifactRegistry.list().find((item) => item.id === "artifact_obs_red_apple") || null;
-    const manifest = ctx.runtime.assets.has(FIXTURE_ASSET_ID) ? ctx.runtime.assets.getManifest(FIXTURE_ASSET_ID) : null;
+    const manifest = ctx.runtime.assetRegistry.has(FIXTURE_ASSET_ID) ? ctx.runtime.assetRegistry.getManifest(FIXTURE_ASSET_ID) : null;
     const relations = ctx.sceneGraph.list({ subject: FIXTURE_INSTANCE_ID, predicate: "ON", object: "table_01" });
     const support = ctx.runtime.store.has(FIXTURE_INSTANCE_ID)
       ? ctx.runtime.spatial.supportStatus(FIXTURE_INSTANCE_ID, "table_01", { surfaceId: "top" })

@@ -30,7 +30,7 @@ const canIncrementState=(runtime,baseWorldIR,impact)=>{
 };
 
 const currentResolvedAssets=(runtime,worldIR)=>{
-  if(!runtime.store?.get || !runtime.assets?.getManifest) return null;
+  if(!runtime.store?.get || !runtime.assetRegistry?.getManifest) return null;
   const resolved=[];
   for(const entity of worldIR.entities){
     if(!entity.id) continue;
@@ -38,7 +38,7 @@ const currentResolvedAssets=(runtime,worldIR)=>{
     try { record=runtime.store.get(entity.id); } catch { return null; }
     if(!record?.assetId) return null;
     if(entity.asset?.assetId && entity.asset.assetId!==record.assetId) return null;
-    try { runtime.assets.getManifest(record.assetId); } catch { return null; }
+    try { runtime.assetRegistry.getManifest(record.assetId); } catch { return null; }
     resolved.push({id:entity.id,assetRef:createAssetRef(record.assetId)});
   }
   return resolved;
@@ -57,7 +57,7 @@ const vec3Equal=(a,b,tolerance=1e-6)=>Array.isArray(a)&&Array.isArray(b)&&a.leng
 const canIncrementPosition=(runtime,baseWorldIR,nextIR,impact)=>{
   if(impact.mode!=='incremental-position' || impact.affectedEntityIds.length!==1) return false;
   if(runtime.currentWorldRevision?.revision?.id!==baseWorldIR.revision?.id) return false;
-  if(!runtime.store?.get || !runtime.assets?.getManifest || !runtime.physics?.checkManifestPose || !runtime.physics?.setPosition || !runtime.validator?.run) return false;
+  if(!runtime.store?.get || !runtime.assetRegistry?.getManifest || !runtime.physics?.checkManifestPose || !runtime.physics?.setPosition || !runtime.validator?.run) return false;
   const id=impact.affectedEntityIds[0];
   if(nextIR.spatial.relations.some((relation)=>relation.subject===id || relation.object===id)) return false;
   const baseEntity=baseWorldIR.entities.find((entity)=>entity.id===id);
@@ -66,7 +66,7 @@ const canIncrementPosition=(runtime,baseWorldIR,nextIR,impact)=>{
   try { record=runtime.store.get(id); } catch { return false; }
   if(!record || record.assetId!==baseEntity.asset.assetId || record.state?.heldBy) return false;
   let manifest;
-  try { manifest=runtime.assets.getManifest(record.assetId); } catch { return false; }
+  try { manifest=runtime.assetRegistry.getManifest(record.assetId); } catch { return false; }
   if(!(manifest.actions||[]).includes('move')) return false;
   const currentPosition=record.object?.position?.toArray?.();
   if(!Array.isArray(currentPosition)) return false;
@@ -79,7 +79,7 @@ const occupiedWorldPositions=(runtime,worldIR,excludeId)=>{
   for(const entity of worldIR.entities){
     if(!entity.id || entity.id===excludeId) continue;
     let record,manifest;
-    try { record=runtime.store.get(entity.id); manifest=runtime.assets.getManifest(record.assetId); } catch { return null; }
+    try { record=runtime.store.get(entity.id); manifest=runtime.assetRegistry.getManifest(record.assetId); } catch { return null; }
     const position=record.object?.position?.toArray?.();
     if(!Array.isArray(position) || position.length!==3 || !position.every(Number.isFinite)) return null;
     occupied.push({id:entity.id,manifest,position});
@@ -175,8 +175,8 @@ async function recompileAuthorityOnly(runtime,{nextIR,compilation,baseRevisionId
   const isBehavior=impact.mode==='incremental-behavior';
   const reportKey=isBehavior?'behaviorAdmission':'physicsAdmission';
   const admissionResult=isBehavior
-    ? admitWorldBehavior(compilation.behaviorBundle,{resolvedAssets,getManifest:(assetId)=>runtime.assets.getManifest(assetId)})
-    : admitWorldPhysics(compilation.physicsRequirements,{profile:runtime.physics?.profile?.()||null,resolvedAssets,getManifest:(assetId)=>runtime.assets.getManifest(assetId)});
+    ? admitWorldBehavior(compilation.behaviorBundle,{resolvedAssets,getManifest:(assetId)=>runtime.assetRegistry.getManifest(assetId)})
+    : admitWorldPhysics(compilation.physicsRequirements,{profile:runtime.physics?.profile?.()||null,resolvedAssets,getManifest:(assetId)=>runtime.assetRegistry.getManifest(assetId)});
   const admissionContext=isBehavior?{behaviorAdmission:admissionResult}:{physicsAdmission:admissionResult};
   const label=isBehavior?'behavior':'physics';
 
@@ -227,7 +227,7 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
   const id=impact.affectedEntityIds[0];
   const entity=nextIR.entities.find((item)=>item.id===id);
   let record,manifest;
-  try { record=runtime.store.get(id); manifest=runtime.assets.getManifest(record.assetId); }
+  try { record=runtime.store.get(id); manifest=runtime.assetRegistry.getManifest(record.assetId); }
   catch { return null; }
   const occupied=occupiedWorldPositions(runtime,nextIR,id);
   if(!occupied) return null;

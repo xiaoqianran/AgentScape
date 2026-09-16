@@ -69,7 +69,7 @@ GLB 解析、规范化和优化已经有成熟实现，因此 AgentScape 直接�
 }
 ```
 
-同一浏览器刷新后可继续加载本地编译资产。如果 IndexedDB 内容丢失且存在 `fallbackUrl`，AssetManager 会退回远程 GLB。
+同一浏览器刷新后可继续加载本地编译资产。如果 IndexedDB 内容丢失且存在 `fallbackUrl`，AssetLoader 会退回远程 GLB。
 
 目前 `scene.json` 会保存 Manifest，但不会把本地 GLB 二进制嵌进 JSON。跨设备完整搬迁应由未来的 Scene Bundle 负责，而不是把大二进制塞进普通 JSON。
 
@@ -219,7 +219,7 @@ Schema 会验证：
 ```text
 Asset Manifest
     ↓
-AssetManager.instantiate()
+AssetLoader.instantiate()
     ↓
 isolated ObjectStore + PhysicsSystem
     ↓

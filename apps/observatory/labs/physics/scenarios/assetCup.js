@@ -1,14 +1,14 @@
 export const assetCupScenario = {
   id: "physics.asset.cup-drop",
   title: "资产杯子",
-  subtitle: "生产 AssetManager · 杯子",
-  description: "使用真实 AgentScape AssetManager 与杯子清单/工厂，验证渲染 / 清单 / 物理三层真值。",
+  subtitle: "生产 AssetRegistry + AssetLoader · 杯子",
+  description: "使用真实 AgentScape AssetRegistry / AssetLoader 与杯子清单/工厂，验证渲染 / 清单 / 物理三层真值。",
   kind: "asset",
   inspect: "asset_cup_01",
   async setup(ctx) {
     ctx.addBox({ id: "floor", type: "fixed", position: [0, -0.1, 0], halfExtents: [5, 0.1, 4] });
     const { createAssetModule } = await import("../../../../../modules/asset/AssetModule.js");
-    const assets = createAssetModule().manager;
+    const assets = createAssetModule().loader;
     const { object, manifest } = await assets.instantiate("cup");
     ctx.addAssetInstance({ id: "asset_cup_01", assetId: "cup", object, manifest, position: [0, 4, 0] });
   },

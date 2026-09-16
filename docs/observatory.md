@@ -91,7 +91,7 @@ Production contracts
 └── ThreeBvhRuntime
 ```
 
-`ThreeBvhRuntime` 属于 World/Spatial runtime，而不是 Observatory。Observatory 只负责驱动和显示。AssetManager 不再通过隐式 prototype 初始化承担 BVH ownership；对象进入 WorldRuntime 时由 World/Spatial 明确准备 bounds tree。
+`ThreeBvhRuntime` 属于 World/Spatial runtime，而不是 Observatory。Observatory 只负责驱动和显示。AssetLoader 不再通过隐式 prototype 初始化承担 BVH ownership；对象进入 WorldRuntime 时由 World/Spatial 明确准备 bounds tree。
 
 ## Generation / Agent Build Lab 当前能力
 

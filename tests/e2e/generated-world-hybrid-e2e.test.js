@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
 import { assetAdmission } from '../../modules/asset/admission.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { composeObservedNearPlacement } from '../../modules/world/compiler/WorldComposer.js';
@@ -14,7 +15,8 @@ const floor=()=>{
 
 describe('Generated World hybrid composition',()=>{
   it('keeps observed semantics outside ObjectStore while admitting a real executable asset into shared Physics/Navigation',async()=>{
-    const assets=new AssetManager();
+    const assets=new AssetRegistry();
+    const assetLoader=new AssetLoader({registry:assets});
     const manifest=assets.getManifest('cup');
     expect(assetAdmission(manifest).status).toBe('ready');
 
@@ -33,7 +35,7 @@ describe('Generated World hybrid composition',()=>{
     expect(plan).toMatchObject({checked:true,status:'ready',collisionVerified:true,observationId:'hyworld2-target-1'});
     expect(physics.checkManifestPose(manifest,plan.position)).toMatchObject({checked:true,clear:true});
 
-    const {object}=await assets.instantiate('cup');
+    const {object}=await assetLoader.instantiate('cup');
     object.position.fromArray(plan.position); object.updateMatrixWorld(true);
     store.add('hybrid_cup_01',{id:'hybrid_cup_01',assetId:'cup',object,manifest,state:{}});
     physics.addObject('hybrid_cup_01',manifest,object);

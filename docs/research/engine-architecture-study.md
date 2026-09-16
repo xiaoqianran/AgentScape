@@ -96,7 +96,7 @@ EmbodiedGen、Isaac、MuJoCo 等更重系统应作为上游资产/仿真后端�
 
 ## 资源所有权与释放
 
-当前 AssetManager 对每次实例化独立加载 GLB，不缓存共享 Three.js Geometry/Material/Texture。虽然网络和解析成本更高，但资源所有权非常清晰：一个世界对象拥有自己加载得到的渲染资源，删除对象时可以完整释放，不需要引用计数。
+当前 AssetLoader 对每次实例化独立加载 GLB，不缓存共享 Three.js Geometry/Material/Texture。虽然网络和解析成本更高，但资源所有权非常清晰：一个世界对象拥有自己加载得到的渲染资源，删除对象时可以完整释放，不需要引用计数。
 
 因此当前策略是先保证生命周期正确，不提前加入 GLB 缓存。只有真实性能数据证明加载缓存必要时，才应同时设计 Skeleton clone、共享纹理/BVH 和引用计数，否则缓存会把简单的所有权问题变成隐蔽的 use-after-dispose 或 GPU 泄漏。
 

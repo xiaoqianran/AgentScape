@@ -14,10 +14,8 @@ async function createRuntime() {
   const runtime = new WorldRuntime({ appendChild(){} }, {
     environmentFactory: null,
     assetModule: {
-      manager: {
-        instantiate: async () => ({ object:new THREE.Group(), manifest:structuredClone(MANIFEST) }),
-        getManifest: () => structuredClone(MANIFEST)
-      },
+      registry: { getManifest: () => structuredClone(MANIFEST), has: () => true },
+      loader: { instantiate: async () => ({ object:new THREE.Group(), manifest:structuredClone(MANIFEST) }) },
       catalog: {},
       compiledStore: {}
     },

@@ -11,7 +11,7 @@
 - `publication/`：verified Artifact → Asset 的发布编排。
 - `compiler/`：输入 → AgentScape 可接纳 Asset 表示。
 
-`AssetManager` 仅作为迁移期兼容 facade，生产组合应优先使用 `AssetModule.registry` 与 `AssetModule.loader`。
+`AssetModule` 明确暴露 `registry` 与 `loader`；registry 负责 manifest identity，loader 负责实例化与资源加载。
 发布流程消费 Artifact 公共契约，重型几何服务仍位于 `services/asset-compiler`。
 
 任务见 tasks.jsonl。验证：`npm run test:asset` 和 `npm run assets:validate`。

@@ -3,8 +3,8 @@ import { LocalAssetLibraryStore } from './storage/LocalAssetLibraryStore.js';
 const clone=(value)=>value==null?value:structuredClone(value);
 
 export class LocalAssetLibrary {
-  constructor({assetRegistry,assetManager=null,compiledStore,store=null,now=()=>new Date().toISOString()}={}) {
-    this.assetRegistry=assetRegistry || assetManager?.registry || assetManager;
+  constructor({assetRegistry,compiledStore,store=null,now=()=>new Date().toISOString()}={}) {
+    this.assetRegistry=assetRegistry;
     if(!this.assetRegistry?.getManifest || !this.assetRegistry?.has) throw new TypeError('LocalAssetLibrary requires AssetRegistry');
     if(!compiledStore || (typeof compiledStore.has!=='function' && typeof compiledStore.get!=='function')) throw new TypeError('LocalAssetLibrary requires CompiledAssetStore');
     this.compiledStore=compiledStore;

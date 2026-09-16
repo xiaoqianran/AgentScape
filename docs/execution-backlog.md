@@ -202,8 +202,8 @@
 | ASSET-018 | P1 | XS | READY | test | Catalog exact id/label 比 substring 排名高 | same | — | exact match 排第一 | — | — |
 | ASSET-019 | P1 | XS | READY | test | 中文 token 查询不被英文 stopword 逻辑丢弃 | same | — | 中文 label 可搜索 | — | — |
 | ASSET-020 | P1 | XS | READY | test | resolveExisting 显式 assetId 优先于 query | same | — | 已存在 ID 直接 found | — | — |
-| ASSET-021 | P1 | XS | READY | test | AssetManager register 同 manifest 幂等 | `AssetManager.js` | — | 重复注册不产生第二份 factory/resource | — | — |
-| ASSET-022 | P1 | S | READY | test | AssetManager 不兼容同 ID manifest 拒绝覆盖 | same | — | source/physics identity 改变时 fail | — | — |
+| ASSET-021 | P1 | XS | READY | test | AssetRegistry register 同 manifest 幂等 | `AssetRegistry.js` | — | 重复注册不产生第二份 factory/resource | — | — |
+| ASSET-022 | P1 | S | READY | test | AssetRegistry 不兼容同 ID manifest 拒绝覆盖 | same | — | source/physics identity 改变时 fail | — | — |
 | ASSET-023 | P1 | S | READY | test | instantiate GLB 缺声明 part node 时 fail-closed | same | — | 不把缺 part 的对象放入 scene | — | — |
 | ASSET-024 | P1 | S | READY | test | instantiate 失败时临时 Three resources 被 dispose | same | — | geometry/material 不泄漏 | — | — |
 | ASSET-025 | P1 | XS | READY | test | AssetModule hydrate 只恢复 compiled manifest | `AssetModule.js` | — | builtin/repo manifest 不重复持久化 | — | — |

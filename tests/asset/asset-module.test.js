@@ -18,8 +18,7 @@ describe('createAssetModule', () => {
     expect(module.loader.registry).toBe(module.registry);
     expect(module.catalog.registry).toBe(module.registry);
     expect(module.library.assetRegistry).toBe(module.registry);
-    expect(module.manager.registry).toBe(module.registry);
-    expect(module.manager.loader).toBe(module.loader);
+    expect(module.manager).toBeUndefined();
     expect(module.artifacts).toBeUndefined();
     expect(module.artifactRegistry).toBeUndefined();
     expect(module.byteStore).toBeUndefined();
@@ -35,7 +34,7 @@ describe('createAssetModule', () => {
     const module=createAssetModule({manifests:{},compiledStore,manifestStore:null});
     expect(module.compiledStore).toBe(compiledStore);
     expect(module.loader.compiledStore).toBe(compiledStore);
-    expect(module.manager.compiledStore).toBe(compiledStore);
+    expect(module.manager).toBeUndefined();
   });
 
   it('hydrates persisted compiled manifests into a fresh AssetRegistry once', async () => {

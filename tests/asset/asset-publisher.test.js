@@ -18,7 +18,7 @@ describe('AssetPublisher publication API', () => {
       },
       byteStore: { get() {} },
       assetCompiler: { compile() {} },
-      assetManager: { registerManifest() {} }
+      assetRegistry: { registerManifest() {}, getManifest() {}, has() { return false; } }
     });
 
     expect(typeof publisher.publish).toBe('function');

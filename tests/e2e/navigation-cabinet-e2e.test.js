@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
 import { assetManifests } from '../../modules/asset/manifests/index.js';
@@ -11,8 +12,9 @@ it('builds static navigation from the real cabinet GLB while excluding the artic
   const bytes=await import('node:fs/promises').then((fs)=>fs.readFile('public/assets/cabinet.glb'));
   const cabinet=structuredClone(assetManifests.cabinet);
   cabinet.source.url=`data:model/gltf-binary;base64,${Buffer.from(bytes).toString('base64')}`;
-  const manager=new AssetManager({ manifests:{cabinet}, compiledStore:{ get:async()=>null } });
-  const {object}=await manager.instantiate('cabinet');
+  const registry=new AssetRegistry({ manifests:{cabinet} });
+  const loader=new AssetLoader({ registry, compiledStore:{ get:async()=>null } });
+  const {object}=await loader.instantiate('cabinet');
   object.position.set(0,0,0);
   object.updateMatrixWorld(true);
 

@@ -152,7 +152,7 @@ export class WorldBuilder {
       }
 
       const assetId = produced?.id || null;
-      if (!assetId || runtime.assets?.has?.(assetId) !== true) {
+      if (!assetId || runtime.assetRegistry?.has?.(assetId) !== true) {
         return {
           status:'generation-failed',
           reason:produced?.status || 'GENERATED_ASSET_NOT_PUBLISHED',

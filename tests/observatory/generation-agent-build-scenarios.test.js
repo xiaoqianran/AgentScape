@@ -31,7 +31,7 @@ describe("Observatory Generation / Agent Build", () => {
       await generationAgentBuildScenario.setup(ctx);
       const assertions = generationAgentBuildScenario.assertions(ctx);
       const debug = ctx.debugSnapshot();
-      const manifest = ctx.runtime.assets.getManifest(FIXTURE_ASSET_ID);
+      const manifest = ctx.runtime.assetRegistry.getManifest(FIXTURE_ASSET_ID);
       const artifact = ctx.generation.artifactRegistry.get(FIXTURE_ARTIFACT_ID);
       const execution = ctx.agentResult.execution.filter((entry) => entry.executed).map((entry) => entry.tool);
 

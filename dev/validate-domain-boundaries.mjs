@@ -33,7 +33,6 @@ const assetCore = productJs.filter((file) => {
     "modules/asset/AssetCatalog.js",
     "modules/asset/AssetRef.js",
     "modules/asset/AssetRegistry.js",
-    "modules/asset/AssetManager.js",
     "modules/asset/admission.js",
     "modules/asset/schema.js",
     "modules/asset/parts.js"
@@ -167,10 +166,7 @@ if (!fs.existsSync(expectedOrchestrator)) failures.push("Cross-domain generation
 for (const file of productJs) {
   const name = relative(file);
   const source = fs.readFileSync(file, "utf8");
-  if (name !== "modules/asset/AssetModule.js" && /\bnew\s+AssetManager\s*\(/.test(source)) {
-    failures.push(`Asset compatibility ownership violation: ${name} constructs AssetManager outside AssetModule`);
-  }
-  if (!["modules/asset/AssetModule.js","modules/asset/AssetManager.js"].includes(name)) {
+  if (name !== "modules/asset/AssetModule.js") {
     if (/\bnew\s+AssetRegistry\s*\(/.test(source)) failures.push(`Asset registry ownership violation: ${name} constructs AssetRegistry outside AssetModule`);
     if (/\bnew\s+AssetLoader\s*\(/.test(source)) failures.push(`Asset loader ownership violation: ${name} constructs AssetLoader outside AssetModule`);
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AssetCatalog, searchAssetManifests, summarizeAsset } from '../../modules/asset/AssetCatalog.js';
-import { AssetManager } from '../../modules/asset/AssetManager.js';
+import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
 
 const manifest = (overrides = {}) => ({
   id: 'fixture',
@@ -31,9 +31,9 @@ describe('AssetCatalog', () => {
   });
 
   it('resolves only already-published assets', () => {
-    const assets = new AssetManager({ manifests: {} });
+    const assets = new AssetRegistry({ manifests: {} });
     assets.registerManifest(manifest({ id: 'published_apple', label: 'Published Apple', tags: ['apple'] }));
-    const catalog = new AssetCatalog({ assetManager: assets });
+    const catalog = new AssetCatalog({ registry: assets });
 
     expect(catalog.resolveExisting('apple')).toMatchObject({
       status: 'found',
@@ -47,9 +47,9 @@ describe('AssetCatalog', () => {
   });
 
   it('can resolve a stable AssetRef directly', () => {
-    const assets = new AssetManager({ manifests: {} });
+    const assets = new AssetRegistry({ manifests: {} });
     assets.registerManifest(manifest({ id: 'asset_ref_fixture' }));
-    const catalog = new AssetCatalog({ assetManager: assets });
+    const catalog = new AssetCatalog({ registry: assets });
 
     expect(catalog.resolveExisting('ignored', { assetId: 'asset_ref_fixture' })).toMatchObject({
       status: 'found',

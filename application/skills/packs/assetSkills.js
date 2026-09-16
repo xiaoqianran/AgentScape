@@ -17,7 +17,7 @@ const registerManifest = async (runtime, manifest, options = {}) => {
   if (typeof runtime.assetModule?.registerManifest === 'function') {
     return runtime.assetModule.registerManifest(manifest, options);
   }
-  return runtime.assets.registerManifest(manifest, options);
+  return runtime.assetRegistry.registerManifest(manifest, options);
 };
 
 export function registerAssetSkills(add,runtime) {
@@ -34,7 +34,7 @@ export function registerAssetSkills(add,runtime) {
   });
   add('verifyAssetArticulation', { ...meta('在隔离的已配置 physics backend 中执行 Part/Joint 运动轨迹验证（目标、碰撞、停滞、回程），并把结果写回 Manifest；backend 缺少所需 capability 时验证应失败关闭。', ['asset.write', 'physics.read'], ['assetId'], { assetId: string }), mutates: false }, async (a) => {
     const report = await runtime.articulationVerifier.verify(a.assetId);
-    const manifest = structuredClone(runtime.assets.getManifest(a.assetId));
+    const manifest = structuredClone(runtime.assetRegistry.getManifest(a.assetId));
     manifest.verification = { ...(manifest.verification || {}), articulation: report };
     const quality = manifest.compiler?.quality;
     if (quality) {
@@ -48,7 +48,7 @@ export function registerAssetSkills(add,runtime) {
     runtime.events.emit('asset.verified', { assetId: a.assetId, articulation: report, admission:admission.status });
     return { ...report, readiness: admission.status, admission };
   });
-  add('inspectCompiledAsset', meta('读取已编译资产的编译报告。', ['asset.read'], ['assetId'], { assetId: string }), (a) => runtime.assets.getManifest(a.assetId).compiler || null);
+  add('inspectCompiledAsset', meta('读取已编译资产的编译报告。', ['asset.read'], ['assetId'], { assetId: string }), (a) => runtime.assetRegistry.getManifest(a.assetId).compiler || null);
   add('listAssets', meta('列出资产库。', ['asset.read']), () => runtime.assetCatalog.list());
   add('searchAssets', meta('按名称、类型、标签或别名搜索可复用资产。', ['asset.read'], ['query'], { query: string, limit: { type: 'integer', minimum: 1, maximum: 20 } }), (a) => runtime.assetCatalog.search(a.query, { limit: a.limit ?? 8 }));
   add('generateAsset', meta('使用已配置的生成后端创建并注册缺失资产；调用前应先搜索。生成结果可能是 asset-provisional，不能因此假定世界已验证。', ['asset.write'], ['prompt'], { prompt: string }), async (a) => {

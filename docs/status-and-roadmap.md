@@ -80,7 +80,7 @@ Collision Ownership
   ↓
 Manifest
   ↓
-AssetManager
+AssetRegistry / AssetLoader
   ↓
 Rapier
   ↓
@@ -191,7 +191,7 @@ Generation / Agent Build Lab
 - Observatory 可以 import 生产 Runtime/domain；生产代码禁止反向依赖 Observatory。
 - Debug UI 只消费 `PhysicsSystem.debugSnapshot()` / `SpatialSystem.debugSnapshot()` 等正式 observation contract，不穿透 solver-private world。
 - Synthetic geometry 可以自建，但 production Manifest / Schema / Runtime contract 必须直接复用；synthetic hinge 已改为复用真实 cabinet manifest。
-- BVH ownership 归 World/Spatial；AssetManager 不再依赖 prototype patch 的隐式初始化顺序。
+- BVH ownership 归 World/Spatial；AssetLoader 不再依赖 prototype patch 的隐式初始化顺序。
 
 下一阶段顺序：
 
@@ -487,7 +487,7 @@ Execution wrapper 继续 rebuild proposal，因此 proposal-time safe、执行�
 
 ## 24. 1.32 已完成：Generated World Admission
 
-1.32 把原本分散的 Generator / `EmbodiedGenAdapter` / WorldPipeline 真正接成 canonical generated-world chain。`WorldSpec` 在 mutation 前确定 provider、generate intent、instance id、position 与 ON/NEAR relations；`AssetLibrary` 可以消费 raw `provider=embodiedgen` payload，经 Adapter→Schema→AssetManager 注册。Adapter fallback collider / provider semantics 明确 `provisional`，外部 Generator 即使返回 schema-valid Manifest，没有 Compiler-ready evidence 也默认 `UNVERIFIED_GENERATOR_MANIFEST`。Compiler rejected manifest 不注册。
+1.32 把原本分散的 Generator / `EmbodiedGenAdapter` / WorldPipeline 真正接成 canonical generated-world chain。`WorldSpec` 在 mutation 前确定 provider、generate intent、instance id、position 与 ON/NEAR relations；`AssetLibrary` 可以消费 raw `provider=embodiedgen` payload，经 Adapter→Schema→AssetRegistry 注册。Adapter fallback collider / provider semantics 明确 `provisional`，外部 Generator 即使返回 schema-valid Manifest，没有 Compiler-ready evidence 也默认 `UNVERIFIED_GENERATOR_MANIFEST`。Compiler rejected manifest 不注册。
 
 Pipeline 新增 `normalize_spec / asset_admission`；任何 unresolved/rejected asset 会在 instantiate 前 fail closed，因此 mixed plan 不会留下半个世界。Agent tool 不再暴露 stage selection，不能跳过 validation/finalize。最终 `world-ready / world-provisional / world-rejected` 进入 Skill outcome；rejected world restore 调用前 scene。低层 generate/import/spawn 也暴露 asset-level admission，provisional spawn 不再被当成 verified mutation。
 

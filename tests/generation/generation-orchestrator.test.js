@@ -113,7 +113,7 @@ async function harness({remoteStatus="succeeded"}={}) {
     persistArtifact,
     now
   });
-  return {orchestrator,request,assets:assetModule.manager,assetModule,artifacts,artifactHash,persistArtifact};
+  return {orchestrator,request,assets:assetModule.registry,assetModule,artifacts,artifactHash,persistArtifact};
 }
 
 const generationRequest=()=>({
@@ -203,7 +203,7 @@ describe("GenerationOrchestrator",()=>{
     const artifacts=createArtifactModule();
     const assetModule=createAssetModule({manifests:{},compiledStore:compilerStore});
     assetModule.configurePublication({artifacts,getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_composed"});
-    const assets=assetModule.manager;
+    const assets=assetModule.registry;
     const orchestrator=new GenerationOrchestrator({
       providerRegistry:composedProviderRegistry(),connectorClient,
       artifactRegistry:artifacts.registry,byteStore:artifacts.byteStore,publishAsset:assetModule.publishAsset,
