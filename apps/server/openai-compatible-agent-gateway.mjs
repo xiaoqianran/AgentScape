@@ -212,10 +212,18 @@ export function startServer(options = {}) {
   return server;
 }
 
+const normalizeEntryPath = (value, { fileUrl = false } = {}) => {
+  let normalized = fileUrl ? fileURLToPath(value) : String(value);
+  normalized = normalized.replaceAll('\\', '/');
+  if (/^\/[A-Za-z]:\//.test(normalized)) normalized = normalized.slice(1);
+  if (/^[A-Za-z]:\//.test(normalized)) return `${normalized[0].toLowerCase()}${normalized.slice(1)}`;
+  return path.resolve(normalized).replaceAll('\\', '/');
+};
+
 export function isDirectEntry(metaUrl = import.meta.url, argv1 = process.argv[1]) {
   if (!argv1) return false;
   try {
-    return path.resolve(fileURLToPath(metaUrl)) === path.resolve(argv1);
+    return normalizeEntryPath(metaUrl, { fileUrl:true }) === normalizeEntryPath(argv1);
   } catch {
     return false;
   }

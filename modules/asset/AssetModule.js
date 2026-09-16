@@ -1,6 +1,6 @@
 import { AssetCatalog } from './AssetCatalog.js';
 import { AssetManager } from './AssetManager.js';
-import { AssetProductionError, createAssetPublisher } from './pipeline/VerifiedArtifactAssetPipeline.js';
+import { AssetProductionError, createAssetPublisher } from './publication/AssetPublisher.js';
 import { HttpCompilerProvider } from './compiler/providers/HttpCompilerProvider.js';
 import { CompiledAssetStore } from './storage/CompiledAssetStore.js';
 import { AssetManifestStore } from './storage/AssetManifestStore.js';

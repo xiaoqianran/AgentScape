@@ -146,6 +146,7 @@ const assetClients = productJs.filter((file) => {
 });
 assertNoImports("Asset deep-module boundary violation", assetClients, [
   /^modules\/asset\/compiler\//,
+  /^modules\/asset\/publication\//,
   /^modules\/asset\/pipeline\//,
   /^modules\/asset\/storage\//
 ]);
@@ -170,8 +171,11 @@ for (const file of productJs) {
   }
   for (const specifier of imports(file)) {
     const target = resolveImport(file, specifier);
-    if (target === "modules/asset/pipeline/VerifiedArtifactAssetPipeline.js" && name !== "modules/asset/AssetModule.js") {
+    if (target === "modules/asset/publication/AssetPublisher.js" && name !== "modules/asset/AssetModule.js") {
       failures.push(`Asset publication boundary violation: ${name} imports publication internals directly`);
+    }
+    if (target === "modules/asset/pipeline/VerifiedArtifactAssetPipeline.js" && name !== "modules/asset/publication/AssetPublisher.js") {
+      failures.push(`Legacy Asset publication boundary violation: ${name} imports deprecated pipeline internals directly`);
     }
     if (target === "modules/asset/storage/AssetManifestStore.js" && name !== "modules/asset/AssetModule.js") {
       failures.push(`Asset persistence boundary violation: ${name} imports AssetManifestStore outside AssetModule`);
