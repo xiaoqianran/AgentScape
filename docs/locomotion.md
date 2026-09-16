@@ -176,16 +176,16 @@ Kinematic body 不受普通重力直接驱动。
 
 Rapier CharacterController 官方要求调用者自己给 desired movement 加向下分量。
 
-LocomotionSystem 因此维护**每个 active task 的 transient verticalVelocity**：
+LocomotionSystem 因此维护**每个 active task 的 transient `vy`**：
 
 ```text
-verticalVelocity -= 9.81 * dt
+vy -= 9.81 * dt
 ```
 
 如果 CharacterController 报告 grounded：
 
 ```text
-verticalVelocity = -0.5
+vy = -0.5
 ```
 
 保留轻微向下分量，让：
@@ -257,10 +257,12 @@ dx = xw - x
 dz = zw - z
 ```
 
-单帧最大水平位移：
+水平速度先按 `accel` 向 `speed` 收敛，并根据剩余路径距离制动：
 
 ```text
-min(distance, speed * dt)
+v -> speed
+brakeSpeed = sqrt(2 * accel * (remaining - stop))
+step = min(distance, v * dt)
 ```
 
 再叠加 transient gravity displacement。
@@ -273,10 +275,10 @@ min(distance, speed * dt)
 
 Rapier CharacterController 官方只负责 translation，不解决 rotation。
 
-Agent capsule 绕 Y 轴对称，因此 LocomotionSystem 可以安全地把 kinematic body 的 yaw 朝向当前 waypoint：
+Agent capsule 绕 Y 轴对称。空手移动时，LocomotionSystem 用 `turn`（rad/s）限制每帧 yaw 变化；持物时暂时保持直接朝向，以避免手持锚点在中间旋转轨迹中扫入障碍。
 
 ```text
-setNextKinematicRotation(yaw)
+yaw += clamp(targetYaw - yaw, -turn * dt, turn * dt)
 ```
 
 这个旋转不会改变 capsule 的碰撞占用，只让 Three.js visual visor 朝行进方向。
@@ -658,8 +660,174 @@ Pages Console 同时记录：
 
 ```text
 locomotion.started
+locomotion.replanned
 locomotion.arrived
 locomotion.blocked
+```
+
+### Locomotion v1 对接 API
+
+其他 Runtime 模块只通过以下接口接入 Locomotion：
+
+```js
+locomotion.navigate(id, target, options) -> Promise<Result>
+locomotion.status(id)                  -> Status
+locomotion.update(dt)                  -> void
+locomotion.cancel(id, reason?)         -> boolean
+locomotion.cancelAll(reason?)          -> void
+```
+
+#### `navigate(id, target, options)`
+
+```js
+await locomotion.navigate(id, [x, y, z], {
+  speed: 2.2,
+  accel: 8,
+  turn: 8,
+  replans: 1,
+  waypointTolerance: 0.18,
+  stop: 0.18,
+  timeout: 45
+})
+```
+
+默认值：
+
+```js
+{
+  speed: 2.2,
+  accel: 8,
+  turn: 8,
+  replans: 1,
+  waypointTolerance: 0.18,
+  stop: waypointTolerance,
+  timeout: 45
+}
+```
+
+返回结果的稳定状态：
+
+```text
+arrived
+unreachable
+blocked
+cancelled
+```
+
+典型结果：
+
+```js
+{
+  status,
+  id,
+  target,
+  position,
+  time,
+  pathCost,
+  waypointCount,
+  reason?,
+  hits?,
+  carry?
+}
+```
+
+#### `status(id)`
+
+运行中返回：
+
+```js
+{
+  status: 'moving',
+  id,
+  target,
+  step,
+  waypointCount,
+  time,
+  speed,
+  v,
+  stuck,
+  grounded,
+  hits,
+  replanCount
+}
+```
+
+不存在对象返回：
+
+```js
+{ status: 'missing', id }
+```
+
+#### Runtime 驱动
+
+`WorldRuntime` 每个 simulation tick 调用：
+
+```js
+locomotion.update(dt)
+```
+
+`dt <= 0` 不推进状态。
+
+#### 依赖接口
+
+Locomotion 不直接依赖 Recast / Detour 或具体 Physics backend，只依赖语义接口：
+
+```text
+NavigationSystem
+└─ findPath(start, target)
+
+PhysicsSystem
+├─ getPosition(id)
+├─ getRotation(id)
+├─ faceCharacter(id, direction)
+├─ moveCharacter(id, desired, options)
+├─ cancelCharacterMovement(id)
+├─ anchorPose(id, anchor, options)
+├─ checkBodyMotion(id, position, rotation, options)
+└─ setHeldTarget(id, position, rotation)
+```
+
+依赖方向固定为：
+
+```text
+NavigationSystem -> route/path truth
+LocomotionSystem -> path execution/state
+PhysicsSystem    -> local physical movement truth
+```
+
+#### 事件
+
+```text
+locomotion.started
+locomotion.replanned
+locomotion.arrived
+locomotion.blocked
+locomotion.cancelled
+```
+
+#### 失败与替换语义
+
+```text
+新的 navigate(id, ...) 替换同一 Agent 的旧任务
+旧任务 -> cancelled / REPLACED
+
+Navigation 不可达 -> unreachable + Navigation reason
+Physics 无法执行 -> blocked + Physics reason / hits
+超时 -> blocked / LOCOMOTION_TIMEOUT
+显式 cancel -> cancelled
+```
+
+连续无进展时，Locomotion 最多按 `replans` 次数从当前物理位置重新调用 `NavigationSystem.findPath(current, target)`。重规划有界，不会无限循环。所有终止路径都会清理 pending character movement。
+
+Transient task state 只属于执行期，不进入 Scene JSON：
+
+```text
+target / speed / accel / turn / stop
+path / route / step
+v / vy
+time / stuck
+grounded / hits
+replanCount / replanning / replanWait
 ```
 
 ---
@@ -671,7 +839,6 @@ locomotion.blocked
 ```text
 Detour Crowd
 多 Agent avoidance
-自动动态 replan
 off-mesh connection traversal
 jump / climb animation
 root motion
