@@ -4,6 +4,7 @@ export const SCENE_SCHEMA = 'agentscape.scene';
 export const SCENE_VERSION = 1;
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const isFiniteVec = (value, length) => Array.isArray(value) && value.length === length && value.every(Number.isFinite);
 
 export class SceneSerializer {
   serialize(runtime, { name = 'Untitled World' } = {}) {
@@ -71,13 +72,18 @@ export class SceneSerializer {
       const revisionId=worldRevision?.revision?.id || null;
       if (revisionId && acceptanceEvidence.worldRevisionId && acceptanceEvidence.worldRevisionId !== revisionId) throw new Error(`Acceptance evidence revision mismatch: ${acceptanceEvidence.worldRevisionId} != ${revisionId}`);
     }
-    const objectIds = new Set(scene.objects.map((object) => object.id));
-    const heldOwners = new Set();
+    // 先只收集并校验标识，后续 heldBy 引用需要完整的 id 集合。
+    const objectIds = new Set();
     for (const object of scene.objects) {
       if (!object.id || !object.assetId) throw new Error('Scene object requires id and assetId');
-      if (object.transform?.position?.length !== 3) throw new Error(`${object.id}: invalid position`);
-      if (object.transform?.quaternion?.length !== 4) throw new Error(`${object.id}: invalid quaternion`);
-      if (object.transform?.scale?.length !== 3) throw new Error(`${object.id}: invalid scale`);
+      if (objectIds.has(object.id)) throw new Error(`Duplicate scene object id: ${object.id}`);
+      objectIds.add(object.id);
+    }
+    const heldOwners = new Set();
+    for (const object of scene.objects) {
+      if (!isFiniteVec(object.transform?.position, 3)) throw new Error(`${object.id}: invalid position`);
+      if (!isFiniteVec(object.transform?.quaternion, 4)) throw new Error(`${object.id}: invalid quaternion`);
+      if (!isFiniteVec(object.transform?.scale, 3)) throw new Error(`${object.id}: invalid scale`);
       uniformScaleValue(object.transform.scale);
       const heldBy = object.state?.heldBy;
       if (heldBy) {
@@ -105,6 +111,27 @@ export class SceneSerializer {
       if (!runtime.assets.has(item.assetId)) throw new Error(`Scene references unknown asset: ${item.assetId}`);
     }
     if(scene.metadata?.environmentState)runtime.environment?.validateSnapshot?.(scene.metadata.environmentState);
+
+    // 预检已通过，从这里开始才会破坏当前世界。失败时恢复加载前的场景，而不是留下半个世界。
+    const previous = typeof runtime.snapshot === 'function' ? runtime.snapshot() : null;
+    if (!previous) return this.applyScene(runtime, scene);
+    try {
+      return await this.applyScene(runtime, scene);
+    } catch (error) {
+      try {
+        await this.applyScene(runtime, previous);
+      } catch (rollbackError) {
+        const failure = new AggregateError([error, rollbackError], 'Scene restore rollback failed', { cause:error });
+        failure.code = 'SCENE_RESTORE_ROLLBACK_FAILED';
+        failure.rollbackError = rollbackError;
+        throw failure;
+      }
+      throw error;
+    }
+  }
+
+  // 破坏性应用。调用方必须保证 scene 已经 validate 并通过全部预检。
+  async applyScene(runtime, scene) {
     runtime.affordances?.cancel('SCENE_RESTORE');
 
     if (typeof runtime.physics?.resetWorld === 'function') {

@@ -166,3 +166,40 @@ it('rejects acceptance evidence attached to a different world revision before mu
   await expect(serializer.restore(runtime,scene)).rejects.toThrow(/revision mismatch/i);
   expect(runtime.clearObjects).not.toHaveBeenCalled();
 });
+
+it('rejects non-finite transforms and duplicate object ids before world mutation', () => {
+  const serializer=new SceneSerializer();
+  const ok={position:[0,0,0],quaternion:[0,0,0,1],scale:[1,1,1]};
+  const scene=(objects)=>({schema:'agentscape.scene',schemaVersion:1,assets:[],relations:[],objects});
+  const entry=(transform)=>({id:'cup_01',assetId:'cup',state:{},transform});
+
+  expect(()=>serializer.validate(scene([entry({...ok,position:['bad',0,0]})]))).toThrow(/invalid position/);
+  expect(()=>serializer.validate(scene([entry({...ok,position:[0,Number.NaN,0]})]))).toThrow(/invalid position/);
+  expect(()=>serializer.validate(scene([entry({...ok,quaternion:[0,0,0,1,2]})]))).toThrow(/invalid quaternion/);
+  expect(()=>serializer.validate(scene([entry(ok),entry(ok)]))).toThrow(/Duplicate scene object id/);
+});
+
+it('restores the previous world when applying a loaded scene fails midway', async () => {
+  const serializer=new SceneSerializer();
+  const runtime={
+    environment:null,
+    assets:{assertCompatibleManifest:vi.fn(),has:vi.fn(()=>true)},
+    snapshot:vi.fn(()=>({schema:'agentscape.scene',schemaVersion:1,assets:[],objects:[],relations:[]})),
+    clearObjects:vi.fn(),
+    spawn:vi.fn(async()=>{throw new Error('spawn failed');}),
+    store:{get:vi.fn(()=>({object:new THREE.Group(),state:{}}))},
+    sceneGraph:{batch:vi.fn(async(operation)=>operation()),changed:vi.fn()},
+    restoreObjectState:vi.fn(),
+    navigation:{invalidate:vi.fn()},
+    events:{emit:vi.fn()}
+  };
+  const scene={schema:'agentscape.scene',schemaVersion:1,assets:[],relations:[],objects:[
+    {id:'cup_01',assetId:'cup',state:{},transform:{position:[0,0,0],quaternion:[0,0,0,1],scale:[1,1,1]}}
+  ]};
+
+  await expect(serializer.restore(runtime,scene)).rejects.toThrow('spawn failed');
+
+  // 一次失败的应用 + 一次回滚应用，证明加载前的世界被重新应用过。
+  expect(runtime.clearObjects).toHaveBeenCalledTimes(2);
+  expect(runtime.spawn).toHaveBeenCalledTimes(1);
+});

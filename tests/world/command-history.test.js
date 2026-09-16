@@ -30,4 +30,28 @@ describe('CommandHistory', () => {
     history.begin('b', { v: 0 }); history.commit({ v: 2 });
     expect(history.canRedo()).toBe(false);
   });
+
+  it('keeps the command when applying an undo fails', async () => {
+    const history = new CommandHistory({ apply: async () => { throw new Error('restore failed'); } });
+    history.begin('move', { value: 1 });
+    history.commit({ value: 2 });
+    expect(history.status()).toMatchObject({ undo: 1, redo: 0 });
+
+    await expect(history.undo()).rejects.toThrow('restore failed');
+
+    expect(history.status()).toMatchObject({ undo: 1, redo: 0 });
+  });
+
+  it('refuses to re-enter while a restore is still applying', async () => {
+    let release = null;
+    const history = new CommandHistory({ apply: () => new Promise((resolve) => { release = resolve; }) });
+    history.begin('move', { value: 1 });
+    history.commit({ value: 2 });
+
+    const pending = history.undo();
+    expect(await history.undo()).toBe(false);
+    release();
+    await expect(pending).resolves.toMatchObject({ label: 'move' });
+    expect(history.status()).toMatchObject({ undo: 0, redo: 1 });
+  });
 });

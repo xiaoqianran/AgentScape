@@ -7,6 +7,7 @@ export class CommandHistory {
     this.redoStack = [];
     this.pending = null;
     this.suspended = false;
+    this.applying = false;
   }
 
   begin(label, before) {
@@ -33,27 +34,30 @@ export class CommandHistory {
   canRedo() { return this.redoStack.length > 0; }
   status() { return { undo: this.undoStack.length, redo: this.redoStack.length, canUndo: this.canUndo(), canRedo: this.canRedo() }; }
 
-  async undo() {
-    if (!this.canUndo()) return false;
-    const command = this.undoStack.pop();
-    this.suspended = true;
-    try { await this.apply(command.before); }
-    finally { this.suspended = false; }
-    this.redoStack.push(command);
-    this.events?.emit('history.changed', this.status());
-    this.events?.emit('history.applied', { direction: 'undo', label: command.label });
-    return command;
-  }
+  async undo() { return this.step('undo'); }
+  async redo() { return this.step('redo'); }
 
-  async redo() {
-    if (!this.canRedo()) return false;
-    const command = this.redoStack.pop();
+  // 恢复成功后才转移历史栈：apply 抛错时命令留在原栈，历史记录不会丢失。
+  // applying 同时阻止重入，避免 UI 连点让两次恢复交错执行。
+  async step(direction) {
+    if (this.applying) return false;
+    const undoing = direction === 'undo';
+    const from = undoing ? this.undoStack : this.redoStack;
+    const to = undoing ? this.redoStack : this.undoStack;
+    if (!from.length) return false;
+    const command = from[from.length - 1];
+    this.applying = true;
     this.suspended = true;
-    try { await this.apply(command.after); }
-    finally { this.suspended = false; }
-    this.undoStack.push(command);
+    try {
+      await this.apply(undoing ? command.before : command.after);
+    } finally {
+      this.suspended = false;
+      this.applying = false;
+    }
+    from.pop();
+    to.push(command);
     this.events?.emit('history.changed', this.status());
-    this.events?.emit('history.applied', { direction: 'redo', label: command.label });
+    this.events?.emit('history.applied', { direction, label: command.label });
     return command;
   }
 
