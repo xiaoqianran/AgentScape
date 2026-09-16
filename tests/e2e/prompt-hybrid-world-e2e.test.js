@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { createArtifactModule } from '../../modules/artifact/ArtifactModule.js';
-import { loadGeneratedWorld } from '../../modules/world/loadGeneratedWorld.js';
+import { loadGeneratedWorld } from '../../modules/world/generated/GeneratedWorldLoader.js';
 import { PromptHybridWorldOrchestrator } from '../../application/generation/PromptHybridWorldOrchestrator.js';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 import { SceneGraph } from '../../modules/world/runtime/graph/SceneGraph.js';

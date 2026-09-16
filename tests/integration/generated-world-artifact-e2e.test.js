@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ArtifactRegistry } from '../../modules/artifact/ArtifactRegistry.js';
 import { MemoryArtifactByteStore } from '../../modules/artifact/MemoryArtifactByteStore.js';
 import { GenerationOrchestrator } from '../../application/generation/GenerationOrchestrator.js';
-import { loadGeneratedWorld } from '../../modules/world/loadGeneratedWorld.js';
+import { loadGeneratedWorld } from '../../modules/world/generated/GeneratedWorldLoader.js';
 
 const sha=(bytes)=>`sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 const text=(value)=>new TextEncoder().encode(value);

@@ -12,7 +12,7 @@ import { AutosaveController } from './persistence/AutosaveController.js';
 import { EditorController } from './editor/EditorController.js';
 import { AssetPlacementController } from './editor/AssetPlacementController.js';
 import { ENVIRONMENTS, resolveEnvironment } from '../../modules/world/content/environments.js';
-import { loadGeneratedWorld, loadGeneratedWorldManifest } from '../../modules/world/loadGeneratedWorld.js';
+import { loadGeneratedWorld, loadGeneratedWorldManifest } from '../../modules/world/generated/GeneratedWorldLoader.js';
 import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
 import { createAppShell } from './ui/AppShell.js';
 import { mountWorldContext } from './ui/WorldContext.js';

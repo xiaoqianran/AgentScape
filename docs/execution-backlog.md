@@ -64,7 +64,7 @@
 | Agent | ToolCalling loop、mutation barrier、fresh replan、recovery ledger、proposal gates | `modules/agent/*` | 需要继续缩小 model 自由度并增强任务级评测 |
 | Studio | 编辑、图片工作台、生成、资产、场景、任务、运行、debug、持久化 | `apps/studio/*` | 正在成为唯一产品工作台；新 Image→3D 流程仍处开发态 |
 | Observatory | 资源/Gaussian + 旧 physics/spatial/nav/interaction/generation/agent labs | `apps/observatory/*` | 多个 Lab 已标 Deprecated；只保留诊断价值，不继续承载产品功能 |
-| Generated World | PLY/GLB mesh、SPZ visual、semantics、navigation artifact → Environment | `modules/world/loadGeneratedWorld.js` | 3DGS/SPZ 只负责视觉；可走物理仍依赖 mesh/collider/nav |
+| Generated World | PLY/GLB mesh、SPZ visual、semantics、navigation artifact → Environment | `modules/world/generated/GeneratedWorldLoader.js` | 3DGS/SPZ 只负责视觉；可走物理仍依赖 mesh/collider/nav |
 | Content | Monument Hall / Ruined Courtyard / Grand Urban Block | `modules/world/content/*` | fixture 可继续向旗舰交互闭环服务 |
 | Asset Compiler Service | URL/verified upload、CoACD、per-part geometry、URDF proposal | `services/asset-compiler/*` | URL 路径应继续收缩；优先 verified bytes |
 | Python SDK | Connector capability/session/jobs/artifacts/CLI/Text→3D | `sdk/python/agentscape/*` | 与浏览器 JS contract 必须做 parity |
@@ -1326,7 +1326,7 @@
 
 | ID | P | Size | State | Kind | 最小任务 | Location | Depends | DoD | Owner | Evidence |
 |---|---|---:|---|---|---|---|---|---|---|---|
-| GWR-001 | P1 | XS | READY | test | PLY mesh 解析后 geometry index/position 有效 | `modules/world/loadGeneratedWorld.js` | — | 可生成 trimesh collider | — | — |
+| GWR-001 | P1 | XS | READY | test | PLY mesh 解析后 geometry index/position 有效 | `modules/world/generated/GeneratedWorldLoader.js` | — | 可生成 trimesh collider | — | — |
 | GWR-002 | P1 | XS | READY | test | GLB mesh 解析后至少一个 triangle mesh | same | — | 空 GLB fail | — | — |
 | GWR-003 | P1 | XS | READY | test | unsupported mesh extension fail-closed | same | — | 明确错误 | — | — |
 | GWR-004 | P1 | XS | READY | test | `geometryToTrimeshCollider` 非 indexed geometry 正确生成 indices | same | — | triangle count正确 | — | — |

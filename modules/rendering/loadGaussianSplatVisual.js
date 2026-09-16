@@ -1,5 +1,5 @@
 import { disposeObject3D } from './disposeObject3D.js';
-import { applyGeneratedWorldObjectTransform } from '../world/generated/generatedWorldCoordinates.js';
+import { applyGeneratedWorldObjectTransform } from '../world/generated/GeneratedWorldCoordinates.js';
 
 const asArrayBuffer=(bytes)=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
 export const DEFAULT_RUNTIME_SPLAT_BUDGET=500_000;

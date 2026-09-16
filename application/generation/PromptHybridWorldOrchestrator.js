@@ -1,4 +1,4 @@
-import { loadGeneratedWorld } from '../../modules/world/loadGeneratedWorld.js';
+import { loadGeneratedWorld } from '../../modules/world/generated/GeneratedWorldLoader.js';
 import { WorldBuilder } from '../../modules/world/build/WorldBuilder.js';
 import { buildWorldProposal } from '../../modules/world/spec/WorldPlannerProposal.js';
 import { WORLD_PLANNER_PROPOSAL_SCHEMA } from '../../modules/world/spec/WorldIRToolSchema.js';

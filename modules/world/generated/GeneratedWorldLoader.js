@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { applyGeneratedWorldGeometryTransform, transformGeneratedWorldBounds, transformGeneratedWorldPoint, validateGeneratedWorldCoordinates } from './generated/generatedWorldCoordinates.js';
+import { applyGeneratedWorldGeometryTransform, transformGeneratedWorldBounds, transformGeneratedWorldPoint, validateGeneratedWorldCoordinates } from './GeneratedWorldCoordinates.js';
 
 const SUPPORTED_MESH_FORMATS = new Set(['glb', 'ply']);
 
