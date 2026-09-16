@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { Errors } from '../../errors.js';
-import { compileInteractionContract, getInteractionContract } from '../interaction/InteractionContract.js';
+import { compileInteractionContract } from '../interaction/InteractionContract.js';
+import { ArticulationRuntime } from '../interaction/ArticulationRuntime.js';
+import { SettleRuntime } from '../interaction/SettleRuntime.js';
+import { InteractionApproach } from '../interaction/InteractionApproach.js';
+import { CarryRuntime } from '../interaction/CarryRuntime.js';
+import { RecoveryRuntime } from '../interaction/RecoveryRuntime.js';
 import { DEFAULT_WAYPOINT_TOLERANCE } from './LocomotionSystem.js';
 
 export const DEFAULT_INTERACTION_DISTANCE = 1.5;
-const ACTION_INTERACTION_CORRECTION_TOLERANCE = 0.05;
-
 export class InteractionSystem {
   constructor({ store, physics, spatial, navigation = null, locomotion = null, events }) {
     this.store = store;
@@ -14,30 +17,31 @@ export class InteractionSystem {
     this.navigation = navigation;
     this.locomotion = locomotion;
     this.events = events;
-    this.humanHeldId = null;
-    this.agentHeld = new Map();
-    this.recoveryHeld = new Map();
-    this.settleTasks = new Map();
-    this.articulationTasks = new Map();
-    this.articulationResults = new Map();
-    this.humanViewPosition = new THREE.Vector3();
-    this.humanViewRotation = new THREE.Quaternion();
-    this.humanViewValid = false;
-    this.humanHeldTarget = new THREE.Vector3();
+    this.carry = new CarryRuntime({ store, physics, spatial, events, assertSupports:(...args)=>this.assertSupports(...args) });
+    this.articulationRuntime = new ArticulationRuntime({ store, physics, events, assertSupports:(...args)=>this.assertSupports(...args) });
+    this.articulationTasks = this.articulationRuntime.tasks;
+    this.articulationResults = this.articulationRuntime.results;
+    this.settleRuntime = new SettleRuntime({ store, physics, spatial, events, carry:this.carry, articulation:this.articulationRuntime });
+    this.settleTasks = this.settleRuntime.tasks;
+    this.approach = new InteractionApproach({
+      store, physics, spatial, navigation, locomotion,
+      actionSweepBounds: (...args) => this.actionSweepBounds(...args)
+    });
+    this.recovery = new RecoveryRuntime({
+      store, physics, spatial, navigation, locomotion,
+      approach:this.approach, carry:this.carry, articulation:this.articulationRuntime,
+      interactionDistance:DEFAULT_INTERACTION_DISTANCE,
+      waypointTolerance:DEFAULT_WAYPOINT_TOLERANCE
+    });
   }
 
-  get heldId() { return this.humanHeldId; }
+  get heldId() { return this.carry.humanHeldId; }
+  get humanHeldId() { return this.carry.humanHeldId; }
+  set humanHeldId(value) { this.carry.humanHeldId = value; }
+  get agentHeld() { return this.carry.agentHeld; }
+  get recoveryHeld() { return this.recovery.held; }
 
-  setHumanViewPose(viewPose = null) {
-    if (viewPose?.position?.length === 3 && viewPose?.rotation?.length === 4) {
-      this.humanViewPosition.fromArray(viewPose.position);
-      this.humanViewRotation.fromArray(viewPose.rotation).normalize();
-      this.humanViewValid = true;
-      return true;
-    }
-    this.humanViewValid = false;
-    return false;
-  }
+  setHumanViewPose(...args) { return this.carry.setHumanViewPose(...args); }
 
   debugSnapshot({ actorId = null, targetId = null, maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
     let reach = null;
@@ -49,8 +53,8 @@ export class InteractionSystem {
       schemaVersion: 1,
       source: "interaction",
       held: {
-        human: this.humanHeldId,
-        agents: [...this.agentHeld.entries()].map(([actor, object]) => ({ actorId: actor, objectId: object })),
+        human: this.carry.humanHeldId,
+        agents: [...this.carry.agentHeld.entries()].map(([actor, object]) => ({ actorId: actor, objectId: object })),
         recovery: [...this.recoveryHeld.entries()].map(([actor, value]) => ({ actorId: actor, ...structuredClone(value) }))
       },
       pending: {
@@ -72,134 +76,46 @@ export class InteractionSystem {
     };
   }
 
-  isHeld(id) { return Boolean(this.store.has(id) && this.store.get(id).state?.heldBy); }
+  isHeld(...args) { return this.carry.isHeld(...args); }
 
-  heldByAgent(actorId) { return this.agentHeld.get(actorId) || null; }
+  heldByAgent(...args) { return this.carry.heldByAgent(...args); }
 
-  markRecoveryHeld(actorId, { blockerId, targetId, partName, action }) {
-    if (this.heldByAgent(actorId)!==blockerId) return false;
-    this.recoveryHeld.set(actorId,{blockerId,targetId,partName:partName || null,action:action || null});
-    return true;
+  syncRecoveryRuntime() {
+    this.recovery.physics = this.physics;
+    this.recovery.spatial = this.spatial;
+    this.recovery.navigation = this.navigation;
+    this.recovery.locomotion = this.locomotion;
+    this.recovery.carry = {
+      heldByAgent:(...args)=>this.heldByAgent(...args),
+      holdAnchor:(...args)=>this.holdAnchor(...args),
+      carryStandOff:(...args)=>this.carryStandOff(...args),
+      holdPoseAt:(...args)=>this.holdPoseAt(...args)
+    };
+    this.recovery.approach = {
+      actorMetrics:(...args)=>this.actorMetrics(...args),
+      actorBoxAt:(...args)=>this.actorBoxAt(...args)
+    };
+    this.recovery.articulation = { actionSweepBounds:(...args)=>this.actionSweepBounds(...args) };
+    this.recovery.getProvenance = (...args)=>this.recoveryHeldStatus(...args);
   }
 
-  recoveryHeldStatus(actorId) {
-    const value=this.recoveryHeld.get(actorId);
-    return value ? structuredClone(value) : null;
-  }
+  markRecoveryHeld(...args) { this.syncRecoveryRuntime(); return this.recovery.markHeld(...args); }
 
-  holdAnchor(actorId) {
-    const record = this.store.get(actorId);
-    if (record.manifest.type !== 'agent') throw Errors.carryUnavailable(actorId, actorId, 'ACTOR_NOT_AGENT');
-    const anchor = record.manifest.embodiment?.holdAnchor;
-    if (!anchor?.translation) throw Errors.carryUnavailable(actorId, actorId, 'HOLD_ANCHOR_UNAVAILABLE');
-    return anchor;
-  }
+  recoveryHeldStatus(...args) { return this.recovery.status(...args); }
 
-  carryStandOff(actorId, heldId) {
-    const anchor = this.holdAnchor(actorId);
-    const colliders = this.store.get(heldId).manifest.physics?.colliders || [];
-    const radius = Math.max(0, ...colliders.map((collider) => Number(collider.radius) || 0));
-    return Math.hypot(anchor.translation[0], anchor.translation[2]) + radius;
-  }
+  holdAnchor(...args) { return this.carry.holdAnchor(...args); }
 
-  holdPoseAt(actorPosition, yaw, anchor) {
-    const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),yaw);
-    const position = new THREE.Vector3(...actorPosition).add(new THREE.Vector3(...anchor.translation).applyQuaternion(rotation));
-    const localRotation = new THREE.Quaternion(...(anchor.rotation || [0,0,0,1]));
-    return { position:position.toArray(), rotation:rotation.multiply(localRotation).normalize().toArray() };
-  }
+  carryStandOff(actorId, heldId) { return this.carry.carryStandOff(actorId, heldId, this.holdAnchor(actorId)); }
 
-  reorientHeldToward(actorId, heldId, point, { maxStep = Math.PI / 12 } = {}) {
-    const actorPosition = this.physics.getPosition(actorId);
-    const actorRotation = this.physics.getRotation(actorId);
-    const heldPosition = this.physics.getPosition(heldId);
-    const heldRotation = this.physics.getRotation(heldId);
-    if (!actorPosition || !actorRotation || !heldPosition || !heldRotation) return { clear:false, reason:'POSE_UNAVAILABLE' };
-    const dx = point[0]-actorPosition[0], dz = point[2]-actorPosition[2];
-    if (Math.hypot(dx,dz) < 1e-8) return { clear:true, steps:0, yaw:null };
-    const current = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(...actorRotation),'YXZ').y;
-    const target = Math.atan2(-dx,-dz);
-    const delta = Math.atan2(Math.sin(target-current),Math.cos(target-current));
-    const steps = Math.max(1,Math.ceil(Math.abs(delta)/maxStep));
-    const anchor = this.holdAnchor(actorId);
-    const checks = [];
-    for(let i=1;i<=steps;i++) {
-      const yaw = current + delta*(i/steps);
-      const pose = this.holdPoseAt(actorPosition,yaw,anchor);
-      const check = this.physics.checkBodyMotion(heldId,pose.position,pose.rotation,{excludeIds:[actorId]});
-      checks.push({yaw,clear:check.clear,...(!check.clear?{code:check.code,blockedBy:check.blockedBy || []}:{})});
-      if(!check.clear) {
-        this.physics.setCharacterYaw(actorId,current);
-        this.physics.setHeldPose(heldId,heldPosition,heldRotation);
-        return { clear:false, reason:'CARRY_REORIENT_BLOCKED', step:i, steps, checks };
-      }
-      this.physics.setCharacterYaw(actorId,yaw);
-      this.physics.setHeldPose(heldId,pose.position,pose.rotation);
-    }
-    return { clear:true, steps, yaw:target, checks };
-  }
+  holdPoseAt(...args) { return this.carry.holdPoseAt(...args); }
 
-  assertAgentCarryable(actorId, targetId) {
-    this.holdAnchor(actorId);
-    const target = this.assertSupports(targetId, 'pickup');
-    if (!target.manifest.actions.includes('drop')) throw Errors.carryUnavailable(actorId, targetId, 'DROP_UNSUPPORTED');
-    if (target.manifest.physics?.body !== 'dynamic') throw Errors.carryUnavailable(actorId, targetId, 'TARGET_NOT_DYNAMIC');
-    if (Object.keys(target.manifest.parts || {}).length) throw Errors.carryUnavailable(actorId, targetId, 'ARTICULATED_TARGET_UNSUPPORTED');
-    const colliders = target.manifest.physics?.colliders || [];
-    if (!colliders.length || colliders.some((collider) => !['cylinder','capsule'].includes(collider.shape))) {
-      throw Errors.carryUnavailable(actorId, targetId, 'CARRY_COLLIDER_UNSUPPORTED');
-    }
-    const anchorRotation = target.id && (this.store.get(actorId).manifest.embodiment?.holdAnchor?.rotation || [0,0,0,1]);
-    if (Math.abs(anchorRotation[0]) > 1e-6 || Math.abs(anchorRotation[2]) > 1e-6) throw Errors.carryUnavailable(actorId,targetId,'HOLD_ANCHOR_ROTATION_UNSUPPORTED');
-    if (colliders.some((collider) => collider.rotation && (Math.abs(collider.rotation[0]) > 1e-6 || Math.abs(collider.rotation[2]) > 1e-6))) {
-      throw Errors.carryUnavailable(actorId,targetId,'CARRY_COLLIDER_ROTATION_UNSUPPORTED');
-    }
-    const existing = target.state?.heldBy;
-    if (existing && !(existing.kind === 'agent' && existing.id === actorId)) throw Errors.carryUnavailable(actorId, targetId, 'OBJECT_ALREADY_HELD', { heldBy:existing });
-    const held = this.heldByAgent(actorId);
-    if (held && held !== targetId) throw Errors.carryUnavailable(actorId, targetId, 'HANDS_FULL', { heldId:held });
-    return target;
-  }
+  reorientHeldToward(...args) { return this.carry.reorientHeldToward(...args); }
 
-  releaseHeld(id, reason = null, {silent=false} = {}) {
-    if (!this.store.has(id)) return false;
-    const record = this.store.get(id);
-    const heldBy = record.state?.heldBy;
-    if (!heldBy) return false;
-    if (heldBy.kind === 'human' && this.humanHeldId === id) this.humanHeldId = null;
-    if (heldBy.kind === 'agent' && this.agentHeld.get(heldBy.id) === id) {
-      this.agentHeld.delete(heldBy.id);
-      this.recoveryHeld.delete(heldBy.id);
-    }
-    delete record.state.heldBy;
-    this.physics.setHeld(id, false);
-    if(!silent) this.events.emit('interaction', { action:'drop', id, heldBy, ...(reason ? {reason} : {}) });
-    return true;
-  }
+  assertAgentCarryable(...args) { return this.carry.assertAgentCarryable(...args); }
 
-  rebuildHeldOwnership() {
-    this.humanHeldId = null;
-    this.agentHeld.clear();
-    this.recoveryHeld.clear();
-    for (const [id, record] of this.store.list()) {
-      const heldBy = record.state?.heldBy;
-      if (!heldBy) continue;
-      if (heldBy.kind === 'human') {
-        if (this.humanHeldId) throw new Error('Scene contains multiple human-held objects');
-        this.humanHeldId = id;
-        this.physics.setHeld(id, true);
-        continue;
-      }
-      if (heldBy.kind !== 'agent' || !heldBy.id || !this.store.has(heldBy.id)) throw new Error(`${id}: invalid heldBy state`);
-      if (this.agentHeld.has(heldBy.id)) throw new Error(`${heldBy.id}: multiple held objects are not supported`);
-      this.assertAgentCarryable(heldBy.id, id);
-      this.agentHeld.set(heldBy.id, id);
-      this.physics.setHeld(id, true);
-      const pose = this.physics.anchorPose(heldBy.id, this.holdAnchor(heldBy.id));
-      if (!pose) throw new Error(`${id}: hold anchor pose unavailable`);
-      this.physics.setHeldPose(id, pose.position, pose.rotation);
-    }
-  }
+  releaseHeld(id, reason = null, options = {}) { const result=this.carry.releaseHeld(id,reason,options); if(result.released && result.heldBy?.kind==='agent') this.recoveryHeld.delete(result.heldBy.id); return result.released; }
+
+  rebuildHeldOwnership() { this.recoveryHeld.clear(); return this.carry.rebuildHeldOwnership(); }
 
   beforeRemove(id,{silent=false}={}) {
     for (const [actorId,recovery] of [...this.recoveryHeld]) if (actorId===id || recovery.blockerId===id || recovery.targetId===id) this.recoveryHeld.delete(actorId);
@@ -215,7 +131,7 @@ export class InteractionSystem {
           : {status:'place-unverified',reason:'OBJECT_REMOVED',supportVerified:false,settled:false,elapsed:Number(settle.elapsed.toFixed(3))});
     }
     if (this.store.has(id) && this.store.get(id).state?.heldBy) this.releaseHeld(id, 'OBJECT_REMOVED',{silent});
-    const carried = this.agentHeld.get(id);
+    const carried = this.carry.agentHeld.get(id);
     if (carried && this.store.has(carried)) this.releaseHeld(carried, 'OWNER_REMOVED',{silent});
   }
 
@@ -251,19 +167,15 @@ export class InteractionSystem {
   pickup(id,{silent=false}={}) {
     const record = this.assertSupports(id, 'pickup');
     if (record.state?.heldBy?.kind === 'agent') throw Errors.carryUnavailable('human', id, 'OBJECT_ALREADY_HELD', { heldBy:record.state.heldBy });
-    if (this.humanHeldId && this.humanHeldId !== id) this.drop(this.humanHeldId,{silent});
+    if (this.carry.humanHeldId && this.carry.humanHeldId !== id) this.drop(this.carry.humanHeldId,{silent});
     record.state.heldBy = { kind:'human' };
-    this.humanHeldId = id;
+    this.carry.humanHeldId = id;
     this.physics.setHeld(id, true);
     if(!silent) this.events.emit('interaction', { action:'pickup', id, heldBy:{kind:'human'} });
     return { status:'held', id, heldBy:{kind:'human'} };
   }
 
-  drop(id = this.humanHeldId,{silent=false}={}) {
-    if (!id) return false;
-    this.assertSupports(id, 'drop');
-    return this.releaseHeld(id,null,{silent});
-  }
+  drop(id = this.carry.humanHeldId,{silent=false}={}) { if (!id) return false; this.assertSupports(id, 'drop'); return this.releaseHeld(id,null,{silent}); }
 
   place(id, targetId, options = {}) {
     const {silent=false,...placementOptions}=options;
@@ -304,151 +216,21 @@ export class InteractionSystem {
     };
   }
 
-  actorBoxAt(actorId, position) {
-    const record = this.store.get(actorId);
-    const collider = record.manifest.physics?.colliders?.find((value) => value.shape === 'capsule');
-    if (collider) {
-      const center = new THREE.Vector3(...position).add(new THREE.Vector3(...(collider.translation || [0,0,0])));
-      const half = new THREE.Vector3(collider.radius, collider.halfHeight + collider.radius, collider.radius);
-      return new THREE.Box3(center.clone().sub(half), center.clone().add(half));
-    }
-    const current = this.physics.getPosition(actorId);
-    if (!current) return null;
-    const bounds = this.spatial.getBounds(actorId);
-    const center = new THREE.Vector3(...bounds.center).sub(new THREE.Vector3(...current)).add(new THREE.Vector3(...position));
-    const half = new THREE.Vector3(...bounds.size).multiplyScalar(.5);
-    return new THREE.Box3(center.clone().sub(half), center.clone().add(half));
-  }
+  actorBoxAt(...args) { return this.approach.actorBoxAt(...args); }
 
-  actionSweepBounds(targetId, action, partName = null, samples = 9) {
-    const record = this.store.get(targetId);
-    const [name, part] = this.findPartForAction(record, action, partName);
-    const node = record.object.getObjectByName(part.node);
-    const rest = this.physics.getPartRestPose(targetId, name);
-    if (!node || !node.parent || !rest) return { checked:false, reason:'PART_REST_POSE_UNAVAILABLE', partName:name };
-    if (part.joint.type === 'revolute' && Math.hypot(...(part.joint.childAnchor || [0,0,0])) > 1e-5) {
-      return { checked:false, reason:'REVOLUTE_CHILD_ANCHOR_UNSUPPORTED', partName:name };
-    }
+  actionSweepBounds(...args) { return this.articulationRuntime.actionSweepBounds(...args); }
 
-    const target = part.targets[action];
-    const live = this.physics.getArticulationState(targetId,name,{target});
-    if (!live) return { checked:false, reason:'JOINT_COORDINATE_UNAVAILABLE', partName:name };
-    const axis = new THREE.Vector3(...live.localAxis);
-    const currentCoordinate = live.coordinate;
-    const restPosition = new THREE.Vector3(...rest.position);
-    const restRotation = new THREE.Quaternion(...rest.rotation);
+  actorMetrics(...args) { return this.approach.actorMetrics(...args); }
 
-    const originalPosition = node.position.clone();
-    const originalRotation = node.quaternion.clone();
-    const swept = new THREE.Box3();
-    try {
-      for (let i = 0; i < samples; i++) {
-        const alpha = samples === 1 ? 1 : i / (samples - 1);
-        const coordinate = currentCoordinate + (target - currentCoordinate) * alpha;
-        if (part.joint.type === 'prismatic') {
-          node.position.copy(restPosition).addScaledVector(axis, coordinate);
-          node.quaternion.copy(restRotation);
-        } else {
-          node.position.copy(restPosition);
-          node.quaternion.setFromAxisAngle(axis, coordinate).multiply(restRotation);
-        }
-        node.updateMatrixWorld(true);
-        swept.union(new THREE.Box3().setFromObject(node));
-      }
-    } finally {
-      node.position.copy(originalPosition);
-      node.quaternion.copy(originalRotation);
-      node.updateMatrixWorld(true);
-    }
-    if (swept.isEmpty()) return { checked:false, reason:'PART_SWEEP_EMPTY', partName:name };
-    swept.expandByScalar(.02);
-    return {
-      checked:true,
-      partName:name,
-      action,
-      currentCoordinate,
-      target,
-      bounds:{ min:swept.min.toArray(), max:swept.max.toArray() },
-      box:swept
-    };
-  }
+  interactionStatusAt(...args) { return this.approach.interactionStatusAt(...args); }
 
-  actorMetrics(actorId) {
-    const record = this.store.get(actorId);
-    if (record.manifest.type !== 'agent') throw Errors.interactionUnavailable(actorId, actorId, 'ACTOR_NOT_AGENT');
-    const bounds = this.spatial.getBounds(actorId);
-    const capsule = record.manifest.physics?.colliders?.find((collider) => collider.shape === 'capsule');
-    return {
-      radius:capsule?.radius ?? Math.max(0.2, Math.min(bounds.size[0], bounds.size[2]) / 2),
-      eyeHeight:Math.max(0.9, bounds.size[1] * 0.82)
-    };
-  }
+  interactionStatus(...args) { return this.approach.interactionStatus(...args); }
 
-  interactionStatusAt(actorId, targetId, position, { maxDistance = DEFAULT_INTERACTION_DISTANCE, ignoreIds = [], aimPoint = null, allowClearEndpoint = false } = {}) {
-    const metrics = this.actorMetrics(actorId);
-    const bounds = this.spatial.getBounds(targetId);
-    const dx = Math.max(bounds.min[0] - position[0], 0, position[0] - bounds.max[0]);
-    const dz = Math.max(bounds.min[2] - position[2], 0, position[2] - bounds.max[2]);
-    const distance = Math.hypot(dx, dz);
-    const eye = [position[0], position[1] + metrics.eyeHeight, position[2]];
-    const aim = aimPoint ? [...aimPoint] : [...bounds.center];
-    const hit = this.physics.raycast(eye, aim, { excludeId:actorId, excludeIds:ignoreIds });
-    const visible = hit?.id === targetId || (allowClearEndpoint && !hit);
-    return {
-      actorId,
-      targetId,
-      position:[...position],
-      distance:Number(distance.toFixed(3)),
-      maxDistance,
-      inRange:distance <= maxDistance,
-      visible,
-      interactable:distance <= maxDistance && visible,
-      lineOfSight:{ eye, aim, hit:hit ? { id:hit.id, part:hit.part, environment:hit.environment, distance:Number(hit.distance.toFixed(3)) } : null }
-    };
-  }
+  async findInteractionPose(...args) { this.approach.navigation = this.navigation; this.approach.locomotion = this.locomotion; return this.approach.findInteractionPose(...args); }
 
-  interactionStatus(actorId, targetId, options = {}) {
-    const position = this.physics.getPosition(actorId);
-    if (!position) throw Errors.interactionUnavailable(actorId, targetId, 'ACTOR_PHYSICS_UNAVAILABLE');
-    return this.interactionStatusAt(actorId, targetId, position, options);
-  }
+  async navigateToPose(...args) { this.approach.locomotion = this.locomotion; return this.approach.navigateToPose(...args); }
 
-  async findInteractionPose(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE, clearance = 0.12, action = null, partName = null, ignoreIds = [], standOff = 0, stanceBounds = null, candidateFilter = null, aimPoint = null, allowClearEndpoint = false } = {}) {
-    if (!this.navigation) throw Errors.interactionUnavailable(actorId, targetId, 'NAVIGATION_UNAVAILABLE');
-    const current = this.physics.getPosition(actorId);
-    if (!current) throw Errors.interactionUnavailable(actorId, targetId, 'ACTOR_PHYSICS_UNAVAILABLE');
-    const sweep = action ? this.actionSweepBounds(targetId, action, partName) : null;
-    if (action && !sweep.checked) throw Errors.interactionUnavailable(actorId, targetId, 'ACTION_SWEEP_UNAVAILABLE', { sweep:{ checked:false, reason:sweep.reason, partName:sweep.partName } });
-    const clearOfSweep = (position) => !sweep || !sweep.box.intersectsBox(this.actorBoxAt(actorId, position));
-    const now = this.interactionStatusAt(actorId, targetId, current, { maxDistance, ignoreIds, aimPoint, allowClearEndpoint });
-    if (now.interactable && clearOfSweep(current) && (!candidateFilter || candidateFilter(current))) return { status:'current-pose', position:[...current], routeCost:0, distance:now.distance, lineOfSight:now.lineOfSight, ...(sweep ? { actionSweep:{checked:true,clear:true,partName:sweep.partName} } : {}) };
-
-    const metrics = this.actorMetrics(actorId);
-    const bounds = stanceBounds || this.spatial.getBounds(targetId);
-    const offset = Math.max(metrics.radius,standOff) + clearance;
-    const [cx,,cz] = bounds.center;
-    const y = current[1];
-    const candidates = [
-      [bounds.min[0] - offset, y, cz], [bounds.max[0] + offset, y, cz],
-      [cx, y, bounds.min[2] - offset], [cx, y, bounds.max[2] + offset],
-      [bounds.min[0] - offset, y, bounds.min[2] - offset],
-      [bounds.max[0] + offset, y, bounds.min[2] - offset],
-      [bounds.min[0] - offset, y, bounds.max[2] + offset],
-      [bounds.max[0] + offset, y, bounds.max[2] + offset]
-    ];
-
-    const valid = [];
-    for (const candidate of candidates) {
-      const route = await this.navigation.findPath(current, candidate);
-      if (!route.reachable || !route.end?.snapped) continue;
-      const position = route.end.snapped;
-      const status = this.interactionStatusAt(actorId, targetId, position, { maxDistance, ignoreIds, aimPoint, allowClearEndpoint });
-      if (!status.interactable || !clearOfSweep(position) || (candidateFilter && !candidateFilter(position))) continue;
-      valid.push({ status:'approach-pose', position, routeCost:route.cost, distance:status.distance, waypointCount:route.path.length, lineOfSight:status.lineOfSight, ...(sweep ? { actionSweep:{checked:true,clear:true,partName:sweep.partName} } : {}) });
-    }
-    valid.sort((a, b) => (a.routeCost ?? Infinity) - (b.routeCost ?? Infinity));
-    return valid[0] || null;
-  }
+  async correctToPose(...args) { this.approach.locomotion = this.locomotion; return this.approach.correctToPose(...args); }
 
   async approachAndInteract(actorId, targetId, action, { partName = null, maxDistance = DEFAULT_INTERACTION_DISTANCE, speed } = {}) {
     if (!['open', 'close'].includes(action)) throw Errors.actionUnsupported(targetId, `embodied:${action}`);
@@ -462,11 +244,8 @@ export class InteractionSystem {
     const pose = await this.findInteractionPose(actorId, targetId, { maxDistance, action, partName });
     if (!pose) throw Errors.interactionUnavailable(actorId, targetId, 'NO_INTERACTION_POSE', { maxDistance });
 
-    let locomotion = null;
-    if (pose.status !== 'current-pose') {
-      locomotion = await this.locomotion.navigate(actorId, pose.position, { speed });
-      if (locomotion.status !== 'arrived') return { status:'interaction-blocked', reason:'APPROACH_FAILED', actorId,targetId,action,pose,locomotion };
-    }
+    const locomotion = await this.navigateToPose(actorId, pose, { speed });
+    if (locomotion && locomotion.status !== 'arrived') return { status:'interaction-blocked', reason:'APPROACH_FAILED', actorId,targetId,action,pose,locomotion };
 
     let reach = this.interactionStatus(actorId, targetId, { maxDistance });
     if (!reach.interactable) {
@@ -478,9 +257,9 @@ export class InteractionSystem {
     let actualPosition = this.physics.getPosition(actorId);
     let arrivalCorrection = null;
     if (actualPosition && pose.status !== 'current-pose' && finalSweep.box.intersectsBox(this.actorBoxAt(actorId, actualPosition))) {
-      arrivalCorrection = await this.locomotion.navigate(actorId,pose.position,{speed,waypointTolerance:ACTION_INTERACTION_CORRECTION_TOLERANCE});
+      arrivalCorrection = await this.correctToPose(actorId, pose, { speed, force:true });
       actualPosition=this.physics.getPosition(actorId);
-      if (arrivalCorrection.status==='arrived') {
+      if (arrivalCorrection?.status==='arrived') {
         reach=this.interactionStatus(actorId,targetId,{maxDistance});
         if (!reach.interactable) {
           const reason=reach.inRange ? 'LINE_OF_SIGHT_BLOCKED' : 'OUT_OF_RANGE';
@@ -550,39 +329,7 @@ export class InteractionSystem {
     return {pose,facingYaw:preview.yaw,anchorPose:preview.anchorPose,transfer:preview.transfer,plannedMaxDistance,supportIds,standOff:Number(standOff.toFixed(4)),supportClearance};
   }
 
-  transferPickupToAnchor(actorId,targetId,anchorPose,supportIds = []) {
-    const originalPosition=this.physics.getPosition(targetId);
-    const originalRotation=this.physics.getRotation(targetId);
-    if (!originalPosition || !originalRotation) return {clear:false,reason:'CARRY_BODY_UNAVAILABLE',phases:[]};
-    const size=this.spatial.getBounds(targetId).size;
-    const liftY=originalPosition[1]+Math.max(.12,Math.min(.28,(size[1] || .32)*.55));
-    const phases=[];
-    const rollback=(reason)=>{
-      this.physics.setHeldPose(targetId,originalPosition,originalRotation);
-      this.physics.setHeld(targetId,false);
-      return {clear:false,reason,phases,originalPosition:[...originalPosition]};
-    };
-
-    this.physics.setHeld(targetId,true);
-    const lift=[originalPosition[0],liftY,originalPosition[2]];
-    const liftSweep=this.physics.checkBodyMotion(targetId,lift,originalRotation,{excludeIds:[actorId,...supportIds]});
-    const liftPose=liftSweep.clear ? this.physics.checkBodyPose(targetId,lift,originalRotation,{excludeIds:[actorId]}) : liftSweep;
-    phases.push({phase:'lift',point:[...lift],clear:Boolean(liftSweep.clear && liftPose.clear),sweep:liftSweep,pose:liftPose});
-    if (!liftSweep.clear || !liftPose.clear) return rollback('PICKUP_LIFT_BLOCKED');
-    this.physics.setHeldPose(targetId,lift,originalRotation);
-
-    const horizontal=[anchorPose.position[0],liftY,anchorPose.position[2]];
-    const horizontalCheck=this.physics.checkBodyMotion(targetId,horizontal,anchorPose.rotation,{excludeIds:[actorId]});
-    phases.push({phase:'horizontal',point:[...horizontal],...horizontalCheck});
-    if (!horizontalCheck.clear) return rollback('PICKUP_HORIZONTAL_BLOCKED');
-    this.physics.setHeldPose(targetId,horizontal,anchorPose.rotation);
-
-    const anchorCheck=this.physics.checkBodyMotion(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
-    phases.push({phase:'anchor',point:[...anchorPose.position],...anchorCheck});
-    if (!anchorCheck.clear) return rollback('PICKUP_ANCHOR_BLOCKED');
-    this.physics.setHeldPose(targetId,anchorPose.position,anchorPose.rotation);
-    return {clear:true,mode:'lift-horizontal-anchor',supportIds:[...supportIds],phases};
-  }
+  transferPickupToAnchor(...args) { return this.carry.transferPickupToAnchor(...args); }
 
   async approachAndPickup(actorId, targetId, { speed, maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
     const target = this.assertAgentCarryable(actorId,targetId);
@@ -591,20 +338,12 @@ export class InteractionSystem {
     }
     const plan=await this.findPickupPlan(actorId,targetId,{maxDistance});
     const pose=plan.pose;
-    let locomotion=null;
-    let arrivalCorrection=null;
-    if (pose.status!=='current-pose') {
-      locomotion=await this.locomotion.navigate(actorId,pose.position,{speed});
-      if (locomotion.status!=='arrived') return {status:'pickup-blocked',reason:'APPROACH_FAILED',actorId,targetId,pose,locomotion,held:false};
-      const actualPosition=this.physics.getPosition(actorId);
-      const remaining=actualPosition ? Math.hypot(actualPosition[0]-pose.position[0],actualPosition[2]-pose.position[2]) : Infinity;
-      if (remaining>ACTION_INTERACTION_CORRECTION_TOLERANCE) {
-        arrivalCorrection=await this.locomotion.navigate(actorId,pose.position,{speed,waypointTolerance:ACTION_INTERACTION_CORRECTION_TOLERANCE});
-        if (arrivalCorrection.status!=='arrived') return {
-          status:'pickup-blocked',reason:'APPROACH_CORRECTION_FAILED',actorId,targetId,pose,locomotion,arrivalCorrection,held:false
-        };
-      }
-    }
+    const locomotion=await this.navigateToPose(actorId,pose,{speed});
+    if (locomotion && locomotion.status!=='arrived') return {status:'pickup-blocked',reason:'APPROACH_FAILED',actorId,targetId,pose,locomotion,held:false};
+    const arrivalCorrection=await this.correctToPose(actorId,pose,{speed});
+    if (arrivalCorrection && arrivalCorrection.status!=='arrived') return {
+      status:'pickup-blocked',reason:'APPROACH_CORRECTION_FAILED',actorId,targetId,pose,locomotion,arrivalCorrection,held:false
+    };
     const reach=this.interactionStatus(actorId,targetId,{maxDistance});
     if (!reach.interactable) return {status:'pickup-blocked',reason:reach.inRange?'LINE_OF_SIGHT_BLOCKED':'OUT_OF_RANGE',actorId,targetId,pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,held:false};
     const actorPosition=this.physics.getPosition(actorId);
@@ -630,7 +369,7 @@ export class InteractionSystem {
       this.physics.setHeldPose(targetId,anchorPose.position,anchorPose.rotation);
     }
     target.state.heldBy={kind:'agent',id:actorId,anchor:'hold'};
-    this.agentHeld.set(actorId,targetId);
+    this.carry.agentHeld.set(actorId,targetId);
     this.events.emit('interaction',{action:'pickup',id:targetId,actorId,heldBy:target.state.heldBy});
     return {
       status:'held',actorId,targetId,attachment:'kinematic-anchor',graspVerified:false,
@@ -638,291 +377,46 @@ export class InteractionSystem {
     };
   }
 
-  articulationTaskKey(id, partName) { return `${id}:${partName}`; }
+  articulationTaskKey(...args) { return this.articulationRuntime.key(...args); }
 
-  finishArticulationTask(task, result) {
-    const key = this.articulationTaskKey(task.id,task.partName);
-    if (this.articulationTasks.get(key) !== task) return;
-    this.articulationTasks.delete(key);
-    const report = { ...result, id:task.id, partName:task.partName, action:task.action, target:task.target };
-    this.articulationResults.set(key,report);
-    this.events.emit('interaction', { ...report, action:'articulation-completion', articulationAction:report.action });
-    task.resolve(report);
+  finishArticulationTask(...args) { return this.articulationRuntime.finish(...args); }
+
+  promoteArticulationCompletion(...args) { return this.articulationRuntime.promoteCompletion(...args); }
+
+  finalizeArticulationAttempt(...args) { return this.articulationRuntime.finalizeAttempt(...args); }
+
+  articulationStatus(...args) { return this.articulationRuntime.status(...args); }
+
+  waitForArticulationCompletion(...args) { return this.articulationRuntime.wait(...args); }
+
+  articulationFailureAttribution(...args) { return this.articulationRuntime.failureAttribution(...args); }
+
+  updateArticulationTasks(...args) { return this.articulationRuntime.update(...args); }
+
+  transferHeldToRelease(...args) { return this.carry.transferHeldToRelease(...args); }
+
+  syncSettleRuntime() {
+    this.settleRuntime.physics = this.physics;
+    this.settleRuntime.spatial = this.spatial;
+    this.settleRuntime.carry = { heldByAgent:(...args)=>this.heldByAgent(...args) };
+    this.settleRuntime.articulation = { actionSweepBounds:(...args)=>this.actionSweepBounds(...args) };
   }
 
-  promoteArticulationCompletion(report) {
-    if (report?.status !== 'action-completed' || !report.targetReached || !this.store.has(report.id)) return false;
-    const record = this.store.get(report.id);
-    if (record.state.partTargets?.[report.partName] !== report.action) return false;
-    record.state.parts ||= {};
-    record.state.parts[report.partName] = report.action;
-    delete record.state.partTargets[report.partName];
-    if (!Object.keys(record.state.partTargets).length) delete record.state.partTargets;
-    return true;
-  }
+  waitForObjectSettle(...args) { this.syncSettleRuntime(); return this.settleRuntime.wait(...args); }
 
-  finalizeArticulationAttempt(report) {
-    if (!report || !['action-failed','action-unverified'].includes(report.status) || !this.store.has(report.id)) return false;
-    const record = this.store.get(report.id);
-    if (record.state.partTargets?.[report.partName] !== report.action) return false;
-    this.physics.holdArticulationCurrent?.(report.id,report.partName);
-    delete record.state.partTargets[report.partName];
-    if (!Object.keys(record.state.partTargets).length) delete record.state.partTargets;
-    return true;
-  }
+  waitForPlacementSettle(...args) { this.syncSettleRuntime(); return this.settleRuntime.waitForPlacement(...args); }
 
-  articulationStatus(id, partName = null) {
-    const record = this.store.get(id);
-    const entries = Object.entries(record.manifest.parts || {}).filter(([name,part]) =>
-      (!partName || name === partName) && part.joint && part.physics && Object.keys(part.targets || {}).length
-    );
-    if (!entries.length) throw Errors.actionUnsupported(id, partName ? `status:${partName}` : 'articulation-status');
-    const parts = entries.map(([name,part]) => {
-      const key = this.articulationTaskKey(id,name);
-      const pending = this.articulationTasks.get(key);
-      const last = this.articulationResults.get(key) || null;
-      const requestedAction = record.state.partTargets?.[name] || null;
-      const verifiedAction = record.state.parts?.[name] || null;
-      const targetAction = pending?.action || requestedAction || verifiedAction;
-      const target = targetAction && Number.isFinite(part.targets?.[targetAction]) ? part.targets[targetAction] : null;
-      const live = this.physics.getArticulationState(id,name,{target});
-      return {
-        partName:name,
-        status:pending ? 'moving' : (last?.status || (verifiedAction ? 'verified-state' : 'idle')),
-        requestedAction,verifiedAction,
-        ...(pending ? { pending:{action:pending.action,target:pending.target,elapsed:Number(pending.elapsed.toFixed(3))} } : {}),
-        ...(last ? { last:structuredClone(last) } : {}),
-        ...(live ? { live:{coordinate:live.coordinate,target:live.target,error:live.error,tolerance:live.tolerance,coordinateReference:live.coordinateReference} } : {})
-      };
-    });
-    return { id, parts };
-  }
+  waitForRecoveryCleanupSettle(...args) { this.syncSettleRuntime(); return this.settleRuntime.waitForRecoveryCleanup(...args); }
 
-  waitForArticulationCompletion(id, partName, action, target, {
-    timeout = 4, stableDuration = .18, stallWindow = .5, stallTolerance = .004
-  } = {}) {
-    const key = this.articulationTaskKey(id,partName);
-    const existing = this.articulationTasks.get(key);
-    if (existing && existing.action === action && Math.abs(existing.target-target) <= 1e-9) return existing.promise;
-    if (existing) this.finishArticulationTask(existing,{status:'action-unverified',reason:'SUPERSEDED',targetReached:false,settled:false,elapsed:Number(existing.elapsed.toFixed(3))});
-    const state = this.physics.getArticulationState(id,partName,{target});
-    if (!state) return Promise.resolve({status:'action-unverified',reason:'JOINT_STATE_UNAVAILABLE',id,partName,action,target,targetReached:false,settled:false,elapsed:0});
-    let resolveTask;
-    const task = {
-      id,partName,action,target,timeout,stableDuration,stallWindow,stallTolerance,
-      elapsed:0,stable:0,initialCoordinate:state.coordinate,samples:[{time:0,coordinate:state.coordinate}],
-      resolve:null,promise:null
-    };
-    task.promise = new Promise((resolve) => { resolveTask=resolve; });
-    task.resolve = resolveTask;
-    this.articulationTasks.set(key,task);
-    return task.promise;
-  }
+  placementSettleResult(...args) { this.syncSettleRuntime(); return this.settleRuntime.placementResult(...args); }
 
-  articulationFailureAttribution(id, partName) {
-    const contacts=(this.physics.articulationContacts?.(id,partName) || []).filter((item)=>item.external);
-    const blockerMap=new Map();
-    for (const item of contacts) {
-      const target=item.target || {};
-      if (!['object','environment'].includes(target.kind)) continue;
-      const key=target.kind==='object'
-        ? `object:${target.objectId}:${target.partName || '$root'}`
-        : `environment:${target.environmentId}:${target.colliderIndex ?? -1}`;
-      if (!blockerMap.has(key)) blockerMap.set(key,structuredClone(target));
-    }
-    return {
-      status:contacts.length ? 'contact-evidence' : 'unattributed',
-      evidence:'current-contact-at-failure',
-      contactEvidence:contacts,
-      blockerCandidates:[...blockerMap.values()]
-    };
-  }
+  dropSettleResult(...args) { this.syncSettleRuntime(); return this.settleRuntime.dropResult(...args); }
 
-  updateArticulationTasks(dt) {
-    const wrap = (jointType,value) => jointType === 'revolute' ? Math.atan2(Math.sin(value),Math.cos(value)) : value;
-    for (const task of [...this.articulationTasks.values()]) {
-      task.elapsed += dt;
-      const state = this.physics.getArticulationState(task.id,task.partName,{target:task.target});
-      if (!state || !Number.isFinite(state.coordinate) || !Number.isFinite(state.error)) {
-        this.finishArticulationTask(task,{status:'action-unverified',reason:'JOINT_STATE_UNAVAILABLE',targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
-        continue;
-      }
-      const limits = state.limits;
-      if (limits?.length === 2 && (state.coordinate < limits[0]-state.tolerance || state.coordinate > limits[1]+state.tolerance)) {
-        this.finishArticulationTask(task,{status:'action-failed',reason:'LIMIT_VIOLATION',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,limits,elapsed:Number(task.elapsed.toFixed(3))});
-        continue;
-      }
-      const reached = state.error <= state.tolerance;
-      task.stable = reached ? task.stable + dt : 0;
-      task.samples.push({time:task.elapsed,coordinate:state.coordinate});
-      const cutoff = task.elapsed-task.stallWindow;
-      while (task.samples.length > 2 && task.samples[1].time <= cutoff) task.samples.shift();
-      const oldest = task.samples[0];
-      const recentMovement = Math.abs(wrap(state.jointType,state.coordinate-oldest.coordinate));
-      const observedWindow = task.elapsed-oldest.time;
-      const stableCutoff = task.elapsed-task.stableDuration;
-      const stableReference = task.samples.find((sample)=>sample.time >= stableCutoff) || oldest;
-      const settleMovement = Math.abs(wrap(state.jointType,state.coordinate-stableReference.coordinate));
-      const settleTolerance = state.tolerance*.25;
-      const progress = Math.abs(wrap(state.jointType,task.initialCoordinate-task.target)) - state.error;
-      if (task.stable >= task.stableDuration && settleMovement <= settleTolerance) {
-        this.finishArticulationTask(task,{status:'action-completed',targetReached:true,settled:true,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,settleMovement:Number(settleMovement.toFixed(6)),settleTolerance:Number(settleTolerance.toFixed(6)),progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference});
-        continue;
-      }
-      if (!reached && task.elapsed >= task.stallWindow && observedWindow >= task.stallWindow*.8 && recentMovement < task.stallTolerance) {
-        const attribution=this.articulationFailureAttribution(task.id,task.partName);
-        this.finishArticulationTask(task,{status:'action-failed',reason:'STALL',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,recentMovement:Number(recentMovement.toFixed(6)),stallWindow:task.stallWindow,progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference,attribution});
-        continue;
-      }
-      if (task.elapsed >= task.timeout) {
-        this.finishArticulationTask(task,{status:'action-unverified',reason:'TIMEOUT',targetReached:false,settled:false,coordinate:state.coordinate,error:state.error,tolerance:state.tolerance,recentMovement:Number(recentMovement.toFixed(6)),progress:Number(progress.toFixed(6)),elapsed:Number(task.elapsed.toFixed(3)),coordinateReference:state.coordinateReference});
-      }
-    }
-  }
+  recoveryCleanupSettleResult(...args) { this.syncSettleRuntime(); return this.settleRuntime.recoveryCleanupResult(...args); }
 
-  transferHeldToRelease(actorId, heldId, release) {
-    const originalPosition=this.physics.getPosition(heldId);
-    const rotation=this.physics.getRotation(heldId);
-    if (!originalPosition || !rotation) return {clear:false,reason:'HELD_BODY_UNAVAILABLE',transfer:[]};
-    const point=Array.isArray(release) ? release : release.toArray();
-    const size=this.spatial.getBounds(heldId).size;
-    const liftY=Math.max(originalPosition[1],point[1]+size[1]+.08);
-    const transferPoints=[
-      [originalPosition[0],liftY,originalPosition[2]],
-      [point[0],liftY,point[2]],
-      [...point]
-    ];
-    const transfer=[];
-    for (const target of transferPoints) {
-      const check=this.physics.checkBodyMotion(heldId,target,rotation,{excludeIds:[actorId]});
-      transfer.push({point:[...target],...check});
-      if (!check.clear) {
-        this.physics.setHeldPose(heldId,originalPosition,rotation);
-        return {clear:false,reason:'TRANSFER_BLOCKED',originalPosition,rotation,transfer};
-      }
-      this.physics.setHeldPose(heldId,target,rotation);
-    }
-    return {clear:true,originalPosition,rotation,transfer,release:[...point]};
-  }
+  finishPlacementSettle(...args) { return this.settleRuntime.finish(...args); }
 
-  waitForObjectSettle(objectId, { kind='place', targetId=null, surfaceId=null, actorId=null, partName=null, action=null, timeout=4, stableDuration=.35, linearSpeed=.04, angularSpeed=.12 } = {}) {
-    if (this.settleTasks.has(objectId)) throw Errors.placeUnavailable(actorId || 'runtime',targetId || objectId,'SETTLE_ALREADY_ACTIVE',{objectId});
-    return new Promise((resolve)=>this.settleTasks.set(objectId,{
-      kind,objectId,targetId,surfaceId,actorId,partName,action,timeout,stableDuration,linearSpeed,angularSpeed,elapsed:0,stable:0,resolve
-    }));
-  }
-
-  waitForPlacementSettle(objectId, targetId, surfaceId, { timeout = 4, stableDuration = 0.35, linearSpeed = 0.04, angularSpeed = 0.12 } = {}) {
-    return this.waitForObjectSettle(objectId,{kind:'place',targetId,surfaceId,timeout,stableDuration,linearSpeed,angularSpeed});
-  }
-
-  waitForRecoveryCleanupSettle(actorId, objectId, targetId, partName, action, options = {}) {
-    return this.waitForObjectSettle(objectId,{kind:'recovery-cleanup',actorId,targetId,partName,action,...options});
-  }
-
-
-  placementSettleResult(task,motion,{settled,reason=null}={}) {
-    const support=this.spatial.supportStatus(task.objectId,task.targetId,{surfaceId:task.surfaceId});
-    if (!settled) return {
-      status:'place-unverified',reason:reason || 'SETTLE_TIMEOUT',supportVerified:false,support,settled:false,
-      elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-    return {
-      status:support.on?'placed':'place-failed',...(support.on?{}:{reason:'SUPPORT_NOT_REACHED'}),
-      supportVerified:support.on,support,settled:true,elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-  }
-
-
-  dropSettleResult(task,motion,{settled,reason=null}={}) {
-    const held=this.store.has(task.objectId) ? this.store.get(task.objectId).state?.heldBy : null;
-    const released=!held && this.heldByAgent(task.actorId)!==task.objectId;
-    const position=this.physics.getPosition(task.objectId);
-    if (!settled) return {
-      status:reason==='BODY_UNAVAILABLE'?'drop-failed':'drop-unverified',reason:reason || 'SETTLE_TIMEOUT',
-      actorId:task.actorId,targetId:task.objectId,released,settled:false,stillHeld:!released,
-      position:position ? [...position] : null,elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-    if (!released) return {
-      status:'drop-failed',reason:'STILL_HELD',actorId:task.actorId,targetId:task.objectId,
-      released:false,settled:true,stillHeld:true,position:position ? [...position] : null,
-      elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-    return {
-      status:'dropped',actorId:task.actorId,targetId:task.objectId,released:true,settled:true,stillHeld:false,
-      position:position ? [...position] : null,elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-  }
-
-  recoveryCleanupSettleResult(task,motion,{settled,reason=null}={}) {
-    const held=this.store.has(task.objectId) ? this.store.get(task.objectId).state?.heldBy : null;
-    const sweep=this.store.has(task.targetId) ? this.actionSweepBounds(task.targetId,task.action,task.partName) : {checked:false,reason:'TARGET_UNAVAILABLE'};
-    const bounds=this.store.has(task.objectId) ? this.spatial.getBounds(task.objectId) : null;
-    const box=bounds ? new THREE.Box3(new THREE.Vector3(...bounds.min),new THREE.Vector3(...bounds.max)) : null;
-    const sweepClear=Boolean(sweep.checked && box && !sweep.box.intersectsBox(box));
-    const contacts=sweep.checked ? (this.physics.articulationContacts?.(task.targetId,sweep.partName) || []) : [];
-    const contactClear=!contacts.some((contact)=>contact.external && contact.target?.kind==='object' && contact.target.objectId===task.objectId);
-    const released=!held && this.heldByAgent(task.actorId)!==task.objectId;
-    const verified=Boolean(settled && released && sweepClear && contactClear);
-    let failureReason=reason;
-    if (!failureReason && !released) failureReason='STILL_HELD';
-    else if (!failureReason && !sweep.checked) failureReason='ACTION_SWEEP_UNAVAILABLE';
-    else if (!failureReason && !sweepClear) failureReason='ACTION_SWEEP_OCCUPIED';
-    else if (!failureReason && !contactClear) failureReason='CONTACT_STILL_ACTIVE';
-    return {
-      status:verified?'recovery-cleaned':(settled?'recovery-cleanup-failed':'recovery-cleanup-unverified'),
-      ...(verified?{}:{reason:failureReason || 'RECOVERY_CLEANUP_UNVERIFIED'}),
-      actorId:task.actorId,targetId:task.targetId,blockerId:task.objectId,partName:sweep.partName || task.partName,action:task.action,
-      released,settled:Boolean(settled),sweepClear,contactClear,
-      actionSweep:sweep.checked?{checked:true,partName:sweep.partName,bounds:sweep.bounds}:{checked:false,reason:sweep.reason,partName:sweep.partName || task.partName},
-      elapsed:Number(task.elapsed.toFixed(3)),motion
-    };
-  }
-
-  finishPlacementSettle(task, result) {
-    if (!this.settleTasks.has(task.objectId)) return;
-    this.settleTasks.delete(task.objectId);
-    const eventAction=task.kind==='recovery-cleanup'?'recovery-cleanup':task.kind==='drop'?'drop':'place';
-    this.events.emit('interaction',{action:eventAction,id:task.objectId,targetId:task.targetId,...result});
-    task.resolve(result);
-  }
-
-  updatePlacementSettles(dt) {
-    for (const task of [...this.settleTasks.values()]) {
-      task.elapsed+=dt;
-      const motionState=this.physics.getMotion(task.objectId);
-      if (!motionState) {
-        const motion=null;
-        const result=task.kind==='recovery-cleanup'
-          ? this.recoveryCleanupSettleResult(task,motion,{settled:false,reason:'BODY_UNAVAILABLE'})
-          : task.kind==='drop'
-            ? this.dropSettleResult(task,motion,{settled:false,reason:'BODY_UNAVAILABLE'})
-            : {status:'place-failed',reason:'BODY_UNAVAILABLE',supportVerified:false,elapsed:Number(task.elapsed.toFixed(3))};
-        this.finishPlacementSettle(task,result);
-        continue;
-      }
-      const motion={sleeping:motionState.sleeping,linearSpeed:Number(motionState.linearSpeed.toFixed(4)),angularSpeed:Number(motionState.angularSpeed.toFixed(4))};
-      const slow=motionState.sleeping || (motionState.linearSpeed<=task.linearSpeed && motionState.angularSpeed<=task.angularSpeed);
-      task.stable=slow ? task.stable+dt : 0;
-      if (task.stable>=task.stableDuration) {
-        const result=task.kind==='recovery-cleanup'
-          ? this.recoveryCleanupSettleResult(task,motion,{settled:true})
-          : task.kind==='drop'
-            ? this.dropSettleResult(task,motion,{settled:true})
-            : this.placementSettleResult(task,motion,{settled:true});
-        this.finishPlacementSettle(task,result);
-        continue;
-      }
-      if (task.elapsed>=task.timeout) {
-        const result=task.kind==='recovery-cleanup'
-          ? this.recoveryCleanupSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'})
-          : task.kind==='drop'
-            ? this.dropSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'})
-            : this.placementSettleResult(task,motion,{settled:false,reason:'SETTLE_TIMEOUT'});
-        this.finishPlacementSettle(task,result);
-      }
-    }
-  }
+  updatePlacementSettles(...args) { this.syncSettleRuntime(); return this.settleRuntime.update(...args); }
 
   async approachAndPlace(actorId, targetId, { surfaceId = null, speed, clearance = 0.03 } = {}) {
     const heldId = this.heldByAgent(actorId);
@@ -951,21 +445,13 @@ export class InteractionSystem {
     });
     if (!pose) throw Errors.placeUnavailable(actorId,targetId,'NO_INTERACTION_POSE',{heldId});
 
-    let locomotion = null;
-    let arrivalCorrection = null;
-    if (pose.status !== 'current-pose') {
-      locomotion = await this.locomotion.navigate(actorId,pose.position,{speed});
-      if (locomotion.status !== 'arrived') return { status:'place-blocked', reason:'APPROACH_FAILED', actorId,targetId,heldId,pose,locomotion,stillHeld:true };
-      const actualPosition=this.physics.getPosition(actorId);
-      const remaining=actualPosition ? Math.hypot(actualPosition[0]-pose.position[0],actualPosition[2]-pose.position[2]) : Infinity;
-      if (remaining>ACTION_INTERACTION_CORRECTION_TOLERANCE) {
-        arrivalCorrection=await this.locomotion.navigate(actorId,pose.position,{speed,waypointTolerance:ACTION_INTERACTION_CORRECTION_TOLERANCE});
-        if (arrivalCorrection.status!=='arrived') return {
-          status:'place-blocked',reason:'APPROACH_CORRECTION_FAILED',actorId,targetId,heldId,
-          pose,locomotion,arrivalCorrection,stillHeld:true
-        };
-      }
-    }
+    const locomotion = await this.navigateToPose(actorId,pose,{speed});
+    if (locomotion && locomotion.status !== 'arrived') return { status:'place-blocked', reason:'APPROACH_FAILED', actorId,targetId,heldId,pose,locomotion,stillHeld:true };
+    const arrivalCorrection=await this.correctToPose(actorId,pose,{speed});
+    if (arrivalCorrection && arrivalCorrection.status!=='arrived') return {
+      status:'place-blocked',reason:'APPROACH_CORRECTION_FAILED',actorId,targetId,heldId,
+      pose,locomotion,arrivalCorrection,stillHeld:true
+    };
 
     release = this.spatial.findFreeSpace(heldId,targetId,{surfaceId,clearance,ignore:[actorId]});
     if (!release) return { status:'place-blocked', reason:'NO_FREE_SURFACE_SPACE_AFTER_APPROACH', actorId,targetId,heldId,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),stillHeld:true };
@@ -995,91 +481,9 @@ export class InteractionSystem {
     };
   }
 
-  cleanupReleaseCandidates(actorId,targetId,partName,action,heldId,{clearance=.05,sweepMargin=.35}={}) {
-    const sweep=this.actionSweepBounds(targetId,action,partName);
-    if (!sweep.checked) return {sweep,candidates:[]};
-    const bounds=this.spatial.getBounds(heldId);
-    const bodyPosition=this.physics.getPosition(heldId);
-    if (!bodyPosition) return {sweep,candidates:[]};
-    const halfX=bounds.size[0]/2,halfZ=bounds.size[2]/2;
-    const centerOffset=[bounds.center[0]-bodyPosition[0],bounds.center[1]-bodyPosition[1],bounds.center[2]-bodyPosition[2]];
-    const rootToBottom=bodyPosition[1]-bounds.min[1];
-    const center=sweep.box.getCenter(new THREE.Vector3());
-    const left=sweep.box.min.x-sweepMargin-halfX,right=sweep.box.max.x+sweepMargin+halfX;
-    const back=sweep.box.min.z-sweepMargin-halfZ,front=sweep.box.max.z+sweepMargin+halfZ;
-    const centers=[
-      [left,center.z],[right,center.z],[center.x,back],[center.x,front],
-      [left,back],[right,back],[left,front],[right,front]
-    ];
-    const topY=Math.max(sweep.box.max.y,bounds.max[1])+4;
-    const lowY=Math.min(sweep.box.min.y,bounds.min[1])-24;
-    const sweepGuard=sweep.box.clone().expandByScalar(sweepMargin*.5);
-    const candidates=[];
-    for (const [cx,cz] of centers) {
-      const rootX=cx-centerOffset[0], rootZ=cz-centerOffset[2];
-      const hit=this.physics.raycast([rootX,topY,rootZ],[rootX,lowY,rootZ],{excludeIds:[actorId,heldId,targetId]});
-      if (!hit?.environment) continue;
-      const release=[rootX,hit.point[1]+rootToBottom+clearance,rootZ];
-      const min=new THREE.Vector3(bounds.min[0]-bodyPosition[0]+release[0],bounds.min[1]-bodyPosition[1]+release[1],bounds.min[2]-bodyPosition[2]+release[2]);
-      const max=new THREE.Vector3(bounds.max[0]-bodyPosition[0]+release[0],bounds.max[1]-bodyPosition[1]+release[1],bounds.max[2]-bodyPosition[2]+release[2]);
-      const box=new THREE.Box3(min,max);
-      if (sweepGuard.intersectsBox(box)) continue;
-      candidates.push({release,support:{environment:true,point:[...hit.point],distance:hit.distance},box});
-    }
-    return {sweep,candidates};
-  }
+  cleanupReleaseCandidates(...args) { this.syncRecoveryRuntime(); return this.recovery.cleanupReleaseCandidates(...args); }
 
-  async findRecoveryCleanupPlan(actorId,targetId,{partName=null,action=null,blockerId=null,clearance=.05,sweepMargin=.35}={}) {
-    const provenance=this.recoveryHeldStatus(actorId);
-    const heldId=this.heldByAgent(actorId);
-    if (!provenance || !heldId || provenance.blockerId!==heldId || (blockerId && blockerId!==heldId)) return {status:'cleanup-unavailable',reason:'NO_RECOVERY_HELD_BLOCKER',actorId,targetId,blockerId:blockerId || heldId || null};
-    if (provenance.targetId!==targetId || (partName && provenance.partName && provenance.partName!==partName)) return {status:'cleanup-unavailable',reason:'RECOVERY_CONTEXT_MISMATCH',actorId,targetId,blockerId:heldId};
-    const resolvedAction=action || provenance.action;
-    const resolvedPart=partName || provenance.partName;
-    if (!resolvedAction) return {status:'cleanup-unavailable',reason:'ORIGINAL_ACTION_UNAVAILABLE',actorId,targetId,blockerId:heldId};
-    if (!this.navigation || !this.locomotion) return {status:'cleanup-unavailable',reason:'NAVIGATION_UNAVAILABLE',actorId,targetId,blockerId:heldId};
-    const source=this.cleanupReleaseCandidates(actorId,targetId,resolvedPart,resolvedAction,heldId,{clearance,sweepMargin});
-    if (!source.sweep.checked) return {status:'cleanup-unavailable',reason:'ACTION_SWEEP_UNAVAILABLE',actorId,targetId,blockerId:heldId,sweep:{checked:false,reason:source.sweep.reason,partName:source.sweep.partName}};
-    const actorPosition=this.physics.getPosition(actorId);
-    if (!actorPosition) return {status:'cleanup-unavailable',reason:'ACTOR_PHYSICS_UNAVAILABLE',actorId,targetId,partName:source.sweep.partName,action:resolvedAction,blockerId:heldId};
-    const anchor=this.holdAnchor(actorId);
-    const metrics=this.actorMetrics(actorId);
-    const standOff=Math.max(metrics.radius+.18,this.carryStandOff(actorId,heldId)+.12);
-    const plans=[];
-    for (const candidate of source.candidates) {
-      const release=new THREE.Vector3(...candidate.release);
-      const stancePositions=[[...actorPosition]];
-      for (let i=0;i<8;i++) {
-        const angle=i*Math.PI/4;
-        stancePositions.push([release.x+Math.cos(angle)*standOff,actorPosition[1],release.z+Math.sin(angle)*standOff]);
-      }
-      for (let index=0;index<stancePositions.length;index++) {
-        let position=stancePositions[index],routeCost=0,route=null,status='current-pose';
-        if (index>0) {
-          route=await this.navigation.findPath(actorPosition,position);
-          if (!route.reachable || !route.end?.snapped) continue;
-          position=route.end.snapped; routeCost=route.cost; status='approach-pose';
-        }
-        if (source.sweep.box.intersectsBox(this.actorBoxAt(actorId,position))) continue;
-        const dx=release.x-position[0],dz=release.z-position[2];
-        const yaw=Math.hypot(dx,dz)<1e-8?0:Math.atan2(-dx,-dz);
-        const predicted=this.holdPoseAt(position,yaw,anchor);
-        const releaseDistance=new THREE.Vector3(...predicted.position).distanceTo(release);
-        if (releaseDistance>DEFAULT_INTERACTION_DISTANCE-DEFAULT_WAYPOINT_TOLERANCE) continue;
-        const endpointClear=this.physics.checkBodyPose(heldId,candidate.release,predicted.rotation,{excludeIds:[actorId]});
-        if (!endpointClear.clear) continue;
-        plans.push({
-          status:'cleanup-proposed',actorId,targetId,partName:source.sweep.partName,action:resolvedAction,blockerId:heldId,
-          pose:{status,position:[...position],routeCost,waypointCount:route?.path?.length || 1},
-          release:candidate.release.map((value)=>Number(value.toFixed(4))),support:candidate.support,
-          actionSweep:{checked:true,partName:source.sweep.partName,bounds:source.sweep.bounds},
-          preflight:{sweepClear:true,endpointClear:true,releaseDistance:Number(releaseDistance.toFixed(4))}
-        });
-      }
-    }
-    plans.sort((a,b)=>(a.pose.routeCost??Infinity)-(b.pose.routeCost??Infinity) || a.preflight.releaseDistance-b.preflight.releaseDistance || a.release.join(',').localeCompare(b.release.join(',')));
-    return plans[0] || {status:'cleanup-unavailable',reason:'NO_SAFE_CLEANUP_SPACE',actorId,targetId,partName:source.sweep.partName,action:resolvedAction,blockerId:heldId};
-  }
+  async findRecoveryCleanupPlan(...args) { this.syncRecoveryRuntime(); return this.recovery.findCleanupPlan(...args); }
 
   async cleanupRecoveryBlocker(actorId,targetId,{partName=null,action=null,blockerId=null,speed}={}) {
     let plan=await this.findRecoveryCleanupPlan(actorId,targetId,{partName,action,blockerId});
@@ -1118,46 +522,15 @@ export class InteractionSystem {
     return this.waitForObjectSettle(id,{kind:'drop',actorId,timeout,stableDuration});
   }
 
-  carryStatus(actorId) {
-    const id = this.heldByAgent(actorId);
-    if (!id) return { status:'empty', actorId };
-    const record = this.store.get(id);
-    return { status:'held', actorId, targetId:id, heldBy:structuredClone(record.state.heldBy), position:this.physics.getPosition(id), attachment:'kinematic-anchor', graspVerified:false };
-  }
+  carryStatus(...args) { return this.carry.carryStatus(...args); }
 
-  findPartForAction(record, action, partName = null) {
-    const parts = Object.entries(record.manifest.parts || {}).filter(([name, part]) =>
-      (!partName || name === partName) && part.actions?.includes(action) && Number.isFinite(part.targets?.[action])
-    );
-    if (parts.length !== 1) throw Errors.actionUnsupported(record.id, partName ? `${action}:${partName}` : action);
-    return parts[0];
-  }
+  findPartForAction(...args) { return this.articulationRuntime.findPartForAction(...args); }
 
-  setArticulationAction(id, action, { partName = null } = {}) {
-    const record = this.assertSupports(id, action);
-    const [name, part] = this.findPartForAction(record, action, partName);
-    const contract = getInteractionContract(record.manifest, name, action);
-    if (contract.effects[0]?.kind !== 'set-articulation-target' || contract.verifierTarget.target !== part.targets[action]) throw Errors.actionUnsupported(id, action);
-    if (!this.physics.setArticulationTarget(id, name, part.targets[action])) throw Errors.actionUnsupported(id, action);
-    record.state.partTargets ||= {};
-    record.state.partTargets[name] = action;
-    this.articulationResults.delete(this.articulationTaskKey(id,name));
-    this.waitForArticulationCompletion(id,name,action,part.targets[action]);
-    this.events.emit('interaction', { action, id, part:name, target:part.targets[action] });
-    return { id, part:name, action, capability:contract.capability, target:part.targets[action], requested:true, interactionContractId:contract.id, verifierTarget:structuredClone(contract.verifierTarget) };
-  }
+  setArticulationAction(...args) { return this.articulationRuntime.execute(...args); }
 
   update(dt) {
     this.updatePlacementSettles(dt);
     this.updateArticulationTasks(dt);
-    if (this.humanHeldId && this.humanViewValid) {
-      this.humanHeldTarget.set(0,0,-1.6).applyQuaternion(this.humanViewRotation).add(this.humanViewPosition);
-      this.physics.setHeldTarget(this.humanHeldId, this.humanHeldTarget);
-    }
-    for (const [actorId, targetId] of this.agentHeld) {
-      if (!this.store.has(actorId) || !this.store.has(targetId)) continue;
-      const pose = this.physics.anchorPose(actorId, this.holdAnchor(actorId));
-      if (pose) this.physics.setHeldTarget(targetId, pose.position, pose.rotation);
-    }
+    this.carry.update();
   }
 }

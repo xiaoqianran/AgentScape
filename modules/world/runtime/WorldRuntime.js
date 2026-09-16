@@ -22,7 +22,7 @@ import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
 import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
 import { SimulationSession } from './simulation/SimulationSession.js';
-import { WorldAffordances } from './interaction/WorldAffordances.js';
+import { WorldAffordances } from './affordance/WorldAffordances.js';
 import { physicsManifestForUniformScale, scalesEqual, uniformScaleValue } from './ObjectTransform.js';
 installThreeBvhRuntime();
 
