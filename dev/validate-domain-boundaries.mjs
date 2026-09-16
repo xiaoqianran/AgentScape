@@ -32,12 +32,15 @@ const assetCore = productJs.filter((file) => {
   return [
     "modules/asset/AssetCatalog.js",
     "modules/asset/AssetRef.js",
+    "modules/asset/AssetRegistry.js",
     "modules/asset/AssetManager.js",
     "modules/asset/admission.js",
     "modules/asset/schema.js",
     "modules/asset/parts.js"
   ].includes(name)
     || name.startsWith("modules/asset/storage/")
+    || name.startsWith("modules/asset/loading/")
+    || name.startsWith("modules/asset/builtins/")
     || (name.startsWith("modules/asset/compiler/") && !name.startsWith("modules/asset/compiler/providers/"));
 });
 const artifactCore = productJs.filter((file) => relative(file).startsWith("modules/artifact/"));
@@ -148,6 +151,8 @@ assertNoImports("Asset deep-module boundary violation", assetClients, [
   /^modules\/asset\/compiler\//,
   /^modules\/asset\/publication\//,
   /^modules\/asset\/pipeline\//,
+  /^modules\/asset\/loading\//,
+  /^modules\/asset\/builtins\//,
   /^modules\/asset\/storage\//
 ]);
 
@@ -163,7 +168,11 @@ for (const file of productJs) {
   const name = relative(file);
   const source = fs.readFileSync(file, "utf8");
   if (name !== "modules/asset/AssetModule.js" && /\bnew\s+AssetManager\s*\(/.test(source)) {
-    failures.push(`Asset state ownership violation: ${name} constructs AssetManager outside AssetModule`);
+    failures.push(`Asset compatibility ownership violation: ${name} constructs AssetManager outside AssetModule`);
+  }
+  if (!["modules/asset/AssetModule.js","modules/asset/AssetManager.js"].includes(name)) {
+    if (/\bnew\s+AssetRegistry\s*\(/.test(source)) failures.push(`Asset registry ownership violation: ${name} constructs AssetRegistry outside AssetModule`);
+    if (/\bnew\s+AssetLoader\s*\(/.test(source)) failures.push(`Asset loader ownership violation: ${name} constructs AssetLoader outside AssetModule`);
   }
   if (name !== "modules/artifact/ArtifactModule.js") {
     if (/\bnew\s+ArtifactRegistry\s*\(/.test(source)) failures.push(`Artifact state ownership violation: ${name} constructs ArtifactRegistry outside ArtifactModule`);
