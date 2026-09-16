@@ -1,5 +1,4 @@
 import { AssetCatalog } from './AssetCatalog.js';
-import { AssetManager } from './AssetManager.js';
 import { AssetRegistry } from './AssetRegistry.js';
 import { AssetLoader } from './loading/AssetLoader.js';
 import { AssetProductionError, createAssetPublisher } from './publication/AssetPublisher.js';
@@ -23,7 +22,6 @@ export function createAssetModule({
 
   const registry = new AssetRegistry({ manifests });
   const loader = new AssetLoader({ registry, compiledStore:store });
-  const manager = new AssetManager({ registry, loader }); // compatibility only
   const catalog = new AssetCatalog({ registry });
 
   const durableLibrary = libraryStore === undefined
@@ -64,7 +62,6 @@ export function createAssetModule({
   const module = {
     registry,
     loader,
-    manager,
     catalog,
     compiledStore:store,
     manifestStore:durableManifests,
