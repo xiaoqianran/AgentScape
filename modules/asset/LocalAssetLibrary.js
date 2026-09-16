@@ -3,10 +3,10 @@ import { LocalAssetLibraryStore } from './storage/LocalAssetLibraryStore.js';
 const clone=(value)=>value==null?value:structuredClone(value);
 
 export class LocalAssetLibrary {
-  constructor({assetManager,compiledStore,store=null,now=()=>new Date().toISOString()}={}) {
-    if(!assetManager?.getManifest || !assetManager?.has) throw new TypeError('LocalAssetLibrary requires AssetManager');
+  constructor({assetRegistry,assetManager=null,compiledStore,store=null,now=()=>new Date().toISOString()}={}) {
+    this.assetRegistry=assetRegistry || assetManager?.registry || assetManager;
+    if(!this.assetRegistry?.getManifest || !this.assetRegistry?.has) throw new TypeError('LocalAssetLibrary requires AssetRegistry');
     if(!compiledStore || (typeof compiledStore.has!=='function' && typeof compiledStore.get!=='function')) throw new TypeError('LocalAssetLibrary requires CompiledAssetStore');
-    this.assetManager=assetManager;
     this.compiledStore=compiledStore;
     this.store=store || new LocalAssetLibraryStore();
     this.now=now;
@@ -24,7 +24,7 @@ export class LocalAssetLibrary {
   }
 
   async approve(assetId,metadata={}) {
-    const manifest=this.assetManager.getManifest(assetId);
+    const manifest=this.assetRegistry.getManifest(assetId);
     if(manifest.source?.kind!=='compiled' || !manifest.source?.key) {
       const error=new Error(`Only compiled assets can enter the persistent local library: ${assetId}`);
       error.code='ASSET_LIBRARY_COMPILED_REQUIRED';
@@ -58,7 +58,7 @@ export class LocalAssetLibrary {
   async get(assetId) {
     if(!this.hydrated) await this.hydrate();
     const entry=this.entries.get(assetId)||null;
-    if(!entry || !this.assetManager.has(assetId)) return null;
+    if(!entry || !this.assetRegistry.has(assetId)) return null;
     return clone(entry);
   }
 
@@ -73,7 +73,7 @@ export class LocalAssetLibrary {
 
   listSync() {
     return [...this.entries.values()]
-      .filter((entry)=>entry?.status==='approved' && this.assetManager.has(entry.assetId))
+      .filter((entry)=>entry?.status==='approved' && this.assetRegistry.has(entry.assetId))
       .sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))
       .map(clone);
   }

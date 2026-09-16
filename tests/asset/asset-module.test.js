@@ -12,10 +12,14 @@ const compiledManifest = {
 };
 
 describe('createAssetModule', () => {
-  it('owns only the executable Asset boundary', () => {
+  it('exposes explicit registry and loader boundaries', () => {
     const module=createAssetModule({manifests:{fixture_asset:manifest},manifestStore:null});
-    expect(module.manager.compiledStore).toBe(module.compiledStore);
-    expect(module.catalog.assetManager).toBe(module.manager);
+    expect(module.loader.compiledStore).toBe(module.compiledStore);
+    expect(module.loader.registry).toBe(module.registry);
+    expect(module.catalog.registry).toBe(module.registry);
+    expect(module.library.assetRegistry).toBe(module.registry);
+    expect(module.manager.registry).toBe(module.registry);
+    expect(module.manager.loader).toBe(module.loader);
     expect(module.artifacts).toBeUndefined();
     expect(module.artifactRegistry).toBeUndefined();
     expect(module.byteStore).toBeUndefined();
@@ -30,14 +34,15 @@ describe('createAssetModule', () => {
     const compiledStore={get:async()=>null};
     const module=createAssetModule({manifests:{},compiledStore,manifestStore:null});
     expect(module.compiledStore).toBe(compiledStore);
+    expect(module.loader.compiledStore).toBe(compiledStore);
     expect(module.manager.compiledStore).toBe(compiledStore);
   });
 
-  it('hydrates persisted compiled manifests into a fresh AssetManager once', async () => {
+  it('hydrates persisted compiled manifests into a fresh AssetRegistry once', async () => {
     const manifestStore={list:vi.fn(async()=>[compiledManifest]),put:vi.fn()};
     const module=createAssetModule({manifests:{},manifestStore});
     await expect(module.hydrate()).resolves.toEqual({manifests:1,restored:1});
-    expect(module.manager.getManifest('persisted_asset')).toMatchObject({source:{kind:'compiled',key:'persisted_asset'}});
+    expect(module.registry.getManifest('persisted_asset')).toMatchObject({source:{kind:'compiled',key:'persisted_asset'}});
     await module.hydrate();
     expect(manifestStore.list).toHaveBeenCalledOnce();
   });

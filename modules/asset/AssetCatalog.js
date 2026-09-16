@@ -38,7 +38,7 @@ export function searchAssetManifests(manifests, query, { limit = 8 } = {}) {
       else if (field.includes(q)) score += 6;
       for (const token of qTokens) if (field.includes(token)) score += 2;
     }
-    if (score > 0) scored.push({ score, asset: summarizeAsset(manifest) });
+    if (score > 0) scored.push({ score, asset:summarizeAsset(manifest) });
   }
   return scored
     .sort((a, b) => b.score - a.score || a.asset.id.localeCompare(b.asset.id))
@@ -47,26 +47,26 @@ export function searchAssetManifests(manifests, query, { limit = 8 } = {}) {
 }
 
 export class AssetCatalog {
-  constructor({ assetManager }) {
-    if (!assetManager?.manifests || typeof assetManager.getManifest !== 'function') {
-      throw new TypeError('AssetCatalog requires an assetManager manifest store');
+  constructor({ registry, assetManager = null } = {}) {
+    this.registry = registry || assetManager?.registry || assetManager;
+    if (!this.registry?.listManifests || typeof this.registry.getManifest !== 'function') {
+      throw new TypeError('AssetCatalog requires an AssetRegistry');
     }
-    this.assetManager = assetManager;
   }
 
-  has(assetId) { return this.assetManager.has(assetId); }
-  get(assetId) { return this.assetManager.getManifest(assetId); }
-  list() { return [...this.assetManager.manifests.values()].map(summarizeAsset); }
-  search(query, options) { return searchAssetManifests(this.assetManager.manifests.values(), query, options); }
+  has(assetId) { return this.registry.has(assetId); }
+  get(assetId) { return this.registry.getManifest(assetId); }
+  list() { return this.registry.listManifests().map(summarizeAsset); }
+  search(query, options) { return searchAssetManifests(this.registry.listManifests(), query, options); }
   summary(manifest) { return summarizeAsset(manifest); }
 
   resolveExisting(query, { limit = 5, assetId = null } = {}) {
     if (assetId && this.has(assetId)) {
-      return { status: 'found', query, assets: [this.summary(this.get(assetId))] };
+      return { status:'found', query, assets:[this.summary(this.get(assetId))] };
     }
     const assets = this.search(query, { limit });
     return assets.length
-      ? { status: 'found', query, assets }
-      : { status: 'missing', query, assets: [] };
+      ? { status:'found', query, assets }
+      : { status:'missing', query, assets:[] };
   }
 }
