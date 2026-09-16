@@ -21,7 +21,7 @@ export class ResourceLab {
     this.rendererTiming=rendererTiming;
     this.onRendererFailure=onRendererFailure;
     this.mode=mode;
-    if (!assetModule?.manager || !assetModule?.catalog || !assetModule?.compiledStore) throw new TypeError('ResourceLab requires AssetModule');
+    if (!assetModule?.loader || !assetModule?.catalog || !assetModule?.compiledStore) throw new TypeError('ResourceLab requires AssetModule');
     this.assetModule=assetModule;
     this.clock=new SimulationClock();
     this.scene=new THREE.Scene();
@@ -42,7 +42,7 @@ export class ResourceLab {
       viewport:this.viewport,scene:this.scene,camera:this.camera,rendererMode:this.rendererMode,
       rendererTiming:this.rendererTiming,onRendererFailure:this.onRendererFailure,controlsTarget:[0,1,0]
     }));
-    this.assetModule.manager.configureRenderer?.(this.renderer);
+    this.assetModule.loader.configureRenderer?.(this.renderer);
     this.resizeObserver=new ResizeObserver(()=>this.resize());
     this.resizeObserver.observe(this.viewport);
     this.resize();
@@ -109,7 +109,7 @@ export class ResourceLab {
 
   async previewAsset(assetId) {
     try {
-      const {object,manifest}=await this.assetModule.manager.instantiate(assetId);
+      const {object,manifest}=await this.assetModule.loader.instantiate(assetId);
       this.replaceSubject(object);
       this.selectedAsset=assetId;
       this.fitObject(object);
