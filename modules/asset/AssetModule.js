@@ -1,5 +1,7 @@
 import { AssetCatalog } from './AssetCatalog.js';
 import { AssetManager } from './AssetManager.js';
+import { AssetRegistry } from './AssetRegistry.js';
+import { AssetLoader } from './loading/AssetLoader.js';
 import { AssetProductionError, createAssetPublisher } from './publication/AssetPublisher.js';
 import { HttpCompilerProvider } from './compiler/providers/HttpCompilerProvider.js';
 import { CompiledAssetStore } from './storage/CompiledAssetStore.js';
@@ -18,17 +20,22 @@ export function createAssetModule({
   const durableManifests = manifestStore === undefined
     ? (globalThis.indexedDB ? new AssetManifestStore() : null)
     : manifestStore;
-  const manager = new AssetManager({ manifests, compiledStore: store });
-  const catalog = new AssetCatalog({ assetManager: manager });
+
+  const registry = new AssetRegistry({ manifests });
+  const loader = new AssetLoader({ registry, compiledStore:store });
+  const manager = new AssetManager({ registry, loader }); // compatibility only
+  const catalog = new AssetCatalog({ registry });
+
   const durableLibrary = libraryStore === undefined
     ? new LocalAssetLibraryStore()
     : (libraryStore || new LocalAssetLibraryStore({ indexedDBImpl:null }));
   const library = new LocalAssetLibrary({
-    assetManager:manager,
+    assetRegistry:registry,
     compiledStore:store,
     store:durableLibrary,
     now:()=>new Date(now()).toISOString()
   });
+
   let publisher = null;
   let hydrated = false;
   let configuredCompilerProvider = null;
@@ -55,33 +62,35 @@ export function createAssetModule({
   };
 
   const module = {
+    registry,
+    loader,
     manager,
     catalog,
-    compiledStore: store,
-    manifestStore: durableManifests,
+    compiledStore:store,
+    manifestStore:durableManifests,
     library,
 
     async hydrate() {
-      if (hydrated) return { manifests: manager.manifests.size, restored: false };
+      if (hydrated) return { manifests:registry.size, restored:false };
       if (!durableManifests?.list) {
         await library.hydrate();
         hydrated = true;
-        return { manifests: manager.manifests.size, restored: false };
+        return { manifests:registry.size, restored:false };
       }
       const persisted = await durableManifests.list();
       let restored = 0;
       for (const manifest of persisted) {
-        const changed = manager.registerManifest(manifest);
+        const changed = registry.registerManifest(manifest);
         if (changed) restored += 1;
       }
       await library.hydrate();
       hydrated = true;
-      return { manifests: persisted.length, restored };
+      return { manifests:persisted.length, restored };
     },
 
     async registerManifest(manifest, options = {}) {
-      const changed = manager.registerManifest(manifest, options);
-      await persistManifest(manager.getManifest(manifest.id));
+      const changed = registry.registerManifest(manifest, options);
+      await persistManifest(registry.getManifest(manifest.id));
       return changed;
     },
 
@@ -112,11 +121,11 @@ export function createAssetModule({
         version
       });
       publisher = createAssetPublisher({
-        artifactRegistry: artifacts.registry,
-        byteStore: artifacts.byteStore,
-        getAssetCompiler: compilerGetter,
-        assetManager: manager,
-        onManifestRegistered: persistManifest,
+        artifactRegistry:artifacts.registry,
+        byteStore:artifacts.byteStore,
+        getAssetCompiler:compilerGetter,
+        assetRegistry:registry,
+        onManifestRegistered:persistManifest,
         events,
         now,
         ...(idFactory ? { idFactory } : {})
