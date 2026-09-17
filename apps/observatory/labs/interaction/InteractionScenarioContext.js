@@ -17,7 +17,7 @@ export class InteractionScenarioContext {
     this.events = new EventBus();
     this.eventLog = [];
     this.physics = new PhysicsSystem({ backend: new RapierPhysicsBackend() });
-    this.spatial = new SpatialSystem({ store: this.store, scene });
+    this.spatial = new SpatialSystem({ store: this.store });
     this.interaction = new InteractionSystem({
       store: this.store,
       physics: this.physics,

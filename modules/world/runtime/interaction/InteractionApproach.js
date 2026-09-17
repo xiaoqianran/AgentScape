@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Errors } from '../../errors.js';
 
 export const DEFAULT_INTERACTION_DISTANCE = 1.5;
+export const INTERACTION_APPROACH_MARGIN = 0.18;
 export const ACTION_INTERACTION_CORRECTION_TOLERANCE = 0.05;
 
 export class InteractionApproach {

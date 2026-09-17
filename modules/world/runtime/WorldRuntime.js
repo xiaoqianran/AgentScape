@@ -113,13 +113,21 @@ export class WorldRuntime {
     return environment;
   }
 
+  invalidateNavigationForObject(id, reason = 'object-transformed') {
+    if (!this.navigation || !id || !this.store.has(id)) return false;
+    return this.navigation.invalidateIfStatic(this.store.get(id), reason);
+  }
+
   createEnvironmentSystems() {
     this.navigation = new NavigationSystem({
-      store:this.store,physics:this.physics,environmentRoots:[this.environment.navigationRoot || this.environment.root],events:this.events,
+      store:this.store,physics:this.physics,environmentRoots:[this.environment.navigationRoot || this.environment.root],
       backend:this.navigationBackendFactory()
     });
     this.locomotion = new LocomotionSystem({ store:this.store, physics:this.physics, navigation:this.navigation, events:this.events });
-    this.interactions = new InteractionSystem({ store:this.store, physics:this.physics, spatial:this.spatial, navigation:this.navigation, locomotion:this.locomotion, events:this.events });
+    this.interactions = new InteractionSystem({
+      store:this.store,physics:this.physics,spatial:this.spatial,navigation:this.navigation,locomotion:this.locomotion,events:this.events,
+      onObjectTransform:(id,reason)=>this.invalidateNavigationForObject(id,reason)
+    });
     return this.navigation;
   }
 
@@ -208,7 +216,7 @@ export class WorldRuntime {
       attached = true;
       clearInteractionEvidenceForTarget(this,id);
       if (initialState && Object.keys(initialState).length) this.restoreObjectState(id, initialState);
-      this.navigation?.invalidateIfStatic(this.store.get(id), 'object.spawned');
+      this.invalidateNavigationForObject(id, 'object.spawned');
       this.sceneGraph?.changed();
       this.events.emit('object.spawned', { id, assetId, position });
       return id;
@@ -275,7 +283,7 @@ export class WorldRuntime {
       } else this.physics.syncTransform(id,object);
       throw error;
     }
-    this.navigation?.invalidateIfStatic(record,'object.transformed');
+    this.invalidateNavigationForObject(id,'object.transformed');
     this.events.emit('object.transformed',{
       id,source,position:[...nextPosition],quaternion:[...nextQuaternion],scale:nextScale,physicsRebuilt:scaleChanged
     });
@@ -369,7 +377,7 @@ export class WorldRuntime {
     if (this.history?.suspended || (this.mutationOwner && this.mutationOwner !== 'editor')) return false;
     try {
       this.sceneGraph?.changed();
-      if (meta.id && this.store.has(meta.id)) this.navigation?.invalidateIfStatic(this.store.get(meta.id), 'editor.transform');
+      if (meta.id) this.invalidateNavigationForObject(meta.id, 'editor.transform');
       return this.history.commit(this.snapshot(), meta);
     } finally {
       if (this.mutationOwner === 'editor') this.mutationOwner = null;
@@ -420,7 +428,7 @@ export class WorldRuntime {
     const record = this.store.get(id);
     this.locomotion?.cancel(id, 'OBJECT_REMOVED');
     this.interactions?.beforeRemove(id,{silent});
-    this.navigation?.invalidateIfStatic(record, 'object.removed');
+    this.invalidateNavigationForObject(id, 'object.removed');
     this.physics.removeObject(id);
     this.scene.remove(record.object);
     disposeObject3D(record.object);

@@ -103,32 +103,25 @@ Agent Tool Catalog 又认为 door 可以 open
 ## 3. Human 与 Agent 共用 Runtime
 
 ```text
-                       ┌─────────────┐
-                       │ Human Editor│
-                       └──────┬──────┘
-                              │
-                              │
-┌─────────────┐        ┌──────▼──────┐
-│ LLM / Agent │───────>│SkillRegistry│
-└─────────────┘        └──────┬──────┘
-                              │
-                      permission / trace
-                              │
-                              ▼
-                       ┌────────────┐
-                       │WorldRuntime│
-                       └─────┬──────┘
-                             │
-       ┌────────────────┬────┼───────────────┬───────────────┐
-       ▼                ▼    ▼               ▼               ▼
-  AssetRegistry / AssetLoader     SpatialSystem      NavigationSystem   PhysicsSystem
-                                        │
-                                  Recast / Detour
-       │                │               │               │
-       └────────────────┴───────────────┼───────────────┘
-                                        ▼
-                                    Three.js
+Human Editor ─┐
+              ├──> WorldRuntime mutation / Skill boundary
+LLM / Agent ──┘              │
+                             │ composition
+              ┌──────────────┼───────────────────────┐
+              │              │                       │
+              ▼              ▼                       ▼
+           Physics        Spatial                Rendering (optional)
+              ▲
+              │
+          Navigation
+           ▲      ▲
+           │      │
+      Locomotion  │
+           ▲      │
+           └── Interaction ───────────────> Spatial / Physics
 ```
+
+六大 World Runtime system 的精确 dependency DAG、truth ownership 与禁止依赖，以 [`world-architecture.md`](world-architecture.md) 为准。这里的图只表达 Human / Agent 共用同一 Runtime mutation boundary。
 
 Agent 不应该直接：
 
@@ -163,8 +156,11 @@ WorldRuntime
 ├── AssetRegistry / AssetLoader
 ├── ObjectStore
 ├── PhysicsSystem
-├── InteractionSystem
 ├── SpatialSystem
+├── NavigationSystem
+├── LocomotionSystem
+├── InteractionSystem
+├── optional Rendering adapter
 ├── SceneGraph
 ├── CommandHistory
 ├── SceneSerializer

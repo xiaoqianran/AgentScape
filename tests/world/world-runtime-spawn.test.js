@@ -11,6 +11,7 @@ it('updates the semantic scene graph immediately after direct spawn', async () =
     store:{ add:vi.fn() },
     physics:{ addObject:vi.fn(), removeObject:vi.fn() },
     sceneGraph:{ changed:vi.fn() },
+    invalidateNavigationForObject:vi.fn(),
     events:{ emit:vi.fn() }
   };
   const id = await WorldRuntime.prototype.spawn.call(runtime, 'chair', { id:'chair_01', position:[1,0,0] });
@@ -27,7 +28,7 @@ it('applies revision-authored initial state only after physics attachment succee
     assetLoader:{instantiate:vi.fn(async()=>({object,manifest}))},
     scene:{add:vi.fn()},store:{add:vi.fn()},
     physics:{addObject:vi.fn(),removeObject:vi.fn()},
-    restoreObjectState:vi.fn(),sceneGraph:{changed:vi.fn()},events:{emit:vi.fn()}
+    restoreObjectState:vi.fn(),sceneGraph:{changed:vi.fn()},invalidateNavigationForObject:vi.fn(),events:{emit:vi.fn()}
   };
 
   await WorldRuntime.prototype.spawn.call(runtime,'cabinet',{
@@ -48,7 +49,7 @@ it('builds BVH bounds when an object enters WorldRuntime instead of relying on a
     scene:{add:vi.fn(),remove:vi.fn()},
     store:{add:vi.fn(),delete:vi.fn()},
     physics:{addObject:vi.fn(),removeObject:vi.fn()},
-    sceneGraph:{changed:vi.fn()},events:{emit:vi.fn()}
+    sceneGraph:{changed:vi.fn()},invalidateNavigationForObject:vi.fn(),events:{emit:vi.fn()}
   };
   await WorldRuntime.prototype.spawn.call(runtime,'box',{id:'box_01',position:[0,0,0]});
   expect(object.geometry.boundsTree).toBeTruthy();

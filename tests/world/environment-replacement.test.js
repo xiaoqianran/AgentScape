@@ -27,7 +27,7 @@ async function runtimeFixture(){
   runtime.scene=new THREE.Scene();
   await runtime.physics.init();
   runtime.rendering={applyEnvironment:vi.fn()};
-  runtime.spatial=new SpatialSystem({store:runtime.store,scene:runtime.scene});
+  runtime.spatial=new SpatialSystem({store:runtime.store});
   runtime.sceneGraph=new SceneGraph({store:runtime.store,spatial:runtime.spatial,events:runtime.events});
   return runtime;
 }

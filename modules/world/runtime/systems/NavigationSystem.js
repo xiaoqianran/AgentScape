@@ -61,7 +61,7 @@ const articulationEligibility = (record, partName, action) => {
 };
 
 export class NavigationSystem {
-  constructor({ store, physics = null, environmentRoots = [], config = {}, events = null, backend } = {}) {
+  constructor({ store, physics = null, environmentRoots = [], config = {}, backend } = {}) {
     if (!backend) throw new TypeError('NavigationSystem requires a navigation backend');
     this.store = store;
     this.physics = physics;
@@ -78,10 +78,6 @@ export class NavigationSystem {
     this.lastInvalidation = 'initial';
     this.lastBuild = null;
     this.disposed = false;
-    this.interactionOff = events?.on?.('interaction', ({ action, id }) => {
-      if (!['move', 'place'].includes(action) || !id || !this.store?.has?.(id)) return;
-      this.invalidateIfStatic(this.store.get(id), `interaction:${action}`);
-    }) || null;
   }
 
   isStaticRecord(record) { return record?.manifest?.physics?.body === 'fixed'; }
@@ -465,8 +461,6 @@ export class NavigationSystem {
   dispose() {
     this.disposed = true;
     this.revision += 1;
-    this.interactionOff?.();
-    this.interactionOff = null;
     this.backend.dispose?.();
     this.obstacles.clear();
     this.dirty = true;

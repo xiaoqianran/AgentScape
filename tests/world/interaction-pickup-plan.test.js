@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
-import { DEFAULT_WAYPOINT_TOLERANCE } from '../../modules/world/runtime/systems/LocomotionSystem.js';
+import { INTERACTION_APPROACH_MARGIN } from '../../modules/world/runtime/interaction/InteractionApproach.js';
 
 const setup=()=>{
   const physics={checkBodyMotion:vi.fn((_id,targetPosition)=>({clear:targetPosition[0]>.3}))};
@@ -15,7 +15,7 @@ describe('deterministic pickup plan',()=>{
   it('reserves locomotion arrival tolerance and accepts only a transfer-clear candidate',async()=>{
     const {system,physics}=setup();
     system.findInteractionPose=vi.fn(async(_actor,_target,options)=>{
-      expect(options.maxDistance).toBeCloseTo(1.5-DEFAULT_WAYPOINT_TOLERANCE,6);
+      expect(options.maxDistance).toBeCloseTo(1.5-INTERACTION_APPROACH_MARGIN,6);
       expect(options.standOff).toBeCloseTo(.8,6);
       expect(options.candidateFilter([-.2,0,1])).toBe(false);
       expect(options.candidateFilter([1,0,0])).toBe(true);
@@ -25,7 +25,7 @@ describe('deterministic pickup plan',()=>{
     expect(plan).toMatchObject({
       pose:{status:'approach-pose',position:[1,0,0]},
       transfer:{clear:true},
-      plannedMaxDistance:1.5-DEFAULT_WAYPOINT_TOLERANCE
+      plannedMaxDistance:1.5-INTERACTION_APPROACH_MARGIN
     });
     expect(plan.facingYaw).toBeCloseTo(Math.PI/2,6);
     expect(physics.checkBodyMotion).toHaveBeenCalled();

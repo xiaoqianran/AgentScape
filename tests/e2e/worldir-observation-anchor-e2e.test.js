@@ -13,7 +13,7 @@ it('compiles WorldIR cup NEAR an observed generated-world bench before spawn wit
   const assetLoader=new AssetLoader({registry:assets});
   const store=new ObjectStore();
   const scene=new THREE.Scene();
-  const spatial=new SpatialSystem({store,scene});
+  const spatial=new SpatialSystem({store});
   const sceneGraph=new SceneGraph({store,spatial});
   const physics=createRapierPhysicsSystem();
   await physics.init();

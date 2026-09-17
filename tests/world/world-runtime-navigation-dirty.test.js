@@ -8,7 +8,8 @@ it('invalidates static navigation when the editor commits a fixed-object transfo
     sceneGraph:{changed:vi.fn()},
     snapshot:vi.fn(()=>({})),
     store:{has:vi.fn(()=>true),get:vi.fn(()=>record)},
-    navigation:{invalidateIfStatic:vi.fn()}
+    navigation:{invalidateIfStatic:vi.fn()},
+    invalidateNavigationForObject:WorldRuntime.prototype.invalidateNavigationForObject
   };
   WorldRuntime.prototype.commitMutation.call(runtime,{source:'editor',id:'wall_1',mode:'translate'});
   expect(runtime.navigation.invalidateIfStatic).toHaveBeenCalledWith(record,'editor.transform');

@@ -35,6 +35,16 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - 一次 `open` 动作最终经过哪些模块？
 - 一个普通 GLB 如何变成 Agent 可以真实操作的对象？
 
+### [`world-architecture.md`](world-architecture.md) — World Runtime 六系统冻结架构
+
+回答：
+
+- Physics / Spatial / Navigation / Locomotion / Interaction / Rendering 的最终依赖 DAG 是什么？
+- Spatial 为什么在 Interaction 之前？
+- 每个系统拥有哪类 truth，哪些依赖明确禁止？
+- World mutation 如何统一触发 Navigation invalidation，而不产生反向 event dependency？
+- headless Runtime、simulation frame 与 Rendering 的边界在哪里？
+
 ### [`engineering-method.md`](engineering-method.md) — 我们如何研究和做工程决策
 
 回答：

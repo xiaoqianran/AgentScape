@@ -53,7 +53,7 @@ async function setup({ withNav = true } = {}) {
 
   for (let i = 0; i < 120; i++) physics.step(1 / 60, store);
 
-  const spatial = new SpatialSystem({ store, scene });
+  const spatial = new SpatialSystem({ store });
   const events = new EventBus();
   const navigation = withNav
     ? createRecastNavigationSystem({ store, physics, environmentRoots: [ground], events })

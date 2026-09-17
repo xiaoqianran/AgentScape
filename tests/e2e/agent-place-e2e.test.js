@@ -24,7 +24,7 @@ async function setup({tablePhysics=true, blocker=null}={}){
   const table=tableVisual(); table.position.set(0,0,0); scene.add(table); table.updateMatrixWorld(true);
   const tm=structuredClone(assetManifests.table); store.add('table_01',{id:'table_01',assetId:'table',object:table,manifest:tm,state:{}}); if(tablePhysics) physics.addObject('table_01',tm,table);
   physics.step(1/60,store);
-  const spatial=new SpatialSystem({store,scene}), events=new EventBus();
+  const spatial=new SpatialSystem({store}), events=new EventBus();
   const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[ground],events});
   const locomotion=new LocomotionSystem({store,physics,navigation,events});
   const interactions=new InteractionSystem({store,physics,spatial,navigation,locomotion,events}); interactions.rebuildHeldOwnership();

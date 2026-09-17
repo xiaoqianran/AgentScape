@@ -77,7 +77,6 @@ export class GenerationAgentScenarioContext {
       store: this.world.store,
       physics: this.world.physics,
       environmentRoots: [this.ground],
-      events: this.world.events,
       backend: new RecastNavigationBackend()
     });
     this.locomotion = new LocomotionSystem({

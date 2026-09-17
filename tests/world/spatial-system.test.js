@@ -109,7 +109,7 @@ describe('SpatialSystem', () => {
     store.add('table',{id:'table',assetId:'table',object:table,manifest:{actions:[],surfaces:[{id:'top',localPosition:[0,1.1,0],size:[2.2,1]}]}});
     const cup=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2)); cup.position.set(0,1.2,0); cup.updateMatrixWorld(true); scene.add(cup);
     store.add('cup',{id:'cup',assetId:'cup',object:cup,manifest:{actions:[]}});
-    const spatial=new SpatialSystem({store,scene});
+    const spatial=new SpatialSystem({store});
     expect(spatial.supportGeometry('cup','table',{surfaceId:'top'})).toMatchObject({supported:true,surfaceId:'top',withinX:true,withinZ:true,evidence:'spatial-geometry'});
     cup.position.set(2,1.2,0); cup.updateMatrixWorld(true);
     expect(spatial.supportGeometry('cup','table',{surfaceId:'top'}).supported).toBe(false);
@@ -123,7 +123,7 @@ describe('SpatialSystem', () => {
     store.add('table',{id:'table',assetId:'table',object:table,manifest:{actions:[],surfaces:[{id:'top',localPosition:[0,1.1,0],size:[2.2,1]}]}});
     const cup=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2)); cup.position.set(0,1.15,0); cup.updateMatrixWorld(true); scene.add(cup);
     store.add('cup',{id:'cup',assetId:'cup',object:cup,manifest:{actions:[]}});
-    const spatial=new SpatialSystem({store,scene});
+    const spatial=new SpatialSystem({store});
     expect(spatial.supportGeometry('cup','table',{surfaceId:'top'})).toMatchObject({supported:false,aboveSurface:false,withinX:true,withinZ:true,evidence:'spatial-geometry'});
   });
 
@@ -137,7 +137,7 @@ it('uses declared receptacle volume for containment instead of treating the whol
   const item=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2)); item.position.set(0,.5,0); scene.add(item); item.updateMatrixWorld(true);
   store.add('cabinet',{id:'cabinet',assetId:'cabinet',object:cabinet,manifest:{actions:[],receptacles:[{id:'interior',localPosition:[0,0,0],size:[1.4,1.4,1.4]}]}});
   store.add('item',{id:'item',assetId:'item',object:item,manifest:{actions:[]}});
-  const spatial=new SpatialSystem({store,scene});
+  const spatial=new SpatialSystem({store});
   expect(spatial.containmentGeometry('item','cabinet',{receptacleId:'interior'})).toMatchObject({inside:true,receptacleId:'interior',mode:'receptacle',evidence:'spatial-geometry'});
   item.position.set(.9,.5,0); item.updateMatrixWorld(true);
   expect(spatial.containmentGeometry('item','cabinet',{receptacleId:'interior'})).toMatchObject({inside:false,reason:'OUTSIDE_RECEPTACLE',evidence:'spatial-geometry'});
