@@ -63,6 +63,18 @@ async function setup({blockerAction='open',blockerTarget=-1.35}={}){
     store,scene,physics,spatial,navigation,locomotion,interactions,events,policy,trace,mutate,
     listObjects:()=>store.list().map(([id,record])=>({id,asset:record.assetId,position:physics.getPosition(id)||record.object.position.toArray(),actions:record.manifest.actions}))
   };
+  runtime.navigateAgent=(...args)=>locomotion.navigate(...args);
+  runtime.locomotionStatus=(...args)=>locomotion.status(...args);
+  runtime.findInteractionPose=(...args)=>interactions.findInteractionPose(...args);
+  runtime.approachAndInteract=(...args)=>interactions.approachAndInteract(...args);
+  runtime.articulationStatus=(...args)=>interactions.articulationStatus(...args);
+  runtime.approachAndPickup=(...args)=>interactions.approachAndPickup(...args);
+  runtime.approachAndPlace=(...args)=>interactions.approachAndPlace(...args);
+  runtime.dropHeld=(...args)=>interactions.dropHeld(...args);
+  runtime.carryStatus=(...args)=>interactions.carryStatus(...args);
+  runtime.markRecoveryHeld=(...args)=>interactions.markRecoveryHeld(...args);
+  runtime.findRecoveryCleanupPlan=(...args)=>interactions.findRecoveryCleanupPlan(...args);
+  runtime.cleanupRecoveryBlocker=(...args)=>interactions.cleanupRecoveryBlocker(...args);
   runtime.observation=new WorldObservation(runtime);
   runtime.recovery=new WorldRecovery(runtime);
   runtime.skills=registerCoreSkills(new SkillRegistry({policy,trace,runtime}),runtime);

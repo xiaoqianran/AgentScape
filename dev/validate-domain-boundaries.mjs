@@ -153,6 +153,21 @@ for (const file of agentFiles) {
   }
 }
 
+const agentFacingWritePacks = productJs.filter((file) => [
+  'application/skills/packs/interactionSkills.js',
+  'application/skills/packs/recoverySkills.js'
+].includes(relative(file)));
+for (const file of agentFacingWritePacks) {
+  const source=fs.readFileSync(file,'utf8');
+  if (AGENT_WORLD_INTERNAL_RE.test(source)) {
+    failures.push(`Agent-facing World command boundary violation: ${relative(file)}`);
+  }
+}
+const spatialSkillsFile=productJs.find((file)=>relative(file)==='application/skills/packs/spatialSkills.js');
+if (spatialSkillsFile && /\bruntime\.locomotion\.navigate\b/.test(fs.readFileSync(spatialSkillsFile,'utf8'))) {
+  failures.push('Agent-facing navigation command boundary violation: application/skills/packs/spatialSkills.js');
+}
+
 const assetClients = productJs.filter((file) => {
   const name=relative(file);
   return !name.startsWith("modules/asset/") && !name.startsWith("apps/observatory/");
