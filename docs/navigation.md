@@ -69,12 +69,18 @@ Navigation 不读取 visual bounds 作为当前物理障碍真值。
 静态几何发生变化时：
 
 ```text
-invalidate()
+World mutation
+   ↓
+WorldRuntime.invalidateNavigationForObject(id, reason)
+   ↓
+Navigation.invalidateIfStatic(record, reason)
    ↓
 next query
    ↓
 NavMesh rebuild
 ```
+
+`NavigationSystem` 不订阅 `interaction` event，也不知道 `move / place / placeInside` 等高层动作名称。mutation→navigation invalidation 的跨系统一致性由 `WorldRuntime` 负责。
 
 动态 collider 变化时：
 

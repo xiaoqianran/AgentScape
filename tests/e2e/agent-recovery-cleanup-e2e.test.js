@@ -44,7 +44,7 @@ async function setup(){
   for(let i=0;i<90;i++) physics.step(1/60,store);
 
   const events=new EventBus();
-  const spatial=new SpatialSystem({store,scene});
+  const spatial=new SpatialSystem({store});
   const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[ground],events});
   const locomotion=new LocomotionSystem({store,physics,navigation,events});
   const interactions=new InteractionSystem({store,physics,spatial,navigation,locomotion,events});

@@ -43,7 +43,7 @@ async function setup({ wall=null }={}) {
   physics.addObject('cabinet_01',cabinetManifest,cabinet);
   physics.step(1/60,store);
 
-  const spatial=new SpatialSystem({store,scene});
+  const spatial=new SpatialSystem({store});
   const events=new EventBus();
   const navigation=createRecastNavigationSystem({store,physics,environmentRoots:[ground],events});
   const locomotion=new LocomotionSystem({store,physics,navigation,events});

@@ -131,17 +131,16 @@ describe('NavigationSystem', () => {
     solver.dispose();
   });
 
-  it('owns interaction invalidation and unsubscribes on dispose', async () => {
+  it('does not interpret interaction events; callers explicitly invalidate static navigation', async () => {
     const store=new ObjectStore();
     const fixed=addRecord(store,'fixed',wall({z:20,depth:1}),'fixed');
-    const dynamic=addRecord(store,'dynamic',wall({z:20,depth:1}),'dynamic');
     const events=new EventBus();
     const navigation=createRecastNavigationSystem({store,environmentRoots:[floor()],events});
     await navigation.findPath([-4,0,0],[4,0,0]);
-    events.emit('interaction',{action:'move',id:dynamic.id});
-    expect(navigation.status().dirty).toBe(false);
     events.emit('interaction',{action:'move',id:fixed.id});
-    expect(navigation.status()).toMatchObject({dirty:true,lastInvalidation:'interaction:move'});
+    expect(navigation.status().dirty).toBe(false);
+    expect(navigation.invalidateIfStatic(fixed,'world-runtime:interaction.move')).toBe(true);
+    expect(navigation.status()).toMatchObject({dirty:true,lastInvalidation:'world-runtime:interaction.move'});
     navigation.dispose();
     expect((await navigation.canReach([0,0,0],[1,0,0])).reason).toBe('NAVIGATION_DISPOSED');
   },15000);

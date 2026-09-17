@@ -8,4 +8,6 @@ spec/compiler/runtime/verification 等已有子系统保留，不按统一模块
 World 只消费限定的 Asset 契约，不调用 Provider。
 WorldRuntime 可独立 headless 运行；展示能力通过 attachRendering() 可选连接。编辑入口和结果证据的进一步封装需具体任务驱动。
 
+六大 Runtime System 的冻结依赖、truth ownership、mutation/invalidation 与 simulation frame 见 [`../../docs/world-architecture.md`](../../docs/world-architecture.md)。
+
 任务见 tasks.jsonl。验证：npm run test:world 和 npm run world:viability。

@@ -35,6 +35,7 @@ describe('Object transform contract',()=>{
     const runtime={
       store,physics,
       navigation:{invalidateIfStatic:vi.fn()},
+      invalidateNavigationForObject:WorldRuntime.prototype.invalidateNavigationForObject,
       events:{emit:vi.fn()}
     };
     const result=WorldRuntime.prototype.applyObjectTransform.call(runtime,'cup_01',{scale:.5},{source:'test'});
@@ -53,7 +54,7 @@ describe('Object transform contract',()=>{
     const store=new ObjectStore();
     store.add('chair_01',{id:'chair_01',assetId:'chair',object,manifest,state:{},physicsScale:1});
     const physics={removeObject:vi.fn(),addObject:vi.fn(),syncTransform:vi.fn()};
-    const runtime={store,physics,navigation:{invalidateIfStatic:vi.fn()},events:{emit:vi.fn()}};
+    const runtime={store,physics,navigation:{invalidateIfStatic:vi.fn()},invalidateNavigationForObject:WorldRuntime.prototype.invalidateNavigationForObject,events:{emit:vi.fn()}};
     const result=WorldRuntime.prototype.applyObjectTransform.call(runtime,'chair_01',{position:[2,0,3],rotationDegrees:[0,90,0]},{source:'agent'});
     expect(result.physicsRebuilt).toBe(false);
     expect(object.position.toArray()).toEqual([2,0,3]);
@@ -69,7 +70,7 @@ describe('Object transform contract',()=>{
     const store=new ObjectStore();
     store.add('cup_01',{id:'cup_01',assetId:'cup',object,manifest,state:{},physicsScale:1});
     physics.addObject('cup_01',manifest,object);
-    const runtime={store,physics,navigation:{invalidateIfStatic:()=>{}},events:{emit:()=>{}}};
+    const runtime={store,physics,navigation:{invalidateIfStatic:()=>{}},invalidateNavigationForObject:WorldRuntime.prototype.invalidateNavigationForObject,events:{emit:()=>{}}};
 
     WorldRuntime.prototype.applyObjectTransform.call(runtime,'cup_01',{scale:.5},{source:'test'});
 

@@ -30,7 +30,7 @@ async function setup(manifest=drawerManifest){
   root.updateMatrixWorld(true); scene.add(root);
   store.add('drawer_01',{id:'drawer_01',assetId:'drawer-test',object:root,manifest,state:{parts:{drawer:'close'}}});
   physics.addObject('drawer_01',manifest,root); physics.step(1/60,store);
-  const spatial=new SpatialSystem({store,scene});
+  const spatial=new SpatialSystem({store});
   const interactions=new InteractionSystem({store,physics,spatial,events:{emit(){}}});
   return {store,physics,interactions};
 }

@@ -97,6 +97,8 @@ Spatial / Navigation / Locomotion / Physics
 
 外部模块不要直接依赖 `interaction/*Runtime`。
 
+对象位置发生真实 mutation 时，Interaction 只通过注入的 `onObjectTransform(id, reason)` 报告给组合根；它不直接调用 Navigation invalidation，也不要求 Navigation 监听 `interaction` event。当前 `move / place / placeInside / embodied place` 都走这条边界。
+
 ## Truth 与验证
 
 持有关系的 durable truth：

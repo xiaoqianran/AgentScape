@@ -3,20 +3,20 @@ import { Errors } from '../../errors.js';
 import { compileInteractionContract } from '../interaction/InteractionContract.js';
 import { ArticulationRuntime } from '../interaction/ArticulationRuntime.js';
 import { SettleRuntime } from '../interaction/SettleRuntime.js';
-import { InteractionApproach } from '../interaction/InteractionApproach.js';
+import { InteractionApproach, DEFAULT_INTERACTION_DISTANCE, INTERACTION_APPROACH_MARGIN } from '../interaction/InteractionApproach.js';
 import { CarryRuntime } from '../interaction/CarryRuntime.js';
 import { RecoveryRuntime } from '../interaction/RecoveryRuntime.js';
-import { DEFAULT_WAYPOINT_TOLERANCE } from './LocomotionSystem.js';
 
-export const DEFAULT_INTERACTION_DISTANCE = 1.5;
+export { DEFAULT_INTERACTION_DISTANCE };
 export class InteractionSystem {
-  constructor({ store, physics, spatial, navigation = null, locomotion = null, events }) {
+  constructor({ store, physics, spatial, navigation = null, locomotion = null, events, onObjectTransform = null }) {
     this.store = store;
     this.physics = physics;
     this.spatial = spatial;
     this.navigation = navigation;
     this.locomotion = locomotion;
     this.events = events;
+    this.onObjectTransform = typeof onObjectTransform === 'function' ? onObjectTransform : null;
     this.carry = new CarryRuntime({ store, physics, spatial, events, assertSupports:(...args)=>this.assertSupports(...args) });
     this.articulationRuntime = new ArticulationRuntime({ store, physics, events, assertSupports:(...args)=>this.assertSupports(...args) });
     this.articulationTasks = this.articulationRuntime.tasks;
@@ -31,7 +31,7 @@ export class InteractionSystem {
       store, physics, spatial, navigation, locomotion,
       approach:this.approach, carry:this.carry, articulation:this.articulationRuntime,
       interactionDistance:DEFAULT_INTERACTION_DISTANCE,
-      waypointTolerance:DEFAULT_WAYPOINT_TOLERANCE
+      waypointTolerance:INTERACTION_APPROACH_MARGIN
     });
   }
 
@@ -148,6 +148,8 @@ export class InteractionSystem {
     }
   }
 
+  notifyObjectTransform(id, reason) { return this.onObjectTransform?.(id, reason) ?? false; }
+
   supports(record, action) { return record.manifest.actions.includes(action); }
   interactionContracts(record) { return compileInteractionContract(record.manifest); }
 
@@ -161,6 +163,7 @@ export class InteractionSystem {
     const record = this.assertSupports(id, 'move');
     record.object.position.fromArray(position);
     this.physics.setPosition(id, position);
+    this.notifyObjectTransform(id, 'interaction.move');
     if(!silent) this.events.emit('interaction', { action: 'move', id, position });
   }
 
@@ -183,10 +186,11 @@ export class InteractionSystem {
     const target = this.store.get(targetId);
     if (!target.manifest.surfaces?.length) throw Errors.actionUnsupported(targetId, 'receive');
     const p = this.spatial.findFreeSpace(id, targetId, placementOptions);
-    if (!p) throw new Error(`No collision-free placement found on ${targetId}`);
+    if (!p) throw new Error(`No overlap-free placement found on ${targetId}`);
     this.pickup(id,{silent});
     this.store.get(id).object.position.copy(p);
     this.physics.setPosition(id, p.toArray());
+    this.notifyObjectTransform(id, 'interaction.place');
     this.drop(id,{silent});
     if(!silent) this.events.emit('interaction', { action: 'place', id, targetId, position: p.toArray() });
     return { id, targetId, position: p.toArray().map((v) => Number(v.toFixed(3))) };
@@ -205,6 +209,7 @@ export class InteractionSystem {
     if (!position) return {status:'inside-blocked',reason:'NO_FREE_RECEPTACLE_SPACE',id,targetId,receptacleId};
     record.object.position.copy(position);
     this.physics.setPosition(id,position.toArray());
+    this.notifyObjectTransform(id, 'interaction.place-inside');
     record.object.updateWorldMatrix(true,true);
     const containment=this.spatial.containmentGeometry(id,targetId,{receptacleId});
     if(!silent) this.events.emit('interaction',{action:'place-inside',id,targetId,receptacleId:containment.receptacleId,position:position.toArray()});
@@ -320,7 +325,7 @@ export class InteractionSystem {
         : this.physics.checkBodyMotion(targetId,anchorPose.position,anchorPose.rotation,{excludeIds:[actorId]});
       return {yaw,anchorPose,transfer};
     };
-    const plannedMaxDistance=Math.max(.05,maxDistance-DEFAULT_WAYPOINT_TOLERANCE);
+    const plannedMaxDistance=Math.max(.05,maxDistance-INTERACTION_APPROACH_MARGIN);
     const supportClearance=supportIds.length ? .05 : .12;
     const standOff=this.carryStandOff(actorId,targetId);
     const pose=await this.findInteractionPose(actorId,targetId,{maxDistance:plannedMaxDistance,clearance:supportClearance,standOff,stanceBounds,candidateFilter:(position)=>transferAt(position).transfer.clear});
@@ -437,7 +442,7 @@ export class InteractionSystem {
       const dx=releasePoint[0]-position[0], dz=releasePoint[2]-position[2];
       const yaw=Math.hypot(dx,dz) < 1e-8 ? 0 : Math.atan2(-dx,-dz);
       const predicted=this.holdPoseAt(position,yaw,anchor);
-      return new THREE.Vector3(...predicted.position).distanceTo(release) <= DEFAULT_INTERACTION_DISTANCE - DEFAULT_WAYPOINT_TOLERANCE;
+      return new THREE.Vector3(...predicted.position).distanceTo(release) <= DEFAULT_INTERACTION_DISTANCE - INTERACTION_APPROACH_MARGIN;
     };
     const pose = await this.findInteractionPose(actorId,targetId,{
       ignoreIds:[heldId],standOff:this.carryStandOff(actorId,heldId),candidateFilter:canReachRelease,
@@ -473,6 +478,7 @@ export class InteractionSystem {
     const selectedSurface = this.spatial.getSupportSurface(targetId,surfaceId)?.id || surfaceId;
     this.releaseHeld(heldId,'PLACE_RELEASE');
     const settled = await this.waitForPlacementSettle(heldId,targetId,selectedSurface);
+    this.notifyObjectTransform(heldId, 'interaction.place');
     return {
       ...settled, actorId,targetId,heldId,pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,reorientation,
       release:release.toArray().map((value)=>Number(value.toFixed(4))),

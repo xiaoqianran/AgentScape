@@ -46,7 +46,7 @@ async function runtimeFixture() {
   floor.name = 'Floor';
   floor.position.y = -0.1;
   runtime.scene.add(floor);
-  runtime.spatial = new SpatialSystem({ store: runtime.store, scene: runtime.scene });
+  runtime.spatial = new SpatialSystem({ store: runtime.store });
   runtime.sceneGraph = new SceneGraph({
     store: runtime.store, spatial: runtime.spatial, events: runtime.events
   });

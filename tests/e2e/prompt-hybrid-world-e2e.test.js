@@ -82,7 +82,7 @@ async function runtimeFixture(){
   const runtime=new WorldRuntime({environmentFactory:()=>null,assetModule:createAssetModule(),physicsFactory:createRapierPhysicsSystem});
   runtime.scene=new THREE.Scene(); await runtime.physics.init();
   runtime.rendering={applyEnvironment:vi.fn(),cameraState:()=>null};
-  runtime.spatial=new SpatialSystem({store:runtime.store,scene:runtime.scene});
+  runtime.spatial=new SpatialSystem({store:runtime.store});
   runtime.sceneGraph=new SceneGraph({store:runtime.store,spatial:runtime.spatial,events:runtime.events});
   runtime.validator={run:()=>({ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],findings:[],coverage:{objects:runtime.store.list().length,relations:runtime.sceneGraph.list().length}})};
   runtime.repair={repair:async()=>({})};

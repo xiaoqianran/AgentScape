@@ -91,7 +91,7 @@ const applyCandidatePosition=(runtime,id,position)=>{
   const record=runtime.store.get(id);
   record.object.position.fromArray(position);
   runtime.physics.setPosition(id,position);
-  runtime.navigation?.invalidateIfStatic?.(record,'world.revision.position');
+  runtime.invalidateNavigationForObject?.(id,'world.revision.position');
   runtime.sceneGraph?.changed?.();
   runtime.sceneGraph?.update?.();
 };
