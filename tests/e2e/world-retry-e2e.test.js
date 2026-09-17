@@ -1,6 +1,6 @@
 import { describe,expect,it,vi } from 'vitest';
-import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
-import { AssetCatalog } from '../../modules/asset/AssetCatalog.js';
+import { AssetRegistry } from '../../modules/asset/registry/AssetRegistry.js';
+import { AssetCatalog } from '../../modules/asset/registry/AssetCatalog.js';
 import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../../application/skills/registerCoreSkills.js';
 import { PolicyEngine } from '../../foundation/PolicyEngine.js';

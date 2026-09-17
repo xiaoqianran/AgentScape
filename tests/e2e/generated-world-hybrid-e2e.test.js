@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetRegistry } from '../../modules/asset/registry/AssetRegistry.js';
 import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
-import { assetAdmission } from '../../modules/asset/admission.js';
+import { assetAdmission } from '../../modules/asset/model/admission.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { composeObservedNearPlacement } from '../../modules/world/compiler/WorldComposer.js';
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';

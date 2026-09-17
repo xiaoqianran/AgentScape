@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { SkillRegistry } from "../../application/skills/SkillRegistry.js";
 import { registerCoreSkills } from "../../application/skills/registerCoreSkills.js";
-import { assetAdmission } from "../../modules/asset/admission.js";
+import { assetAdmission } from "../../modules/asset/model/admission.js";
 import { ConnectorClient } from "../../modules/generation/connector/ConnectorClient.js";
 import { attachGenerationRuntime } from "../../application/generation/GenerationRuntime.js";
 import { createAssetModule } from "../../modules/asset/AssetModule.js";

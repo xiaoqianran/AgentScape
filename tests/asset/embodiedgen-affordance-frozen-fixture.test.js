@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { EmbodiedGenBundleAdapter } from '../../modules/asset/adapters/EmbodiedGenBundleAdapter.js';
-import { AssetCompiler } from '../../modules/asset/compiler/AssetCompiler.js';
-import { assetAdmission } from '../../modules/asset/admission.js';
+import { EmbodiedGenBundleAdapter } from '../../modules/asset/production/adapters/EmbodiedGenBundleAdapter.js';
+import { AssetCompiler } from '../../modules/asset/production/compiler/AssetCompiler.js';
+import { assetAdmission } from '../../modules/asset/model/admission.js';
 
 const ROOT='tests/fixtures/embodiedgen-affordance-v1';
 const readBytes=async(name)=>new Uint8Array(await readFile(`${ROOT}/${name}`));

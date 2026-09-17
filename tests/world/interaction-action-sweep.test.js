@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';
 import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 
 const drawerManifest={
   id:'drawer-test',type:'cabinet',source:{kind:'builtin'},actions:['open','close'],

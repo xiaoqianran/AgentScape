@@ -1,17 +1,46 @@
 # Asset
 
-负责资产编译、准入、发布、注册、加载、目录与资产库。入口：AssetModule.js。
-模块不调度生成任务，不拥有 World 实例状态。
+`modules/asset` owns the lifecycle that turns a verified Artifact into an AgentScape Asset and later materializes that Asset for World runtime use. Entry point: `AssetModule.js`.
 
-稳定边界：
-- `AssetRegistry`：Asset Manifest identity / registration truth。
-- `AssetLoader`：Asset → Three.js runtime object materialization；内部使用 `GltfAssetLoader` 与 built-in factories。
-- `AssetCatalog`：基于 Registry 的查询、搜索与摘要。
-- `LocalAssetLibrary`：持久化用户批准的 compiled assets。
-- `publication/`：verified Artifact → Asset 的发布编排。
-- `compiler/`：输入 → AgentScape 可接纳 Asset 表示。
+It does not schedule generation jobs and does not own World instance state.
 
-`AssetModule` 明确暴露 `registry` 与 `loader`；registry 负责 manifest identity，loader 负责实例化与资源加载。
-发布流程消费 Artifact 公共契约，重型几何服务仍位于 `services/asset-compiler`。
+## Structure
 
-任务见 tasks.jsonl。验证：`npm run test:asset` 和 `npm run assets:validate`。
+```text
+asset/
+├─ AssetModule.js        composition root
+├─ model/                Asset definition and validity
+├─ production/           Artifact → Asset production
+├─ registry/             known Asset metadata and queries
+├─ loading/              Asset → runtime object
+└─ persistence/          durable local Asset state
+```
+
+## Boundaries
+
+- `model/`: `AssetRef`, schema, parts, admission, resource budgets, Asset errors. No external I/O.
+- `production/`: `AssetProductionPipeline`, compiler, compiler passes/providers, and external payload adapters. This is the only Artifact → Asset path.
+- `registry/`: `AssetRegistry` is manifest identity/registration truth; `AssetCatalog` is its search/read view; built-in manifests live here.
+- `loading/`: `AssetLoader` resolves a registered Asset into a Three.js runtime object; `GltfAssetLoader` and built-in factories are loading details.
+- `persistence/`: compiled bytes, persisted manifests, and the user-approved `LocalAssetLibrary`.
+
+## Lifecycle
+
+```text
+Artifact
+   ↓
+production
+   ↓
+model validation / admission
+   ↓
+registry
+   ├─→ persistence
+   ↓
+loading
+   ↓
+World Object
+```
+
+`AssetModule` is the composition root and the owner of `AssetRegistry`, `AssetLoader`, persistence stores, and Asset production configuration. Heavy geometry services remain in `services/asset-compiler`.
+
+Validation: `npm run test:asset`, `npm run assets:validate`, and `npm run architecture:validate`.

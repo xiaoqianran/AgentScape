@@ -1,4 +1,4 @@
-import { assetIdFromRef } from '../../asset/AssetRef.js';
+import { assetIdFromRef } from '../../asset/model/AssetRef.js';
 
 const rootColliderExtent = (spec) => {
   const t=spec.translation || [0,0,0];

@@ -114,7 +114,7 @@ AgentScape 的文档分成三层：**先理解为什么，再理解现在是什�
 - [`asset-sourcing.md`](asset-sourcing.md)：Curated scene packs 的素材来源、许可、风格与 Web 资源准入。
 - [`worlds.md`](worlds.md)：WORLD 01/02、Environment Catalog、世界切换、存档隔离与场景真值。
 - [`asset-compiler.md`](asset-compiler.md)：Agent-Ready Asset Compiler 的完整契约。
-- [`generation-runtime.md`](generation-runtime.md)：唯一生成控制面：Connector capability / Job / Artifact → Asset publication。
+- [`generation-runtime.md`](generation-runtime.md)：唯一生成控制面：Connector capability / Job / Artifact → Asset production。
 - [`llm-gateway.md`](llm-gateway.md)：LLM Tool Calling Gateway。
 - [`test-agent.md`](test-agent.md)：1.15.1 本地 OpenAI-compatible 测试 Agent、Secret 边界、tool-call history 与 live probe。
 

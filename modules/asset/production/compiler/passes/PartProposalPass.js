@@ -1,4 +1,4 @@
-import { orderParts, ROOT_PART } from '../../parts.js';
+import { orderParts, ROOT_PART } from '../../../model/parts.js';
 
 const SUPPORTED_JOINTS = new Set(['revolute', 'prismatic']);
 const finiteVec = (value, length) => Array.isArray(value) && value.length === length && value.every(Number.isFinite);

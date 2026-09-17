@@ -1,4 +1,4 @@
-import { AgentScapeError } from '../../foundation/errors.js';
+import { AgentScapeError } from '../../../foundation/errors.js';
 
 export const Errors = {
   assetNotFound: (id) => new AgentScapeError('ASSET_NOT_FOUND', 'Unknown asset: ' + id, { id }),

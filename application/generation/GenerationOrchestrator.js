@@ -195,7 +195,7 @@ export class GenerationOrchestrator {
   constructor({
     providerRegistry,connectorClient=null,capabilityAdapter=new ConnectorCapabilityAdapter(),
     jobClient=null,jobReconciler=null,artifactRegistry=null,byteStore=null,
-    artifactImporter=null,publishAsset=null,persistArtifact=null,
+    artifactImporter=null,produceAsset=null,persistArtifact=null,
     events=null,now=()=>Date.now(),monotonic=()=>globalThis.performance?.now?.() ?? Date.now(),
     sleep=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms)),pollIntervalMs=DEFAULT_POLL_INTERVAL_MS,
     generationTimeoutMs=DEFAULT_GENERATION_TIMEOUT_MS
@@ -214,7 +214,7 @@ export class GenerationOrchestrator {
       registry:this.artifactRegistry,byteStore:this.byteStore,
       connectorArtifactClient:new ConnectorArtifactClient({connectorClient}),now
     }) : null);
-    this.publishAsset=publishAsset;
+    this.produceAsset=produceAsset;
     this.persistArtifact=typeof persistArtifact==='function'?persistArtifact:null;
     this.events=events;
     this.now=now;
@@ -612,10 +612,10 @@ export class GenerationOrchestrator {
     if (imported.artifact.mime!=="model/gltf-binary" || imported.artifact.format!=="glb") {
       throw new GenerationOrchestrationError("ARTIFACT_FORMAT_UNSUPPORTED","Asset compilation requires a verified GLB generation artifact",{artifactId:imported.artifact.id});
     }
-    if (typeof this.publishAsset!=="function") {
-      throw new GenerationOrchestrationError("ASSET_PUBLISHER_UNAVAILABLE","Generation asset publication is not configured");
+    if (typeof this.produceAsset!=="function") {
+      throw new GenerationOrchestrationError("ASSET_PRODUCER_UNAVAILABLE","Generation asset production is not configured");
     }
-    const produced=await this.publishAsset({artifactId:imported.artifact.id,assetId,label:request.label});
+    const produced=await this.produceAsset({artifactId:imported.artifact.id,assetId,label:request.label});
     return {...produced,jobId:view.jobId,providerStatus:"provider-succeeded",artifactStatus:"artifact-imported"};
   }
 }

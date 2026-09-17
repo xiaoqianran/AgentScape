@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { ObjectStore } from "../../../../modules/world/runtime/ObjectStore.js";
 import { PhysicsSystem } from "../../../../modules/world/runtime/systems/PhysicsSystem.js";
-import { assetManifests } from "../../../../modules/asset/manifests/index.js";
+import { assetManifests } from "../../../../modules/asset/registry/manifests/index.js";
 import { manifestColliderSnapshot, compareManifestToPhysics } from "./ManifestColliderSnapshot.js";
 
 const makeMaterial = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.68, metalness: 0.04 });

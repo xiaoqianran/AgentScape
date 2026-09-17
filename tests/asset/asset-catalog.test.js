@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { AssetCatalog, searchAssetManifests, summarizeAsset } from '../../modules/asset/AssetCatalog.js';
-import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetCatalog, searchAssetManifests, summarizeAsset } from '../../modules/asset/registry/AssetCatalog.js';
+import { AssetRegistry } from '../../modules/asset/registry/AssetRegistry.js';
 
 const manifest = (overrides = {}) => ({
   id: 'fixture',

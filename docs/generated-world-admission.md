@@ -24,7 +24,7 @@ runWorldPipeline
     │        ▼
     │   Connector Job / Artifact
     │        ▼
-    │   Asset publication / Compiler
+    │   Asset production / Compiler
     │
     ├─ asset admission
     ├─ deterministic layout

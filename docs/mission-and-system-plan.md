@@ -332,7 +332,7 @@ Executable Manifest / 可执行 Manifest
 
 ### 当前 AgentScape 映射
 
-- `modules/asset/compiler/`
+- `modules/asset/production/compiler/`
 - `modules/asset/`
 - `services/asset-compiler/`
 - Part proposal / segmentation evidence / joint frame
@@ -840,7 +840,7 @@ Agent / 智能体 ──────────────┘
 | Target / 目标模块 | 当前主要实现位置 | 当前判断 |
 |---|---|---|
 | World Planner / 世界规划器 | `modules/world/spec/`, `modules/world/compiler/`, `modules/agent/`, `modules/world/verification/` | 已有 WorldSpec + canonical pipeline，下一步是 constrained revision 与更完整 IR |
-| Asset Compiler / 资产编译器 | `modules/asset/compiler/`, `modules/asset/`, `services/asset-compiler/` | 主链成熟；自动 segmentation/semantics/joint inference 仍是明显缺口 |
+| Asset Compiler / 资产编译器 | `modules/asset/production/compiler/`, `modules/asset/`, `services/asset-compiler/` | 主链成熟；自动 segmentation/semantics/joint inference 仍是明显缺口 |
 | Interaction & Rule Compiler / 交互与规则编译器 | `application/skills/`, manifests, runtime interaction, policy | 能力已有，但 contract 分散；这是目标架构需要显式补齐的一层 |
 | World Runtime / 世界运行时 | `modules/world/runtime/`, `foundation/` | 当前最成熟的事实层之一 |
 | Physics Capability Layer / 物理能力层 | 当前主要在 `modules/world/runtime/systems/PhysicsSystem.js`，且 Recovery/Navigation 仍有 Rapier-specific coupling | 当前默认 Rapier；目标先做 PhysicsBackend contract + Rapier parity adapter，再考虑 validation/multi-backend |

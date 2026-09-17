@@ -1,12 +1,12 @@
-import { AssetCatalog } from './AssetCatalog.js';
-import { AssetRegistry } from './AssetRegistry.js';
+import { AssetCatalog } from './registry/AssetCatalog.js';
+import { AssetRegistry } from './registry/AssetRegistry.js';
 import { AssetLoader } from './loading/AssetLoader.js';
-import { AssetProductionError, createAssetPublisher } from './publication/AssetPublisher.js';
-import { HttpCompilerProvider } from './compiler/providers/HttpCompilerProvider.js';
-import { CompiledAssetStore } from './storage/CompiledAssetStore.js';
-import { AssetManifestStore } from './storage/AssetManifestStore.js';
-import { LocalAssetLibrary } from './LocalAssetLibrary.js';
-import { LocalAssetLibraryStore } from './storage/LocalAssetLibraryStore.js';
+import { AssetProductionError, createAssetProducer } from './production/AssetProductionPipeline.js';
+import { HttpCompilerProvider } from './production/compiler/providers/HttpCompilerProvider.js';
+import { CompiledAssetStore } from './persistence/CompiledAssetStore.js';
+import { AssetManifestStore } from './persistence/AssetManifestStore.js';
+import { LocalAssetLibrary } from './persistence/LocalAssetLibrary.js';
+import { LocalAssetLibraryStore } from './persistence/LocalAssetLibraryStore.js';
 
 export function createAssetModule({
   manifests,
@@ -34,7 +34,7 @@ export function createAssetModule({
     now:()=>new Date(now()).toISOString()
   });
 
-  let publisher = null;
+  let producer = null;
   let hydrated = false;
   let configuredCompilerProvider = null;
   let configuredCompiler = null;
@@ -51,7 +51,7 @@ export function createAssetModule({
     configuredCompiler = null;
     configuredCompilerGetter = async () => {
       if (!configuredCompiler) {
-        const { AssetCompiler } = await import('./compiler/AssetCompiler.js');
+        const { AssetCompiler } = await import('./production/compiler/AssetCompiler.js');
         configuredCompiler = new AssetCompiler({ store, provider:configuredCompilerProvider, events, version });
       }
       return configuredCompiler;
@@ -99,7 +99,7 @@ export function createAssetModule({
       return library.list();
     },
 
-    configurePublication({
+    configureProduction({
       artifacts,
       getAssetCompiler = null,
       compilerProvider = null,
@@ -109,7 +109,7 @@ export function createAssetModule({
       idFactory = undefined
     } = {}) {
       if (!artifacts?.registry || !artifacts?.byteStore) {
-        throw new AssetProductionError('ASSET_PUBLICATION_INVALID', 'Asset publication requires an ArtifactModule boundary');
+        throw new AssetProductionError('ASSET_PRODUCTION_INVALID', 'Asset production requires an ArtifactModule boundary');
       }
       const compilerGetter = getAssetCompiler || configureCompiler({
         provider:compilerProvider,
@@ -117,7 +117,7 @@ export function createAssetModule({
         events,
         version
       });
-      publisher = createAssetPublisher({
+      producer = createAssetProducer({
         artifactRegistry:artifacts.registry,
         byteStore:artifacts.byteStore,
         getAssetCompiler:compilerGetter,
@@ -135,14 +135,14 @@ export function createAssetModule({
       return module;
     },
 
-    async publishAsset(request = {}) {
-      if (!publisher) {
+    async produceAsset(request = {}) {
+      if (!producer) {
         throw new AssetProductionError(
-          'ASSET_PUBLICATION_NOT_CONFIGURED',
-          'Asset publication requires composition-time compiler configuration'
+          'ASSET_PRODUCTION_NOT_CONFIGURED',
+          'Asset production requires composition-time compiler configuration'
         );
       }
-      return publisher(request);
+      return producer(request);
     }
   };
 

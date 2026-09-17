@@ -4,7 +4,7 @@ import { buildAcceptanceEvidenceBundle, evaluateWorldAcceptance } from '../verif
 import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
 import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
 import { preflightWorldPosition } from './WorldComposer.js';
-import { createAssetRef } from '../../asset/AssetRef.js';
+import { createAssetRef } from '../../asset/model/AssetRef.js';
 import { evaluateWorldAdmission } from './WorldAdmission.js';
 import { captureWorldAuthority, commitWorldAuthority, restoreWorldAuthority } from '../runtime/WorldAuthority.js';
 

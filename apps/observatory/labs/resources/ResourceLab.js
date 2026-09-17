@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { AssetCompiler } from '../../../../modules/asset/compiler/AssetCompiler.js';
-import { RESOURCE_BUDGET } from '../../../../modules/asset/resourceBudget.js';
+import { AssetCompiler } from '../../../../modules/asset/production/compiler/AssetCompiler.js';
+import { RESOURCE_BUDGET } from '../../../../modules/asset/model/resourceBudget.js';
 import { disposeObject3D } from '../../../../modules/rendering/disposeObject3D.js';
 import { loadGaussianSplatVisual } from '../../../../modules/rendering/loadGaussianSplatVisual.js';
 import { SimulationClock } from '../../core/SimulationClock.js';

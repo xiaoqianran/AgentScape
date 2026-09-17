@@ -17,7 +17,7 @@
     "assets:validate": "node dev/validate-assets.mjs",
     "agent:gateway": "node apps/server/openai-compatible-agent-gateway.mjs",
     "agent:probe": "node dev/scripts/probe-test-agent.mjs",
-    "test:asset": "vitest run tests/asset tests/integration/verified-artifact-asset-pipeline.test.js",
+    "test:asset": "vitest run tests/asset tests/integration/asset-production-pipeline.test.js",
     "test:world": "vitest run tests/world tests/e2e --exclude tests/e2e/generated-cup-runtime-e2e.test.js",
     "experiment:asset": "node dev/experiments/asset/001-real-glb-admission.mjs",
     "experiment:world": "node dev/experiments/world/001-existing-assets-world.mjs",

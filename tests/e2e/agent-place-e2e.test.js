@@ -7,7 +7,7 @@ import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
 import { LocomotionSystem } from '../../modules/world/runtime/systems/LocomotionSystem.js';
 import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 
 const floor=()=>{const m=new THREE.Mesh(new THREE.BoxGeometry(12,.2,12));m.position.y=-.1;m.updateMatrixWorld(true);return m;};
 const cupVisual=()=>{const g=new THREE.Group();const m=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.32,16));m.position.y=.16;g.add(m);return g;};

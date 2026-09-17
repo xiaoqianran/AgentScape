@@ -1,7 +1,7 @@
 import { GltfAssetLoader } from './GltfAssetLoader.js';
-import { Errors } from '../errors.js';
+import { Errors } from '../model/errors.js';
 import { disposeObject3D } from '../../rendering/disposeObject3D.js';
-import { builtinAssetFactories } from '../builtins/BuiltinAssets.js';
+import { builtinAssetFactories } from './builtins/BuiltinAssets.js';
 
 export class AssetLoader {
   constructor({ registry, compiledStore = null, gltfLoader = new GltfAssetLoader(), factories = builtinAssetFactories } = {}) {

@@ -2,7 +2,7 @@ import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 
 const cabinetObject=()=>{
   const root=new THREE.Group();

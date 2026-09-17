@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { assetManifests } from '../modules/asset/manifests/index.js';
-import { validateAssetManifest } from '../modules/asset/schema.js';
+import { assetManifests } from '../modules/asset/registry/manifests/index.js';
+import { validateAssetManifest } from '../modules/asset/model/schema.js';
 
 function readGlbNodes(buffer) {
   if (buffer.toString('ascii', 0, 4) !== 'glTF') throw new Error('Not a GLB file');

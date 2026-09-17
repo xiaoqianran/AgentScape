@@ -1,4 +1,4 @@
-import { validatePhysics } from '../../schema.js';
+import { validatePhysics } from '../../../model/schema.js';
 
 export class PartGeometryEnrichmentPass {
   constructor({ provider, io } = {}) { this.provider = provider; this.io = io; }

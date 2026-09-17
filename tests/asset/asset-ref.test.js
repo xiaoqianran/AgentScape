@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assetIdFromRef, createAssetRef } from '../../modules/asset/AssetRef.js';
+import { assetIdFromRef, createAssetRef } from '../../modules/asset/model/AssetRef.js';
 
 describe('AssetRef', () => {
   it('keeps the Asset→World contract intentionally deep and small', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetRegistry } from '../../modules/asset/registry/AssetRegistry.js';
 
 const manifest = (label = 'A') => ({
   id:'same',

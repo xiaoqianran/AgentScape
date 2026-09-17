@@ -25,8 +25,8 @@ export class GenerationRuntime extends GenerationOrchestrator {
     assetInputPolicy='any',
     ...orchestratorOptions
   }={}) {
-    if (!assetModule?.configurePublication || typeof assetModule.publishAsset !== 'function') {
-      throw new TypeError('GenerationRuntime requires AssetModule publication boundary');
+    if (!assetModule?.configureProduction || typeof assetModule.produceAsset !== 'function') {
+      throw new TypeError('GenerationRuntime requires AssetModule production boundary');
     }
     const assetCatalog=assetModule.catalog;
     if (!assetCatalog?.resolveExisting || typeof assetModule.setCompilerEndpoint !== 'function') {
@@ -46,7 +46,7 @@ export class GenerationRuntime extends GenerationOrchestrator {
       }
     }
 
-    assetModule.configurePublication({
+    assetModule.configureProduction({
       artifacts,
       compilerProvider,
       compilerEndpoint,
@@ -58,7 +58,7 @@ export class GenerationRuntime extends GenerationOrchestrator {
       connectorClient:connector,
       artifactRegistry:artifacts.registry,
       byteStore:artifacts.byteStore,
-      publishAsset:assetModule.publishAsset,
+      produceAsset:assetModule.produceAsset,
       persistArtifact:(artifactId,cacheKey)=>artifacts.persistArtifact?.(artifactId,cacheKey),
       events,
       ...orchestratorOptions

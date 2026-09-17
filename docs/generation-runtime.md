@@ -18,7 +18,7 @@ capability snapshot
         └─ import verified Artifact
                 │
                 ▼
-          Asset publication
+          Asset production
                 │
                 ▼
           Asset Compiler
@@ -35,7 +35,7 @@ capability snapshot
 - Provider-neutral capability selection；
 - Job projection / reconcile / cancel；
 - Artifact hash、MIME、bytes admission；
-- Artifact → Asset publication；
+- Artifact → Asset production；
 - Asset Compiler wiring。
 
 它**不拥有**远程 Provider 实现、Provider 私有凭据、GPU runtime 或 Provider-private storage。这些属于兄弟仓库 `modal-provider`。
@@ -86,7 +86,7 @@ generateAndCompileAsset
 
 `generateAsset` 是一个高层 convenience tool，也仍然进入 `GenerationRuntime`，不会恢复 direct Provider client。
 
-Provider-specific import tool 不属于默认 Agent surface。上游 payload adapter（例如 `modules/asset/adapters/EmbodiedGenAdapter.js`）只属于 Asset compatibility/import implementation，不代表 Provider topology。
+Provider-specific import tool 不属于默认 Agent surface。上游 payload adapter（例如 `modules/asset/production/adapters/EmbodiedGenAdapter.js`）只属于 Asset compatibility/import implementation，不代表 Provider topology。
 
 ## Python SDK
 

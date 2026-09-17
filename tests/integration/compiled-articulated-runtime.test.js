@@ -1,8 +1,8 @@
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import { readFile } from 'node:fs/promises';
 import { expect, it, vi } from 'vitest';
-import { AssetCompiler } from '../../modules/asset/compiler/AssetCompiler.js';
-import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetCompiler } from '../../modules/asset/production/compiler/AssetCompiler.js';
+import { AssetRegistry } from '../../modules/asset/registry/AssetRegistry.js';
 import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { disposeObject3D } from '../../modules/rendering/disposeObject3D.js';

@@ -6,7 +6,7 @@ import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem
 import { LocomotionSystem } from '../../modules/world/runtime/systems/LocomotionSystem.js';
 import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
 import { SceneGraph } from '../../modules/world/runtime/graph/SceneGraph.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
 import { registerSpatialSkills } from '../../application/skills/packs/spatialSkills.js';
 import { registerInteractionSkills } from '../../application/skills/packs/interactionSkills.js';

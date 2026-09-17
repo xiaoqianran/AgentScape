@@ -8,7 +8,7 @@ import { createRecastNavigationSystem } from '../helpers/createRecastNavigationS
 import { LocomotionSystem } from '../../modules/world/runtime/systems/LocomotionSystem.js';
 import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
 import { SceneGraph } from '../../modules/world/runtime/graph/SceneGraph.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { DebugOverlay } from '../../apps/studio/debug/DebugOverlay.js';
 
 const floorMesh = () => {
