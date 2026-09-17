@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildTaskObservation } from '../../application/buildTaskObservation.js';
+import { WorldObservation } from '../../modules/world/runtime/WorldObservation.js';
 
 const record=(id,type='prop')=>({
   id,assetId:id.replace(/_\d+$/,''),object:{position:{toArray:()=>[0,0,0]}},
@@ -52,6 +53,7 @@ function runtimeFixture(){
       ])
     }
   };
+  runtime.observation=new WorldObservation(runtime);
   return runtime;
 }
 

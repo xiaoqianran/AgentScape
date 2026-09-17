@@ -11,23 +11,6 @@ const relevantIds = (actor, lastMutation, unresolved = []) => {
   return [...ids];
 };
 
-const compactRelations = (runtime, ids, limit = 8) => {
-  if (!runtime.sceneGraph || !ids.length) return [];
-  runtime.sceneGraph.update();
-  const relevant = new Set(ids);
-  const edges = [];
-  for (const edge of runtime.sceneGraph.list()) {
-    if (!relevant.has(edge.subject) && !relevant.has(edge.object)) continue;
-    edges.push({
-      subject:edge.subject,predicate:edge.predicate,object:edge.object,
-      ...(edge.meta?.distance != null ? { distance:round(edge.meta.distance) } : {}),
-      ...(edge.meta?.surfaceId ? { surfaceId:edge.meta.surfaceId } : {})
-    });
-    if (edges.length >= limit) break;
-  }
-  return edges;
-};
-
 const recoveryHints = (focusMutation) => {
   const outcome = focusMutation?.outcome;
   if (!outcome || ['verified','accepted'].includes(outcome.state)) return [];
@@ -57,14 +40,14 @@ export function buildTaskObservation(runtime, {
   unresolvedMutations = [],
   maxRelations = 8
 } = {}) {
-  const ids = relevantIds(actor,lastMutation,unresolvedMutations);
-  const objects = [];
-  for (const id of ids) {
-    if (!runtime.store?.has(id)) continue;
-    const record = runtime.store.get(id);
-    const position = runtime.physics?.getPosition(id) || record.object?.position?.toArray?.() || null;
-    objects.push({ id, asset:record.assetId, type:record.manifest?.type, ...(position ? {position:roundVec(position)} : {}) });
+  const view = runtime.observation;
+  if (!view?.object || !view?.relations || !view?.actor || !view?.articulation) {
+    throw new TypeError('buildTaskObservation requires WorldRuntime.observation');
   }
+  const ids = relevantIds(actor,lastMutation,unresolvedMutations);
+  const objects = ids.map((id)=>view.object(id)).filter(Boolean).map((item)=>({
+    id:item.id,asset:item.asset,type:item.type,...(item.position ? {position:roundVec(item.position)} : {})
+  }));
 
   const focusMutation=(lastMutation && !['verified','accepted'].includes(lastMutation.outcome?.state)) ? lastMutation : unresolvedMutations.at(-1);
   const observation = {
@@ -73,29 +56,26 @@ export function buildTaskObservation(runtime, {
     lastMutation:lastMutation ? structuredClone(lastMutation) : null,
     unresolvedMutations:unresolvedMutations.map((entry)=>structuredClone(entry)),
     objects,
-    relations:compactRelations(runtime,ids,maxRelations),
+    relations:view.relations(ids,{limit:maxRelations}).map((edge)=>({
+      subject:edge.subject,predicate:edge.predicate,object:edge.object,
+      ...(edge.meta?.distance != null ? {distance:round(edge.meta.distance)} : {}),
+      ...(edge.meta?.surfaceId ? {surfaceId:edge.meta.surfaceId} : {})
+    })),
     recoveryHints:recoveryHints(focusMutation)
   };
 
-  if (runtime.store?.has(actor)) {
-    const position = runtime.physics?.getPosition(actor) || runtime.store.get(actor).object?.position?.toArray?.();
-    if (position) observation.actor.position=roundVec(position);
-    if (runtime.locomotion?.status) observation.actor.navigation=runtime.locomotion.status(actor);
-    if (runtime.interactions?.carryStatus) observation.actor.carry=runtime.interactions.carryStatus(actor);
-  }
+  const actorState=view.actor(actor);
+  if (actorState?.position) observation.actor.position=roundVec(actorState.position);
+  if (actorState?.navigation) observation.actor.navigation=actorState.navigation;
+  if (actorState?.carry) observation.actor.carry=actorState.carry;
 
   const articulation = [];
-  if(runtime.affordances?.contracts().length) {
-    observation.worldAffordances={count:runtime.affordances.contracts().length,discoverWith:'listWorldAffordances',lastResult:runtime.affordances.lastResult?structuredClone(runtime.affordances.lastResult):null};
-    observation.worldAffordances.focus=ids.map(id=>runtime.affordances.inspect(id,{actorId:actor})).filter(Boolean);
-  }
+  const affordances=view.affordances?.(ids,{actorId:actor}) || null;
+  if(affordances) observation.worldAffordances={count:affordances.count,discoverWith:'listWorldAffordances',lastResult:affordances.lastResult,focus:affordances.focus};
   for (const id of ids) {
-    if (!runtime.store?.has(id)) continue;
-    const parts = runtime.store.get(id).manifest?.parts || {};
-    if (!Object.values(parts).some((part)=>part?.joint && part?.physics && Object.keys(part.targets || {}).length)) continue;
-    try {
-      const status = runtime.interactions.articulationStatus(id);
-      articulation.push({
+    const status=view.articulation(id);
+    if (!status) continue;
+    articulation.push({
         id:status.id,
         parts:(status.parts || []).map((part)=>({
           partName:part.partName,status:part.status,
@@ -118,7 +98,6 @@ export function buildTaskObservation(runtime, {
           } } : {})
         }))
       });
-    } catch {}
   }
   if (articulation.length) observation.articulation=articulation;
   const focusTargetId=focusMutation?.args?.targetId || focusMutation?.args?.id || null;

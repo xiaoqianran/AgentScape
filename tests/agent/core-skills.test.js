@@ -4,6 +4,7 @@ import { PolicyEngine } from '../../foundation/PolicyEngine.js';
 import { TraceRecorder } from '../../foundation/TraceRecorder.js';
 import { registerCoreSkills } from '../../application/skills/registerCoreSkills.js';
 import { WorldBuilder } from '../../modules/world/build/WorldBuilder.js';
+import { WorldRecovery } from '../../modules/world/runtime/WorldRecovery.js';
 
 function runtime() {
   let value = 0;
@@ -43,6 +44,7 @@ function runtime() {
     repair: { repair:vi.fn() },
     pipeline: { run:vi.fn() }
   };
+  r.recovery = new WorldRecovery(r);
   r.worldBuilder = new WorldBuilder(r,{pipeline:r.pipeline});
   r.getValue = () => value;
   return r;

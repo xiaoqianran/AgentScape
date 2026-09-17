@@ -24,6 +24,8 @@ import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.j
 import { SimulationSession } from './simulation/SimulationSession.js';
 import { WorldAffordances } from './affordance/WorldAffordances.js';
 import { physicsManifestForUniformScale, scalesEqual, uniformScaleValue } from './ObjectTransform.js';
+import { WorldObservation } from './WorldObservation.js';
+import { WorldRecovery } from './WorldRecovery.js';
 installThreeBvhRuntime();
 
 const mutationResultCommitted=(result)=>!(
@@ -47,6 +49,8 @@ export class WorldRuntime {
     this.assetRegistry = assetModule.registry;
     this.assetLoader = assetModule.loader;
     this.assetCatalog = assetModule.catalog;
+    this.observation = new WorldObservation(this);
+    this.recovery = new WorldRecovery(this);
     this.physicsFactory = physicsFactory;
     this.navigationBackendFactory = navigationBackendFactory;
     this.scene = new THREE.Scene();
