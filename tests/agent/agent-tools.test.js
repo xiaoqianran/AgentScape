@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AgentTools } from '../../application/AgentTools.js';
+import { WorldObservation } from '../../modules/world/runtime/WorldObservation.js';
 
 const runtime = () => ({
   events: { emit: vi.fn() },
@@ -58,6 +59,7 @@ describe('AgentTools registry facade', () => {
     r.physics={getPosition:()=>[1,0,2]};
     r.locomotion={status:()=>({status:'idle'})};
     r.interactions={carryStatus:()=>({status:'empty',actorId:'agent_01'})};
+    r.observation=new WorldObservation(r);
     const tools=new AgentTools(r,{actor:'agent_01'});
     const observation=tools.taskObservation({lastMutation:null,unresolvedMutations:[]});
     expect(observation).toMatchObject({

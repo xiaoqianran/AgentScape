@@ -6,8 +6,8 @@ export function registerRecoverySkills(add,runtime) {
     const recovery=await buildRecoveryProposals(runtime,registry,{actorId:a.actorId,targetId:a.targetId,partName:a.partName,profile:context.profile || 'builder'});
     const proposal=recovery.proposals.find((item)=>item.eligible && item.blocker?.kind==='object' && item.blocker.objectId===a.blockerId);
     if (!proposal) return {status:'recovery-stale',reason:recovery.proposals.find((item)=>item.blocker?.objectId===a.blockerId)?.reason || recovery.reason || 'RECOVERY_NOT_ELIGIBLE',actorId:a.actorId,targetId:a.targetId,blockerId:a.blockerId,retryOriginal:true};
-    const pickup=await runtime.interactions.approachAndPickup(a.actorId,a.blockerId);
-    if (pickup.status==='held') runtime.interactions.markRecoveryHeld(a.actorId,{
+    const pickup=await runtime.approachAndPickup(a.actorId,a.blockerId);
+    if (pickup.status==='held') runtime.markRecoveryHeld(a.actorId,{
       blockerId:a.blockerId,targetId:a.targetId,partName:proposal.verification?.args?.partName || a.partName,
       action:proposal.verification?.args?.action || recovery.originalAction
     });
@@ -30,13 +30,13 @@ export function registerRecoverySkills(add,runtime) {
         ...(selectionChanged?{currentRecommendedAction:current.blockerAction}:{}),retryOriginal:true
       };
     }
-    const interaction=await runtime.interactions.approachAndInteract(a.actorId,a.blockerId,a.blockerAction,{partName:a.blockerPartName,speed:a.speed});
+    const interaction=await runtime.approachAndInteract(a.actorId,a.blockerId,a.blockerAction,{partName:a.blockerPartName,speed:a.speed});
     let counterfactualCalibration=null;
     const selectedEvidence=proposal.actionRanking?.actions?.find((item)=>item.action===a.blockerAction)?.physicsCounterfactual || null;
     const blockerActionVerified=interaction.status==='action-completed' && interaction.targetReached===true && interaction.settled===true;
-    if (selectedEvidence?.checked && blockerActionVerified && typeof runtime.physics?.articulationContacts==='function') {
+    if (selectedEvidence?.checked && blockerActionVerified) {
       const originalPartName=proposal.verification?.args?.partName || a.partName;
-      const contacts=runtime.physics.articulationContacts(a.targetId,originalPartName) || [];
+      const contacts=runtime.recovery.contacts(a.targetId,originalPartName);
       const currentContactStillPresent=contacts.some((contact)=>{
         const target=contact?.target || {};
         return contact?.external===true && target.kind==='object' && target.objectId===a.blockerId
@@ -64,9 +64,9 @@ export function registerRecoverySkills(add,runtime) {
       retryOriginal:true,verification:proposal.verification
     };
   });
-  add('suggestRecoveryCleanup', meta('只读为当前通过 recoverPickupBlocker 持有的 blocker 规划安全 cleanup。候选必须由当前 physics backend 的 scene-query 找到 Environment 支撑、位于原 articulation action sweep 外、Agent 可达且 carried-body endpoint clear。Proposal 不修改世界。', ['world.read','spatial.read','physics.read'], ['actorId','targetId'], {actorId:string,targetId:string,partName:string,blockerId:string,action:{type:'string',enum:['open','close']}}), (a)=>runtime.interactions.findRecoveryCleanupPlan(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action}));
+  add('suggestRecoveryCleanup', meta('只读为当前通过 recoverPickupBlocker 持有的 blocker 规划安全 cleanup。候选必须由当前 physics backend 的 scene-query 找到 Environment 支撑、位于原 articulation action sweep 外、Agent 可达且 carried-body endpoint clear。Proposal 不修改世界。', ['world.read','spatial.read','physics.read'], ['actorId','targetId'], {actorId:string,targetId:string,partName:string,blockerId:string,action:{type:'string',enum:['open','close']}}), (a)=>runtime.findRecoveryCleanupPlan(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action}));
   add('cleanupRecoveryBlocker', { ...meta('对当前 recovery-held blocker 执行 verified cleanup：真实导航到 cleanup pose，经当前 physics backend 的 body-motion transfer 释放为 Dynamic，等待 settle，并验证 blocker 已释放、离开原 action sweep 且不再接触失败 Part。recovery-cleaned 只表示 cleanup 成功，不表示原始任务成功。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId'], {actorId:string,targetId:string,partName:string,blockerId:string,action:{type:'string',enum:['open','close']},speed:{type:'number',exclusiveMinimum:0,maximum:8}}), batchable:false,auxiliary:true,mutates:true }, async(a)=>{
-    const result=await runtime.interactions.cleanupRecoveryBlocker(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action,speed:a.speed});
+    const result=await runtime.cleanupRecoveryBlocker(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action,speed:a.speed});
     if (result.status==='cleanup-unavailable') return {status:'recovery-cleanup-blocked',reason:result.reason || 'CLEANUP_UNAVAILABLE',actorId:a.actorId,targetId:a.targetId,blockerId:a.blockerId,plan:result};
     return result;
   });

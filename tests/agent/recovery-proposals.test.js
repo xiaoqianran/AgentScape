@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildRecoveryProposals } from '../../modules/agent/buildRecoveryProposals.js';
+import { WorldRecovery } from '../../modules/world/runtime/WorldRecovery.js';
 
 const blockerCandidate={kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0};
 const environmentCandidate={kind:'environment',environmentId:'monument-hall',colliderIndex:4};
@@ -45,6 +46,7 @@ function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=t
     const granted=name==='cleanupRecoveryBlocker'?cleanupAllow:name==='recoverArticulatedBlocker'?articulatedAllow:allow;
     return {allow:granted,profile:'builder',missing:granted?[]:['world.write'],required:['world.write','spatial.read','physics.read']};
   })};
+  runtime.recovery=new WorldRecovery(runtime);
   return {runtime,registry};
 }
 

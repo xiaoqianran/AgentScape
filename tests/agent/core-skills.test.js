@@ -4,6 +4,7 @@ import { PolicyEngine } from '../../foundation/PolicyEngine.js';
 import { TraceRecorder } from '../../foundation/TraceRecorder.js';
 import { registerCoreSkills } from '../../application/skills/registerCoreSkills.js';
 import { WorldBuilder } from '../../modules/world/build/WorldBuilder.js';
+import { WorldRecovery } from '../../modules/world/runtime/WorldRecovery.js';
 
 function runtime() {
   let value = 0;
@@ -43,6 +44,17 @@ function runtime() {
     repair: { repair:vi.fn() },
     pipeline: { run:vi.fn() }
   };
+  r.findInteractionPose=(...args)=>r.interactions.findInteractionPose(...args);
+  r.approachAndInteract=(...args)=>r.interactions.approachAndInteract(...args);
+  r.articulationStatus=(...args)=>r.interactions.articulationStatus(...args);
+  r.approachAndPickup=(...args)=>r.interactions.approachAndPickup(...args);
+  r.approachAndPlace=(...args)=>r.interactions.approachAndPlace(...args);
+  r.dropHeld=(...args)=>r.interactions.dropHeld(...args);
+  r.carryStatus=(...args)=>r.interactions.carryStatus(...args);
+  r.markRecoveryHeld=(...args)=>r.interactions.markRecoveryHeld?.(...args);
+  r.findRecoveryCleanupPlan=(...args)=>r.interactions.findRecoveryCleanupPlan?.(...args);
+  r.cleanupRecoveryBlocker=(...args)=>r.interactions.cleanupRecoveryBlocker?.(...args);
+  r.recovery = new WorldRecovery(r);
   r.worldBuilder = new WorldBuilder(r,{pipeline:r.pipeline});
   r.getValue = () => value;
   return r;

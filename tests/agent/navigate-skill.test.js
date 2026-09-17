@@ -10,6 +10,7 @@ it('keeps navigateTo inside the mutation transaction until locomotion resolves',
     locomotion:{navigate:vi.fn(()=>deferred),status:vi.fn(()=>({status:'moving'}))},
     mutate:vi.fn(async(_label,operation)=>{order.push('begin');const result=await operation();order.push('commit');return result;})
   };
+  runtime.navigateAgent=(...args)=>runtime.locomotion.navigate(...args);
   const registry=registerCoreSkills(new SkillRegistry({runtime}),runtime);
   const pending=registry.invoke('navigateTo',{id:'agent_01',end:[3,0,0]},{profile:'builder'});
   await Promise.resolve(); await Promise.resolve();

@@ -4,7 +4,7 @@ const candidateKey = (candidate={}) => candidate.kind === 'object'
 
 const currentExternalEvidence = (runtime,targetId,partName) => {
   const evidence=new Map();
-  for (const contact of runtime.physics.articulationContacts?.(targetId,partName) || []) {
+  for (const contact of runtime.recovery.contacts(targetId,partName)) {
     if (!contact.external) continue;
     const target=contact.target || {};
     if (!['object','environment'].includes(target.kind)) continue;
@@ -69,21 +69,21 @@ const boundsOverlap = (a,b) => {
 const currentSweepPersistence = (runtime,targetId,failedPart,last,candidate) => {
   const action=last?.action || 'open';
   let originalSweep;
-  try { originalSweep=runtime.interactions.actionSweepBounds?.(targetId,action,failedPart.partName); }
+  try { originalSweep=runtime.recovery.actionSweepBounds(targetId,action,failedPart.partName); }
   catch { return {checked:false,reason:'ORIGINAL_SWEEP_UNAVAILABLE'}; }
   if (!originalSweep?.checked) return {checked:false,reason:originalSweep?.reason || 'ORIGINAL_SWEEP_UNAVAILABLE'};
 
   let blockerBounds=null,blockerState=null;
   if ((candidate.partName || '$root')==='$root') {
     try {
-      const bounds=runtime.spatial?.getBounds?.(candidate.objectId);
+      const bounds=runtime.recovery.bounds(candidate.objectId);
       if (bounds?.min && bounds?.max) blockerBounds={min:[...bounds.min],max:[...bounds.max]};
     } catch {}
   } else {
     try {
-      blockerState=runtime.interactions.articulationStatus(candidate.objectId,candidate.partName).parts?.find((item)=>item.partName===candidate.partName) || null;
+      blockerState=runtime.recovery.articulationStatus(candidate.objectId,candidate.partName).parts?.find((item)=>item.partName===candidate.partName) || null;
       if (blockerState?.verifiedAction) {
-        const pose=runtime.interactions.actionSweepBounds?.(candidate.objectId,blockerState.verifiedAction,candidate.partName,1);
+        const pose=runtime.recovery.actionSweepBounds(candidate.objectId,blockerState.verifiedAction,candidate.partName,1);
         if (pose?.checked) blockerBounds=pose.bounds;
       }
     } catch {}
@@ -143,15 +143,15 @@ const samePhysicsCounterfactualDecision = (a,b) => {
 };
 
 const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart,last,candidate,currentContact,profile}) => {
-  const record=runtime.store.get(candidate.objectId);
+  const manifest=runtime.recovery.manifest(candidate.objectId);
   const blockerPartName=candidate.partName;
-  const part=record?.manifest?.parts?.[blockerPartName];
+  const part=manifest?.parts?.[blockerPartName];
   if (!part?.joint || !part.physics || !Object.keys(part.targets || {}).length) {
     return denied(candidate,'ARTICULATED_PART_UNAVAILABLE',{currentContact});
   }
   let blockerStatus;
   try {
-    blockerStatus=runtime.interactions.articulationStatus(candidate.objectId,blockerPartName).parts?.find((value)=>value.partName===blockerPartName) || null;
+    blockerStatus=runtime.recovery.articulationStatus(candidate.objectId,blockerPartName).parts?.find((value)=>value.partName===blockerPartName) || null;
   } catch {
     return denied(candidate,'ARTICULATED_STATE_UNAVAILABLE',{currentContact});
   }
@@ -162,7 +162,7 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
   const actions=(part.actions || []).filter((action)=>
     action!==blockerStatus.verifiedAction
     && ['open','close'].includes(action)
-    && record.manifest.actions?.includes(action)
+    && manifest.actions?.includes(action)
     && Number.isFinite(part.targets?.[action])
   );
   if (!actions.length) return denied(candidate,'NO_ALTERNATE_ARTICULATED_ACTION',{currentContact,blockerState:blockerStatus});
@@ -179,7 +179,7 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
     const blockerAction=actions[0];
     let pose;
     try {
-      pose=await runtime.interactions.findInteractionPose(actorId,candidate.objectId,{action:blockerAction,partName:blockerPartName});
+      pose=await runtime.recovery.findInteractionPose(actorId,candidate.objectId,{action:blockerAction,partName:blockerPartName});
     } catch (error) {
       return denied(candidate,error.details?.reason || error.code || 'ARTICULATED_RECOVERY_PREFLIGHT_FAILED',{
         currentContact,blockerState:blockerStatus,blockerAction
@@ -187,9 +187,9 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
     }
     if (!pose) return denied(candidate,'NO_INTERACTION_POSE',{currentContact,blockerState:blockerStatus,blockerAction});
     let worldCounterfactual=null;
-    if (typeof runtime.physics?.articulationWorldCounterfactual==='function') {
+    if (runtime.recovery.hasWorldCounterfactual()) {
       try {
-        worldCounterfactual=runtime.physics.articulationWorldCounterfactual(candidate.objectId,blockerPartName,part.targets[blockerAction],{
+        worldCounterfactual=runtime.recovery.worldCounterfactual(candidate.objectId,blockerPartName,part.targets[blockerAction],{
           excludeObjectIds:[actorId],excludeParts:[{objectId:targetId,partName:failedPart.partName}]
         });
       } catch (error) {
@@ -205,14 +205,14 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
     actionCandidates=[{action:blockerAction,pose,counterfactual:null,...(worldCounterfactual?{worldCounterfactual}:{})}];
   } else {
     const originalAction=last.action || 'open';
-    const originalRecord=runtime.store.get(targetId);
-    const originalTarget=originalRecord?.manifest?.parts?.[failedPart.partName]?.targets?.[originalAction];
-    const originalSweep=runtime.interactions.actionSweepBounds?.(targetId,originalAction,failedPart.partName);
-    const currentPose=runtime.interactions.actionSweepBounds?.(candidate.objectId,blockerStatus.verifiedAction,blockerPartName,1);
+    const originalManifest=runtime.recovery.manifest(targetId);
+    const originalTarget=originalManifest?.parts?.[failedPart.partName]?.targets?.[originalAction];
+    const originalSweep=runtime.recovery.actionSweepBounds(targetId,originalAction,failedPart.partName);
+    const currentPose=runtime.recovery.actionSweepBounds(candidate.objectId,blockerStatus.verifiedAction,blockerPartName,1);
     const visualAvailable=Boolean(originalSweep?.checked && currentPose?.checked);
     const currentOverlap=visualAvailable ? boundsOverlap(originalSweep.bounds,currentPose.bounds) : {available:false,intersects:false,volume:null};
-    const physicsCapable=Number.isFinite(originalTarget) && typeof runtime.physics?.articulationPairCounterfactual==='function';
-    const worldCounterfactualCapable=typeof runtime.physics?.articulationWorldCounterfactual==='function';
+    const physicsCapable=Number.isFinite(originalTarget) && runtime.recovery.hasPairCounterfactual();
+    const worldCounterfactualCapable=runtime.recovery.hasWorldCounterfactual();
     if (!physicsCapable && (!visualAvailable || !currentOverlap.available || !currentOverlap.intersects || !(currentOverlap.volume>0))) {
       return denied(candidate,visualAvailable?'COUNTERFACTUAL_EVIDENCE_INSUFFICIENT':'COUNTERFACTUAL_EVIDENCE_UNAVAILABLE',{
         currentContact,blockerState:blockerStatus,alternateActions:[...actions],
@@ -224,14 +224,14 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
     }
 
     for (const action of actions) {
-      const actionSweep=runtime.interactions.actionSweepBounds?.(candidate.objectId,action,blockerPartName);
-      const targetPose=runtime.interactions.actionSweepBounds?.(candidate.objectId,action,blockerPartName,1);
+      const actionSweep=runtime.recovery.actionSweepBounds(candidate.objectId,action,blockerPartName);
+      const targetPose=runtime.recovery.actionSweepBounds(candidate.objectId,action,blockerPartName,1);
       if (!actionSweep?.checked || !targetPose?.checked) {
         actionCandidates.push({action,executable:false,reason:'ACTION_GEOMETRY_UNAVAILABLE'});
         continue;
       }
       let pose=null;
-      try { pose=await runtime.interactions.findInteractionPose(actorId,candidate.objectId,{action,partName:blockerPartName}); }
+      try { pose=await runtime.recovery.findInteractionPose(actorId,candidate.objectId,{action,partName:blockerPartName}); }
       catch (error) {
         actionCandidates.push({action,executable:false,reason:error.details?.reason || error.code || 'ARTICULATED_RECOVERY_PREFLIGHT_FAILED'});
         continue;
@@ -255,7 +255,7 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
       let physicsCounterfactual={checked:false,reason:'PHYSICS_COUNTERFACTUAL_UNAVAILABLE'};
       if (physicsCapable) {
         try {
-          physicsCounterfactual=runtime.physics.articulationPairCounterfactual(
+          physicsCounterfactual=runtime.recovery.pairCounterfactual(
             targetId,failedPart.partName,originalTarget,
             candidate.objectId,blockerPartName,part.targets[action]
           ) || physicsCounterfactual;
@@ -266,7 +266,7 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
       let worldCounterfactual={checked:false,reason:'WORLD_COUNTERFACTUAL_UNAVAILABLE'};
       if (worldCounterfactualCapable) {
         try {
-          worldCounterfactual=runtime.physics.articulationWorldCounterfactual(candidate.objectId,blockerPartName,part.targets[action],{
+          worldCounterfactual=runtime.recovery.worldCounterfactual(candidate.objectId,blockerPartName,part.targets[action],{
             excludeObjectIds:[actorId],excludeParts:[{objectId:targetId,partName:failedPart.partName}]
           }) || worldCounterfactual;
         } catch (error) {
@@ -306,10 +306,10 @@ const articulatedRecovery = async (runtime,registry,{actorId,targetId,failedPart
       && physicsBaselineConsistent;
     let physicsConvergence=null,physicsConvergenceFallbackReason=null;
     const physicsViable=physicsReady ? executable.filter((item)=>item.physicsCounterfactual.conflictReduction>0).sort(comparePhysicsCounterfactual) : [];
-    if (physicsReady && physicsViable.length && typeof runtime.physics?.articulationPairCounterfactualConvergence==='function') {
+    if (physicsReady && physicsViable.length && runtime.recovery.hasCounterfactualConvergence()) {
       const top=physicsViable[0];
       try {
-        const raw=runtime.physics.articulationPairCounterfactualConvergence(
+        const raw=runtime.recovery.counterfactualConvergence(
           targetId,failedPart.partName,originalTarget,
           candidate.objectId,blockerPartName,part.targets[top.action]
         );
@@ -420,7 +420,8 @@ const rankProposals = (proposals) => {
 export async function buildRecoveryProposals(runtime,registry,{
   actorId,targetId,partName=null,profile='builder'
 }={}) {
-  const articulation=runtime.interactions.articulationStatus(targetId,partName);
+  if (!runtime.recovery) throw new TypeError('buildRecoveryProposals requires WorldRuntime.recovery');
+  const articulation=runtime.recovery.articulationStatus(targetId,partName);
   const failedPart=(articulation.parts || []).find((part)=>partName ? part.partName===partName : part.last?.reason==='STALL');
   const last=failedPart?.last;
   if (!failedPart || last?.reason!=='STALL') return {
@@ -440,7 +441,7 @@ export async function buildRecoveryProposals(runtime,registry,{
       proposals.push(denied(candidate,'ENVIRONMENT_IMMOVABLE',{currentContact}));
       continue;
     }
-    if (candidate.kind!=='object' || !candidate.objectId || !runtime.store.has(candidate.objectId)) {
+    if (candidate.kind!=='object' || !candidate.objectId || !runtime.recovery.hasObject(candidate.objectId)) {
       proposals.push(denied(candidate,'BLOCKER_OBJECT_UNAVAILABLE',{currentContact}));
       continue;
     }
@@ -468,8 +469,8 @@ export async function buildRecoveryProposals(runtime,registry,{
     }
     let pickupPlan;
     try {
-      runtime.interactions.assertAgentCarryable(actorId,candidate.objectId);
-      pickupPlan=await runtime.interactions.findPickupPlan(actorId,candidate.objectId);
+      runtime.recovery.assertCarryable(actorId,candidate.objectId);
+      pickupPlan=await runtime.recovery.findPickupPlan(actorId,candidate.objectId);
     } catch (error) {
       proposals.push(denied(candidate,error.details?.reason || error.code || 'BLOCKER_NOT_CARRYABLE',{currentContact}));
       continue;
@@ -492,7 +493,7 @@ export async function buildRecoveryProposals(runtime,registry,{
   const ranked=rankProposals(proposals);
   const eligible=ranked.filter((proposal)=>proposal.eligible);
   let cleanupRecommended=null;
-  const heldRecovery=runtime.interactions.recoveryHeldStatus?.(actorId) || null;
+  const heldRecovery=runtime.recovery.heldStatus(actorId);
   if (!eligible.length && heldRecovery?.targetId===targetId && ranked.some((proposal)=>proposal.reason==='HANDS_FULL')) {
     const cleanupAuthorization=registry.authorization('cleanupRecoveryBlocker',{profile});
     if (!cleanupAuthorization.allow) {
@@ -501,7 +502,7 @@ export async function buildRecoveryProposals(runtime,registry,{
         policy:{allow:false,profile:cleanupAuthorization.profile,missing:[...cleanupAuthorization.missing]}
       };
     } else {
-      const cleanupPlan=await runtime.interactions.findRecoveryCleanupPlan(actorId,targetId,{
+      const cleanupPlan=await runtime.recovery.findCleanupPlan(actorId,targetId,{
         partName:failedPart.partName,action:last.action || heldRecovery.action,blockerId:heldRecovery.blockerId
       });
       cleanupRecommended=cleanupPlan.status==='cleanup-proposed' ? {

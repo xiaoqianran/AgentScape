@@ -24,6 +24,8 @@ import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.j
 import { SimulationSession } from './simulation/SimulationSession.js';
 import { WorldAffordances } from './affordance/WorldAffordances.js';
 import { physicsManifestForUniformScale, scalesEqual, uniformScaleValue } from './ObjectTransform.js';
+import { WorldObservation } from './WorldObservation.js';
+import { WorldRecovery } from './WorldRecovery.js';
 installThreeBvhRuntime();
 
 const mutationResultCommitted=(result)=>!(
@@ -47,6 +49,8 @@ export class WorldRuntime {
     this.assetRegistry = assetModule.registry;
     this.assetLoader = assetModule.loader;
     this.assetCatalog = assetModule.catalog;
+    this.observation = new WorldObservation(this);
+    this.recovery = new WorldRecovery(this);
     this.physicsFactory = physicsFactory;
     this.navigationBackendFactory = navigationBackendFactory;
     this.scene = new THREE.Scene();
@@ -467,6 +471,18 @@ export class WorldRuntime {
   }
 
   listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
+  navigateAgent(id,end,{speed}={}) { return this.locomotion.navigate(id,end,{speed}); }
+  locomotionStatus(id) { return this.locomotion.status(id); }
+  findInteractionPose(actorId,targetId,{action,partName}={}) { return this.interactions.findInteractionPose(actorId,targetId,{action,partName}); }
+  approachAndInteract(actorId,targetId,action,{partName,speed}={}) { return this.interactions.approachAndInteract(actorId,targetId,action,{partName,speed}); }
+  articulationStatus(id,partName=null) { return this.interactions.articulationStatus(id,partName); }
+  approachAndPickup(actorId,targetId,{speed}={}) { return this.interactions.approachAndPickup(actorId,targetId,{speed}); }
+  approachAndPlace(actorId,supportId,{surfaceId,speed}={}) { return this.interactions.approachAndPlace(actorId,supportId,{surfaceId,speed}); }
+  dropHeld(actorId) { return this.interactions.dropHeld(actorId); }
+  carryStatus(actorId) { return this.interactions.carryStatus(actorId); }
+  markRecoveryHeld(actorId,details) { return this.interactions.markRecoveryHeld(actorId,details); }
+  findRecoveryCleanupPlan(actorId,targetId,options={}) { return this.interactions.findRecoveryCleanupPlan(actorId,targetId,options); }
+  cleanupRecoveryBlocker(actorId,targetId,options={}) { return this.interactions.cleanupRecoveryBlocker(actorId,targetId,options); }
   stepSimulation(dt) {
     this.environment?.step?.(dt,{physics:this.physics,navigation:this.navigation});
     this.affordances?.update(dt);
