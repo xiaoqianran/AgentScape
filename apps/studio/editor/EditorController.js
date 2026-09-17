@@ -10,7 +10,7 @@ export class EditorController {
     this.box = new THREE.BoxHelper(undefined, 0x7aa2ff);
     this.box.visible = false;
     this.dragBlocked = false;
-    this.runtime.scene.add(this.box);
+    this.runtime.rendering.addDecoration(this.box);
 
     const viewport = runtime.rendering?.viewport?.();
     if (!viewport) throw new Error('EditorController requires an initialized RenderingSystem viewport');
@@ -22,7 +22,8 @@ export class EditorController {
     this.transform.setMode('translate');
     this.transform.setTranslationSnap(0.05);
     this.transform.setRotationSnap(THREE.MathUtils.degToRad(5));
-    runtime.scene.add(this.transform.getHelper());
+    this.transformHelper = this.transform.getHelper();
+    runtime.rendering.addDecoration(this.transformHelper);
 
     this.onPointerDown = (event) => {
       if (!selectionOnRelease) return this.pick(event);
@@ -129,6 +130,7 @@ export class EditorController {
     this.transform.dispose();
     this.box.geometry.dispose();
     this.box.material.dispose();
-    this.runtime.scene.remove(this.box);
+    this.runtime.rendering.removeDecoration(this.box);
+    this.runtime.rendering.removeDecoration(this.transformHelper);
   }
 }

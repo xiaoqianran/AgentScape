@@ -326,4 +326,26 @@ describe('RenderingSystem', () => {
       postfx:{ enabled:true, backend:'webgpu', effects:['gtao'] }
     });
   });
+  it('keeps Visual Decoration outside World Entity identity', () => {
+    const h = createHarness();
+    const scene = new THREE.Scene();
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene,
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory
+    });
+    const helper = new THREE.Group();
+
+    expect(rendering.addDecoration(helper)).toBe(helper);
+    expect(helper.parent).toBe(rendering.decorationRoot);
+    expect(helper.userData.visualDecoration).toBe(true);
+    expect(scene.children).toContain(rendering.decorationRoot);
+    expect(rendering.removeDecoration(helper)).toBe(true);
+    expect(helper.parent).toBeNull();
+
+    const entity = new THREE.Group();
+    entity.userData.instanceId = 'cup_01';
+    expect(() => rendering.addDecoration(entity)).toThrowError(/World Entity/);
+  });
 });

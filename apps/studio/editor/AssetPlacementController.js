@@ -109,7 +109,7 @@ function createHint(mode) {
 
 export class AssetPlacementController {
   constructor({ world, tools, editor = null, log = () => {} } = {}) {
-    if (!world?.rendering?.viewport || !world?.assets || !world?.physics) throw new TypeError('AssetPlacementController requires initialized WorldRuntime');
+    if (!world?.rendering?.viewport || !world?.assetCatalog || !world?.physics) throw new TypeError('AssetPlacementController requires initialized WorldRuntime');
     if (!tools?.call) throw new TypeError('AssetPlacementController requires AgentTools');
     this.world = world;
     this.tools = tools;
@@ -133,7 +133,7 @@ export class AssetPlacementController {
     this.hint = null;
     this.anchor = null;
     this.anchorMarker = createAnchorMarker();
-    world.scene.add(this.anchorMarker.group);
+    world.rendering.addDecoration(this.anchorMarker.group);
 
     this.onDragEnter = (event) => this.handleDragOver(event);
     this.onDragOver = (event) => this.handleDragOver(event);
@@ -177,10 +177,10 @@ export class AssetPlacementController {
     if (!id || !this.world.assetCatalog?.has?.(id)) return false;
     this.cancelDrag();
     this.activeAssetId = id;
-    this.manifest = this.world.assets.getManifest(id);
+    this.manifest = this.world.assetCatalog.get(id);
     this.bounds = placementBounds(this.manifest);
     this.preview = createGhost(this.bounds);
-    this.world.scene.add(this.preview.group);
+    this.world.rendering.addDecoration(this.preview.group);
     this.preview.group.visible = false;
     this.world.events.emit('editor.asset-placement-started', { assetId:id });
     return true;
@@ -402,7 +402,7 @@ export class AssetPlacementController {
   clearPreview() {
     this.element.classList.remove('asset-drop-target');
     if (!this.preview) return;
-    this.world.scene.remove(this.preview.group);
+    this.world.rendering.removeDecoration(this.preview.group);
     this.preview.geometry.dispose();
     this.preview.material.dispose();
     this.preview = null;
@@ -423,7 +423,7 @@ export class AssetPlacementController {
   dispose() {
     this.cancelDrag();
     this.clearAnchor();
-    this.world.scene.remove(this.anchorMarker.group);
+    this.world.rendering.removeDecoration(this.anchorMarker.group);
     for (const geometry of this.anchorMarker.geometries) geometry.dispose();
     this.anchorMarker.material.dispose();
     this.element.removeEventListener('dragenter', this.onDragEnter);

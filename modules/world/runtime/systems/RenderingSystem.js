@@ -56,6 +56,29 @@ export class RenderingSystem {
     this.generatedVisual = null;
     this.generatedVisualState = { status:'none', format:null, splatCount:0 };
     this.visualTask = Promise.resolve(false);
+    this.decorationRoot = new THREE.Group();
+    this.decorationRoot.name = '$visual-decorations';
+    this.decorationRoot.userData.visualDecorationRoot = true;
+  }
+
+  addDecoration(object) {
+    if (!object?.isObject3D) throw new TypeError('Visual decoration must be an Object3D');
+    if (object.userData?.instanceId) {
+      const error = new TypeError('World Entity cannot be attached as Visual Decoration');
+      error.code = 'WORLD_ENTITY_AS_DECORATION';
+      throw error;
+    }
+    object.userData ||= {};
+    object.userData.visualDecoration = true;
+    if (this.decorationRoot.parent !== this.scene) this.scene.add(this.decorationRoot);
+    this.decorationRoot.add(object);
+    return object;
+  }
+
+  removeDecoration(object) {
+    if (!object?.isObject3D || object.parent !== this.decorationRoot) return false;
+    this.decorationRoot.remove(object);
+    return true;
   }
 
   async init() {

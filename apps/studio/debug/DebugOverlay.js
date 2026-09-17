@@ -92,7 +92,7 @@ export class DebugOverlay {
   attach() {
     if (this.scene || !this.runtime?.scene) return this;
     this.scene = this.runtime.scene;
-    this.scene.add(this.group);
+    this.runtime.rendering?.addDecoration?.(this.group) ?? this.scene.add(this.group);
     this.rebuild();
     return this;
   }
@@ -356,7 +356,9 @@ export class DebugOverlay {
     }
     this.layers.clear();
     this.enabled.clear();
-    if (this.scene) this.scene.remove(this.group);
+    if (this.scene) {
+      if (!this.runtime.rendering?.removeDecoration?.(this.group)) this.scene.remove(this.group);
+    }
     this.scene = null;
   }
 }

@@ -20,9 +20,15 @@ function harness({pose={checked:true,clear:true,blockedBy:[]}}={}) {
   const events={emit:vi.fn()};
   const physics={checkManifestPose:vi.fn(()=>pose)};
   const world={
-    rendering:{viewport:()=>({camera:new THREE.PerspectiveCamera(45,2,0.1,100),element})},
-    assets:{getManifest:vi.fn((id)=>structuredClone(assetManifests[id]))},
-    assetCatalog:{has:vi.fn((id)=>Boolean(assetManifests[id]))},
+    rendering:{
+      viewport:()=>({camera:new THREE.PerspectiveCamera(45,2,0.1,100),element}),
+      addDecoration:(object)=>{ scene.add(object); return object; },
+      removeDecoration:(object)=>{ if(object.parent!==scene) return false; scene.remove(object); return true; }
+    },
+    assetCatalog:{
+      has:vi.fn((id)=>Boolean(assetManifests[id])),
+      get:vi.fn((id)=>structuredClone(assetManifests[id]))
+    },
     physics,
     scene,
     events,

@@ -178,7 +178,46 @@ Interaction supportVerified
 
 ---
 
-## 4. Navigation 与 Physics 的唯一直接基础依赖
+## 4. World Entity 与 Visual Decoration
+
+Three.js `Scene` 是最终渲染容器，不等于 World 的语义对象集合。
+
+```text
+Three.js Scene
+├─ World Entity
+│  └─ ObjectStore + Runtime systems 管理
+└─ Visual Decoration
+   └─ RenderingSystem 管理，仅用于表现
+```
+
+判定规则只有一个：
+
+```text
+世界逻辑需要知道 / 查询 / 交互 / 持久化它
+        -> World Entity
+
+只负责显示、编辑辅助、调试或瞬时视觉效果
+        -> Visual Decoration
+```
+
+代码边界：
+
+- `WorldRuntime.spawn()` 创建的实例进入 `ObjectStore`；`ObjectStore` 是 World Entity identity 的 authoritative owner。
+- Studio selection helper、transform gizmo、placement preview、generation anchor、debug overlay 属于 Visual Decoration，统一通过 `RenderingSystem.addDecoration()` / `removeDecoration()` 管理。
+- Visual Decoration 不进入 `ObjectStore`、SceneGraph、Physics、Spatial 或序列化状态。
+- 带 Runtime `instanceId` 的 World Entity 不允许作为 Visual Decoration 挂载。
+- Physics 不是 Entity 的判定标准；没有 collider 的对象也可以是 World Entity。
+
+```text
+WorldRuntime    = authoritative semantic state
+Three.js Scene = World 的渲染结果 + Visual Decoration
+```
+
+这不是新增 Layer，只是明确 Runtime 与 Rendering 对同一个 Three.js Scene 的所有权边界。
+
+---
+
+## 5. Navigation 与 Physics 的唯一直接基础依赖
 
 Navigation 的静态输入来自：
 
@@ -224,7 +263,7 @@ invalidateIfStatic(record, reason)
 
 ---
 
-## 5. World mutation 与 Navigation invalidation
+## 6. World mutation 与 Navigation invalidation
 
 以前 Navigation 自己监听：
 
@@ -279,7 +318,7 @@ embodied approachAndPlace completion
 
 ---
 
-## 6. Locomotion
+## 7. Locomotion
 
 Locomotion 只负责：
 
@@ -311,7 +350,7 @@ Interaction 可以调用 Locomotion；Locomotion 永远不调用 Interaction。
 
 ---
 
-## 7. Interaction
+## 8. Interaction
 
 Interaction 是六大系统中最高的行为编排层。
 
@@ -346,7 +385,7 @@ Interaction 与 Locomotion 的共享行为参数不通过 `InteractionSystem -> 
 
 ---
 
-## 8. Spatial
+## 9. Spatial
 
 Spatial 是 **只读几何查询层**。
 
@@ -377,7 +416,7 @@ Spatial query does not mutate World
 
 ---
 
-## 9. Rendering
+## 10. Rendering
 
 Rendering 是可选 Presentation adapter。
 
@@ -424,7 +463,7 @@ semantic relation truth
 
 ---
 
-## 10. Simulation frame
+## 11. Simulation frame
 
 当前 `WorldRuntime.stepSimulation(dt)` 的主要顺序：
 
@@ -448,7 +487,7 @@ Rendering 的 frame scheduling 在 host/application 层，不是 simulation cloc
 
 ---
 
-## 11. 最终 Dependency Freeze
+## 12. 最终 Dependency Freeze
 
 允许：
 
@@ -485,7 +524,7 @@ Navigation duplicates Physics collision truth
 
 ---
 
-## 12. 扩展规则
+## 13. 扩展规则
 
 新增 World Runtime 能力时按以下顺序判断 ownership：
 
