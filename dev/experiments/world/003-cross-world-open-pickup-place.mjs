@@ -195,8 +195,8 @@ async function runCase(worldId, layout) {
     row.doorState = runtime.store.get('cabinet_01') && runtime.store.get('cabinet_01').state.parts ? runtime.store.get('cabinet_01').state.parts.door : null;
     row.cupHeldBy = runtime.store.get('cup_01').state.heldBy || 'none';
     row.hands = runtime.interactions.carryStatus('agent_01').status;
-    const support = runtime.spatial.supportStatus('cup_01', 'table_01', { surfaceId: 'top' });
-    row.supportOnTable = { on: support.on, gap: round(support.gap) };
+    const support = runtime.spatial.supportGeometry('cup_01', 'table_01', { surfaceId: 'top' });
+    row.supportOnTable = { supported: support.supported, gap: round(support.gap) };
     const executed = runtime.trace.list({ type: 'agent.sequence' }).map((e) => e.payload).filter((e) => e.executed === true);
     row.mutations = executed.filter((e) => ['approachAndInteract', 'approachAndPickup', 'approachAndPlace'].includes(e.tool))
       .map((e) => e.tool + '=' + (e.outcome && e.outcome.state) + (e.outcome && e.outcome.status ? '/' + e.outcome.status : ''));

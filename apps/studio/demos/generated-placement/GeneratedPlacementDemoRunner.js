@@ -131,8 +131,8 @@ export class GeneratedPlacementDemoRunner {
   async #place(spec) {
     if (!this.world.store.has(spec.instanceId)) await this.world.spawn(spec.assetId, { id: spec.instanceId });
     const placed = this.world.interactions.place(spec.instanceId, spec.supportId, { surfaceId: spec.surfaceId, clearance: 0.03 });
-    const support = this.world.spatial.supportStatus(spec.instanceId, spec.supportId, { surfaceId: spec.surfaceId });
-    if (!support.on) throw new Error('Runtime 未验证 ON 关系');
+    const support = this.world.spatial.supportGeometry(spec.instanceId, spec.supportId, { surfaceId: spec.surfaceId });
+    if (!support.supported) throw new Error('Runtime 未验证 ON 关系');
     return { status: 'completed', assetId: spec.assetId, instanceId: spec.instanceId, placed, support };
   }
 }

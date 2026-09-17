@@ -80,15 +80,16 @@ export class SceneGraph {
 
     const deriveDirected = (subjectId, subject, targetId, target) => {
       for (const support of surfaces.get(targetId)) {
-        const status = this.spatial.supportStatus(subjectId,targetId,{surfaceId:support.id,snapshot:spatialSnapshot});
-        if (status.on) {
-          this.set(subjectId, 'ON', targetId, { surfaceId:support.id, gap:Number(status.gap.toFixed(3)) });
-          this.set(targetId, 'SUPPORTS', subjectId, { surfaceId:support.id });
+        const status = this.spatial.supportGeometry(subjectId,targetId,{surfaceId:support.id,snapshot:spatialSnapshot});
+        if (status.supported) {
+          const meta = { surfaceId:support.id, gap:Number(status.gap.toFixed(3)), evidence:'spatial-geometry' };
+          this.set(subjectId, 'ON', targetId, meta);
+          this.set(targetId, 'SUPPORTS', subjectId, meta);
         }
       }
-      const containment = this.spatial.insideStatus(subjectId,targetId,{snapshot:spatialSnapshot});
+      const containment = this.spatial.containmentGeometry(subjectId,targetId,{snapshot:spatialSnapshot});
       if (containment.inside) {
-        const meta = containment.receptacleId ? { receptacleId:containment.receptacleId } : {};
+        const meta = { ...(containment.receptacleId ? { receptacleId:containment.receptacleId } : {}), evidence:'spatial-geometry' };
         this.set(subjectId, 'INSIDE', targetId, meta);
         this.set(targetId, 'CONTAINS', subjectId, meta);
       }

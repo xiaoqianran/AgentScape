@@ -2,7 +2,7 @@ export const spatialSupportScenario = {
   id: "spatial.support.free-space",
   title: "支撑 / 自由空间",
   subtitle: "表面关系与放置候选",
-  description: "使用生产 findFreeSpace() 找可放置点，再用 supportStatus() 验证位于其上的关系。",
+  description: "使用生产 findFreeSpace() 找可放置点，再用 supportGeometry() 检查几何支撑关系。",
   inspect: "cup",
   setup(ctx) {
     ctx.addBox({
@@ -24,9 +24,9 @@ export const spatialSupportScenario = {
   assertions(ctx) {
     const debug = ctx.debugSnapshot();
     return [
-      { label: "找到无碰撞放置候选", pass: Array.isArray(debug.freeSpace?.point) },
-      { label: "候选通过支撑状态验证", pass: debug.support?.on === true, detail: debug.support ? `间隙=${debug.support.gap}` : "无支撑结果" },
-      { label: "候选未与阻挡物重叠", pass: !debug.collisionPairs.some(([a, b]) => [a, b].includes("cup") && [a, b].includes("blocker")) }
+      { label: "找到无重叠放置候选", pass: Array.isArray(debug.freeSpace?.point) },
+      { label: "候选通过几何支撑检查", pass: debug.support?.supported === true, detail: debug.support ? `间隙=${debug.support.gap}` : "无支撑结果" },
+      { label: "候选未与阻挡物重叠", pass: !debug.overlapPairs.some(([a, b]) => [a, b].includes("cup") && [a, b].includes("blocker")) }
     ];
   }
 };

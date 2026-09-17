@@ -11,7 +11,7 @@ function belowGroundRuntime({ worsen = false } = {}) {
     store: { get: () => ({ object }) },
     spatial: {
       getBounds: () => ({ min: [0, object.position.y, 0] }),
-      isColliding: () => []
+      overlappingIds: () => []
     },
     interactions: { move: vi.fn((_id, p) => object.position.fromArray(p)) },
     sceneGraph: { changed: vi.fn(), update: vi.fn() },

@@ -788,10 +788,10 @@ Physics getMotion
    ↓
 Interaction settle window
    ↓
-Spatial.supportStatus
+Spatial.supportGeometry
 ```
 
-`SpatialSystem.supportStatus` 同时成为 SceneGraph `ON/SUPPORTS` 与 Place post-condition 的唯一几何 predicate。`placed` 只在 Dynamic body 稳定后且 `supportStatus.on=true` 时返回。详见 [`agent-place.md`](agent-place.md)。
+`SpatialSystem.supportGeometry` 同时成为 SceneGraph `ON/SUPPORTS` 与 Place post-condition 的唯一几何 predicate。`placed` 只在 Dynamic body 稳定后且 `supportGeometry.supported=true` 时返回。详见 [`agent-place.md`](agent-place.md)。
 
 ---
 

@@ -101,7 +101,7 @@ export class InteractionScenarioContext {
 
   place(id, targetId, options = {}) {
     this.lastAction = { name: "place", result: this.interaction.place(id, targetId, options) };
-    this.lastSupport = this.spatial.supportStatus(id, targetId, { surfaceId: options.surfaceId || null });
+    this.lastSupport = this.spatial.supportGeometry(id, targetId, { surfaceId: options.surfaceId || null });
     if (this.lastSupport?.surfaceId) {
       const surface = this.spatial.getSupportSurface(targetId, this.lastSupport.surfaceId);
       this.lastSupportSurface = surface ? { center: surface.center.toArray(), size: [...surface.size] } : null;
@@ -144,7 +144,7 @@ export class InteractionScenarioContext {
         inRange: this.lastReach?.inRange ?? null,
         visible: this.lastReach?.visible ?? null,
         blocker: this.lastReach?.lineOfSight?.hit?.id || null,
-        supportOn: this.lastSupport?.on ?? null,
+        supportOn: this.lastSupport?.supported ?? null,
         eventCount: this.eventLog.length
       }
     };

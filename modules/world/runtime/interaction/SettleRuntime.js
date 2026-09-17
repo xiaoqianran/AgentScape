@@ -26,14 +26,14 @@ export class SettleRuntime {
   }
 
   placementResult(task,motion,{settled,reason=null}={}) {
-    const support=this.spatial.supportStatus(task.objectId,task.targetId,{surfaceId:task.surfaceId});
+    const support=this.spatial.supportGeometry(task.objectId,task.targetId,{surfaceId:task.surfaceId});
     if (!settled) return {
       status:'place-unverified',reason:reason || 'SETTLE_TIMEOUT',supportVerified:false,support,settled:false,
       elapsed:Number(task.elapsed.toFixed(3)),motion
     };
     return {
-      status:support.on?'placed':'place-failed',...(support.on?{}:{reason:'SUPPORT_NOT_REACHED'}),
-      supportVerified:support.on,support,settled:true,elapsed:Number(task.elapsed.toFixed(3)),motion
+      status:support.supported?'placed':'place-failed',...(support.supported?{}:{reason:'SUPPORT_NOT_REACHED'}),
+      supportVerified:support.supported,support,settled:true,elapsed:Number(task.elapsed.toFixed(3)),motion
     };
   }
 

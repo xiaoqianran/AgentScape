@@ -206,7 +206,7 @@ export class InteractionSystem {
     record.object.position.copy(position);
     this.physics.setPosition(id,position.toArray());
     record.object.updateWorldMatrix(true,true);
-    const containment=this.spatial.insideStatus(id,targetId,{receptacleId});
+    const containment=this.spatial.containmentGeometry(id,targetId,{receptacleId});
     if(!silent) this.events.emit('interaction',{action:'place-inside',id,targetId,receptacleId:containment.receptacleId,position:position.toArray()});
     return {
       status:containment.inside?'inside':'inside-unverified',id,targetId,
@@ -284,8 +284,8 @@ export class InteractionSystem {
     const supports=[];
     for (const [id,record] of this.store.list()) {
       if (id===targetId || !record.manifest.surfaces?.length) continue;
-      const status=this.spatial.supportStatus(targetId,id);
-      if (status.on) supports.push(id);
+      const status=this.spatial.supportGeometry(targetId,id);
+      if (status.supported) supports.push(id);
     }
     return supports.sort();
   }

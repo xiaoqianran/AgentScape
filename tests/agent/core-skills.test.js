@@ -34,7 +34,7 @@ function runtime() {
       carryStatus:vi.fn(()=>({status:'held',actorId:'agent_01',targetId:'cup_01',graspVerified:false}))
     },
     duplicate: vi.fn(), remove: vi.fn(),
-    spatial: { getBounds:vi.fn(), findNearby:vi.fn(), raycast:vi.fn(), isColliding:vi.fn(), getSupportSurface:vi.fn(), findFreeSpace:vi.fn() },
+    spatial: { getBounds:vi.fn(), findNearby:vi.fn(), raycast:vi.fn(), overlappingIds:vi.fn(), getSupportSurface:vi.fn(), findFreeSpace:vi.fn() },
     navigation: { canReach:vi.fn(async()=>({reachable:true,cost:3})), findPath:vi.fn(async()=>({reachable:true,path:[[0,0,0],[3,0,0]],cost:3})), suggestActions:vi.fn(async()=>({status:'action-candidate'})), status:vi.fn(()=>({state:'ready'})) },
     environment:{layout:{bounds:{min:[-5,-5],max:[5,5]},groundY:0,margin:.5}},
     physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},

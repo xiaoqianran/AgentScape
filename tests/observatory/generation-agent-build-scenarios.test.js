@@ -61,7 +61,7 @@ describe("Observatory Generation / Agent Build", () => {
       expect(assetAdmission(manifest, { generated: true })).toMatchObject({ status: "ready", reasons: [] });
       expect(ctx.runtime.store.has(FIXTURE_INSTANCE_ID)).toBe(true);
       expect(ctx.runtime.physics.getPosition(FIXTURE_INSTANCE_ID)).toBeTruthy();
-      expect(ctx.runtime.spatial.supportStatus(FIXTURE_INSTANCE_ID, "table_01", { surfaceId: "top" }).on).toBe(true);
+      expect(ctx.runtime.spatial.supportGeometry(FIXTURE_INSTANCE_ID, "table_01", { surfaceId: "top" }).supported).toBe(true);
       expect(ctx.sceneGraph.list({ subject: FIXTURE_INSTANCE_ID, predicate: "ON", object: "table_01" })).toHaveLength(1);
       expect(ctx.agentResult).toMatchObject({ taskStatus: "completed", unresolvedMutations: [] });
 
@@ -100,7 +100,7 @@ describe("Observatory Generation / Agent Build", () => {
       expect(ctx.runtime.interactions.carryStatus("agent_01")).toMatchObject({ status: "empty" });
       expect(ctx.runtime.store.get(FIXTURE_INSTANCE_ID).state.heldBy).toBeUndefined();
       expect(ctx.runtime.physics.entries.get(FIXTURE_INSTANCE_ID).body.isDynamic()).toBe(true);
-      expect(ctx.runtime.spatial.supportStatus(FIXTURE_INSTANCE_ID, "table_01", { surfaceId: "top" }).on).toBe(true);
+      expect(ctx.runtime.spatial.supportGeometry(FIXTURE_INSTANCE_ID, "table_01", { surfaceId: "top" }).supported).toBe(true);
       expect(ctx.sceneGraph.list({ subject: FIXTURE_INSTANCE_ID, predicate: "ON", object: "table_01" })).toHaveLength(1);
       expect(ctx.agentResult).toMatchObject({ taskStatus: "completed", steps: 8, unresolvedMutations: [] });
       expect(ctx.gatewayRequests).toHaveLength(8);

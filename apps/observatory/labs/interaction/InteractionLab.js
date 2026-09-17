@@ -141,7 +141,7 @@ export class InteractionLab {
         action: snapshot.action?.name || "—",
         interactable: snapshot.reach?.interactable ?? "—",
         blocker: snapshot.reach?.lineOfSight?.hit?.id || "—",
-        "support on": snapshot.support?.on ?? "—",
+        "support on": snapshot.support?.supported ?? "—",
         events: snapshot.events?.length ?? 0
       }
     };

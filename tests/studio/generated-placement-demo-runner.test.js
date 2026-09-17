@@ -25,14 +25,14 @@ describe('GeneratedPlacementDemoRunner',()=>{
       assetCatalog:{resolveExisting:()=>({status:'missing'})},
       store:{has:()=>false},spawn,
       interactions:{place},
-      spatial:{supportStatus:()=>({on:true,subjectId:spec.instanceId,targetId:spec.supportId})}
+      spatial:{supportGeometry:()=>({supported:true,subjectId:spec.instanceId,targetId:spec.supportId,evidence:'spatial-geometry'})}
     };
     const result=await new GeneratedPlacementDemoRunner({world,storage,pollIntervalMs:0}).run(spec);
     expect(submitGenerationJob).not.toHaveBeenCalled();
     expect(generateAndCompileAsset).toHaveBeenCalledWith({jobId:'job_asset',assetId:spec.assetId,label:'Red Ceramic Vase'});
     expect(spawn).toHaveBeenCalledWith(spec.assetId,{id:spec.instanceId});
     expect(place).toHaveBeenCalledWith(spec.instanceId,spec.supportId,{surfaceId:'top',clearance:0.03});
-    expect(result).toMatchObject({status:'completed',support:{on:true},generation:{imageJobId:'job_image',assetJobId:'job_asset'}});
+    expect(result).toMatchObject({status:'completed',support:{supported:true},generation:{imageJobId:'job_image',assetJobId:'job_asset'}});
     expect(storage.value()).toBeNull();
   });
 });
