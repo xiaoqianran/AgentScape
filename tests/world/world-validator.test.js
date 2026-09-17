@@ -7,7 +7,7 @@ function runtime({ below = false, collision = false } = {}) {
     listObjects: () => [{ id: 'a' }, { id: 'b' }],
     spatial: {
       snapshot: () => new Map([['a',{ bounds:bounds('a') }], ['b',{ bounds:bounds('b') }]]),
-      collisionPairs: () => collision ? [['a','b']] : []
+      overlapPairs: () => collision ? [['a','b']] : []
     },
     sceneGraph: { update: () => [], list: () => [] },
     interactions: { isHeld:()=>false }

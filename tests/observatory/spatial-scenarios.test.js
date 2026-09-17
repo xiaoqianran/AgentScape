@@ -14,7 +14,7 @@ describe("Observatory Spatial scenarios", () => {
       await scenario.setup(ctx);
       const debug = ctx.debugSnapshot();
       const assertions = scenario.assertions?.(ctx, { frame: 0, time: 0, fixedDt: 1 / 60 }) || [];
-      expect(debug).toMatchObject({ schemaVersion: 1, source: "spatial" });
+      expect(debug).toMatchObject({ schemaVersion: 2, source: "spatial" });
       expect(debug.bvh).toMatchObject({ installed: true, raycast: "three-mesh-bvh" });
       expect(debug.bounds.length).toBeGreaterThan(0);
       expect(assertions.filter((item) => item.status !== "pending" && item.pass === false)).toEqual([]);

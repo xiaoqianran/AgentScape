@@ -85,7 +85,7 @@ export const generationEmbodiedBuildScenario = {
     const carry = result.execution.find((entry) => entry.tool === "navigateTo") || null;
     const place = result.execution.find((entry) => entry.tool === "approachAndPlace") || null;
     const relations = ctx.sceneGraph.list({ subject: FIXTURE_INSTANCE_ID, predicate: "ON", object: "table_01" });
-    const support = ctx.runtime.spatial.supportStatus(FIXTURE_INSTANCE_ID, "table_01", { surfaceId: "top" });
+    const support = ctx.runtime.spatial.supportGeometry(FIXTURE_INSTANCE_ID, "table_01", { surfaceId: "top" });
     const carryStatus = ctx.runtime.interactions.carryStatus("agent_01");
     ctx.transition = { result, pickup, carry, place, relations, support, carryStatus };
   },
@@ -97,7 +97,7 @@ export const generationEmbodiedBuildScenario = {
       { label: "携带期间使用真实 navigateTo 并到达", pass: carry?.outcome?.state === "verified" && carry?.outcome?.status === "arrived" },
       { label: "approachAndPlace 返回 verified placed", pass: place?.outcome?.state === "verified" && place?.outcome?.status === "placed" },
       { label: "放置后不再持有生成资产", pass: carryStatus?.status === "empty" && !ctx.runtime.store.get(FIXTURE_INSTANCE_ID).state?.heldBy },
-      { label: "Physics / Spatial 最终验证 table.top 支撑", pass: support?.on === true, detail: `gap=${support?.gap ?? "—"}` },
+      { label: "Physics / Spatial 最终验证 table.top 支撑", pass: support?.supported === true, detail: `gap=${support?.gap ?? "—"}` },
       { label: "SceneGraph 最终存在 generated apple ON table", pass: relations?.length === 1 },
       { label: "Agent 每次世界变更后都重新规划", pass: ctx.gatewayRequests.length === 8 && result?.steps === 8 },
       { label: "Level 2 最终任务 completed，无 unresolved mutation", pass: result?.taskStatus === "completed" && result?.unresolvedMutations?.length === 0 }

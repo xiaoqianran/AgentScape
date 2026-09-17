@@ -24,19 +24,19 @@ export class SpatialDebugRenderer {
   setQueryVisible(visible) { this.queryGroup.visible = Boolean(visible); }
 
   update(snapshot) {
-    this.updateBounds(snapshot?.bounds || [], snapshot?.collisionPairs || []);
+    this.updateBounds(snapshot?.bounds || [], snapshot?.overlapPairs || []);
     this.updateRay(snapshot?.ray || null);
     this.updateQueries(snapshot);
   }
 
-  updateBounds(bounds, collisionPairs) {
+  updateBounds(bounds, overlapPairs) {
     clearVisualGroup(this.boundsGroup);
     const centers = new Map();
     for (const bound of bounds) {
       centers.set(bound.id, new THREE.Vector3(...bound.center));
       this.boundsGroup.add(createInstrumentBounds(bound.min, bound.max, "structure"));
     }
-    for (const [left, right] of collisionPairs) {
+    for (const [left, right] of overlapPairs) {
       const a = centers.get(left);
       const b = centers.get(right);
       if (!a || !b) continue;
@@ -74,8 +74,8 @@ export class SpatialDebugRenderer {
       this.queryGroup.add(createInstrumentSurface(
         support.surface.center,
         support.surface.size,
-        support.on ? "pass" : "fail",
-        { opacity: support.on ? 0.1 : 0.08 }
+        support.supported ? "pass" : "fail",
+        { opacity: support.supported ? 0.1 : 0.08 }
       ));
     }
   }

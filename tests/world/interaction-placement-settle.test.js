@@ -3,7 +3,7 @@ import { InteractionSystem } from '../../modules/world/runtime/systems/Interacti
 
 const system = ({ motion, support } = {}) => {
   const physics={ getMotion:vi.fn(()=>motion || {sleeping:false,linearSpeed:0,angularSpeed:0}) };
-  const spatial={ supportStatus:vi.fn(()=>support || {on:true,surfaceId:'top',gap:0}) };
+  const spatial={ supportGeometry:vi.fn(()=>support || {supported:true,surfaceId:'top',gap:0,evidence:'spatial-geometry'}) };
   const events={emit:vi.fn()};
   return { interactions:new InteractionSystem({store:{},physics,spatial,events}), physics,spatial,events };
 };
@@ -15,16 +15,16 @@ describe('placement settle state machine',()=>{
     interactions.updatePlacementSettles(.05);
     expect(interactions.settleTasks.has('cup')).toBe(true);
     interactions.updatePlacementSettles(.05);
-    await expect(pending).resolves.toMatchObject({status:'placed',supportVerified:true,settled:true,support:{on:true,surfaceId:'top'}});
-    expect(spatial.supportStatus).toHaveBeenCalledWith('cup','table',{surfaceId:'top'});
+    await expect(pending).resolves.toMatchObject({status:'placed',supportVerified:true,settled:true,support:{supported:true,surfaceId:'top'}});
+    expect(spatial.supportGeometry).toHaveBeenCalledWith('cup','table',{surfaceId:'top'});
     expect(interactions.settleTasks.size).toBe(0);
   });
 
   it('returns place-unverified on timeout even if geometry happens to be over the surface',async()=>{
-    const {interactions}=system({motion:{sleeping:false,linearSpeed:2,angularSpeed:1},support:{on:true,surfaceId:'top',gap:.01}});
+    const {interactions}=system({motion:{sleeping:false,linearSpeed:2,angularSpeed:1},support:{supported:true,surfaceId:'top',gap:.01,evidence:'spatial-geometry'}});
     const pending=interactions.waitForPlacementSettle('cup','table','top',{stableDuration:.1,timeout:.1});
     interactions.updatePlacementSettles(.1);
-    await expect(pending).resolves.toMatchObject({status:'place-unverified',reason:'SETTLE_TIMEOUT',supportVerified:false,settled:false,support:{on:true}});
+    await expect(pending).resolves.toMatchObject({status:'place-unverified',reason:'SETTLE_TIMEOUT',supportVerified:false,settled:false,support:{supported:true}});
   });
 
   it('cancels pending settle promises explicitly during teardown',async()=>{
@@ -38,7 +38,7 @@ describe('placement settle state machine',()=>{
   it('cancels a place settle when its support target is removed',async()=>{
     const store={has:vi.fn(()=>false),get:vi.fn()};
     const physics={getMotion:vi.fn(()=>({sleeping:false,linearSpeed:1,angularSpeed:1}))};
-    const spatial={supportStatus:vi.fn(()=>({on:false,reason:'TARGET_REMOVED'}))};
+    const spatial={supportGeometry:vi.fn(()=>({supported:false,reason:'TARGET_REMOVED',evidence:'spatial-geometry'}))};
     const interactions=new InteractionSystem({store,physics,spatial,events:{emit:vi.fn()}});
     const pending=interactions.waitForPlacementSettle('cup','table','top');
     interactions.beforeRemove('table');
@@ -61,7 +61,7 @@ describe('placement settle state machine',()=>{
   it('uses one direct settle-task owner for place and recovery-cleanup kinds',async()=>{
     const store={has:vi.fn(()=>false),get:vi.fn()};
     const physics={getMotion:vi.fn(()=>({sleeping:false,linearSpeed:1,angularSpeed:1}))};
-    const spatial={supportStatus:vi.fn(()=>({on:false}))};
+    const spatial={supportGeometry:vi.fn(()=>({supported:false,evidence:'spatial-geometry'}))};
     const interactions=new InteractionSystem({store,physics,spatial,events:{emit:vi.fn()}});
     const pending=interactions.waitForObjectSettle('blocker',{kind:'recovery-cleanup',actorId:'agent_01',targetId:'cabinet',partName:'door',action:'open'});
     expect(interactions.settleTasks.get('blocker')).toMatchObject({

@@ -65,7 +65,7 @@ export const generationAgentBuildScenario = {
     const manifest = ctx.runtime.assetRegistry.has(FIXTURE_ASSET_ID) ? ctx.runtime.assetRegistry.getManifest(FIXTURE_ASSET_ID) : null;
     const relations = ctx.sceneGraph.list({ subject: FIXTURE_INSTANCE_ID, predicate: "ON", object: "table_01" });
     const support = ctx.runtime.store.has(FIXTURE_INSTANCE_ID)
-      ? ctx.runtime.spatial.supportStatus(FIXTURE_INSTANCE_ID, "table_01", { surfaceId: "top" })
+      ? ctx.runtime.spatial.supportGeometry(FIXTURE_INSTANCE_ID, "table_01", { surfaceId: "top" })
       : null;
     ctx.transition = { result, artifact, manifest, relations, support };
   },
@@ -79,7 +79,7 @@ export const generationAgentBuildScenario = {
       { label: "AssetCompiler 与 Admission 都达到 ready", pass: manifest?.compiler?.quality?.status === "ready" && ctx.generatedAssetState()?.admission?.status === "ready" },
       { label: "生成资产已真实实例化进 Rapier 世界", pass: ctx.runtime.store.has(FIXTURE_INSTANCE_ID) && Boolean(ctx.runtime.physics.getPosition(FIXTURE_INSTANCE_ID)) },
       { label: "Agent 执行了 spawn → fresh replan → place", pass: executed.some((entry) => entry.tool === "spawnAsset" && entry.executed) && executed.some((entry) => entry.tool === "place" && entry.executed) && ctx.gatewayRequests.length >= 5 },
-      { label: "Spatial support truth 确认苹果位于 table.top", pass: support?.on === true, detail: `gap=${support?.gap ?? "—"}` },
+      { label: "Spatial support truth 确认苹果位于 table.top", pass: support?.supported === true, detail: `gap=${support?.gap ?? "—"}` },
       { label: "SceneGraph 派生 ON 关系已验证", pass: relations?.some((edge) => edge.subject === FIXTURE_INSTANCE_ID && edge.predicate === "ON" && edge.object === "table_01") },
       { label: "最终 Agent 任务状态 completed 且无 unresolved mutation", pass: result?.taskStatus === "completed" && result?.unresolvedMutations?.length === 0 }
     ];

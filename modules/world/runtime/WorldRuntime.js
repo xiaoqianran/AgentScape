@@ -82,7 +82,7 @@ export class WorldRuntime {
       await this.rendering.init();
       if (this.rendering.renderer) this.assetLoader.configureRenderer?.(this.rendering.renderer);
     }
-    this.spatial = new SpatialSystem({ store: this.store, scene: this.scene });
+    this.spatial = new SpatialSystem({ store: this.store });
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
     this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);

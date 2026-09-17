@@ -7,7 +7,7 @@ export class SpatialScenarioContext {
   constructor({ scene }) {
     this.scene = scene;
     this.store = new ObjectStore();
-    this.spatial = new SpatialSystem({ store: this.store, scene });
+    this.spatial = new SpatialSystem({ store: this.store });
     this.visuals = [];
     this.lastRay = null;
     this.lastSupport = null;
@@ -44,7 +44,7 @@ export class SpatialScenarioContext {
   }
 
   querySupport(subjectId, targetId, options = {}) {
-    const result = this.spatial.supportStatus(subjectId, targetId, options);
+    const result = this.spatial.supportGeometry(subjectId, targetId, options);
     const surface = result?.surfaceId ? this.spatial.getSupportSurface(targetId, result.surfaceId) : null;
     this.lastSupport = {
       ...result,
@@ -60,7 +60,7 @@ export class SpatialScenarioContext {
   }
 
   queryInside(subjectId, targetId, options = {}) {
-    this.lastInside = this.spatial.insideStatus(subjectId, targetId, options);
+    this.lastInside = this.spatial.containmentGeometry(subjectId, targetId, options);
     return this.lastInside;
   }
 
@@ -89,7 +89,7 @@ export class SpatialScenarioContext {
         boundsMax: bounds?.max || null,
         boundsSize: bounds?.size || null,
         rayHits: this.lastRay?.hits?.length ?? 0,
-        collisionPairs: this.spatial.debugSnapshot().metrics.collisionPairCount,
+        overlapPairs: this.spatial.debugSnapshot().metrics.overlapPairCount,
         freeSpace: this.lastFreeSpace?.point || null
       }
     };

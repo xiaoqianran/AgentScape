@@ -126,7 +126,7 @@ describe('verified multi-step embodied sequencing',()=>{
     expect(ctx.mutate.mock.calls.map(([label])=>label)).toEqual([
       'skill:approachAndPickup','skill:approachAndPlace'
     ]);
-    expect(ctx.spatial.supportStatus('cup_01','table_01',{surfaceId:'top'}).on).toBe(true);
+    expect(ctx.spatial.supportGeometry('cup_01','table_01',{surfaceId:'top'}).supported).toBe(true);
     ctx.navigation.dispose(); ctx.physics.dispose();
   },45000);
 
@@ -140,7 +140,7 @@ describe('verified multi-step embodied sequencing',()=>{
     });
     expect(ctx.store.get('cabinet_01').state.parts.door).toBe('open');
     expect(ctx.store.get('cup_01').state.heldBy).toBeUndefined();
-    expect(ctx.spatial.supportStatus('cup_01','table_01',{surfaceId:'top'}).on).toBe(true);
+    expect(ctx.spatial.supportGeometry('cup_01','table_01',{surfaceId:'top'}).supported).toBe(true);
     expect(ctx.interactions.carryStatus('agent_01')).toMatchObject({status:'empty'});
     expect(ctx.mutate.mock.calls.map(([label])=>label)).toEqual([
       'skill:approachAndInteract','skill:approachAndPickup','skill:approachAndPlace'
@@ -159,7 +159,7 @@ describe('verified multi-step embodied sequencing',()=>{
     expect(result).toMatchObject({taskStatus:'completed',lastMutation:{tool:'approachAndPlace',outcome:{state:'verified',status:'placed'}},unresolvedMutations:[]});
     expect(ctx.store.get('cabinet_01').state.parts.door).toBe('open');
     expect(ctx.store.get('cup_01').state.heldBy).toBeUndefined();
-    expect(ctx.spatial.supportStatus('cup_01','table_01',{surfaceId:'top'}).on).toBe(true);
+    expect(ctx.spatial.supportGeometry('cup_01','table_01',{surfaceId:'top'}).supported).toBe(true);
     expect(ctx.mutate.mock.calls.map(([label])=>label)).toEqual([
       'skill:approachAndPickup','skill:dropHeld','skill:approachAndInteract','skill:approachAndPickup','skill:approachAndPlace'
     ]);

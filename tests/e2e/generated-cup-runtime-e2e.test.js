@@ -126,7 +126,7 @@ describe('Browser Agent → Python modal-gen-client → WorldRuntime E2E', () =>
       expect(placed).toMatchObject({ id: 'cup_generated_01', targetId: 'table_01' });
 
       const cup = runtime.store.get('cup_generated_01');
-      const support = runtime.spatial.supportStatus('cup_generated_01', 'table_01', {
+      const support = runtime.spatial.supportGeometry('cup_generated_01', 'table_01', {
         surfaceId: 'top'
       });
       const camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.05, 20);

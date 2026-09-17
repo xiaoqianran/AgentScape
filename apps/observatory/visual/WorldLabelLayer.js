@@ -39,7 +39,7 @@ export function worldLabelsForSpatial(snapshot) {
   const support = snapshot?.support;
   if (tuple(support?.surface?.center)) {
     const center = support.surface.center;
-    labels.push(label("spatial:support", [center[0], center[1] + 0.14, center[2]], "支撑", support.on ? "已支撑" : "未支撑", "表面", support.on ? "pass" : "fail"));
+    labels.push(label("spatial:support", [center[0], center[1] + 0.14, center[2]], "支撑", support.supported ? "已支撑" : "未支撑", "表面", support.supported ? "pass" : "fail"));
   }
   return labels.slice(0, 6);
 }
@@ -70,7 +70,7 @@ export function worldLabelsForInteraction(snapshot) {
   if (tuple(eye)) labels.push(label("interaction:actor", [eye[0], eye[1] + 0.2, eye[2]], "主体", "智能体", reach?.interactable ? "可交互" : "检查交互范围", "info"));
   if (tuple(aim)) labels.push(label("interaction:target", [aim[0], aim[1] + 0.2, aim[2]], "目标", "杯子", reach?.visible ? "可见" : "被遮挡", reach?.visible ? "pass" : "fail"));
   const surface = snapshot?.supportSurface;
-  if (tuple(surface?.center)) labels.push(label("interaction:support", [surface.center[0], surface.center[1] + 0.16, surface.center[2]], "支撑", snapshot?.support?.on ? "位于其上" : "表面", "放置", snapshot?.support?.on ? "pass" : "neutral"));
+  if (tuple(surface?.center)) labels.push(label("interaction:support", [surface.center[0], surface.center[1] + 0.16, surface.center[2]], "支撑", snapshot?.support?.supported ? "位于其上" : "表面", "放置", snapshot?.support?.supported ? "pass" : "neutral"));
   return labels;
 }
 

@@ -239,8 +239,8 @@ async function recoveryConsistency(runtime, tools, driveEnvironment) {
   recorded.restoredPersistent = restored.status === undefined ? restored.error : restored.status;
   recorded.restoredVerified = restored.verifiedCount === undefined ? null : restored.verifiedCount;
   recorded.restoredFailed = restored.failedCount === undefined ? null : restored.failedCount;
-  const support = await safeCall(() => Promise.resolve(runtime.spatial.supportStatus('cup_01', 'table_01', { surfaceId: 'top' })), 'restored-support');
-  recorded.restoredSupportOn = support.on === undefined ? null : support.on;
+  const support = await safeCall(() => Promise.resolve(runtime.spatial.supportGeometry('cup_01', 'table_01', { surfaceId: 'top' })), 'restored-support');
+  recorded.restoredSupportOn = support.supported === undefined ? null : support.supported;
   recorded.restoredSupportGap = support.gap === undefined ? null : round(support.gap);
 
   const historical = await safeCall(() => tools.call('replayWorldAcceptance'), 'historical-replay');
@@ -342,8 +342,8 @@ async function runCase(worldId, layout) {
 
     row.cupHeldBy = runtime.store.get('cup_01').state.heldBy || 'none';
     row.hands = runtime.interactions.carryStatus('agent_01').status;
-    const support = runtime.spatial.supportStatus('cup_01', 'table_01', { surfaceId: 'top' });
-    row.supportOnTable = { on: support.on, gap: round(support.gap) };
+    const support = runtime.spatial.supportGeometry('cup_01', 'table_01', { surfaceId: 'top' });
+    row.supportOnTable = { supported: support.supported, gap: round(support.gap) };
     const executed = runtime.trace.list({ type: 'agent.sequence' }).map((e) => e.payload).filter((e) => e.executed === true);
     row.mutations = executed.filter((e) => ['approachAndInteract', 'approachAndPickup', 'approachAndPlace'].includes(e.tool))
       .map((e) => e.tool + '=' + (e.outcome && e.outcome.state) + (e.outcome && e.outcome.status ? '/' + e.outcome.status : ''));

@@ -84,9 +84,9 @@ Scenarios
 └── Support / FreeSpace
 
 Production contracts
-├── SpatialSystem.snapshot / collisionPairs
+├── SpatialSystem.snapshot / overlapPairs
 ├── SpatialSystem.raycast
-├── SpatialSystem.supportStatus
+├── SpatialSystem.supportGeometry
 ├── SpatialSystem.findFreeSpace
 └── ThreeBvhRuntime
 ```
@@ -144,7 +144,7 @@ Observatory 同时暴露：Provider/Job 状态、Artifact integrity、Compiler q
 spatial.debugSnapshot()
 ```
 
-返回 normalized bounds、collision pairs 与 metrics；Ray / support / free-space query evidence 由 Spatial Lab context 作为实验观测附加，不进入 SpatialSystem 的业务 truth。
+返回 normalized bounds、overlap pairs 与 metrics；Ray / support / free-space query evidence 由 Spatial Lab context 作为实验观测附加，不进入 SpatialSystem 的业务 truth。
 
 ## Physics Debug Contract
 

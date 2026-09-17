@@ -264,8 +264,8 @@ async function runEmbodiedWorldTask() {
     assert.equal(runtime.store.get('cup_01').state.heldBy,undefined,'Cup must no longer be held after placement');
     assert.equal(runtime.interactions.carryStatus('agent_01').status,'empty','Agent hands must be empty after placement');
     runtime.sceneGraph.changed(); runtime.sceneGraph.update();
-    const support = runtime.spatial.supportStatus('cup_01','table_01',{surfaceId:'top'});
-    assert.equal(support.on,true,'Cup must be physically supported by table.top');
+    const support = runtime.spatial.supportGeometry('cup_01','table_01',{surfaceId:'top'});
+    assert.equal(support.supported,true,'Cup must satisfy table.top support geometry');
     assert.ok(runtime.history.status().undo >= 3,'Verified Agent mutations must be recorded in transactional history');
     const acceptedSnapshot = runtime.serialize({name:'Viability Accepted Snapshot'});
     assert.equal(acceptedSnapshot.objects.length,4,'Accepted scene snapshot must contain all runtime objects');
@@ -290,8 +290,8 @@ async function runEmbodiedWorldTask() {
 
     const persistedAcceptance = await tools.call('evaluateWorldAcceptance',{criteria:persistedWorldCriteria});
     assert.equal(persistedAcceptance.status,'world-accepted','Restored physical world state must independently pass persistent-state acceptance');
-    const restoredSupport = runtime.spatial.supportStatus('cup_01','table_01',{surfaceId:'top'});
-    assert.equal(restoredSupport.on,true,'Restored cup must still be physically ON table.top');
+    const restoredSupport = runtime.spatial.supportGeometry('cup_01','table_01',{surfaceId:'top'});
+    assert.equal(restoredSupport.supported,true,'Restored cup must still satisfy table.top support geometry');
 
     const executed = runtime.trace.list({type:'agent.sequence'}).map((entry) => entry.payload).filter((entry) => entry.executed === true);
     const mutationOutcomes = executed.filter((entry) => ['approachAndInteract','approachAndPickup','approachAndPlace'].includes(entry.tool));
@@ -310,7 +310,7 @@ async function runEmbodiedWorldTask() {
       agentTravel:round(Math.hypot(agentEnd[0]-agentStart[0],agentEnd[2]-agentStart[2])),
       mutationOutcomes:mutationOutcomes.map((entry) => ({tool:entry.tool,state:entry.outcome.state,status:entry.outcome.status || null})),
       taskAcceptance:{status:result.acceptanceBundle.result.status,verified:result.acceptanceBundle.result.verifiedCount,failed:result.acceptanceBundle.result.failedCount},
-      supportAfterPlace:{on:support.on,gap:support.gap},
+      supportAfterPlace:{supported:support.supported,gap:support.gap},
       history:runtime.history.status(),
       driftReplay:{status:driftReplay.status,failed:driftReplay.failedCount,changed:driftReplay.replay?.changedCriteria || []},
       restoredHistoricalReplay:{status:historicalReplay.status,failed:historicalReplay.failedCount},

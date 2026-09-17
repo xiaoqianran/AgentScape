@@ -37,7 +37,7 @@ describe("Observatory Interaction scenarios", () => {
     const scenario = interactionScenarios.find((item) => item.id === "interaction.place.surface");
     const ctx = await createContext();
     await scenario.setup(ctx);
-    expect(ctx.transition.support).toMatchObject({ on: true, targetId: "table", surfaceId: "top" });
+    expect(ctx.transition.support).toMatchObject({ supported: true, targetId: "table", surfaceId: "top", evidence: "spatial-geometry" });
     expect(ctx.transition.position[1]).toBeCloseTo(1.13, 2);
     expect(ctx.eventLog.map((event) => event.action)).toEqual(["pickup", "drop", "place"]);
     ctx.dispose();

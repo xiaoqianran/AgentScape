@@ -50,7 +50,7 @@ describe('agent-held place/release truth',()=>{
     expect(result.transfer.every((step)=>step.clear)).toBe(true);
     expect(ctx.store.get('cup_01').state.heldBy).toBeUndefined();
     expect(ctx.physics.entries.get('cup_01').body.isDynamic()).toBe(true);
-    expect(ctx.spatial.supportStatus('cup_01','table_01',{surfaceId:'top'}).on).toBe(true);
+    expect(ctx.spatial.supportGeometry('cup_01','table_01',{surfaceId:'top'}).supported).toBe(true);
     expect(ctx.interactions.carryStatus('agent_01')).toMatchObject({status:'empty'});
     ctx.navigation.dispose();ctx.physics.dispose();
   },30000);
@@ -63,7 +63,7 @@ describe('agent-held place/release truth',()=>{
     ctx.physics.addObject('table_01',fake,tableRecord.object);
     const result=await drive(ctx.interactions.approachAndPlace('agent_01','table_01',{surfaceId:'top',speed:2.5}),ctx);
     expect(result).toMatchObject({status:'place-failed',reason:'SUPPORT_NOT_REACHED',supportVerified:false,settled:true,stillHeld:false});
-    expect(result.support.on).toBe(false);
+    expect(result.support.supported).toBe(false);
     expect(ctx.store.get('cup_01').state.heldBy).toBeUndefined();
     ctx.navigation.dispose();ctx.physics.dispose();
   },30000);

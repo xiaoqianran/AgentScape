@@ -30,7 +30,7 @@ export class RepairEngine {
         let solved = false;
         for (const [dx, dz] of [[0.25,0],[-0.25,0],[0,0.25],[0,-0.25],[0.5,0],[0,0.5]]) {
           this.runtime.interactions.move(objectId, [p[0]+dx, p[1], p[2]+dz],{silent});
-          if (!this.runtime.spatial.isColliding(objectId, { margin: 0.015 }).length) { solved = true; break; }
+          if (!this.runtime.spatial.overlappingIds(objectId, { margin: 0.015 }).length) { solved = true; break; }
         }
         if (solved) applied.push({ findingId:finding.id,code: finding.code, object: objectId, action: 'separate_overlap' });
         else { this.runtime.interactions.move(objectId, p,{silent}); ignored.push({findingId:finding.id,code:finding.code,reason:'REPAIR_SEARCH_EXHAUSTED'}); }

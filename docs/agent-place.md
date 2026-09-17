@@ -809,7 +809,7 @@ gap <= 0.12m
 1.18 把它抽到：
 
 ```text
-SpatialSystem.supportStatus(
+SpatialSystem.supportGeometry(
   subjectId,
   targetId,
   surfaceId
@@ -823,7 +823,7 @@ ON
 SUPPORTS
 ```
 
-也改成调用同一个 `supportStatus`。
+也改成调用同一个 `supportGeometry`。
 
 Place settle 同样调用它。
 
@@ -841,20 +841,21 @@ supportVerified = true
 
 ---
 
-## 24. `supportStatus` 返回什么
+## 24. `supportGeometry` 返回什么
 
 例如：
 
 ```json
 {
-  "on": true,
+  "supported": true,
   "subjectId": "cup_01",
   "targetId": "table_01",
   "surfaceId": "top",
   "withinX": true,
   "withinZ": true,
   "gap": 0.002,
-  "tolerance": 0.12
+  "tolerance": 0.12,
+  "evidence": "spatial-geometry"
 }
 ```
 
@@ -924,7 +925,7 @@ place 成功
 ```text
 stable window passed
 +
-supportStatus.on == true
+supportGeometry.supported == true
 ```
 
 返回：
@@ -943,7 +944,7 @@ ToolCallingAgent Prompt 明确：
 
 ## 27. 为什么不强制再调用 SceneGraph.list()
 
-`supportStatus` 已经是 SceneGraph `ON/SUPPORTS` 的同源 predicate。
+`supportGeometry` 已经是 SceneGraph `ON/SUPPORTS` 的同源 predicate。
 
 如果 Place 结束后再：
 
@@ -1399,7 +1400,7 @@ detach to Dynamic
    ↓
 Rapier settle
    ↓
-supportStatus
+supportGeometry
    ↓
 placed + supportVerified
 ```

@@ -52,8 +52,8 @@ export class InteractionDebugRenderer {
     this.supportGroup.add(createInstrumentSurface(
       surface.center,
       surface.size,
-      support?.on ? "pass" : "warn",
-      { opacity: support?.on ? 0.1 : 0.075 }
+      support?.supported ? "pass" : "warn",
+      { opacity: support?.supported ? 0.1 : 0.075 }
     ));
   }
 

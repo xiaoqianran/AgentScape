@@ -137,8 +137,8 @@ try{
   runtime.sceneGraph.update();
   const appleBefore=runtime.physics.getPosition("apple_01");
   const tableSurface=runtime.spatial.getSupportSurface("table_01","top");
-  const support=runtime.spatial.supportStatus("apple_01","table_01",{surfaceId:"top"});
-  if(pipeline.state.reports.relationAdmission?.status!=="ready" || !support.on) {
+  const support=runtime.spatial.supportGeometry("apple_01","table_01",{surfaceId:"top"});
+  if(pipeline.state.reports.relationAdmission?.status!=="ready" || !support.supported) {
     throw new Error(`Apple is not verified ON table.top: ${JSON.stringify({relationAdmission:pipeline.state.reports.relationAdmission,support})}`);
   }
   mark("world.pipeline.ready",{

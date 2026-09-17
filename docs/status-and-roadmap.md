@@ -357,7 +357,7 @@ Detour reachable
 
 ## 10. 1.18 已完成：Agent-held Place / Release Truth
 
-`approachAndPlace(actorId, supportId)` 现在从当前 `heldByAgent(actorId)` 自动推导被放置对象，先在目标 surface 上寻找 free space，再用 carry-aware stand-off 找可达交互位。Release 不是 teleport：held object 以 `lift → traverse → lower` 三段 Rapier shape cast 移到 release pose；随后 detach 为 Dynamic，等待 sleeping / 低速度稳定窗口，并用与 SceneGraph `ON / SUPPORTS` 同源的 `supportStatus` 做最终 post-condition。
+`approachAndPlace(actorId, supportId)` 现在从当前 `heldByAgent(actorId)` 自动推导被放置对象，先在目标 surface 上寻找 free space，再用 carry-aware stand-off 找可达交互位。Release 不是 teleport：held object 以 `lift → traverse → lower` 三段 Rapier shape cast 移到 release pose；随后 detach 为 Dynamic，等待 sleeping / 低速度稳定窗口，并用与 SceneGraph `ON / SUPPORTS` 同源的 `supportGeometry` 做最终 post-condition。
 
 真实 E2E 同时覆盖：
 

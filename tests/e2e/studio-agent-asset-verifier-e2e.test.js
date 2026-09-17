@@ -91,7 +91,7 @@ describe('Studio real Agent Asset verifier',()=>{
         ['carry-plan','accepted'],['carry','verified'],['place','verified'],['verify','accepted']
       ]);
       expect(ctx.interactions.carryStatus('agent_01')).toMatchObject({status:'empty'});
-      expect(ctx.spatial.supportStatus('generated_prop_01','table_01',{surfaceId:'top'}).on).toBe(true);
+      expect(ctx.spatial.supportGeometry('generated_prop_01','table_01',{surfaceId:'top'}).supported).toBe(true);
       ctx.sceneGraph.update();
       expect(ctx.sceneGraph.list({subject:'generated_prop_01',predicate:'ON',object:'table_01'})).toEqual([
         expect.objectContaining({subject:'generated_prop_01',predicate:'ON',object:'table_01',meta:expect.objectContaining({surfaceId:'top'})})

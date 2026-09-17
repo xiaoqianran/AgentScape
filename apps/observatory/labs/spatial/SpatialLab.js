@@ -151,7 +151,7 @@ export class SpatialLab {
       metrics: {
         backend: snapshot.bvh?.raycast || "unknown",
         objects: snapshot.metrics?.objectCount ?? 0,
-        overlaps: snapshot.metrics?.collisionPairCount ?? 0,
+        overlaps: snapshot.metrics?.overlapPairCount ?? 0,
         "ray hits": snapshot.ray?.hits?.length ?? 0,
         "free space": snapshot.freeSpace?.point ? snapshot.freeSpace.point.map((value) => Number(value.toFixed(3))).join(", ") : "—",
         "fixed dt": `${(this.clock.fixedDt * 1000).toFixed(3)} ms`
