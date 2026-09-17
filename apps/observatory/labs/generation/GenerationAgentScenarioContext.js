@@ -1,3 +1,4 @@
+import { WorldQueries } from '../../../../modules/world/runtime/WorldQueries.js';
 import * as THREE from "three";
 import { AgentTools } from "../../../../application/AgentTools.js";
 import { ToolCallingAgent } from "../../../../modules/agent/ToolCallingAgent.js";
@@ -140,6 +141,7 @@ export class GenerationAgentScenarioContext {
       generation.capabilityAdapter.applySnapshot(generation.providerRegistry, snapshot);
     }
     runtime.observation = new WorldObservation(runtime);
+    runtime.queries = new WorldQueries(runtime);
 runtime.recovery = new WorldRecovery(runtime);
 runtime.navigateAgent=(...args)=>runtime.locomotion.navigate(...args);
 runtime.locomotionStatus=(...args)=>runtime.locomotion.status(...args);

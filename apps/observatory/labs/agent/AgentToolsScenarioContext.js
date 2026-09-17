@@ -1,3 +1,4 @@
+import { WorldQueries } from '../../../../modules/world/runtime/WorldQueries.js';
 import * as THREE from "three";
 import { AgentTools } from "../../../../application/AgentTools.js";
 import { SkillRegistry } from "../../../../application/skills/SkillRegistry.js";
@@ -31,6 +32,7 @@ export class AgentToolsScenarioContext {
         actions: [...record.manifest.actions]
       }))
     };
+    runtime.queries = new WorldQueries(runtime);
     const registry = new SkillRegistry({ runtime });
     const add = (name, options, handler) => registry.register({ name, ...options, handler });
     registerSceneSkills(add, runtime);

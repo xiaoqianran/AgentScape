@@ -1,3 +1,4 @@
+import { WorldQueries } from '../../modules/world/runtime/WorldQueries.js';
 import { registerAssetSkills } from './packs/assetSkills.js';
 import { registerGenerationSkills } from './packs/generationSkills.js';
 import { registerSceneSkills } from './packs/sceneSkills.js';
@@ -11,6 +12,7 @@ import { registerWorldSkills } from './packs/worldSkills.js';
 import { registerAffordanceSkills } from './packs/affordanceSkills.js';
 
 export function registerCoreSkills(registry,runtime,{worldBuilder,promptHybridWorldOrchestrator} = {}) {
+  runtime.queries ||= new WorldQueries(runtime);
   const add=(name,options,handler)=>registry.register({name,...options,handler});
   registerAssetSkills(add,runtime);
   registerGenerationSkills(add,runtime,{promptHybridWorldOrchestrator});

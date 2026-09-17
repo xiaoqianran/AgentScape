@@ -1,3 +1,4 @@
+import { WorldQueries } from '../../modules/world/runtime/WorldQueries.js';
 import { describe, expect, it, vi } from 'vitest';
 import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
 import { PolicyEngine } from '../../foundation/PolicyEngine.js';
@@ -54,6 +55,7 @@ function runtime() {
   r.markRecoveryHeld=(...args)=>r.interactions.markRecoveryHeld?.(...args);
   r.findRecoveryCleanupPlan=(...args)=>r.interactions.findRecoveryCleanupPlan?.(...args);
   r.cleanupRecoveryBlocker=(...args)=>r.interactions.cleanupRecoveryBlocker?.(...args);
+  r.queries = new WorldQueries(r);
   r.recovery = new WorldRecovery(r);
   r.worldBuilder = new WorldBuilder(r,{pipeline:r.pipeline});
   r.getValue = () => value;

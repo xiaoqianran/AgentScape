@@ -1,3 +1,4 @@
+import { WorldQueries } from '../../modules/world/runtime/WorldQueries.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { EventBus } from '../../foundation/EventBus.js';
@@ -57,6 +58,7 @@ async function setup({carryable=true}={}){
     await sceneGraph.batch(async()=>{result=await operation();sceneGraph.changed();});
     return result;
   };
+  runtime.queries=new WorldQueries(runtime);
   const registry=new SkillRegistry({runtime});
   const add=(name,options,handler)=>registry.register({name,...options,handler});
   registerSpatialSkills(add,runtime);

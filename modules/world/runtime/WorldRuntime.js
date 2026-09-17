@@ -25,6 +25,7 @@ import { SimulationSession } from './simulation/SimulationSession.js';
 import { WorldAffordances } from './affordance/WorldAffordances.js';
 import { physicsManifestForUniformScale, scalesEqual, uniformScaleValue } from './ObjectTransform.js';
 import { WorldObservation } from './WorldObservation.js';
+import { WorldQueries } from './WorldQueries.js';
 import { WorldRecovery } from './WorldRecovery.js';
 installThreeBvhRuntime();
 
@@ -50,6 +51,7 @@ export class WorldRuntime {
     this.assetLoader = assetModule.loader;
     this.assetCatalog = assetModule.catalog;
     this.observation = new WorldObservation(this);
+    this.queries = new WorldQueries(this);
     this.recovery = new WorldRecovery(this);
     this.physicsFactory = physicsFactory;
     this.navigationBackendFactory = navigationBackendFactory;

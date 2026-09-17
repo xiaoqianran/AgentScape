@@ -164,8 +164,11 @@ for (const file of agentFacingWritePacks) {
   }
 }
 const spatialSkillsFile=productJs.find((file)=>relative(file)==='application/skills/packs/spatialSkills.js');
-if (spatialSkillsFile && /\bruntime\.locomotion\.navigate\b/.test(fs.readFileSync(spatialSkillsFile,'utf8'))) {
-  failures.push('Agent-facing navigation command boundary violation: application/skills/packs/spatialSkills.js');
+if (spatialSkillsFile) {
+  const source=fs.readFileSync(spatialSkillsFile,'utf8');
+  if (AGENT_WORLD_INTERNAL_RE.test(source)) {
+    failures.push('Agent-facing World query boundary violation: application/skills/packs/spatialSkills.js');
+  }
 }
 
 const assetClients = productJs.filter((file) => {
