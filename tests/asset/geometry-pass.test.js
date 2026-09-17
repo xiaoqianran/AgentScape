@@ -1,6 +1,6 @@
 import { Document } from '@gltf-transform/core';
 import { expect, it } from 'vitest';
-import { GeometryPass } from '../../modules/asset/compiler/passes/GeometryPass.js';
+import { GeometryPass } from '../../modules/asset/production/compiler/passes/GeometryPass.js';
 
 it('uses the default scene after normalization and keeps structure warnings', async () => {
   const doc = new Document();

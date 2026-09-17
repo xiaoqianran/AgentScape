@@ -49,7 +49,7 @@
 | Rendering | WebGPU/WebGL2、GPU probes、Gaussian visual、post-FX | `modules/rendering/*`, `RenderingSystem.js` | probes 多于产品化预算/降级策略 |
 | Artifact | Descriptor、Registry、Lease、stream hash、MIME/结构 gate、持久化 | `modules/artifact/*` | archive/bundle fail-closed；格式扩展需逐个安全实现 |
 | Asset | Manifest、Catalog、Manager、Local Library、Admission | `modules/asset/*` | 自动语义/关节/抓取证据仍弱 |
-| Asset Compiler | 19-stage 浏览器编译流水线 + 可选服务端 CoACD | `modules/asset/compiler/*` | segmentation/semantics/joint target automation 仍是主要缺口 |
+| Asset Compiler | 19-stage 浏览器编译流水线 + 可选服务端 CoACD | `modules/asset/production/compiler/*` | segmentation/semantics/joint target automation 仍是主要缺口 |
 | Generation | Provider capability、Connector session、Job、Artifact import、组合路由 | `modules/generation/*` | 需要持续做断线恢复、E2E、provider capability contract 收敛 |
 | World IR | revision/provenance/entities/spatial/physics/interactions/rules/acceptance | `modules/world/spec/*` | 全局 constraints 仍 fail-closed；planner revision 还可扩展 |
 | World Compiler | resolve/admission/layout/behavior/physics/instantiate/relation/verify | `modules/world/compiler/*` | 增量重编译目前只覆盖有限 impact classes |
@@ -182,7 +182,7 @@
 
 | ID | P | Size | State | Kind | 最小任务 | Location | Depends | DoD | Owner | Evidence |
 |---|---|---:|---|---|---|---|---|---|---|---|
-| ASSET-001 | P1 | XS | READY | test | Manifest actions 禁止重复 | `modules/asset/schema.js` | — | duplicate action → INVALID_MANIFEST | — | — |
+| ASSET-001 | P1 | XS | READY | test | Manifest actions 禁止重复 | `modules/asset/model/schema.js` | — | duplicate action → INVALID_MANIFEST | — | — |
 | ASSET-002 | P1 | XS | READY | test | compiled source 必须有 storage key | same | — | 缺 key 被拒绝 | — | — |
 | ASSET-003 | P1 | XS | READY | test | box collider halfExtents 必须 3 个正有限值 | same | — | 0/NaN/长度错分别失败 | — | — |
 | ASSET-004 | P1 | XS | READY | test | cylinder/capsule 半高与半径必须正值 | same | — | 0/负数 fail | — | — |
@@ -192,8 +192,8 @@
 | ASSET-008 | P1 | XS | READY | test | articulation target 必须落在 limits 内 | same | — | 越界 open/close target 被拒绝 | — | — |
 | ASSET-009 | P1 | XS | READY | test | open/close action 必须同时存在 joint/collider/target | same | — | 任缺一项 fail | — | — |
 | ASSET-010 | P1 | XS | READY | test | part parent 不能形成自环 | same | — | self-parent fail | — | — |
-| ASSET-011 | P1 | S | READY | test | part hierarchy 多节点 cycle 被拒绝 | `modules/asset/parts.js`,`schema.js` | ASSET-010 | A→B→A fail | — | — |
-| ASSET-012 | P1 | XS | READY | test | receptacle id 唯一 | `modules/asset/schema.js` | — | duplicate id fail | — | — |
+| ASSET-011 | P1 | S | READY | test | part hierarchy 多节点 cycle 被拒绝 | `modules/asset/model/parts.js`,`schema.js` | ASSET-010 | A→B→A fail | — | — |
+| ASSET-012 | P1 | XS | READY | test | receptacle id 唯一 | `modules/asset/model/schema.js` | — | duplicate id fail | — | — |
 | ASSET-013 | P1 | XS | READY | test | receptacle size 必须正有限 vec3 | same | — | 非法 size fail | — | — |
 | ASSET-014 | P1 | XS | READY | test | holdAnchor quaternion 必须有限 4 元素 | same | — | invalid rotation fail | — | — |
 | ASSET-015 | P1 | S | READY | test | interactionContract entityId 必须等于 manifest.id | same | — | cross-asset contract fail | — | — |
@@ -209,14 +209,14 @@
 | ASSET-025 | P1 | XS | READY | test | AssetModule hydrate 只恢复 compiled manifest | `AssetModule.js` | — | builtin/repo manifest 不重复持久化 | — | — |
 | ASSET-026 | P1 | XS | READY | test | approveAsset 对未知 asset fail | `LocalAssetLibrary.js` | — | 明确错误，不写 library | — | — |
 | ASSET-027 | P1 | S | READY | test | LocalAssetLibrary hydrate 缺 compiled bytes 标记不可用 | same | — | library 不宣称 ready | — | — |
-| ASSET-028 | P1 | S | READY | test | VerifiedArtifactAssetPipeline 拒绝 Artifact ID=Asset ID | `VerifiedArtifactAssetPipeline.js` | — | `ASSET_IDENTITY_COLLISION` | — | — |
+| ASSET-028 | P1 | S | READY | test | AssetProductionPipeline 拒绝 Artifact ID=Asset ID | `AssetProductionPipeline.js` | — | `ASSET_IDENTITY_COLLISION` | — | — |
 | ASSET-029 | P1 | XS | READY | test | pipeline 只接受 verified GLB | same | — | declared/rejected/非 GLB 各自 fail | — | — |
 | ASSET-030 | P1 | XS | READY | test | local-cache entry hash/bytes/mime/id 全部复核 | same | — | 任一 mismatch → `ARTIFACT_CACHE_IDENTITY_MISMATCH` | — | — |
 | ASSET-031 | P1 | S | READY | test | 已注册相同 source Artifact 的 Asset 可安全 reuse | same | — | reused=true，compiler 不重跑 | — | — |
 | ASSET-032 | P1 | S | READY | test | 同 assetId 不同 Artifact provenance 冲突 | same | — | `ASSET_ID_CONFLICT` | — | — |
 | ASSET-033 | P1 | S | READY | test | compile rejected 时不注册 manifest | same | — | status=asset-rejected + manager.has=false | — | — |
 | ASSET-034 | P1 | S | READY | test | pipeline finally 总是 release compile lease | same | — | success/reject/throw 三路 leasesFor=[] | — | — |
-| ASSET-035 | P1 | XS | READY | test | assetAdmission provider/compiler/runtime 三层 reason 不串层 | `modules/asset/admission.js` | — | 每个 reason 只出现在对应 layer | — | — |
+| ASSET-035 | P1 | XS | READY | test | assetAdmission provider/compiler/runtime 三层 reason 不串层 | `modules/asset/model/admission.js` | — | 每个 reason 只出现在对应 layer | — | — |
 | ASSET-036 | P1 | XS | READY | test | legacy builtin 无任何 required layer 保持 ready | same | — | 不被新 admission 误降级 | — | — |
 | ASSET-037 | P1 | XS | READY | test | executable articulation 未 runtime verify 必须 provisional | same | — | reason=`ARTICULATION_UNVERIFIED` | — | — |
 | ASSET-038 | P2 | S | READY | code | Catalog summary 增加 admission status 的安全摘要 | `AssetCatalog.js` | ASSET-035 | list/search 能区分 ready/provisional/rejected，不暴露内部证据 | — | — |
@@ -271,7 +271,7 @@
 | COMP-044 | P2 | S | BLOCKED | code | 增加 `jointProposal` 纯数据 schema validator | new compiler helper | COMP-043 | invalid proposal 全部 fail-closed，不接 runtime | — | — |
 | COMP-045 | P2 | S | BLOCKED | test | 用 hinge fixture 验证 jointProposal→PartProposal 的单一 promotion 条件 | compiler pass | COMP-044 | 只有证据完整候选才 promote | — | — |
 | COMP-046 | P1 | S | DISCOVERY | research | 列出抓取候选提升为 runtime grasp 所需最小证据 | compiler/interaction docs | — | 明确 pose/clearance/contact/backend verification 字段 | — | — |
-| COMP-047 | P2 | S | BLOCKED | code | 为 grasp evidence 建只读 schema，不接 pickup | `modules/asset/schema.js` or dedicated schema | COMP-046 | manifest 可携带但 runtime 不执行 | — | — |
+| COMP-047 | P2 | S | BLOCKED | code | 为 grasp evidence 建只读 schema，不接 pickup | `modules/asset/model/schema.js` or dedicated schema | COMP-046 | manifest 可携带但 runtime 不执行 | — | — |
 
 ## 8. Generation / Connector / Jobs / Provider Capability
 
@@ -555,8 +555,8 @@
 
 | ID | P | Size | State | Kind | 最小任务 | Location | Depends | DoD | Owner | Evidence |
 |---|---|---:|---|---|---|---|---|---|---|---|
-| PHY-170 | P2 | S | DISCOVERY | research | 盘点现有 manifest 对 restitution/damping/gravityScale 的表达缺口 | `modules/asset/schema.js`,`PhysicsBackend.js` | — | 输出字段候选+backend 支持矩阵 | — | — |
-| PHY-171 | P2 | S | BLOCKED | contract | 若 PHY-170 证明必要，仅给 Manifest 增 1 个物理字段并做 schema test | `modules/asset/schema.js` | PHY-170 | 一次只加一个字段 | — | — |
+| PHY-170 | P2 | S | DISCOVERY | research | 盘点现有 manifest 对 restitution/damping/gravityScale 的表达缺口 | `modules/asset/model/schema.js`,`PhysicsBackend.js` | — | 输出字段候选+backend 支持矩阵 | — | — |
+| PHY-171 | P2 | S | BLOCKED | contract | 若 PHY-170 证明必要，仅给 Manifest 增 1 个物理字段并做 schema test | `modules/asset/model/schema.js` | PHY-170 | 一次只加一个字段 | — | — |
 | PHY-172 | P3 | S | DISCOVERY | research | Soft-body 能力只做 backend feasibility spike | physics experiment | — | 记录 Rapier/Jolt/WebGPU 可选路径，不改 production | — | — |
 | PHY-173 | P3 | S | DISCOVERY | research | Cloth 能力只做 1 张 10×10 grid benchmark | physics experiment | — | 得到 frame time/memory/solver stability 数据 | — | — |
 | PHY-174 | P3 | S | DISCOVERY | research | fluid 不进入 PhysicsSystem 前先定义 Runtime capability contract | docs | — | 明确它是否 solver、visual 或 environment field | — | — |

@@ -14,7 +14,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import * as THREE from 'three';
 
 import { createAssetModule } from '../../../modules/asset/AssetModule.js';
-import { assetManifests } from '../../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../../modules/asset/registry/manifests/index.js';
 import { WorldRuntime } from '../../../modules/world/runtime/WorldRuntime.js';
 import { SpatialSystem } from '../../../modules/world/runtime/systems/SpatialSystem.js';
 import { NavigationSystem } from '../../../modules/world/runtime/systems/NavigationSystem.js';

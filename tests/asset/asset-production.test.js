@@ -79,11 +79,11 @@ async function registerVerifiedGlb(artifacts, {
   return { id, hash, bytes };
 }
 
-describe('Asset module publishAsset public API', () => {
+describe('Asset module produceAsset public API', () => {
   it('fails closed until composition configures the compiler', async () => {
     const { module, artifacts } = harness();
-    await expect(module.publishAsset({ artifactId: 'artifact_missing', assetId: 'asset_missing' }))
-      .rejects.toMatchObject({ code: 'ASSET_PUBLICATION_NOT_CONFIGURED' });
+    await expect(module.produceAsset({ artifactId: 'artifact_missing', assetId: 'asset_missing' }))
+      .rejects.toMatchObject({ code: 'ASSET_PRODUCTION_NOT_CONFIGURED' });
   });
 
   it('publishes a verified Artifact and returns the stable AssetRef', async () => {
@@ -93,14 +93,14 @@ describe('Asset module publishAsset public API', () => {
       manifest: readyManifest(assetId, label),
       quality: { status: 'ready', hard: [], advisory: [] }
     }));
-    module.configurePublication({
+    module.configureProduction({
       artifacts,
       getAssetCompiler: async () => ({ compile }),
       idFactory: () => 'lease_publication_01'
     });
     await registerVerifiedGlb(artifacts);
 
-    const result = await module.publishAsset({
+    const result = await module.produceAsset({
       artifactId: 'artifact_publish_01',
       assetId: 'asset_publish_01',
       label: 'Published Asset'
@@ -129,7 +129,7 @@ describe('Asset module publishAsset public API', () => {
       manifest: readyManifest(assetId),
       quality: { status: 'ready', hard: [], advisory: [] }
     }));
-    module.configurePublication({
+    module.configureProduction({
       artifacts,
       getAssetCompiler: async () => ({ compile }),
       idFactory: () => 'lease_publication_reuse'
@@ -137,8 +137,8 @@ describe('Asset module publishAsset public API', () => {
     await registerVerifiedGlb(artifacts);
 
     const request = { artifactId: 'artifact_publish_01', assetId: 'asset_publish_reuse' };
-    const first = await module.publishAsset(request);
-    const second = await module.publishAsset(request);
+    const first = await module.produceAsset(request);
+    const second = await module.produceAsset(request);
 
     expect(first.registered).toBe(true);
     expect(second).toMatchObject({
@@ -156,26 +156,26 @@ describe('Asset module publishAsset public API', () => {
       manifest: readyManifest(assetId),
       quality: { status: 'ready', hard: [], advisory: [] }
     }));
-    module.configurePublication({
+    module.configureProduction({
       artifacts,
       getAssetCompiler: async () => ({ compile }),
       idFactory: () => 'lease_publication_conflict'
     });
     await registerVerifiedGlb(artifacts, { id: 'artifact_publish_01' });
-    await module.publishAsset({ artifactId: 'artifact_publish_01', assetId: 'asset_shared' });
+    await module.produceAsset({ artifactId: 'artifact_publish_01', assetId: 'asset_shared' });
     await registerVerifiedGlb(artifacts, {
       id: 'artifact_publish_02',
       bytes: new Uint8Array([9, 8, 7, 6])
     });
 
-    await expect(module.publishAsset({ artifactId: 'artifact_publish_02', assetId: 'asset_shared' }))
+    await expect(module.produceAsset({ artifactId: 'artifact_publish_02', assetId: 'asset_shared' }))
       .rejects.toMatchObject({ code: 'ASSET_ID_CONFLICT' });
     expect(compile).toHaveBeenCalledOnce();
   });
 
   it('does not expose AssetRef or register when compilation is rejected', async () => {
     const { module, artifacts } = harness();
-    module.configurePublication({
+    module.configureProduction({
       artifacts,
       getAssetCompiler: async () => ({
         compile: async () => {
@@ -189,7 +189,7 @@ describe('Asset module publishAsset public API', () => {
     });
     await registerVerifiedGlb(artifacts);
 
-    const result = await module.publishAsset({
+    const result = await module.produceAsset({
       artifactId: 'artifact_publish_01',
       assetId: 'asset_rejected'
     });

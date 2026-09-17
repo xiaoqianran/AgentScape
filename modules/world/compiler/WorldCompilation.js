@@ -3,7 +3,7 @@ import { normalizeWorldSpec } from '../spec/WorldSpec.js';
 import { compileWorldBehaviorBundle } from './WorldBehaviorCompiler.js';
 import { compileWorldPhysicsRequirements } from './WorldPhysicsAdmission.js';
 import { compileWorldAcceptance } from '../verification/WorldAcceptance.js';
-import { createAssetRef } from '../../asset/AssetRef.js';
+import { createAssetRef } from '../../asset/model/AssetRef.js';
 
 export const WORLD_COMPILATION_SCHEMA = 'agentscape.world-compilation';
 export const WORLD_COMPILATION_VERSION = 2;

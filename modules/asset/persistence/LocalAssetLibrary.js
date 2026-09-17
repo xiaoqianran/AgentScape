@@ -1,4 +1,4 @@
-import { LocalAssetLibraryStore } from './storage/LocalAssetLibraryStore.js';
+import { LocalAssetLibraryStore } from './LocalAssetLibraryStore.js';
 
 const clone=(value)=>value==null?value:structuredClone(value);
 

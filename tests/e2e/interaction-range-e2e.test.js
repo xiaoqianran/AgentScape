@@ -7,7 +7,7 @@ import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
 import { LocomotionSystem } from '../../modules/world/runtime/systems/LocomotionSystem.js';
 import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 
 const floor = () => {
   const value = new THREE.Mesh(new THREE.BoxGeometry(10,.2,10));

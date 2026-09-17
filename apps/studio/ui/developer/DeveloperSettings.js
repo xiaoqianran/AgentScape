@@ -1,4 +1,4 @@
-import { RESOURCE_BUDGET } from '../../../../modules/asset/resourceBudget.js';
+import { RESOURCE_BUDGET } from '../../../../modules/asset/model/resourceBudget.js';
 import { readCapabilityStatus, unavailableCapabilityStatus } from '../../config/capabilityEntry.js';
 
 export const developerSettingsMarkup = () => `

@@ -1,13 +1,13 @@
 import { PipelineEngine } from './PipelineEngine.js';
 import { compileWorldIR, compileWorldInput } from './WorldCompilation.js';
-import { assetAdmission } from '../../asset/admission.js';
+import { assetAdmission } from '../../asset/model/admission.js';
 import { composeNearPlacement, composeObservedNearPlacement, composeWorldLayout } from './WorldComposer.js';
 import { buildAcceptanceEvidenceBundle, evaluateWorldAcceptance } from '../verification/WorldAcceptance.js';
 import { buildWorldRevisionContext } from '../spec/WorldRevision.js';
 import { compileAdmissionFindings } from '../verification/Finding.js';
 import { admitWorldBehavior } from './WorldBehaviorCompiler.js';
 import { admitWorldPhysics } from './WorldPhysicsAdmission.js';
-import { assetIdFromRef, createAssetRef } from '../../asset/AssetRef.js';
+import { assetIdFromRef, createAssetRef } from '../../asset/model/AssetRef.js';
 import { evaluateWorldAdmission } from './WorldAdmission.js';
 import { commitWorldAuthority } from '../runtime/WorldAuthority.js';
 import { resolveObservedEntity } from '../runtime/ObservedEntity.js';

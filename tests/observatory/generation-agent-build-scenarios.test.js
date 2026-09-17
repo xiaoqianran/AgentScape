@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { assetAdmission } from "../../modules/asset/admission.js";
+import { assetAdmission } from "../../modules/asset/model/admission.js";
 import { labDefinition } from "../../apps/observatory/labs/generation/index.js";
 import { GenerationAgentScenarioContext } from "../../apps/observatory/labs/generation/GenerationAgentScenarioContext.js";
 import {

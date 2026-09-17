@@ -1,7 +1,7 @@
-import { assetAdmission } from '../admission.js';
-import { validateAssetManifest } from '../schema.js';
+import { assetAdmission } from '../model/admission.js';
+import { validateAssetManifest } from '../model/schema.js';
 import { requireSafeArtifactId } from '../../artifact/ArtifactDescriptor.js';
-import { createAssetRef } from '../AssetRef.js';
+import { createAssetRef } from '../model/AssetRef.js';
 
 const SAFE_ASSET_ID=/^[A-Za-z0-9_-]{1,160}$/;
 const CONTROL_RE=/[\u0000-\u001f\u007f]/;
@@ -73,14 +73,14 @@ function buildProvenance({artifact,assetId,admission}) {
   };
 }
 
-export class VerifiedArtifactAssetPipeline {
+export class AssetProductionPipeline {
   constructor({artifactRegistry,byteStore,assetCompiler,assetRegistry,onManifestRegistered=null,events=null,now=()=>Date.now(),idFactory=defaultIdFactory}={}) {
     if (!artifactRegistry?.get || !artifactRegistry?.acquireLease || !artifactRegistry?.releaseLease) {
-      throw new AssetProductionError('ASSET_PIPELINE_INVALID','VerifiedArtifactAssetPipeline requires ArtifactRegistry');
+      throw new AssetProductionError('ASSET_PIPELINE_INVALID','AssetProductionPipeline requires ArtifactRegistry');
     }
-    if (!byteStore?.get) throw new AssetProductionError('ASSET_PIPELINE_INVALID','VerifiedArtifactAssetPipeline requires a readable Artifact byte store');
-    if (!assetCompiler?.compile) throw new AssetProductionError('ASSET_PIPELINE_INVALID','VerifiedArtifactAssetPipeline requires AssetCompiler');
-    if (!assetRegistry?.registerManifest) throw new AssetProductionError('ASSET_PIPELINE_INVALID','VerifiedArtifactAssetPipeline requires AssetRegistry');
+    if (!byteStore?.get) throw new AssetProductionError('ASSET_PIPELINE_INVALID','AssetProductionPipeline requires a readable Artifact byte store');
+    if (!assetCompiler?.compile) throw new AssetProductionError('ASSET_PIPELINE_INVALID','AssetProductionPipeline requires AssetCompiler');
+    if (!assetRegistry?.registerManifest) throw new AssetProductionError('ASSET_PIPELINE_INVALID','AssetProductionPipeline requires AssetRegistry');
     this.artifactRegistry=artifactRegistry;
     this.byteStore=byteStore;
     this.assetCompiler=assetCompiler;
@@ -241,18 +241,18 @@ export class VerifiedArtifactAssetPipeline {
 }
 
 
-export function createAssetPublisher({
+export function createAssetProducer({
   artifactRegistry, byteStore, getAssetCompiler, assetRegistry, onManifestRegistered = null, events = null,
   now = () => Date.now(), idFactory = defaultIdFactory
 } = {}) {
   if (typeof getAssetCompiler !== 'function') {
-    throw new AssetProductionError('ASSET_PUBLISHER_INVALID', 'Asset publisher requires getAssetCompiler()');
+    throw new AssetProductionError('ASSET_PRODUCTION_INVALID', 'Asset production requires getAssetCompiler()');
   }
   let pipeline = null;
-  return async function publishAsset(request = {}) {
+  return async function produceAsset(request = {}) {
     if (!pipeline) {
       const assetCompiler = await getAssetCompiler();
-      pipeline = new VerifiedArtifactAssetPipeline({
+      pipeline = new AssetProductionPipeline({
         artifactRegistry, byteStore, assetCompiler, assetRegistry, onManifestRegistered, events, now, idFactory
       });
     }

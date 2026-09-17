@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetRegistry } from '../../modules/asset/registry/AssetRegistry.js';
 import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { disposeObject3D } from '../../modules/rendering/disposeObject3D.js';
 
 it('builds static navigation from the real cabinet GLB while excluding the articulated door subtree', async () => {

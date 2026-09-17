@@ -13,7 +13,7 @@ import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
 import { registerCoreSkills } from '../../application/skills/registerCoreSkills.js';
 import { AgentTools } from '../../application/AgentTools.js';
 import { ToolCallingAgent } from '../../modules/agent/ToolCallingAgent.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 
 const floorMesh=()=>{const m=new THREE.Mesh(new THREE.BoxGeometry(14,.2,10));m.position.y=-.1;m.updateMatrixWorld(true);return m;};
 const cupVisual=()=>{const g=new THREE.Group();const m=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.32,16));m.position.y=.16;g.add(m);return g;};

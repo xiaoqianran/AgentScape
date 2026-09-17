@@ -7,7 +7,7 @@ import { createPhysicsBackend } from "../../apps/observatory/labs/physics/backen
 import { physicsScenarios } from "../../apps/observatory/labs/physics/scenarios/index.js";
 import { comparePhysicsSnapshots } from "../../apps/observatory/labs/physics/PhysicsStateComparator.js";
 import { compareManifestToPhysics } from "../../apps/observatory/labs/physics/ManifestColliderSnapshot.js";
-import { assetManifests } from "../../modules/asset/manifests/index.js";
+import { assetManifests } from "../../modules/asset/registry/manifests/index.js";
 
 const runScenario = async (backendId, scenario, frames) => {
   const backend = await createPhysicsBackend(backendId);

@@ -22,8 +22,8 @@ describe('createAssetModule', () => {
     expect(module.artifacts).toBeUndefined();
     expect(module.artifactRegistry).toBeUndefined();
     expect(module.byteStore).toBeUndefined();
-    expect(typeof module.publishAsset).toBe('function');
-    expect(typeof module.configurePublication).toBe('function');
+    expect(typeof module.produceAsset).toBe('function');
+    expect(typeof module.configureProduction).toBe('function');
     expect(typeof module.hydrate).toBe('function');
     expect(typeof module.registerManifest).toBe('function');
     expect(module.catalog.resolveExisting('fixture')).toMatchObject({status:'found',assets:[{id:'fixture_asset'}]});

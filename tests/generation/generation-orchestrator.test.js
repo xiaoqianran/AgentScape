@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import { AssetCompiler } from "../../modules/asset/compiler/AssetCompiler.js";
+import { AssetCompiler } from "../../modules/asset/production/compiler/AssetCompiler.js";
 import { GenerationOrchestrator } from "../../application/generation/GenerationOrchestrator.js";
 import { createProviderRegistry } from "../../modules/generation/providers/ProviderRegistry.js";
 import { createAssetModule } from "../../modules/asset/AssetModule.js";
@@ -105,11 +105,11 @@ async function harness({remoteStatus="succeeded"}={}) {
   const now=()=>Date.parse("2026-08-25T00:01:00.000Z");
   const artifacts=createArtifactModule({now});
   const assetModule=createAssetModule({manifests:{},compiledStore:compilerStore,now});
-  assetModule.configurePublication({artifacts,getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_01"});
+  assetModule.configureProduction({artifacts,getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_01"});
   const persistArtifact=vi.fn(async()=>true);
   const orchestrator=new GenerationOrchestrator({
     providerRegistry:providerRegistry(),connectorClient,
-    artifactRegistry:artifacts.registry,byteStore:artifacts.byteStore,publishAsset:assetModule.publishAsset,
+    artifactRegistry:artifacts.registry,byteStore:artifacts.byteStore,produceAsset:assetModule.produceAsset,
     persistArtifact,
     now
   });
@@ -202,11 +202,11 @@ describe("GenerationOrchestrator",()=>{
     const compiler=new AssetCompiler({store:compilerStore,version:"p19-test"});
     const artifacts=createArtifactModule();
     const assetModule=createAssetModule({manifests:{},compiledStore:compilerStore});
-    assetModule.configurePublication({artifacts,getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_composed"});
+    assetModule.configureProduction({artifacts,getAssetCompiler:async()=>compiler,idFactory:()=>"lease_generation_composed"});
     const assets=assetModule.registry;
     const orchestrator=new GenerationOrchestrator({
       providerRegistry:composedProviderRegistry(),connectorClient,
-      artifactRegistry:artifacts.registry,byteStore:artifacts.byteStore,publishAsset:assetModule.publishAsset,
+      artifactRegistry:artifacts.registry,byteStore:artifacts.byteStore,produceAsset:assetModule.produceAsset,
       pollIntervalMs:0
     });
 

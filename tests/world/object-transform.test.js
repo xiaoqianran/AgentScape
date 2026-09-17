@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { physicsManifestForUniformScale, uniformScaleValue } from '../../modules/world/runtime/ObjectTransform.js';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import { createAssetModule } from '../../modules/asset/AssetModule.js';

@@ -1,4 +1,4 @@
-import { assetAdmission } from '../../../modules/asset/admission.js';
+import { assetAdmission } from '../../../modules/asset/model/admission.js';
 import { meta, number, string, vec3 } from '../skillPrimitives.js';
 
 export function registerSceneSkills(add,runtime) {

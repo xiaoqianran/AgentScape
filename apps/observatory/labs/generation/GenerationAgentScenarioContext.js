@@ -8,7 +8,7 @@ import { registerInteractionSkills } from "../../../../application/skills/packs/
 import { registerSpatialSkills } from "../../../../application/skills/packs/spatialSkills.js";
 import { PolicyEngine } from "../../../../foundation/PolicyEngine.js";
 import { TraceRecorder } from "../../../../foundation/TraceRecorder.js";
-import { assetAdmission } from "../../../../modules/asset/admission.js";
+import { assetAdmission } from "../../../../modules/asset/model/admission.js";
 import { GenerationRuntime } from "../../../../application/generation/GenerationRuntime.js";
 import { ConnectorClient } from "../../../../modules/generation/connector/ConnectorClient.js";
 import { SceneGraph } from "../../../../modules/world/runtime/graph/SceneGraph.js";

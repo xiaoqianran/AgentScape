@@ -3,7 +3,7 @@ import { expect,it } from 'vitest';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
 import { LocomotionSystem } from '../../modules/world/runtime/systems/LocomotionSystem.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { createJoltPhysicsSystem } from '../helpers/createJoltPhysicsSystem.js';
 
 it('returns PHYSICS_BLOCKED when Jolt sees a wall omitted from the planned NavMesh',async()=>{

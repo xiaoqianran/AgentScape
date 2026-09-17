@@ -1,4 +1,4 @@
-import { assetIdFromRef } from '../../asset/AssetRef.js';
+import { assetIdFromRef } from '../../asset/model/AssetRef.js';
 import { compileBehaviorGraph } from '../runtime/behavior/BehaviorCompiler.js';
 import { compileRuleGraph } from '../runtime/behavior/RuleGraph.js';
 

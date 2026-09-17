@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { expect, it } from 'vitest';
-import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetRegistry } from '../../modules/asset/registry/AssetRegistry.js';
 import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';

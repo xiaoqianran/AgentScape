@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SemanticHeuristicPass } from '../../modules/asset/compiler/passes/SemanticHeuristicPass.js';
+import { SemanticHeuristicPass } from '../../modules/asset/production/compiler/passes/SemanticHeuristicPass.js';
 
 describe('SemanticHeuristicPass', () => {
   it('classifies a vase as a placeable graspable object', async () => {

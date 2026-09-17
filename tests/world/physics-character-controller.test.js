@@ -2,7 +2,7 @@ import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
-import { validateAssetManifest } from '../../modules/asset/schema.js';
+import { validateAssetManifest } from '../../modules/asset/model/schema.js';
 
 const agentManifest={
   id:'agent-test',type:'agent',source:{kind:'builtin'},actions:['navigate'],

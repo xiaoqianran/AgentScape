@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { orderParts, ROOT_PART } from '../../../asset/parts.js';
+import { orderParts, ROOT_PART } from '../../../asset/model/parts.js';
 
 const array3 = (v) => [v.x, v.y, v.z];
 const upright = (q) => {

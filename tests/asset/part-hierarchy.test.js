@@ -1,8 +1,8 @@
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { orderParts } from '../../modules/asset/parts.js';
-import { validateAssetManifest } from '../../modules/asset/schema.js';
+import { orderParts } from '../../modules/asset/model/parts.js';
+import { validateAssetManifest } from '../../modules/asset/model/schema.js';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 
 const joint = (type, axis, limits) => ({ type, axis, limits, parentAnchor:[0,0,0], childAnchor:[0,0,0], motor:{stiffness:80,damping:12} });

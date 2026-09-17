@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROOT_PART } from '../../parts.js';
+import { ROOT_PART } from '../../../model/parts.js';
 import { rigidInverse } from '../partGeometry.js';
 
 const EPS_POSITION = 1e-4;

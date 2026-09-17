@@ -1,4 +1,4 @@
-import { validateAssetManifest } from '../schema.js';
+import { validateAssetManifest } from '../../model/schema.js';
 import { createAssetGLTFIO } from './gltfIO.js';
 import { GLTFInspectPass } from './passes/GLTFInspectPass.js';
 import { JointFramePass } from './passes/JointFramePass.js';
@@ -17,7 +17,7 @@ import { ArticulationCandidatePass } from './passes/ArticulationCandidatePass.js
 import { ColliderFallbackPass } from './passes/ColliderFallbackPass.js';
 import { RemoteEnrichmentPass } from './passes/RemoteEnrichmentPass.js';
 import { ResourceBudgetPass } from './passes/ResourceBudgetPass.js';
-import { RESOURCE_BUDGET } from '../resourceBudget.js';
+import { RESOURCE_BUDGET } from '../../model/resourceBudget.js';
 import { CompileQualityPass } from './passes/CompileQualityPass.js';
 import { ManifestPass } from './passes/ManifestPass.js';
 

@@ -3,9 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import { ArtifactRegistry } from '../../modules/artifact/ArtifactRegistry.js';
 import { MemoryArtifactByteStore } from '../../modules/artifact/MemoryArtifactByteStore.js';
-import { AssetCompiler } from '../../modules/asset/compiler/AssetCompiler.js';
-import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
-import { VerifiedArtifactAssetPipeline } from '../../modules/asset/pipeline/VerifiedArtifactAssetPipeline.js';
+import { AssetCompiler } from '../../modules/asset/production/compiler/AssetCompiler.js';
+import { AssetRegistry } from '../../modules/asset/registry/AssetRegistry.js';
+import { AssetProductionPipeline } from '../../modules/asset/production/AssetProductionPipeline.js';
 
 const NOW=Date.parse('2026-08-24T10:00:00.000Z');
 const sha=(bytes)=>`sha256:${createHash('sha256').update(bytes).digest('hex')}`;
@@ -60,13 +60,13 @@ const readyManifest=(id='asset_ready')=>({
   provenance:{compiler:'AgentScape'}
 });
 
-describe('VerifiedArtifactAssetPipeline vertical path',()=>{
+describe('AssetProductionPipeline vertical path',()=>{
   it('compiles a real verified modal-3D GLB through existing Compiler/Admission and registers provisional truth',async()=>{
     const state=await fixture();
     const compilerStore=new CompilerStore();
     const compiler=new AssetCompiler({store:compilerStore,version:'as05-test'});
     const assets=new AssetRegistry({manifests:{},compiledStore:compilerStore});
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,assetCompiler:compiler,assetRegistry:assets,
       now:()=>NOW,idFactory:()=> 'lease_compile_01'
     });
@@ -105,7 +105,7 @@ describe('VerifiedArtifactAssetPipeline vertical path',()=>{
       expect(state.registry.isLeased('artifact_modal3d_01')).toBe(true);
       return {manifest:readyManifest(assetId),quality:{status:'ready',hard:[],advisory:[]}};
     });
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,assetCompiler:{compile},assetRegistry:assets,
       now:()=>NOW,idFactory:()=> 'lease_compile_01'
     });
@@ -128,7 +128,7 @@ describe('VerifiedArtifactAssetPipeline vertical path',()=>{
     };
     assets.registerManifest(manifest);
     const compile=vi.fn();
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,assetCompiler:{compile},assetRegistry:assets
     });
     const result=await pipeline.produce({artifactId:'artifact_modal3d_01',assetId:'asset_reuse'});
@@ -147,7 +147,7 @@ describe('VerifiedArtifactAssetPipeline vertical path',()=>{
     };
     assets.registerManifest(manifest);
     const compile=vi.fn();
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,assetCompiler:{compile},assetRegistry:assets
     });
     await expect(pipeline.produce({artifactId:'artifact_modal3d_01',assetId:'asset_taken'}))
@@ -164,7 +164,7 @@ describe('VerifiedArtifactAssetPipeline vertical path',()=>{
       return {manifest:readyManifest(assetId),quality:{status:'ready',hard:[],advisory:[]}};
     });
     const assets=new AssetRegistry({manifests:{}});
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,assetCompiler:{compile},assetRegistry:assets,
       now:()=>NOW,idFactory:()=> 'lease_compile_01'
     });
@@ -173,11 +173,11 @@ describe('VerifiedArtifactAssetPipeline vertical path',()=>{
   });
 });
 
-describe('VerifiedArtifactAssetPipeline pre-compiler gates',()=>{
+describe('AssetProductionPipeline pre-compiler gates',()=>{
   it('rejects unverified Artifact before compiler',async()=>{
     const state=await fixture({verified:false});
     const compile=vi.fn();
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,assetCompiler:{compile},assetRegistry:new AssetRegistry({manifests:{}})
     });
     await expect(pipeline.produce({artifactId:'artifact_modal3d_01',assetId:'asset_target'}))
@@ -189,7 +189,7 @@ describe('VerifiedArtifactAssetPipeline pre-compiler gates',()=>{
     const state=await fixture({withCache:false});
     // verifyIntegrity does not require a location; this is intentional so pipeline proves bytes availability separately.
     const compile=vi.fn();
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,assetCompiler:{compile},assetRegistry:new AssetRegistry({manifests:{}})
     });
     await expect(pipeline.produce({artifactId:'artifact_modal3d_01',assetId:'asset_target'}))
@@ -209,7 +209,7 @@ describe('VerifiedArtifactAssetPipeline pre-compiler gates',()=>{
     ]) {
       const byteStore={get:()=>({...canonical,...patch})};
       const compile=vi.fn();
-      const pipeline=new VerifiedArtifactAssetPipeline({
+      const pipeline=new AssetProductionPipeline({
         artifactRegistry:state.registry,byteStore,assetCompiler:{compile},assetRegistry:new AssetRegistry({manifests:{}})
       });
       await expect(pipeline.produce({artifactId:'artifact_modal3d_01',assetId:'asset_target'}))
@@ -220,7 +220,7 @@ describe('VerifiedArtifactAssetPipeline pre-compiler gates',()=>{
 
   it('keeps Artifact ID and AgentScape Asset ID as distinct identities',async()=>{
     const state=await fixture();
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,assetCompiler:{compile:vi.fn()},assetRegistry:new AssetRegistry({manifests:{}})
     });
     await expect(pipeline.produce({artifactId:'artifact_modal3d_01',assetId:'artifact_modal3d_01'}))
@@ -228,12 +228,12 @@ describe('VerifiedArtifactAssetPipeline pre-compiler gates',()=>{
   });
 });
 
-describe('VerifiedArtifactAssetPipeline compiler/admission/registration boundaries',()=>{
+describe('AssetProductionPipeline compiler/admission/registration boundaries',()=>{
   it('returns structured compiler rejection without registering or mutating Artifact integrity',async()=>{
     const state=await fixture();
     const assets=new AssetRegistry({manifests:{}});
     const error=Object.assign(new Error('quality reject'),{code:'ASSET_COMPILE_REJECTED',details:{status:'rejected',hard:[{code:'BUDGET'}],advisory:[]}});
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,
       assetCompiler:{compile:vi.fn(async()=>{throw error;})},assetRegistry:assets,
       now:()=>NOW,idFactory:()=> 'lease_compile_01'
@@ -248,7 +248,7 @@ describe('VerifiedArtifactAssetPipeline compiler/admission/registration boundari
 
   it('wraps compiler operational exceptions and retains verified Artifact/cache',async()=>{
     const state=await fixture();
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,
       assetCompiler:{compile:vi.fn(async()=>{throw Object.assign(new Error('parse crash'),{code:'GLTF_PARSE_FAILED'});})},
       assetRegistry:new AssetRegistry({manifests:{}}),now:()=>NOW,idFactory:()=> 'lease_compile_01'
@@ -266,7 +266,7 @@ describe('VerifiedArtifactAssetPipeline compiler/admission/registration boundari
     manifest.provenance={compiler:'AgentScape',admission:{status:'rejected',reasons:['POLICY_REJECT']}};
     const assets=new AssetRegistry({manifests:{}});
     const register=vi.spyOn(assets,'registerManifest');
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,
       assetCompiler:{compile:vi.fn(async()=>({manifest,quality:{status:'ready',hard:[],advisory:[]}}))},assetRegistry:assets,
       now:()=>NOW,idFactory:()=> 'lease_compile_01'
@@ -280,7 +280,7 @@ describe('VerifiedArtifactAssetPipeline compiler/admission/registration boundari
     const state=await fixture();
     const assets=new AssetRegistry({manifests:{}});
     const register=vi.spyOn(assets,'registerManifest');
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,
       assetCompiler:{compile:vi.fn(async({assetId})=>({manifest:readyManifest(assetId),quality:{status:'ready',hard:[],advisory:[]}}))},
       assetRegistry:assets,now:()=>NOW,idFactory:()=> 'lease_compile_01'
@@ -297,7 +297,7 @@ describe('VerifiedArtifactAssetPipeline compiler/admission/registration boundari
   it('rejects compiler manifest identity mismatch before registration',async()=>{
     const state=await fixture();
     const assets=new AssetRegistry({manifests:{}});
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,
       assetCompiler:{compile:vi.fn(async()=>({manifest:readyManifest('asset_other'),quality:{status:'ready'}}))},
       assetRegistry:assets,now:()=>NOW,idFactory:()=> 'lease_compile_01'
@@ -316,7 +316,7 @@ describe('VerifiedArtifactAssetPipeline compiler/admission/registration boundari
       getManifest:vi.fn((id)=>stored.get(id)||null)
     };
     const manifest=readyManifest('asset_register_fail');
-    const pipeline=new VerifiedArtifactAssetPipeline({
+    const pipeline=new AssetProductionPipeline({
       artifactRegistry:state.registry,byteStore:state.byteStore,
       assetCompiler:{compile:vi.fn(async()=>({manifest,quality:{status:'ready'}}))},
       assetRegistry:assets,now:()=>NOW,idFactory:()=> 'lease_compile_01'

@@ -1,4 +1,4 @@
-import { assetAdmission } from '../../../modules/asset/admission.js';
+import { assetAdmission } from '../../../modules/asset/model/admission.js';
 import { meta, string } from '../skillPrimitives.js';
 
 const syncLiveVerification = (runtime, assetId, manifest) => {

@@ -30,17 +30,16 @@ const productJs = PRODUCT_ROOTS.flatMap((dir) => walk(path.join(root, dir))).fil
 const assetCore = productJs.filter((file) => {
   const name = relative(file);
   return [
-    "modules/asset/AssetCatalog.js",
-    "modules/asset/AssetRef.js",
-    "modules/asset/AssetRegistry.js",
-    "modules/asset/admission.js",
-    "modules/asset/schema.js",
-    "modules/asset/parts.js"
+    "modules/asset/registry/AssetCatalog.js",
+    "modules/asset/model/AssetRef.js",
+    "modules/asset/registry/AssetRegistry.js",
+    "modules/asset/model/admission.js",
+    "modules/asset/model/schema.js",
+    "modules/asset/model/parts.js"
   ].includes(name)
-    || name.startsWith("modules/asset/storage/")
+    || name.startsWith("modules/asset/persistence/")
     || name.startsWith("modules/asset/loading/")
-    || name.startsWith("modules/asset/builtins/")
-    || (name.startsWith("modules/asset/compiler/") && !name.startsWith("modules/asset/compiler/providers/"));
+    || (name.startsWith("modules/asset/production/compiler/") && !name.startsWith("modules/asset/production/compiler/providers/"));
 });
 const artifactCore = productJs.filter((file) => relative(file).startsWith("modules/artifact/"));
 const worldCore = productJs.filter((file) => relative(file).startsWith("modules/world/") && !relative(file).startsWith("modules/world/content/"));
@@ -56,8 +55,8 @@ const functionalCoreFiles = productJs.filter((file) => {
     || name.startsWith("modules/generation/providers/")
     || name === "modules/artifact/ArtifactDescriptor.js"
     || name === "modules/artifact/ArtifactContentGate.js"
-    || name.startsWith("modules/asset/compiler/passes/")
-    || ["modules/asset/admission.js","modules/asset/schema.js","modules/asset/parts.js","modules/agent/buildRecoveryProposals.js","application/buildTaskObservation.js"].includes(name);
+    || name.startsWith("modules/asset/production/compiler/passes/")
+    || ["modules/asset/model/admission.js","modules/asset/model/schema.js","modules/asset/model/parts.js","modules/agent/buildRecoveryProposals.js","application/buildTaskObservation.js"].includes(name);
 });
 const EXTERNAL_IO_RE = /\b(?:fetch\s*\(|localStorage\b|sessionStorage\b|indexedDB\b|process\.env\b|WebSocket\b|EventSource\b|document\.createElement\b|window\.)/;
 for (const file of functionalCoreFiles) {
@@ -117,13 +116,13 @@ assertNoImports("World Core boundary violation", worldCore, [
   /^modules\/generation\//,
   /^modules\/artifact\//,
   /^modules\/asset\/gateway\//,
-  /^modules\/asset\/compiler\/providers\//
+  /^modules\/asset\/production\/compiler\/providers\//
 ]);
 
 const WORLD_ASSET_IMPORTS = new Set([
-  "modules/asset/AssetRef.js",
-  "modules/asset/parts.js",
-  "modules/asset/admission.js"
+  "modules/asset/model/AssetRef.js",
+  "modules/asset/model/parts.js",
+  "modules/asset/model/admission.js"
 ]);
 for (const file of worldCore) {
   for (const specifier of imports(file)) {
@@ -152,12 +151,9 @@ const assetClients = productJs.filter((file) => {
   return !name.startsWith("modules/asset/") && !name.startsWith("apps/observatory/");
 });
 assertNoImports("Asset deep-module boundary violation", assetClients, [
-  /^modules\/asset\/compiler\//,
-  /^modules\/asset\/publication\//,
-  /^modules\/asset\/pipeline\//,
+  /^modules\/asset\/production\//,
   /^modules\/asset\/loading\//,
-  /^modules\/asset\/builtins\//,
-  /^modules\/asset\/storage\//
+  /^modules\/asset\/persistence\//
 ]);
 
 const productionJs = productJs.filter((file) => !relative(file).startsWith("apps/observatory/"));
@@ -181,13 +177,10 @@ for (const file of productJs) {
   }
   for (const specifier of imports(file)) {
     const target = resolveImport(file, specifier);
-    if (target === "modules/asset/publication/AssetPublisher.js" && name !== "modules/asset/AssetModule.js") {
-      failures.push(`Asset publication boundary violation: ${name} imports publication internals directly`);
+    if (target === "modules/asset/production/AssetProductionPipeline.js" && name !== "modules/asset/AssetModule.js") {
+      failures.push(`Asset production boundary violation: ${name} imports AssetProductionPipeline outside AssetModule`);
     }
-    if (target === "modules/asset/pipeline/VerifiedArtifactAssetPipeline.js" && name !== "modules/asset/publication/AssetPublisher.js") {
-      failures.push(`Legacy Asset publication boundary violation: ${name} imports deprecated pipeline internals directly`);
-    }
-    if (target === "modules/asset/storage/AssetManifestStore.js" && name !== "modules/asset/AssetModule.js") {
+    if (target === "modules/asset/persistence/AssetManifestStore.js" && name !== "modules/asset/AssetModule.js") {
       failures.push(`Asset persistence boundary violation: ${name} imports AssetManifestStore outside AssetModule`);
     }
     if (target === "modules/artifact/storage/IndexedDbArtifactStore.js" && name !== "modules/artifact/ArtifactModule.js") {

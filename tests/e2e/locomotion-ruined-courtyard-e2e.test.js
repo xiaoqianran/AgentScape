@@ -4,7 +4,7 @@ import { expect, it } from 'vitest';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
 import { LocomotionSystem } from '../../modules/world/runtime/systems/LocomotionSystem.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { createRuinedCourtyard } from '../../modules/world/content/ruinedCourtyard.js';
 import { disposeObject3D } from '../../modules/rendering/disposeObject3D.js';
 

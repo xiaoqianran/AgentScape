@@ -1,4 +1,4 @@
-import { JsonGateway } from '../../../../foundation/JsonGateway.js';
+import { JsonGateway } from '../../../../../foundation/JsonGateway.js';
 
 export class HttpCompilerProvider extends JsonGateway {
   constructor(options = {}) { super({ timeoutMs: 120000, label: 'Compiler provider', ...options }); }

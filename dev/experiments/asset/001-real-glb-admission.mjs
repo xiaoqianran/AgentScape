@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ArtifactRegistry } from '../../../modules/artifact/ArtifactRegistry.js';
 import { MemoryArtifactByteStore } from '../../../modules/artifact/MemoryArtifactByteStore.js';
-import { AssetCompiler } from '../../../modules/asset/compiler/AssetCompiler.js';
+import { AssetCompiler } from '../../../modules/asset/production/compiler/AssetCompiler.js';
 import { createAssetModule } from '../../../modules/asset/AssetModule.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -112,12 +112,12 @@ const assetModule = createAssetModule({
   now: () => Date.parse(now)
 });
 const compiler = new AssetCompiler({ store: compilerStore, version: 'asset-experiment-001' });
-assetModule.configurePublication({
+assetModule.configureProduction({
   artifacts: { registry, byteStore },
   getAssetCompiler: async () => compiler,
   idFactory: () => 'experiment_asset_lease'
 });
-const result = await assetModule.publishAsset({ artifactId, assetId, label: 'Experiment Published Asset' });
+const result = await assetModule.produceAsset({ artifactId, assetId, label: 'Experiment Published Asset' });
 if (result.status === 'asset-rejected') throw new Error(`Asset experiment rejected: ${JSON.stringify(result.admission)}`);
 
 const catalog = assetModule.catalog;

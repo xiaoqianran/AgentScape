@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { expect, it, vi } from 'vitest';
-import { AssetRegistry } from '../../modules/asset/AssetRegistry.js';
+import { AssetRegistry } from '../../modules/asset/registry/AssetRegistry.js';
 import { AssetLoader } from '../../modules/asset/loading/AssetLoader.js';
 
 it('disposes a loaded instance when required-node validation fails', async () => {

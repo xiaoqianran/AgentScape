@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { InteractionSystem } from '../../modules/world/runtime/systems/InteractionSystem.js';
-import { assetManifests } from '../../modules/asset/manifests/index.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 
 const cabinetObject=()=>{
   const root=new THREE.Group();

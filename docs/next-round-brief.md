@@ -301,7 +301,7 @@ cabin:wardrobe-drawer open  →  需要 cabin:wardrobe-left / right 均已 open
 
 ### 3.2 资产清单（已编译，可直接复用，无需新建模）
 
-`modules/asset/manifests/index.js`：
+`modules/asset/registry/manifests/index.js`：
 
 ```text
 cabinet  source glb assets/cabinet.glb，requiredNodes ['Body','doorHinge','Door']

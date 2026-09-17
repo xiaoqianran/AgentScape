@@ -17,7 +17,7 @@ import path from 'node:path';
 
 import { ArtifactRegistry } from '../../../modules/artifact/ArtifactRegistry.js';
 import { MemoryArtifactByteStore } from '../../../modules/artifact/MemoryArtifactByteStore.js';
-import { AssetCompiler } from '../../../modules/asset/compiler/AssetCompiler.js';
+import { AssetCompiler } from '../../../modules/asset/production/compiler/AssetCompiler.js';
 import { createAssetModule } from '../../../modules/asset/AssetModule.js';
 
 const SIM_NOW = '2026-09-17T00:00:00.000Z';
@@ -90,8 +90,8 @@ async function publishSample(sample, bytes, manifestRequiredNodes) {
   const compilerStore = new MemoryCompilerStore();
   const assetModule = createAssetModule({ manifests: {}, compiledStore: compilerStore, artifactRegistry: registry, byteStore, now: () => Date.parse(SIM_NOW) });
   const compiler = new AssetCompiler({ store: compilerStore, version: 'asset-audit-002' });
-  assetModule.configurePublication({ artifacts: { registry, byteStore }, getAssetCompiler: async () => compiler, idFactory: () => sample.id + '_lease' });
-  const published = await assetModule.publishAsset({ artifactId, assetId, label: sample.id });
+  assetModule.configureProduction({ artifacts: { registry, byteStore }, getAssetCompiler: async () => compiler, idFactory: () => sample.id + '_lease' });
+  const published = await assetModule.produceAsset({ artifactId, assetId, label: sample.id });
   return {
     status: published.status,
     admission: published.admission ? { status: published.admission.status, reasons: published.admission.reasons || [] } : null,

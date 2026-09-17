@@ -1,4 +1,4 @@
-import { assetIdFromRef } from '../../asset/AssetRef.js';
+import { assetIdFromRef } from '../../asset/model/AssetRef.js';
 
 export const WORLD_PHYSICS_REQUIREMENTS_SCHEMA='agentscape.world-physics-requirements';
 export const WORLD_PHYSICS_REQUIREMENTS_VERSION=1;

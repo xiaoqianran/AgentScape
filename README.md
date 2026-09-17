@@ -203,7 +203,7 @@ world/runtime/WorldRuntime.js              Runtime composition root
 world/compiler/createWorldPipeline.js      Generated-world canonical pipeline
 world/spec/WorldSpec.js                WorldSpec schema + deterministic normalization
 world/compiler/WorldComposer.js            Deterministic placement / relation geometry
-generation/orchestration/GenerationRuntime.js Connector / Job / Artifact / Asset publication composition
+generation/orchestration/GenerationRuntime.js Connector / Job / Artifact / Asset production composition
 observatory/main.js                         Developer Runtime Observatory entry
 asset/AssetCatalog.js                  Reusable Asset read/search facade
 world/runtime/systems/PhysicsSystem.js     Rapier truth + hypothetical shape queries

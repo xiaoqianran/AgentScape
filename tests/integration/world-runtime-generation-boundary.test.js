@@ -30,7 +30,7 @@ describe('WorldRuntime generation boundary',()=>{
     expect(generation.getAssetCompiler).toBeUndefined();
     expect(generation.artifactRegistry).toBe(artifacts.registry);
     expect(generation.byteStore).toBe(artifacts.byteStore);
-    expect(generation.publishAsset).toBe(runtime.assetModule.publishAsset);
+    expect(generation.produceAsset).toBe(runtime.assetModule.produceAsset);
     expect(generation.providerRegistry.listProviders()).toEqual([]);
     expect(runtime.authoring).toBeUndefined();
     expect(runtime.assetGenerator).toBeUndefined();

@@ -1,6 +1,6 @@
 import { assetManifests } from './manifests/index.js';
-import { validateAssetManifest } from './schema.js';
-import { Errors } from './errors.js';
+import { validateAssetManifest } from '../model/schema.js';
+import { Errors } from '../model/errors.js';
 
 const canonical = (value) => {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
