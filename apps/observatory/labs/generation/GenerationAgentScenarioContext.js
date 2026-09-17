@@ -12,6 +12,8 @@ import { assetAdmission } from "../../../../modules/asset/model/admission.js";
 import { GenerationRuntime } from "../../../../application/generation/GenerationRuntime.js";
 import { ConnectorClient } from "../../../../modules/generation/connector/ConnectorClient.js";
 import { SceneGraph } from "../../../../modules/world/runtime/graph/SceneGraph.js";
+import { WorldObservation } from "../../../../modules/world/runtime/WorldObservation.js";
+import { WorldRecovery } from "../../../../modules/world/runtime/WorldRecovery.js";
 import { NavigationSystem } from "../../../../modules/world/runtime/systems/NavigationSystem.js";
 import { RecastNavigationBackend } from "../../../../modules/navigation/RecastNavigationBackend.js";
 import { LocomotionSystem } from "../../../../modules/world/runtime/systems/LocomotionSystem.js";
@@ -137,7 +139,20 @@ export class GenerationAgentScenarioContext {
       const snapshot = generation.capabilityAdapter.normalizeSnapshot(this.connector.capabilityPayload(), this.connector.session());
       generation.capabilityAdapter.applySnapshot(generation.providerRegistry, snapshot);
     }
-    runtime.generation = generation;
+    runtime.observation = new WorldObservation(runtime);
+runtime.recovery = new WorldRecovery(runtime);
+runtime.navigateAgent=(...args)=>runtime.locomotion.navigate(...args);
+runtime.locomotionStatus=(...args)=>runtime.locomotion.status(...args);
+runtime.findInteractionPose=(...args)=>runtime.interactions.findInteractionPose(...args);
+runtime.approachAndInteract=(...args)=>runtime.interactions.approachAndInteract(...args);
+runtime.articulationStatus=(...args)=>runtime.interactions.articulationStatus(...args);
+runtime.approachAndPickup=(...args)=>runtime.interactions.approachAndPickup(...args);
+runtime.approachAndPlace=(...args)=>runtime.interactions.approachAndPlace(...args);
+runtime.dropHeld=(...args)=>runtime.interactions.dropHeld(...args);
+runtime.carryStatus=(...args)=>runtime.interactions.carryStatus(...args);
+runtime.markRecoveryHeld=(...args)=>runtime.interactions.markRecoveryHeld(...args);
+runtime.findRecoveryCleanupPlan=(...args)=>runtime.interactions.findRecoveryCleanupPlan(...args);
+runtime.cleanupRecoveryBlocker=(...args)=>runtime.interactions.cleanupRecoveryBlocker(...args);runtime.generation = generation;
     this.generation = generation;
     this.runtime = runtime;
 

@@ -36,7 +36,14 @@ export class AgentToolsScenarioContext {
     registerSceneSkills(add, runtime);
     registerSpatialSkills(add, runtime);
     registerInteractionSkills(add, runtime);
-    runtime.skills = registry;
+    runtime.findInteractionPose=(...args)=>runtime.interactions.findInteractionPose(...args);
+runtime.approachAndInteract=(...args)=>runtime.interactions.approachAndInteract(...args);
+runtime.articulationStatus=(...args)=>runtime.interactions.articulationStatus(...args);
+runtime.approachAndPickup=(...args)=>runtime.interactions.approachAndPickup(...args);
+runtime.approachAndPlace=(...args)=>runtime.interactions.approachAndPlace(...args);
+runtime.dropHeld=(...args)=>runtime.interactions.dropHeld(...args);
+runtime.carryStatus=(...args)=>runtime.interactions.carryStatus(...args);
+runtime.skills = registry;
     this.runtime = runtime;
     this.registry = registry;
     this.tools = new AgentTools(runtime, { profile: "builder", actor: "agent" });

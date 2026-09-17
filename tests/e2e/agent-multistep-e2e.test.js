@@ -14,6 +14,8 @@ import { registerCoreSkills } from '../../application/skills/registerCoreSkills.
 import { AgentTools } from '../../application/AgentTools.js';
 import { ToolCallingAgent } from '../../modules/agent/ToolCallingAgent.js';
 import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
+import { WorldObservation } from '../../modules/world/runtime/WorldObservation.js';
+import { WorldRecovery } from '../../modules/world/runtime/WorldRecovery.js';
 
 const floorMesh=()=>{const m=new THREE.Mesh(new THREE.BoxGeometry(14,.2,10));m.position.y=-.1;m.updateMatrixWorld(true);return m;};
 const cupVisual=()=>{const g=new THREE.Group();const m=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.32,16));m.position.y=.16;g.add(m);return g;};
@@ -94,7 +96,20 @@ async function setup({blockedDoor=false}={}){
     store,scene,physics,spatial,navigation,locomotion,interactions,events,policy,trace,mutate,
     listObjects:()=>store.list().map(([id,record])=>({id,asset:record.assetId,position:physics.getPosition(id) || record.object.position.toArray(),actions:record.manifest.actions}))
   };
-  runtime.skills=registerCoreSkills(new SkillRegistry({policy,trace,runtime}),runtime);
+  runtime.observation=new WorldObservation(runtime);
+runtime.recovery=new WorldRecovery(runtime);
+runtime.navigateAgent=(...args)=>runtime.locomotion.navigate(...args);
+runtime.locomotionStatus=(...args)=>runtime.locomotion.status(...args);
+runtime.findInteractionPose=(...args)=>runtime.interactions.findInteractionPose(...args);
+runtime.approachAndInteract=(...args)=>runtime.interactions.approachAndInteract(...args);
+runtime.articulationStatus=(...args)=>runtime.interactions.articulationStatus(...args);
+runtime.approachAndPickup=(...args)=>runtime.interactions.approachAndPickup(...args);
+runtime.approachAndPlace=(...args)=>runtime.interactions.approachAndPlace(...args);
+runtime.dropHeld=(...args)=>runtime.interactions.dropHeld(...args);
+runtime.carryStatus=(...args)=>runtime.interactions.carryStatus(...args);
+runtime.markRecoveryHeld=(...args)=>runtime.interactions.markRecoveryHeld(...args);
+runtime.findRecoveryCleanupPlan=(...args)=>runtime.interactions.findRecoveryCleanupPlan(...args);
+runtime.cleanupRecoveryBlocker=(...args)=>runtime.interactions.cleanupRecoveryBlocker(...args);runtime.skills=registerCoreSkills(new SkillRegistry({policy,trace,runtime}),runtime);
   const tools=new AgentTools(runtime,{profile:'builder',actor:'agent_01'});
   const agent=new ToolCallingAgent({tools,gateway:scriptedGateway,maxSteps:8});
   return {runtime,store,physics,spatial,navigation,locomotion,interactions,trace,mutate,tools,agent};
