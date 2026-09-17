@@ -10,6 +10,11 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
   let camera = new THREE.PerspectiveCamera();
   const SND = { play() {} };
   const named = (object, name, label) => { if (!object.name) object.name = name; if (!object.userData.aimLabel) object.userData.aimLabel = label; return object; };
+  const makeLineLoop = (geometry, material) => {
+    const positions = geometry?.getAttribute?.('position');
+    if (positions?.count > 1 && !geometry.index) geometry.setIndex([...Array(positions.count).keys(), 0]);
+    return new THREE.Line(geometry, material);
+  };
   const timers = new Set();
   let disposed = false;
   let elapsed = 0;
@@ -398,7 +403,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
 
             const fireOut = new THREE.LineBasicMaterial({ color: 0xb8421f }), fireMid = new THREE.LineBasicMaterial({ color: 0xe0862e }), fireIn = new THREE.LineBasicMaterial({ color: 0xf5c542 });
             const wavyFlames = [];
-            function makeWavyFlame(x0, z0, y0, h, w, mat, phase, speed, list) { const K = 24; const count = (K + 1) * 2; const geom = new THREE.BufferGeometry(); geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3)); const ln = new THREE.LineLoop(geom, mat); ln.frustumCulled = false; scene.add(ln); const f = { obj: ln, x0, z0, y0, h, w, phase, speed, geom, K }; (list || wavyFlames).push(f); return f; }
+            function makeWavyFlame(x0, z0, y0, h, w, mat, phase, speed, list) { const K = 24; const count = (K + 1) * 2; const geom = new THREE.BufferGeometry(); geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3)); const ln = makeLineLoop(geom, mat); ln.frustumCulled = false; scene.add(ln); const f = { obj: ln, x0, z0, y0, h, w, phase, speed, geom, K }; (list || wavyFlames).push(f); return f; }
             function updateWavyFlame(f, time, pw) { const p = f.geom.attributes.position.array; const K = f.K; const hh = f.h * pw; const wsc = 0.3 + 0.7 * pw; let idx = 0; for (let k = 0; k <= K; k++) { const t = k / K; const ww = f.w * wsc * Math.sin(Math.PI * (0.16 + 0.84 * t)); const wob = Math.sin(t * 5.2 - time * f.speed + f.phase) * 0.028 * t * pw; const zo = Math.sin(t * 4 - time * f.speed * 0.7 + f.phase * 1.7) * 0.02 * t * pw; p[idx++] = f.x0 + wob + ww; p[idx++] = f.y0 + t * hh; p[idx++] = f.z0 + zo; } for (let k = K; k >= 0; k--) { const t = k / K; const ww = f.w * wsc * Math.sin(Math.PI * (0.16 + 0.84 * t)); const wob = Math.sin(t * 5.2 - time * f.speed + f.phase) * 0.028 * t * pw; const zo = Math.sin(t * 4 - time * f.speed * 0.7 + f.phase * 1.7) * 0.02 * t * pw; p[idx++] = f.x0 + wob - ww; p[idx++] = f.y0 + t * hh; p[idx++] = f.z0 + zo; } f.geom.attributes.position.needsUpdate = true; }
             makeWavyFlame(FX, FZ, HEARTH + 0.02, 0.80, 0.30, fireOut, 0.0, 2.6); makeWavyFlame(FX + 0.01, FZ - 0.01, HEARTH + 0.04, 0.60, 0.20, fireMid, 2.3, 3.1); makeWavyFlame(FX - 0.01, FZ + 0.01, HEARTH + 0.06, 0.38, 0.11, fireIn, 4.1, 3.6); makeWavyFlame(FX - 0.14, FZ - 0.10, HEARTH + 0.02, 0.34, 0.11, fireOut, 1.2, 3.3); makeWavyFlame(FX + 0.15, FZ + 0.12, HEARTH + 0.02, 0.28, 0.10, fireOut, 3.4, 3.0);
             const sparks = [];
@@ -692,7 +697,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
 
             const CATMAT = LITMAT(0xece6da);
             const CATMAT2 = LITMAT(0xe2dbcd);
-            const lloop = (pts, parent) => { const l = new THREE.LineLoop(geo(pts), MAT); (parent || scene).add(l); return l; };
+            const lloop = (pts, parent) => { const l = makeLineLoop(geo(pts), MAT); (parent || scene).add(l); return l; };
             const sm01 = t => t * t * (3 - 2 * t);
             function solid(g, mat, lmat) {
                 const grp = new THREE.Group();
@@ -792,12 +797,12 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
             const liquidMat2 = new THREE.LineBasicMaterial({ color: 0x7db8dd });
             const liquidGeom = new THREE.BufferGeometry();
             liquidGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(24 * 3), 3));
-            const liquidLoop = new THREE.LineLoop(liquidGeom, liquidMat);
+            const liquidLoop = makeLineLoop(liquidGeom, liquidMat);
             liquidLoop.frustumCulled = false;
             potG.add(liquidLoop);
             const liquidGeom2 = new THREE.BufferGeometry();
             liquidGeom2.setAttribute('position', new THREE.BufferAttribute(new Float32Array(24 * 3), 3));
-            const liquidLoop2 = new THREE.LineLoop(liquidGeom2, liquidMat2);
+            const liquidLoop2 = makeLineLoop(liquidGeom2, liquidMat2);
             liquidLoop2.frustumCulled = false;
             potG.add(liquidLoop2);
             scene.add(potG);
@@ -1066,7 +1071,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
                 for (const [rx, ry] of [[Math.PI / 2, 0], [Math.PI / 2, 0.9], [Math.PI / 2, -0.7], [0.5, 0.3], [-0.6, 1.2]]) {
                     const pts = [];
                     for (let i = 0; i <= 20; i++) { const a = i / 20 * Math.PI * 2; pts.push([Math.cos(a) * 0.086, Math.sin(a) * 0.086, 0]); }
-                    put(new THREE.LineLoop(geo(pts), MAT), 0, 0.085, 0, rx, ry, 0, yarnBall);
+                    put(makeLineLoop(geo(pts), MAT), 0, 0.085, 0, rx, ry, 0, yarnBall);
                 }
                 put(line([[0.06, 0.115, 0.05], [0.14, 0.096, 0.09], [0.22, 0.091, 0.04], [0.28, 0.091, -0.05]]), 0, 0, 0, 0, 0, 0, yarnBall);
             }
@@ -1167,7 +1172,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
             /* ---- 12.9b 沙漏 ---- */
             let hgFlip = false, hgRun = 0, hgRot = 0, hgRotV = 0, hgSand = 1;
             const sandMat = new THREE.LineBasicMaterial({ color: 0xb08948 });
-            const sloop = (pts, parent) => { const l = new THREE.LineLoop(geo(pts), sandMat); (parent || scene).add(l); return l; };
+            const sloop = (pts, parent) => { const l = makeLineLoop(geo(pts), sandMat); (parent || scene).add(l); return l; };
             const HG_H = 0.36, HG_MID = HG_H / 2;
             const hg = new THREE.Group();
             hg.position.set(SFX, 0.805 + HG_MID, -2.44);
@@ -1295,7 +1300,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
             const calSurfMat = new THREE.LineBasicMaterial({ color: 0x2e5d38 });
             const calSurfGeom = new THREE.BufferGeometry();
             calSurfGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(28 * 3), 3));
-            const calSurf = new THREE.LineLoop(calSurfGeom, calSurfMat);
+            const calSurf = makeLineLoop(calSurfGeom, calSurfMat);
             calSurf.frustumCulled = false;
             cauldronG.add(calSurf);
             const stirG = new THREE.Group();
@@ -1367,7 +1372,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
                     put(solid(new THREE.CylinderGeometry(r * 0.8, r * 0.75, lh, 10), liqMat), 0, lh / 2 + 0.005, 0, 0, 0, 0, g);
                     const surf = [];
                     for (let k = 0; k <= 14; k++) { const a = k / 14 * Math.PI * 2; surf.push([Math.cos(a) * r * 0.8, lh + 0.006, Math.sin(a) * r * 0.8]); }
-                    put(new THREE.LineLoop(geo(surf), new THREE.LineBasicMaterial({ color: col })), 0, 0, 0, 0, 0, 0, g);
+                    put(makeLineLoop(geo(surf), new THREE.LineBasicMaterial({ color: col })), 0, 0, 0, 0, 0, 0, g);
                     put(solid(new THREE.CylinderGeometry(r * 0.34, r * 0.82, 0.045, 10), reGlassMat), 0, bh + 0.022, 0, 0, 0, 0, g);
                     put(solid(new THREE.CylinderGeometry(r * 0.34, r * 0.36, 0.05, 10), reGlassMat), 0, bh + 0.069, 0, 0, 0, 0, g);
                     put(solid(new THREE.CylinderGeometry(r * 0.3, r * 0.35, 0.045, 8), corkMat), 0, bh + 0.116, 0, 0, 0, 0, g);
@@ -1392,7 +1397,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
             mcG.position.set(MC_X, 0.015, MC_Z);
             scene.add(mcG);
             const mcMat = new THREE.LineBasicMaterial({ color: 0x8a4fd6, transparent: true, opacity: 0.55 });
-            const mcLoop = (pts, parent, mat) => { const l = new THREE.LineLoop(geo(pts), mat || mcMat); parent.add(l); return l; };
+            const mcLoop = (pts, parent, mat) => { const l = makeLineLoop(geo(pts), mat || mcMat); parent.add(l); return l; };
             const mcBase = new THREE.Group();
             mcG.add(mcBase);
             {
@@ -1790,7 +1795,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
                 cbSphere.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.SphereGeometry(0.24, 12, 8)), cbLineMat));
                 const hc = [];
                 for (let i = 0; i <= 24; i++) { const a = i / 24 * Math.PI * 2; hc.push([Math.cos(a) * 0.24, 0, Math.sin(a) * 0.24]); }
-                cbSphere.add(new THREE.LineLoop(geo(hc), cbLineMat));
+                cbSphere.add(makeLineLoop(geo(hc), cbLineMat));
                 put(cbSphere, 0, 0.90, 0, 0, 0, 0, orbStandG);
             }
             const cbInner = new THREE.Group();
@@ -1846,7 +1851,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
                 put(line([[0, 0, 0], [tipX * 0.35, 0.13, tipZ * 0.35], [tipX * 0.8, 0.25, tipZ * 0.8], [tipX, 0.35, tipZ]]), 0, 0, 0, 0, 0, 0, stem);
                 const lp = [];
                 for (let k = 0; k <= 12; k++) { const t = k / 12 * Math.PI * 2; lp.push([Math.cos(t) * 0.045, Math.sin(t) * 0.035, 0]); }
-                put(new THREE.LineLoop(geo(lp), MAT), tipX * 0.45, 0.16, tipZ * 0.45, 0, a, 0, stem);
+                put(makeLineLoop(geo(lp), MAT), tipX * 0.45, 0.16, tipZ * 0.45, 0, a, 0, stem);
                 const bm = new THREE.MeshBasicMaterial({
                     color: i % 2 ? 0x9b6fd8 : 0x4fb0d8, transparent: true, opacity: 0.85
                 });
@@ -2178,7 +2183,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
                 const g = new THREE.Group();
                 const head = [];
                 for (let k = 0; k <= 12; k++) { const a = k / 12 * Math.PI * 2; head.push([Math.cos(a) * 0.013, Math.sin(a) * 0.009, 0]); }
-                g.add(new THREE.LineLoop(geo(head), noteMat));
+                g.add(makeLineLoop(geo(head), noteMat));
                 g.add(new THREE.Line(geo([[0.011, 0.007, 0], [0.011, 0.052, 0]]), noteMat));
                 g.add(new THREE.Line(geo([[0.011, 0.052, 0], [0.024, 0.044, 0]]), noteMat));
                 g.visible = false;
@@ -2303,7 +2308,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
                 const rm = new THREE.LineBasicMaterial({ color: 0x8a7d5a, transparent: true, opacity: 0 });
                 const rp = [];
                 for (let k = 0; k <= 20; k++) { const a = k / 20 * Math.PI * 2; rp.push([Math.cos(a) * 0.05, 0, Math.sin(a) * 0.05]); }
-                const l = new THREE.LineLoop(geo(rp), rm);
+                const l = makeLineLoop(geo(rp), rm);
                 l.rotation.x = Math.PI / 2;
                 l.position.set(1.25, 1.075, 4.22);
                 l.frustumCulled = false;
@@ -2340,7 +2345,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
                     const a = i / 18 * Math.PI * 2;
                     zb.push([Math.cos(a) * 0.088, -0.363 + Math.sin(a * 3) * 0.014, Math.sin(a) * 0.088]);
                 }
-                put(new THREE.LineLoop(geo(zb), MAT), 0, 0, 0, 0, 0, 0, sunPivot);
+                put(makeLineLoop(geo(zb), MAT), 0, 0, 0, 0, 0, 0, sunPivot);
                 put(line([[-0.028, -0.135, -0.045], [-0.048, -0.33, -0.062]]), 0, 0, 0, 0, 0, 0, sunPivot);
                 put(line([[0.028, -0.135, -0.045], [0.048, -0.33, -0.062]]), 0, 0, 0, 0, 0, 0, sunPivot);
                 /* 眼睛（球面外凸，无眉毛） */
@@ -2392,10 +2397,10 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
                 put(dome, 0, 0, 0, 0, 0, 0, chimePivot);
                 const rimPts = [];
                 for (let i = 0; i <= 18; i++) { const a = i / 18 * Math.PI * 2; rimPts.push([Math.cos(a) * 0.078, -0.148, Math.sin(a) * 0.078]); }
-                put(new THREE.LineLoop(geo(rimPts), glassLineMat), 0, 0, 0, 0, 0, 0, chimePivot);
+                put(makeLineLoop(geo(rimPts), glassLineMat), 0, 0, 0, 0, 0, 0, chimePivot);
                 const midPts = [];
                 for (let i = 0; i <= 18; i++) { const a = i / 18 * Math.PI * 2; midPts.push([Math.cos(a) * 0.055, -0.062, Math.sin(a) * 0.055]); }
-                put(new THREE.LineLoop(geo(midPts), glassLineMat), 0, 0, 0, 0, 0, 0, chimePivot);
+                put(makeLineLoop(geo(midPts), glassLineMat), 0, 0, 0, 0, 0, 0, chimePivot);
                 put(line([[0, -0.062, 0], [0, -0.165, 0]]), 0, 0, 0, 0, 0, 0, chimePivot);
                 put(new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), DARK), 0, -0.170, 0, 0, 0, 0, chimePivot);
                 put(line([[0, -0.178, 0], [0, -0.19, 0.002]]), 0, 0, 0, 0, 0, 0, chimePivot);
@@ -4081,7 +4086,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
                 hook.position.set(HOOK_X, WAND_Y, hz);
                 hook.rotation.z = Math.PI * 0.75;
                 scene.add(hook);
-                const outline = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(hookArcPts), wandEdgeMat);
+                const outline = makeLineLoop(new THREE.BufferGeometry().setFromPoints(hookArcPts), wandEdgeMat);
                 outline.position.set(HOOK_X, WAND_Y, hz);
                 scene.add(outline);
             }
@@ -4132,7 +4137,7 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
                 { nm: 'bolt', col: 0xffe94a, glow: 0xfff8a0 },
                 { nm: 'wind', col: 0x7dffb8, glow: 0xd0ffe4 }
             ];
-            const loopLine = (pts, m) => new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), m);
+            const loopLine = (pts, m) => makeLineLoop(new THREE.BufferGeometry().setFromPoints(pts), m);
             const openLine = (pts, m) => new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), m);
 
             function ringPts2(r, n) {

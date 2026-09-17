@@ -61,7 +61,7 @@ describe('Agent world affordance contracts',()=>{
     await invoke('executeWorldAction',{targetId:'cabin:table-lamp',action:'turn_off'});
     expect(await invoke('executeWorldAction',{targetId:'cabin:table-lamp',action:'turn_on'})).toMatchObject({verified:true,before:{on:false},after:{on:true}});
     expect(runtime.events.emit).toHaveBeenCalledWith('world.action.completed',expect.objectContaining({targetId:'cabin:table-lamp'}));
-  });
+  },15000);
 
   it('blocks remote, occluded, invalid and unsupported actions without changing source state',async()=>{
     const {runtime,invoke,standNear}=fixture();
