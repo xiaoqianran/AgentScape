@@ -128,9 +128,21 @@ function capabilityText(caps: CapabilityState, mode: BuildMode) {
 }
 
 function generateLabel(mode: BuildMode) {
-  if (mode === 'image') return 'Generate Image';
-  if (mode === 'world') return 'Generate World';
-  return 'Generate 3D';
+  if (mode === 'image') return 'Create Image';
+  if (mode === 'world') return 'Create World';
+  return 'Create 3D Asset';
+}
+
+function modeLabel(mode: BuildMode) {
+  if (mode === 'image') return 'Image';
+  if (mode === 'asset') return '3D Asset';
+  return 'World';
+}
+
+function modeDescription(mode: BuildMode) {
+  if (mode === 'image') return '上传参考图，或从文字创建图片。';
+  if (mode === 'asset') return '把已确认的图片变成可放入世界的 3D 资产。';
+  return '从描述创建一个可以直接打开的世界。';
 }
 
 function resultErrorMessage(error: unknown) {
@@ -416,7 +428,6 @@ function BuildWorkbenchView({
     [controller, capabilityRevision, providerInputType, state.mode, state.status]
   );
   const selectedProvider = providerId === 'auto' ? null : providerId;
-  const meta = BUILD_MODE_META[state.mode];
   useEffect(() => {
     if (providerId !== 'auto' && !providerOptions.some((provider) => provider.id === providerId)) setProviderId('auto');
   }, [providerId, providerOptions]);
@@ -513,59 +524,69 @@ function BuildWorkbenchView({
 
   const remoteGenerationControls = (
     <div className="build-remote-controls">
-      <label className="build-prompt-label">{state.mode === 'asset' ? 'Asset Label' : 'Prompt'}
+      <label className="build-prompt-label">{state.mode === 'asset' ? 'Name' : 'Describe'}
         <textarea
           id="build-prompt"
           rows={state.mode === 'asset' ? 2 : 4}
-          placeholder={state.mode === 'asset' ? '用于标识资产；3D 输入来自已确认的 Image Artifact。' : '描述你希望生成的内容…'}
+          placeholder={state.mode === 'asset' ? '给这个 3D 资产一个清晰的名字…' : '描述你希望创建的内容…'}
           spellCheck={false}
           disabled={running}
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
         />
       </label>
-      <label className="build-provider-field">Provider <span>可选 · 默认自动路由</span>
-        <select id="build-provider" name="build-provider" value={providerId} disabled={running || !caps.paired} onChange={(event) => setProviderId(event.target.value)}>
-          <option value="auto">Auto · Recommended</option>
-          {providerOptions.map((provider) => (
-            <option key={provider.id} value={provider.id}>{provider.label} · {provider.id}</option>
-          ))}
-        </select>
-        {providerOptions.length > 1 ? <small className="build-provider-hint">切换 Provider 后再次 Generate；结果会按 Provider 保留在 Recent Outputs，便于对比。</small> : null}
-      </label>
       {state.mode === 'asset' ? (
         <>
-          {!assetSource ? <p>此入口仅接受已确认的 Image Artifact。请先在「图片资产」中确认物体，或从已有图片结果继续生成 3D。</p> : null}
+          {!assetSource ? (
+            <div className="build-source-empty">
+              <span>需要一张已确认的图片作为 3D 输入。</span>
+              <button type="button" disabled={running} onClick={() => setMode('image')}>Choose Image</button>
+            </div>
+          ) : null}
           {assetSource ? (
             <div className="build-source-artifact">
               <div>
-                <small>IMAGE SOURCE</small>
+                <small>SOURCE IMAGE</small>
                 <strong>{assetSource.prompt || 'Image'}</strong>
                 <code>{assetSource.artifactId}</code>
               </div>
               <button type="button" disabled={running} onClick={() => setAssetSource(null)}>移除</button>
             </div>
           ) : null}
-          <label id="build-asset-id-field" className="build-asset-id-field">Asset ID <span>可选</span>
-            <input id="build-asset-id" placeholder="generated_asset_01" disabled={running} value={assetId} onChange={(event) => setAssetId(event.target.value)} />
-          </label>
         </>
       ) : null}
       <label className="build-cost-confirm">
         <input id="build-cost-confirm" type="checkbox" disabled={running} checked={costConfirmed} onChange={(event) => setCostConfirmed(event.target.checked)} />
-        允许本次 Build 使用外部生成计算资源。
+        使用已连接的生成计算资源完成这次创作。
       </label>
       <div className="build-primary-actions">
         {!caps.paired ? (
           <button id="build-connect" type="button" className="build-connect" disabled={connecting} onClick={() => void connect()}>
-            {pairingId ? '继续配对' : connecting ? '连接中…' : '连接生成器'}
+            {pairingId ? '继续配对' : connecting ? '连接中…' : 'Connect'}
           </button>
         ) : null}
         <button id="build-generate" type="button" className="build-generate" disabled={generateDisabled} onClick={() => void generate()}>
           {generateLabel(state.mode)}
         </button>
       </div>
-      <div id="build-capability-state" className="build-capability-state">{capabilityNotice || capabilityText(caps, state.mode)}</div>
+      <details className="build-technical-options">
+        <summary>Advanced options</summary>
+        <label className="build-provider-field">Provider <span>默认自动路由</span>
+          <select id="build-provider" name="build-provider" value={providerId} disabled={running || !caps.paired} onChange={(event) => setProviderId(event.target.value)}>
+            <option value="auto">Auto · Recommended</option>
+            {providerOptions.map((provider) => (
+              <option key={provider.id} value={provider.id}>{provider.label} · {provider.id}</option>
+            ))}
+          </select>
+          {providerOptions.length > 1 ? <small className="build-provider-hint">可固定 Provider 以对比不同生成结果。</small> : null}
+        </label>
+        {state.mode === 'asset' ? (
+          <label id="build-asset-id-field" className="build-asset-id-field">Asset ID <span>可选</span>
+            <input id="build-asset-id" placeholder="generated_asset_01" disabled={running} value={assetId} onChange={(event) => setAssetId(event.target.value)} />
+          </label>
+        ) : null}
+        <div id={state.mode === 'image' ? 'build-technical-state' : 'build-capability-state'} className="build-capability-state">{capabilityNotice || capabilityText(caps, state.mode)}</div>
+      </details>
     </div>
   );
 
@@ -573,23 +594,21 @@ function BuildWorkbenchView({
     <section className="build-workbench" aria-label="Build Workbench">
       <header className="build-heading">
         <div>
-          <div className="eyebrow">BUILD</div>
-          <h1>Build Workbench</h1>
-          <p>上传图片，挑选物体，生成资产并交给 Agent 放置。</p>
+          <div className="eyebrow">CREATE</div>
+          <h1>Create</h1>
+          <p>Image、3D Asset 或 World。选择结果，其余技术细节交给系统。</p>
         </div>
-        <button id="build-open-advanced" className="build-advanced-button" type="button" onClick={() => root.classList.add('build-advanced-open')}>{running ? 'Jobs / Cancel' : 'Advanced'}</button>
+        <button id="build-open-advanced" className="build-advanced-button" type="button" onClick={() => root.classList.add('build-advanced-open')}>{running ? 'Jobs' : 'Advanced'}</button>
       </header>
 
       <div className="build-world-context">
         <span className="build-context-dot" />
-        <div><small>CURRENT WORLD</small><strong id="build-world-name">{worldName}</strong></div>
+        <div><small>CREATE INTO</small><strong id="build-world-name">{worldName}</strong></div>
         <code id="build-world-id">{worldId}</code>
       </div>
 
       <div className="build-mode-tabs" role="tablist" aria-label="构建类型">
         {(['image', 'asset', 'world'] as const).map((mode) => {
-          const available = caps[mode];
-          const discovered = !available && Boolean(caps.discovered?.[mode]);
           const active = state.mode === mode;
           const sublabel = mode === 'image' ? '2D' : mode === 'asset' ? '3D' : 'ENV';
           return (
@@ -597,12 +616,12 @@ function BuildWorkbenchView({
               key={mode}
               type="button"
               data-build-mode={mode}
-              className={[active ? 'active' : '', available ? 'available' : '', discovered ? 'discovered' : ''].filter(Boolean).join(' ')}
+              className={active ? 'active' : ''}
               disabled={running}
               aria-selected={active}
               onClick={() => setMode(mode)}
             >
-              <span>{BUILD_MODE_META[mode].label}</span><small>{sublabel}</small>
+              <span>{modeLabel(mode)}</span><small>{sublabel}</small>
             </button>
           );
         })}
@@ -611,8 +630,8 @@ function BuildWorkbenchView({
       <div className="build-scroll">
         <section className="build-compose">
           <div className="build-mode-copy">
-            <strong id="build-mode-title">{meta.title}</strong>
-            <span id="build-mode-description">{meta.description}</span>
+            <strong id="build-mode-title">{modeLabel(state.mode)}</strong>
+            <span id="build-mode-description">{modeDescription(state.mode)}</span>
           </div>
           <ImageObjectWorkbench controller={controller} paired={caps.paired} disabled={state.status==='running'} visible={state.mode==='image'} onConnect={() => void connect()} onOutput={(result) => recordBuildOutput(buildOutputRef(result))} onBusy={setImageQueueBusy} />
           {state.mode === 'image' ? (
@@ -629,7 +648,7 @@ function BuildWorkbenchView({
           ) : remoteGenerationControls}
         </section>
 
-        <section className="build-pipeline" aria-label="Build Pipeline">
+        {state.status === 'running' || state.status === 'error' ? <section className="build-pipeline" aria-label="Build Pipeline">
           <div className="build-section-heading"><span>Pipeline</span><small id="build-status-label">{state.status.toUpperCase()}</small></div>
           <div id="build-step-list" className="build-step-list">
             {state.steps.map((step) => (
@@ -640,7 +659,7 @@ function BuildWorkbenchView({
             ))}
           </div>
           {state.error ? <div id="build-error" className="build-error">{state.error.code ? `${state.error.code} · ` : ''}{state.error.message}</div> : null}
-        </section>
+        </section> : null}
 
         {state.result ? (
           <section id="build-result" className="build-result" aria-label="Build Result">

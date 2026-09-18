@@ -1,0 +1,601 @@
+/*
+ * Spatial editor composition.
+ *
+ * This layer intentionally owns only Studio chrome/layout. Product panels,
+ * runtime semantics and domain styles stay with their feature modules.
+ * The composition borrows the spatial-editor pattern: canvas first, floating
+ * tools, an outliner on the left and contextual work on the right.
+ */
+
+.shell.spatial-editor {
+  position: relative;
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  background: var(--studio-viewport);
+  isolation: isolate;
+}
+
+.spatial-editor .workspace {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 0;
+  background: var(--studio-viewport);
+}
+
+.spatial-editor .viewport,
+.spatial-editor.world-first .viewport {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.spatial-editor .viewport::before {
+  display: block;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(111,156,255,.055), transparent 34%),
+    linear-gradient(180deg, rgba(0,0,0,.08), transparent 20%);
+}
+
+.spatial-editor .viewport::after {
+  display: block;
+  box-shadow: inset 0 1px rgba(255,255,255,.025);
+}
+
+.spatial-editor .world-intro,
+.spatial-editor .hint {
+  display: none;
+}
+
+/* Floating app identity / global actions. The middle stays transparent for tools. */
+
+.spatial-editor .brandbar,
+.spatial-editor.world-first .brandbar {
+  position: absolute;
+  z-index: 40;
+  inset: 12px 12px auto;
+  width: auto;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  pointer-events: none;
+}
+
+.spatial-editor .brand-lockup,
+.spatial-editor .brand-actions {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 12px;
+  background: rgba(20,21,24,.91);
+  box-shadow: var(--studio-shadow);
+  backdrop-filter: blur(18px) saturate(112%);
+  pointer-events: auto;
+}
+
+.spatial-editor .brand-lockup {
+  gap: 8px;
+  padding: 0 11px;
+}
+
+.spatial-editor .brand-lockup > span {
+  max-width: 150px;
+  color: var(--studio-text-3);
+  font: 500 10px/1 var(--studio-font-ui);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.spatial-editor .brand-actions {
+  gap: 3px;
+  padding: 4px;
+}
+
+.spatial-editor .world-control > span {
+  display: none;
+}
+
+.spatial-editor .world-select,
+.spatial-editor .header-button,
+.spatial-editor .icon-button,
+.spatial-editor .runtime-status {
+  height: 30px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.spatial-editor .world-select:hover,
+.spatial-editor .world-select:focus-visible,
+.spatial-editor .header-button:hover,
+.spatial-editor .icon-button:hover,
+.spatial-editor .runtime-status.is-actionable:hover {
+  border-color: transparent;
+  background: var(--studio-surface-2);
+}
+
+/* Left: persistent scene hierarchy, independent from whichever right context is open. */
+
+.spatial-editor .scene-panel,
+.spatial-editor.world-first .scene-panel {
+  position: absolute;
+  z-index: 24;
+  top: 64px;
+  left: 12px;
+  bottom: 64px;
+  width: 252px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0,1fr) auto;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 14px;
+  background: rgba(20,21,24,.92);
+  box-shadow: var(--studio-shadow-float);
+  backdrop-filter: blur(18px) saturate(112%);
+}
+
+.spatial-editor .scene-panel-heading {
+  min-height: 52px;
+  padding: 10px 12px;
+}
+
+.spatial-editor .scene-panel-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 0 7px;
+  padding: 3px;
+  border: 1px solid var(--studio-border);
+  border-radius: 9px;
+  background: rgba(10,11,13,.38);
+}
+
+.spatial-editor .scene-panel-tabs button {
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--studio-text-3);
+  background: transparent;
+  cursor: pointer;
+  font: 570 9px/1 var(--studio-font-ui);
+}
+
+.spatial-editor .scene-panel-tabs button:hover {
+  color: var(--studio-text-2);
+  background: var(--studio-surface-2);
+}
+
+.spatial-editor .scene-panel-tabs button.active {
+  color: var(--studio-text);
+  background: var(--studio-surface-3);
+}
+
+.spatial-editor .scene-panel-body {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0,1fr);
+  overflow: hidden;
+}
+
+.spatial-editor .scene-world-card {
+  margin: 6px 7px 3px;
+}
+
+.spatial-editor .scene-search {
+  padding: 5px 7px 4px;
+}
+
+.spatial-editor .scene-search input {
+  height: 32px;
+  border-color: var(--studio-border);
+  background: rgba(10,11,13,.48);
+}
+
+.spatial-editor .scene-section-heading {
+  padding: 10px 11px 7px;
+}
+
+.spatial-editor .scene-object-list {
+  padding: 0 6px 8px;
+}
+
+.spatial-editor .scene-asset-search {
+  padding-top: 9px;
+}
+
+.spatial-editor .scene-asset-list {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  overflow: auto;
+  padding: 0 6px 8px;
+  scrollbar-width: thin;
+}
+
+.spatial-editor .scene-asset-row {
+  min-width: 0;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 24px minmax(0,1fr) 28px;
+  gap: 7px;
+  align-items: center;
+  padding: 5px 5px 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--studio-text-2);
+  background: transparent;
+  cursor: grab;
+}
+
+.spatial-editor .scene-asset-row:hover {
+  background: var(--studio-surface-2);
+}
+
+.spatial-editor .scene-asset-row:active {
+  cursor: grabbing;
+}
+
+.spatial-editor .scene-asset-glyph {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  color: #aebbe0;
+  background: rgba(111,156,255,.10);
+  font: 650 10px/1 var(--studio-font-mono);
+}
+
+.spatial-editor .scene-asset-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.spatial-editor .scene-asset-copy strong,
+.spatial-editor .scene-asset-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spatial-editor .scene-asset-copy strong {
+  color: var(--studio-text-2);
+  font-size: 10px;
+  font-weight: 570;
+}
+
+.spatial-editor .scene-asset-copy small {
+  color: var(--studio-text-3);
+  font: 500 7.5px/1.2 var(--studio-font-mono);
+}
+
+.spatial-editor .scene-asset-row > button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--studio-text-3);
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.spatial-editor .scene-asset-row > button:hover {
+  border-color: var(--studio-border);
+  color: var(--studio-text);
+  background: var(--studio-surface-3);
+}
+
+.spatial-editor .scene-panel-footer {
+  min-height: 43px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 6px;
+  border-top: 1px solid var(--studio-border);
+}
+
+.spatial-editor .scene-panel-footer button {
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--studio-text-3);
+  background: transparent;
+  cursor: pointer;
+  font: 560 9px/1 var(--studio-font-ui);
+}
+
+.spatial-editor .scene-panel-footer button:hover {
+  border-color: var(--studio-border);
+  color: var(--studio-text);
+  background: var(--studio-surface-2);
+}
+
+.spatial-editor .scene-panel-footer button:last-child {
+  color: #dbe6ff;
+  background: rgba(111,156,255,.12);
+}
+
+/* Right: one contextual surface. Internal engineering tabs remain in the DOM
+ * as compatibility wiring, but navigation now lives in the workspace dock.
+ */
+
+.spatial-editor .panel,
+.spatial-editor.world-first .panel {
+  position: absolute;
+  z-index: 24;
+  top: 64px;
+  right: 12px;
+  bottom: 64px;
+  left: auto;
+  width: min(364px, calc(100vw - 288px));
+  max-height: none;
+  display: none;
+  grid-template-rows: minmax(0,1fr);
+  overflow: hidden;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 14px;
+  background: rgba(20,21,24,.94);
+  box-shadow: var(--studio-shadow-float);
+  backdrop-filter: blur(18px) saturate(112%);
+}
+
+.spatial-editor.context-open .panel {
+  display: grid;
+}
+
+.spatial-editor .panel-tabs {
+  display: none;
+}
+
+/* Top-center editing tools: a separate floating control island. */
+
+.spatial-editor .editor-toolbar,
+.spatial-editor.world-first .editor-toolbar {
+  z-index: 36;
+  top: 12px;
+  left: 50%;
+  right: auto;
+  max-width: min(620px, calc(100vw - 760px));
+  min-width: 0;
+  transform: translateX(-50%);
+  border-color: var(--studio-border-strong);
+  border-radius: 12px;
+  background: rgba(20,21,24,.92);
+  box-shadow: var(--studio-shadow);
+  backdrop-filter: blur(18px) saturate(112%);
+}
+
+.spatial-editor .editor-toolbar button,
+.spatial-editor .toolbar-more summary {
+  height: 30px;
+  border-radius: 8px;
+}
+
+.spatial-editor .editor-toolbar button.active {
+  border-color: rgba(111,156,255,.30);
+  background: rgba(111,156,255,.18);
+}
+
+/* Bottom workspace switcher. WORLD / CREATE / AGENT are primary; utility
+ * surfaces stay reachable without competing for first-level meaning.
+ */
+
+.spatial-editor .world-dock {
+  position: absolute;
+  z-index: 42;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 24px);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 12px;
+  background: rgba(20,21,24,.94);
+  box-shadow: var(--studio-shadow-float);
+  backdrop-filter: blur(18px) saturate(112%);
+}
+
+.spatial-editor .world-dock button {
+  min-width: 64px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--studio-text-3);
+  background: transparent;
+  font: 600 9.5px/1 var(--studio-font-ui);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.spatial-editor .world-dock button:hover {
+  color: var(--studio-text);
+  background: var(--studio-surface-hover);
+}
+
+.spatial-editor .world-dock button.active {
+  color: var(--studio-text);
+  background: var(--studio-surface-3);
+}
+
+.spatial-editor .world-dock button[data-dock-group="utility"] {
+  min-width: 48px;
+  color: #747780;
+  font-size: 8.5px;
+  text-transform: none;
+}
+
+.spatial-editor .world-dock button[data-dock-view="runs"] {
+  margin-left: 7px;
+  box-shadow: -5px 0 0 -4px var(--studio-border-strong);
+}
+
+.spatial-editor .world-dock .dock-extension {
+  min-width: 34px;
+  margin-left: 3px;
+  border-left-color: var(--studio-border);
+  text-transform: none;
+}
+
+/* Task input and recent outputs belong to the central canvas, never to the
+ * contextual side panel.
+ */
+
+.spatial-editor .command-bar,
+.spatial-editor.world-first .command-bar {
+  z-index: 32;
+  left: calc(50% - 54px);
+  right: auto;
+  bottom: 66px;
+  width: min(620px, calc(100vw - 700px));
+  transform: translateX(-50%);
+}
+
+.spatial-editor .artifact-tray-host {
+  z-index: 20;
+  left: 280px;
+  right: 392px;
+  bottom: 66px;
+}
+
+.spatial-editor:not(.context-open) .artifact-tray-host {
+  right: 20px;
+}
+
+.spatial-editor:not(.context-open) .panel,
+.spatial-editor:not(.context-open) .command-bar,
+.spatial-editor:not(.context-open) .artifact-tray-host {
+  display: none;
+}
+
+.spatial-editor[data-context-view="create"].context-open .artifact-tray-host {
+  display: block;
+}
+
+.spatial-editor[data-context-view="task"].context-open .command-bar {
+  display: grid;
+}
+
+/* Cinematic still means canvas-only. */
+
+.spatial-editor.cinematic .brandbar,
+.spatial-editor.cinematic .scene-panel,
+.spatial-editor.cinematic .panel,
+.spatial-editor.cinematic .world-dock,
+.spatial-editor.cinematic .editor-toolbar,
+.spatial-editor.cinematic .command-bar,
+.spatial-editor.cinematic .artifact-tray-host {
+  display: none;
+}
+
+/* Responsive collapse: preserve the canvas before preserving chrome. */
+
+@media (max-width: 1180px) {
+  .spatial-editor .scene-panel,
+  .spatial-editor.world-first .scene-panel {
+    display: none;
+  }
+
+  .spatial-editor .panel,
+  .spatial-editor.world-first .panel {
+    width: 340px;
+  }
+
+  .spatial-editor .artifact-tray-host {
+    left: 20px;
+    right: 368px;
+  }
+
+  .spatial-editor .editor-toolbar,
+  .spatial-editor.world-first .editor-toolbar {
+    max-width: min(520px, calc(100vw - 620px));
+  }
+
+  .spatial-editor .command-bar,
+  .spatial-editor.world-first .command-bar {
+    left: calc(50% - 170px);
+    width: min(560px, calc(100vw - 400px));
+  }
+}
+
+@media (max-width: 860px) {
+  .spatial-editor .brandbar,
+  .spatial-editor.world-first .brandbar {
+    inset: 8px 8px auto;
+  }
+
+  .spatial-editor .brand-lockup > span,
+  .spatial-editor .runtime-status span,
+  .spatial-editor .header-button {
+    display: none;
+  }
+
+  .spatial-editor .panel,
+  .spatial-editor.world-first .panel {
+    top: 58px;
+    right: 8px;
+    bottom: 58px;
+    left: 8px;
+    width: auto;
+  }
+
+  .spatial-editor .editor-toolbar,
+  .spatial-editor.world-first .editor-toolbar {
+    top: 58px;
+    max-width: calc(100vw - 20px);
+  }
+
+  .spatial-editor .artifact-tray-host {
+    display: none !important;
+  }
+
+  .spatial-editor .command-bar,
+  .spatial-editor.world-first .command-bar {
+    left: 10px;
+    right: 10px;
+    bottom: 58px;
+    width: auto;
+    transform: none;
+  }
+
+  .spatial-editor .world-dock {
+    bottom: 8px;
+  }
+}
+
+@media (max-width: 620px) {
+  .spatial-editor .brand-lockup strong {
+    display: none;
+  }
+
+  .spatial-editor .brand-lockup {
+    padding: 0 6px;
+  }
+
+  .spatial-editor .world-select {
+    max-width: 132px;
+  }
+
+  .spatial-editor .world-dock button {
+    min-width: 50px;
+    padding-inline: 8px;
+    font-size: 8.5px;
+  }
+
+  .spatial-editor .world-dock button[data-dock-group="utility"] {
+    min-width: 42px;
+  }
+}

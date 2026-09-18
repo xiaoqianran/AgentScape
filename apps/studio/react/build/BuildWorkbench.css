@@ -140,7 +140,7 @@
 
 .build-mode-tabs button {
   min-width: 0;
-  min-height: 48px;
+  min-height: 52px;
   display: grid;
   align-content: center;
   gap: 3px;
@@ -148,7 +148,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   color: var(--text-muted);
-  background: rgba(14,14,16,.42);
+  background: rgba(14,14,16,.32);
   cursor: pointer;
   text-align: left;
 }
@@ -159,10 +159,10 @@
 }
 
 .build-mode-tabs button.active {
-  border-color: rgba(210,188,255,.52);
-  color: #eadfff;
-  background: rgba(81,54,120,.28);
-  box-shadow: inset 0 0 0 1px rgba(210,188,255,.05);
+  border-color: rgba(111,156,255,.42);
+  color: #e7eeff;
+  background: rgba(111,156,255,.12);
+  box-shadow: inset 0 0 0 1px rgba(111,156,255,.04);
 }
 
 .build-mode-tabs button.available::after {
@@ -196,7 +196,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 680;
 }
 
@@ -225,7 +225,7 @@
   padding: 11px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: rgba(14,14,16,.38);
+  background: rgba(14,14,16,.28);
 }
 
 .build-mode-copy {
@@ -292,7 +292,7 @@
   grid-template-columns: auto minmax(0,1fr);
   align-items: start;
   gap: 7px;
-  color: #978d79;
+  color: var(--text-muted);
   font-size: 8.5px;
   line-height: 1.35;
   cursor: pointer;
@@ -327,14 +327,14 @@
 
 .build-generate {
   flex: 1;
-  border: 1px solid var(--accent);
-  color: #35184e;
-  background: var(--accent);
+  border: 1px solid #84a9ff;
+  color: #101621;
+  background: #82a7fb;
 }
 
 .build-generate:hover:not(:disabled) {
-  background: #e8dcff;
-  box-shadow: 0 0 20px rgba(210,188,255,.14);
+  background: #9ebcff;
+  box-shadow: none;
 }
 
 .build-capability-state {
@@ -629,6 +629,83 @@
 .build-source-artifact button:disabled {
   opacity: .45;
   cursor: default;
+}
+
+.build-source-empty {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px dashed var(--studio-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: rgba(8,8,10,.26);
+  font-size: 9px;
+}
+
+.build-source-empty button {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--studio-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: var(--studio-surface-2);
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 620;
+}
+
+.build-technical-options,
+.image-object-advanced {
+  border-top: 1px solid var(--studio-border);
+  padding-top: 8px;
+}
+
+.build-technical-options > summary,
+.image-object-advanced > summary {
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  list-style: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: 560 8.5px/1 var(--font-ui);
+}
+
+.build-technical-options > summary::-webkit-details-marker,
+.image-object-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.build-technical-options > summary::after,
+.image-object-advanced > summary::after {
+  content: "+";
+  margin-left: auto;
+  color: #666a73;
+}
+
+.build-technical-options[open] > summary::after,
+.image-object-advanced[open] > summary::after {
+  content: "−";
+}
+
+.build-technical-options[open],
+.image-object-advanced[open] {
+  display: grid;
+  gap: 8px;
+}
+
+.image-object-advanced > label {
+  display: grid;
+  gap: 5px;
+}
+
+.image-object-advanced select {
+  width: 100%;
+  min-height: 30px;
 }
 
 .build-provider-field {

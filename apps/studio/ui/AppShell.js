@@ -7,6 +7,7 @@ import { sceneExplorerMarkup } from './scene/SceneExplorer.js';
 import { createStudioChrome } from './chrome/StudioChrome.js';
 import './content/StudioContent.css';
 import './chrome/studio-shell.css';
+import './chrome/studio-spatial.css';
 import { useStudioStore } from '../react/state/studioStore.ts';
 
 export function createAppShell({ app, environmentDefinition, environments }) {
@@ -16,7 +17,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     </option>`).join('');
 
   app.innerHTML = `
-    <main class="shell${environmentDefinition.worldFirst ? ' world-first' : ''}" data-world="${environmentDefinition.id}" data-context-view="create">
+    <main class="shell spatial-editor${environmentDefinition.worldFirst ? ' world-first' : ''}" data-world="${environmentDefinition.id}" data-context-view="create">
       <header class="brandbar">
         <div class="brand-lockup">
           <strong>AgentScape <em>Studio</em></strong>

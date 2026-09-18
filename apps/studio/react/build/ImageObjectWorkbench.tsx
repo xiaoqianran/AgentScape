@@ -212,11 +212,13 @@ export function ImageObjectWorkbench({controller, paired, disabled, visible, onC
       <label className="build-local-image-file">选择图片<input id="build-local-image-file" type="file" multiple accept="image/png,image/jpeg,image/webp" disabled={unavailable} onChange={(event)=>{const files=Array.from(event.target.files||[]);event.currentTarget.value='';void ingest(files);}} /></label>
       <small>原图和草稿保存在此浏览器；开始生成时才上传所选物体。</small>
     </div>
-    <div className="image-object-heading"><strong>原图 · {workspace.sources.length}</strong><button type="button" disabled={unavailable || !workspace.sources.length} onClick={()=>safe(()=>commit((w)=>({...w,drafts:[...w.drafts,...w.sources.filter((s)=>!w.drafts.some((d)=>d.sourceId===s.id)).map((s)=>newDraft(s))]})))}>每张原图添加一个物体</button></div>
-    <div className="image-source-list">{workspace.sources.map((source)=><div className="image-source-card" key={source.id} data-active={active?.id===source.id}>
-      <button type="button" disabled={unavailable} onClick={()=>choose(source,'source')}><Thumbnail source={source}/><span>{source.name}</span></button>
-      <button type="button" disabled={unavailable || workspace.drafts.some((d)=>d.sourceId===source.id)} title="先移除此原图的物体草稿，再移除原图" onClick={()=>safe(async()=>{await commit((w)=>({...w,sources:w.sources.filter((s)=>s.id!==source.id)}));if(active?.id===source.id)setActive(null);})}>移除原图</button>
-    </div>)}</div>
+    {workspace.sources.length ? <>
+      <div className="image-object-heading"><strong>原图 · {workspace.sources.length}</strong><button type="button" disabled={unavailable} onClick={()=>safe(()=>commit((w)=>({...w,drafts:[...w.drafts,...w.sources.filter((s)=>!w.drafts.some((d)=>d.sourceId===s.id)).map((s)=>newDraft(s))]})))}>每张原图添加一个物体</button></div>
+      <div className="image-source-list">{workspace.sources.map((source)=><div className="image-source-card" key={source.id} data-active={active?.id===source.id}>
+        <button type="button" disabled={unavailable} onClick={()=>choose(source,'source')}><Thumbnail source={source}/><span>{source.name}</span></button>
+        <button type="button" disabled={unavailable || workspace.drafts.some((d)=>d.sourceId===source.id)} title="先移除此原图的物体草稿，再移除原图" onClick={()=>safe(async()=>{await commit((w)=>({...w,sources:w.sources.filter((s)=>s.id!==source.id)}));if(active?.id===source.id)setActive(null);})}>移除原图</button>
+      </div>)}</div>
+    </> : null}
     {activeSource && url ? <div className="image-object-edit">
       <label>物体名称<input aria-label="物体名称" value={name} disabled={unavailable} onChange={(event)=>setName(event.target.value)} placeholder="例如：红色杯子"/></label>
       <LocalImageEditor key={`${activeSource.id}:${editorVersion}:${url}`} ref={editor} sourceUrl={url} sourceWidth={activeSource.width} sourceHeight={activeSource.height} disabled={unavailable}/>
@@ -227,8 +229,9 @@ export function ImageObjectWorkbench({controller, paired, disabled, visible, onC
       </div>
       <small>本地候选只分离前景区域，不识别类别；复杂照片请框选并用画笔修边。</small>
     </div>:null}
-    <div className="image-object-heading"><strong>物体 · {workspace.drafts.length}</strong><span>先检查图片和名称，再确认生成输入</span></div>
-    <div className="image-object-list">{workspace.drafts.map((draft)=><article key={draft.id} className="image-object-card" data-status={draft.status}>
+    {workspace.drafts.length ? <>
+      <div className="image-object-heading"><strong>物体 · {workspace.drafts.length}</strong><span>先检查图片和名称，再确认生成输入</span></div>
+      <div className="image-object-list">{workspace.drafts.map((draft)=><article key={draft.id} className="image-object-card" data-status={draft.status}>
       <Thumbnail source={draft}/>
       <div className="image-object-details">
         <label><input type="checkbox" aria-label={`选择 ${draft.name}`} disabled={unavailable||draft.status==='done'} checked={draft.selected} onChange={(event)=>safe(()=>update(draft.id,{selected:event.target.checked}))}/>{draft.name}</label>
@@ -246,16 +249,20 @@ export function ImageObjectWorkbench({controller, paired, disabled, visible, onC
           <button type="button" disabled={unavailable} onClick={()=>safe(async()=>{await commit((w)=>({...w,drafts:w.drafts.filter((d)=>d.id!==draft.id)}));if(active?.id===draft.id)setActive(null);})}>移除草稿</button>
         </div>
       </div>
-    </article>)}</div>
-    <div className="image-object-queue">
-      <label>3D 生成器<select id="build-batch-provider" name="build-batch-provider" aria-label="批量 3D 生成器" value={provider} disabled={unavailable} onChange={(event)=>setProvider(event.target.value)}><option value="auto">自动选择</option>{providers.map((p:any)=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
-      {!paired?<button type="button" disabled={unavailable} onClick={onConnect}>连接生成器</button>:null}
-      {paired&&!providers.length?<small>尚无可用的图生 3D 能力；可以继续准备草稿。</small>:null}
-      <label><input id="build-batch-external-compute" name="build-batch-external-compute" type="checkbox" checked={confirmed} disabled={unavailable} onChange={(event)=>setConfirmed(event.target.checked)}/>允许本批所选物体使用外部 3D 生成资源</label>
-      <div className="build-local-image-actions"><button id="build-generate-objects" type="button" disabled={unavailable||!paired||!confirmed||!runnable.length||!providers.length} onClick={()=>safe(generate)}>生成 / 继续所选 {runnable.length} 个物体</button>
-      {busy?<button type="button" disabled={stopping} onClick={()=>{stop.current=true;setStopping(true);setNotice('将在当前任务完成后停止，不再提交下一项。');}}>{stopping?'等待当前项结束…':'当前项完成后停止'}</button>:null}</div>
-      <small>草稿刷新后保留。中断任务继续时查询原任务；移除草稿不会删除已生成资产或取消云端任务。</small>
-    </div>
+      </article>)}</div>
+      <div className="image-object-queue">
+        {!paired?<button type="button" disabled={unavailable} onClick={onConnect}>连接生成器</button>:null}
+        {paired&&!providers.length?<small>尚无可用的图生 3D 能力；可以继续准备草稿。</small>:null}
+        <label><input id="build-batch-external-compute" name="build-batch-external-compute" type="checkbox" checked={confirmed} disabled={unavailable} onChange={(event)=>setConfirmed(event.target.checked)}/>允许本批所选物体使用外部 3D 生成资源</label>
+        <div className="build-local-image-actions"><button id="build-generate-objects" type="button" disabled={unavailable||!paired||!confirmed||!runnable.length||!providers.length} onClick={()=>safe(generate)}>生成 / 继续所选 {runnable.length} 个物体</button>
+        {busy?<button type="button" disabled={stopping} onClick={()=>{stop.current=true;setStopping(true);setNotice('将在当前任务完成后停止，不再提交下一项。');}}>{stopping?'等待当前项结束…':'当前项完成后停止'}</button>:null}</div>
+        <details className="image-object-advanced">
+          <summary>Advanced options</summary>
+          <label>3D Provider<select id="build-batch-provider" name="build-batch-provider" aria-label="批量 3D 生成器" value={provider} disabled={unavailable} onChange={(event)=>setProvider(event.target.value)}><option value="auto">自动选择</option>{providers.map((p:any)=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
+          <small>草稿刷新后保留。中断任务继续时查询原任务；移除草稿不会删除已生成资产或取消云端任务。</small>
+        </details>
+      </div>
+    </> : null}
     {notice?<p className="image-object-notice" role="status">{notice}</p>:null}
   </section>;
 }

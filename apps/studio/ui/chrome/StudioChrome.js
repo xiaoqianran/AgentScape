@@ -38,7 +38,10 @@ export function createStudioChrome({
   const syncDock = () => {
     if (!dock) return;
     for (const button of dock.querySelectorAll('[data-dock-view]')) {
-      const selected = button.dataset.dockView === activeView && shell.classList.contains('context-open');
+      const contextOpen = shell.classList.contains('context-open');
+      const selected = button.dataset.dockView === 'world'
+        ? !contextOpen
+        : button.dataset.dockView === activeView && contextOpen;
       button.classList.toggle('active', selected);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     }
@@ -103,35 +106,33 @@ export function createStudioChrome({
       notifyLayout();
       return;
     }
-    if (environmentDefinition.worldFirst && shell.classList.contains('context-open')) closeContext();
+    if (shell.classList.contains('context-open')) closeContext();
   });
 
-  if (environmentDefinition.worldFirst) {
-    dock = document.createElement('nav');
-    dock.className = 'world-dock';
-    dock.setAttribute('aria-label', '世界工具');
+  dock = document.createElement('nav');
+  dock.className = 'world-dock';
+  dock.setAttribute('aria-label', 'Studio workspace');
 
-    const entries = [
-      ['world', '世界'],
-      ['create', 'Build'],
-      ['task', 'Agent'],
-      ['resources', 'Library'],
-      ['inspect', 'Inspect'],
-      ['runs', 'Runs']
-    ];
+  const entries = [
+    { view:'world', label:'World', group:'primary' },
+    { view:'create', label:'Create', group:'primary' },
+    { view:'task', label:'Agent', group:'primary' },
+    { view:'runs', label:'Runs', group:'utility' }
+  ];
 
-    for (const [view, label] of entries) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.dataset.dockView = view;
-      button.textContent = label;
-      button.setAttribute('aria-pressed', 'false');
-      listen(button, 'click', () => view === 'world' ? closeContext() : setView(view));
-      dock.append(button);
-    }
-
-    shell.append(dock);
+  for (const { view, label, group } of entries) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.dockView = view;
+    button.dataset.dockGroup = group;
+    button.textContent = label;
+    button.setAttribute('aria-pressed', 'false');
+    listen(button, 'click', () => view === 'world' ? closeContext() : setView(view));
+    dock.append(button);
   }
+
+  shell.append(dock);
+  syncDock();
 
   const addDockAction = ({ id, label, title = label, onClick, className = '' } = {}) => {
     if (!dock || !id || !label || typeof onClick !== 'function') return null;

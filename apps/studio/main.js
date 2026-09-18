@@ -119,7 +119,6 @@ async function main() {
   window.addEventListener('pagehide',()=>worldInteraction?.dispose(),{once:true});
   const worldContext = ui.worldFirst ? mountWorldContext({ world, editor, tools, ui }) : null;
   window.addEventListener('pagehide', () => worldContext?.dispose(), { once:true });
-  const sceneExplorer = mountSceneExplorer({ root: ui.scenePanel, world, editor, environmentDefinition });
   const runsPanel = new RunsPanel({ root: ui.panel });
   let taskPanel = null;
   const generatedPlacementDemo = new GeneratedPlacementDemoRunner({ world, log: (text, kind) => taskPanel?.log?.(text, kind) });
@@ -175,6 +174,16 @@ async function main() {
     events:world.events,
     getEnvironment:()=>world.environment,
     environments:ENVIRONMENTS
+  });
+  const sceneExplorer = mountSceneExplorer({
+    root:ui.scenePanel,
+    world,
+    editor,
+    environmentDefinition,
+    resources,
+    placement,
+    openLibrary:()=>ui.setView('resources'),
+    openCreate:()=>ui.setView('create')
   });
   const buildSession = new BuildSession({ mode:'image' });
   const buildController = new StudioBuildController({
