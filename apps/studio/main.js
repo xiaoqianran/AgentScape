@@ -70,6 +70,7 @@ async function main() {
     : resolveEnvironment(params.get('world'));
   const environmentFactory = await environmentDefinition.load();
   const ui = createAppShell({ app, environmentDefinition, environments: ENVIRONMENTS });
+  window.addEventListener('pagehide', () => ui.destroyChrome?.(), { once:true });
   const inlineDescriptors = environmentDefinition.cabin ? CABIN_INLINE_EDITORS : (environmentDefinition.inlineEditors || null);
   const inlineEditorHost = inlineDescriptors ? createInlineEditors(ui.shell, inlineDescriptors) : null;
   ui.setRuntimeStatus('loading', '启动中');
@@ -143,13 +144,12 @@ async function main() {
     editor,
     log: (text, kind) => taskPanel.log(text, kind)
   });
-  // World-level entry for ground placement: the generated object lands where the user points.
-  if (ui.dock) {
-    const placementButton = document.createElement('button');
-    placementButton.type = 'button';
-    placementButton.id = 'generation-anchor';
-    placementButton.textContent = '生成落点';
-    placementButton.addEventListener('click', () => {
+  // Presentation owns dock DOM; the application only registers an action.
+  ui.addDockAction?.({
+    id:'generation-anchor',
+    label:'生成落点',
+    title:'在当前世界指定生成物落点',
+    onClick:() => {
       const ready = useStudioStore.getState().buildOutputs.find((output) => output.kind === 'asset');
       if (ready && placement.armGroundPlacement(ready.primaryId)) {
         taskPanel.log(`点击地面放置生成物：${ready.prompt || ready.primaryId}`, 'tool');
@@ -161,9 +161,8 @@ async function main() {
         return;
       }
       placement.armGenerationAnchor();
-    });
-    ui.dock.append(placementButton);
-  }
+    }
+  });
   const openGeneratedWorld = async (manifestArtifactId) => {
     const nextEnvironment=await materializePersistedWorldEnvironment(world,manifestArtifactId);
     const result=await replaceStudioEnvironment(world,nextEnvironment,{reason:'studio-generated-world'});

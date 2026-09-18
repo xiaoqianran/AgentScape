@@ -4,6 +4,8 @@ import { runsPanelMarkup } from './runs/RunsPanel.js';
 import { developerSettingsMarkup } from './developer/DeveloperSettings.js';
 import { resourceLibraryMarkup } from './resources/ResourceLibrary.js';
 import { sceneExplorerMarkup } from './scene/SceneExplorer.js';
+import { createStudioChrome } from './chrome/StudioChrome.js';
+import './chrome/studio-shell.css';
 import { useStudioStore } from '../react/state/studioStore.ts';
 
 export function createAppShell({ app, environmentDefinition, environments }) {
@@ -117,86 +119,36 @@ export function createAppShell({ app, environmentDefinition, environments }) {
 
   const shell = app.querySelector('.shell');
   const panel = app.querySelector('.panel');
-  const tabs = [...app.querySelectorAll('[data-panel-view]')];
-  const runtimeStatus = app.querySelector('#runtime-status');
-  const runtimeStatusLabel = runtimeStatus.querySelector('span');
-  const commandForm = app.querySelector('#command');
-  const commandInput = app.querySelector('#input');
-  const commandButton = commandForm.querySelector('button[type="submit"]');
-  const cinematicButton = app.querySelector('#cinematic-toggle');
-  let onLayoutChange = () => {};
-
-  const setView = (view) => {
-    shell.classList.add('context-open');
-    panel.dataset.view = view;
-    shell.dataset.contextView = view;
-    useStudioStore.getState().setActiveContextView(view);
-    for (const tab of tabs) {
-      const active = tab.dataset.panelView === view;
-      tab.classList.toggle('active', active);
-      tab.setAttribute('aria-selected', active ? 'true' : 'false');
-    }
-    requestAnimationFrame(() => onLayoutChange());
-  };
-
-  let runtimeRecoveryAction = null;
-  const setRuntimeStatus = (state, label) => {
-    runtimeStatus.dataset.state = state;
-    runtimeStatusLabel.textContent = label;
-  };
-  const setRuntimeRecoveryAction = (handler, label = null) => {
-    runtimeRecoveryAction = typeof handler === 'function' ? handler : null;
-    runtimeStatus.disabled = !runtimeRecoveryAction;
-    runtimeStatus.classList.toggle('is-actionable', Boolean(runtimeRecoveryAction));
-    if (label) runtimeStatusLabel.textContent = label;
-  };
-  runtimeStatus.addEventListener('click', () => runtimeRecoveryAction?.());
-
-  tabs.forEach((tab) => tab.addEventListener('click', () => setView(tab.dataset.panelView)));
-  let dock = null;
-  if (environmentDefinition.worldFirst) {
-    dock = document.createElement('nav');
-    dock.className = 'world-dock';
-    dock.setAttribute('aria-label', '世界工具');
-    for (const [view, label] of [['world','返回世界'],['create','Build'],['task','Agent'],['resources','资源'],['inspect','Inspect'],['runs','记录']]) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = label;
-      button.addEventListener('click', () => {
-        if (view === 'world') shell.classList.remove('context-open');
-        else setView(view);
-      });
-      dock.append(button);
-    }
-    shell.append(dock);
-  }
-  app.querySelector('#build-close-advanced')?.addEventListener('click', () => panel.classList.remove('build-advanced-open'));
-  app.querySelector('#world-select').addEventListener('change', (event) => {
-    const url = new URL(location.href);
-    url.searchParams.set('world', event.target.value);
-    location.href = url.toString();
+  const chrome = createStudioChrome({
+    app,
+    shell,
+    panel,
+    environmentDefinition,
+    onViewChange: (view) => useStudioStore.getState().setActiveContextView(view)
   });
-  cinematicButton.addEventListener('click', () => {
-    const enabled = shell.classList.toggle('cinematic');
-    cinematicButton.textContent = enabled ? '返回编辑' : '沉浸模式';
-    requestAnimationFrame(() => onLayoutChange());
+
+  app.querySelector('#build-close-advanced')?.addEventListener('click', () => {
+    panel.classList.remove('build-advanced-open');
   });
 
   return {
     shell,
     panel,
-    dock,
+    dock: chrome.dock,
     scenePanel: app.querySelector('.scene-panel'),
     viewport: app.querySelector('#viewport'),
-    commandForm,
-    commandInput,
-    commandButton,
+    commandForm: chrome.commandForm,
+    commandInput: chrome.commandInput,
+    commandButton: chrome.commandButton,
     developerButton: app.querySelector('#open-developer'),
     developerDialog: app.querySelector('#developer-dialog'),
-    setView,
+    setView: chrome.setView,
+    closeContext: chrome.closeContext,
+    addDockAction: chrome.addDockAction,
     worldFirst: Boolean(environmentDefinition.worldFirst),
-    setRuntimeStatus,
-    setRuntimeRecoveryAction,
-    setLayoutChangeHandler(handler) { onLayoutChange = handler || (() => {}); }
+    setRuntimeStatus: chrome.setRuntimeStatus,
+    setRuntimeRecoveryAction: chrome.setRuntimeRecoveryAction,
+    setLayoutChangeHandler: chrome.setLayoutChangeHandler,
+    destroyChrome: chrome.destroy
   };
 }

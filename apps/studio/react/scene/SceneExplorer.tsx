@@ -43,6 +43,7 @@ function SceneExplorerView({ world, editor, environmentDefinition }: SceneExplor
   const selectedObjectId = useStudioStore((state) => state.selectedObjectId);
   const setSelectedObjectId = useStudioStore((state) => state.setSelectedObjectId);
   const [revision, setRevision] = useState(0);
+  const [query, setQuery] = useState('');
 
   useLayoutEffect(() => {
     const unsubscribers: Array<() => void> = [];
@@ -70,6 +71,15 @@ function SceneExplorerView({ world, editor, environmentDefinition }: SceneExplor
     () => collectSceneObjectSummaries(world.queries.listObjects(), selectedObjectId),
     [revision, selectedObjectId, world.queries]
   );
+  const visibleObjects = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return objects;
+    return objects.filter((record: any) => (
+      [record.label, record.id, record.assetId, record.type]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle))
+    ));
+  }, [objects, query]);
 
   const selectObject = (id: string) => {
     setSelectedObjectId(id);
@@ -92,14 +102,26 @@ function SceneExplorerView({ world, editor, environmentDefinition }: SceneExplor
           <small>Current environment</small>
         </div>
       </div>
+      <label className="scene-search">
+        <span className="sr-only">搜索场景对象</span>
+        <input
+          id="scene-object-search"
+          name="sceneObjectSearch"
+          type="search"
+          value={query}
+          placeholder="Search objects"
+          aria-label="搜索场景对象"
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </label>
       <div className="scene-section-heading">
         <span>Scene</span>
-        <small>Objects</small>
+        <small>{visibleObjects.length} Objects</small>
       </div>
       <div id="scene-object-list" className="scene-object-list">
-        {objects.length === 0 ? (
-          <div className="scene-empty">No runtime objects</div>
-        ) : objects.map((record: any) => (
+        {visibleObjects.length === 0 ? (
+          <div className="scene-empty">{objects.length ? 'No matching objects' : 'No runtime objects'}</div>
+        ) : visibleObjects.map((record: any) => (
           <button
             key={record.id}
             type="button"

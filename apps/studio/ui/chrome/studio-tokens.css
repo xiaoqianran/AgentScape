@@ -1,0 +1,36 @@
+:root {
+  color-scheme: dark;
+  --studio-font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --studio-font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+
+  --studio-bg: #141518;
+  --studio-surface-1: #1a1b1f;
+  --studio-surface-2: #202126;
+  --studio-surface-3: #282a30;
+  --studio-surface-hover: #303239;
+  --studio-viewport: #101114;
+
+  --studio-border: rgba(255,255,255,.085);
+  --studio-border-strong: rgba(255,255,255,.15);
+  --studio-text: #f2f2f4;
+  --studio-text-2: #c1c2c8;
+  --studio-text-3: #85878f;
+
+  --studio-accent: #6f9cff;
+  --studio-accent-soft: rgba(111,156,255,.14);
+  --studio-success: #74d6a0;
+  --studio-warning: #e6ba73;
+  --studio-danger: #ef8c92;
+
+  --studio-radius-sm: 7px;
+  --studio-radius-md: 10px;
+  --studio-radius-lg: 13px;
+  --studio-shadow: 0 12px 36px rgba(0,0,0,.28);
+  --studio-shadow-float: 0 16px 44px rgba(0,0,0,.38);
+
+  --studio-header-h: 50px;
+  --studio-gap: 8px;
+  --studio-pad: 8px;
+  --studio-scene-w: 242px;
+  --studio-panel-w: 356px;
+}

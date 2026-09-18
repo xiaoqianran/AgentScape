@@ -6,6 +6,18 @@
 
 任务见 tasks.jsonl。验证：npm run test:studio、npm run typecheck、npm run build。
 
+## Studio UI 边界
+
+Studio 采用 editor-first 的展示层边界，避免视觉设计反向侵入 World / Agent / Asset / Generation 主链路：
+
+- `main.js` 只负责产品装配与用例编排，不创建 Studio chrome DOM。
+- `ui/AppShell.js` 是稳定 UI facade，向应用层暴露 `setView`、`addDockAction`、状态与布局回调。
+- `ui/chrome/StudioChrome.js` 只管理导航、面板、Dock、状态和 shell 生命周期。
+- `ui/chrome/studio-tokens.css` 定义独立设计 token；`studio-shell.css` 只负责工作区、viewport、outliner、inspector chrome。
+- 业务功能需要进入 Dock 时通过 `addDockAction` 注册动作，不直接 `createElement` / `append` 到 shell。
+
+因此 UI 可以独立演进布局、密度、视觉语言和响应式策略，而无需修改 Runtime 或领域 API。
+
 ## 世界优先体验：林间工坊
 
 访问 `/?world=woodland-workshop`，或从世界选择器选择「林间工坊」。默认世界仍为纪念大厅。
