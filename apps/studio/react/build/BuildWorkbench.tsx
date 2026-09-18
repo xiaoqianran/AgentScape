@@ -83,6 +83,7 @@ type ProviderOption = { id:string; label:string; operation?:string; profiles?:st
 type BuildControllerLike = {
   capabilities: () => CapabilityState;
   providerOptions: (options: { mode:BuildMode; inputType?:'text' | 'image' }) => ProviderOption[];
+  onGenerationState: (listener: () => void) => (() => void);
   connect: (options?: { pairingId?: string | null }) => Promise<{ status?: string; reason?: string; pairingId?: string }>;
   generateImage: (options: { prompt: string; provider?:string | null; onProgress?: (job: any) => void }) => Promise<ImageBuildResult>;
   approveLocalImage: (options: { bytes: Uint8Array; prompt?: string }) => Promise<ImageBuildResult>;
@@ -93,18 +94,11 @@ type BuildControllerLike = {
   openWorld: (manifestArtifactId: string) => Promise<unknown>;
 };
 
-type WorldLike = {
-  environment?: { id?: string; title?: string; label?: string } | null;
-  generationState?: unknown;
-  generation?: {
-    artifacts?: {
-      registry?: { get?: (id: string) => any };
-      byteStore?: { get?: (key: string) => any };
-    };
-  };
-  events: {
-    on: (type: string, listener: () => void) => (() => void) | undefined;
-  };
+type StudioResourcesLike = {
+  currentEnvironment: () => { id?: string | null; title?: string | null; label?: string | null } | null;
+  artifact: (id: string) => any;
+  localArtifact: (id: string) => { descriptor?: any; data?: Uint8Array | ArrayBuffer | null };
+  onEnvironmentChange: (listener: () => void) => (() => void);
 };
 
 type EnvironmentDefinition = {
@@ -114,19 +108,16 @@ type EnvironmentDefinition = {
 
 type BuildWorkbenchProps = {
   root: HTMLElement;
-  world: WorldLike;
+  resources: StudioResourcesLike;
   session: BuildSessionLike;
   controller: BuildControllerLike;
   environmentDefinition?: EnvironmentDefinition | null;
   log?: (text: string, kind?: string) => void;
 };
 
-function localArtifactEntry(world: WorldLike, artifactId: string) {
-  const descriptor = world.generation?.artifacts?.registry?.get?.(artifactId);
-  const location = descriptor?.locations?.find?.((item: any) =>
-    item.kind === 'local-cache' && item.state === 'available' && item.access?.kind === 'cache-key'
-  );
-  return location ? world.generation?.artifacts?.byteStore?.get?.(location.access.key) ?? null : null;
+function localArtifactEntry(resources: StudioResourcesLike, artifactId: string) {
+  const local = resources.localArtifact(artifactId);
+  return local?.data ? { data:local.data } : null;
 }
 
 function capabilityText(caps: CapabilityState, mode: BuildMode) {
@@ -192,9 +183,9 @@ function buildOutputRef(result: BuildResult): BuildOutputRef {
   };
 }
 
-function imageBuildResultFromOutput(world: WorldLike, output: BuildOutputRef): ImageBuildResult {
+function imageBuildResultFromOutput(resources: StudioResourcesLike, output: BuildOutputRef): ImageBuildResult {
   if (output.kind !== 'image') throw new Error('只有 Image Build output 可以作为 Image → 3D 输入');
-  const descriptor = world.generation?.artifacts?.registry?.get?.(output.primaryId);
+  const descriptor = resources.artifact(output.primaryId);
   if (!descriptor?.id || !descriptor?.hash) throw new Error(`Image Artifact 不可用：${output.primaryId}`);
   return {
     kind:'image',
@@ -206,18 +197,18 @@ function imageBuildResultFromOutput(world: WorldLike, output: BuildOutputRef): I
 }
 
 function ImageResultView({
-  world,
+  resources,
   result,
   onGenerate3D
 }: {
-  world: WorldLike;
+  resources: StudioResourcesLike;
   result: ImageBuildResult;
   onGenerate3D: (result: ImageBuildResult) => void;
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const entry = localArtifactEntry(world, result.artifactId);
+    const entry = localArtifactEntry(resources, result.artifactId);
     if (!entry?.data) {
       setPreviewUrl(null);
       return;
@@ -225,7 +216,7 @@ function ImageResultView({
     const next = URL.createObjectURL(new Blob([entry.data as BlobPart], { type: result.artifact?.mime || 'image/png' }));
     setPreviewUrl(next);
     return () => URL.revokeObjectURL(next);
-  }, [result.artifact?.mime, result.artifactId, world]);
+  }, [result.artifact?.mime, result.artifactId, resources]);
 
   return (
     <>
@@ -249,12 +240,12 @@ function ImageResultView({
 }
 
 function AssetResultView({
-  world,
+  resources,
   controller,
   result,
   log
 }: {
-  world: WorldLike;
+  resources: StudioResourcesLike;
   controller: BuildControllerLike;
   result: AssetBuildResult;
   log: (text: string, kind?: string) => void;
@@ -278,7 +269,7 @@ function AssetResultView({
   return (
     <>
       <div className="build-result-body">
-        <ModelArtifactPreview world={world} artifactId={result.asset?.artifactId || result.asset?.generation?.artifactId} label={result.prompt || result.assetId} />
+        <ModelArtifactPreview resources={resources} artifactId={result.asset?.artifactId || result.asset?.generation?.artifactId} label={result.prompt || result.assetId} />
         <div className="build-result-copy">
           <strong>{result.asset?.label || result.prompt || result.assetId}</strong>
           <code>{result.assetId}</code>
@@ -295,12 +286,12 @@ function AssetResultView({
 }
 
 function WorldResultView({
-  world,
+  resources,
   controller,
   result,
   log
 }: {
-  world: WorldLike;
+  resources: StudioResourcesLike;
   controller: BuildControllerLike;
   result: WorldBuildResult;
   log: (text: string, kind?: string) => void;
@@ -325,7 +316,7 @@ function WorldResultView({
   return (
     <>
       <div className="build-result-body">
-        <WorldArtifactPreview world={world} artifacts={result.artifacts} label={result.prompt || 'Generated World'} />
+        <WorldArtifactPreview resources={resources} artifacts={result.artifacts} label={result.prompt || 'Generated World'} />
         <div className="build-result-copy">
           <strong>{result.prompt || 'Generated World'}</strong>
           <code>{result.manifestArtifactId}</code>
@@ -343,7 +334,7 @@ function WorldResultView({
 
 function BuildWorkbenchView({
   root,
-  world,
+  resources,
   session,
   controller,
   environmentDefinition = null,
@@ -376,11 +367,11 @@ function BuildWorkbenchView({
 
   useEffect(() => {
     const unsubscribers: Array<() => void> = [];
-    const generationUnsubscribe = world.events.on('generation.state', () => {
+    const generationUnsubscribe = controller.onGenerationState(() => {
       setCapabilityNotice(null);
       setCapabilityRevision((value) => value + 1);
     });
-    const environmentUnsubscribe = world.events.on('environment.replaced', () => {
+    const environmentUnsubscribe = resources.onEnvironmentChange(() => {
       setEnvironmentRevision((value) => value + 1);
     });
     if (generationUnsubscribe) unsubscribers.push(generationUnsubscribe);
@@ -388,7 +379,7 @@ function BuildWorkbenchView({
     return () => {
       for (const unsubscribe of unsubscribers) unsubscribe();
     };
-  }, [world]);
+  }, [controller, resources]);
 
   useEffect(() => {
     root.dataset.buildMode = state.mode;
@@ -401,7 +392,7 @@ function BuildWorkbenchView({
       const output = buildOutputs.find((item) => item.key === workflowIntent.outputKey);
       try {
         if (!output) throw new Error('找不到对应的 Image Build output');
-        const source = imageBuildResultFromOutput(world, output);
+        const source = imageBuildResultFromOutput(resources, output);
         session.setMode('asset');
         setPrompt(source.prompt || 'Image to 3D');
         setAssetSource(source);
@@ -416,7 +407,7 @@ function BuildWorkbenchView({
         consumeBuildWorkflow(workflowIntent.id);
       }
     }
-  }, [buildOutputs, consumeBuildWorkflow, imageQueueBusy, log, session, workflowIntent, world]);
+  }, [buildOutputs, consumeBuildWorkflow, imageQueueBusy, log, resources, session, workflowIntent]);
 
   const caps = useMemo(() => controller.capabilities(), [controller, capabilityRevision, state.mode, state.status]);
   const providerInputType = state.mode === 'asset' ? 'image' : 'text';
@@ -432,7 +423,7 @@ function BuildWorkbenchView({
   const running = state.status === 'running' || imageQueueBusy;
   const generateDisabled = running || !caps.paired || !caps[state.mode] || !costConfirmed || !prompt.trim() || (state.mode==='asset'&&!assetSource);
 
-  const environment = world.environment;
+  const environment = resources.currentEnvironment();
   void environmentRevision;
   const builtinTitle = environment?.id === environmentDefinition?.id ? environmentDefinition?.title : null;
   const worldName = environment?.title || environment?.label || builtinTitle || environment?.id || 'Current World';
@@ -445,7 +436,6 @@ function BuildWorkbenchView({
       const result = await controller.connect({ pairingId });
       if (result.status === 'generation-ready') {
         setPairingId(null);
-        world.generationState = structuredClone(result);
         log('Build 生成连接器已就绪', 'result');
       } else if (result.reason === 'APPROVAL_REQUIRED') {
         const nextPairingId = result.pairingId || pairingId;
@@ -535,7 +525,7 @@ function BuildWorkbenchView({
         />
       </label>
       <label className="build-provider-field">Provider <span>可选 · 默认自动路由</span>
-        <select value={providerId} disabled={running || !caps.paired} onChange={(event) => setProviderId(event.target.value)}>
+        <select id="build-provider" name="build-provider" value={providerId} disabled={running || !caps.paired} onChange={(event) => setProviderId(event.target.value)}>
           <option value="auto">Auto · Recommended</option>
           {providerOptions.map((provider) => (
             <option key={provider.id} value={provider.id}>{provider.label} · {provider.id}</option>
@@ -656,11 +646,11 @@ function BuildWorkbenchView({
           <section id="build-result" className="build-result" aria-label="Build Result">
             <div className="build-section-heading"><span>Current Result</span><small>READY</small></div>
             {state.result.kind === 'image' ? (
-              <ImageResultView world={world} result={state.result} onGenerate3D={prepare3DFromImage} />
+              <ImageResultView resources={resources} result={state.result} onGenerate3D={prepare3DFromImage} />
             ) : state.result.kind === 'asset' ? (
-              <AssetResultView world={world} controller={controller} result={state.result} log={log} />
+              <AssetResultView resources={resources} controller={controller} result={state.result} log={log} />
             ) : (
-              <WorldResultView world={world} controller={controller} result={state.result} log={log} />
+              <WorldResultView resources={resources} controller={controller} result={state.result} log={log} />
             )}
           </section>
         ) : null}
@@ -670,8 +660,8 @@ function BuildWorkbenchView({
 }
 
 export function mountBuildWorkbench(props: BuildWorkbenchProps) {
-  if (!props.root || !props.world?.generation || !props.session || !props.controller) {
-    throw new TypeError('BuildWorkbench requires root, world, session and controller');
+  if (!props.root || !props.resources || !props.session || !props.controller) {
+    throw new TypeError('BuildWorkbench requires root, resources, session and controller');
   }
   const host = props.root.querySelector<HTMLElement>('.build-workbench-host');
   if (!host) throw new TypeError('BuildWorkbench requires a .build-workbench-host');

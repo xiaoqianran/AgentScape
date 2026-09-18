@@ -32,7 +32,7 @@ describe('StudioBuildController helpers',()=>{
       canGenerateAsset:()=>true,
       canGenerateTextWorld:()=>false
     };
-    const controller=new StudioBuildController({world:{generation}});
+    const controller=new StudioBuildController({generation});
     expect(controller.capabilities()).toMatchObject({asset:false,discovered:{asset:false}});
     expect(controller.providerOptions({mode:'asset',inputType:'image'})).toEqual([]);
   });
@@ -65,7 +65,7 @@ describe('StudioBuildController workflows',()=>{
       getGenerationJob:vi.fn(async()=>({status:'provider-succeeded',jobId:'job_image',artifacts:[{id:'image_01',role:'primary-image',mime:'image/png'}]})),
       importGenerationResult:vi.fn(async()=>({artifact:{id:'image_01',role:'primary-image',mime:'image/png',hash:'sha256:image'}}))
     };
-    const controller=new StudioBuildController({world:{generation},pollIntervalMs:0});
+    const controller=new StudioBuildController({generation,pollIntervalMs:0});
     const result=await controller.generateImage({prompt:'red chair'});
     expect(result).toMatchObject({kind:'image',artifactId:'image_01',jobId:'job_image'});
     expect(generation.submitGenerationJob).toHaveBeenCalledWith(expect.objectContaining({provider:'modal-2d',inputs:{prompt:'red chair',seed:42}}));
@@ -75,7 +75,7 @@ describe('StudioBuildController workflows',()=>{
   it('publishes a Human-approved local image without invoking cloud Text → Image',async()=>{
     const artifact={id:'image_local_01',role:'primary-image',mime:'image/png',hash:`sha256:${'a'.repeat(64)}`,bytes:12};
     const generation={uploadInputArtifact:vi.fn(async()=>artifact)};
-    const controller=new StudioBuildController({world:{generation}});
+    const controller=new StudioBuildController({generation});
     const bytes=new Uint8Array(12);
     const result=await controller.approveLocalImage({bytes,prompt:'station bench'});
     expect(result).toMatchObject({kind:'image',status:'ready',artifactId:'image_local_01',provider:'local-upload',prompt:'station bench'});
@@ -90,7 +90,7 @@ describe('StudioBuildController workflows',()=>{
       submitGenerationJob:vi.fn(async()=>({status:'provider-succeeded',jobId:'job_3d',artifacts:[{id:'glb_01',role:'primary-glb',mime:'model/gltf-binary'}]})),
       generateAndCompileAsset:vi.fn(async()=>({status:'asset-ready',assetId:'chair_01'}))
     };
-    const controller=new StudioBuildController({world:{generation},pollIntervalMs:0});
+    const controller=new StudioBuildController({generation,pollIntervalMs:0});
     const result=await controller.generateAssetFromImage({
       imageResult:{jobId:'job_image',prompt:'chair',artifact:{id:'image_01',role:'primary-image',mime:'image/png',hash:'sha256:image'}},
       assetId:'chair_01'
@@ -108,7 +108,7 @@ describe('StudioBuildController workflows',()=>{
       submitGenerationJob:vi.fn(async()=>({status:'provider-succeeded',jobId:'job_3d_local',artifacts:[{id:'glb_local',role:'primary-glb',mime:'model/gltf-binary'}]})),
       generateAndCompileAsset:vi.fn(async()=>({status:'asset-ready',assetId:'bench_01'}))
     };
-    const controller=new StudioBuildController({world:{generation},pollIntervalMs:0});
+    const controller=new StudioBuildController({generation,pollIntervalMs:0});
     await controller.generateAssetFromImage({
       imageResult:{prompt:'bench',artifact:{id:'image_local',role:'primary-image',mime:'image/png',hash:`sha256:${'b'.repeat(64)}`}},
       assetId:'bench_01'
@@ -123,7 +123,7 @@ describe('StudioBuildController workflows',()=>{
     const placeAtAnchor=vi.fn(async()=>({status:'placement-committed'}));
     const placeAtCenter=vi.fn(async()=>({status:'placement-committed'}));
     const controller=new StudioBuildController({
-      world:{generation:{listGenerationCapabilities:()=>({capabilities:[]})}},
+      generation:{listGenerationCapabilities:()=>({capabilities:[]})},
       placement:{placeAtAnchor,placeAtCenter}
     });
     await controller.placeAsset('chair_01');
@@ -143,7 +143,7 @@ describe('StudioBuildController workflows',()=>{
         artifacts:{'world-manifest':{artifact:{id:'manifest_01'}},'world-mesh':{artifact:{id:'mesh_01'}}}
       }))
     };
-    const controller=new StudioBuildController({world:{generation},placement:{placeAtCenter},openGeneratedWorld});
+    const controller=new StudioBuildController({generation,placement:{placeAtCenter},openGeneratedWorld});
     const result=await controller.generateWorld({prompt:'Japanese garden',provider:'modal-world'});
     expect(result).toMatchObject({kind:'world',manifestArtifactId:'manifest_01',provider:'modal-world',artifacts:{'world-manifest':'manifest_01','world-mesh':'mesh_01'}});
     expect(generation.generateTextWorldArtifacts).toHaveBeenCalledWith({prompt:'Japanese garden',worldProvider:'modal-world'});
@@ -151,5 +151,24 @@ describe('StudioBuildController workflows',()=>{
     await controller.openWorld('manifest_01');
     expect(placeAtCenter).toHaveBeenCalledWith('chair_01');
     expect(openGeneratedWorld).toHaveBeenCalledWith('manifest_01');
+  });
+
+  it('syncs connector state through explicit composition callbacks',async()=>{
+    const state={status:'generation-ready',paired:true};
+    const generation={pairConnector:vi.fn(async()=>state)};
+    const listeners=new Map();
+    const events={
+      on:vi.fn((type,listener)=>{ listeners.set(type,listener); return ()=>listeners.delete(type); })
+    };
+    const syncGenerationState=vi.fn();
+    const controller=new StudioBuildController({generation,events,syncGenerationState});
+    const listener=vi.fn();
+    const off=controller.onGenerationState(listener);
+    listeners.get('generation.state')?.({status:'changed'});
+    expect(listener).toHaveBeenCalledWith({status:'changed'});
+    expect(await controller.connect()).toEqual(state);
+    expect(syncGenerationState).toHaveBeenCalledWith(state);
+    off();
+    expect(listeners.has('generation.state')).toBe(false);
   });
 });

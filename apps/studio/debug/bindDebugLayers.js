@@ -1,4 +1,5 @@
 import { DebugOverlay } from './DebugOverlay.js';
+import './DebugLayers.css';
 
 /**
  * 将 DebugOverlay 绑定到页面工具栏。

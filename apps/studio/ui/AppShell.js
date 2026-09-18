@@ -5,6 +5,7 @@ import { developerSettingsMarkup } from './developer/DeveloperSettings.js';
 import { resourceLibraryMarkup } from './resources/ResourceLibrary.js';
 import { sceneExplorerMarkup } from './scene/SceneExplorer.js';
 import { createStudioChrome } from './chrome/StudioChrome.js';
+import './content/StudioContent.css';
 import './chrome/studio-shell.css';
 import { useStudioStore } from '../react/state/studioStore.ts';
 

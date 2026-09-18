@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useStudioStore } from '../state/studioStore';
+import './ObjectInspector.css';
 
 type ObjectInfo = {
   id: string;

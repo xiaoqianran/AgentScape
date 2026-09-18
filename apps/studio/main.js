@@ -1,4 +1,3 @@
-import './style.css';
 import { createSession } from '../../application/createSession.js';
 import { RuntimeDriver } from './runtime/RuntimeDriver.js';
 import { replaceStudioEnvironment } from './runtime/replaceStudioEnvironment.js';
@@ -27,6 +26,7 @@ import { GeneratedPlacementDemoRunner } from './demos/generated-placement/Genera
 import { mountObjectInspector } from './react/inspect/ObjectInspector.tsx';
 import { RunsPanel } from './ui/runs/RunsPanel.js';
 import { ResourceLibrary } from './ui/resources/ResourceLibrary.js';
+import { StudioResources } from './resources/StudioResources.js';
 import { DeveloperSettings } from './ui/developer/DeveloperSettings.js';
 import { mountSceneExplorer } from './react/scene/SceneExplorer.tsx';
 import { useStudioStore } from './react/state/studioStore.ts';
@@ -169,16 +169,25 @@ async function main() {
     taskPanel.log(`已打开生成世界：${nextEnvironment.id || manifestArtifactId} · 清理 ${result.clearedObjects} 个对象`,'result');
     return result;
   };
+  const resources = new StudioResources({
+    assetModule:world.assetModule,
+    artifactModule:world.generation.artifacts,
+    events:world.events,
+    getEnvironment:()=>world.environment,
+    environments:ENVIRONMENTS
+  });
   const buildSession = new BuildSession({ mode:'image' });
   const buildController = new StudioBuildController({
-    world,
+    generation:world.generation,
+    events:world.events,
+    syncGenerationState:(state)=>{ world.generationState=state; },
     placement,
     openGeneratedWorld,
     log:(text,kind)=>taskPanel.log(text,kind)
   });
   const buildWorkbench = mountBuildWorkbench({
     root:ui.panel,
-    world,
+    resources,
     session:buildSession,
     controller:buildController,
     environmentDefinition,
@@ -186,8 +195,7 @@ async function main() {
   });
   const resourceLibrary = new ResourceLibrary({
     root: ui.panel,
-    world,
-    environments: ENVIRONMENTS,
+    resources,
     placement,
     log: (text, kind) => taskPanel.log(text, kind),
     openEnvironment: (id) => {
@@ -210,7 +218,7 @@ async function main() {
   });
   const artifactTray = mountArtifactTray({
     root:app,
-    world,
+    resources,
     controller:buildController,
     agentVerifier,
     openBuild:()=>ui.setView('create'),

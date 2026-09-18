@@ -1,3 +1,5 @@
+import './GenerationJobCenter.css';
+
 const ACTIVE_STATUSES=new Set(['generation-pending','generation-cancelling','connection-required']);
 const text=(value,fallback='—')=>value==null||value===''?fallback:String(value);
 const clone=(value)=>value==null?value:structuredClone(value);

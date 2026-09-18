@@ -73,10 +73,19 @@ export function buildInputs(capability,seed={}) {
 }
 
 export class StudioBuildController {
-  constructor({world,placement=null,openGeneratedWorld=null,log=()=>{},pollIntervalMs=1200}={}) {
-    if(!world?.generation) throw new TypeError('StudioBuildController requires world.generation');
-    this.world=world;
-    this.generation=world.generation;
+  constructor({
+    generation,
+    events=null,
+    syncGenerationState=null,
+    placement=null,
+    openGeneratedWorld=null,
+    log=()=>{},
+    pollIntervalMs=1200
+  }={}) {
+    if(!generation) throw new TypeError('StudioBuildController requires GenerationRuntime');
+    this.generation=generation;
+    this.events=events;
+    this.syncGenerationState=typeof syncGenerationState==='function'?syncGenerationState:null;
     this.placement=placement;
     this.openGeneratedWorld=typeof openGeneratedWorld==='function'?openGeneratedWorld:null;
     this.log=log;
@@ -104,8 +113,14 @@ export class StudioBuildController {
     };
   }
 
+  onGenerationState(listener) {
+    return this.events?.on?.('generation.state', listener) || (()=>{});
+  }
+
   async connect({pairingId=null}={}) {
-    return this.generation.pairConnector({pairingId});
+    const result=await this.generation.pairConnector({pairingId});
+    this.syncGenerationState?.(clone(result));
+    return result;
   }
 
   async #wait(jobId,{onProgress=()=>{}}={}) {

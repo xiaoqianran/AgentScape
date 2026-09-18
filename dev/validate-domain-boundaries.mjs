@@ -178,6 +178,57 @@ for (const file of worldCommandClients) {
   }
 }
 
+const studioPresentationFiles = productJs.filter((file) => {
+  const name=relative(file);
+  return name.startsWith('apps/studio/react/')
+    || name === 'apps/studio/ui/resources/ResourceLibrary.js';
+});
+const STUDIO_PRESENTATION_RUNTIME_INTERNAL_RE = /\bworld\.(?:assetModule|generation\.artifacts|generationState|physics|store|rendering)\b/;
+for (const file of studioPresentationFiles) {
+  const source=fs.readFileSync(file,'utf8');
+  if (STUDIO_PRESENTATION_RUNTIME_INTERNAL_RE.test(source)) {
+    failures.push(`Studio presentation runtime-internal boundary violation: ${relative(file)}`);
+  }
+}
+
+const retiredStudioGlobalCss = path.join(root,'apps','studio','style.css');
+if (fs.existsSync(retiredStudioGlobalCss)) {
+  failures.push('Retired Studio global stylesheet must not return: apps/studio/style.css');
+}
+
+const studioCssFiles = walk(path.join(root,'apps','studio')).filter((file) => file.endsWith('.css'));
+const studioCssOwners = [
+  ['Build', /\.build-[\w-]+/, new Set(['apps/studio/react/build/BuildWorkbench.css'])],
+  ['Task', /\.task-[\w-]+/, new Set(['apps/studio/ui/task/TaskPanel.css'])],
+  ['Generation', /\.generation-[\w-]+/, new Set([
+    'apps/studio/ui/generation/GenerationJobCenter.css',
+    // Build owns the contextual visibility of the Advanced Generation console.
+    'apps/studio/react/build/BuildWorkbench.css'
+  ])],
+  ['Resource', /\.resource-[\w-]+/, new Set(['apps/studio/ui/resources/ResourceLibrary.css'])],
+  ['Runs', /\.(?:runs|run)-[\w-]+/, new Set(['apps/studio/ui/runs/RunsPanel.css'])],
+  ['Inspector', /\.(?:inspect-[\w-]+|inspector\b|object-title\b)/, new Set(['apps/studio/react/inspect/ObjectInspector.css'])],
+  ['Developer', /\.(?:developer|settings|dialog)-[\w-]+/, new Set(['apps/studio/ui/developer/DeveloperSettings.css'])],
+  ['Debug', /\.debug-[\w-]+/, new Set(['apps/studio/debug/DebugLayers.css'])],
+  ['World overlay', /\.(?:world-context\b|cabin-[\w-]+|human-[\w-]+|asset-placement-[\w-]+)/, new Set(['apps/studio/ui/WorldOverlays.css'])]
+];
+const STUDIO_SHELL_FEATURE_ROOT_LAYOUT_RE = /^\.panel(?:\[data-view="[^"]+"\]|:not\(\[data-view="[^"]+"\]\))(?:\.[\w-]+)*(?: >)? \.(?:build-workbench|build-advanced-shell|generation-console|task-console|resource-console|inspector|runs-console)$/;
+for (const file of studioCssFiles) {
+  const name=relative(file);
+  const source=fs.readFileSync(file,'utf8');
+  const selectors=[...source.matchAll(/(?:^|})\s*([^@{}][^{}]*?)\s*\{/gm)]
+    .flatMap((match) => match[1].split(','))
+    .map((selector) => selector.trim())
+    .filter(Boolean);
+  for (const [label,pattern,owners] of studioCssOwners) {
+    const foreign=selectors.filter((selector) => pattern.test(selector));
+    if (!foreign.length || owners.has(name)) continue;
+    const shellFeatureRootLayoutOnly=name === 'apps/studio/ui/chrome/studio-shell.css'
+      && foreign.every((selector) => STUDIO_SHELL_FEATURE_ROOT_LAYOUT_RE.test(selector));
+    if (!shellFeatureRootLayoutOnly) failures.push(`Studio CSS ownership violation (${label}): ${name}`);
+  }
+}
+
 const assetClients = productJs.filter((file) => {
   const name=relative(file);
   return !name.startsWith("modules/asset/") && !name.startsWith("apps/observatory/");

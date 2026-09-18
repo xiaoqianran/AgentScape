@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import './WorldOverlays.css';
 
 // Shared world-first overlay: click-to-interact, in-place text / image editing, camera view
 // presets and an optional cutaway toggle. The cabin-prefixed class names are shared with the

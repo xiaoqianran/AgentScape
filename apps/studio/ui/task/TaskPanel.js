@@ -1,4 +1,5 @@
 import { generatedPlacementDemoTask } from '../../demos/generated-placement/generatedPlacementDemo.js';
+import './TaskPanel.css';
 import { AGENT_RUNTIME_TESTS } from '../../agent/AgentRuntimeTestRunner.js';
 
 const GENERATED_PLACEMENT_TASK = generatedPlacementDemoTask();

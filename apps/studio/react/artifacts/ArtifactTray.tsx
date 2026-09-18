@@ -17,21 +17,11 @@ type ArtifactDescriptor = {
   }>;
 };
 
-type WorldLike = {
-  assetModule?: {
-    approveAsset?: (assetId: string, metadata?: Record<string, unknown>) => Promise<{ assetId?: string; status?: string }>;
-    library?: { listSync?: () => Array<{ assetId: string; status?: string }> };
-  };
-  generation?: {
-    artifacts?: {
-      registry?: { get?: (id: string) => ArtifactDescriptor | null };
-      byteStore?: { get?: (key: string) => { data?: Uint8Array } | null };
-    };
-  };
-  events: {
-    on: (type: string, listener: () => void) => (() => void) | undefined;
-    emit?: (type: string, payload?: unknown) => void;
-  };
+type StudioResourcesLike = {
+  localArtifact: (id: string) => { descriptor?: ArtifactDescriptor | null; data?: Uint8Array | null };
+  approvedAssetIds: () => Set<string>;
+  approveAsset: (assetId: string, metadata?: Record<string, unknown>) => Promise<unknown>;
+  onChange: (listener: (type: string) => void) => (() => void);
 };
 
 type TrayControllerLike = {
@@ -70,7 +60,7 @@ type AgentVerifierLike = {
 };
 
 type ArtifactTrayProps = {
-  world: WorldLike;
+  resources: StudioResourcesLike;
   controller: TrayControllerLike;
   agentVerifier: AgentVerifierLike;
   openBuild: () => void;
@@ -129,19 +119,15 @@ export async function executeArtifactTrayAction({
   return { status:'world-opened', kind:output.kind, id:output.primaryId } as const;
 }
 
-function localArtifactEntry(world: WorldLike, artifactId: string) {
-  const descriptor = world.generation?.artifacts?.registry?.get?.(artifactId);
-  const location = descriptor?.locations?.find((item) =>
-    item.kind === 'local-cache' && item.state === 'available' && item.access?.kind === 'cache-key'
-  );
-  if (!location?.access?.key) return null;
-  return {
-    descriptor,
-    entry: world.generation?.artifacts?.byteStore?.get?.(location.access.key) || null
-  };
+function localArtifactEntry(resources: StudioResourcesLike, artifactId: string) {
+  const local = resources.localArtifact(artifactId);
+  return local?.descriptor ? {
+    descriptor:local.descriptor,
+    entry:local.data ? { data:local.data } : null
+  } : null;
 }
 
-function ArtifactThumbnail({ world, output, revision }: { world: WorldLike; output: BuildOutputRef; revision: number }) {
+function ArtifactThumbnail({ resources, output, revision }: { resources: StudioResourcesLike; output: BuildOutputRef; revision: number }) {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -149,7 +135,7 @@ function ArtifactThumbnail({ world, output, revision }: { world: WorldLike; outp
       setUrl(null);
       return;
     }
-    const local = localArtifactEntry(world, output.artifactIds[0]);
+    const local = localArtifactEntry(resources, output.artifactIds[0]);
     if (!local?.entry?.data) {
       setUrl(null);
       return;
@@ -159,13 +145,13 @@ function ArtifactThumbnail({ world, output, revision }: { world: WorldLike; outp
     }));
     setUrl(next);
     return () => URL.revokeObjectURL(next);
-  }, [output.artifactIds, output.kind, revision, world]);
+  }, [output.artifactIds, output.kind, resources, revision]);
 
   if (url) return <img src={url} alt="" />;
   return <span>{output.kind === 'image' ? '2D' : output.kind === 'asset' ? '3D' : 'ENV'}</span>;
 }
 
-function ArtifactTrayView({ world, controller, agentVerifier, openBuild, log }: ArtifactTrayProps) {
+function ArtifactTrayView({ resources, controller, agentVerifier, openBuild, log }: ArtifactTrayProps) {
   const outputs = useStudioStore((state) => state.buildOutputs);
   const selectedKey = useStudioStore((state) => state.selectedBuildOutputKey);
   const selectOutput = useStudioStore((state) => state.selectBuildOutput);
@@ -183,33 +169,23 @@ function ArtifactTrayView({ world, controller, agentVerifier, openBuild, log }: 
     if (outputs.length) setCollapsed(false);
   }, [outputs.length]);
 
-  useEffect(() => {
-    const unsubscribers: Array<() => void> = [];
-    for (const type of ['generation.artifact.imported', 'assetProduction.registered', 'asset.library.changed']) {
-      const unsubscribe = world.events.on(type, () => setArtifactRevision((value) => value + 1));
-      if (unsubscribe) unsubscribers.push(unsubscribe);
-    }
-    const environmentUnsubscribe = world.events.on('environment.replaced', () => {
-      setArtifactRevision((value) => value + 1);
+  useEffect(() => resources.onChange((type) => {
+    setArtifactRevision((value) => value + 1);
+    if (type === 'environment.replaced') {
       setPlacedInstances({});
       setVerificationByOutput({});
-    });
-    if (environmentUnsubscribe) unsubscribers.push(environmentUnsubscribe);
-    return () => {
-      for (const unsubscribe of unsubscribers) unsubscribe();
-    };
-  }, [world]);
+    }
+  }), [resources]);
 
-  const approvedIds = new Set((world.assetModule?.library?.listSync?.() || []).map((entry) => entry.assetId));
+  const approvedIds = resources.approvedAssetIds();
   void libraryRevision;
 
   const saveAsset = async (output: BuildOutputRef) => {
-    if (output.kind !== 'asset' || !world.assetModule?.approveAsset) return;
+    if (output.kind !== 'asset') return;
     setBusyKey(`library:${output.key}`);
     try {
-      await world.assetModule.approveAsset(output.primaryId, { label:outputLabel(output) });
+      await resources.approveAsset(output.primaryId, { label:outputLabel(output) });
       setLibraryRevision((value) => value + 1);
-      world.events.emit?.('asset.library.changed', { assetId:output.primaryId, status:'approved' });
       log(`已保存到本地资产库：${output.primaryId}`, 'result');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -295,7 +271,7 @@ function ArtifactTrayView({ world, controller, agentVerifier, openBuild, log }: 
               <article key={output.key} className={`artifact-tray-item${selectedKey === output.key ? ' active' : ''}${instanceId ? ' has-agent-test' : ''}`}>
                 <button type="button" className="artifact-tray-select" onClick={() => selectOutput(output.key)} title={output.primaryId}>
                   <span className="artifact-tray-thumb">
-                    <ArtifactThumbnail world={world} output={output} revision={artifactRevision} />
+                    <ArtifactThumbnail resources={resources} output={output} revision={artifactRevision} />
                   </span>
                   <span className="artifact-tray-copy">
                     <small>{outputKindLabel(output)}</small>

@@ -1,3 +1,5 @@
+import './RunsPanel.css';
+
 const STATUS_LABELS = {
   success: ['已完成', '✓'],
   partial: ['部分完成', '!'],

@@ -248,10 +248,10 @@ export function ImageObjectWorkbench({controller, paired, disabled, visible, onC
       </div>
     </article>)}</div>
     <div className="image-object-queue">
-      <label>3D 生成器<select aria-label="批量 3D 生成器" value={provider} disabled={unavailable} onChange={(event)=>setProvider(event.target.value)}><option value="auto">自动选择</option>{providers.map((p:any)=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
+      <label>3D 生成器<select id="build-batch-provider" name="build-batch-provider" aria-label="批量 3D 生成器" value={provider} disabled={unavailable} onChange={(event)=>setProvider(event.target.value)}><option value="auto">自动选择</option>{providers.map((p:any)=><option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
       {!paired?<button type="button" disabled={unavailable} onClick={onConnect}>连接生成器</button>:null}
       {paired&&!providers.length?<small>尚无可用的图生 3D 能力；可以继续准备草稿。</small>:null}
-      <label><input type="checkbox" checked={confirmed} disabled={unavailable} onChange={(event)=>setConfirmed(event.target.checked)}/>允许本批所选物体使用外部 3D 生成资源</label>
+      <label><input id="build-batch-external-compute" name="build-batch-external-compute" type="checkbox" checked={confirmed} disabled={unavailable} onChange={(event)=>setConfirmed(event.target.checked)}/>允许本批所选物体使用外部 3D 生成资源</label>
       <div className="build-local-image-actions"><button id="build-generate-objects" type="button" disabled={unavailable||!paired||!confirmed||!runnable.length||!providers.length} onClick={()=>safe(generate)}>生成 / 继续所选 {runnable.length} 个物体</button>
       {busy?<button type="button" disabled={stopping} onClick={()=>{stop.current=true;setStopping(true);setNotice('将在当前任务完成后停止，不再提交下一项。');}}>{stopping?'等待当前项结束…':'当前项完成后停止'}</button>:null}</div>
       <small>草稿刷新后保留。中断任务继续时查询原任务；移除草稿不会删除已生成资产或取消云端任务。</small>
