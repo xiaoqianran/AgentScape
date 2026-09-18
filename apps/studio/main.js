@@ -9,6 +9,10 @@ import { HttpLLMGateway } from '../../modules/agent/gateway/HttpLLMGateway.js';
 import { bootstrapWorld } from '../../modules/agent/bootstrapWorld.js';
 import { LocalSceneStore } from './persistence/LocalSceneStore.js';
 import { AutosaveController } from './persistence/AutosaveController.js';
+import { AuthoringWorldStore } from './persistence/AuthoringWorldStore.js';
+import { AuthoringWorldController } from './authoring/AuthoringWorldController.js';
+import { bindAuthoringWorldControls } from './authoring/bindAuthoringWorldControls.js';
+import { createAuthoringModelResolver } from '../../application/world-authoring/AuthoringModelResolver.js';
 import { EditorController } from './editor/EditorController.js';
 import { AssetPlacementController } from './editor/AssetPlacementController.js';
 import { ENVIRONMENTS, resolveEnvironment } from '../../modules/world/content/environments.js';
@@ -71,7 +75,7 @@ async function main() {
   ui.setRuntimeStatus('loading', '启动中');
   const capabilityStatus = await capabilityStatusPromise;
 
-  const { world, generation } = createSession(ui.viewport, {
+  const { world, generation, authoring } = createSession(ui.viewport, {
     environmentFactory: options => environmentFactory({ ...options, editorHost:inlineEditorHost }),
     rendererMode: params.get('renderer') || 'auto',
     rendererTiming: params.get('gpuTiming') === '1',
@@ -83,27 +87,37 @@ async function main() {
   });
   world.generationState = await generation.initialize({ pair: false });
   await world.init();
+  const resolveAuthoringModel = authoring ? createAuthoringModelResolver({
+    assetLoader:world.assetLoader,
+    gltfLoader:{ loadScene:(uri) => world.assetLoader.loadGLB(uri) }
+  }) : null;
+  const authoringWorlds = authoring ? new AuthoringWorldController({
+    authoring,
+    store:new AuthoringWorldStore(),
+    resolveModel:resolveAuthoringModel
+  }) : null;
   let editorRef = null;
   const humanView = ui.worldFirst
     ? new HumanViewController({ world, ui, blockLook:() => Boolean(editorRef?.transform?.axis) })
     : null;
   const runtimeDriver = new RuntimeDriver(world, {
+    authoring,
     // The human view owns the camera while it is active; orbit keeps owning it otherwise.
     syncInput: (frameTime) => {
       humanView?.update(frameTime);
       world.interactions?.setHumanViewPose(humanView?.viewPose?.() || world.rendering?.viewPose?.() || null);
     }
   }).start();
-  window.addEventListener('beforeunload', () => { humanView?.dispose(); runtimeDriver.dispose(); world.dispose(); }, { once:true });
+  window.addEventListener('pagehide', () => { humanView?.dispose(); runtimeDriver.dispose(); authoring?.dispose(); world.dispose(); }, { once:true });
 
   const tools = new AgentTools(world, { profile: 'builder', actor: 'agent_01' });
   const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });
   const editor = new EditorController(world, { selectionOnRelease: ui.worldFirst });
   editorRef = editor;
   const worldInteraction = mountWorldInteraction({ world, ui, editor, host:inlineEditorHost });
-  window.addEventListener('beforeunload',()=>worldInteraction?.dispose(),{once:true});
+  window.addEventListener('pagehide',()=>worldInteraction?.dispose(),{once:true});
   const worldContext = ui.worldFirst ? mountWorldContext({ world, editor, tools, ui }) : null;
-  window.addEventListener('beforeunload', () => worldContext?.dispose(), { once:true });
+  window.addEventListener('pagehide', () => worldContext?.dispose(), { once:true });
   const sceneExplorer = mountSceneExplorer({ root: ui.scenePanel, world, editor, environmentDefinition });
   const runsPanel = new RunsPanel({ root: ui.panel });
   let taskPanel = null;
@@ -203,7 +217,7 @@ async function main() {
     openBuild:()=>ui.setView('create'),
     log:(text,kind)=>taskPanel.log(text,kind)
   });
-  window.addEventListener('beforeunload', () => { artifactTray.destroy(); buildWorkbench.destroy(); sceneExplorer.destroy(); inspector.destroy(); resourceLibrary.destroy(); placement.dispose(); }, { once:true });
+  window.addEventListener('pagehide', () => { artifactTray.destroy(); buildWorkbench.destroy(); sceneExplorer.destroy(); inspector.destroy(); resourceLibrary.destroy(); placement.dispose(); }, { once:true });
 
   const developer = new DeveloperSettings({
     dialog: ui.developerDialog,
@@ -243,6 +257,12 @@ async function main() {
     log: (text, kind) => taskPanel.log(text, kind),
     setTaskState: (...args) => taskPanel.setState(...args)
   });
+  const authoringControls = authoringWorlds ? bindAuthoringWorldControls({
+    root:app,
+    controller:authoringWorlds,
+    log:(text, kind) => taskPanel.log(text, kind)
+  }) : null;
+  window.addEventListener('pagehide', () => authoringControls?.dispose(), { once:true });
 
   inspector.render(null);
   world.history.clear();

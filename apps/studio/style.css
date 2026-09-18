@@ -838,3 +838,8 @@ body { background:#0e0e10; }
 .human-views-hint { align-self:center; padding:6px 10px; border:1px solid #aaa18b; border-radius:6px; background:#faf6eacc; color:#5a5443; font:500 11px/1.4 var(--font-mono); }
 .asset-placement-hint { position:absolute; z-index:11; bottom:150px; left:50%; transform:translateX(-50%); margin:0; padding:9px 16px; border:1px solid #756d5a; border-radius:10px; background:#fff9e9; color:#393d31; font-size:13px; box-shadow:0 5px 25px #1112; }
 .asset-placement-armed { cursor:crosshair; }
+
+.scene-menu .toolbar-menu { width:210px; }
+.toolbar-menu .world-select { width:100%; max-width:none; }
+.toolbar-menu-label { margin:5px 4px 1px; color:var(--text-muted); font:9px/1.4 var(--font-mono); text-transform:uppercase; letter-spacing:.08em; }
+.toolbar-menu-status { padding:4px 6px; color:var(--text-secondary); font:9px/1.4 var(--font-mono); }

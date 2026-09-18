@@ -53,6 +53,33 @@ describe('RuntimeDriver', () => {
     expect(windowTarget.removeEventListener).toHaveBeenCalledWith('resize',driver.onResize);
   });
 
+  it('drives World Authoring animation with seconds-based delta and elapsed time', () => {
+    const world=createWorld();
+    const authoring={update:vi.fn()};
+    const callbacks=[];
+    const requestFrame=vi.fn((callback)=>{ callbacks.push(callback); return callbacks.length; });
+    const driver=new RuntimeDriver(world,{
+      requestFrame,
+      cancelFrame:vi.fn(),
+      windowTarget:null,
+      authoring
+    }).start();
+
+    callbacks[0](1000);
+    callbacks[1](1250);
+    callbacks[2](1750);
+
+    expect(authoring.update.mock.calls).toEqual([
+      [0,0],
+      [0.25,0.25],
+      [0.5,0.75]
+    ]);
+    expect(world.simulation.pump.mock.invocationCallOrder[0]).toBeLessThan(authoring.update.mock.invocationCallOrder[0]);
+    expect(authoring.update.mock.invocationCallOrder[0]).toBeLessThan(world.rendering.update.mock.invocationCallOrder[0]);
+
+    driver.stop();
+  });
+
   it('stops the browser loop when the renderer reports device loss', () => {
     const world=createWorld();
     const requestFrame=vi.fn(()=>17);

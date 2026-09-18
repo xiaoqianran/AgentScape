@@ -4,6 +4,7 @@ import { createAssetModule } from '../modules/asset/AssetModule.js';
 import { attachGenerationRuntime } from './generation/GenerationRuntime.js';
 import { SkillRegistry } from './skills/SkillRegistry.js';
 import { registerCoreSkills } from './skills/registerCoreSkills.js';
+import { createWorldAuthoringContext } from './createWorldAuthoringContext.js';
 
 // Composition only. DOM rendering is attached here; frame scheduling and input stay with the host.
 export function createSession(container, {
@@ -32,5 +33,6 @@ export function createSession(container, {
   world.skills = registerCoreSkills(new SkillRegistry({
     policy: world.policy, trace: world.trace, runtime: world
   }), world);
-  return { world, generation };
+  const authoring = world.rendering ? createWorldAuthoringContext(world) : null;
+  return { world, generation, authoring };
 }

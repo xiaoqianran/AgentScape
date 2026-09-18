@@ -6,18 +6,21 @@ const environmentFactory = vi.fn(async () => null);
 
 describe('createSession rendering composition', () => {
   it('leaves WorldRuntime headless when no viewport is supplied', () => {
-    const { world } = createSession(null, { environmentFactory });
+    const { world, authoring } = createSession(null, { environmentFactory });
     expect(world.rendering).toBeNull();
+    expect(authoring).toBeNull();
   });
 
   it('attaches a RenderingSystem to the Runtime scene when a viewport is supplied', () => {
     const viewport = { appendChild:vi.fn(), clientWidth:800, clientHeight:600 };
     const rendererFactory = vi.fn();
-    const { world } = createSession(viewport, { environmentFactory, rendererFactory });
+    const { world, authoring } = createSession(viewport, { environmentFactory, rendererFactory });
 
     expect(world.rendering).toBeInstanceOf(RenderingSystem);
     expect(world.rendering.scene).toBe(world.scene);
     expect(world.rendering.container).toBe(viewport);
     expect(world.rendering.rendererFactory).toBe(rendererFactory);
+    expect(authoring.scene.name).toBe('$llm-world');
+    expect(authoring.scene.parent).toBe(world.rendering.decorationRoot);
   });
 });

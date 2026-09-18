@@ -41,11 +41,21 @@ export function createAppShell({ app, environmentDefinition, environments }) {
             <span class="toolbar-divider"></span>
             <button id="duplicate" type="button">复制</button>
             <button id="delete" class="danger" type="button">删除</button>
-            <details class="toolbar-more">
+            <details class="toolbar-more scene-menu">
               <summary>场景</summary>
               <div class="toolbar-menu">
                 <button id="undo" type="button" disabled>撤销 <kbd>⌘Z</kbd></button>
                 <button id="redo" type="button" disabled>重做</button>
+                <div class="toolbar-menu-label">创作世界</div>
+                <select id="authoring-world-select" class="world-select" aria-label="创作世界存档">
+                  <option value="">选择创作世界…</option>
+                </select>
+                <button id="authoring-new" type="button">新建创作世界</button>
+                <button id="authoring-open" type="button">打开创作世界</button>
+                <button id="authoring-save" type="button">保存创作世界</button>
+                <button id="authoring-save-as" type="button">另存创作世界</button>
+                <span id="authoring-save-status" class="toolbar-menu-status">Untitled World · 已保存</span>
+                <div class="toolbar-menu-label">运行时场景</div>
                 <button id="save-scene" type="button">保存到本机</button>
                 <button id="load-scene" type="button">加载本机存档</button>
                 <button id="export-scene" type="button">导出 JSON</button>
