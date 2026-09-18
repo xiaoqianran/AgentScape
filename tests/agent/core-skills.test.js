@@ -45,6 +45,10 @@ function runtime() {
     repair: { repair:vi.fn() },
     pipeline: { run:vi.fn() }
   };
+  r.assetModule={
+    getManifest:(id)=>r.assetRegistry.getManifest(id),
+    registerManifest:(manifest,options)=>r.assetRegistry.registerManifest(manifest,options)
+  };
   r.findInteractionPose=(...args)=>r.interactions.findInteractionPose(...args);
   r.approachAndInteract=(...args)=>r.interactions.approachAndInteract(...args);
   r.articulationStatus=(...args)=>r.interactions.articulationStatus(...args);

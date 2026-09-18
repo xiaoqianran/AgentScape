@@ -145,7 +145,7 @@ assertNoImports("Agent World deep-module boundary violation", agentFiles, [
   /^modules\/world\/runtime\/physics\//,
   /^modules\/world\/runtime\/navigation\/(?!NavigationBackend\.js$)/
 ]);
-const AGENT_WORLD_INTERNAL_RE = /\bruntime\.(?:store|physics|spatial|interactions|navigation|locomotion)\b/;
+const AGENT_WORLD_INTERNAL_RE = /\bruntime\.(?:store|physics|spatial|interactions|navigation|locomotion|sceneGraph|affordances|repair|validator)\b/;
 for (const file of agentFiles) {
   const source=fs.readFileSync(file,"utf8");
   if (AGENT_WORLD_INTERNAL_RE.test(source)) {
@@ -153,22 +153,20 @@ for (const file of agentFiles) {
   }
 }
 
-const agentFacingWritePacks = productJs.filter((file) => [
-  'application/skills/packs/sceneSkills.js',
-  'application/skills/packs/spatialSkills.js',
-  'application/skills/packs/interactionSkills.js',
-  'application/skills/packs/recoverySkills.js',
-  'application/skills/packs/affordanceSkills.js',
-  'application/skills/packs/verificationSkills.js'
-].includes(relative(file)));
-for (const file of agentFacingWritePacks) {
+const agentFacingWorldPacks = productJs.filter((file) => relative(file).startsWith('application/skills/packs/'));
+const AGENT_SKILL_WORLD_INTERNAL_RE = /\bruntime\.(?:store|physics|spatial|interactions|navigation|locomotion|sceneGraph|affordances|repair|recovery|validator)\b/;
+const WORLD_DIRECT_QUERY_RE = /\bruntime\.(?:listObjects|articulationStatus|carryStatus|findRecoveryCleanupPlan)\s*\(/;
+for (const file of agentFacingWorldPacks) {
   const source=fs.readFileSync(file,'utf8');
-  if (AGENT_WORLD_INTERNAL_RE.test(source)) {
-    failures.push(`Agent-facing World command boundary violation: ${relative(file)}`);
+  if (AGENT_SKILL_WORLD_INTERNAL_RE.test(source)) {
+    failures.push(`Agent-facing World façade boundary violation: ${relative(file)}`);
+  }
+  if (WORLD_DIRECT_QUERY_RE.test(source)) {
+    failures.push(`WorldQueries façade bypass: ${relative(file)}`);
   }
 }
 
-const WORLD_DIRECT_WRITE_RE = /\b(?:runtime|this\.runtime|world|this\.world)\.(?:spawn|applyObjectTransform|duplicate|remove|navigateAgent|approachAndInteract|approachAndPickup|approachAndPlace|dropHeld|markRecoveryHeld|cleanupRecoveryBlocker|applyStateTransition)\s*\(|\b(?:runtime|this\.runtime|world|this\.world)\.(?:interactions\.(?:pickup|drop|place|setArticulationAction)|affordances\.execute|repair\.repair)\s*\(/;
+const WORLD_DIRECT_WRITE_RE = /\b(?:runtime|this\.runtime|world|this\.world)\.(?:spawn|applyObjectTransform|duplicate|remove|navigateAgent|approachAndInteract|approachAndPickup|approachAndPlace|dropHeld|markRecoveryHeld|cleanupRecoveryBlocker|applyStateTransition)\s*\(|\b(?:runtime|this\.runtime|world|this\.world)\.(?:interactions\.(?:pickup|drop|place|setArticulationAction|setHumanViewPose)|physics\.(?:beginTransform|endTransform)|affordances\.execute|repair\.repair)\s*\(/;
 const worldCommandClients = productJs.filter((file) => {
   const name=relative(file);
   return name.startsWith('application/') || name.startsWith('apps/studio/');
@@ -177,14 +175,6 @@ for (const file of worldCommandClients) {
   const source=fs.readFileSync(file,'utf8');
   if (WORLD_DIRECT_WRITE_RE.test(source)) {
     failures.push(`WorldCommands façade bypass: ${relative(file)}`);
-  }
-}
-
-const spatialSkillsFile=productJs.find((file)=>relative(file)==='application/skills/packs/spatialSkills.js');
-if (spatialSkillsFile) {
-  const source=fs.readFileSync(spatialSkillsFile,'utf8');
-  if (AGENT_WORLD_INTERNAL_RE.test(source)) {
-    failures.push('Agent-facing World query boundary violation: application/skills/packs/spatialSkills.js');
   }
 }
 
@@ -197,8 +187,20 @@ assertNoImports("Asset deep-module boundary violation", assetClients, [
   /^modules\/asset\/loading\//,
   /^modules\/asset\/persistence\//
 ]);
+for (const file of productJs.filter((file) => relative(file).startsWith('application/'))) {
+  const source = fs.readFileSync(file, 'utf8');
+  if (/\bruntime\.(?:assetRegistry|assetLoader)\b/.test(source)) {
+    failures.push(`Application AssetModule façade bypass: ${relative(file)}`);
+  }
+}
 
 const productionJs = productJs.filter((file) => !relative(file).startsWith("apps/observatory/"));
+for (const file of productionJs.filter((file) => !relative(file).startsWith('application/generation/'))) {
+  const source = fs.readFileSync(file, 'utf8');
+  if (/\.generation\.(?:artifactRegistry|byteStore|artifactImporter|connectorArtifactClient)\b/.test(source)) {
+    failures.push(`Generation Artifact façade bypass: ${relative(file)}`);
+  }
+}
 assertNoImports("Observatory ownership violation", productionJs, [
   /^apps\/observatory\//
 ]);

@@ -476,7 +476,7 @@ export class WorldRuntime {
     };
   }
 
-  listObjects() { return this.store.list().map(([id, r]) => ({ id, asset: r.assetId, position: r.object.position.toArray().map(v => Number(v.toFixed(2))), actions: [...r.manifest.actions] })); }
+  listObjects() { return this.queries.listObjects(); }
   navigateAgent(id,end,{speed}={}) { return this.locomotion.navigate(id,end,{speed}); }
   locomotionStatus(id) { return this.locomotion.status(id); }
   findInteractionPose(actorId,targetId,{action,partName}={}) { return this.interactions.findInteractionPose(actorId,targetId,{action,partName}); }

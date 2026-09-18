@@ -8,7 +8,7 @@ function fixture({replaceFails=false,restoreFails=false,disposeFails=false}={}) 
   const world={
     environment:previous,
     snapshot:vi.fn(()=>snapshot),
-    store:{list:()=>[['chair_1',{}],['cup_1',{}]]},
+    queries:{listObjects:()=>[{id:'chair_1'},{id:'cup_1'}]},
     clearObjects:vi.fn(async()=>{}),
     replaceEnvironment:vi.fn(async(environment)=>{
       if(replaceFails) throw Object.assign(new Error('replace failed'),{code:'ENVIRONMENT_REPLACE_FAILED'});

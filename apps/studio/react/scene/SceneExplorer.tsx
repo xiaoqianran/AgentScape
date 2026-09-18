@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
-import { collectSceneObjects } from '../../ui/scene/SceneExplorer.js';
+import { collectSceneObjectSummaries } from '../../ui/scene/SceneExplorer.js';
 import { useStudioStore } from '../state/studioStore';
 
 type EnvironmentDefinition = {
@@ -15,7 +15,7 @@ type EventBus = {
 
 type WorldLike = {
   environment?: { id?: string; title?: string; label?: string } | null;
-  store: { list: () => Array<[string, unknown]> };
+  queries: { listObjects: () => Array<{ id:string; asset?:string; type?:string; label?:string }> };
   events: EventBus;
 };
 
@@ -67,8 +67,8 @@ function SceneExplorerView({ world, editor, environmentDefinition }: SceneExplor
   const title = environment?.title || environment?.label || environmentDefinition.title || environment?.id || 'World';
   const environmentId = environment?.id || environmentDefinition.id || 'environment';
   const objects = useMemo(
-    () => collectSceneObjects(world.store, selectedObjectId),
-    [revision, selectedObjectId, world.store]
+    () => collectSceneObjectSummaries(world.queries.listObjects(), selectedObjectId),
+    [revision, selectedObjectId, world.queries]
   );
 
   const selectObject = (id: string) => {

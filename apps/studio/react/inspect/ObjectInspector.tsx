@@ -18,15 +18,12 @@ type Relation = {
 };
 
 type WorldLike = {
-  store: { has: (id: string) => boolean };
-  getObjectInfo: (id: string) => ObjectInfo;
-  spatial: {
+  queries: {
+    hasObject: (id: string) => boolean;
+    getObjectInfo: (id: string) => ObjectInfo;
     getBounds: (id: string) => { size: number[] };
     findNearby: (id: string, radius: number) => unknown[];
-  };
-  sceneGraph: {
-    update: () => unknown;
-    describe: (id: string) => { outgoing: Relation[] };
+    describeObjectRelations: (id: string) => { outgoing: Relation[] };
   };
 };
 
@@ -57,8 +54,8 @@ function ObjectInspectorView({ world, tools, log }: InspectorProps) {
   const selectedObjectId = useStudioStore((state) => state.selectedObjectId);
   useStudioStore((state) => state.contextRevision);
 
-  const id = selectedObjectId && world.store.has(selectedObjectId) ? selectedObjectId : null;
-  const info = id ? world.getObjectInfo(id) : null;
+  const id = selectedObjectId && world.queries.hasObject(selectedObjectId) ? selectedObjectId : null;
+  const info = id ? world.queries.getObjectInfo(id) : null;
   const [scaleInput, setScaleInput] = useState('1');
   const [scaleBusy, setScaleBusy] = useState(false);
 
@@ -69,11 +66,11 @@ function ObjectInspectorView({ world, tools, log }: InspectorProps) {
   let spatialText = '';
   let visibleRelations: Relation[] = [];
   if (id) {
-    const bounds = world.spatial.getBounds(id);
-    const nearby = world.spatial.findNearby(id, 2);
+    const bounds = world.queries.getBounds(id);
+    const nearby = world.queries.findNearby(id, 2);
     spatialText = `尺寸 ${bounds.size.join(' × ')} · 附近 ${nearby.length} 个对象`;
-    visibleRelations = world.sceneGraph
-      .describe(id)
+    visibleRelations = world.queries
+      .describeObjectRelations(id)
       .outgoing
       .filter((relation) => ['ON', 'NEAR', 'INSIDE'].includes(relation.predicate))
       .slice(0, 8);
@@ -217,7 +214,7 @@ export function mountObjectInspector({
   return {
     render(id: string | null) {
       tab?.classList.toggle('has-selection', Boolean(id));
-      if (id && world.store.has(id)) world.sceneGraph.update();
+      if (id && world.queries.hasObject(id)) world.queries.describeObjectRelations(id);
       useStudioStore.getState().syncInspector(id);
     },
     destroy() {

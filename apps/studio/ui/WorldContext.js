@@ -25,11 +25,11 @@ export function mountWorldContext({ world, editor, tools, ui }) {
   };
   const render = () => {
     selected = editor.selectedId;
-    card.hidden = !selected || !world.store.has(selected);
+    card.hidden = !selected || !world.queries.hasObject(selected);
     actions.replaceChildren();
     status.textContent = '';
     if (card.hidden) return;
-    const info = world.getObjectInfo(selected);
+    const info = world.queries.getObjectInfo(selected);
     title.textContent = selected;
     for (const action of info.actions.filter(value => labels[value])) {
       button(labels[action], async () => {
@@ -59,14 +59,13 @@ export function mountWorldContext({ world, editor, tools, ui }) {
   };
   const off = world.events.on('editor.selection', render);
   const point = new THREE.Vector3();
-  const bounds = new THREE.Box3();
   const viewport = world.rendering.viewport();
   let frame;
   const update = () => {
-    if (selected && world.store.has(selected)) {
-      bounds.setFromObject(world.store.get(selected).object);
-      bounds.getCenter(point);
-      point.y = bounds.max.y + 0.25;
+    if (selected && world.queries.hasObject(selected)) {
+      const bounds = world.queries.getBounds(selected);
+      point.fromArray(bounds.center);
+      point.y = bounds.max[1] + 0.25;
       point.project(viewport.camera);
       card.hidden = point.z < -1 || point.z > 1 || Math.abs(point.x) > 1.1 || Math.abs(point.y) > 1.1;
       const width = ui.viewport.clientWidth;

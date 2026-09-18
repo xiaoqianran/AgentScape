@@ -6,6 +6,20 @@ export class WorldQueries {
     this.runtime = runtime;
   }
 
+  hasObject(id) { return this.runtime.observation?.hasObject?.(id) ?? Boolean(id && this.runtime.store.has(id)); }
+  getObjectInfo(id) { return this.runtime.getObjectInfo(id); }
+  listObjects() {
+    return this.runtime.store.list().map(([id, record]) => ({
+      id,
+      asset:record.assetId,
+      type:record.manifest?.type ?? null,
+      label:record.manifest?.label || record.object?.name || record.assetId || id,
+      position:record.object?.position?.toArray?.().map((value) => Number(value.toFixed(2))) || null,
+      actions:[...(record.manifest?.actions || [])],
+      surfaces:(record.manifest?.surfaces || []).map((surface) => surface.id).filter(Boolean)
+    }));
+  }
+
   getBounds(id) { return this.runtime.spatial.getBounds(id); }
   findNearby(id, radius = 2) { return this.runtime.spatial.findNearby(id, radius); }
   raycast(origin, direction, maxDistance = 100) { return this.runtime.spatial.raycast(origin, direction, maxDistance); }
@@ -19,6 +33,7 @@ export class WorldQueries {
   findFreeSpace(id, targetId, { surfaceId, clearance } = {}) {
     return this.runtime.spatial.findFreeSpace(id, targetId, { surfaceId, clearance })?.toArray() ?? null;
   }
+  supportGeometry(id, targetId, options = {}) { return this.runtime.spatial.supportGeometry(id, targetId, options); }
 
   canReach(start, end, options = {}) { return this.runtime.navigation.canReach(start, end, options); }
   findPath(start, end, options = {}) { return this.runtime.navigation.findPath(start, end, options); }
@@ -26,6 +41,18 @@ export class WorldQueries {
   navigationStatus() { return this.runtime.navigation.status(); }
   locomotionStatus(id) { return this.runtime.locomotion.status(id); }
   findInteractionPose(actorId, targetId, options = {}) { return this.runtime.interactions.findInteractionPose(actorId, targetId, options); }
+  articulationStatus(id, partName = null) { return this.runtime.interactions.articulationStatus(id, partName); }
+  carryStatus(actorId) { return this.runtime.interactions.carryStatus(actorId); }
+
+  listAffordances(options = {}) { return this.runtime.affordances.list(options); }
+  inspectAffordance(targetId, options = {}) { return this.runtime.affordances.inspect(targetId, options); }
+
+  recoveryContacts(targetId, partName = null) { return this.runtime.recovery.contacts(targetId, partName); }
+  findRecoveryCleanupPlan(actorId, targetId, options = {}) {
+    return this.runtime.interactions.findRecoveryCleanupPlan(actorId, targetId, options);
+  }
+
+  validateWorld() { return this.runtime.validator.run(); }
 
   observedEntity(id) {
     return resolveObservedEntity(this.runtime.sceneGraph, { id }).entity;

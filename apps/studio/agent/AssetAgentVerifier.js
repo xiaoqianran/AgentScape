@@ -9,7 +9,7 @@ function reasonOf(result,outcome,error=null){
 
 export class AssetAgentVerifier {
   constructor({world,tools,actorId='agent_01',log=()=>{}}={}){
-    if(!world?.store?.get||!world?.events?.emit) throw new TypeError('AssetAgentVerifier requires WorldRuntime');
+    if(!world?.queries?.listObjects||!world?.events?.emit) throw new TypeError('AssetAgentVerifier requires WorldRuntime queries');
     if(!tools?.call||!tools?.executionPolicy) throw new TypeError('AssetAgentVerifier requires AgentTools');
     this.world=world;
     this.tools=tools;
@@ -18,11 +18,11 @@ export class AssetAgentVerifier {
   }
 
   supportTargets(){
-    return this.world.store.list()
-      .map(([id,record])=>({
-        id,
-        label:record.manifest?.label||record.manifest?.type||record.assetId||id,
-        surfaces:(record.manifest?.surfaces||[]).map((surface)=>surface.id).filter(Boolean)
+    return this.world.queries.listObjects()
+      .map((record)=>({
+        id:record.id,
+        label:record.label||record.type||record.asset||record.id,
+        surfaces:[...(record.surfaces || [])]
       }))
       .filter((item)=>item.surfaces.length)
       .sort((a,b)=>a.id==='table_01'?-1:b.id==='table_01'?1:a.id.localeCompare(b.id));
@@ -31,8 +31,8 @@ export class AssetAgentVerifier {
   async run({targetId,supportId=null,surfaceId=null,speed=2.5,onStep=()=>{}}={}){
     const target=clean(targetId);
     if(!target) throw new Error('缺少待验证的 Asset Instance ID');
-    if(!this.world.store.has(target)) throw Object.assign(new Error(`世界中不存在对象：${target}`),{code:'AGENT_TEST_TARGET_MISSING'});
-    if(!this.world.store.has(this.actorId)) throw Object.assign(new Error(`世界中不存在 Agent：${this.actorId}`),{code:'AGENT_TEST_ACTOR_MISSING'});
+    if(!this.world.queries.hasObject(target)) throw Object.assign(new Error(`世界中不存在对象：${target}`),{code:'AGENT_TEST_TARGET_MISSING'});
+    if(!this.world.queries.hasObject(this.actorId)) throw Object.assign(new Error(`世界中不存在 Agent：${this.actorId}`),{code:'AGENT_TEST_ACTOR_MISSING'});
 
     const supports=this.supportTargets().filter((item)=>item.id!==target);
     const chosen=supports.find((item)=>item.id===supportId)||supports[0]||null;

@@ -4,7 +4,9 @@ import { meta, string } from '../skillPrimitives.js';
 import { WorldCommands } from '../../../modules/world/runtime/WorldCommands.js';
 
 export function registerRecoverySkills(add,runtime) {
+  const queries = runtime.queries;
   const commands = runtime.commands ||= new WorldCommands(runtime);
+  if (!queries) throw new TypeError('registerRecoverySkills requires runtime.queries');
   if (!commands) throw new TypeError('registerRecoverySkills requires runtime.commands');
   add('recoverPickupBlocker', { ...meta('执行一个窄范围的 articulated STALL recovery：仅当 blocker 仍是当前 external contact candidate、Policy 允许且具身 pickup preflight 仍通过时，才真实 approachAndPickup。它是辅助 mutation；成功只表示 blocker 被 held，不表示原始 open/close 已恢复，之后必须 retry 原始 action。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId'], { actorId:string,targetId:string,partName:string,blockerId:string }), batchable:false,auxiliary:true,mutates:true }, async (a,{registry,context}) => {
     const recovery=await buildRecoveryProposals(runtime,registry,{actorId:a.actorId,targetId:a.targetId,partName:a.partName,profile:context.profile || 'builder'});
@@ -40,7 +42,7 @@ export function registerRecoverySkills(add,runtime) {
     const blockerActionVerified=interaction.status==='action-completed' && interaction.targetReached===true && interaction.settled===true;
     if (selectedEvidence?.checked && blockerActionVerified) {
       const originalPartName=proposal.verification?.args?.partName || a.partName;
-      const contacts=runtime.recovery.contacts(a.targetId,originalPartName);
+      const contacts=queries.recoveryContacts(a.targetId,originalPartName);
       const currentContactStillPresent=contacts.some((contact)=>{
         const target=contact?.target || {};
         return contact?.external===true && target.kind==='object' && target.objectId===a.blockerId
@@ -68,7 +70,7 @@ export function registerRecoverySkills(add,runtime) {
       retryOriginal:true,verification:proposal.verification
     };
   });
-  add('suggestRecoveryCleanup', meta('只读为当前通过 recoverPickupBlocker 持有的 blocker 规划安全 cleanup。候选必须由当前 physics backend 的 scene-query 找到 Environment 支撑、位于原 articulation action sweep 外、Agent 可达且 carried-body endpoint clear。Proposal 不修改世界。', ['world.read','spatial.read','physics.read'], ['actorId','targetId'], {actorId:string,targetId:string,partName:string,blockerId:string,action:{type:'string',enum:['open','close']}}), (a)=>runtime.findRecoveryCleanupPlan(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action}));
+  add('suggestRecoveryCleanup', meta('只读为当前通过 recoverPickupBlocker 持有的 blocker 规划安全 cleanup。候选必须由当前 physics backend 的 scene-query 找到 Environment 支撑、位于原 articulation action sweep 外、Agent 可达且 carried-body endpoint clear。Proposal 不修改世界。', ['world.read','spatial.read','physics.read'], ['actorId','targetId'], {actorId:string,targetId:string,partName:string,blockerId:string,action:{type:'string',enum:['open','close']}}), (a)=>queries.findRecoveryCleanupPlan(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action}));
   add('cleanupRecoveryBlocker', { ...meta('对当前 recovery-held blocker 执行 verified cleanup：真实导航到 cleanup pose，经当前 physics backend 的 body-motion transfer 释放为 Dynamic，等待 settle，并验证 blocker 已释放、离开原 action sweep 且不再接触失败 Part。recovery-cleaned 只表示 cleanup 成功，不表示原始任务成功。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','blockerId'], {actorId:string,targetId:string,partName:string,blockerId:string,action:{type:'string',enum:['open','close']},speed:{type:'number',exclusiveMinimum:0,maximum:8}}), batchable:false,auxiliary:true,mutates:true }, async(a)=>{
     const result=await commands.cleanupRecoveryBlocker(a.actorId,a.targetId,{partName:a.partName,blockerId:a.blockerId,action:a.action,speed:a.speed});
     if (result.status==='cleanup-unavailable') return {status:'recovery-cleanup-blocked',reason:result.reason || 'CLEANUP_UNAVAILABLE',actorId:a.actorId,targetId:a.targetId,blockerId:a.blockerId,plan:result};

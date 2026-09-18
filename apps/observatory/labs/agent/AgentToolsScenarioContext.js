@@ -18,19 +18,14 @@ export class AgentToolsScenarioContext {
   async init() {
     await this.world.init();
     const runtime = {
+      store: this.world.store,
       spatial: this.world.spatial,
       interactions: this.world.interaction,
       navigation: null,
       locomotion: null,
       events: this.world.events,
       trace: null,
-      currentWorldRevision: null,
-      listObjects: () => this.world.store.list().map(([id, record]) => ({
-        id,
-        asset: record.assetId,
-        position: record.object.position.toArray().map((value) => Number(value.toFixed(2))),
-        actions: [...record.manifest.actions]
-      }))
+      currentWorldRevision: null
     };
     runtime.queries = new WorldQueries(runtime);
     const registry = new SkillRegistry({ runtime });

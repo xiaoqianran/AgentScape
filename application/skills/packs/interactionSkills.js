@@ -12,7 +12,9 @@ const recordBehaviorEvidence = (runtime, command, result, source) => {
 import { WorldCommands } from '../../../modules/world/runtime/WorldCommands.js';
 
 export function registerInteractionSkills(add,runtime) {
+  const queries = runtime.queries;
   const commands = runtime.commands ||= new WorldCommands(runtime);
+  if (!queries) throw new TypeError('registerInteractionSkills requires runtime.queries');
   if (!commands) throw new TypeError('registerInteractionSkills requires runtime.commands');
   add('approachAndInteract', { ...meta('具身 open/close 的首选单一工具：若 actorId/targetId/action 已知，应直接调用本工具，不要先调用 listObjects/findInteractionPose/navigateTo。内部完成交互位搜索、真实 navigate、距离/物理视线/action-sweep 二次验证，再请求 motor target 并等待 live joint completion。只有 status=action-completed 且 targetReached=true/settled=true 才表示动作最终完成；STALL 返回 action-failed，TIMEOUT 返回 action-unverified。整个任务是一个 mutation。', ['world.write','spatial.read','physics.read'], ['actorId','targetId','action'], { actorId:string, targetId:string, action:{type:'string',enum:['open','close']}, partName:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, async (a) => {
     const command=compileInteractionIntent({id:`direct-${a.action}`,actorId:a.actorId,targetId:a.targetId,capability:a.action},{worldRevisionId:runtime.currentWorldRevision?.revision?.id});
@@ -26,7 +28,7 @@ export function registerInteractionSkills(add,runtime) {
     const verification=recordBehaviorEvidence(runtime,command,result,'executeBehaviorCommand');
     return {...result,behaviorCommand:command,verification};
   });
-  add('getArticulationStatus', meta('读取 articulated object 的 live joint 状态：当前 coordinate、requestedAction、verifiedAction，以及 moving/completed/failed/unverified observer 结果。STALL 若当前 physics backend 提供 contact evidence，会附 blockerCandidates；它表示失败时正在接触，不证明唯一因果。不会把 motor request 当成完成。', ['world.read','physics.read'], ['id'], { id:string, partName:string }), (a) => runtime.articulationStatus(a.id,a.partName));
+  add('getArticulationStatus', meta('读取 articulated object 的 live joint 状态：当前 coordinate、requestedAction、verifiedAction，以及 moving/completed/failed/unverified observer 结果。STALL 若当前 physics backend 提供 contact evidence，会附 blockerCandidates；它表示失败时正在接触，不证明唯一因果。不会把 motor request 当成完成。', ['world.read','physics.read'], ['id'], { id:string, partName:string }), (a) => queries.articulationStatus(a.id,a.partName));
   add('approachAndPickup', { ...meta('具身 pickup：若 actorId/targetId 已知，应直接调用本工具，不要先调用 listObjects/findInteractionPose/navigateTo。Agent 先走到固定 1.5m 交互位并复核当前 physics scene-query LOS，再对对象到 hold anchor 做 shape-sweep；成功后记录 heldBy 并以 kinematic anchor 携带。不是 grasp force verification。', ['world.write','spatial.read','physics.read'], ['actorId','targetId'], { actorId:string, targetId:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, async (a) => {
     const command=compileInteractionIntent({id:'direct-pickup',actorId:a.actorId,targetId:a.targetId,capability:'PICKUP'},{worldRevisionId:runtime.currentWorldRevision?.revision?.id});
     const result=await commands.approachAndPickup(a.actorId,a.targetId,{speed:a.speed});
@@ -40,5 +42,5 @@ export function registerInteractionSkills(add,runtime) {
     return result;
   });
   add('dropHeld', { ...meta('释放 Agent 当前 kinematic-anchor held object，恢复其原始 Physics body type。', ['world.write','physics.read'], ['actorId'], { actorId:string }), batchable:false, mutates:true }, (a) => commands.dropHeld(a.actorId));
-  add('getCarryStatus', meta('读取 Agent 当前 held-object ownership；held 只表示 kinematic-anchor attachment，不等于 graspVerified。', ['world.read','physics.read'], ['actorId'], { actorId:string }), (a) => runtime.carryStatus(a.actorId));
+  add('getCarryStatus', meta('读取 Agent 当前 held-object ownership；held 只表示 kinematic-anchor attachment，不等于 graspVerified。', ['world.read','physics.read'], ['actorId'], { actorId:string }), (a) => queries.carryStatus(a.actorId));
 }

@@ -5,7 +5,7 @@ function fixture({ selectedId = 'cup_01', existing = ['cup_01'] } = {}) {
   const handlers = new Map();
   const world = {
     events: { on: (name, handler) => handlers.set(name, handler) },
-    store: { has: (id) => existing.includes(id) }
+    queries: { hasObject: (id) => existing.includes(id) }
   };
   const editor = { selectedId, select: vi.fn((id) => { editor.selectedId = id; }) };
   const inspector = { render: vi.fn() };

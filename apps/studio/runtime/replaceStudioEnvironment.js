@@ -4,7 +4,7 @@ export async function replaceStudioEnvironment(world,nextEnvironment,{reason='re
 
   const sceneBefore=world.snapshot();
   const previous=world.environment;
-  const objectCount=world.store?.list?.().length ?? 0;
+  const objectCount=world.queries?.listObjects?.().length ?? world.listObjects?.().length ?? 0;
 
   try {
     await world.clearObjects({silent:true});

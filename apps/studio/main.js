@@ -105,7 +105,7 @@ async function main() {
     // The human view owns the camera while it is active; orbit keeps owning it otherwise.
     syncInput: (frameTime) => {
       humanView?.update(frameTime);
-      world.interactions?.setHumanViewPose(humanView?.viewPose?.() || world.rendering?.viewPose?.() || null);
+      world.commands.setHumanViewPose(humanView?.viewPose?.() || world.rendering?.viewPose?.() || null);
     }
   }).start();
   window.addEventListener('pagehide', () => { humanView?.dispose(); runtimeDriver.dispose(); authoring?.dispose(); world.dispose(); }, { once:true });
@@ -269,7 +269,7 @@ async function main() {
   const rendering = world.renderingDiagnostics?.() || {};
   const rendererBackendLabel = rendering.backend === 'webgpu' ? 'WebGPU' : (rendering.backend === 'webgl2' ? 'WebGL2' : '未知后端');
   ui.setRuntimeStatus('ready', `就绪 · ${rendererBackendLabel}`);
-  taskPanel.log(`场景已就绪 · ${world.listObjects().length} 个对象 · ${rendering.renderer || 'Renderer'} / ${rendererBackendLabel}${rendering.fallback ? ' fallback' : ''}`, 'result');
+  taskPanel.log(`场景已就绪 · ${world.queries.listObjects().length} 个对象 · ${rendering.renderer || 'Renderer'} / ${rendererBackendLabel}${rendering.fallback ? ' fallback' : ''}`, 'result');
 }
 
 async function restoreOrBootstrap({ world, tools, sceneStore, environmentDefinition, taskPanel }) {
@@ -280,7 +280,7 @@ async function restoreOrBootstrap({ world, tools, sceneStore, environmentDefinit
   try {
     await world.restore(sceneStore.load());
     taskPanel.log('已恢复自动保存', 'result');
-    const hasAgent = world.store.list().some(([, record]) => record.manifest.type === 'agent');
+    const hasAgent = world.queries.listObjects().some((record) => record.type === 'agent');
     if (!hasAgent && environmentDefinition.bootstrap.agent) {
       await tools.call('spawnAsset', { assetId: 'agent', position: environmentDefinition.bootstrap.agent, instanceId: 'agent_01' });
       taskPanel.log('旧版自动保存已升级 · 已加入 agent_01', 'result');

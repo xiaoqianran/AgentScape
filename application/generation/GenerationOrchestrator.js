@@ -195,7 +195,7 @@ export class GenerationOrchestrator {
   constructor({
     providerRegistry,connectorClient=null,capabilityAdapter=new ConnectorCapabilityAdapter(),
     jobClient=null,jobReconciler=null,artifactRegistry=null,byteStore=null,
-    artifactImporter=null,produceAsset=null,persistArtifact=null,
+    connectorArtifactClient=null,artifactImporter=null,produceAsset=null,persistArtifact=null,
     events=null,now=()=>Date.now(),monotonic=()=>globalThis.performance?.now?.() ?? Date.now(),
     sleep=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms)),pollIntervalMs=DEFAULT_POLL_INTERVAL_MS,
     generationTimeoutMs=DEFAULT_GENERATION_TIMEOUT_MS
@@ -210,9 +210,11 @@ export class GenerationOrchestrator {
     this.jobReconciler=jobReconciler || (this.jobClient ? new GenerationJobReconciler({jobClient:this.jobClient}) : null);
     this.artifactRegistry=artifactRegistry || artifactImporter?.registry || null;
     this.byteStore=byteStore || artifactImporter?.byteStore || null;
-    this.artifactImporter=artifactImporter || (connectorClient && this.artifactRegistry && this.byteStore ? new ArtifactImporter({
+    const artifactTransferReady=Boolean(connectorClient && this.artifactRegistry && this.byteStore);
+    this.connectorArtifactClient=connectorArtifactClient || (artifactTransferReady ? new ConnectorArtifactClient({connectorClient}) : null);
+    this.artifactImporter=artifactImporter || (this.connectorArtifactClient && this.artifactRegistry && this.byteStore ? new ArtifactImporter({
       registry:this.artifactRegistry,byteStore:this.byteStore,
-      connectorArtifactClient:new ConnectorArtifactClient({connectorClient}),now
+      connectorArtifactClient:this.connectorArtifactClient,now
     }) : null);
     this.produceAsset=produceAsset;
     this.persistArtifact=typeof persistArtifact==='function'?persistArtifact:null;
@@ -616,6 +618,6 @@ export class GenerationOrchestrator {
       throw new GenerationOrchestrationError("ASSET_PRODUCER_UNAVAILABLE","Generation asset production is not configured");
     }
     const produced=await this.produceAsset({artifactId:imported.artifact.id,assetId,label:request.label});
-    return {...produced,jobId:view.jobId,providerStatus:"provider-succeeded",artifactStatus:"artifact-imported"};
+    return {...produced,jobId:view.jobId,providerStatus:"provider-succeeded",artifactStatus:"artifact-imported",artifact:imported.artifact};
   }
 }

@@ -17,6 +17,7 @@ it('writes articulation verification back and promotes readiness when it was the
     },
     events:{emit:vi.fn()}
   };
+  runtime.assetModule={getManifest:(id)=>runtime.assetRegistry.getManifest(id),registerManifest:(manifest,options)=>runtime.assetRegistry.registerManifest(manifest,options)};
   const registry = registerCoreSkills(new SkillRegistry({ runtime }), runtime);
   const result = await registry.get('verifyAssetArticulation').handler({assetId:'cab'});
   expect(result.readiness).toBe('ready');
@@ -41,6 +42,7 @@ it('persists staged motion verification failures and keeps the asset provisional
     assetRegistry:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
     events:{emit:vi.fn()}
   };
+  runtime.assetModule={getManifest:(id)=>runtime.assetRegistry.getManifest(id),registerManifest:(manifest,options)=>runtime.assetRegistry.registerManifest(manifest,options)};
   const registry=registerCoreSkills(new SkillRegistry({runtime}),runtime);
   const result=await registry.get('verifyAssetArticulation').handler({assetId:'cab'});
   expect(result.readiness).toBe('provisional');
@@ -64,6 +66,7 @@ it('syncs only verification metadata into already-spawned records after verifica
     store:{values:()=>[{assetId:'cab',manifest:liveManifest,object:liveObject}]},
     events:{emit:vi.fn()}
   };
+  runtime.assetModule={getManifest:(id)=>runtime.assetRegistry.getManifest(id),registerManifest:(manifest,options)=>runtime.assetRegistry.registerManifest(manifest,options)};
   const registry=registerCoreSkills(new SkillRegistry({runtime}),runtime);
   await registry.get('verifyAssetArticulation').handler({assetId:'cab'});
   expect(liveManifest.verification.articulation.ok).toBe(true);
@@ -86,6 +89,7 @@ it('runtime articulation success removes only runtime blocker and preserves prov
     assetRegistry:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
     events:{emit:vi.fn()}
   };
+  runtime.assetModule={getManifest:(id)=>runtime.assetRegistry.getManifest(id),registerManifest:(manifest,options)=>runtime.assetRegistry.registerManifest(manifest,options)};
   const registry=registerCoreSkills(new SkillRegistry({runtime}),runtime);
   const result=await registry.get('verifyAssetArticulation').handler({assetId:'cab'});
   expect(current.compiler.quality.status).toBe('ready');

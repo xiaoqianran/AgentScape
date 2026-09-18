@@ -17,7 +17,6 @@ export function registerBatchSkills(add,runtime,registry) {
         return { committed:false, rolledBack:true, reason:result.success ? 'SEMANTIC_STEP_NOT_VERIFIED' : 'SKILL_ERROR', results };
       }
     }
-    runtime.sceneGraph.changed();
     return { committed:true, rolledBack:false, results };
   });
 }

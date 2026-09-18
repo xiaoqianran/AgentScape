@@ -49,11 +49,11 @@ export class EditorController {
           this.controls.enabled = true;
           return;
         }
-        runtime.physics.beginTransform(this.selectedId);
+        runtime.commands.beginTransform(this.selectedId);
       } else if (this.dragBlocked) {
         this.dragBlocked = false;
       } else {
-        runtime.physics.endTransform(this.selectedId);
+        runtime.commands.endTransform(this.selectedId);
         runtime.commitMutation({ source: 'editor', id: this.selectedId, mode: this.transform.getMode() });
       }
     });

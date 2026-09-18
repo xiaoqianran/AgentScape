@@ -67,6 +67,10 @@ export function createAssetModule({
     manifestStore:durableManifests,
     library,
 
+    getManifest(assetId) {
+      return registry.getManifest(assetId);
+    },
+
     async hydrate() {
       if (hydrated) return { manifests:registry.size, restored:false };
       if (!durableManifests?.list) {

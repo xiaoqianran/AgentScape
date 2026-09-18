@@ -39,7 +39,7 @@ export function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, aut
   world.events.on('history.applied', ({ direction, label }) => log(`${direction === 'undo' ? '撤销' : direction === 'redo' ? '重做' : direction}：${label}`, 'history'));
   world.events.on('sceneGraph.updated', ({ edges }) => {
     log(`场景图 · ${edges} 条关系`, 'graph');
-    if (editor.selectedId && world.store.has(editor.selectedId)) inspector.render(editor.selectedId);
+    if (editor.selectedId && world.queries.hasObject(editor.selectedId)) inspector.render(editor.selectedId);
   });
   world.events.on('scene.autosaved', ({ objects }) => log(`已自动保存 · ${objects} 个对象`, 'autosave'));
 }

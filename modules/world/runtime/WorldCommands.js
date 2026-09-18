@@ -37,6 +37,21 @@ export class WorldCommands {
     return this.runtime.applyObjectTransform(id, transform, options);
   }
 
+  beginTransform(id) {
+    this.assertReady('beginTransform');
+    return this.runtime.physics.beginTransform(id);
+  }
+
+  endTransform(id) {
+    this.assertReady('endTransform');
+    return this.runtime.physics.endTransform(id);
+  }
+
+  setHumanViewPose(pose) {
+    this.assertReady('setHumanViewPose');
+    return this.runtime.interactions.setHumanViewPose(pose);
+  }
+
   async duplicate(id) {
     this.assertReady('duplicate');
     const source = this.runtime.store.get(id);
@@ -124,5 +139,24 @@ export class WorldCommands {
   repair(report, options = {}) {
     this.assertReady('repair');
     return this.runtime.repair.repair(report, options);
+  }
+
+  syncAssetVerification(assetId, manifest) {
+    let updated = 0;
+    for (const record of this.runtime.store?.values?.() || []) {
+      if (record.assetId !== assetId) continue;
+      record.manifest.verification = structuredClone(manifest.verification || {});
+      if (manifest.compiler?.quality && record.manifest.compiler) {
+        record.manifest.compiler.quality = structuredClone(manifest.compiler.quality);
+      }
+      if (record.object?.userData?.manifest) {
+        record.object.userData.manifest.verification = structuredClone(record.manifest.verification);
+        if (record.manifest.compiler?.quality && record.object.userData.manifest.compiler) {
+          record.object.userData.manifest.compiler.quality = structuredClone(record.manifest.compiler.quality);
+        }
+      }
+      updated += 1;
+    }
+    return { status:'asset-verification-synced', assetId, instances:updated };
   }
 }

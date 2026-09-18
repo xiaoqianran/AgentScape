@@ -129,12 +129,12 @@ export class GeneratedPlacementDemoRunner {
   }
 
   async #place(spec) {
-    if (!this.world.store.has(spec.instanceId)) {
+    if (!this.world.queries.hasObject(spec.instanceId)) {
       const spawned = await this.world.commands.spawn(spec.assetId, { id: spec.instanceId });
       if (spawned?.status === 'asset-rejected') throw new Error(`生成资产未通过 WorldCommands 准入：${spec.assetId}`);
     }
     const placed = this.world.commands.place(spec.instanceId, spec.supportId, { surfaceId: spec.surfaceId, clearance: 0.03 });
-    const support = this.world.spatial.supportGeometry(spec.instanceId, spec.supportId, { surfaceId: spec.surfaceId });
+    const support = this.world.queries.supportGeometry(spec.instanceId, spec.supportId, { surfaceId: spec.surfaceId });
     if (!support.supported) throw new Error('Runtime 未验证 ON 关系');
     return { status: 'completed', assetId: spec.assetId, instanceId: spec.instanceId, placed, support };
   }

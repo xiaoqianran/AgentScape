@@ -45,6 +45,7 @@ export class GenerationRuntime extends GenerationOrchestrator {
         catch (error) { connectorError={code:error.code || 'CONNECTOR_ENDPOINT_INVALID',message:error.message}; }
       }
     }
+    const connectorArtifacts=connector ? new ConnectorArtifactClient({connectorClient:connector}) : null;
 
     assetModule.configureProduction({
       artifacts,
@@ -56,6 +57,7 @@ export class GenerationRuntime extends GenerationOrchestrator {
     super({
       providerRegistry:providers,
       connectorClient:connector,
+      connectorArtifactClient:connectorArtifacts,
       artifactRegistry:artifacts.registry,
       byteStore:artifacts.byteStore,
       produceAsset:assetModule.produceAsset,
@@ -69,7 +71,6 @@ export class GenerationRuntime extends GenerationOrchestrator {
     this.assetModule=assetModule;
     this.assetCatalog=assetCatalog;
     this.connectorError=connectorError;
-    this.connectorArtifactClient=connector ? new ConnectorArtifactClient({connectorClient:connector}) : null;
   }
 
   async initialize(options={}) {
