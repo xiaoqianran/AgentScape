@@ -125,6 +125,210 @@
   gap: 16px;
 }
 
+.task-console.is-executing .quick-tasks {
+  display: none;
+}
+
+.agent-journey {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 16px;
+}
+
+.agent-stage {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 10px 10px 10px 38px;
+  border: 1px solid var(--studio-border);
+  border-radius: 10px;
+  background: rgba(16,17,20,.26);
+}
+
+.agent-stage::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 34px;
+  bottom: -9px;
+  width: 1px;
+  background: var(--studio-border);
+}
+
+.agent-stage:last-child::before {
+  display: none;
+}
+
+.agent-stage > header {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  gap: 7px;
+  align-items: center;
+}
+
+.agent-stage > header > span {
+  position: absolute;
+  left: 9px;
+  top: 9px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--studio-border);
+  border-radius: 50%;
+  color: #6f747d;
+  background: #15161a;
+  font: 650 7px/1 var(--font-mono);
+}
+
+.agent-stage > header strong {
+  color: var(--studio-text-2);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+
+.agent-stage > header i {
+  color: #656a73;
+  font: 500 8px/1 var(--font-ui);
+  font-style: normal;
+}
+
+.agent-stage > p,
+.agent-stage-list > p,
+.agent-result-copy > p {
+  margin: 0;
+  color: var(--studio-text-3);
+  font-size: 9px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.agent-stage[data-state="running"] {
+  border-color: rgba(111,156,255,.28);
+  background: rgba(111,156,255,.055);
+}
+
+.agent-stage[data-state="running"] > header > span {
+  border-color: rgba(111,156,255,.45);
+  color: #b8ccff;
+  background: rgba(111,156,255,.10);
+}
+
+.agent-stage[data-state="waiting"] > header > span {
+  color: #8e939d;
+}
+
+.agent-stage[data-state="success"] > header > span {
+  border-color: rgba(123,203,161,.36);
+  color: #aee5c6;
+  background: rgba(74,128,99,.13);
+}
+
+.agent-stage[data-state="partial"] > header > span {
+  border-color: rgba(217,179,108,.42);
+  color: #e7c887;
+  background: rgba(132,101,49,.15);
+}
+
+.agent-stage[data-state="error"] > header > span {
+  border-color: rgba(220,111,120,.42);
+  color: #f0a0a8;
+  background: rgba(128,57,63,.15);
+}
+
+.agent-stage-list {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.agent-stage-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 17px minmax(0,1fr);
+  gap: 6px;
+  align-items: start;
+  padding: 5px 0;
+  border-top: 1px solid rgba(255,255,255,.035);
+}
+
+.agent-stage-row:first-child {
+  border-top: 0;
+  padding-top: 1px;
+}
+
+.agent-stage-marker {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #7c828c;
+  background: rgba(255,255,255,.035);
+  font: 700 8px/1 var(--font-mono);
+}
+
+.agent-stage-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.agent-stage-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #bcc2ca;
+  font-size: 9px;
+  font-weight: 570;
+}
+
+.agent-stage-row small {
+  color: #666d77;
+  font-size: 7.5px;
+}
+
+.agent-stage-row[data-state="success"] .agent-stage-marker {
+  color: #aee5c6;
+  background: rgba(74,128,99,.13);
+}
+
+.agent-stage-row[data-state="error"] .agent-stage-marker {
+  color: #f0a0a8;
+  background: rgba(128,57,63,.15);
+}
+
+.agent-stage-row[data-state="skipped"] {
+  opacity: .6;
+}
+
+.agent-result-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.agent-result-copy > strong {
+  color: var(--studio-text-2);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.agent-stage[data-stage="result"][data-state="success"] .agent-result-copy > strong {
+  color: #aee5c6;
+}
+
+.agent-stage[data-stage="result"][data-state="partial"] .agent-result-copy > strong {
+  color: #e7c887;
+}
+
+.agent-stage[data-stage="result"][data-state="error"] .agent-result-copy > strong {
+  color: #f0a0a8;
+}
+
 .task-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

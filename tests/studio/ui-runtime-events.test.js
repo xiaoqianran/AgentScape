@@ -9,7 +9,7 @@ function fixture({ selectedId = 'cup_01', existing = ['cup_01'] } = {}) {
   };
   const editor = { selectedId, select: vi.fn((id) => { editor.selectedId = id; }) };
   const inspector = { render: vi.fn() };
-  const taskPanel = { log: vi.fn() };
+  const taskPanel = { log: vi.fn(), observeAgentTool: vi.fn(), observeAgentSequence: vi.fn() };
   const ui = { setView: vi.fn(), setRuntimeStatus: vi.fn(), setRuntimeRecoveryAction: vi.fn() };
   const autosave = { flush: vi.fn(() => ({ objects: [] })) };
   const reload = vi.fn();
@@ -47,6 +47,16 @@ describe('UI runtime event lifecycle', () => {
     const f = fixture();
     f.handlers.get('renderer.generated-visual-error')({ format:'spz', message:'bad spz' });
     expect(f.taskPanel.log).toHaveBeenCalledWith('生成视觉加载失败：SPZ · bad spz', 'error');
+  });
+
+  it('forwards structured Agent execution events to the semantic task view', () => {
+    const f = fixture();
+    const tool = { name:'approachAndPickup', args:{ actorId:'agent_01', targetId:'cup_01' } };
+    const sequence = { tool:'approachAndPickup', executed:true, mutates:true, outcome:{ state:'verified' } };
+    f.handlers.get('tool.called')(tool);
+    f.handlers.get('agent.sequence')(sequence);
+    expect(f.taskPanel.observeAgentTool).toHaveBeenCalledWith(tool);
+    expect(f.taskPanel.observeAgentSequence).toHaveBeenCalledWith(sequence);
   });
 
   it('deselects an object that is removed outside the editor', () => {

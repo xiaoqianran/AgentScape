@@ -20,7 +20,11 @@ export function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, aut
   world.events.on('renderer.generated-visual-error', ({ format, message }) => {
     log(`生成视觉加载失败：${String(format || 'unknown').toUpperCase()} · ${message || 'unknown'}`, 'error');
   });
-  world.events.on('tool.called', (event) => log(`工具：${event.name} ${JSON.stringify(event.args)}`, 'tool'));
+  world.events.on('tool.called', (event) => {
+    taskPanel.observeAgentTool?.(event);
+    log(`工具：${event.name} ${JSON.stringify(event.args)}`, 'tool');
+  });
+  world.events.on('agent.sequence', (event) => taskPanel.observeAgentSequence?.(event));
   world.events.on('interaction', (event) => log(`动作：${event.action} ${event.id}`, 'tool'));
   world.events.on('locomotion.started', ({ id, waypoints, pathCost }) => log(`行走：${id} · ${waypoints} 个路径点 · ${pathCost ?? '?'} 米`, 'tool'));
   world.events.on('locomotion.arrived', ({ id, elapsed }) => log(`已到达：${id} · ${elapsed} 秒`, 'result'));

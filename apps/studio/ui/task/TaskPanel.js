@@ -1,6 +1,14 @@
 import { generatedPlacementDemoTask } from '../../demos/generated-placement/generatedPlacementDemo.js';
 import './TaskPanel.css';
 import { AGENT_RUNTIME_TESTS } from '../../agent/AgentRuntimeTestRunner.js';
+import {
+  addAgentTool,
+  applyAgentSequence,
+  createAgentJourney,
+  finalizeAgentJourney,
+  journeyRunDetail,
+  outcomeLabel
+} from './AgentJourney.js';
 
 const GENERATED_PLACEMENT_TASK = generatedPlacementDemoTask();
 
@@ -41,9 +49,9 @@ const quickTaskMarkup = () => QUICK_TASK_GROUPS.map((group) => `
 export const taskPanelMarkup = () => `
   <section class="task-console" aria-label="任务">
     <header class="screen-heading">
-      <div class="eyebrow">任务</div>
+      <div class="eyebrow">AGENT</div>
       <h1>让世界发生变化</h1>
-      <p>描述目标结果，AgentScape 会规划、执行并验证世界状态。</p>
+      <p>目标 → 行动 → 世界变化 → 结果。技术日志只在需要时展开。</p>
     </header>
 
     <div id="task-state" class="task-state" data-state="ready" role="status" aria-live="polite">
@@ -56,9 +64,30 @@ export const taskPanelMarkup = () => `
     </div>
 
     <div class="task-scroll">
+      <section id="agent-journey" class="agent-journey" data-state="idle" aria-label="Agent 执行过程">
+        <article class="agent-stage" data-stage="intent" data-state="idle">
+          <header><span>01</span><strong>想做什么</strong><i>Intent</i></header>
+          <p id="agent-intent">等待一个目标。</p>
+        </article>
+        <article class="agent-stage" data-stage="actions" data-state="idle">
+          <header><span>02</span><strong>做了什么</strong><i>Actions</i></header>
+          <div id="agent-actions" class="agent-stage-list"><p>Agent 的执行步骤会显示在这里。</p></div>
+        </article>
+        <article class="agent-stage" data-stage="changes" data-state="idle">
+          <header><span>03</span><strong>世界发生了什么变化</strong><i>World</i></header>
+          <div id="agent-changes" class="agent-stage-list"><p>只显示 Runtime 确认过的世界变更。</p></div>
+        </article>
+        <article class="agent-stage" data-stage="result" data-state="idle">
+          <header><span>04</span><strong>最后是否成功</strong><i>Result</i></header>
+          <div class="agent-result-copy">
+            <strong id="agent-result-label">等待执行</strong>
+            <p id="agent-result-detail">完成后会明确显示成功、部分完成或失败。</p>
+          </div>
+        </article>
+      </section>
       <div class="quick-tasks">${quickTaskMarkup()}</div>
       <details class="activity-panel">
-        <summary><span>执行详情</span><small id="activity-count">0</small></summary>
+        <summary><span>Raw activity</span><small id="activity-count">0</small></summary>
         <div id="log" class="log" aria-label="任务活动日志"></div>
       </details>
     </div>
@@ -82,8 +111,10 @@ export class TaskPanel {
     this.available = true;
     this.activeTaskButton = null;
     this.activityCount = 0;
+    this.journey = null;
 
     const q = (selector) => root.querySelector(selector);
+    this.consoleEl = q('.task-console');
     this.state = q('#task-state');
     this.stateLabel = q('#task-state-label');
     this.stateDetail = q('#task-state-detail');
@@ -91,6 +122,15 @@ export class TaskPanel {
     this.logEl = q('#log');
     this.activityPanel = q('.activity-panel');
     this.activityCountEl = q('#activity-count');
+    this.journeyEl = q('#agent-journey');
+    this.intentEl = q('#agent-intent');
+    this.actionsEl = q('#agent-actions');
+    this.changesEl = q('#agent-changes');
+    this.resultLabelEl = q('#agent-result-label');
+    this.resultDetailEl = q('#agent-result-detail');
+    this.journeyStages = Object.fromEntries(
+      [...root.querySelectorAll('.agent-stage')].map((node) => [node.dataset.stage, node])
+    );
     this.taskButtons = [...root.querySelectorAll('.task-card')];
     this.bind();
   }
@@ -157,10 +197,103 @@ export class TaskPanel {
 
   setBusy(busy, sourceButton = null) {
     this.busy = busy;
+    this.consoleEl?.classList.toggle('is-executing', busy);
     this.activeTaskButton?.classList.remove('is-running');
     this.activeTaskButton = busy ? sourceButton : null;
     this.activeTaskButton?.classList.add('is-running');
     this.updateControls();
+  }
+
+  beginJourney(intent, label = '任务') {
+    this.journey = createAgentJourney(intent, label);
+    this.renderJourney();
+    return this.journey;
+  }
+
+  observeAgentTool(event) {
+    if (!this.busy || !this.journey) return;
+    this.journey = addAgentTool(this.journey, event);
+    this.renderJourney();
+  }
+
+  observeAgentSequence(event) {
+    if (!this.busy || !this.journey) return;
+    this.journey = applyAgentSequence(this.journey, event);
+    this.renderJourney();
+  }
+
+  finishJourney({ result = null, status = 'success', detail = '' } = {}) {
+    if (!this.journey) return null;
+    this.journey = finalizeAgentJourney(this.journey, { result, status, detail });
+    this.renderJourney();
+    return structuredClone(this.journey);
+  }
+
+  renderJourney() {
+    const journey = this.journey;
+    if (!this.journeyEl) return;
+    this.journeyEl.dataset.state = journey?.state || 'idle';
+    this.intentEl.textContent = journey?.intent || '等待一个目标。';
+
+    const actionError = journey?.actions?.some((entry) => entry.state === 'error');
+    const changeError = journey?.changes?.some((entry) => entry.state === 'error');
+    this.journeyStages.intent.dataset.state = journey ? 'success' : 'idle';
+    this.journeyStages.actions.dataset.state = !journey ? 'idle'
+      : journey.state === 'running' ? 'running'
+        : actionError ? 'error'
+          : journey.actions.length ? 'success' : 'idle';
+    this.journeyStages.changes.dataset.state = !journey ? 'idle'
+      : journey.state === 'running' && !journey.changes.length ? 'waiting'
+        : changeError ? 'error'
+          : journey.changes.length ? 'success' : 'idle';
+    this.journeyStages.result.dataset.state = journey?.result?.state || 'idle';
+
+    this.actionsEl.replaceChildren();
+    if (!journey?.actions?.length) {
+      const empty = document.createElement('p');
+      empty.textContent = journey?.state === 'running' ? '正在理解目标并规划下一步…' : 'Agent 的执行步骤会显示在这里。';
+      this.actionsEl.append(empty);
+    } else {
+      for (const entry of journey.actions) {
+        this.actionsEl.append(this.journeyRow(entry.label, entry.state, outcomeLabel(entry.outcome)));
+      }
+    }
+
+    this.changesEl.replaceChildren();
+    if (!journey?.changes?.length) {
+      const empty = document.createElement('p');
+      empty.textContent = journey?.state === 'running'
+        ? '等待第一个经过 Runtime 验证的世界变化…'
+        : '本次任务没有已确认的世界变化。';
+      this.changesEl.append(empty);
+    } else {
+      for (const entry of journey.changes) {
+        this.changesEl.append(this.journeyRow(entry.label, entry.state, entry.detail));
+      }
+    }
+
+    this.resultLabelEl.textContent = journey?.result?.label || '等待执行';
+    this.resultDetailEl.textContent = journey?.result?.detail || '完成后会明确显示成功、部分完成或失败。';
+  }
+
+  journeyRow(label, state = 'done', detail = '') {
+    const row = document.createElement('div');
+    row.className = 'agent-stage-row';
+    row.dataset.state = state;
+    const marker = document.createElement('span');
+    marker.className = 'agent-stage-marker';
+    marker.textContent = state === 'success' ? '✓' : state === 'error' ? '!' : state === 'skipped' ? '–' : '•';
+    const copy = document.createElement('div');
+    const strong = document.createElement('strong');
+    strong.textContent = label;
+    copy.append(strong);
+    if (detail && detail !== '状态未知') {
+      const small = document.createElement('small');
+      small.textContent = detail;
+      copy.append(small);
+    }
+    row.append(marker, copy);
+    return row;
   }
 
   log(text, kind = '') {
@@ -196,18 +329,21 @@ export class TaskPanel {
     }
     const startedAt = performance.now();
     const runId = `runtime_${Date.now().toString(36)}`;
+    this.beginJourney(label, `Runtime · ${label}`);
     this.setBusy(true, sourceButton);
     this.setState('running', '正在执行 Runtime 验收', label);
     try {
       const result = await this.runtimeTestRunner.run(testId);
       this.setState('success', 'Runtime 验收通过', `${label} · 不依赖 LLM。`);
       this.log(`Runtime 验收通过：${label}`, 'result');
-      this.recordRun({ id:runId, title:`Runtime · ${label}`, prompt:testId, status:'success', durationMs:performance.now()-startedAt, detail:'确定性 Runtime 工具链验证通过。' });
+      const journey = this.finishJourney({ result, status:'success', detail:'确定性 Runtime 工具链验证通过。' });
+      this.recordRun({ id:runId, title:`Runtime · ${label}`, prompt:testId, status:'success', durationMs:performance.now()-startedAt, detail:journeyRunDetail(journey), journey });
       return result;
     } catch (error) {
       this.setState('error', 'Runtime 验收失败', error.message);
       this.log(`Runtime 验收失败：${error.message}`, 'error');
-      this.recordRun({ id:runId, title:`Runtime · ${label}`, prompt:testId, status:'error', durationMs:performance.now()-startedAt, detail:error.message });
+      const journey = this.finishJourney({ status:'error', detail:error.message });
+      this.recordRun({ id:runId, title:`Runtime · ${label}`, prompt:testId, status:'error', durationMs:performance.now()-startedAt, detail:journeyRunDetail(journey), journey });
       return null;
     } finally {
       this.setBusy(false);
@@ -223,6 +359,7 @@ export class TaskPanel {
 
     const startedAt = performance.now();
     const runId = `run_${Date.now().toString(36)}`;
+    this.beginJourney(prompt, label);
     this.setBusy(true, sourceButton);
     this.setState('running', '正在执行任务', label);
 
@@ -239,12 +376,16 @@ export class TaskPanel {
         this.setState('partial', '任务部分完成', `${label} · ${tool} → ${outcome}`);
         this.log(`任务状态：未完成 · ${tool} → ${outcome}`, 'error');
       }
-      this.recordRun({ id: runId, title: label, prompt, status: completed ? 'success' : 'partial', durationMs: performance.now() - startedAt, detail: completed ? '运行时验证通过。' : `${tool} → ${outcome}` });
+      const status = completed ? 'success' : 'partial';
+      const detail = completed ? (result.message || '运行时验证通过。') : `${tool} → ${outcome}`;
+      const journey = this.finishJourney({ result, status, detail });
+      this.recordRun({ id:runId, title:label, prompt, status, durationMs:performance.now()-startedAt, detail:journeyRunDetail(journey), journey });
       return result;
     } catch (error) {
       this.setState('error', '任务执行失败', error.message);
       this.log(`错误：${error.message}`, 'error');
-      this.recordRun({ id: runId, title: label, prompt, status: 'error', durationMs: performance.now() - startedAt, detail: error.message });
+      const journey = this.finishJourney({ status:'error', detail:error.message });
+      this.recordRun({ id:runId, title:label, prompt, status:'error', durationMs:performance.now()-startedAt, detail:journeyRunDetail(journey), journey });
       return null;
     } finally {
       this.setBusy(false);

@@ -110,6 +110,7 @@ export class RunsPanel {
     heading.append(title, duration);
     const detail = document.createElement('p');
     detail.textContent = run.detail || '暂无更多详情。';
+    const journey = run.journey ? this.renderJourney(run.journey) : null;
     const prompt = document.createElement('details');
     prompt.className = 'disclosure';
     const summary = document.createElement('summary');
@@ -119,7 +120,55 @@ export class RunsPanel {
     code.className = 'run-prompt';
     code.textContent = run.prompt;
     prompt.append(code);
-    this.detail.append(heading, detail, prompt);
+    this.detail.append(heading, detail);
+    if (journey) this.detail.append(journey);
+    this.detail.append(prompt);
+  }
+
+  renderJourney(journey) {
+    const shell = document.createElement('section');
+    shell.className = 'run-journey';
+    const stages = [
+      ['想做什么', journey.intent || '—', []],
+      ['做了什么', journey.actions?.length ? '' : '没有记录动作。', journey.actions || []],
+      ['世界发生了什么变化', journey.changes?.length ? '' : '没有已确认的世界变化。', journey.changes || []],
+      ['最后是否成功', journey.result?.detail || journey.result?.label || '—', []]
+    ];
+    for (const [label, copy, items] of stages) {
+      const stage = document.createElement('article');
+      const heading = document.createElement('strong');
+      heading.textContent = label;
+      stage.append(heading);
+      if (copy) {
+        const text = document.createElement('p');
+        text.textContent = copy;
+        stage.append(text);
+      }
+      if (items.length) {
+        const list = document.createElement('div');
+        list.className = 'run-journey-list';
+        for (const item of items) {
+          const row = document.createElement('div');
+          row.dataset.state = item.state || 'done';
+          const marker = document.createElement('span');
+          marker.textContent = item.state === 'success' ? '✓' : item.state === 'error' ? '!' : item.state === 'skipped' ? '–' : '•';
+          const itemCopy = document.createElement('div');
+          const title = document.createElement('b');
+          title.textContent = item.label;
+          itemCopy.append(title);
+          if (item.detail) {
+            const small = document.createElement('small');
+            small.textContent = item.detail;
+            itemCopy.append(small);
+          }
+          row.append(marker, itemCopy);
+          list.append(row);
+        }
+        stage.append(list);
+      }
+      shell.append(stage);
+    }
+    return shell;
   }
 }
 
