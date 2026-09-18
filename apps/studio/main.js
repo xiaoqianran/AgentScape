@@ -12,17 +12,14 @@ import { AuthoringWorldStore } from './persistence/AuthoringWorldStore.js';
 import { AuthoringWorldController } from './authoring/AuthoringWorldController.js';
 import { bindAuthoringWorldControls } from './authoring/bindAuthoringWorldControls.js';
 import { createAuthoringModelResolver } from '../../application/world-authoring/AuthoringModelResolver.js';
-import { EditorController } from './editor/EditorController.js';
 import { AssetPlacementController } from './editor/AssetPlacementController.js';
 import { ENVIRONMENTS, resolveEnvironment } from '../../modules/world/content/environments.js';
 import { loadGeneratedWorld, loadGeneratedWorldManifest } from '../../modules/world/generated/GeneratedWorldLoader.js';
 import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
 import { createAppShell } from './ui/AppShell.js';
 import { builtInWorldUrl } from './ui/chrome/StudioChrome.js';
-import { mountWorldContext } from './ui/WorldContext.js';
-import { mountWorldInteraction } from './ui/WorldInteraction.js';
 import { StudioEnvironmentMaterializer } from './ui/StudioEnvironmentMaterializer.js';
-import { HumanViewController } from './ui/HumanViewController.js';
+import { StudioWorldSurface } from './ui/StudioWorldSurface.js';
 import { TaskPanel } from './ui/task/TaskPanel.js';
 import { GeneratedPlacementDemoRunner } from './demos/generated-placement/GeneratedPlacementDemoRunner.js';
 import { mountObjectInspector } from './react/inspect/ObjectInspector.tsx';
@@ -97,31 +94,24 @@ async function main() {
     store:new AuthoringWorldStore(),
     resolveModel:resolveAuthoringModel
   }) : null;
-  let editorRef = null;
-  let humanView = null;
-  const runtimeDriver = new RuntimeDriver(world, {
-    authoring,
-    // The human view owns the camera while it is active; orbit keeps owning it otherwise.
-    syncInput: (frameTime) => {
-      humanView?.update(frameTime);
-      world.commands.setHumanViewPose(humanView?.viewPose?.() || world.rendering?.viewPose?.() || null);
-    }
-  }).start();
 
   const studioTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'studio-ui' });
   const agentTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'agent' });
   const runtimeTestTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'runtime-test' });
   const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });
-  const editor = new EditorController(world);
-  editorRef = editor;
-  let worldInteraction = null;
-  let worldContext = null;
-  window.addEventListener('pagehide',()=>{
-    worldInteraction?.dispose();
-    worldContext?.dispose();
-    humanView?.dispose();
-    editor.dispose();
-  },{once:true});
+  const worldSurface = new StudioWorldSurface({
+    world,
+    ui,
+    tools:studioTools,
+    environmentMaterializer,
+    onPresentationChange:(identity)=>useStudioStore.getState().setWorldPresentation(identity),
+    onSurfaceError:(error)=>console.error('Studio world surface cleanup failed',error)
+  });
+  const editor = worldSurface.editor;
+  const runtimeDriver = new RuntimeDriver(world, {
+    authoring,
+    syncInput:(frameTime)=>worldSurface.syncInput(frameTime)
+  }).start();
   const runsPanel = new RunsPanel({ root: ui.panel });
   let taskPanel = null;
   const generatedPlacementDemo = new GeneratedPlacementDemoRunner({ world, log: (text, kind) => taskPanel?.log?.(text, kind) });
@@ -148,48 +138,6 @@ async function main() {
   });
   let worldSession=null;
   let worldOpener=null;
-  const rebindEnvironmentSurface = ({ identity = worldSession?.current } = {}) => {
-    const worldFirst=Boolean(identity?.worldFirst);
-    const nextInteraction=mountWorldInteraction({
-      world,
-      ui,
-      editor,
-      host:environmentMaterializer.hostFor(world.environment)
-    });
-    const previousInteraction=worldInteraction;
-    const previousHumanView=humanView;
-    const previousWorldContext=worldContext;
-    let nextHumanView=humanView;
-    let nextWorldContext=worldContext;
-    let createdHumanView=false;
-    let createdWorldContext=false;
-
-    try {
-      if(worldFirst && !nextHumanView) {
-        nextHumanView=new HumanViewController({world,ui,blockLook:()=>Boolean(editorRef?.transform?.axis)});
-        createdHumanView=true;
-      }
-      if(worldFirst && !nextWorldContext) {
-        nextWorldContext=mountWorldContext({world,editor,tools:studioTools,ui});
-        createdWorldContext=true;
-      }
-    } catch(error) {
-      nextInteraction?.dispose();
-      if(createdHumanView) nextHumanView?.dispose();
-      if(createdWorldContext) nextWorldContext?.dispose();
-      throw error;
-    }
-
-    worldInteraction=nextInteraction;
-    humanView=worldFirst ? nextHumanView : null;
-    worldContext=worldFirst ? nextWorldContext : null;
-    editor.setSelectionOnRelease(worldFirst);
-    humanView?.resetForEnvironment();
-    editor.select(null);
-    previousInteraction?.dispose();
-    if(previousHumanView && previousHumanView!==humanView) previousHumanView.dispose();
-    if(previousWorldContext && previousWorldContext!==worldContext) previousWorldContext.dispose();
-  };
   // Presentation owns dock DOM; the application only registers an action.
   ui.addDockAction?.({
     id:'generation-anchor',
@@ -309,12 +257,8 @@ async function main() {
     autosave,
     builtins:ENVIRONMENTS,
     fallback:environmentDefinition,
-    onIdentityChange:(identity)=>{
-      useStudioStore.getState().setWorldPresentation(identity);
-      ui.setWorldPresentation?.(identity);
-      editor.select(null);
-    },
-    onEnvironmentChange:(event)=>rebindEnvironmentSurface(event),
+    onIdentityChange:(identity)=>worldSurface.setIdentity(identity),
+    onEnvironmentChange:(event)=>worldSurface.bindEnvironment(event),
     log:(text,kind)=>taskPanel.log(text,kind)
   });
   worldOpener = new StudioWorldOpener({
@@ -337,7 +281,7 @@ async function main() {
   bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, autosave });
   bindDebugLayers(world, { log: (text, kind) => taskPanel.log(text, kind) });
   await worldOpener.open({kind:'current'});
-  rebindEnvironmentSurface({identity:worldSession.current});
+  worldSurface.bindEnvironment({identity:worldSession.current});
   bindSceneControls({
     root: app,
     world,
@@ -356,6 +300,7 @@ async function main() {
   }) : null;
   window.addEventListener('pagehide', () => authoringControls?.dispose(), { once:true });
   window.addEventListener('pagehide', () => {
+    worldSurface.dispose();
     runtimeDriver.dispose();
     authoring?.dispose();
     world.dispose();

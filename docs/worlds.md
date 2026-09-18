@@ -115,7 +115,7 @@ switch World Identity + autosave namespace
       ↓
 restore saved scene / bootstrap
       ↓
-rebind Studio world surfaces
+StudioWorldSurface.bindEnvironment()
       ↓
 COMMIT
       ↓
@@ -138,6 +138,36 @@ Studio Surface
 内置世界的 inline editor DOM 由对应 Environment 生命周期持有；只有事务 commit 后旧
 Environment 才会连同旧 editor host 一起 dispose。World-first UI、HumanView、
 WorldContext 和 WorldInteraction 也在同一个 Session commit/rollback 边界内重绑。
+
+Studio UI 生命周期本身由一个边界统一拥有：
+
+```text
+                 StudioWorldSurface
+                /        |         \
+               /         |          \
+          Editor    WorldInteraction  HumanView
+             |             |             |
+             |         inline host    WorldContext
+             |             |             |
+             +-------------+-------------+
+                           |
+                    active Environment
+```
+
+`main.js` 只负责 composition：
+
+```text
+WorldSession
+  onIdentityChange     -> worldSurface.setIdentity()
+  onEnvironmentChange  -> worldSurface.bindEnvironment()
+
+RuntimeDriver
+  syncInput            -> worldSurface.syncInput()
+```
+
+候选 Surface 创建失败时，候选 interaction / HumanView / WorldContext 会先清理，
+旧 Surface 保持存活并交给 WorldSession rollback 继续使用。只有候选 Surface 完整准备成功后，
+才交换引用并 dispose 旧 Surface。
 
 Builtin 切换成功后只用 `history.replaceState()` 更新 `?world=`，不会通过 reload
 掩盖生命周期问题。
