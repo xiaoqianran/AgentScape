@@ -1,4 +1,4 @@
-export async function replaceStudioEnvironment(world,nextEnvironment,{reason='resource-library'}={}) {
+export async function replaceStudioEnvironment(world,nextEnvironment,{reason='resource-library',disposePrevious=true}={}) {
   if(!world?.snapshot||!world?.clearObjects||!world?.replaceEnvironment) throw new TypeError('replaceStudioEnvironment requires WorldRuntime');
   if(!nextEnvironment) throw new TypeError('replaceStudioEnvironment requires nextEnvironment');
 
@@ -23,8 +23,10 @@ export async function replaceStudioEnvironment(world,nextEnvironment,{reason='re
   }
 
   let disposeError=null;
-  try { previous?.dispose?.(); }
-  catch (error) { disposeError=error; }
+  if(disposePrevious) {
+    try { previous?.dispose?.(); }
+    catch (error) { disposeError=error; }
+  }
   world.history?.clear?.();
   world.events?.emit?.('scene.cleared',{count:objectCount,reason});
   return {

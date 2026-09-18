@@ -51,6 +51,14 @@ describe('replaceStudioEnvironment',()=>{
     expect(next.dispose).not.toHaveBeenCalled();
   });
 
+  it('can defer previous environment disposal to a higher-level session transaction',async()=>{
+    const {world,previous,next}=fixture();
+    const result=await replaceStudioEnvironment(world,next,{disposePrevious:false});
+    expect(result).toMatchObject({status:'world-opened',environmentId:'generated-world'});
+    expect(previous.dispose).not.toHaveBeenCalled();
+    expect(world.environment).toBe(next);
+  });
+
   it('reports rollback failure as an aggregate error',async()=>{
     const {world,next}=fixture({replaceFails:true,restoreFails:true});
     await expect(replaceStudioEnvironment(world,next)).rejects.toMatchObject({code:'STUDIO_ENVIRONMENT_REPLACE_ROLLBACK_FAILED'});

@@ -300,6 +300,18 @@ export class HumanViewController {
     return { position:[...this.eye.toArray()], rotation:[...this.orientation.toArray()] };
   }
 
+  resetForEnvironment() {
+    this.look = null;
+    this.keys.clear();
+    this.verticalVelocity = 0;
+    this.lastFrameTime = null;
+    this.controls.enabled = true;
+    this.avatar.group.visible = false;
+    this.mode = 'orbit';
+    this.orbitState = this.world.rendering.cameraState?.() || null;
+    this.refreshPanel();
+  }
+
   dispose() {
     this.element.removeEventListener('pointerdown', this.onPointerDown);
     this.element.removeEventListener('pointermove', this.onPointerMove);

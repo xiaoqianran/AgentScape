@@ -1,12 +1,10 @@
 import { createSession } from '../../application/createSession.js';
 import { RuntimeDriver } from './runtime/RuntimeDriver.js';
-import { replaceStudioEnvironment } from './runtime/replaceStudioEnvironment.js';
-import { resolveStudioWorldIdentity, studioSceneStoreKey } from './runtime/StudioWorldIdentity.js';
+import { WorldSession } from './runtime/WorldSession.js';
 import { materializePersistedWorldEnvironment } from '../../application/generation/PromptHybridWorldOrchestrator.js';
 import { AgentTools } from '../../application/AgentTools.js';
 import { ToolCallingAgent } from '../../modules/agent/ToolCallingAgent.js';
 import { HttpLLMGateway } from '../../modules/agent/gateway/HttpLLMGateway.js';
-import { bootstrapWorld } from '../../modules/agent/bootstrapWorld.js';
 import { LocalSceneStore } from './persistence/LocalSceneStore.js';
 import { AutosaveController } from './persistence/AutosaveController.js';
 import { AuthoringWorldStore } from './persistence/AuthoringWorldStore.js';
@@ -89,8 +87,6 @@ async function main() {
   });
   world.generationState = await generation.initialize({ pair: false });
   await world.init();
-  let activeWorldIdentity=resolveStudioWorldIdentity(world.environment,{builtins:ENVIRONMENTS,fallback:environmentDefinition});
-  ui.setWorldPresentation?.(activeWorldIdentity);
   const resolveAuthoringModel = authoring ? createAuthoringModelResolver({
     assetLoader:world.assetModule.loader,
     gltfLoader:{ loadScene:(uri) => world.assetModule.loader.loadGLB(uri) }
@@ -120,7 +116,7 @@ async function main() {
   const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });
   const editor = new EditorController(world, { selectionOnRelease: ui.worldFirst });
   editorRef = editor;
-  const worldInteraction = mountWorldInteraction({ world, ui, editor, host:inlineEditorHost });
+  let worldInteraction = mountWorldInteraction({ world, ui, editor, host:inlineEditorHost });
   window.addEventListener('pagehide',()=>worldInteraction?.dispose(),{once:true});
   const worldContext = ui.worldFirst ? mountWorldContext({ world, editor, tools:studioTools, ui }) : null;
   window.addEventListener('pagehide', () => worldContext?.dispose(), { once:true });
@@ -148,15 +144,14 @@ async function main() {
     editor,
     log: (text, kind) => taskPanel.log(text, kind)
   });
-  let sceneStore=null;
-  let autosave=null;
-  const syncWorldIdentity = () => {
-    activeWorldIdentity=resolveStudioWorldIdentity(world.environment,{builtins:ENVIRONMENTS,fallback:environmentDefinition});
-    autosave?.cancelPending?.();
-    sceneStore?.setKey(studioSceneStoreKey(activeWorldIdentity));
-    ui.setWorldPresentation?.(activeWorldIdentity);
+  let worldSession=null;
+  const rebindEnvironmentSurface = () => {
+    const nextInteraction=mountWorldInteraction({world,ui,editor});
+    const previousInteraction=worldInteraction;
+    worldInteraction=nextInteraction;
+    previousInteraction?.dispose();
+    humanView?.resetForEnvironment();
     editor.select(null);
-    return activeWorldIdentity;
   };
   // Presentation owns dock DOM; the application only registers an action.
   ui.addDockAction?.({
@@ -178,19 +173,12 @@ async function main() {
     }
   });
   const openGeneratedWorld = async (manifestArtifactId) => {
-    try { autosave?.flush(); }
-    catch (error) { taskPanel.log(`切换世界前自动保存失败：${error.message}`,'error'); }
-    editor.select(null);
-    const nextEnvironment=await materializePersistedWorldEnvironment(world,manifestArtifactId);
-    const result=await replaceStudioEnvironment(world,nextEnvironment,{reason:'studio-generated-world'});
-    const identity=syncWorldIdentity();
-    if(sceneStore){
-      await restoreOrBootstrap({world,tools:studioTools,sceneStore,environmentDefinition:identity,taskPanel});
-      world.history.clear();
-      try { autosave?.flush(); }
-      catch (error) { taskPanel.log(`生成世界自动保存失败：${error.message}`,'error'); }
-    }
-    taskPanel.log(`已打开生成世界：${nextEnvironment.id || manifestArtifactId} · 清理 ${result.clearedObjects} 个对象`,'result');
+    if(!worldSession) throw new Error('WorldSession is not ready');
+    const result=await worldSession.open(
+      ()=>materializePersistedWorldEnvironment(world,manifestArtifactId),
+      {reason:'studio-generated-world'}
+    );
+    taskPanel.log(`已打开生成世界：${result.environmentId || manifestArtifactId} · 清理 ${result.clearedObjects || 0} 个对象`,'result');
     return result;
   };
   const resources = new StudioResources({
@@ -279,26 +267,37 @@ async function main() {
   const generationJobCenter = await new GenerationJobCenter({ root: ui.panel, world, tools:studioTools, log: (text, kind) => taskPanel.log(text, kind) }).init();
   window.addEventListener('pagehide', () => generationJobCenter.destroy(), { once:true });
 
-  sceneStore = new LocalSceneStore({ key:studioSceneStoreKey(activeWorldIdentity) });
-  if (!activeWorldIdentity.generated && activeWorldIdentity.id === 'monument-hall' && !sceneStore.has()) {
+  const sceneStore = new LocalSceneStore();
+  const autosave = new AutosaveController({ runtime:world, store:sceneStore, delayMs:600 }).start();
+  worldSession = new WorldSession({
+    world,
+    tools:studioTools,
+    store:sceneStore,
+    autosave,
+    builtins:ENVIRONMENTS,
+    fallback:environmentDefinition,
+    onIdentityChange:(identity)=>{
+      ui.setWorldPresentation?.(identity);
+      editor.select(null);
+    },
+    onEnvironmentChange:()=>rebindEnvironmentSurface(),
+    log:(text,kind)=>taskPanel.log(text,kind)
+  });
+  if (!worldSession.current.generated && worldSession.current.id === 'monument-hall' && !sceneStore.has()) {
     const legacy = new LocalSceneStore();
     if (legacy.has()) sceneStore.save(legacy.load());
   }
-  autosave = new AutosaveController({ runtime: world, store: sceneStore, delayMs: 600 }).start();
-  const stopWorldIdentitySync=world.events.on('environment.replaced',()=>syncWorldIdentity());
-  window.addEventListener('pagehide',()=>stopWorldIdentitySync?.(),{once:true});
+  window.addEventListener('pagehide',()=>worldSession?.dispose(),{once:true});
 
   bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, autosave });
   bindDebugLayers(world, { log: (text, kind) => taskPanel.log(text, kind) });
-  await restoreOrBootstrap({ world, tools:studioTools, sceneStore, environmentDefinition:activeWorldIdentity, taskPanel });
+  await worldSession.open();
   bindSceneControls({
     root: app,
     world,
     editor,
     sceneStore,
-    tools:studioTools,
-    environmentDefinition:activeWorldIdentity,
-    getEnvironmentDefinition:()=>activeWorldIdentity,
+    worldSession,
     log: (text, kind) => taskPanel.log(text, kind),
     setTaskState: (...args) => taskPanel.setState(...args)
   });
@@ -315,25 +314,6 @@ async function main() {
   const rendererBackendLabel = rendering.backend === 'webgpu' ? 'WebGPU' : (rendering.backend === 'webgl2' ? 'WebGL2' : '未知后端');
   ui.setRuntimeStatus('ready', `就绪 · ${rendererBackendLabel}`);
   taskPanel.log(`场景已就绪 · ${world.queries.listObjects().length} 个对象 · ${rendering.renderer || 'Renderer'} / ${rendererBackendLabel}${rendering.fallback ? ' fallback' : ''}`, 'result');
-}
-
-async function restoreOrBootstrap({ world, tools, sceneStore, environmentDefinition, taskPanel }) {
-  if (!sceneStore.has()) {
-    await bootstrapWorld(tools, environmentDefinition.bootstrap);
-    return;
-  }
-  try {
-    await world.restore(sceneStore.load());
-    taskPanel.log('已恢复自动保存', 'result');
-    const hasAgent = world.queries.listObjects().some((record) => record.type === 'agent');
-    if (!hasAgent && environmentDefinition.bootstrap.agent) {
-      await tools.call('spawnAsset', { assetId: 'agent', position: environmentDefinition.bootstrap.agent, instanceId: 'agent_01' });
-      taskPanel.log('旧版自动保存已升级 · 已加入 agent_01', 'result');
-    }
-  } catch (error) {
-    taskPanel.log(`恢复自动保存失败：${error.message}`, 'error');
-    await bootstrapWorld(tools, environmentDefinition.bootstrap);
-  }
 }
 
 main().catch((error) => {

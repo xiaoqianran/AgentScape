@@ -1,7 +1,7 @@
 import { bootstrapWorld } from '../../../modules/agent/bootstrapWorld.js';
 
-export function bindSceneControls({ root, world, editor, sceneStore, tools, environmentDefinition, getEnvironmentDefinition = null, log, setTaskState }) {
-  const currentEnvironmentDefinition = () => getEnvironmentDefinition?.() || environmentDefinition || { id:'environment', bootstrap:{} };
+export function bindSceneControls({ root, world, editor, sceneStore, worldSession = null, tools = null, environmentDefinition = null, getEnvironmentDefinition = null, log, setTaskState }) {
+  const currentEnvironmentDefinition = () => worldSession?.current || getEnvironmentDefinition?.() || environmentDefinition || { id:'environment', bootstrap:{} };
   const undoButton = root.querySelector('#undo');
   const redoButton = root.querySelector('#redo');
   const updateHistoryButtons = (status = world.history.status()) => {
@@ -35,11 +35,14 @@ export function bindSceneControls({ root, world, editor, sceneStore, tools, envi
     resetWorldButton.disabled = true;
     try {
       editor.select(null);
-      sceneStore.clear();
-      await world.clearObjects();
-      await bootstrapWorld(tools, currentEnvironmentDefinition().bootstrap || {});
-      world.history.clear();
-      setTaskState('ready', '世界已重置', '已恢复官方初始场景。');
+      if (worldSession?.reset) await worldSession.reset();
+      else {
+        sceneStore.clear();
+        await world.clearObjects();
+        await bootstrapWorld(tools, currentEnvironmentDefinition().bootstrap || {});
+        world.history.clear();
+      }
+      setTaskState('ready', '世界已重置', '已恢复当前世界初始状态。');
       log(`世界已重置 · ${world.queries.listObjects().length} 个对象`, 'result');
     } catch (error) {
       setTaskState('error', '重置失败', error.message);

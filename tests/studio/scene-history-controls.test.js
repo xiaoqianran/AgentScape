@@ -13,7 +13,7 @@ function element() {
 }
 
 // 历史恢复失败时必须可见：撤销/重做不再静默吞掉异常。
-function fixture({ undo = async () => {}, redo = async () => {} } = {}) {
+function fixture({ undo = async () => {}, redo = async () => {}, worldSession = null } = {}) {
   const elements = new Map();
   const keydown = [];
   vi.stubGlobal('window', { addEventListener:(name, handler) => { if (name === 'keydown') keydown.push(handler); } });
@@ -26,10 +26,12 @@ function fixture({ undo = async () => {}, redo = async () => {} } = {}) {
     world: {
       events:{ on(){} },
       history:{ status:()=>({canUndo:true,canRedo:true}), undo:vi.fn(undo), redo:vi.fn(redo), clear:vi.fn() },
-      clearObjects:async()=>{}, serialize:()=>({schemaVersion:1,objects:[]}), restore:async()=>{}, listObjects:()=>[]
+      clearObjects:async()=>{}, serialize:()=>({schemaVersion:1,objects:[]}), restore:async()=>{},
+      queries:{listObjects:()=>[]}
     },
     editor:{ select:vi.fn(), setMode:vi.fn(), duplicateSelected:async()=>{}, deleteSelected:vi.fn() },
     sceneStore:{ save:vi.fn(), load:()=>null, clear:vi.fn() },
+    worldSession,
     tools:{}, environmentDefinition:{ id:'monument-hall', bootstrap:{} },
     log, setTaskState:vi.fn()
   });
@@ -57,5 +59,14 @@ describe('Studio history controls', () => {
     const f = fixture();
     await f.selector('#undo').fire('click');
     expect(f.log).not.toHaveBeenCalled();
+  });
+
+  it('delegates product reset semantics to WorldSession when available', async () => {
+    const reset=vi.fn(async()=>({status:'world-reset'}));
+    const f=fixture({worldSession:{reset,current:{id:'generated-world',bootstrap:{}}}});
+    await f.selector('#reset-world').fire('click');
+    await f.selector('#reset-world').fire('click');
+    expect(reset).toHaveBeenCalledOnce();
+    expect(f.log).toHaveBeenCalledWith('世界已重置 · 0 个对象','result');
   });
 });

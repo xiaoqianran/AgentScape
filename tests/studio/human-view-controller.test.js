@@ -201,6 +201,23 @@ describe('HumanViewController', () => {
     expect(h.scene.children).not.toContain(controller.avatar.group);
   });
 
+  it('drops an active human view when the Runtime environment changes without restoring the old camera', () => {
+    const h = harness();
+    const controller = new HumanViewController({ world:h.world, windowTarget:h.windowTarget });
+    controller.setMode('third');
+    h.world.rendering.cameraState = vi.fn(() => ({ position:[9,4,2], target:[1,0,1] }));
+    h.world.rendering.applyCameraState.mockClear();
+
+    controller.resetForEnvironment();
+
+    expect(controller.mode).toBe('orbit');
+    expect(h.controls.enabled).toBe(true);
+    expect(controller.avatar.group.visible).toBe(false);
+    expect(controller.orbitState).toEqual({ position:[9,4,2], target:[1,0,1] });
+    expect(h.world.rendering.applyCameraState).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
   it('mounts the view switcher inside the world viewport', () => {
     const stub = domStub();
     vi.stubGlobal('document', stub.document);
