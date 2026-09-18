@@ -8,7 +8,7 @@ export class WorldValidator {
     this.runtime.sceneGraph.update(snapshot);
     const hard = [];
     const advisory = [];
-    const objects = this.runtime.listObjects();
+    const objects = [...snapshot.keys()].map((id) => ({ id }));
 
     for (const object of objects) {
       const bounds = snapshot.get(object.id).bounds;

@@ -23,7 +23,7 @@ function runtime() {
       registerManifest:vi.fn(),has:()=>true,
       getManifest:vi.fn((id)=>({id,type:'object',source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[]}}))
     },
-    listObjects: () => [],
+    store:{list:()=>[]},
     spawn: vi.fn(async () => { value += 1; return 'x'; }),
     interactions: {
       move: vi.fn(), pickup: vi.fn(), drop: vi.fn(), place: vi.fn(), setArticulationAction: vi.fn(),
@@ -46,8 +46,10 @@ function runtime() {
     pipeline: { run:vi.fn() }
   };
   r.assetModule={
+    catalog:r.assetCatalog,
     getManifest:(id)=>r.assetRegistry.getManifest(id),
-    registerManifest:(manifest,options)=>r.assetRegistry.registerManifest(manifest,options)
+    registerManifest:(manifest,options)=>r.assetRegistry.registerManifest(manifest,options),
+    hasAsset:(id)=>r.assetRegistry.has(id)
   };
   r.findInteractionPose=(...args)=>r.interactions.findInteractionPose(...args);
   r.approachAndInteract=(...args)=>r.interactions.approachAndInteract(...args);
@@ -584,15 +586,6 @@ it('replaces the current world before candidate execution and restores committed
   r.currentPhysicsRequirements=structuredClone(oldAuthority.currentPhysicsRequirements);
   r.lastAcceptanceBundle=structuredClone(oldAuthority.lastAcceptanceBundle);
   r.interactionEvidence=new Map(oldAuthority.interactionEvidence);
-  r.captureWorldAuthority=vi.fn(()=>structuredClone(oldAuthority));
-  r.restoreWorldAuthority=vi.fn((authority)=>{
-    order.push('restore-authority');
-    r.currentWorldRevision=structuredClone(authority.currentWorldRevision);
-    r.currentBehaviorBundle=structuredClone(authority.currentBehaviorBundle);
-    r.currentPhysicsRequirements=structuredClone(authority.currentPhysicsRequirements);
-    r.lastAcceptanceBundle=structuredClone(authority.lastAcceptanceBundle);
-    r.interactionEvidence=new Map(authority.interactionEvidence);
-  });
   r.loadRuleGraph=vi.fn((graph)=>order.push(graph.length?'load-rules':'pause-rules'));
   r.clearObjects=vi.fn(async()=>{order.push('clear-world');r.interactionEvidence.clear();});
   r.restore=vi.fn(async()=>{order.push('restore-scene');});
@@ -605,7 +598,7 @@ it('replaces the current world before candidate execution and restores committed
   const result=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
   expect(result).toMatchObject({success:true,result:{status:'world-rejected',rolledBack:true,reason:'VALIDATION_HARD'}});
   expect(r.clearObjects).toHaveBeenCalledWith({silent:true});
-  expect(order).toEqual(['pause-rules','clear-world','candidate-pipeline','restore-scene','restore-authority']);
+  expect(order).toEqual(['pause-rules','clear-world','candidate-pipeline','restore-scene','load-rules']);
   expect(r.currentWorldRevision).toEqual(oldAuthority.currentWorldRevision);
   expect(r.currentBehaviorBundle).toEqual(oldAuthority.currentBehaviorBundle);
   expect(r.currentPhysicsRequirements).toEqual(oldAuthority.currentPhysicsRequirements);
@@ -633,7 +626,7 @@ it('queries generated-world observed entities without promoting them to runtime 
     expect(approach).toMatchObject({success:true,result:{status:'approach-ready',id:'semantic-instance:hyworld2-target-0',approach:[0,0,1],targetCenter:[0,0,1.7]}});
     expect(approach.result.maxSnapDistance).toBeCloseTo(1.22,6);
     expect(approach.result.standoffDistance).toBeCloseTo(.7,6);
-    expect(r.listObjects()).toEqual([]);
+    expect(r.queries.listObjects()).toEqual([]);
   });
 
 it('carries an observation-anchored WorldIR proposal unchanged from Agent proposal into canonical execution',async()=>{

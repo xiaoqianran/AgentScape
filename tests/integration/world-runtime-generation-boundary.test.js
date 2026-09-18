@@ -8,10 +8,20 @@ import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 const createRuntime=()=>new WorldRuntime({environmentFactory:()=>null,assetModule:createAssetModule()});
 
 describe('WorldRuntime generation boundary',()=>{
+  it('fails fast when the AssetModule façade contract is incomplete',()=>{
+    expect(()=>new WorldRuntime({
+      environmentFactory:()=>null,
+      assetModule:{registry:{},loader:{},catalog:{},compiledStore:{}}
+    })).toThrow(/complete AssetModule boundary/);
+  });
+
   it('constructs a provider-neutral World core without Generation composition',()=>{
     const runtime=createRuntime();
-    expect(runtime.assetRegistry).toBeTruthy();
-    expect(runtime.assetCatalog).toBeTruthy();
+    expect(runtime.assetModule.registry).toBeTruthy();
+    expect(runtime.assetModule.catalog).toBeTruthy();
+    expect(runtime.assetRegistry).toBeUndefined();
+    expect(runtime.assetLoader).toBeUndefined();
+    expect(runtime.assetCatalog).toBeUndefined();
     for(const key of ['authoring','assetGenerator','compilerProvider','generation','generationState','generationConnectorError','getAssetCompiler']) {
       expect(Object.prototype.hasOwnProperty.call(runtime,key)).toBe(false);
     }
@@ -23,7 +33,7 @@ describe('WorldRuntime generation boundary',()=>{
     const generation=attachGenerationRuntime(runtime,{artifactModule:artifacts,connectorClient:null,compilerEndpoint:''});
     expect(runtime.generation).toBe(generation);
     expect(runtime.assetModule.artifacts).toBeUndefined();
-    expect(generation.assetCatalog).toBe(runtime.assetCatalog);
+    expect(generation.assetCatalog).toBe(runtime.assetModule.catalog);
     expect(generation.artifacts).toBe(artifacts);
     expect(generation.assetModule).toBe(runtime.assetModule);
     expect(generation.compilerProvider).toBeUndefined();
@@ -99,7 +109,7 @@ describe('WorldRuntime generation boundary',()=>{
     const runtime=new WorldRuntime({environmentFactory:()=>null,assetModule:createAssetModule(),physicsFactory});
     expect(runtime.physics).toBe(physics);
     expect(runtime.physicsFactory).toBe(physicsFactory);
-    expect(runtime.articulationVerifier.physicsFactory).toBe(physicsFactory);
+    expect(runtime.articulationVerifier).toBeUndefined();
   });
 
   it('accepts a navigation backend factory without binding World core to Recast',()=>{

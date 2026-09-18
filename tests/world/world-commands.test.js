@@ -15,25 +15,25 @@ const manifest = (id, status = 'ready') => ({
 function runtimeFixture({ admission = 'ready', ready = true } = {}) {
   return {
     ready,
-    assetRegistry:{ getManifest:vi.fn((id) => manifest(id, admission)) },
+    assetModule:{ getManifest:vi.fn((id) => manifest(id, admission)) },
     store:{ get:vi.fn((id) => ({ id, assetId:'cup' })) },
     spawn: vi.fn(async () => 'cup_01'),
     applyObjectTransform: vi.fn(() => ({ status:'object-transformed' })),
     duplicate: vi.fn(async () => 'cup_02'),
     remove: vi.fn(() => true),
-    navigateAgent: vi.fn(() => ({ status:'arrived' })),
-    approachAndInteract: vi.fn(() => ({ status:'action-completed' })),
-    approachAndPickup: vi.fn(() => ({ status:'held' })),
-    approachAndPlace: vi.fn(() => ({ status:'placed' })),
-    dropHeld: vi.fn(() => ({ status:'dropped' })),
-    markRecoveryHeld: vi.fn(() => true),
-    cleanupRecoveryBlocker: vi.fn(() => ({ status:'recovery-cleaned' })),
+    locomotion:{ navigate:vi.fn(() => ({ status:'arrived' })) },
     applyStateTransition: vi.fn(() => ({ status:'state-transition-applied' })),
     interactions: {
       pickup: vi.fn(() => true),
       drop: vi.fn(() => true),
       place: vi.fn(() => true),
-      setArticulationAction: vi.fn(() => true)
+      setArticulationAction: vi.fn(() => true),
+      approachAndInteract: vi.fn(() => ({ status:'action-completed' })),
+      approachAndPickup: vi.fn(() => ({ status:'held' })),
+      approachAndPlace: vi.fn(() => ({ status:'placed' })),
+      dropHeld: vi.fn(() => ({ status:'dropped' })),
+      markRecoveryHeld: vi.fn(() => true),
+      cleanupRecoveryBlocker: vi.fn(() => ({ status:'recovery-cleaned' }))
     },
     affordances: { execute: vi.fn(() => ({ verified:true })) },
     repair: { repair: vi.fn(() => ({ status:'repaired' })) }
@@ -67,7 +67,7 @@ describe('WorldCommands', () => {
     expect(runtime.spawn).toHaveBeenCalledWith('cup', { id:'cup_01' });
     expect(runtime.applyObjectTransform).toHaveBeenCalledWith('cup_01', { position:[1, 0, 0] }, { source:'agent' });
     expect(runtime.interactions.setArticulationAction).toHaveBeenCalledWith('cabinet_01', 'open', {});
-    expect(runtime.approachAndPickup).toHaveBeenCalledWith('agent_01', 'cup_01', {});
+    expect(runtime.interactions.approachAndPickup).toHaveBeenCalledWith('agent_01', 'cup_01', {});
     expect(runtime.affordances.execute).toHaveBeenCalledWith({ targetId:'lamp_01', action:'turn_on' }, {});
     expect(runtime.repair.repair).toHaveBeenCalledWith({ ok:false }, {});
   });

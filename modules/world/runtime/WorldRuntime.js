@@ -17,7 +17,6 @@ import { TraceRecorder } from '../../../foundation/TraceRecorder.js';
 import { WorldValidator } from '../verification/WorldValidator.js';
 import { RepairEngine } from '../verification/RepairEngine.js';
 import { disposeObject3D } from '../../rendering/disposeObject3D.js';
-import { ArticulationVerifier } from '../verification/ArticulationVerifier.js';
 import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
 import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
@@ -38,8 +37,12 @@ const mutationResultCommitted=(result)=>!(
 
 export class WorldRuntime {
   constructor({ environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend() } = {}) {
-    if (!assetModule?.registry || !assetModule?.loader || !assetModule?.catalog || !assetModule?.compiledStore) {
-      throw new TypeError('WorldRuntime requires an Asset module');
+    const assetMethods=['getManifest','hasAsset','assertCompatibleManifest','instantiate'];
+    if (
+      !assetModule?.registry || !assetModule?.loader || !assetModule?.catalog || !assetModule?.compiledStore ||
+      assetMethods.some((name)=>typeof assetModule[name]!=='function')
+    ) {
+      throw new TypeError('WorldRuntime requires a complete AssetModule boundary');
     }
     if (typeof physicsFactory !== 'function') throw new TypeError('WorldRuntime physicsFactory must be a function');
     if (typeof navigationBackendFactory !== 'function') throw new TypeError('WorldRuntime navigationBackendFactory must be a function');
@@ -49,9 +52,6 @@ export class WorldRuntime {
     this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
     this.assetModule = assetModule;
-    this.assetRegistry = assetModule.registry;
-    this.assetLoader = assetModule.loader;
-    this.assetCatalog = assetModule.catalog;
     this.observation = new WorldObservation(this);
     this.queries = new WorldQueries(this);
     this.commands = new WorldCommands(this);
@@ -60,7 +60,7 @@ export class WorldRuntime {
     this.navigationBackendFactory = navigationBackendFactory;
     this.scene = new THREE.Scene();
     this.rendering = null;
-    this.articulationVerifier = new ArticulationVerifier({ assetRegistry:this.assetRegistry, assetLoader:this.assetLoader, physicsFactory }); this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null;
+    this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null;
     this.simulation = new SimulationSession({
       fixedDt:1/60,
       executeStep:(dt)=>this.stepSimulation(dt),
@@ -89,7 +89,7 @@ export class WorldRuntime {
     await this.physics.init();
     if (this.rendering) {
       await this.rendering.init();
-      if (this.rendering.renderer) this.assetLoader.configureRenderer?.(this.rendering.renderer);
+      if (this.rendering.renderer) this.assetModule.configureRenderer?.(this.rendering.renderer);
     }
     this.spatial = new SpatialSystem({ store: this.store });
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
@@ -99,7 +99,7 @@ export class WorldRuntime {
     this.createEnvironmentSystems();
     this.ruleRuntime.start();
     this.ready = true;
-    const rendering=this.renderingDiagnostics(); this.trace.emit('runtime.ready', { version: this.version, rendering }); this.events.emit('runtime.ready', { rendering }); return this;
+    const rendering=this.rendering?.diagnostics?.() || null; this.trace.emit('runtime.ready', { version: this.version, rendering }); this.events.emit('runtime.ready', { rendering }); return this;
   }
   async addEnvironment() {
     if (!this.environmentFactory) throw new Error('WorldRuntime requires an environmentFactory');
@@ -200,7 +200,7 @@ export class WorldRuntime {
     }
   }
   async spawn(assetId, { position = [0, 0, 0], quaternion = [0, 0, 0, 1], scale = 1, id = `${assetId}_${crypto.randomUUID()}`, initialState = null } = {}) {
-    const { object, manifest } = await this.assetLoader.instantiate(assetId);
+    const { object, manifest } = await this.assetModule.instantiate(assetId);
     const uniformScale = uniformScaleValue(scale);
     if (!Array.isArray(position) || position.length !== 3 || !position.every(Number.isFinite)) {
       const error=new TypeError('Object position requires finite vec3'); error.code='OBJECT_POSITION_INVALID'; throw error;
@@ -305,9 +305,6 @@ export class WorldRuntime {
     delete scene.metadata.savedAt;
     return scene;
   }
-
-  captureWorldAuthority() { return captureWorldAuthority(this); }
-  restoreWorldAuthority(authority) { return restoreWorldAuthority(this,authority); }
 
   async exclusiveMutation(label, operation) {
     if (this.mutationOwner) {
@@ -463,32 +460,6 @@ export class WorldRuntime {
     return duplicateId;
   }
 
-  getObjectInfo(id) {
-    const r = this.store.get(id);
-    return {
-      id,
-      asset: r.assetId,
-      type: r.manifest.type,
-      position: r.object.position.toArray().map(v => Number(v.toFixed(3))),
-      rotation: r.object.rotation.toArray().slice(0, 3).map(v => Number(THREE.MathUtils.radToDeg(v).toFixed(1))),
-      scale: Number(uniformScaleValue(r.object.scale.toArray()).toFixed(3)),
-      actions: [...r.manifest.actions]
-    };
-  }
-
-  listObjects() { return this.queries.listObjects(); }
-  navigateAgent(id,end,{speed}={}) { return this.locomotion.navigate(id,end,{speed}); }
-  locomotionStatus(id) { return this.locomotion.status(id); }
-  findInteractionPose(actorId,targetId,{action,partName}={}) { return this.interactions.findInteractionPose(actorId,targetId,{action,partName}); }
-  approachAndInteract(actorId,targetId,action,{partName,speed}={}) { return this.interactions.approachAndInteract(actorId,targetId,action,{partName,speed}); }
-  articulationStatus(id,partName=null) { return this.interactions.articulationStatus(id,partName); }
-  approachAndPickup(actorId,targetId,{speed}={}) { return this.interactions.approachAndPickup(actorId,targetId,{speed}); }
-  approachAndPlace(actorId,supportId,{surfaceId,speed}={}) { return this.interactions.approachAndPlace(actorId,supportId,{surfaceId,speed}); }
-  dropHeld(actorId) { return this.interactions.dropHeld(actorId); }
-  carryStatus(actorId) { return this.interactions.carryStatus(actorId); }
-  markRecoveryHeld(actorId,details) { return this.interactions.markRecoveryHeld(actorId,details); }
-  findRecoveryCleanupPlan(actorId,targetId,options={}) { return this.interactions.findRecoveryCleanupPlan(actorId,targetId,options); }
-  cleanupRecoveryBlocker(actorId,targetId,options={}) { return this.interactions.cleanupRecoveryBlocker(actorId,targetId,options); }
   stepSimulation(dt) {
     this.environment?.step?.(dt,{physics:this.physics,navigation:this.navigation});
     this.affordances?.update(dt);
@@ -496,8 +467,6 @@ export class WorldRuntime {
     if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate();
     this.interactions?.update(dt);
   }
-  renderingDiagnostics() { return this.rendering?.diagnostics?.() || null; }
-  resize() { return this.rendering?.resize?.() ?? false; }
   dispose() {
     this.ready = false;
     this.affordances?.cancel('RUNTIME_DISPOSED');

@@ -109,7 +109,7 @@ function createHint(mode) {
 
 export class AssetPlacementController {
   constructor({ world, tools, editor = null, log = () => {} } = {}) {
-    if (!world?.rendering?.viewport || !world?.assetCatalog || !world?.physics) throw new TypeError('AssetPlacementController requires initialized WorldRuntime');
+    if (!world?.rendering?.viewport || !world?.assetModule?.catalog || !world?.physics) throw new TypeError('AssetPlacementController requires initialized WorldRuntime');
     if (!tools?.call) throw new TypeError('AssetPlacementController requires AgentTools');
     this.world = world;
     this.tools = tools;
@@ -174,10 +174,10 @@ export class AssetPlacementController {
 
   beginDrag(assetId) {
     const id = String(assetId || '').trim();
-    if (!id || !this.world.assetCatalog?.has?.(id)) return false;
+    if (!id || !this.world.assetModule.catalog?.has?.(id)) return false;
     this.cancelDrag();
     this.activeAssetId = id;
-    this.manifest = this.world.assetCatalog.get(id);
+    this.manifest = this.world.assetModule.catalog.get(id);
     this.bounds = placementBounds(this.manifest);
     this.preview = createGhost(this.bounds);
     this.world.rendering.addDecoration(this.preview.group);

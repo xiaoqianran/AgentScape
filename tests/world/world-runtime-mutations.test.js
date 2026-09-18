@@ -17,7 +17,11 @@ async function createRuntime() {
       registry: { getManifest: () => structuredClone(MANIFEST), has: () => true },
       loader: { instantiate: async () => ({ object:new THREE.Group(), manifest:structuredClone(MANIFEST) }) },
       catalog: {},
-      compiledStore: {}
+      compiledStore: {},
+      getManifest: () => structuredClone(MANIFEST),
+      hasAsset: () => true,
+      assertCompatibleManifest: () => true,
+      instantiate: async () => ({ object:new THREE.Group(), manifest:structuredClone(MANIFEST) })
     },
     physicsFactory: () => physics
   });

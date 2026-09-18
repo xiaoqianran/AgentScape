@@ -112,7 +112,7 @@ describe('Browser Agent → Python modal-gen-client → WorldRuntime E2E', () =>
         status: 'asset-provisional',
         generation: { route: { kind: 'text-image-3d' } }
       });
-      expect(runtime.assetRegistry.getManifest('generated_cup')).toMatchObject({
+      expect(runtime.assetModule.getManifest('generated_cup')).toMatchObject({
         type: 'cup',
         source: { kind: 'compiled', key: 'generated_cup' },
         actions: expect.arrayContaining(['pickup', 'drop', 'place']),

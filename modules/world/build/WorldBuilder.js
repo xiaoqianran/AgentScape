@@ -1,6 +1,7 @@
 import { createCanonicalWorldPipeline } from '../compiler/createWorldPipeline.js';
 import { buildWorldRetryPlan } from '../compiler/WorldRetry.js';
 import { recompileWorldRevision } from '../compiler/WorldRecompiler.js';
+import { captureWorldAuthority, restoreWorldAuthority } from '../runtime/WorldAuthority.js';
 
 export class WorldBuilder {
   constructor(runtime, { pipeline = null, retryBudget = 2 } = {}) {
@@ -14,15 +15,14 @@ export class WorldBuilder {
   async run(plan) {
     const runtime = this.runtime;
     const before = runtime.snapshot();
-    const authorityBefore = runtime.captureWorldAuthority?.() || null;
+    const authorityBefore = captureWorldAuthority(runtime);
     const attempts = [];
     let candidate = plan;
 
     const restoreBefore = async (cause = null) => {
       try {
         await runtime.restore(before);
-        if (authorityBefore) runtime.restoreWorldAuthority?.(authorityBefore);
-        else runtime.loadRuleGraph?.(runtime.currentBehaviorBundle?.ruleGraph || []);
+        restoreWorldAuthority(runtime,authorityBefore);
       } catch (rollbackError) {
         const failure = new AggregateError(
           cause ? [cause, rollbackError] : [rollbackError],
@@ -152,7 +152,7 @@ export class WorldBuilder {
       }
 
       const assetId = produced?.id || null;
-      if (!assetId || runtime.assetRegistry?.has?.(assetId) !== true) {
+      if (!assetId || runtime.assetModule?.hasAsset?.(assetId) !== true) {
         return {
           status:'generation-failed',
           reason:produced?.status || 'GENERATED_ASSET_NOT_PUBLISHED',

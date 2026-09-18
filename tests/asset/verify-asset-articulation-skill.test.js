@@ -10,14 +10,9 @@ it('writes articulation verification back and promotes readiness when it was the
   };
   let current = structuredClone(manifest);
   const runtime = {
-    articulationVerifier:{ verify:vi.fn(async()=>({ok:true,assetId:'cab',tested:1,parts:[]})) },
-    assetRegistry:{
-      getManifest:()=>current,
-      registerManifest:(next)=>{ current=structuredClone(next); }
-    },
     events:{emit:vi.fn()}
   };
-  runtime.assetModule={getManifest:(id)=>runtime.assetRegistry.getManifest(id),registerManifest:(manifest,options)=>runtime.assetRegistry.registerManifest(manifest,options)};
+  runtime.assetModule={getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);},verifyArticulation:vi.fn(async()=>({ok:true,assetId:'cab',tested:1,parts:[]}))};
   const registry = registerCoreSkills(new SkillRegistry({ runtime }), runtime);
   const result = await registry.get('verifyAssetArticulation').handler({assetId:'cab'});
   expect(result.readiness).toBe('ready');
@@ -38,11 +33,9 @@ it('persists staged motion verification failures and keeps the asset provisional
   };
   let current=structuredClone(manifest);
   const runtime={
-    articulationVerifier:{verify:vi.fn(async()=>verification)},
-    assetRegistry:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
     events:{emit:vi.fn()}
   };
-  runtime.assetModule={getManifest:(id)=>runtime.assetRegistry.getManifest(id),registerManifest:(manifest,options)=>runtime.assetRegistry.registerManifest(manifest,options)};
+  runtime.assetModule={getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);},verifyArticulation:vi.fn(async()=>verification)};
   const registry=registerCoreSkills(new SkillRegistry({runtime}),runtime);
   const result=await registry.get('verifyAssetArticulation').handler({assetId:'cab'});
   expect(result.readiness).toBe('provisional');
@@ -61,12 +54,10 @@ it('syncs only verification metadata into already-spawned records after verifica
   const liveManifest=structuredClone(manifest);
   const liveObject={userData:{manifest:structuredClone(manifest)}};
   const runtime={
-    articulationVerifier:{verify:vi.fn(async()=>({ok:true,assetId:'cab',tested:1,parts:[{part:'door',ok:true,actions:[{action:'open',ok:true}],reversibility:{ok:true}}]}))},
-    assetRegistry:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
     store:{values:()=>[{assetId:'cab',manifest:liveManifest,object:liveObject}]},
     events:{emit:vi.fn()}
   };
-  runtime.assetModule={getManifest:(id)=>runtime.assetRegistry.getManifest(id),registerManifest:(manifest,options)=>runtime.assetRegistry.registerManifest(manifest,options)};
+  runtime.assetModule={getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);},verifyArticulation:vi.fn(async()=>({ok:true,assetId:'cab',tested:1,parts:[{part:'door',ok:true,actions:[{action:'open',ok:true}],reversibility:{ok:true}}]}))};
   const registry=registerCoreSkills(new SkillRegistry({runtime}),runtime);
   await registry.get('verifyAssetArticulation').handler({assetId:'cab'});
   expect(liveManifest.verification.articulation.ok).toBe(true);
@@ -85,11 +76,9 @@ it('runtime articulation success removes only runtime blocker and preserves prov
   };
   let current=structuredClone(manifest);
   const runtime={
-    articulationVerifier:{verify:vi.fn(async()=>({ok:true,assetId:'cab',tested:1,parts:[]}))},
-    assetRegistry:{getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);}},
     events:{emit:vi.fn()}
   };
-  runtime.assetModule={getManifest:(id)=>runtime.assetRegistry.getManifest(id),registerManifest:(manifest,options)=>runtime.assetRegistry.registerManifest(manifest,options)};
+  runtime.assetModule={getManifest:()=>current,registerManifest:(next)=>{current=structuredClone(next);},verifyArticulation:vi.fn(async()=>({ok:true,assetId:'cab',tested:1,parts:[]}))};
   const registry=registerCoreSkills(new SkillRegistry({runtime}),runtime);
   const result=await registry.get('verifyAssetArticulation').handler({assetId:'cab'});
   expect(current.compiler.quality.status).toBe('ready');

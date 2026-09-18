@@ -187,10 +187,15 @@ assertNoImports("Asset deep-module boundary violation", assetClients, [
   /^modules\/asset\/loading\//,
   /^modules\/asset\/persistence\//
 ]);
-for (const file of productJs.filter((file) => relative(file).startsWith('application/'))) {
+const WORLD_RUNTIME_ASSET_ALIAS_RE = /\b(?:runtime|world|this\.runtime|this\.world)(?:\?\.|\.)(?:assetRegistry|assetLoader|assetCatalog)\b/;
+const WORLD_RUNTIME_REMOVED_FACADE_RE = /\b(?:runtime|world|this\.runtime|this\.world)(?:\?\.|\.)(?:captureWorldAuthority|restoreWorldAuthority|renderingDiagnostics|resize)\b/;
+for (const file of productJs) {
   const source = fs.readFileSync(file, 'utf8');
-  if (/\bruntime\.(?:assetRegistry|assetLoader)\b/.test(source)) {
-    failures.push(`Application AssetModule façade bypass: ${relative(file)}`);
+  if (WORLD_RUNTIME_ASSET_ALIAS_RE.test(source)) {
+    failures.push(`WorldRuntime AssetModule alias bypass: ${relative(file)}`);
+  }
+  if (WORLD_RUNTIME_REMOVED_FACADE_RE.test(source)) {
+    failures.push(`WorldRuntime removed façade usage: ${relative(file)}`);
   }
 }
 

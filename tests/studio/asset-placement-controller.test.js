@@ -25,10 +25,10 @@ function harness({pose={checked:true,clear:true,blockedBy:[]}}={}) {
       addDecoration:(object)=>{ scene.add(object); return object; },
       removeDecoration:(object)=>{ if(object.parent!==scene) return false; scene.remove(object); return true; }
     },
-    assetCatalog:{
+    assetModule:{catalog:{
       has:vi.fn((id)=>Boolean(assetManifests[id])),
       get:vi.fn((id)=>structuredClone(assetManifests[id]))
-    },
+    }},
     physics,
     scene,
     events,

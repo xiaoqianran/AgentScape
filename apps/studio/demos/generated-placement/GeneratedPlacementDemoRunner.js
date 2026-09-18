@@ -56,7 +56,7 @@ export class GeneratedPlacementDemoRunner {
   clear() { clearState(this.storage); }
 
   async run(spec) {
-    const existing = this.world.assetCatalog.resolveExisting(spec.assetId, { assetId: spec.assetId, limit: 1 });
+    const existing = this.world.assetModule.catalog.resolveExisting(spec.assetId, { assetId: spec.assetId, limit: 1 });
     if (existing.status === 'found') return this.#place(spec);
 
     let state = this.state();

@@ -87,7 +87,7 @@ function metaLine(...parts) {
 
 export class ResourceLibrary {
   constructor({ root, world, environments = [], placement, openEnvironment = null, openGeneratedWorld = null, log = () => {} } = {}) {
-    if (!root || !world?.assetCatalog || !world?.generation?.artifacts?.registry) throw new TypeError('ResourceLibrary requires Studio root and hydrated runtime resources');
+    if (!root || !world?.assetModule?.catalog || !world?.generation?.artifacts?.registry) throw new TypeError('ResourceLibrary requires Studio root and hydrated runtime resources');
     if (!placement?.beginDrag || !placement?.placeAtCenter) throw new TypeError('ResourceLibrary requires AssetPlacementController');
     this.root = root;
     this.world = world;
@@ -133,7 +133,7 @@ export class ResourceLibrary {
 
   snapshot() {
     return collectResourceLibrary({
-      assetCatalog:this.world.assetCatalog,
+      assetCatalog:this.world.assetModule.catalog,
       artifactRegistry:this.world.generation.artifacts.registry,
       approvedAssets:this.world.assetModule?.library?.listSync?.() || [],
       environments:this.environments,

@@ -22,7 +22,7 @@ export class WorldCommands {
 
   async spawn(assetId, options = {}) {
     this.assertReady('spawn');
-    const admission = assetAdmission(this.runtime.assetRegistry.getManifest(assetId));
+    const admission = assetAdmission(this.runtime.assetModule.getManifest(assetId));
     if (admission.status === 'rejected') {
       return { status:'asset-rejected', assetId, admission };
     }
@@ -56,7 +56,7 @@ export class WorldCommands {
     this.assertReady('duplicate');
     const source = this.runtime.store.get(id);
     const assetId = source.assetId;
-    const admission = assetAdmission(this.runtime.assetRegistry.getManifest(assetId));
+    const admission = assetAdmission(this.runtime.assetModule.getManifest(assetId));
     if (admission.status === 'rejected') {
       return { status:'asset-rejected', assetId, sourceId:id, admission };
     }
@@ -73,7 +73,7 @@ export class WorldCommands {
 
   navigate(id, end, options = {}) {
     this.assertReady('navigate');
-    return this.runtime.navigateAgent(id, end, options);
+    return this.runtime.locomotion.navigate(id, end, options);
   }
 
   pickup(id) {
@@ -98,32 +98,32 @@ export class WorldCommands {
 
   approachAndInteract(actorId, targetId, action, options = {}) {
     this.assertReady('approachAndInteract');
-    return this.runtime.approachAndInteract(actorId, targetId, action, options);
+    return this.runtime.interactions.approachAndInteract(actorId, targetId, action, options);
   }
 
   approachAndPickup(actorId, targetId, options = {}) {
     this.assertReady('approachAndPickup');
-    return this.runtime.approachAndPickup(actorId, targetId, options);
+    return this.runtime.interactions.approachAndPickup(actorId, targetId, options);
   }
 
   approachAndPlace(actorId, supportId, options = {}) {
     this.assertReady('approachAndPlace');
-    return this.runtime.approachAndPlace(actorId, supportId, options);
+    return this.runtime.interactions.approachAndPlace(actorId, supportId, options);
   }
 
   dropHeld(actorId) {
     this.assertReady('dropHeld');
-    return this.runtime.dropHeld(actorId);
+    return this.runtime.interactions.dropHeld(actorId);
   }
 
   markRecoveryHeld(actorId, details) {
     this.assertReady('markRecoveryHeld');
-    return this.runtime.markRecoveryHeld(actorId, details);
+    return this.runtime.interactions.markRecoveryHeld(actorId, details);
   }
 
   cleanupRecoveryBlocker(actorId, targetId, options = {}) {
     this.assertReady('cleanupRecoveryBlocker');
-    return this.runtime.cleanupRecoveryBlocker(actorId, targetId, options);
+    return this.runtime.interactions.cleanupRecoveryBlocker(actorId, targetId, options);
   }
 
   applyStateTransition(id, stateKey, value, meta = {}) {

@@ -96,9 +96,6 @@ export class GenerationAgentScenarioContext {
       policy: this.policy,
       trace: this.trace,
       assetModule: this.world.assetModule,
-      assetRegistry: this.world.assetModule.registry,
-      assetLoader: this.world.assetModule.loader,
-      assetCatalog: this.world.assetModule.catalog,
       compiledAssetStore: this.world.assetModule.compiledStore,
       store: this.world.store,
       physics: this.world.physics,
@@ -281,8 +278,8 @@ runtime.cleanupRecoveryBlocker=(...args)=>runtime.interactions.cleanupRecoveryBl
   }
 
   generatedAssetState() {
-    if (!this.runtime.assetRegistry.has(FIXTURE_ASSET_ID)) return null;
-    const manifest = this.runtime.assetRegistry.getManifest(FIXTURE_ASSET_ID);
+    if (!this.runtime.assetModule.hasAsset(FIXTURE_ASSET_ID)) return null;
+    const manifest = this.runtime.assetModule.getManifest(FIXTURE_ASSET_ID);
     return {
       id: manifest.id,
       type: manifest.type,

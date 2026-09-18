@@ -12,9 +12,9 @@ const createWorld = () => {
     },
     rendering:{
       update:vi.fn(),
-      render:vi.fn()
+      render:vi.fn(),
+      resize:vi.fn()
     },
-    resize:vi.fn(),
     events:{
       on:vi.fn((type,handler)=>{ listeners.set(type,handler); return () => listeners.delete(type); })
     },
@@ -34,7 +34,7 @@ describe('RuntimeDriver', () => {
 
     expect(world.simulation.reset).not.toHaveBeenCalled();
     expect(world.simulation.play).toHaveBeenCalledOnce();
-    expect(world.resize).toHaveBeenCalledOnce();
+    expect(world.rendering.resize).toHaveBeenCalledOnce();
     expect(windowTarget.addEventListener).toHaveBeenCalledWith('resize',driver.onResize);
     expect(requestFrame).toHaveBeenCalledOnce();
 

@@ -31,7 +31,7 @@ it('compiles WorldIR cup NEAR an observed generated-world bench before spawn wit
   });
   const spawned=[];
   const runtime={
-    events:null,trace:null,assetRegistry:assets,assetLoader,store,scene,spatial,sceneGraph,physics,
+    events:null,trace:null,assetModule:{getManifest:(id)=>assets.getManifest(id),hasAsset:(id)=>assets.has(id),catalog:{}},store,scene,spatial,sceneGraph,physics,
     environment:{id:'generated-garden',layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
     spawn:async(assetId,{id,position,initialState=null}={})=>{
       const {object,manifest}=await assetLoader.instantiate(assetId);

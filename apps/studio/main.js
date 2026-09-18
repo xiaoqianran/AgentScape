@@ -88,8 +88,8 @@ async function main() {
   world.generationState = await generation.initialize({ pair: false });
   await world.init();
   const resolveAuthoringModel = authoring ? createAuthoringModelResolver({
-    assetLoader:world.assetLoader,
-    gltfLoader:{ loadScene:(uri) => world.assetLoader.loadGLB(uri) }
+    assetLoader:world.assetModule.loader,
+    gltfLoader:{ loadScene:(uri) => world.assetModule.loader.loadGLB(uri) }
   }) : null;
   const authoringWorlds = authoring ? new AuthoringWorldController({
     authoring,
@@ -233,7 +233,7 @@ async function main() {
   }).init();
   taskPanel.setOpenSettingsHandler(() => developer.open());
   ui.developerButton.addEventListener('click', () => developer.open());
-  ui.setLayoutChangeHandler(() => world.resize());
+  ui.setLayoutChangeHandler(() => world.rendering?.resize?.());
 
   await new GenerationJobCenter({ root: ui.panel, world, tools, log: (text, kind) => taskPanel.log(text, kind) }).init();
 
@@ -266,7 +266,7 @@ async function main() {
 
   inspector.render(null);
   world.history.clear();
-  const rendering = world.renderingDiagnostics?.() || {};
+  const rendering = world.rendering?.diagnostics?.() || {};
   const rendererBackendLabel = rendering.backend === 'webgpu' ? 'WebGPU' : (rendering.backend === 'webgl2' ? 'WebGL2' : '未知后端');
   ui.setRuntimeStatus('ready', `就绪 · ${rendererBackendLabel}`);
   taskPanel.log(`场景已就绪 · ${world.queries.listObjects().length} 个对象 · ${rendering.renderer || 'Renderer'} / ${rendererBackendLabel}${rendering.fallback ? ' fallback' : ''}`, 'result');

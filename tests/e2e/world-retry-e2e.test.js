@@ -28,7 +28,7 @@ describe('bounded generated-world retry',()=>{
     const spawned=[];
     const snapshot={name:'before'};
     const runtime={
-      events:null,trace:new TraceRecorder(),policy:new PolicyEngine(),assetRegistry:assets,assetCatalog,generation,
+      events:null,trace:new TraceRecorder(),policy:new PolicyEngine(),assetModule:{getManifest:(id)=>assets.getManifest(id),hasAsset:(id)=>assets.has(id),catalog:assetCatalog},generation,
       environment:{layout:{bounds:{min:[-4,-4],max:[4,4]},groundY:0,margin:.5}},
       physics:{checkManifestPose:vi.fn(()=>({checked:true,clear:true,blockedBy:[]}))},
       spawn:vi.fn(async(assetId,{position,id})=>{spawned.push({assetId,position,id});return id;}),

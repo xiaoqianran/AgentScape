@@ -1,5 +1,6 @@
 import { composeObservedNearPlacement } from '../compiler/WorldComposer.js';
 import { listObservedEntities, resolveObservedEntity } from './ObservedEntity.js';
+import { uniformScaleValue } from './ObjectTransform.js';
 
 export class WorldQueries {
   constructor(runtime) {
@@ -7,7 +8,18 @@ export class WorldQueries {
   }
 
   hasObject(id) { return this.runtime.observation?.hasObject?.(id) ?? Boolean(id && this.runtime.store.has(id)); }
-  getObjectInfo(id) { return this.runtime.getObjectInfo(id); }
+  getObjectInfo(id) {
+    const record = this.runtime.store.get(id);
+    return {
+      id,
+      asset:record.assetId,
+      type:record.manifest.type,
+      position:record.object.position.toArray().map((value) => Number(value.toFixed(3))),
+      rotation:record.object.rotation.toArray().slice(0, 3).map((value) => Number((value * 180 / Math.PI).toFixed(1))),
+      scale:Number(uniformScaleValue(record.object.scale.toArray()).toFixed(3)),
+      actions:[...record.manifest.actions]
+    };
+  }
   listObjects() {
     return this.runtime.store.list().map(([id, record]) => ({
       id,
@@ -66,7 +78,7 @@ export class WorldQueries {
   planAssetNearObservedEntity(assetId, id, { distance, maxDistance } = {}) {
     const observed = this.observedEntity(id);
     if (!observed) return { status:'observed-entity-missing', id };
-    const manifest = this.runtime.assetRegistry.getManifest(assetId);
+    const manifest = this.runtime.assetModule.getManifest(assetId);
     const result = composeObservedNearPlacement(manifest, observed, {
       layout:this.runtime.environment?.layout,
       poseClear:(candidate, position) => this.runtime.physics.checkManifestPose(candidate, position),

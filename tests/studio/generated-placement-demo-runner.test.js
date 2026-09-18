@@ -22,7 +22,7 @@ describe('GeneratedPlacementDemoRunner',()=>{
         ]}),
         submitGenerationJob,getGenerationJob,generateAndCompileAsset
       },
-      assetCatalog:{resolveExisting:()=>({status:'missing'})},
+      assetModule:{catalog:{resolveExisting:()=>({status:'missing'})}},
       commands:{spawn,place},
       queries:{
         hasObject:()=>false,

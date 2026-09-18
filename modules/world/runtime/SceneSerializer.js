@@ -26,7 +26,7 @@ export class SceneSerializer {
     });
 
     const assets = [...usedAssets]
-      .map((assetId) => runtime.assetRegistry.getManifest(assetId))
+      .map((assetId) => runtime.assetModule.getManifest(assetId))
       .filter((manifest) => ['glb', 'compiled'].includes(manifest.source?.kind))
       .map(clone);
 
@@ -106,9 +106,9 @@ export class SceneSerializer {
     }
 
     // 先完成所有不会破坏当前世界的检查。
-    for (const manifest of scene.assets) runtime.assetRegistry.assertCompatibleManifest(manifest);
+    for (const manifest of scene.assets) runtime.assetModule.assertCompatibleManifest(manifest);
     for (const item of scene.objects) {
-      if (!runtime.assetRegistry.has(item.assetId)) throw new Error(`Scene references unknown asset: ${item.assetId}`);
+      if (!runtime.assetModule.hasAsset(item.assetId)) throw new Error(`Scene references unknown asset: ${item.assetId}`);
     }
     if(scene.metadata?.environmentState)runtime.environment?.validateSnapshot?.(scene.metadata.environmentState);
 

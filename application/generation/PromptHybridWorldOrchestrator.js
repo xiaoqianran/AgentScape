@@ -2,6 +2,7 @@ import { loadGeneratedWorld } from '../../modules/world/generated/GeneratedWorld
 import { WorldBuilder } from '../../modules/world/build/WorldBuilder.js';
 import { buildWorldProposal } from '../../modules/world/spec/WorldPlannerProposal.js';
 import { WORLD_PLANNER_PROPOSAL_SCHEMA } from '../../modules/world/spec/WorldIRToolSchema.js';
+import { captureWorldAuthority, restoreWorldAuthority } from '../../modules/world/runtime/WorldAuthority.js';
 
 const text={type:'string',minLength:1};
 const strict=(properties,required=[])=>({type:'object',additionalProperties:false,properties,required});
@@ -199,7 +200,7 @@ export class PromptHybridWorldOrchestrator {
       return await runtime.exclusiveMutation('prompt-hybrid-world',async()=>{
         transactionStarted=true;
       const beforeScene=runtime.snapshot();
-      const authorityBefore=runtime.captureWorldAuthority?.() || null;
+      const authorityBefore=captureWorldAuthority(runtime);
       const previousEnvironment=runtime.environment || null;
       let environmentInstalled=false;
       const rollback=async()=>{
@@ -208,7 +209,7 @@ export class PromptHybridWorldOrchestrator {
           await runtime.replaceEnvironment(previousEnvironment,{disposePrevious:false,reason:'prompt-hybrid-world-rollback'});
         }
         await runtime.restore(beforeScene);
-        if(authorityBefore) runtime.restoreWorldAuthority?.(authorityBefore);
+        restoreWorldAuthority(runtime,authorityBefore);
       };
       try {
         await runtime.clearObjects({silent:true});
@@ -237,7 +238,7 @@ export class PromptHybridWorldOrchestrator {
           status:built.status,
           generation:generationEvidence(generation),environment:environmentEvidence(nextEnvironment),proposal:proposed.summary,
           worldRevisionId:proposed.summary.worldRevisionId,
-          admission:clone(built.admission),attempts:clone(built.attempts),objects:runtime.listObjects()
+          admission:clone(built.admission),attempts:clone(built.attempts),objects:runtime.queries.listObjects()
         };
       } catch(error) {
         try { await rollback(); }

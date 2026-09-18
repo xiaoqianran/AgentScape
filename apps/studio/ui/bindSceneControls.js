@@ -39,7 +39,7 @@ export function bindSceneControls({ root, world, editor, sceneStore, tools, envi
       await bootstrapWorld(tools, environmentDefinition.bootstrap);
       world.history.clear();
       setTaskState('ready', '世界已重置', '已恢复官方初始场景。');
-      log(`世界已重置 · ${world.listObjects().length} 个对象`, 'result');
+      log(`世界已重置 · ${world.queries.listObjects().length} 个对象`, 'result');
     } catch (error) {
       setTaskState('error', '重置失败', error.message);
       log(`重置错误：${error.message}`, 'error');

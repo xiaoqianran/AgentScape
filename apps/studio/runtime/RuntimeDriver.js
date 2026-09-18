@@ -25,7 +25,7 @@ export class RuntimeDriver {
     this.frameStartTime = null;
     this.lastFrameTime = null;
     this.unsubscribeDeviceLost = null;
-    this.onResize = () => this.world.resize?.();
+    this.onResize = () => this.world.rendering.resize?.();
   }
 
   start() {
@@ -34,7 +34,7 @@ export class RuntimeDriver {
     this.frameStartTime = null;
     this.lastFrameTime = null;
     this.world.simulation.play();
-    this.world.resize?.();
+    this.world.rendering.resize?.();
     this.windowTarget?.addEventListener?.('resize', this.onResize);
     this.unsubscribeDeviceLost = this.world.events?.on?.('renderer.device-lost', () => this.stop()) || null;
     this.frameId = this.requestFrame(this.frame);

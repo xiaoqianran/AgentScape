@@ -39,6 +39,7 @@ export function createAssetModule({
   let configuredCompilerProvider = null;
   let configuredCompiler = null;
   let configuredCompilerGetter = null;
+  let articulationVerifier = null;
 
   const persistManifest = async (manifest) => {
     if (manifest?.source?.kind !== 'compiled' || !durableManifests?.put) return false;
@@ -69,6 +70,39 @@ export function createAssetModule({
 
     getManifest(assetId) {
       return registry.getManifest(assetId);
+    },
+
+    hasAsset(assetId) {
+      return registry.has(assetId);
+    },
+
+    assertCompatibleManifest(manifest) {
+      return registry.assertCompatibleManifest(manifest);
+    },
+
+    configureRenderer(renderer) {
+      return loader.configureRenderer?.(renderer);
+    },
+
+    instantiate(assetId, options) {
+      return loader.instantiate(assetId, options);
+    },
+
+    configureVerification({ articulationVerifier: verifier = null } = {}) {
+      if (verifier != null && typeof verifier.verify !== 'function') {
+        throw new TypeError('Asset articulation verifier must provide verify(assetId)');
+      }
+      articulationVerifier = verifier;
+      return module;
+    },
+
+    async verifyArticulation(assetId) {
+      if (!articulationVerifier) {
+        const error = new Error('Asset articulation verification is not configured');
+        error.code = 'ASSET_ARTICULATION_VERIFIER_UNAVAILABLE';
+        throw error;
+      }
+      return articulationVerifier.verify(assetId);
     },
 
     async hydrate() {

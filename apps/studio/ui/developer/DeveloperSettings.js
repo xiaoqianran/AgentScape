@@ -119,7 +119,7 @@ export class DeveloperSettings {
     this.assetQuery.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') { event.preventDefault(); this.searchAssets(); }
     });
-    this.renderAssetResults(this.world.assetCatalog.list().slice(0, 5));
+    this.renderAssetResults(this.world.assetModule.catalog.list().slice(0, 5));
     return this;
   }
 
@@ -131,7 +131,7 @@ export class DeveloperSettings {
   }
 
   renderRendererStatus() {
-    const info = this.world.renderingDiagnostics?.() || {};
+    const info = this.world.rendering?.diagnostics?.() || {};
     const backend = info.backend === 'webgpu' ? 'WebGPU' : info.backend === 'webgl2' ? 'WebGL2' : String(info.backend || 'unknown');
     const mode = info.requestedMode || 'auto';
     const health = info.health || 'ready';
@@ -216,7 +216,7 @@ export class DeveloperSettings {
       const inspection = result.inspection.stats;
       renderTechnicalReport(this.compilerReport, manifest.id, `${result.quality.status} · ${manifest.type} · ${inspection.nodes} 个节点 · ${inspection.meshes} 个网格 · 碰撞体 ${manifest.compiler.collisionStrategy}`);
       this.log(`资产已编译：${manifest.id}`, 'result');
-      this.renderAssetResults(this.world.assetCatalog.list().slice(0, 8));
+      this.renderAssetResults(this.world.assetModule.catalog.list().slice(0, 8));
     } catch (error) {
       this.compilerReport.textContent = `编译失败：${error.message}`;
       this.log(`编译错误：${error.message}`, 'error');
@@ -224,7 +224,7 @@ export class DeveloperSettings {
   }
 
   searchAssets() {
-    this.renderAssetResults(this.world.assetCatalog.search(this.assetQuery.value, { limit: 8 }));
+    this.renderAssetResults(this.world.assetModule.catalog.search(this.assetQuery.value, { limit: 8 }));
   }
 
   renderAssetResults(assets) {

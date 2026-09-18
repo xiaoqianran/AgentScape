@@ -5,6 +5,7 @@ import { attachGenerationRuntime } from './generation/GenerationRuntime.js';
 import { SkillRegistry } from './skills/SkillRegistry.js';
 import { registerCoreSkills } from './skills/registerCoreSkills.js';
 import { createWorldAuthoringContext } from './createWorldAuthoringContext.js';
+import { ArticulationVerifier } from '../modules/world/verification/ArticulationVerifier.js';
 
 // Composition only. DOM rendering is attached here; frame scheduling and input stay with the host.
 export function createSession(container, {
@@ -12,11 +13,20 @@ export function createSession(container, {
   rendererFactory = null,
   rendererMode = 'auto',
   rendererTiming = false,
+  articulationVerifier = null,
   ...worldOptions
 } = {}) {
+  const assetModule = worldOptions.assetModule || createAssetModule();
+  assetModule.configureVerification({
+    articulationVerifier:articulationVerifier || new ArticulationVerifier({
+      assetRegistry:assetModule.registry,
+      assetLoader:assetModule.loader,
+      ...(worldOptions.physicsFactory ? { physicsFactory:worldOptions.physicsFactory } : {})
+    })
+  });
   const world = new WorldRuntime({
     ...worldOptions,
-    assetModule: worldOptions.assetModule || createAssetModule()
+    assetModule
   });
   if (container) {
     const renderingOptions = {

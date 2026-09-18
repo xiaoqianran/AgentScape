@@ -21,8 +21,7 @@ const runtime = () => {
   return {
     events: null,
     trace: null,
-    assetRegistry:assets,
-    assetCatalog,
+    assetModule:{getManifest:(id)=>assets.getManifest(id),hasAsset:(id)=>assets.has(id),catalog:assetCatalog},
     authoring,
     environment: { layout: { bounds: { min: [-4, -4], max: [4, 4] }, groundY: 0, margin: .5 } },
     physics: {

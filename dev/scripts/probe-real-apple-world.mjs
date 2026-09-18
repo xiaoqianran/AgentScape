@@ -127,7 +127,7 @@ try{
   const generatedAsset=worldResult.attempts[0]?.generation?.assets?.find((item)=>item.instanceId==="apple_01") || null;
   if(!generatedAsset?.assetId) throw new Error(`Retry produced no published apple asset: ${JSON.stringify(worldResult.attempts[0]?.generation||null)}`);
   const assetId=generatedAsset.assetId;
-  const appleManifest=runtime.assetRegistry.getManifest(assetId);
+  const appleManifest=runtime.assetModule.getManifest(assetId);
   const appleAdmission=assetAdmission(appleManifest,{generated:true});
   mark("generation.ready",{assetId,status:generatedAsset.status,admission:appleAdmission.status,type:appleManifest.type,actions:appleManifest.actions,body:appleManifest.physics?.body,collisionStrategy:appleManifest.compiler?.collisionStrategy});
 
@@ -148,7 +148,7 @@ try{
     support,
     applePosition:appleBefore,
     tableTop:tableSurface?.center?.toArray?.()||null,
-    objects:runtime.listObjects()
+    objects:runtime.queries.listObjects()
   });
 
   const command=pipeline.state.artifacts.behaviorBundle.behaviorGraph.commands.find((item)=>item.capability==="PICKUP");

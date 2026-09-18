@@ -34,9 +34,9 @@ const resolveCanonicalAsset = async (runtime, request) => {
   // Canonical World compilation may consume an already-published Asset even when
   // the retry revision preserves generation provenance. It must never invoke a
   // Provider itself; generation happens in the Runtime orchestration boundary.
-  if (request.assetId && runtime.assetRegistry.has(request.assetId)) {
-    const manifest = runtime.assetRegistry.getManifest(request.assetId);
-    return { status: 'found', query, assets: [runtime.assetCatalog?.summary?.(manifest) || { id: manifest.id }] };
+  if (request.assetId && runtime.assetModule.hasAsset(request.assetId)) {
+    const manifest = runtime.assetModule.getManifest(request.assetId);
+    return { status: 'found', query, assets: [runtime.assetModule.catalog?.summary?.(manifest) || { id: manifest.id }] };
   }
   if (request.generate || request.provider) {
     return {
@@ -46,8 +46,8 @@ const resolveCanonicalAsset = async (runtime, request) => {
       hint: 'Generate and publish the Asset before compiling canonical WorldIR.'
     };
   }
-  if (runtime.assetCatalog?.resolveExisting) {
-    return runtime.assetCatalog.resolveExisting(query, { assetId: request.assetId || null, limit: 5 });
+  if (runtime.assetModule.catalog?.resolveExisting) {
+    return runtime.assetModule.catalog.resolveExisting(query, { assetId: request.assetId || null, limit: 5 });
   }
   return { status: 'missing', query, assets: [] };
 };
@@ -55,7 +55,7 @@ const resolveCanonicalAsset = async (runtime, request) => {
 const resolveLegacyAsset = (runtime, request) => {
   if (typeof runtime.generation?.resolveAssetRequest !== 'function') {
     const query=request.query || request.type || request.assetId || '';
-    return Promise.resolve(runtime.assetCatalog.resolveExisting(query,{assetId:request.assetId || null,limit:5}));
+    return Promise.resolve(runtime.assetModule.catalog.resolveExisting(query,{assetId:request.assetId || null,limit:5}));
   }
   return runtime.generation.resolveAssetRequest({
     query:request.query || request.type || '',
@@ -89,7 +89,7 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
       const request = requests[index] || {};
       const entity = entities[index] || {};
       const existingAssetId = assetIdFromRef(entity.assetRef);
-      if (existingAssetId && runtime.assetRegistry.has(existingAssetId)) {
+      if (existingAssetId && runtime.assetModule.hasAsset(existingAssetId)) {
         resolved.push({ ...entity, assetRef:createAssetRef(existingAssetId), status:'found' });
         resolutions.push({ id:entity.id || null, query:request.query || existingAssetId, status:'found', assetId:existingAssetId });
         continue;
@@ -112,8 +112,8 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
     const provisional=[];
     for (const item of assets) {
       const assetId=assetIdFromRef(item.assetRef);
-      if (!assetId || !runtime.assetRegistry.has(assetId)) continue;
-      const manifest=runtime.assetRegistry.getManifest(assetId);
+      if (!assetId || !runtime.assetModule.hasAsset(assetId)) continue;
+      const manifest=runtime.assetModule.getManifest(assetId);
       const admission=assetAdmission(manifest);
       if (admission.status==='provisional') provisional.push({ assetId, reasons:[...admission.reasons] });
       if (admission.status==='rejected') {
@@ -140,7 +140,7 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
     const anchoredSubjects=new Set(observationRelations.map((relation)=>relation.subject));
     const regularAssets=assets.filter((item)=>!anchoredSubjects.has(item.id));
     const base=composeWorldLayout(regularAssets,{
-      getManifest:(assetId)=>runtime.assetRegistry.getManifest(assetId),
+      getManifest:(assetId)=>runtime.assetModule.getManifest(assetId),
       poseClear:(manifest,position)=>runtime.physics.checkManifestPose(manifest,position),
       layout:runtime.environment?.layout
     });
@@ -153,7 +153,7 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
     for(const placement of placements){
       const asset=assets.find((item)=>item.id===placement.id);
       const assetId=assetIdFromRef(asset?.assetRef);
-      if(assetId) occupied.push({id:placement.id,manifest:runtime.assetRegistry.getManifest(assetId),position:[...placement.position]});
+      if(assetId) occupied.push({id:placement.id,manifest:runtime.assetModule.getManifest(assetId),position:[...placement.position]});
     }
     let provisional=base.status==='provisional';
     for(const relation of observationRelations){
@@ -166,7 +166,7 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
         state.reports.layoutAdmission={status:'rejected',reason,placements,issues:[...issues,issue],observationAnchors};
         return state;
       }
-      const manifest=runtime.assetRegistry.getManifest(assetId);
+      const manifest=runtime.assetModule.getManifest(assetId);
       const result=composeObservedNearPlacement(manifest,resolution.entity,{
         layout:runtime.environment?.layout,
         poseClear:(candidate,position)=>runtime.physics.checkManifestPose(candidate,position),
@@ -213,7 +213,7 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
       state.reports.behaviorAdmission=admissionNotEvaluated('UPSTREAM_ASSET_ADMISSION_REJECTED',{issues:[]});
       return state;
     }
-    state.reports.behaviorAdmission=admitWorldBehavior(state.artifacts.behaviorBundle,{resolvedAssets:state.artifacts.assets||[],getManifest:(assetId)=>runtime.assetRegistry.getManifest(assetId)});
+    state.reports.behaviorAdmission=admitWorldBehavior(state.artifacts.behaviorBundle,{resolvedAssets:state.artifacts.assets||[],getManifest:(assetId)=>runtime.assetModule.getManifest(assetId)});
     return state;
   });
 
@@ -222,7 +222,7 @@ const createPipeline=(runtime,compileInput,resolveAsset)=>{
       state.reports.physicsAdmission=admissionNotEvaluated('UPSTREAM_ASSET_ADMISSION_REJECTED',{backend:null,requirements:structuredClone(state.artifacts.physicsRequirements?.requirements||[]),issues:[]});
       return state;
     }
-    state.reports.physicsAdmission=admitWorldPhysics(state.artifacts.physicsRequirements,{profile:runtime.physics?.profile?.()||null,resolvedAssets:state.artifacts.assets||[],getManifest:(assetId)=>runtime.assetRegistry.getManifest(assetId)});
+    state.reports.physicsAdmission=admitWorldPhysics(state.artifacts.physicsRequirements,{profile:runtime.physics?.profile?.()||null,resolvedAssets:state.artifacts.assets||[],getManifest:(assetId)=>runtime.assetModule.getManifest(assetId)});
     return state;
   });
 

@@ -9,13 +9,21 @@ const environment = () => {
   return { id:'headless-world', root, floor, colliders:[], dispose:vi.fn() };
 };
 
-const assetModule = () => ({
-  registry:{ getManifest:vi.fn(), has:vi.fn(() => false) },
-  loader:{ instantiate:vi.fn(), configureRenderer:vi.fn() },
-  catalog:{},
-  compiledStore:{},
-  hydrate:vi.fn(async () => {})
-});
+const assetModule = () => {
+  const loader={ instantiate:vi.fn(), configureRenderer:vi.fn() };
+  return {
+    registry:{ getManifest:vi.fn(), has:vi.fn(() => false) },
+    loader,
+    catalog:{},
+    compiledStore:{},
+    hydrate:vi.fn(async () => {}),
+    getManifest:(...args)=>loader.getManifest?.(...args),
+    hasAsset:()=>false,
+    assertCompatibleManifest:vi.fn(),
+    instantiate:(...args)=>loader.instantiate(...args),
+    configureRenderer:(renderer)=>loader.configureRenderer(renderer)
+  };
+};
 
 const physics = () => ({
   init:vi.fn(async () => {}),
@@ -40,8 +48,6 @@ describe('WorldRuntime rendering boundary', () => {
     await runtime.init();
 
     expect(runtime.rendering).toBeNull();
-    expect(runtime.renderingDiagnostics()).toBeNull();
-    expect(runtime.resize()).toBe(false);
     expect(assets.loader.configureRenderer).not.toHaveBeenCalled();
 
     runtime.dispose();
@@ -73,7 +79,8 @@ describe('WorldRuntime rendering boundary', () => {
     expect(rendering.init).toHaveBeenCalledOnce();
     expect(rendering.applyEnvironment).toHaveBeenCalledOnce();
     expect(assets.loader.configureRenderer).toHaveBeenCalledWith(renderer);
-    expect(runtime.renderingDiagnostics()).toEqual({ backend:'test' });
+    expect(runtime.rendering.diagnostics()).toEqual({ backend:'test' });
+    expect(runtime.rendering.resize()).toBe(true);
 
     expect(() => runtime.attachRendering({ ...rendering })).toThrow(/already attached/);
     runtime.dispose();

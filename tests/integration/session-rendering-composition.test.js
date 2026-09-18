@@ -23,4 +23,13 @@ describe('createSession rendering composition', () => {
     expect(authoring.scene.name).toBe('$llm-world');
     expect(authoring.scene.parent).toBe(world.rendering.decorationRoot);
   });
+
+  it('composes articulation verification through AssetModule instead of WorldRuntime', async () => {
+    const articulationVerifier = { verify:vi.fn(async (assetId) => ({ ok:true, assetId })) };
+    const { world } = createSession(null, { environmentFactory, articulationVerifier });
+
+    await expect(world.assetModule.verifyArticulation('cabinet')).resolves.toEqual({ ok:true, assetId:'cabinet' });
+    expect(articulationVerifier.verify).toHaveBeenCalledWith('cabinet');
+    expect(world.articulationVerifier).toBeUndefined();
+  });
 });

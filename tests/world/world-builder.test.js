@@ -2,24 +2,32 @@ import { describe, expect, it, vi } from 'vitest';
 import { WorldBuilder } from '../../modules/world/build/WorldBuilder.js';
 
 const harness = ({ pipelineRun, restore } = {}) => {
-  const authority = { revision:{ id:'before' } };
   const runtime = {
     snapshot:vi.fn(() => ({ scene:'before' })),
     restore:restore || vi.fn(async () => {}),
-    captureWorldAuthority:vi.fn(() => authority),
-    restoreWorldAuthority:vi.fn(),
+    currentWorldRevision:{revision:{id:'before'},provenance:{source:'test'}},
+    currentBehaviorBundle:{ruleGraph:[{id:'rule-before'}]},
+    currentPhysicsRequirements:{requirements:[]},
+    lastAcceptanceBundle:{result:{status:'world-accepted'}},
+    restoredAcceptanceEvidence:{worldRevisionId:'before'},
+    interactionEvidence:new Map([['before',{verified:true}]]),
     loadRuleGraph:vi.fn(),
     clearObjects:vi.fn(async () => {}),
     generation:{ canGenerateAsset:vi.fn(() => false) }
   };
   const pipeline = { run:pipelineRun || vi.fn() };
-  return { runtime, pipeline, builder:new WorldBuilder(runtime,{ pipeline }), authority };
+  return { runtime, pipeline, builder:new WorldBuilder(runtime,{ pipeline }) };
 };
 
 describe('WorldBuilder rollback', () => {
   it('restores scene and authority when the canonical pipeline throws after destructive preparation', async () => {
     const failure = Object.assign(new Error('compiler exploded'), { code:'COMPILER_FAILED' });
-    const h = harness({ pipelineRun:vi.fn(async () => { throw failure; }) });
+    const h = harness();
+    h.pipeline.run.mockImplementation(async () => {
+      h.runtime.currentWorldRevision={revision:{id:'mutated'}};
+      h.runtime.currentBehaviorBundle={ruleGraph:[{id:'mutated'}]};
+      throw failure;
+    });
 
     await expect(h.builder.run({})).rejects.toBe(failure);
 
@@ -27,19 +35,25 @@ describe('WorldBuilder rollback', () => {
     expect(h.runtime.clearObjects).toHaveBeenCalledWith({ silent:true });
     expect(h.runtime.restore).toHaveBeenCalledOnce();
     expect(h.runtime.restore).toHaveBeenCalledWith({ scene:'before' });
-    expect(h.runtime.restoreWorldAuthority).toHaveBeenCalledWith(h.authority);
+    expect(h.runtime.currentWorldRevision).toMatchObject({revision:{id:'before'}});
+    expect(h.runtime.currentBehaviorBundle).toEqual({ruleGraph:[{id:'rule-before'}]});
+    expect(h.runtime.loadRuleGraph).toHaveBeenLastCalledWith([{id:'rule-before'}]);
   });
 
   it('restores the original world when destructive preparation itself throws', async () => {
     const failure = Object.assign(new Error('clear failed'), { code:'CLEAR_FAILED' });
     const h = harness();
-    h.runtime.clearObjects.mockRejectedValue(failure);
+    h.runtime.clearObjects.mockImplementation(async () => {
+      h.runtime.currentWorldRevision={revision:{id:'mutated'}};
+      throw failure;
+    });
 
     await expect(h.builder.run({})).rejects.toBe(failure);
 
     expect(h.pipeline.run).not.toHaveBeenCalled();
     expect(h.runtime.restore).toHaveBeenCalledOnce();
-    expect(h.runtime.restoreWorldAuthority).toHaveBeenCalledWith(h.authority);
+    expect(h.runtime.currentWorldRevision).toMatchObject({revision:{id:'before'}});
+    expect(h.runtime.loadRuleGraph).toHaveBeenLastCalledWith([{id:'rule-before'}]);
   });
 
   it('surfaces rollback failure without hiding the original build failure', async () => {
