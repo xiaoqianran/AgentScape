@@ -17,7 +17,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     </option>`).join('');
 
   app.innerHTML = `
-    <main class="shell spatial-editor${environmentDefinition.worldFirst ? ' world-first' : ''}" data-world="${environmentDefinition.id}" data-context-view="create">
+    <main class="shell spatial-editor${environmentDefinition.worldFirst ? ' world-first' : ''}" data-world="${environmentDefinition.id}" data-workspace="world" data-context-view="create">
       <header class="brandbar">
         <div class="brand-lockup">
           <strong>AgentScape <em>Studio</em></strong>
@@ -84,13 +84,6 @@ export function createAppShell({ app, environmentDefinition, environments }) {
         </div>
 
         <aside class="panel" data-view="create" aria-label="上下文面板">
-          <nav class="panel-tabs" aria-label="工作区视图">
-            <button type="button" data-panel-view="create" class="active" aria-selected="true">构建</button>
-            <button type="button" data-panel-view="task" aria-selected="false">Agent</button>
-            <button type="button" data-panel-view="resources" aria-selected="false">资源</button>
-            <button type="button" data-panel-view="inspect" aria-selected="false">检查</button>
-            <button type="button" data-panel-view="runs" aria-selected="false">记录</button>
-          </nav>
           ${taskPanelMarkup()}
           <div class="build-workbench-host"></div>
           <div class="build-advanced-shell">
@@ -126,7 +119,8 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     shell,
     panel,
     environmentDefinition,
-    onViewChange: (view) => useStudioStore.getState().setActiveContextView(view)
+    onViewChange: (view) => useStudioStore.getState().setActiveContextView(view),
+    onWorkspaceChange: (workspace) => useStudioStore.getState().setActiveWorkspace(workspace)
   });
 
   app.querySelector('#build-close-advanced')?.addEventListener('click', () => {

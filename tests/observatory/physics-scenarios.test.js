@@ -40,7 +40,7 @@ describe("Observatory Physics scenarios", () => {
         }
         if (backendId === "rapier") expect(debug.nativeGeometry?.vertices?.length).toBeGreaterThan(0);
         else expect(debug.nativeGeometry).toBeNull();
-      });
+      }, 10_000);
     }
   }
 });

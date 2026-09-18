@@ -592,11 +592,14 @@ function BuildWorkbenchView({
 
   return (
     <section className="build-workbench" aria-label="Build Workbench">
-      <header className="build-heading">
+      <header className="build-heading screen-heading product-heading">
         <div>
           <div className="eyebrow">CREATE</div>
           <h1>Create</h1>
           <p>Image、3D Asset 或 World。选择结果，其余技术细节交给系统。</p>
+          <div className="product-flow" aria-label="Create workflow">
+            <span>Input</span><i>→</i><span>Generate</span><i>→</i><span>Artifact</span>
+          </div>
         </div>
         <button id="build-open-advanced" className="build-advanced-button" type="button" onClick={() => root.classList.add('build-advanced-open')}>{running ? 'Jobs' : 'Advanced'}</button>
       </header>

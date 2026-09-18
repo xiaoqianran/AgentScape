@@ -5,14 +5,34 @@ export function builtInWorldUrl(currentHref, worldId) {
   return url.toString();
 }
 
+export const STUDIO_NAVIGATION = Object.freeze([
+  { view:'world', label:'World', group:'primary' },
+  { view:'create', label:'Create', group:'primary' },
+  { view:'task', label:'Agent', group:'primary' },
+  { view:'resources', label:'Library', group:'utility' },
+  { view:'inspect', label:'Inspect', group:'utility' },
+  { view:'runs', label:'Runs', group:'utility' }
+]);
+
+const PRIMARY_CONTEXTS = new Map([
+  ['create','create'],
+  ['task','agent']
+]);
+
+export function workspaceForStudioView(currentWorkspace, view) {
+  if (view === 'world') return 'world';
+  return PRIMARY_CONTEXTS.get(view) || currentWorkspace;
+}
+
 export function createStudioChrome({
   app,
   shell,
   panel,
   environmentDefinition,
-  onViewChange = () => {}
+  onViewChange = () => {},
+  onWorkspaceChange = () => {}
 }) {
-  const tabs = [...app.querySelectorAll('[data-panel-view]')];
+  const availableViews = new Set(STUDIO_NAVIGATION.filter((entry) => entry.view !== 'world').map((entry) => entry.view));
   const runtimeStatus = app.querySelector('#runtime-status');
   const runtimeStatusLabel = runtimeStatus?.querySelector('span');
   const commandForm = app.querySelector('#command');
@@ -30,6 +50,7 @@ export function createStudioChrome({
   let onWorldChange = null;
   let runtimeRecoveryAction = null;
   let activeView = 'create';
+  let activeWorkspace = shell.dataset.workspace || 'world';
   let dock = null;
   const disposers = [];
 
@@ -40,40 +61,42 @@ export function createStudioChrome({
 
   const notifyLayout = () => requestAnimationFrame(() => onLayoutChange());
 
-  const syncTabs = () => {
-    for (const tab of tabs) {
-      const selected = tab.dataset.panelView === activeView;
-      tab.classList.toggle('active', selected);
-      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
-    }
-  };
-
   const syncDock = () => {
     if (!dock) return;
     for (const button of dock.querySelectorAll('[data-dock-view]')) {
       const contextOpen = shell.classList.contains('context-open');
-      const selected = button.dataset.dockView === 'world'
-        ? !contextOpen
-        : button.dataset.dockView === activeView && contextOpen;
+      const view = button.dataset.dockView;
+      const group = button.dataset.dockGroup;
+      const selected = group === 'primary'
+        ? (view === 'world' ? activeWorkspace === 'world' : PRIMARY_CONTEXTS.get(view) === activeWorkspace)
+        : contextOpen && view === activeView;
       button.classList.toggle('active', selected);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     }
   };
 
   const closeContext = () => {
+    activeWorkspace = workspaceForStudioView(activeWorkspace,'world');
     shell.classList.remove('context-open');
+    shell.dataset.workspace = activeWorkspace;
+    onWorkspaceChange(activeWorkspace);
     syncDock();
     notifyLayout();
   };
 
   const setView = (view, { focus = true } = {}) => {
-    if (!tabs.some((tab) => tab.dataset.panelView === view)) return false;
+    if (!availableViews.has(view)) return false;
+    const workspace = workspaceForStudioView(activeWorkspace,view);
+    if (workspace !== activeWorkspace) {
+      activeWorkspace = workspace;
+      shell.dataset.workspace = workspace;
+      onWorkspaceChange(workspace);
+    }
     activeView = view;
     shell.classList.add('context-open');
     panel.dataset.view = view;
     shell.dataset.contextView = view;
     onViewChange(view);
-    syncTabs();
     syncDock();
     notifyLayout();
     if (focus && view === 'task') requestAnimationFrame(() => commandInput?.focus());
@@ -95,8 +118,6 @@ export function createStudioChrome({
   };
 
   listen(runtimeStatus, 'click', () => runtimeRecoveryAction?.());
-  for (const tab of tabs) listen(tab, 'click', () => setView(tab.dataset.panelView));
-
   listen(worldSelect, 'change', (event) => {
     if (event.target.selectedOptions?.[0]?.dataset.runtimeWorld === 'true') return;
     const worldId = event.target.value;
@@ -130,14 +151,7 @@ export function createStudioChrome({
   dock.className = 'world-dock';
   dock.setAttribute('aria-label', 'Studio workspace');
 
-  const entries = [
-    { view:'world', label:'World', group:'primary' },
-    { view:'create', label:'Create', group:'primary' },
-    { view:'task', label:'Agent', group:'primary' },
-    { view:'runs', label:'Runs', group:'utility' }
-  ];
-
-  for (const { view, label, group } of entries) {
+  for (const { view, label, group } of STUDIO_NAVIGATION) {
     const button = document.createElement('button');
     button.type = 'button';
     button.dataset.dockView = view;

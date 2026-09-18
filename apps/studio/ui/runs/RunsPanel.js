@@ -9,9 +9,9 @@ const STATUS_LABELS = {
 
 export const runsPanelMarkup = () => `
   <section class="runs-console" aria-label="执行记录">
-    <header class="screen-heading split-heading">
+    <header class="screen-heading product-heading product-heading--utility split-heading">
       <div>
-        <div class="eyebrow">执行记录</div>
+        <div class="eyebrow">RUNS</div>
         <h1>查看任务历史</h1>
         <p>查看本次浏览器会话中任务发生了什么，以及任务停在了哪里。</p>
       </div>

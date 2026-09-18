@@ -2,6 +2,20 @@
 
 2026-09-16。以双层小屋作为当前主场景，先把一个世界做成 Agent 可以持续完成任务的工作场所。Studio 以世界为主界面，生成、编辑、操作和检查使用上下文浮层；Observatory 维持 Runtime 诊断职责，只共享世界与诊断覆盖层。
 
+## Studio 产品信息架构
+
+Studio 只保留三条一级工作区：`WORLD | CREATE | AGENT`。`Library | Inspect | Runs` 是二级 utility context，不再与三条产品主线平级；打开 utility 时保留当前一级工作区语义。
+
+```text
+WORLD   Environment → Objects → State
+CREATE  Input       → Generate → Artifact
+AGENT   Intent      → Action   → World Change → Result
+
+UTILITY Library | Inspect | Runs
+```
+
+导航由 `StudioChrome.STUDIO_NAVIGATION` 单一声明驱动。旧右侧五标签导航已经移除；右侧 Panel 只负责显示当前 product / utility context。该收口不改变 `WorldSession`、`StudioWorldSurface` 或 `WorldRuntime` 的生命周期边界。
+
 ## 当前已落地
 
 - 原小屋几何、陈设与交互动画接入同一个 WorldRuntime。源 HTML 保留，迁移脚本可重跑。

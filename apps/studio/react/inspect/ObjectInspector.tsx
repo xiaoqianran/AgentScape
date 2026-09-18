@@ -110,8 +110,8 @@ function ObjectInspectorView({ world, tools, log }: InspectorProps) {
 
   return (
     <>
-      <header className="screen-heading">
-        <div className="eyebrow">检查</div>
+      <header className="screen-heading product-heading product-heading--utility">
+        <div className="eyebrow">INSPECT</div>
         <h1 id="inspect-heading">{info?.id ?? '请选择对象'}</h1>
         <p id="inspect-subheading">
           {info ? `${info.type} 实例` : '点击世界中的对象，查看它的状态、关系和可用操作。'}
@@ -207,14 +207,14 @@ export function mountObjectInspector({
   const host = root.matches('.inspector') ? root : root.querySelector<HTMLElement>('.inspector');
   if (!host) throw new TypeError('ObjectInspector requires an .inspector host');
 
-  const tab = root.closest('.panel')?.querySelector<HTMLElement>('[data-panel-view="inspect"]')
-    ?? root.querySelector<HTMLElement>('[data-panel-view="inspect"]');
+  const inspectButton = root.closest('.shell')?.querySelector<HTMLElement>('[data-dock-view="inspect"]')
+    ?? document.querySelector<HTMLElement>('[data-dock-view="inspect"]');
   const reactRoot: Root = createRoot(host);
   reactRoot.render(<ObjectInspectorView world={world} tools={tools} log={log} />);
 
   return {
     render(id: string | null) {
-      tab?.classList.toggle('has-selection', Boolean(id));
+      inspectButton?.classList.toggle('has-selection', Boolean(id));
       if (id && world.queries.hasObject(id)) world.queries.describeObjectRelations(id);
       useStudioStore.getState().syncInspector(id);
     },

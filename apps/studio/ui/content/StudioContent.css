@@ -196,6 +196,37 @@
   font-size: 10px;
 }
 
+.product-heading {
+  min-width: 0;
+}
+
+.product-flow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  color: var(--studio-text-3);
+  font: 600 7.5px/1 var(--studio-font-mono);
+  letter-spacing: .055em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.product-flow span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-flow i {
+  color: #555861;
+  font-style: normal;
+}
+
+.product-heading--utility .eyebrow {
+  color: #737680;
+}
+
 .disclosure {
   border-color: var(--studio-border);
   background: rgba(16,17,20,.34);

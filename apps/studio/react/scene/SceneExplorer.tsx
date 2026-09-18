@@ -144,6 +144,9 @@ function SceneExplorerView({
         <div>
           <span className="scene-eyebrow">WORLD</span>
           <strong id="scene-world-title">{title}</strong>
+          <div className="product-flow" aria-label="World workflow">
+            <span>Environment</span><i>→</i><span>Objects</span><i>→</i><span>State</span>
+          </div>
         </div>
         <span id="scene-object-count" className="scene-count">{tab === 'objects' ? objects.length : assets.length}</span>
       </div>

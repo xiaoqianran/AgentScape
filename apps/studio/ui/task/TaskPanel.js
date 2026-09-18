@@ -48,10 +48,13 @@ const quickTaskMarkup = () => QUICK_TASK_GROUPS.map((group) => `
 
 export const taskPanelMarkup = () => `
   <section class="task-console" aria-label="任务">
-    <header class="screen-heading">
+    <header class="screen-heading product-heading">
       <div class="eyebrow">AGENT</div>
       <h1>让世界发生变化</h1>
       <p>目标 → 行动 → 世界变化 → 结果。技术日志只在需要时展开。</p>
+      <div class="product-flow" aria-label="Agent workflow">
+        <span>Intent</span><i>→</i><span>Action</span><i>→</i><span>World</span><i>→</i><span>Result</span>
+      </div>
     </header>
 
     <div id="task-state" class="task-state" data-state="ready" role="status" aria-live="polite">

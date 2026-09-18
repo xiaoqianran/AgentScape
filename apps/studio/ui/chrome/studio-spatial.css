@@ -324,8 +324,8 @@
   background: rgba(111,156,255,.12);
 }
 
-/* Right: one contextual surface. Internal engineering tabs remain in the DOM
- * as compatibility wiring, but navigation now lives in the workspace dock.
+/* Right: one contextual surface. Navigation lives in the workspace dock;
+ * the panel now renders only the active product or utility context.
  */
 
 .spatial-editor .panel,
@@ -352,9 +352,6 @@
   display: grid;
 }
 
-.spatial-editor .panel-tabs {
-  display: none;
-}
 
 /* Top-center editing tools: a separate floating control island. */
 
@@ -409,6 +406,7 @@
 }
 
 .spatial-editor .world-dock button {
+  position: relative;
   min-width: 64px;
   height: 34px;
   padding: 0 10px;
@@ -438,9 +436,25 @@
   text-transform: none;
 }
 
-.spatial-editor .world-dock button[data-dock-view="runs"] {
+.spatial-editor .world-dock button[data-dock-view="resources"] {
   margin-left: 7px;
   box-shadow: -5px 0 0 -4px var(--studio-border-strong);
+}
+
+.spatial-editor .world-dock button[data-dock-group="utility"].active {
+  color: var(--studio-text-2);
+  background: rgba(255,255,255,.055);
+}
+
+.spatial-editor .world-dock button.has-selection:not(.active)::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--studio-accent);
 }
 
 .spatial-editor .world-dock .dock-extension {

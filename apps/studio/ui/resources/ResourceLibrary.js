@@ -4,8 +4,8 @@ export { collectResourceLibrary } from '../../resources/StudioResources.js';
 
 export const resourceLibraryMarkup = () => `
 <section class="resource-console" aria-label="资源库">
-  <header class="screen-heading">
-    <div class="eyebrow">资源</div>
+  <header class="screen-heading product-heading product-heading--utility">
+    <div class="eyebrow">LIBRARY</div>
     <h1>Library</h1>
     <p>持久化资源库。Recent Outputs 只保留最近构建结果，这里展示可复用的 Asset、Image 与 World。</p>
   </header>

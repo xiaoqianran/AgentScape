@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 export type ContextView = 'create' | 'task' | 'resources' | 'inspect' | 'runs';
+export type WorkspaceView = 'world' | 'create' | 'agent';
 export type BuildOutputKind = 'image' | 'asset' | 'world';
 
 export type BuildOutputRef = {
@@ -28,6 +29,7 @@ export type StudioWorldPresentation = {
 type StudioState = {
   selectedObjectId: string | null;
   worldPresentation: StudioWorldPresentation | null;
+  activeWorkspace: WorkspaceView;
   activeContextView: ContextView;
   contextRevision: number;
   buildOutputs: BuildOutputRef[];
@@ -36,6 +38,7 @@ type StudioState = {
   buildWorkflowSequence: number;
   setSelectedObjectId: (id: string | null) => void;
   setWorldPresentation: (identity: StudioWorldPresentation | null) => void;
+  setActiveWorkspace: (view: WorkspaceView) => void;
   setActiveContextView: (view: ContextView) => void;
   syncInspector: (id: string | null) => void;
   recordBuildOutput: (output: BuildOutputRef) => void;
@@ -48,6 +51,7 @@ type StudioState = {
 export const useStudioStore = create<StudioState>((set) => ({
   selectedObjectId: null,
   worldPresentation: null,
+  activeWorkspace: 'world',
   activeContextView: 'create',
   contextRevision: 0,
   buildOutputs: [],
@@ -56,6 +60,7 @@ export const useStudioStore = create<StudioState>((set) => ({
   buildWorkflowSequence: 0,
   setSelectedObjectId: (selectedObjectId) => set({ selectedObjectId }),
   setWorldPresentation: (worldPresentation) => set({ worldPresentation }),
+  setActiveWorkspace: (activeWorkspace) => set({ activeWorkspace }),
   setActiveContextView: (activeContextView) => set({ activeContextView }),
   syncInspector: (selectedObjectId) => set((state) => ({
     selectedObjectId,

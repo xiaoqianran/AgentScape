@@ -3,6 +3,7 @@ import { useStudioStore } from '../../apps/studio/react/state/studioStore.ts';
 
 const initial = {
   selectedObjectId:null,
+  activeWorkspace:'world',
   activeContextView:'create',
   contextRevision:0,
   buildOutputs:[],
@@ -13,6 +14,12 @@ const initial = {
 
 describe('studio React store build outputs', () => {
   beforeEach(() => useStudioStore.setState(initial));
+
+  it('tracks primary workspace separately from utility context', () => {
+    useStudioStore.getState().setActiveWorkspace('agent');
+    useStudioStore.getState().setActiveContextView('runs');
+    expect(useStudioStore.getState()).toMatchObject({activeWorkspace:'agent',activeContextView:'runs'});
+  });
 
   it('keeps earlier Build outputs when a new kind is recorded', () => {
     const store = useStudioStore.getState();
