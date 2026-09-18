@@ -146,7 +146,7 @@ export function mountWorldInteraction({ world, ui, editor = null, host = null })
   }
   const executeTyped = async command => {
     try {
-      const operation=()=>world.affordances.execute(command,{editor:true});
+      const operation=()=>world.commands.executeAffordance(command,{editor:true});
       const result=world.mutate ? await world.mutate('editor:world-action',operation,{source:'editor',...command}) : await operation();
       if(!result.verified && result.status!=='world-state-read') {prompt.hidden=false;prompt.textContent=`未完成：${result.reason || result.status}`;}
       persist();

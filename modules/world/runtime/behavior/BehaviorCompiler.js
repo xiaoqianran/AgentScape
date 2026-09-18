@@ -71,9 +71,9 @@ export function verifyBehaviorCommand(command,result){
 export function executeBehaviorCommand(runtime,command){
   if(command?.schema!==BEHAVIOR_COMMAND_SCHEMA || command.schemaVersion!==BEHAVIOR_COMMAND_VERSION){ const error=new TypeError('Unsupported RuntimeCommand'); error.code='RUNTIME_COMMAND_UNSUPPORTED'; throw error; }
   if(command.kind!=='interaction') { const error=new TypeError(`Unsupported RuntimeCommand kind: ${command.kind}`); error.code='RUNTIME_COMMAND_KIND_UNSUPPORTED'; throw error; }
-  if(command.capability==='OPEN'||command.capability==='CLOSE') return runtime.interactions.approachAndInteract(command.actorId,command.targetId,command.capability.toLowerCase());
-  if(command.capability==='PICKUP') return runtime.interactions.approachAndPickup(command.actorId,command.targetId);
-  if(command.capability==='PLACE') return runtime.interactions.approachAndPlace(command.actorId,command.supportId);
-  if(command.capability==='SWITCH') return runtime.applyStateTransition(command.targetId,command.stateKey,command.value,{source:'behavior-command',commandId:command.commandId});
+  if(command.capability==='OPEN'||command.capability==='CLOSE') return runtime.commands?.approachAndInteract ? runtime.commands.approachAndInteract(command.actorId,command.targetId,command.capability.toLowerCase()) : runtime.interactions.approachAndInteract(command.actorId,command.targetId,command.capability.toLowerCase());
+  if(command.capability==='PICKUP') return runtime.commands?.approachAndPickup ? runtime.commands.approachAndPickup(command.actorId,command.targetId) : runtime.interactions.approachAndPickup(command.actorId,command.targetId);
+  if(command.capability==='PLACE') return runtime.commands?.approachAndPlace ? runtime.commands.approachAndPlace(command.actorId,command.supportId) : runtime.interactions.approachAndPlace(command.actorId,command.supportId);
+  if(command.capability==='SWITCH') return runtime.commands?.applyStateTransition ? runtime.commands.applyStateTransition(command.targetId,command.stateKey,command.value,{source:'behavior-command',commandId:command.commandId}) : runtime.applyStateTransition(command.targetId,command.stateKey,command.value,{source:'behavior-command',commandId:command.commandId});
   const error=new TypeError(`Unsupported RuntimeCommand capability: ${command.capability}`); error.code='RUNTIME_COMMAND_CAPABILITY_UNSUPPORTED'; throw error;
 }

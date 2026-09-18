@@ -23,8 +23,8 @@ describe('GeneratedPlacementDemoRunner',()=>{
         submitGenerationJob,getGenerationJob,generateAndCompileAsset
       },
       assetCatalog:{resolveExisting:()=>({status:'missing'})},
-      store:{has:()=>false},spawn,
-      interactions:{place},
+      store:{has:()=>false},
+      commands:{spawn,place},
       spatial:{supportGeometry:()=>({supported:true,subjectId:spec.instanceId,targetId:spec.supportId,evidence:'spatial-geometry'})}
     };
     const result=await new GeneratedPlacementDemoRunner({world,storage,pollIntervalMs:0}).run(spec);

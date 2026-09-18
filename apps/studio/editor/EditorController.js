@@ -60,7 +60,7 @@ export class EditorController {
     this.transform.addEventListener('objectChange', () => {
       if (!this.selectedId || this.dragBlocked) return;
       const object=runtime.store.get(this.selectedId).object;
-      runtime.applyObjectTransform(this.selectedId,{
+      runtime.commands.transform(this.selectedId,{
         position:object.position.toArray(),
         quaternion:object.quaternion.toArray(),
         scale:object.scale.toArray()
@@ -110,16 +110,17 @@ export class EditorController {
 
   async duplicateSelected() {
     if (!this.selectedId) return null;
-    const id = await this.runtime.mutate('editor:duplicate', () => this.runtime.duplicate(this.selectedId), { source: 'editor', id: this.selectedId });
-    this.select(id);
-    return id;
+    const result = await this.runtime.mutate('editor:duplicate', () => this.runtime.commands.duplicate(this.selectedId), { source: 'editor', id: this.selectedId });
+    const id = typeof result === 'string' ? result : result?.id || null;
+    if (id) this.select(id);
+    return result;
   }
 
   deleteSelected() {
     if (!this.selectedId) return false;
     const id = this.selectedId;
     this.select(null);
-    return this.runtime.mutate('editor:delete', () => this.runtime.remove(id), { source: 'editor', id });
+    return this.runtime.mutate('editor:delete', () => this.runtime.commands.remove(id), { source: 'editor', id });
   }
 
   dispose() {

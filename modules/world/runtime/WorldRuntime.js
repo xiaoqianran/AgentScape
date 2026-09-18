@@ -26,6 +26,7 @@ import { WorldAffordances } from './affordance/WorldAffordances.js';
 import { physicsManifestForUniformScale, scalesEqual, uniformScaleValue } from './ObjectTransform.js';
 import { WorldObservation } from './WorldObservation.js';
 import { WorldQueries } from './WorldQueries.js';
+import { WorldCommands } from './WorldCommands.js';
 import { WorldRecovery } from './WorldRecovery.js';
 installThreeBvhRuntime();
 
@@ -43,6 +44,7 @@ export class WorldRuntime {
     if (typeof physicsFactory !== 'function') throw new TypeError('WorldRuntime physicsFactory must be a function');
     if (typeof navigationBackendFactory !== 'function') throw new TypeError('WorldRuntime navigationBackendFactory must be a function');
     this.version = '1.34.2';
+    this.ready = false;
     this.affordances = new WorldAffordances(this);
     this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
@@ -52,6 +54,7 @@ export class WorldRuntime {
     this.assetCatalog = assetModule.catalog;
     this.observation = new WorldObservation(this);
     this.queries = new WorldQueries(this);
+    this.commands = new WorldCommands(this);
     this.recovery = new WorldRecovery(this);
     this.physicsFactory = physicsFactory;
     this.navigationBackendFactory = navigationBackendFactory;
@@ -95,6 +98,7 @@ export class WorldRuntime {
     await this.addEnvironment();
     this.createEnvironmentSystems();
     this.ruleRuntime.start();
+    this.ready = true;
     const rendering=this.renderingDiagnostics(); this.trace.emit('runtime.ready', { version: this.version, rendering }); this.events.emit('runtime.ready', { rendering }); return this;
   }
   async addEnvironment() {
@@ -495,6 +499,7 @@ export class WorldRuntime {
   renderingDiagnostics() { return this.rendering?.diagnostics?.() || null; }
   resize() { return this.rendering?.resize?.() ?? false; }
   dispose() {
+    this.ready = false;
     this.affordances?.cancel('RUNTIME_DISPOSED');
     this.interactions?.cancelPending('RUNTIME_DISPOSED');
     for (const [id, record] of this.store.list()) {

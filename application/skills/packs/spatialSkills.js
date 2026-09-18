@@ -1,8 +1,12 @@
 import { meta, string, number, vec3 } from '../skillPrimitives.js';
 
+import { WorldCommands } from '../../../modules/world/runtime/WorldCommands.js';
+
 export function registerSpatialSkills(add,runtime) {
   const queries = runtime.queries;
+  const commands = runtime.commands ||= new WorldCommands(runtime);
   if (!queries) throw new TypeError('registerSpatialSkills requires runtime.queries');
+  if (!commands) throw new TypeError('registerSpatialSkills requires runtime.commands');
 
   add('getBounds', meta('获取对象的世界空间包围盒。', ['spatial.read'], ['id'], { id: string }), (a) => queries.getBounds(a.id));
   add('findNearby', meta('查询对象附近的其他对象。', ['spatial.read'], ['id'], { id: string, radius: { type: 'number', minimum: 0 } }), (a) => queries.findNearby(a.id, a.radius ?? 2));
@@ -13,7 +17,7 @@ export function registerSpatialSkills(add,runtime) {
   add('canReach', meta('基于当前 navigation backend 与 physics backend 提供的动态障碍判断两个世界位置是否可达；与 findFreeSpace 不同，它回答连通性。', ['spatial.read'], ['start', 'end'], { start: vec3, end: vec3, maxSnapDistance: { type: 'number', minimum: 0 } }), (a) => queries.canReach(a.start, a.end, { maxSnapDistance:a.maxSnapDistance }));
   add('findPath', meta('基于当前 navigation backend 与 physics backend 提供的动态障碍计算路径、路径长度与端点吸附信息。', ['spatial.read'], ['start', 'end'], { start: vec3, end: vec3, maxSnapDistance: { type: 'number', minimum: 0 } }), (a) => queries.findPath(a.start, a.end, { maxSnapDistance:a.maxSnapDistance }));
   add('suggestNavigationActions', meta('当当前路径不可达时，基于动态障碍 provenance 做只读反事实诊断；建议是 provisional，执行真实动作后必须重新 findPath。', ['spatial.read'], ['start', 'end'], { start:vec3, end:vec3, maxSnapDistance:{type:'number',minimum:0}, maxCandidates:{type:'integer',minimum:1,maximum:8} }), (a) => queries.suggestNavigationActions(a.start, a.end, { maxSnapDistance:a.maxSnapDistance, maxCandidates:a.maxCandidates }));
-  add('navigateTo', { ...meta('纯坐标导航：让 Agent Body 沿当前 navigation backend 生成的路径真实行走到明确世界坐标；当前 physics backend 必须提供 character-controller capability 来负责碰撞/台阶，直到 arrived 或 blocked 才返回。若目的是靠近对象并 open/close，不要把对象中心当终点，应直接使用 approachAndInteract。', ['world.write', 'spatial.read', 'physics.read'], ['id', 'end'], { id:string, end:vec3, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, (a) => runtime.navigateAgent(a.id, a.end, { speed:a.speed }));
+  add('navigateTo', { ...meta('纯坐标导航：让 Agent Body 沿当前 navigation backend 生成的路径真实行走到明确世界坐标；当前 physics backend 必须提供 character-controller capability 来负责碰撞/台阶，直到 arrived 或 blocked 才返回。若目的是靠近对象并 open/close，不要把对象中心当终点，应直接使用 approachAndInteract。', ['world.write', 'spatial.read', 'physics.read'], ['id', 'end'], { id:string, end:vec3, speed:{type:'number',exclusiveMinimum:0,maximum:8} }), batchable:false, mutates:true }, (a) => commands.navigate(a.id, a.end, { speed:a.speed }));
   add('getLocomotionStatus', meta('读取 Agent Body 当前或最近一次 locomotion 状态。', ['world.read', 'physics.read'], ['id'], { id:string }), (a) => queries.locomotionStatus(a.id));
   add('findInteractionPose', meta('只读诊断/预览：按 Runtime 固定 1.5m 交互距离，为 Agent 与目标寻找满足当前 navigation backend 可达和 physics scene-query 视线的交互位；可选 action/partName 时排除 Agent 阻挡 articulation sweep 的位姿。若目标是实际走过去并 open/close，应直接调用 approachAndInteract，不要手工拆链。', ['spatial.read', 'physics.read'], ['actorId','targetId'], { actorId:string, targetId:string, action:{type:'string',enum:['open','close']}, partName:string }), (a) => queries.findInteractionPose(a.actorId, a.targetId, { action:a.action, partName:a.partName }));
   add('getNavigationStatus', meta('读取 NavMesh 派生状态、构建版本与 Agent 导航配置。', ['spatial.read']), () => queries.navigationStatus());

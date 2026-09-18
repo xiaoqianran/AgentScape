@@ -154,8 +154,12 @@ for (const file of agentFiles) {
 }
 
 const agentFacingWritePacks = productJs.filter((file) => [
+  'application/skills/packs/sceneSkills.js',
+  'application/skills/packs/spatialSkills.js',
   'application/skills/packs/interactionSkills.js',
-  'application/skills/packs/recoverySkills.js'
+  'application/skills/packs/recoverySkills.js',
+  'application/skills/packs/affordanceSkills.js',
+  'application/skills/packs/verificationSkills.js'
 ].includes(relative(file)));
 for (const file of agentFacingWritePacks) {
   const source=fs.readFileSync(file,'utf8');
@@ -163,6 +167,19 @@ for (const file of agentFacingWritePacks) {
     failures.push(`Agent-facing World command boundary violation: ${relative(file)}`);
   }
 }
+
+const WORLD_DIRECT_WRITE_RE = /\b(?:runtime|this\.runtime|world|this\.world)\.(?:spawn|applyObjectTransform|duplicate|remove|navigateAgent|approachAndInteract|approachAndPickup|approachAndPlace|dropHeld|markRecoveryHeld|cleanupRecoveryBlocker|applyStateTransition)\s*\(|\b(?:runtime|this\.runtime|world|this\.world)\.(?:interactions\.(?:pickup|drop|place|setArticulationAction)|affordances\.execute|repair\.repair)\s*\(/;
+const worldCommandClients = productJs.filter((file) => {
+  const name=relative(file);
+  return name.startsWith('application/') || name.startsWith('apps/studio/');
+});
+for (const file of worldCommandClients) {
+  const source=fs.readFileSync(file,'utf8');
+  if (WORLD_DIRECT_WRITE_RE.test(source)) {
+    failures.push(`WorldCommands façade bypass: ${relative(file)}`);
+  }
+}
+
 const spatialSkillsFile=productJs.find((file)=>relative(file)==='application/skills/packs/spatialSkills.js');
 if (spatialSkillsFile) {
   const source=fs.readFileSync(spatialSkillsFile,'utf8');

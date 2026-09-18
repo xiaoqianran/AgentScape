@@ -45,7 +45,7 @@ function defaultedInputs(capability, seed) {
 
 export class GeneratedPlacementDemoRunner {
   constructor({ world, storage = globalThis.localStorage, log = () => {}, pollIntervalMs = 1500 } = {}) {
-    if (!world?.generation || !world?.interactions) throw new Error('GeneratedPlacementDemoRunner requires generation and interaction runtime');
+    if (!world?.generation || !world?.commands) throw new Error('GeneratedPlacementDemoRunner requires generation and WorldCommands');
     this.world = world;
     this.storage = storage;
     this.log = log;
@@ -129,8 +129,11 @@ export class GeneratedPlacementDemoRunner {
   }
 
   async #place(spec) {
-    if (!this.world.store.has(spec.instanceId)) await this.world.spawn(spec.assetId, { id: spec.instanceId });
-    const placed = this.world.interactions.place(spec.instanceId, spec.supportId, { surfaceId: spec.surfaceId, clearance: 0.03 });
+    if (!this.world.store.has(spec.instanceId)) {
+      const spawned = await this.world.commands.spawn(spec.assetId, { id: spec.instanceId });
+      if (spawned?.status === 'asset-rejected') throw new Error(`生成资产未通过 WorldCommands 准入：${spec.assetId}`);
+    }
+    const placed = this.world.commands.place(spec.instanceId, spec.supportId, { surfaceId: spec.surfaceId, clearance: 0.03 });
     const support = this.world.spatial.supportGeometry(spec.instanceId, spec.supportId, { surfaceId: spec.surfaceId });
     if (!support.supported) throw new Error('Runtime 未验证 ON 关系');
     return { status: 'completed', assetId: spec.assetId, instanceId: spec.instanceId, placed, support };
