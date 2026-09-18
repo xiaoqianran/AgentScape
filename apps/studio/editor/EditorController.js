@@ -4,6 +4,7 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 export class EditorController {
   constructor(runtime, { selectionOnRelease = false } = {}) {
     this.runtime = runtime;
+    this.selectionOnRelease = Boolean(selectionOnRelease);
     this.selectedId = null;
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -26,7 +27,7 @@ export class EditorController {
     runtime.rendering.addDecoration(this.transformHelper);
 
     this.onPointerDown = (event) => {
-      if (!selectionOnRelease) return this.pick(event);
+      if (!this.selectionOnRelease) return this.pick(event);
       this.clickStart = event.button === 0 && !this.transform.axis ? { x:event.clientX, y:event.clientY, id:event.pointerId } : null;
     };
     this.onPointerUp = (event) => {
@@ -106,6 +107,12 @@ export class EditorController {
     if (!['translate', 'rotate'].includes(mode)) return;
     this.transform.setMode(mode);
     this.runtime.events.emit('editor.mode', { mode });
+  }
+
+  setSelectionOnRelease(enabled) {
+    this.selectionOnRelease = Boolean(enabled);
+    this.clickStart = null;
+    return this.selectionOnRelease;
   }
 
   async duplicateSelected() {

@@ -63,7 +63,8 @@ export function bindSceneControls({ root, world, editor, sceneStore, worldSessio
       const scene = sceneStore.load();
       if (!scene) return log('尚无本机场景存档', 'error');
       editor.select(null);
-      await world.restore(scene);
+      if (worldSession?.open) await worldSession.open();
+      else await world.restore(scene);
       log(`场景已恢复 · ${scene.objects.length} 个对象`, 'result');
     } catch (error) {
       log(`恢复错误：${error.message}`, 'error');

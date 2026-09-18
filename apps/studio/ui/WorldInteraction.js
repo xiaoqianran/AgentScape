@@ -211,7 +211,6 @@ export function mountWorldInteraction({ world, ui, editor = null, host = null })
     if (host) {
       delete host.executeWorldEdit;
       host.removeEventListener('click',persist);host.removeEventListener('keyup',persist);
-      host.remove();
     }
     prompt.remove();controls.remove();
   }};

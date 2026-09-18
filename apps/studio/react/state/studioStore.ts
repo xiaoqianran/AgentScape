@@ -20,8 +20,14 @@ export type BuildWorkflowIntent = {
   outputKey: string;
 };
 
+export type StudioWorldPresentation = {
+  id: string;
+  title?: string;
+};
+
 type StudioState = {
   selectedObjectId: string | null;
+  worldPresentation: StudioWorldPresentation | null;
   activeContextView: ContextView;
   contextRevision: number;
   buildOutputs: BuildOutputRef[];
@@ -29,6 +35,7 @@ type StudioState = {
   buildWorkflowIntent: BuildWorkflowIntent | null;
   buildWorkflowSequence: number;
   setSelectedObjectId: (id: string | null) => void;
+  setWorldPresentation: (identity: StudioWorldPresentation | null) => void;
   setActiveContextView: (view: ContextView) => void;
   syncInspector: (id: string | null) => void;
   recordBuildOutput: (output: BuildOutputRef) => void;
@@ -40,6 +47,7 @@ type StudioState = {
 
 export const useStudioStore = create<StudioState>((set) => ({
   selectedObjectId: null,
+  worldPresentation: null,
   activeContextView: 'create',
   contextRevision: 0,
   buildOutputs: [],
@@ -47,6 +55,7 @@ export const useStudioStore = create<StudioState>((set) => ({
   buildWorkflowIntent: null,
   buildWorkflowSequence: 0,
   setSelectedObjectId: (selectedObjectId) => set({ selectedObjectId }),
+  setWorldPresentation: (worldPresentation) => set({ worldPresentation }),
   setActiveContextView: (activeContextView) => set({ activeContextView }),
   syncInspector: (selectedObjectId) => set((state) => ({
     selectedObjectId,

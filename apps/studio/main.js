@@ -1,6 +1,7 @@
 import { createSession } from '../../application/createSession.js';
 import { RuntimeDriver } from './runtime/RuntimeDriver.js';
 import { WorldSession } from './runtime/WorldSession.js';
+import { StudioWorldOpener } from './runtime/StudioWorldOpener.js';
 import { materializePersistedWorldEnvironment } from '../../application/generation/PromptHybridWorldOrchestrator.js';
 import { AgentTools } from '../../application/AgentTools.js';
 import { ToolCallingAgent } from '../../modules/agent/ToolCallingAgent.js';
@@ -17,8 +18,10 @@ import { ENVIRONMENTS, resolveEnvironment } from '../../modules/world/content/en
 import { loadGeneratedWorld, loadGeneratedWorldManifest } from '../../modules/world/generated/GeneratedWorldLoader.js';
 import { GenerationJobCenter } from './ui/generation/GenerationJobCenter.js';
 import { createAppShell } from './ui/AppShell.js';
+import { builtInWorldUrl } from './ui/chrome/StudioChrome.js';
 import { mountWorldContext } from './ui/WorldContext.js';
-import { createInlineEditors, CABIN_INLINE_EDITORS, mountWorldInteraction } from './ui/WorldInteraction.js';
+import { mountWorldInteraction } from './ui/WorldInteraction.js';
+import { StudioEnvironmentMaterializer } from './ui/StudioEnvironmentMaterializer.js';
 import { HumanViewController } from './ui/HumanViewController.js';
 import { TaskPanel } from './ui/task/TaskPanel.js';
 import { GeneratedPlacementDemoRunner } from './demos/generated-placement/GeneratedPlacementDemoRunner.js';
@@ -67,16 +70,14 @@ async function main() {
         })
       }
     : resolveEnvironment(params.get('world'));
-  const environmentFactory = await environmentDefinition.load();
   const ui = createAppShell({ app, environmentDefinition, environments: ENVIRONMENTS });
   window.addEventListener('pagehide', () => ui.destroyChrome?.(), { once:true });
-  const inlineDescriptors = environmentDefinition.cabin ? CABIN_INLINE_EDITORS : (environmentDefinition.inlineEditors || null);
-  const inlineEditorHost = inlineDescriptors ? createInlineEditors(ui.shell, inlineDescriptors) : null;
+  const environmentMaterializer = new StudioEnvironmentMaterializer({ parent:ui.shell });
   ui.setRuntimeStatus('loading', '启动中');
   const capabilityStatus = await capabilityStatusPromise;
 
   const { world, generation, authoring } = createSession(ui.viewport, {
-    environmentFactory: options => environmentFactory({ ...options, editorHost:inlineEditorHost }),
+    environmentFactory: options => environmentMaterializer.materialize(environmentDefinition, options),
     rendererMode: params.get('renderer') || 'auto',
     rendererTiming: params.get('gpuTiming') === '1',
     generation: {
@@ -97,9 +98,7 @@ async function main() {
     resolveModel:resolveAuthoringModel
   }) : null;
   let editorRef = null;
-  const humanView = ui.worldFirst
-    ? new HumanViewController({ world, ui, blockLook:() => Boolean(editorRef?.transform?.axis) })
-    : null;
+  let humanView = null;
   const runtimeDriver = new RuntimeDriver(world, {
     authoring,
     // The human view owns the camera while it is active; orbit keeps owning it otherwise.
@@ -108,18 +107,21 @@ async function main() {
       world.commands.setHumanViewPose(humanView?.viewPose?.() || world.rendering?.viewPose?.() || null);
     }
   }).start();
-  window.addEventListener('pagehide', () => { humanView?.dispose(); runtimeDriver.dispose(); authoring?.dispose(); world.dispose(); }, { once:true });
 
   const studioTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'studio-ui' });
   const agentTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'agent' });
   const runtimeTestTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'runtime-test' });
   const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });
-  const editor = new EditorController(world, { selectionOnRelease: ui.worldFirst });
+  const editor = new EditorController(world);
   editorRef = editor;
-  let worldInteraction = mountWorldInteraction({ world, ui, editor, host:inlineEditorHost });
-  window.addEventListener('pagehide',()=>worldInteraction?.dispose(),{once:true});
-  const worldContext = ui.worldFirst ? mountWorldContext({ world, editor, tools:studioTools, ui }) : null;
-  window.addEventListener('pagehide', () => worldContext?.dispose(), { once:true });
+  let worldInteraction = null;
+  let worldContext = null;
+  window.addEventListener('pagehide',()=>{
+    worldInteraction?.dispose();
+    worldContext?.dispose();
+    humanView?.dispose();
+    editor.dispose();
+  },{once:true});
   const runsPanel = new RunsPanel({ root: ui.panel });
   let taskPanel = null;
   const generatedPlacementDemo = new GeneratedPlacementDemoRunner({ world, log: (text, kind) => taskPanel?.log?.(text, kind) });
@@ -145,13 +147,48 @@ async function main() {
     log: (text, kind) => taskPanel.log(text, kind)
   });
   let worldSession=null;
-  const rebindEnvironmentSurface = () => {
-    const nextInteraction=mountWorldInteraction({world,ui,editor});
+  let worldOpener=null;
+  const rebindEnvironmentSurface = ({ identity = worldSession?.current } = {}) => {
+    const worldFirst=Boolean(identity?.worldFirst);
+    const nextInteraction=mountWorldInteraction({
+      world,
+      ui,
+      editor,
+      host:environmentMaterializer.hostFor(world.environment)
+    });
     const previousInteraction=worldInteraction;
+    const previousHumanView=humanView;
+    const previousWorldContext=worldContext;
+    let nextHumanView=humanView;
+    let nextWorldContext=worldContext;
+    let createdHumanView=false;
+    let createdWorldContext=false;
+
+    try {
+      if(worldFirst && !nextHumanView) {
+        nextHumanView=new HumanViewController({world,ui,blockLook:()=>Boolean(editorRef?.transform?.axis)});
+        createdHumanView=true;
+      }
+      if(worldFirst && !nextWorldContext) {
+        nextWorldContext=mountWorldContext({world,editor,tools:studioTools,ui});
+        createdWorldContext=true;
+      }
+    } catch(error) {
+      nextInteraction?.dispose();
+      if(createdHumanView) nextHumanView?.dispose();
+      if(createdWorldContext) nextWorldContext?.dispose();
+      throw error;
+    }
+
     worldInteraction=nextInteraction;
-    previousInteraction?.dispose();
+    humanView=worldFirst ? nextHumanView : null;
+    worldContext=worldFirst ? nextWorldContext : null;
+    editor.setSelectionOnRelease(worldFirst);
     humanView?.resetForEnvironment();
     editor.select(null);
+    previousInteraction?.dispose();
+    if(previousHumanView && previousHumanView!==humanView) previousHumanView.dispose();
+    if(previousWorldContext && previousWorldContext!==worldContext) previousWorldContext.dispose();
   };
   // Presentation owns dock DOM; the application only registers an action.
   ui.addDockAction?.({
@@ -173,12 +210,16 @@ async function main() {
     }
   });
   const openGeneratedWorld = async (manifestArtifactId) => {
-    if(!worldSession) throw new Error('WorldSession is not ready');
-    const result=await worldSession.open(
-      ()=>materializePersistedWorldEnvironment(world,manifestArtifactId),
-      {reason:'studio-generated-world'}
-    );
+    if(!worldOpener) throw new Error('StudioWorldOpener is not ready');
+    const result=await worldOpener.open({kind:'generated',artifactId:manifestArtifactId});
     taskPanel.log(`已打开生成世界：${result.environmentId || manifestArtifactId} · 清理 ${result.clearedObjects || 0} 个对象`,'result');
+    return result;
+  };
+  const openBuiltinWorld = async (id) => {
+    if(!worldOpener) throw new Error('StudioWorldOpener is not ready');
+    const result=await worldOpener.open({kind:'builtin',id});
+    globalThis.history?.replaceState?.(globalThis.history.state,'',builtInWorldUrl(location.href,id));
+    taskPanel.log(`已打开内置世界：${worldSession.current.title}`,'result');
     return result;
   };
   const resources = new StudioResources({
@@ -220,15 +261,7 @@ async function main() {
     resources,
     placement,
     log: (text, kind) => taskPanel.log(text, kind),
-    openEnvironment: (id) => {
-      const url = new URL(location.href);
-      url.searchParams.delete('worldManifest');
-      url.searchParams.delete('mesh');
-      url.searchParams.delete('visual');
-      url.searchParams.delete('semantics');
-      url.searchParams.set('world', id);
-      location.href = url.toString();
-    },
+    openEnvironment: openBuiltinWorld,
     openGeneratedWorld
   }).init();
   const inspector = mountObjectInspector({ root: ui.panel, world, tools:studioTools, log: (text, kind) => taskPanel.log(text, kind) });
@@ -277,12 +310,24 @@ async function main() {
     builtins:ENVIRONMENTS,
     fallback:environmentDefinition,
     onIdentityChange:(identity)=>{
+      useStudioStore.getState().setWorldPresentation(identity);
       ui.setWorldPresentation?.(identity);
       editor.select(null);
     },
-    onEnvironmentChange:()=>rebindEnvironmentSurface(),
+    onEnvironmentChange:(event)=>rebindEnvironmentSurface(event),
     log:(text,kind)=>taskPanel.log(text,kind)
   });
+  worldOpener = new StudioWorldOpener({
+    session:worldSession,
+    builtins:ENVIRONMENTS,
+    materializeBuiltin:(definition)=>environmentMaterializer.materialize(definition,{scene:world.scene}),
+    materializeGenerated:(artifactId)=>materializePersistedWorldEnvironment(world,artifactId),
+    authoring:authoringWorlds
+  });
+  ui.setWorldChangeHandler?.((id)=>openBuiltinWorld(id).catch((error)=>{
+    taskPanel.log(`打开世界失败：${error.message}`,'error');
+    throw error;
+  }));
   if (!worldSession.current.generated && worldSession.current.id === 'monument-hall' && !sceneStore.has()) {
     const legacy = new LocalSceneStore();
     if (legacy.has()) sceneStore.save(legacy.load());
@@ -291,7 +336,8 @@ async function main() {
 
   bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, autosave });
   bindDebugLayers(world, { log: (text, kind) => taskPanel.log(text, kind) });
-  await worldSession.open();
+  await worldOpener.open({kind:'current'});
+  rebindEnvironmentSurface({identity:worldSession.current});
   bindSceneControls({
     root: app,
     world,
@@ -304,9 +350,16 @@ async function main() {
   const authoringControls = authoringWorlds ? bindAuthoringWorldControls({
     root:app,
     controller:authoringWorlds,
+    openWorld:(id)=>worldOpener.open({kind:'authoring',id}),
+    newWorld:(options)=>worldOpener.open({kind:'authoring-new',options}),
     log:(text, kind) => taskPanel.log(text, kind)
   }) : null;
   window.addEventListener('pagehide', () => authoringControls?.dispose(), { once:true });
+  window.addEventListener('pagehide', () => {
+    runtimeDriver.dispose();
+    authoring?.dispose();
+    world.dispose();
+  }, { once:true });
 
   inspector.render(null);
   world.history.clear();

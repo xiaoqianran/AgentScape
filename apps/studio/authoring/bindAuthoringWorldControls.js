@@ -1,6 +1,8 @@
 export function bindAuthoringWorldControls({
   root,
   controller,
+  openWorld = (id) => controller.openWorld(id),
+  newWorld = (options) => controller.newWorld(options),
   log = () => {},
   promptImpl = globalThis.prompt?.bind(globalThis),
   confirmImpl = globalThis.confirm?.bind(globalThis)
@@ -49,7 +51,7 @@ export function bindAuthoringWorldControls({
 
   newButton?.addEventListener('click', async () => {
     if (!allowDiscard()) return;
-    await controller.newWorld();
+    await newWorld();
     await refresh();
     log('已新建空白创作世界', 'result');
   });
@@ -60,7 +62,7 @@ export function bindAuthoringWorldControls({
     if (!allowDiscard()) return;
 
     try {
-      await controller.openWorld(id);
+      await openWorld(id);
       await refresh();
       log(`已打开创作世界：${controller.status().name}`, 'result');
     } catch (error) {

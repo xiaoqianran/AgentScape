@@ -69,6 +69,7 @@ function SceneExplorerView({
   openCreate = () => {}
 }: SceneExplorerProps) {
   const selectedObjectId = useStudioStore((state) => state.selectedObjectId);
+  const worldPresentation = useStudioStore((state) => state.worldPresentation);
   const setSelectedObjectId = useStudioStore((state) => state.setSelectedObjectId);
   const [revision, setRevision] = useState(0);
   const [resourceRevision, setResourceRevision] = useState(0);
@@ -97,8 +98,8 @@ function SceneExplorerView({
   useEffect(() => resources.onChange(() => setResourceRevision((value) => value + 1)), [resources]);
 
   const environment = world.environment;
-  const title = environment?.title || environment?.label || environmentDefinition.title || environment?.id || 'World';
-  const environmentId = environment?.id || environmentDefinition.id || 'environment';
+  const title = worldPresentation?.title || environment?.title || environment?.label || environmentDefinition.title || environment?.id || 'World';
+  const environmentId = worldPresentation?.id || environment?.id || environmentDefinition.id || 'environment';
   const objects = useMemo(
     () => collectSceneObjectSummaries(world.queries.listObjects(), selectedObjectId),
     [revision, selectedObjectId, world.queries]

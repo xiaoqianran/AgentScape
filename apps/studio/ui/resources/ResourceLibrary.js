@@ -172,7 +172,12 @@ export class ResourceLibrary {
       const actions = el('div','resource-card-actions');
       const open = el('button','resource-action','打开世界');
       open.type = 'button';
-      open.addEventListener('click', () => this.openEnvironment(worldResource.id));
+      open.addEventListener('click', async () => {
+        open.disabled = true;
+        try { await this.openEnvironment(worldResource.id); }
+        catch (error) { this.log(`打开世界失败：${error.message}`,'error'); }
+        finally { open.disabled = false; }
+      });
       actions.append(open);
       card.append(actions);
     } else if (worldResource.source === 'generated') {

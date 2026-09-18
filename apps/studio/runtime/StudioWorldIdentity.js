@@ -27,6 +27,7 @@ export function resolveStudioWorldIdentity(environment, {
         description:builtin.description || '',
         facts:[...(builtin.facts || [])],
         bootstrap:structuredClone(builtin.bootstrap || {}),
+        worldFirst:Boolean(builtin.worldFirst),
         generated:false,
         persistenceSource:null
       };
@@ -41,6 +42,7 @@ export function resolveStudioWorldIdentity(environment, {
     description:'由已验证的 World Artifact 驱动当前 Runtime。',
     facts:['GENERATED','RUNTIME'],
     bootstrap:structuredClone(GENERATED_BOOTSTRAP),
+    worldFirst:false,
     generated:true,
     persistenceSource:generatedSource(environment)
   };

@@ -27,6 +27,7 @@ export function createStudioChrome({
   const worldFacts = app.querySelector('.world-intro .world-facts');
 
   let onLayoutChange = () => {};
+  let onWorldChange = null;
   let runtimeRecoveryAction = null;
   let activeView = 'create';
   let dock = null;
@@ -98,7 +99,12 @@ export function createStudioChrome({
 
   listen(worldSelect, 'change', (event) => {
     if (event.target.selectedOptions?.[0]?.dataset.runtimeWorld === 'true') return;
-    location.href = builtInWorldUrl(location.href, event.target.value);
+    const worldId = event.target.value;
+    if (!onWorldChange) return;
+    Promise.resolve(onWorldChange(worldId)).catch(() => {
+      const currentId = shell.dataset.world;
+      if ([...worldSelect.options].some((option) => option.value === currentId)) worldSelect.value = currentId;
+    });
   });
 
   listen(cinematicButton, 'click', () => {
@@ -165,10 +171,12 @@ export function createStudioChrome({
     headline = title,
     description = '',
     facts = [],
+    worldFirst = false,
     generated = false,
     persistenceSource = null
   } = {}) => {
     shell.dataset.world = id;
+    shell.classList.toggle('world-first', Boolean(worldFirst));
     if (brandWorldTitle) brandWorldTitle.textContent = title;
     if (worldKicker) worldKicker.textContent = `${number} // ${String(title).toUpperCase()}`;
     if (worldHeadline) worldHeadline.textContent = headline;
@@ -203,6 +211,9 @@ export function createStudioChrome({
     closeContext,
     addDockAction,
     setWorldPresentation,
+    setWorldChangeHandler(handler) {
+      onWorldChange = typeof handler === 'function' ? handler : null;
+    },
     setRuntimeStatus,
     setRuntimeRecoveryAction,
     setLayoutChangeHandler(handler) {

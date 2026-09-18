@@ -2,12 +2,14 @@
 
 AgentScape 从 1.11 开始把“世界内容”作为独立内容层，而不是把美术结构继续写进 Runtime。
 
-当前 Pages 有三个 curated world：
+当前 Studio 有五个 curated world：
 
 ```text
 WORLD 01 · Monument Hall
 WORLD 02 · Ruined Courtyard
 WORLD 03 · Grand Urban Block
+WORLD 04 · Woodland Workshop
+WORLD 05 · Magic Cabin
 ```
 
 它们共享完全相同的：
@@ -67,7 +69,7 @@ if world === monument ...
 if world === ruins ...
 ```
 
-Pages 通过：
+Studio 启动时仍可通过：
 
 ```text
 ?world=ruined-courtyard
@@ -77,46 +79,84 @@ Pages 通过：
 
 ```text
 createSession(viewport, {
-  environmentFactory: definition.create
+  environmentFactory: options => materializer.materialize(definition, options)
 })
 ```
 
-所以未来新增第三世界，只需要增加 content pack + catalog entry；不需要新增 SceneManager。
+所以未来新增世界，只需要增加 content pack + catalog entry；不需要新增 SceneManager。
 
-## 为什么 World 切换使用 reload
+## World Open Lifecycle
 
-当前 World selector 不做热切换：
-
-```text
-select world
-   ↓
-更新 ?world=
-   ↓
-reload page
-```
-
-这是有意设计。
-
-一次页面生命周期始终只有：
+Studio 不再用页面 reload 作为世界生命周期边界。产品层只有一个打开入口：
 
 ```text
-1 Three.js Scene
-1 Rapier World
-1 NavigationSystem
-1 Recast/TileCache state
-1 Autosave namespace
+                    StudioWorldOpener.open()
+                    /        |        \
+                   /         |         \
+             Built-in    Generated   Persisted
+                   \         |         /
+                    \        |        /
+                         WorldSession
+                              |
+                              v
+                         WorldRuntime
 ```
 
-如果现在为了“无刷新切换”引入 SceneManager，就必须额外解决：
+Runtime World 的切换是事务：
 
-- pending texture load cancellation。
-- Rapier environment body teardown。
-- Recast static geometry rebuild。
-- Editor selection teardown。
-- Autosave controller ownership。
-- History 环境边界。
+```text
+flush old autosave
+      ↓
+materialize candidate Environment
+      ↓
+replace Runtime Environment
+      ↓
+switch World Identity + autosave namespace
+      ↓
+restore saved scene / bootstrap
+      ↓
+rebind Studio world surfaces
+      ↓
+COMMIT
+      ↓
+dispose previous Environment
+```
 
-对于两个展示世界，reload 更简单、更可靠，也天然支持可分享 URL。
+失败则恢复：
+
+```text
+Runtime Environment
+Scene Snapshot
+Persistence Key
+World Identity
+Studio Surface
+```
+
+因此热切换没有引入第二套 SceneManager。任意时刻仍只有一个 authoritative
+`WorldRuntime`、一个 Rapier world、一个 NavigationSystem 和一个 active autosave namespace。
+
+内置世界的 inline editor DOM 由对应 Environment 生命周期持有；只有事务 commit 后旧
+Environment 才会连同旧 editor host 一起 dispose。World-first UI、HumanView、
+WorldContext 和 WorldInteraction 也在同一个 Session commit/rollback 边界内重绑。
+
+Builtin 切换成功后只用 `history.replaceState()` 更新 `?world=`，不会通过 reload
+掩盖生命周期问题。
+
+### Authoring World 是独立边界
+
+`StudioWorldOpener` 也接受 Authoring world 的 New/Open 请求，但它不会把
+`AuthoringDocument` 伪装成 Runtime Environment：
+
+```text
+StudioWorldOpener
+      |
+      +-- Runtime sources --> WorldSession --> WorldRuntime
+      |
+      +-- Authoring -------> AuthoringWorldController --> $llm-world subtree
+```
+
+这是 World Authoring v1 的冻结边界：Three.js authoring subtree 是 persistent visual
+authored state；World Entity / Physics / Navigation / Interaction 仍属于 WorldRuntime。
 
 ## Environment Pack Contract
 

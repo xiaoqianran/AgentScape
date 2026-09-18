@@ -14,8 +14,14 @@ describe('Studio world identity', () => {
 
   it('preserves the existing built-in autosave key', () => {
     const identity = resolveStudioWorldIdentity({id:'monument-hall'}, {builtins:[builtin],fallback:builtin});
-    expect(identity).toMatchObject({id:'monument-hall',generated:false,title:'纪念大厅'});
+    expect(identity).toMatchObject({id:'monument-hall',generated:false,worldFirst:false,title:'纪念大厅'});
     expect(studioSceneStoreKey(identity)).toBe('agentscape.scene.autosave.monument-hall');
+  });
+
+  it('carries world-first presentation through the runtime identity', () => {
+    const worldFirst = {...builtin,id:'woodland-workshop',worldFirst:true};
+    const identity = resolveStudioWorldIdentity({id:'woodland-workshop'}, {builtins:[worldFirst]});
+    expect(identity).toMatchObject({id:'woodland-workshop',generated:false,worldFirst:true});
   });
 
   it('isolates generated worlds by persisted manifest artifact', () => {
@@ -28,6 +34,7 @@ describe('Studio world identity', () => {
       generated:{artifacts:{'world-manifest':'manifest_02'}}
     });
     expect(first.generated).toBe(true);
+    expect(first.worldFirst).toBe(false);
     expect(first.bootstrap).toEqual({agent:[0,0,0]});
     expect(studioSceneStoreKey(first)).not.toBe(studioSceneStoreKey(second));
     expect(studioSceneStoreKey(first)).toContain('manifest_01');

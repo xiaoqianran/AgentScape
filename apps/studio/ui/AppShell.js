@@ -148,7 +148,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     closeContext: chrome.closeContext,
     addDockAction: chrome.addDockAction,
     setWorldPresentation: chrome.setWorldPresentation,
-    worldFirst: Boolean(environmentDefinition.worldFirst),
+    setWorldChangeHandler: chrome.setWorldChangeHandler,
     setRuntimeStatus: chrome.setRuntimeStatus,
     setRuntimeRecoveryAction: chrome.setRuntimeRecoveryAction,
     setLayoutChangeHandler: chrome.setLayoutChangeHandler,
