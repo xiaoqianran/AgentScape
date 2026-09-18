@@ -1,6 +1,7 @@
 import { createSession } from '../../application/createSession.js';
 import { RuntimeDriver } from './runtime/RuntimeDriver.js';
 import { replaceStudioEnvironment } from './runtime/replaceStudioEnvironment.js';
+import { resolveStudioWorldIdentity, studioSceneStoreKey } from './runtime/StudioWorldIdentity.js';
 import { materializePersistedWorldEnvironment } from '../../application/generation/PromptHybridWorldOrchestrator.js';
 import { AgentTools } from '../../application/AgentTools.js';
 import { ToolCallingAgent } from '../../modules/agent/ToolCallingAgent.js';
@@ -88,6 +89,8 @@ async function main() {
   });
   world.generationState = await generation.initialize({ pair: false });
   await world.init();
+  let activeWorldIdentity=resolveStudioWorldIdentity(world.environment,{builtins:ENVIRONMENTS,fallback:environmentDefinition});
+  ui.setWorldPresentation?.(activeWorldIdentity);
   const resolveAuthoringModel = authoring ? createAuthoringModelResolver({
     assetLoader:world.assetModule.loader,
     gltfLoader:{ loadScene:(uri) => world.assetModule.loader.loadGLB(uri) }
@@ -111,18 +114,20 @@ async function main() {
   }).start();
   window.addEventListener('pagehide', () => { humanView?.dispose(); runtimeDriver.dispose(); authoring?.dispose(); world.dispose(); }, { once:true });
 
-  const tools = new AgentTools(world, { profile: 'builder', actor: 'agent_01' });
+  const studioTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'studio-ui' });
+  const agentTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'agent' });
+  const runtimeTestTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'runtime-test' });
   const gateway = new HttpLLMGateway({ endpoint: capabilityStatus.agent.available ? CAPABILITY_API.agent : '' });
   const editor = new EditorController(world, { selectionOnRelease: ui.worldFirst });
   editorRef = editor;
   const worldInteraction = mountWorldInteraction({ world, ui, editor, host:inlineEditorHost });
   window.addEventListener('pagehide',()=>worldInteraction?.dispose(),{once:true});
-  const worldContext = ui.worldFirst ? mountWorldContext({ world, editor, tools, ui }) : null;
+  const worldContext = ui.worldFirst ? mountWorldContext({ world, editor, tools:studioTools, ui }) : null;
   window.addEventListener('pagehide', () => worldContext?.dispose(), { once:true });
   const runsPanel = new RunsPanel({ root: ui.panel });
   let taskPanel = null;
   const generatedPlacementDemo = new GeneratedPlacementDemoRunner({ world, log: (text, kind) => taskPanel?.log?.(text, kind) });
-  const runtimeTestRunner = new AgentRuntimeTestRunner({ tools, actorId:'agent_01', log:(text,kind)=>taskPanel?.log?.(text,kind) });
+  const runtimeTestRunner = new AgentRuntimeTestRunner({ tools:runtimeTestTools, actorId:'agent_01', log:(text,kind)=>taskPanel?.log?.(text,kind) });
   taskPanel = new TaskPanel({
     root: ui.panel,
     commandForm: ui.commandForm,
@@ -133,16 +138,26 @@ async function main() {
     demoRunners: { 'generated-placement': generatedPlacementDemo },
     runtimeTestRunner
   });
-  const agent = new ToolCallingAgent({ tools, gateway, log: (text, kind) => taskPanel.log(text, kind) });
+  const agent = new ToolCallingAgent({ tools:agentTools, gateway, log: (text, kind) => taskPanel.log(text, kind) });
   taskPanel.attachAgent({ agent, gateway });
   taskPanel.setAvailability(capabilityStatus.agent.available);
 
   const placement = new AssetPlacementController({
     world,
-    tools,
+    tools:studioTools,
     editor,
     log: (text, kind) => taskPanel.log(text, kind)
   });
+  let sceneStore=null;
+  let autosave=null;
+  const syncWorldIdentity = () => {
+    activeWorldIdentity=resolveStudioWorldIdentity(world.environment,{builtins:ENVIRONMENTS,fallback:environmentDefinition});
+    autosave?.cancelPending?.();
+    sceneStore?.setKey(studioSceneStoreKey(activeWorldIdentity));
+    ui.setWorldPresentation?.(activeWorldIdentity);
+    editor.select(null);
+    return activeWorldIdentity;
+  };
   // Presentation owns dock DOM; the application only registers an action.
   ui.addDockAction?.({
     id:'generation-anchor',
@@ -163,8 +178,18 @@ async function main() {
     }
   });
   const openGeneratedWorld = async (manifestArtifactId) => {
+    try { autosave?.flush(); }
+    catch (error) { taskPanel.log(`切换世界前自动保存失败：${error.message}`,'error'); }
+    editor.select(null);
     const nextEnvironment=await materializePersistedWorldEnvironment(world,manifestArtifactId);
     const result=await replaceStudioEnvironment(world,nextEnvironment,{reason:'studio-generated-world'});
+    const identity=syncWorldIdentity();
+    if(sceneStore){
+      await restoreOrBootstrap({world,tools:studioTools,sceneStore,environmentDefinition:identity,taskPanel});
+      world.history.clear();
+      try { autosave?.flush(); }
+      catch (error) { taskPanel.log(`生成世界自动保存失败：${error.message}`,'error'); }
+    }
     taskPanel.log(`已打开生成世界：${nextEnvironment.id || manifestArtifactId} · 清理 ${result.clearedObjects} 个对象`,'result');
     return result;
   };
@@ -218,10 +243,10 @@ async function main() {
     },
     openGeneratedWorld
   }).init();
-  const inspector = mountObjectInspector({ root: ui.panel, world, tools, log: (text, kind) => taskPanel.log(text, kind) });
+  const inspector = mountObjectInspector({ root: ui.panel, world, tools:studioTools, log: (text, kind) => taskPanel.log(text, kind) });
   const agentVerifier = new AssetAgentVerifier({
     world,
-    tools,
+    tools:studioTools,
     actorId:'agent_01',
     log:(text,kind)=>taskPanel.log(text,kind)
   });
@@ -238,7 +263,7 @@ async function main() {
   const developer = new DeveloperSettings({
     dialog: ui.developerDialog,
     world,
-    tools,
+    tools:studioTools,
     gateway,
     initialCapabilityStatus: capabilityStatus,
     log: (text, kind) => taskPanel.log(text, kind),
@@ -251,25 +276,29 @@ async function main() {
   ui.developerButton.addEventListener('click', () => developer.open());
   ui.setLayoutChangeHandler(() => world.rendering?.resize?.());
 
-  await new GenerationJobCenter({ root: ui.panel, world, tools, log: (text, kind) => taskPanel.log(text, kind) }).init();
+  const generationJobCenter = await new GenerationJobCenter({ root: ui.panel, world, tools:studioTools, log: (text, kind) => taskPanel.log(text, kind) }).init();
+  window.addEventListener('pagehide', () => generationJobCenter.destroy(), { once:true });
 
-  const sceneStore = new LocalSceneStore({ key: `agentscape.scene.autosave.${environmentDefinition.id}` });
-  if (environmentDefinition.id === 'monument-hall' && !sceneStore.has()) {
+  sceneStore = new LocalSceneStore({ key:studioSceneStoreKey(activeWorldIdentity) });
+  if (!activeWorldIdentity.generated && activeWorldIdentity.id === 'monument-hall' && !sceneStore.has()) {
     const legacy = new LocalSceneStore();
     if (legacy.has()) sceneStore.save(legacy.load());
   }
-  const autosave = new AutosaveController({ runtime: world, store: sceneStore, delayMs: 600 }).start();
+  autosave = new AutosaveController({ runtime: world, store: sceneStore, delayMs: 600 }).start();
+  const stopWorldIdentitySync=world.events.on('environment.replaced',()=>syncWorldIdentity());
+  window.addEventListener('pagehide',()=>stopWorldIdentitySync?.(),{once:true});
 
   bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, autosave });
   bindDebugLayers(world, { log: (text, kind) => taskPanel.log(text, kind) });
-  await restoreOrBootstrap({ world, tools, sceneStore, environmentDefinition, taskPanel });
+  await restoreOrBootstrap({ world, tools:studioTools, sceneStore, environmentDefinition:activeWorldIdentity, taskPanel });
   bindSceneControls({
     root: app,
     world,
     editor,
     sceneStore,
-    tools,
-    environmentDefinition,
+    tools:studioTools,
+    environmentDefinition:activeWorldIdentity,
+    getEnvironmentDefinition:()=>activeWorldIdentity,
     log: (text, kind) => taskPanel.log(text, kind),
     setTaskState: (...args) => taskPanel.setState(...args)
   });

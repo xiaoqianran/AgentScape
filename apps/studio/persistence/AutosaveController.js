@@ -22,6 +22,11 @@ export class AutosaveController {
     this.timer = setTimeout(() => this.flush(), this.delayMs);
   }
 
+  cancelPending() {
+    clearTimeout(this.timer);
+    this.timer = null;
+  }
+
   flush() {
     clearTimeout(this.timer);
     this.timer = null;
@@ -33,7 +38,7 @@ export class AutosaveController {
   }
 
   dispose() {
-    clearTimeout(this.timer);
+    this.cancelPending();
     for (const off of this.unsubscribers) off();
     this.unsubscribers = [];
   }

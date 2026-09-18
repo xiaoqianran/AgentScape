@@ -64,7 +64,7 @@ export async function materializeImportedWorldEnvironment(runtime,generationResu
   const semantics=cachedBytes(byteStore,artifacts['world-semantics'],'world-semantics');
   const visual=cachedBytes(byteStore,artifacts['world-visual'],'world-visual');
   const navigation=artifacts['world-navigation'] ? cachedBytes(byteStore,artifacts['world-navigation'],'world-navigation') : null;
-  return loadGeneratedWorld({
+  const environment=await loadGeneratedWorld({
     id:manifest.id || 'generated-world',
     mesh:{data:mesh,format:artifacts['world-mesh'].artifact.format},
     semantics:{data:semantics,format:artifacts['world-semantics'].artifact.format},
@@ -76,6 +76,13 @@ export async function materializeImportedWorldEnvironment(runtime,generationResu
     camera:manifest.camera || null,
     rendering:manifest.rendering || null
   });
+  environment.generated.artifacts=Object.fromEntries(
+    Object.entries(artifacts)
+      .map(([role,item])=>[role,item?.artifact?.id || null])
+      .filter(([,id])=>Boolean(id))
+  );
+  environment.generated.jobId=generationResult?.jobs?.world || null;
+  return environment;
 }
 
 function persistedArtifactImportShape(descriptor) {

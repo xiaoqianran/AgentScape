@@ -49,6 +49,19 @@ describe('AgentTools registry facade', () => {
     expect(r.trace.emit).toHaveBeenCalledWith('agent.sequence',expect.objectContaining({tool:'open'}),{actor:'agent_01'});
   });
 
+  it('optionally tags tool and sequence events with an execution source',async()=>{
+    const r=runtime();
+    const tools=new AgentTools(r,{actor:'agent_01',source:'agent'});
+    await tools.call('open',{id:'cabinet_01'});
+    tools.recordSequence({tool:'open',outcome:{state:'verified'}});
+    expect(r.events.emit).toHaveBeenCalledWith('tool.called',{
+      name:'open',args:{id:'cabinet_01'},source:'agent'
+    });
+    expect(r.events.emit).toHaveBeenCalledWith('agent.sequence',expect.objectContaining({
+      tool:'open',source:'agent'
+    }));
+  });
+
 
   it('delegates compact task observation without exposing a new mutable world state',()=>{
     const r=runtime();

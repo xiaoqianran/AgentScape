@@ -112,6 +112,7 @@ export class TaskPanel {
     this.activeTaskButton = null;
     this.activityCount = 0;
     this.journey = null;
+    this.journeySource = null;
 
     const q = (selector) => root.querySelector(selector);
     this.consoleEl = q('.task-console');
@@ -204,20 +205,23 @@ export class TaskPanel {
     this.updateControls();
   }
 
-  beginJourney(intent, label = '任务') {
+  beginJourney(intent, label = '任务', source = null) {
     this.journey = createAgentJourney(intent, label);
+    this.journeySource = source;
     this.renderJourney();
     return this.journey;
   }
 
   observeAgentTool(event) {
     if (!this.busy || !this.journey) return;
+    if (this.journeySource && event?.source !== this.journeySource) return;
     this.journey = addAgentTool(this.journey, event);
     this.renderJourney();
   }
 
   observeAgentSequence(event) {
     if (!this.busy || !this.journey) return;
+    if (this.journeySource && event?.source !== this.journeySource) return;
     this.journey = applyAgentSequence(this.journey, event);
     this.renderJourney();
   }
@@ -329,7 +333,7 @@ export class TaskPanel {
     }
     const startedAt = performance.now();
     const runId = `runtime_${Date.now().toString(36)}`;
-    this.beginJourney(label, `Runtime · ${label}`);
+    this.beginJourney(label, `Runtime · ${label}`, 'runtime-test');
     this.setBusy(true, sourceButton);
     this.setState('running', '正在执行 Runtime 验收', label);
     try {
@@ -359,7 +363,7 @@ export class TaskPanel {
 
     const startedAt = performance.now();
     const runId = `run_${Date.now().toString(36)}`;
-    this.beginJourney(prompt, label);
+    this.beginJourney(prompt, label, demoId ? null : 'agent');
     this.setBusy(true, sourceButton);
     this.setState('running', '正在执行任务', label);
 

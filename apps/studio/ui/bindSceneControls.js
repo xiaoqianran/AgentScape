@@ -1,6 +1,7 @@
 import { bootstrapWorld } from '../../../modules/agent/bootstrapWorld.js';
 
-export function bindSceneControls({ root, world, editor, sceneStore, tools, environmentDefinition, log, setTaskState }) {
+export function bindSceneControls({ root, world, editor, sceneStore, tools, environmentDefinition, getEnvironmentDefinition = null, log, setTaskState }) {
+  const currentEnvironmentDefinition = () => getEnvironmentDefinition?.() || environmentDefinition || { id:'environment', bootstrap:{} };
   const undoButton = root.querySelector('#undo');
   const redoButton = root.querySelector('#redo');
   const updateHistoryButtons = (status = world.history.status()) => {
@@ -36,7 +37,7 @@ export function bindSceneControls({ root, world, editor, sceneStore, tools, envi
       editor.select(null);
       sceneStore.clear();
       await world.clearObjects();
-      await bootstrapWorld(tools, environmentDefinition.bootstrap);
+      await bootstrapWorld(tools, currentEnvironmentDefinition().bootstrap || {});
       world.history.clear();
       setTaskState('ready', '世界已重置', '已恢复官方初始场景。');
       log(`世界已重置 · ${world.queries.listObjects().length} 个对象`, 'result');
@@ -67,7 +68,7 @@ export function bindSceneControls({ root, world, editor, sceneStore, tools, envi
   });
   root.querySelector('#export-scene').addEventListener('click', () => {
     const scene = world.serialize({ name: 'AgentScape World' });
-    downloadJson(`agentscape-${environmentDefinition.id}.json`, scene);
+    downloadJson(`agentscape-${currentEnvironmentDefinition().id}.json`, scene);
     log(`场景已导出 · schema v${scene.schemaVersion}`, 'result');
   });
   const importFile = root.querySelector('#import-scene-file');

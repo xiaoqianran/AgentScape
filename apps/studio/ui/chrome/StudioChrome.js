@@ -1,3 +1,10 @@
+export function builtInWorldUrl(currentHref, worldId) {
+  const url = new URL(currentHref);
+  for (const key of ['worldManifest','mesh','visual','semantics','up']) url.searchParams.delete(key);
+  url.searchParams.set('world', worldId);
+  return url.toString();
+}
+
 export function createStudioChrome({
   app,
   shell,
@@ -13,6 +20,11 @@ export function createStudioChrome({
   const commandButton = commandForm?.querySelector('button[type="submit"]');
   const cinematicButton = app.querySelector('#cinematic-toggle');
   const worldSelect = app.querySelector('#world-select');
+  const brandWorldTitle = app.querySelector('.brand-lockup > span');
+  const worldKicker = app.querySelector('.world-intro .world-kicker');
+  const worldHeadline = app.querySelector('.world-intro h2');
+  const worldDescription = app.querySelector('.world-intro p');
+  const worldFacts = app.querySelector('.world-intro .world-facts');
 
   let onLayoutChange = () => {};
   let runtimeRecoveryAction = null;
@@ -85,9 +97,8 @@ export function createStudioChrome({
   for (const tab of tabs) listen(tab, 'click', () => setView(tab.dataset.panelView));
 
   listen(worldSelect, 'change', (event) => {
-    const url = new URL(location.href);
-    url.searchParams.set('world', event.target.value);
-    location.href = url.toString();
+    if (event.target.selectedOptions?.[0]?.dataset.runtimeWorld === 'true') return;
+    location.href = builtInWorldUrl(location.href, event.target.value);
   });
 
   listen(cinematicButton, 'click', () => {
@@ -147,6 +158,42 @@ export function createStudioChrome({
     return button;
   };
 
+  const setWorldPresentation = ({
+    id = 'environment',
+    title = id,
+    number = 'WORLD',
+    headline = title,
+    description = '',
+    facts = [],
+    generated = false,
+    persistenceSource = null
+  } = {}) => {
+    shell.dataset.world = id;
+    if (brandWorldTitle) brandWorldTitle.textContent = title;
+    if (worldKicker) worldKicker.textContent = `${number} // ${String(title).toUpperCase()}`;
+    if (worldHeadline) worldHeadline.textContent = headline;
+    if (worldDescription) worldDescription.textContent = description;
+    if (worldFacts) {
+      worldFacts.replaceChildren(...facts.map((fact) => {
+        const node=document.createElement('span');
+        node.textContent=String(fact);
+        return node;
+      }));
+    }
+    if (!worldSelect) return;
+    for (const option of [...worldSelect.querySelectorAll('option[data-runtime-world="true"]')]) option.remove();
+    if (generated) {
+      const option=document.createElement('option');
+      option.value=`runtime:${persistenceSource || id}`;
+      option.textContent=`GENERATED · ${title}`;
+      option.dataset.runtimeWorld='true';
+      worldSelect.append(option);
+      option.selected=true;
+      return;
+    }
+    if ([...worldSelect.options].some((option) => option.value === id)) worldSelect.value=id;
+  };
+
   return {
     dock,
     commandForm,
@@ -155,6 +202,7 @@ export function createStudioChrome({
     setView,
     closeContext,
     addDockAction,
+    setWorldPresentation,
     setRuntimeStatus,
     setRuntimeRecoveryAction,
     setLayoutChangeHandler(handler) {

@@ -1,5 +1,5 @@
-import { describe,expect,it } from 'vitest';
-import { capabilityHint,generationJobActions,generationJobCenterMarkup,generationStatusLabel,parseGenerationInputs } from '../../apps/studio/ui/generation/GenerationJobCenter.js';
+import { describe,expect,it,vi } from 'vitest';
+import { capabilityHint,GenerationJobCenter,generationJobActions,generationJobCenterMarkup,generationStatusLabel,parseGenerationInputs } from '../../apps/studio/ui/generation/GenerationJobCenter.js';
 
 describe('Generation Job Center view model',()=>{
   it('parses only object-shaped generation inputs',()=>{
@@ -40,5 +40,17 @@ describe('Generation Job Center view model',()=>{
   it('uses human labels without upgrading truth',()=>{
     expect(generationStatusLabel('generation-pending')).toBe('生成中');
     expect(generationStatusLabel('provider-succeeded')).toBe('提供方已完成');
+  });
+
+  it('releases runtime subscriptions when the advanced generation console is destroyed',()=>{
+    const first=vi.fn();
+    const second=vi.fn();
+    const center=Object.create(GenerationJobCenter.prototype);
+    center.timer=null;
+    center.unsubscribers=[first,second];
+    center.destroy();
+    expect(first).toHaveBeenCalledOnce();
+    expect(second).toHaveBeenCalledOnce();
+    expect(center.unsubscribers).toEqual([]);
   });
 });

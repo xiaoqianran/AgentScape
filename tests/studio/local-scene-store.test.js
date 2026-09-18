@@ -18,4 +18,14 @@ describe('LocalSceneStore', () => {
     store.clear();
     expect(store.has()).toBe(false);
   });
+
+  it('can switch persistence keys without overwriting the previous world', () => {
+    const storage = new MemoryStorage();
+    const store = new LocalSceneStore({ storage, key:'world-a' });
+    store.save({objects:[{id:'a'}]});
+    store.setKey('world-b').save({objects:[{id:'b'}]});
+    expect(JSON.parse(storage.getItem('world-a')).objects[0].id).toBe('a');
+    expect(store.load().objects[0].id).toBe('b');
+    expect(() => store.setKey('   ')).toThrow(/key/);
+  });
 });

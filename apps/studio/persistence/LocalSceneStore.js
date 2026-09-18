@@ -14,6 +14,13 @@ export class LocalSceneStore {
     return raw ? JSON.parse(raw) : null;
   }
 
+  setKey(key) {
+    const next=String(key || '').trim();
+    if(!next) throw new TypeError('LocalSceneStore key is required');
+    this.key=next;
+    return this;
+  }
+
   has() { return this.storage.getItem(this.key) != null; }
   clear() { this.storage.removeItem(this.key); }
 }
