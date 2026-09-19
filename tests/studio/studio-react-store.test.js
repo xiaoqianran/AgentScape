@@ -5,6 +5,8 @@ const initial = {
   selectedObjectId:null,
   activeWorkspace:'world',
   activeContextView:'create',
+  contextOpen:false,
+  buildAdvancedOpen:false,
   contextRevision:0,
   buildOutputs:[],
   selectedBuildOutputKey:null,
@@ -21,6 +23,17 @@ describe('studio React store build outputs', () => {
     expect(useStudioStore.getState()).toMatchObject({activeWorkspace:'agent',activeContextView:'runs'});
   });
 
+  it('keeps utility context separate from the primary workspace lifecycle', () => {
+    useStudioStore.getState().openView('task');
+    expect(useStudioStore.getState()).toMatchObject({activeWorkspace:'agent',activeContextView:'task',contextOpen:true});
+
+    useStudioStore.getState().openView('runs');
+    useStudioStore.getState().closeContext();
+    expect(useStudioStore.getState()).toMatchObject({activeWorkspace:'agent',activeContextView:'runs',contextOpen:false});
+
+    useStudioStore.getState().openView('world');
+    expect(useStudioStore.getState()).toMatchObject({activeWorkspace:'world',contextOpen:false});
+  });
   it('keeps earlier Build outputs when a new kind is recorded', () => {
     const store = useStudioStore.getState();
     store.recordBuildOutput({

@@ -81,7 +81,7 @@ export const useStudioStore = create<StudioState>((set) => ({
     const activeWorkspace = view === 'create' ? 'create' : view === 'task' ? 'agent' : state.activeWorkspace;
     return { activeWorkspace, activeContextView:view, contextOpen:true };
   }),
-  closeContext: () => set({ activeWorkspace:'world', contextOpen:false }),
+  closeContext: () => set({ contextOpen:false }),
   setBuildAdvancedOpen: (buildAdvancedOpen) => set({ buildAdvancedOpen }),
   syncInspector: (selectedObjectId) => set((state) => ({
     selectedObjectId,

@@ -168,10 +168,7 @@ export function StudioApp({
   const generated = Boolean(presentation.generated);
   const worldSelectValue = generated ? `runtime:${presentation.persistenceSource || worldId}` : worldId;
 
-  const chooseView = (view:string) => {
-    if (view === 'world') closeContext();
-    else openView(view as any);
-  };
+  const chooseView = (view:string) => openView(view as any);
 
   useEffect(()=>{
     bridge.notifyLayout();
