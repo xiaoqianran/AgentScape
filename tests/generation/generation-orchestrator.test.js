@@ -76,16 +76,23 @@ class CompilerStore {
   async get(key){ return this.map.get(key)||null; }
 }
 
-async function harness({remoteStatus="succeeded"}={}) {
+async function harness({remoteStatus="succeeded",transientGetFailures=0}={}) {
   const bytes=new Uint8Array(await readFile("public/assets/cabinet.glb"));
   const artifactHash=sha(bytes);
   let submitted=null;
+  let remainingGetFailures=transientGetFailures;
   const request=vi.fn(async(path,options={})=>{
     if (path==="/connector/v1/jobs" && options.method==="POST") {
       submitted=JSON.parse(options.body);
       return new Response(JSON.stringify({job:jobFrom(submitted)}),{status:200,headers:{"content-type":"application/json"}});
     }
     if (path==="/connector/v1/jobs/job_01") {
+      if (remainingGetFailures>0) {
+        remainingGetFailures-=1;
+        const error=new Error("connector temporarily unreachable");
+        error.code="CONNECTION_REQUIRED";
+        throw error;
+      }
       const result=remoteStatus==="succeeded" ? {
         artifacts:[{id:"artifact_01",role:"asset",mime:"model/gltf-binary",bytes:bytes.byteLength,hash:artifactHash}]
       } : null;
@@ -98,6 +105,7 @@ async function harness({remoteStatus="succeeded"}={}) {
   });
   const connectorClient={
     request,
+    isPaired:()=>true,
     session:()=>({status:"paired",connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"}})
   };
   const compilerStore=new CompilerStore();
@@ -133,6 +141,23 @@ describe("GenerationOrchestrator",()=>{
     await expect(orchestrator.initialize({pair:true})).resolves.toMatchObject({status:"connection-required",reason:"APPROVAL_REQUIRED",pairingId:"pair_01"});
     expect(connectorClient.pair).toHaveBeenCalledWith({pairingId:null});
   });
+
+  it("reports degraded initialization when capability refresh succeeds but Job recovery loses transport",async()=>{
+    const connectorClient={
+      isPaired:vi.fn(()=>true),
+      session:vi.fn(()=>({connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"}}))
+    };
+    const capabilityAdapter={refresh:vi.fn(async()=>({snapshot:{revision:"caprev_01",providers:[{id:"modal-3d"}]}}))};
+    const jobReconciler={bootstrap:vi.fn(async()=>({state:"connection_required",jobs:[],eventCursor:null}))};
+    const orchestrator=new GenerationOrchestrator({
+      providerRegistry:providerRegistry(),connectorClient,capabilityAdapter,jobClient:{},jobReconciler,artifactImporter:{}
+    });
+    await expect(orchestrator.initialize()).resolves.toMatchObject({
+      status:"generation-degraded",reason:"JOB_RECONCILIATION_CONNECTION_REQUIRED",recoverable:true,
+      providers:1,jobs:0,jobRecoveryState:"connection_required"
+    });
+  });
+
   it("lists normalized generation providers/capabilities without transport secrets",async()=>{
     const {orchestrator}=await harness();
     const providers=orchestrator.listGenerationProviders({availableOnly:true});
@@ -151,6 +176,16 @@ describe("GenerationOrchestrator",()=>{
     expect(request.mock.calls.filter(([path,options])=>path==="/connector/v1/jobs"&&options.method==="POST")).toHaveLength(1);
     await expect(orchestrator.submitGenerationJob({...generationRequest(),metadata:{apiKey:"must-not-cross"}}))
       .rejects.toMatchObject({code:"JOB_SECRET_FIELD"});
+  });
+
+  it("recovers from a transient Connector read failure without resubmitting the paid Job",async()=>{
+    const {orchestrator,request}=await harness({transientGetFailures:1});
+    const produced=await orchestrator.generateTextAsset({
+      prompt:"cabinet",assetId:"asset_recovered_01",label:"Recovered Cabinet",pollIntervalMs:0
+    });
+    expect(produced).toMatchObject({assetId:"asset_recovered_01",jobs:{asset:"job_01"}});
+    expect(request.mock.calls.filter(([requestPath,options])=>requestPath==="/connector/v1/jobs"&&options.method==="POST")).toHaveLength(1);
+    expect(request.mock.calls.filter(([requestPath])=>requestPath==="/connector/v1/jobs/job_01").length).toBeGreaterThanOrEqual(2);
   });
 
   it("keeps provider success distinct from asset readiness and completes the verified vertical path",async()=>{

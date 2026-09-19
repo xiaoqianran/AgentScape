@@ -253,21 +253,23 @@ export class GenerationOrchestrator {
     const interval=Math.max(0,Number(pollIntervalMs)||0);
     const deadline=this.monotonic()+timeout;
     let view=await this.submitGenerationJob(request);
-    while (PENDING_GENERATION_STATUSES.has(view.status)) {
+    for (;;) {
+      if (view.status==="provider-succeeded") return view;
+      if (FAILED_GENERATION_STATUSES.has(view.status)) {
+        throw new GenerationOrchestrationError("GENERATION_JOB_FAILED","Generation Job ended without a usable Artifact",{jobId:view.jobId,provider:view.provider,operation:view.operation,status:view.status,error:view.error||null});
+      }
+      if (view.status==="connection-required" && !this.connectorClient?.isPaired?.()) {
+        throw new GenerationOrchestrationError("CONNECTION_REQUIRED","Generation Connector session is no longer active while waiting for a Job",{jobId:view.jobId,provider:view.provider,operation:view.operation});
+      }
+      if (!PENDING_GENERATION_STATUSES.has(view.status) && view.status!=="connection-required") {
+        throw new GenerationOrchestrationError("GENERATION_JOB_INVALID","Generation Job reached an unsupported orchestration state",{jobId:view.jobId,status:view.status});
+      }
       if (this.monotonic()>=deadline) {
         throw new GenerationOrchestrationError("GENERATION_TIMEOUT","Generation Job did not reach provider success before timeout",{jobId:view.jobId,provider:view.provider,operation:view.operation,timeoutMs:timeout});
       }
       if (interval) await this.sleep(Math.min(interval,Math.max(0,deadline-this.monotonic())));
       view=await this.getGenerationJob(view.jobId);
     }
-    if (view.status==="provider-succeeded") return view;
-    if (view.status==="connection-required") {
-      throw new GenerationOrchestrationError("CONNECTION_REQUIRED","Local generation adapter became unavailable while waiting for a Job",{jobId:view.jobId,provider:view.provider,operation:view.operation});
-    }
-    if (FAILED_GENERATION_STATUSES.has(view.status)) {
-      throw new GenerationOrchestrationError("GENERATION_JOB_FAILED","Generation Job ended without a usable Artifact",{jobId:view.jobId,provider:view.provider,operation:view.operation,status:view.status,error:view.error||null});
-    }
-    throw new GenerationOrchestrationError("GENERATION_JOB_INVALID","Generation Job reached an unsupported orchestration state",{jobId:view.jobId,status:view.status});
   }
 
   async generateTextAsset(request={}) {
@@ -382,10 +384,13 @@ export class GenerationOrchestrator {
       }
       const refreshed=await this.capabilityAdapter.refresh(this.connectorClient,this.providerRegistry);
       const bootstrapped=this.jobReconciler ? await this.jobReconciler.bootstrap() : {state:"ready",jobs:[]};
+      const jobRecoveryState=bootstrapped.state||"ready";
       return {
-        status:"generation-ready",connector:this.connectorClient.session()?.connector||null,
+        status:jobRecoveryState==="connection_required"?"generation-degraded":"generation-ready",
+        ...(jobRecoveryState==="connection_required"?{reason:"JOB_RECONCILIATION_CONNECTION_REQUIRED",recoverable:true}:{}),
+        connector:this.connectorClient.session()?.connector||null,
         capabilityRevision:refreshed.snapshot.revision,providers:refreshed.snapshot.providers.length,
-        jobs:bootstrapped.jobs?.length||0
+        jobs:bootstrapped.jobs?.length||0,jobRecoveryState
       };
     } catch (error) {
       if (["CONNECTION_REQUIRED","PAIRING_REQUIRED"].includes(error?.code)) {
