@@ -146,6 +146,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     setRuntimeStatus: chrome.setRuntimeStatus,
     setRuntimeRecoveryAction: chrome.setRuntimeRecoveryAction,
     setLayoutChangeHandler: chrome.setLayoutChangeHandler,
+    setWorldPresentation: (identity) => useStudioStore.getState().setWorldPresentation(identity),
     destroyChrome: chrome.destroy
   };
 }

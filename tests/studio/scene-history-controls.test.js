@@ -3,10 +3,14 @@ import { bindSceneControls } from '../../apps/studio/ui/bindSceneControls.js';
 
 function element() {
   const listeners = new Map();
+  const removeEventListener = vi.fn((name, handler) => {
+    if (listeners.get(name) === handler) listeners.delete(name);
+  });
   return {
     disabled:false, textContent:'', value:'', files:null,
     classList:{ toggle(){} },
     addEventListener(name, handler) { listeners.set(name, handler); },
+    removeEventListener,
     fire(name) { return listeners.get(name)?.({}); },
     click() {}
   };
@@ -16,15 +20,24 @@ function element() {
 function fixture({ undo = async () => {}, redo = async () => {}, worldSession = null } = {}) {
   const elements = new Map();
   const keydown = [];
-  vi.stubGlobal('window', { addEventListener:(name, handler) => { if (name === 'keydown') keydown.push(handler); } });
+  const removeWindowListener = vi.fn((name, handler) => {
+    if (name !== 'keydown') return;
+    const index = keydown.indexOf(handler);
+    if (index >= 0) keydown.splice(index, 1);
+  });
+  vi.stubGlobal('window', {
+    addEventListener:(name, handler) => { if (name === 'keydown') keydown.push(handler); },
+    removeEventListener:removeWindowListener
+  });
   const log = vi.fn();
-  bindSceneControls({
+  const stopHistory = vi.fn();
+  const binding = bindSceneControls({
     root: {
       querySelector:(selector) => { if (!elements.has(selector)) elements.set(selector, element()); return elements.get(selector); },
       querySelectorAll:() => []
     },
     world: {
-      events:{ on(){} },
+      events:{ on:()=>stopHistory },
       history:{ status:()=>({canUndo:true,canRedo:true}), undo:vi.fn(undo), redo:vi.fn(redo), clear:vi.fn() },
       clearObjects:async()=>{}, serialize:()=>({schemaVersion:1,objects:[]}), restore:async()=>{},
       queries:{listObjects:()=>[]}
@@ -35,7 +48,7 @@ function fixture({ undo = async () => {}, redo = async () => {}, worldSession = 
     tools:{}, environmentDefinition:{ id:'monument-hall', bootstrap:{} },
     log, setTaskState:vi.fn()
   });
-  return { selector:(name) => elements.get(name), keydown, log };
+  return { selector:(name) => elements.get(name), keydown, log, binding, stopHistory, removeWindowListener };
 }
 
 const press = (handler, { key = 'z', shiftKey = false } = {}) => handler({ preventDefault(){}, ctrlKey:true, shiftKey, key, target:{ matches:() => false } });
@@ -68,5 +81,14 @@ describe('Studio history controls', () => {
     await f.selector('#reset-world').fire('click');
     expect(reset).toHaveBeenCalledOnce();
     expect(f.log).toHaveBeenCalledWith('世界已重置 · 0 个对象','result');
+  });
+
+  it('releases history and keyboard listeners on dispose', () => {
+    const f=fixture();
+    expect(f.keydown).toHaveLength(1);
+    f.binding.dispose();
+    expect(f.stopHistory).toHaveBeenCalledOnce();
+    expect(f.removeWindowListener).toHaveBeenCalledWith('keydown',expect.any(Function),undefined);
+    expect(f.keydown).toHaveLength(0);
   });
 });

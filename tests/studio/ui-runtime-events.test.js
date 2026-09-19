@@ -3,8 +3,9 @@ import { bindRuntimeEvents } from '../../apps/studio/ui/bindRuntimeEvents.js';
 
 function fixture({ selectedId = 'cup_01', existing = ['cup_01'] } = {}) {
   const handlers = new Map();
+  const unsubscribe = vi.fn();
   const world = {
-    events: { on: (name, handler) => handlers.set(name, handler) },
+    events: { on: (name, handler) => { handlers.set(name, handler); return unsubscribe; } },
     queries: { hasObject: (id) => existing.includes(id) }
   };
   const editor = { selectedId, select: vi.fn((id) => { editor.selectedId = id; }) };
@@ -13,8 +14,8 @@ function fixture({ selectedId = 'cup_01', existing = ['cup_01'] } = {}) {
   const ui = { setView: vi.fn(), setRuntimeStatus: vi.fn(), setRuntimeRecoveryAction: vi.fn() };
   const autosave = { flush: vi.fn(() => ({ objects: [] })) };
   const reload = vi.fn();
-  bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, autosave, reload });
-  return { handlers, world, editor, inspector, taskPanel, ui, autosave, reload };
+  const binding = bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, autosave, reload });
+  return { handlers, world, editor, inspector, taskPanel, ui, autosave, reload, unsubscribe, binding };
 }
 
 describe('UI runtime event lifecycle', () => {
@@ -92,5 +93,12 @@ describe('UI runtime event lifecycle', () => {
     const f = fixture({ existing: [] });
     f.handlers.get('sceneGraph.updated')({ edges: 0 });
     expect(f.inspector.render).not.toHaveBeenCalled();
+  });
+
+  it('releases every runtime event subscription on dispose', () => {
+    const f = fixture();
+    const subscriptionCount = f.handlers.size;
+    f.binding.dispose();
+    expect(f.unsubscribe).toHaveBeenCalledTimes(subscriptionCount);
   });
 });
