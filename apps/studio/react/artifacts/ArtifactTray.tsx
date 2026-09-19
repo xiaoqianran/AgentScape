@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { useStudioStore, type BuildOutputRef } from '../state/studioStore';
 import './ArtifactTray.css';
 import './ArtifactTrayAgentTest.css';
@@ -151,7 +150,7 @@ function ArtifactThumbnail({ resources, output, revision }: { resources: StudioR
   return <span>{output.kind === 'image' ? '2D' : output.kind === 'asset' ? '3D' : 'ENV'}</span>;
 }
 
-function ArtifactTrayView({ resources, controller, agentVerifier, openBuild, log }: ArtifactTrayProps) {
+export function ArtifactTrayView({ resources, controller, agentVerifier, openBuild, log }: ArtifactTrayProps) {
   const outputs = useStudioStore((state) => state.buildOutputs);
   const selectedKey = useStudioStore((state) => state.selectedBuildOutputKey);
   const selectOutput = useStudioStore((state) => state.selectBuildOutput);
@@ -324,16 +323,4 @@ function ArtifactTrayView({ resources, controller, agentVerifier, openBuild, log
       ) : null}
     </section>
   );
-}
-
-export function mountArtifactTray({ root, ...props }: ArtifactTrayProps & { root: HTMLElement }) {
-  const host = root.querySelector<HTMLElement>('.artifact-tray-host');
-  if (!host) throw new TypeError('ArtifactTray requires an .artifact-tray-host');
-  const reactRoot: Root = createRoot(host);
-  reactRoot.render(<ArtifactTrayView {...props} />);
-  return {
-    destroy() {
-      reactRoot.unmount();
-    }
-  };
 }

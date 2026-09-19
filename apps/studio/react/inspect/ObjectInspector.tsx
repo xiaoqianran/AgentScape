@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { useStudioStore } from '../state/studioStore';
 import './ObjectInspector.css';
 
@@ -51,7 +50,7 @@ const RELATION_LABELS: Record<string, string> = {
   INSIDE: '位于内部'
 };
 
-function ObjectInspectorView({ world, tools, log }: InspectorProps) {
+export function ObjectInspectorView({ world, tools, log }: InspectorProps) {
   const selectedObjectId = useStudioStore((state) => state.selectedObjectId);
   useStudioStore((state) => state.contextRevision);
 
@@ -196,30 +195,4 @@ function ObjectInspectorView({ world, tools, log }: InspectorProps) {
       )}
     </>
   );
-}
-
-export function mountObjectInspector({
-  root,
-  world,
-  tools,
-  log = () => {}
-}: InspectorProps & { root: HTMLElement }) {
-  const host = root.matches('.inspector') ? root : root.querySelector<HTMLElement>('.inspector');
-  if (!host) throw new TypeError('ObjectInspector requires an .inspector host');
-
-  const inspectButton = root.closest('.shell')?.querySelector<HTMLElement>('[data-dock-view="inspect"]')
-    ?? document.querySelector<HTMLElement>('[data-dock-view="inspect"]');
-  const reactRoot: Root = createRoot(host);
-  reactRoot.render(<ObjectInspectorView world={world} tools={tools} log={log} />);
-
-  return {
-    render(id: string | null) {
-      inspectButton?.classList.toggle('has-selection', Boolean(id));
-      if (id && world.queries.hasObject(id)) world.queries.describeObjectRelations(id);
-      useStudioStore.getState().syncInspector(id);
-    },
-    destroy() {
-      reactRoot.unmount();
-    }
-  };
 }

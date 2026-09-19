@@ -13,7 +13,7 @@ export function createStudioAgent({
   runtimeTestTools,
   capabilityStatus
 }) {
-  const runsPanel = new RunsPanel({ root:ui.panel });
+  const runsPanel = new RunsPanel();
   let taskPanel = null;
 
   const generatedPlacementDemo = new GeneratedPlacementDemoRunner({
@@ -27,10 +27,6 @@ export function createStudioAgent({
   });
 
   taskPanel = new TaskPanel({
-    root:ui.panel,
-    commandForm:ui.commandForm,
-    commandInput:ui.commandInput,
-    commandButton:ui.commandButton,
     setView:ui.setView,
     onRun:(run)=>runsPanel.addRun(run),
     demoRunners:{ 'generated-placement':generatedPlacementDemo },
@@ -48,6 +44,16 @@ export function createStudioAgent({
 
   taskPanel.attachAgent({ agent, gateway });
   taskPanel.setAvailability(capabilityStatus.agent.available);
+  ui.attachAgent?.({ taskPanel, runsPanel });
 
-  return { taskPanel, gateway };
+  return {
+    taskPanel,
+    runsPanel,
+    gateway,
+    dispose() {
+      ui.attachAgent?.(null);
+      taskPanel.dispose?.();
+      runsPanel.dispose?.();
+    }
+  };
 }

@@ -3,15 +3,9 @@ import { StudioResources } from '../resources/StudioResources.js';
 import { BuildSession } from '../build/BuildSession.js';
 import { StudioBuildController } from '../build/StudioBuildController.js';
 import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
-import { ResourceLibrary } from '../ui/resources/ResourceLibrary.js';
-import { mountSceneExplorer } from '../react/scene/SceneExplorer.tsx';
-import { mountObjectInspector } from '../react/inspect/ObjectInspector.tsx';
-import { mountBuildWorkbench } from '../react/build/BuildWorkbench.tsx';
-import { mountArtifactTray } from '../react/artifacts/ArtifactTray.tsx';
 import { useStudioStore } from '../react/state/studioStore.ts';
 
 export function createStudioContent({
-  app,
   ui,
   environmentDefinition,
   environments,
@@ -57,17 +51,6 @@ export function createStudioContent({
     environments
   });
 
-  const sceneExplorer = mountSceneExplorer({
-    root:ui.scenePanel,
-    world,
-    editor,
-    environmentDefinition,
-    resources,
-    placement,
-    openLibrary:()=>ui.setView('resources'),
-    openCreate:()=>ui.setView('create')
-  });
-
   const buildController = new StudioBuildController({
     generation:world.generation,
     events:world.events,
@@ -76,53 +59,65 @@ export function createStudioContent({
     openGeneratedWorld,
     log
   });
-  const buildWorkbench = mountBuildWorkbench({
-    root:ui.panel,
-    resources,
-    session:new BuildSession({ mode:'image' }),
-    controller:buildController,
-    environmentDefinition,
-    log
-  });
-
-  const resourceLibrary = new ResourceLibrary({
-    root:ui.panel,
-    resources,
-    placement,
-    log,
-    openEnvironment:openBuiltinWorld,
-    openGeneratedWorld
-  }).init();
-
-  const inspector = mountObjectInspector({
-    root:ui.panel,
+  const buildSession = new BuildSession({ mode:'image' });
+  const agentVerifier = new AssetAgentVerifier({
     world,
     tools:studioTools,
+    actorId:'agent_01',
     log
   });
 
-  const artifactTray = mountArtifactTray({
-    root:app,
-    resources,
-    controller:buildController,
-    agentVerifier:new AssetAgentVerifier({
+  useStudioStore.getState().setSelectedObjectId(editor.selectedId ?? null);
+
+  const inspector = {
+    render(id) {
+      if (id && world.queries.hasObject(id)) world.queries.describeObjectRelations(id);
+      useStudioStore.getState().syncInspector(id);
+    }
+  };
+
+  ui.attachContent?.({
+    sceneExplorer:{
+      world,
+      editor,
+      environmentDefinition,
+      resources,
+      placement,
+      openLibrary:()=>ui.setView('resources'),
+      openCreate:()=>ui.setView('create')
+    },
+    buildWorkbench:{
+      resources,
+      session:buildSession,
+      controller:buildController,
+      environmentDefinition,
+      log
+    },
+    resourceLibrary:{
+      resources,
+      placement,
+      log,
+      openEnvironment:openBuiltinWorld,
+      openGeneratedWorld
+    },
+    inspector:{
       world,
       tools:studioTools,
-      actorId:'agent_01',
       log
-    }),
-    openBuild:()=>ui.setView('create'),
-    log
+    },
+    artifactTray:{
+      resources,
+      controller:buildController,
+      agentVerifier,
+      openBuild:()=>ui.setView('create'),
+      log
+    }
   });
 
   return {
     inspector,
     dispose() {
-      artifactTray.destroy();
-      buildWorkbench.destroy();
-      sceneExplorer.destroy();
-      inspector.destroy();
-      resourceLibrary.destroy();
+      ui.attachContent?.(null);
       placement.dispose();
     }
   };

@@ -49,7 +49,6 @@ async function main() {
   });
 
   const workspace = await createStudioWorkspace({
-    app,
     ui,
     environmentDefinition,
     environments:ENVIRONMENTS,
@@ -67,6 +66,7 @@ async function main() {
   window.addEventListener('pagehide',()=>{
     workspace.dispose();
     lifecycle.dispose();
+    agent.dispose?.();
     runtime.dispose();
     ui.destroyChrome?.();
   },{ once:true });

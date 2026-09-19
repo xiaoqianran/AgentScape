@@ -4,7 +4,6 @@ import { createStudioDeveloperTools } from './createStudioDeveloperTools.js';
 import { activateStudioWorld } from './activateStudioWorld.js';
 
 export async function createStudioWorkspace({
-  app,
   ui,
   environmentDefinition,
   environments,
@@ -34,7 +33,6 @@ export async function createStudioWorkspace({
   }));
 
   const content = createStudioContent({
-    app,
     ui,
     environmentDefinition,
     environments,
@@ -56,7 +54,6 @@ export async function createStudioWorkspace({
   });
 
   const activation = await activateStudioWorld({
-    app,
     ui,
     world,
     authoringWorlds,

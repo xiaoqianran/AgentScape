@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { BUILD_MODE_META, BUILD_MODES } from '../../build/BuildSession.js';
 import { useStudioStore, type BuildOutputRef } from '../state/studioStore';
 import './BuildWorkbench.css';
@@ -107,7 +106,6 @@ type EnvironmentDefinition = {
 };
 
 type BuildWorkbenchProps = {
-  root: HTMLElement;
   resources: StudioResourcesLike;
   session: BuildSessionLike;
   controller: BuildControllerLike;
@@ -344,8 +342,7 @@ function WorldResultView({
   );
 }
 
-function BuildWorkbenchView({
-  root,
+export function BuildWorkbenchView({
   resources,
   session,
   controller,
@@ -356,6 +353,7 @@ function BuildWorkbenchView({
   const buildOutputs = useStudioStore((store) => store.buildOutputs);
   const workflowIntent = useStudioStore((store) => store.buildWorkflowIntent);
   const consumeBuildWorkflow = useStudioStore((store) => store.consumeBuildWorkflow);
+  const setBuildAdvancedOpen = useStudioStore((store) => store.setBuildAdvancedOpen);
   const [state, setState] = useState<BuildState>(() => session.snapshot());
   const [prompt, setPrompt] = useState('');
   const [assetId, setAssetId] = useState('');
@@ -392,11 +390,6 @@ function BuildWorkbenchView({
       for (const unsubscribe of unsubscribers) unsubscribe();
     };
   }, [controller, resources]);
-
-  useEffect(() => {
-    root.dataset.buildMode = state.mode;
-  }, [root, state.mode]);
-
 
   useEffect(() => {
     if (!workflowIntent || imageQueueBusy) return;
@@ -601,7 +594,7 @@ function BuildWorkbenchView({
             <span>Input</span><i>→</i><span>Generate</span><i>→</i><span>Artifact</span>
           </div>
         </div>
-        <button id="build-open-advanced" className="build-advanced-button" type="button" onClick={() => root.classList.add('build-advanced-open')}>{running ? 'Jobs' : 'Advanced'}</button>
+        <button id="build-open-advanced" className="build-advanced-button" type="button" onClick={() => setBuildAdvancedOpen(true)}>{running ? 'Jobs' : 'Advanced'}</button>
       </header>
 
       <div className="build-world-context">
@@ -679,19 +672,4 @@ function BuildWorkbenchView({
       </div>
     </section>
   );
-}
-
-export function mountBuildWorkbench(props: BuildWorkbenchProps) {
-  if (!props.root || !props.resources || !props.session || !props.controller) {
-    throw new TypeError('BuildWorkbench requires root, resources, session and controller');
-  }
-  const host = props.root.querySelector<HTMLElement>('.build-workbench-host');
-  if (!host) throw new TypeError('BuildWorkbench requires a .build-workbench-host');
-  const reactRoot: Root = createRoot(host);
-  reactRoot.render(<BuildWorkbenchView {...props} />);
-  return {
-    destroy() {
-      reactRoot.unmount();
-    }
-  };
 }

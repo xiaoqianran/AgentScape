@@ -1,152 +1,67 @@
-import { generationJobCenterMarkup } from './generation/GenerationJobCenter.js';
-import { taskPanelMarkup } from './task/TaskPanel.js';
-import { runsPanelMarkup } from './runs/RunsPanel.js';
-import { developerSettingsMarkup } from './developer/DeveloperSettings.js';
-import { resourceLibraryMarkup } from './resources/ResourceLibrary.js';
-import { sceneExplorerMarkup } from './scene/SceneExplorer.js';
-import { createStudioChrome } from './chrome/StudioChrome.js';
+import { createElement } from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
+import { StudioApp } from '../react/StudioApp.tsx';
+import { useStudioStore } from '../react/state/studioStore.ts';
+import { createStudioUiBridge } from './StudioUiBridge.js';
 import './content/StudioContent.css';
 import './chrome/studio-shell.css';
 import './chrome/studio-spatial.css';
-import { useStudioStore } from '../react/state/studioStore.ts';
 
 export function createAppShell({ app, environmentDefinition, environments }) {
-  const environmentOptions = environments.map((item) => `
-    <option value="${item.id}"${item.id === environmentDefinition.id ? ' selected' : ''}>
-      ${item.number} · ${item.title}
-    </option>`).join('');
+  if (!app) throw new TypeError('createAppShell requires #app');
+  const bridge = createStudioUiBridge();
+  const reactRoot = createRoot(app);
 
-  app.innerHTML = `
-    <main class="shell spatial-editor${environmentDefinition.worldFirst ? ' world-first' : ''}" data-world="${environmentDefinition.id}" data-workspace="world" data-context-view="create">
-      <header class="brandbar">
-        <div class="brand-lockup">
-          <strong>AgentScape <em>Studio</em></strong>
-          <span>${environmentDefinition.title}</span>
-        </div>
-        <div class="brand-actions">
-          <label class="world-control">
-            <span>世界</span>
-            <select id="world-select" class="world-select" aria-label="当前世界">${environmentOptions}</select>
-          </label>
-          <button id="runtime-status" class="runtime-status" data-state="loading" type="button" disabled aria-live="polite">
-            <i></i><span>启动中</span>
-          </button>
-          <button id="cinematic-toggle" class="header-button" type="button">沉浸模式</button>
-          <button id="open-developer" class="icon-button" type="button" aria-label="打开开发者设置" title="开发者设置">⋯</button>
-        </div>
-      </header>
+  useStudioStore.setState({
+    worldPresentation:{
+      id:environmentDefinition.id,
+      title:environmentDefinition.title,
+      number:environmentDefinition.number,
+      headline:environmentDefinition.headline,
+      description:environmentDefinition.description,
+      facts:environmentDefinition.facts || [],
+      worldFirst:Boolean(environmentDefinition.worldFirst)
+    },
+    activeWorkspace:'world',
+    activeContextView:'create',
+    contextOpen:false
+  });
 
-      <section class="workspace">
-        ${sceneExplorerMarkup(environmentDefinition)}
-        <div id="viewport" class="viewport">
-          <div class="editor-toolbar" aria-label="场景编辑工具">
-            <button data-mode="translate" class="active" type="button">移动 <kbd>W</kbd></button>
-            <button data-mode="rotate" type="button">旋转 <kbd>E</kbd></button>
-            <span class="toolbar-divider"></span>
-            <button id="duplicate" type="button">复制</button>
-            <button id="delete" class="danger" type="button">删除</button>
-            <details class="toolbar-more scene-menu">
-              <summary>场景</summary>
-              <div class="toolbar-menu">
-                <button id="undo" type="button" disabled>撤销 <kbd>⌘Z</kbd></button>
-                <button id="redo" type="button" disabled>重做</button>
-                <div class="toolbar-menu-label">创作世界</div>
-                <select id="authoring-world-select" class="world-select" aria-label="创作世界存档">
-                  <option value="">选择创作世界…</option>
-                </select>
-                <button id="authoring-new" type="button">新建创作世界</button>
-                <button id="authoring-open" type="button">打开创作世界</button>
-                <button id="authoring-save" type="button">保存创作世界</button>
-                <button id="authoring-save-as" type="button">另存创作世界</button>
-                <span id="authoring-save-status" class="toolbar-menu-status">Untitled World · 已保存</span>
-                <div class="toolbar-menu-label">运行时场景</div>
-                <button id="save-scene" type="button">保存到本机</button>
-                <button id="load-scene" type="button">加载本机存档</button>
-                <button id="export-scene" type="button">导出 JSON</button>
-                <button id="import-scene" type="button">导入 JSON</button>
-                <button id="reset-world" class="danger" type="button">重置世界</button>
-              </div>
-            </details>
-            <details class="toolbar-more debug-overlay-menu">
-              <summary>调试图层</summary>
-              <div class="toolbar-menu debug-layer-menu" id="debug-layer-menu"></div>
-            </details>
-            <input id="import-scene-file" type="file" accept="application/json,.json" hidden />
-          </div>
-
-          <div class="world-intro">
-            <div class="world-kicker">${environmentDefinition.number} // ${environmentDefinition.title.toUpperCase()}</div>
-            <h2>${environmentDefinition.headline}</h2>
-            <p>${environmentDefinition.description}</p>
-            <div class="world-facts">${environmentDefinition.facts.map((fact) => `<span>${fact}</span>`).join('')}</div>
-          </div>
-          <div class="hint">点击选择 · W 移动 · E 旋转 · Del 删除</div>
-        </div>
-
-        <aside class="panel" data-view="create" aria-label="上下文面板">
-          ${taskPanelMarkup()}
-          <div class="build-workbench-host"></div>
-          <div class="build-advanced-shell">
-            <div class="build-advanced-header">
-              <button id="build-close-advanced" type="button">← 返回 Build Workbench</button>
-              <span>Advanced Generation Console</span>
-            </div>
-            ${generationJobCenterMarkup()}
-          </div>
-          ${resourceLibraryMarkup()}
-          <section class="inspector" aria-label="检查"></section>
-          ${runsPanelMarkup()}
-        </aside>
-      </section>
-
-      <div class="artifact-tray-host"></div>
-
-      <form id="command" class="command-bar" autocomplete="off">
-        <div class="command-field">
-          <span class="command-prefix" aria-hidden="true">›</span>
-          <input id="input" placeholder="描述你希望这个世界发生什么…" aria-label="智能体任务" />
-        </div>
-        <button type="submit"><span>执行任务</span></button>
-      </form>
-
-      ${developerSettingsMarkup()}
-    </main>`;
+  flushSync(()=>{
+    reactRoot.render(createElement(StudioApp,{ bridge, environmentDefinition, environments }));
+  });
 
   const shell = app.querySelector('.shell');
   const panel = app.querySelector('.panel');
-  const chrome = createStudioChrome({
-    app,
-    shell,
-    panel,
-    environmentDefinition,
-    onViewChange: (view) => useStudioStore.getState().setActiveContextView(view),
-    onWorkspaceChange: (workspace) => useStudioStore.getState().setActiveWorkspace(workspace)
-  });
+  const viewport = app.querySelector('#viewport');
+  if (!shell || !panel || !viewport) throw new Error('StudioApp failed to materialize required shell hosts');
 
-  app.querySelector('#build-close-advanced')?.addEventListener('click', () => {
-    panel.classList.remove('build-advanced-open');
-  });
+  const setView = (view) => useStudioStore.getState().openView(view);
+  const closeContext = () => useStudioStore.getState().closeContext();
 
   return {
     shell,
     panel,
-    dock: chrome.dock,
-    scenePanel: app.querySelector('.scene-panel'),
-    viewport: app.querySelector('#viewport'),
-    commandForm: chrome.commandForm,
-    commandInput: chrome.commandInput,
-    commandButton: chrome.commandButton,
-    developerButton: app.querySelector('#open-developer'),
-    developerDialog: app.querySelector('#developer-dialog'),
-    setView: chrome.setView,
-    closeContext: chrome.closeContext,
-    addDockAction: chrome.addDockAction,
-    setWorldPresentation: chrome.setWorldPresentation,
-    setWorldChangeHandler: chrome.setWorldChangeHandler,
-    setRuntimeStatus: chrome.setRuntimeStatus,
-    setRuntimeRecoveryAction: chrome.setRuntimeRecoveryAction,
-    setLayoutChangeHandler: chrome.setLayoutChangeHandler,
-    setWorldPresentation: (identity) => useStudioStore.getState().setWorldPresentation(identity),
-    destroyChrome: chrome.destroy
+    viewport,
+    developerDialog:app.querySelector('#developer-dialog'),
+    setView,
+    closeContext,
+    addDockAction:(action)=>bridge.addDockAction(action),
+    setWorldPresentation:(identity)=>useStudioStore.getState().setWorldPresentation(identity),
+    setWorldChangeHandler:(handler)=>bridge.setWorldChangeHandler(handler),
+    setRuntimeStatus:(state,label)=>bridge.setRuntimeStatus(state,label),
+    setRuntimeRecoveryAction:(handler,label)=>bridge.setRuntimeRecoveryAction(handler,label),
+    setLayoutChangeHandler:(handler)=>bridge.setLayoutChangeHandler(handler),
+    attachAgent:(agent)=>bridge.attachAgent(agent),
+    attachContent:(content)=>bridge.attachContent(content),
+    attachSceneControls:(controls)=>bridge.attachSceneControls(controls),
+    attachAuthoring:(authoring)=>bridge.attachAuthoring(authoring),
+    setDeveloperOpenHandler:(handler)=>bridge.setDeveloperOpenHandler(handler),
+    prefillAgentCommand:(value)=>bridge.prefillAgentCommand(value),
+    destroyChrome() {
+      reactRoot.unmount();
+      bridge.dispose();
+    }
   };
 }

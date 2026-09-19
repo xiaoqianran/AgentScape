@@ -27,7 +27,7 @@ export async function createStudioDeveloperTools({
   taskPanel.setOpenSettingsHandler(()=>developer.open());
 
   const openDeveloper = ()=>developer.open();
-  ui.developerButton.addEventListener('click',openDeveloper);
+  ui.setDeveloperOpenHandler?.(openDeveloper);
   ui.setLayoutChangeHandler(()=>world.rendering?.resize?.());
 
   const generationJobCenter = await new GenerationJobCenter({
@@ -41,7 +41,7 @@ export async function createStudioDeveloperTools({
     developer,
     generationJobCenter,
     dispose() {
-      ui.developerButton.removeEventListener('click',openDeveloper);
+      ui.setDeveloperOpenHandler?.(null);
       generationJobCenter.destroy();
     }
   };

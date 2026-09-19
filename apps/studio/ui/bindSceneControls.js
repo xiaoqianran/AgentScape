@@ -1,45 +1,67 @@
 import { bootstrapWorld } from '../../../modules/agent/bootstrapWorld.js';
 
-export function bindSceneControls({ root, world, editor, sceneStore, worldSession = null, tools = null, environmentDefinition = null, getEnvironmentDefinition = null, log, setTaskState }) {
-  const disposers=[];
-  const listen=(target,type,handler,options)=>{
-    target?.addEventListener?.(type,handler,options);
-    if (target?.removeEventListener) disposers.push(()=>target.removeEventListener(type,handler,options));
-  };
+export function bindSceneControls({
+  world,
+  editor,
+  sceneStore,
+  worldSession = null,
+  tools = null,
+  environmentDefinition = null,
+  getEnvironmentDefinition = null,
+  log = () => {},
+  setTaskState = () => {}
+}) {
   const currentEnvironmentDefinition=()=>worldSession?.current || getEnvironmentDefinition?.() || environmentDefinition || { id:'environment', bootstrap:{} };
-  const undoButton=root.querySelector('#undo');
-  const redoButton=root.querySelector('#redo');
+  const listeners = new Set();
+  const disposers = [];
+  let resetWorldArmed=false;
+  let resetWorldTimer=null;
+  let resetBusy=false;
+  let mode='translate';
+  let history=world.history.status();
+
+  const snapshot=()=>Object.freeze({ mode, history, resetWorldArmed, resetBusy });
+  let viewSnapshot=snapshot();
+  const emit=()=>{
+    viewSnapshot=snapshot();
+    for(const listener of listeners) listener();
+  };
+  const subscribe=(listener)=>{
+    listeners.add(listener);
+    return ()=>listeners.delete(listener);
+  };
+  const getSnapshot=()=>viewSnapshot;
+
   const updateHistoryButtons=(status=world.history.status())=>{
-    undoButton.disabled=!status.canUndo;
-    redoButton.disabled=!status.canRedo;
+    history=status;
+    emit();
   };
   const stopHistory=world.events.on('history.changed',updateHistoryButtons);
   if (typeof stopHistory === 'function') disposers.push(stopHistory);
-  updateHistoryButtons();
 
-  root.querySelectorAll('[data-mode]').forEach((button)=>listen(button,'click',()=>{
-    editor.setMode(button.dataset.mode);
-    root.querySelectorAll('[data-mode]').forEach((candidate)=>candidate.classList.toggle('active',candidate === button));
-  }));
+  const setMode=(next)=>{
+    if (!['translate','rotate'].includes(next)) return;
+    mode=next;
+    editor.setMode(next);
+    emit();
+  };
 
-  const resetWorldButton=root.querySelector('#reset-world');
-  let resetWorldArmed=false;
-  let resetWorldTimer=null;
-  listen(resetWorldButton,'click',async()=>{
+  const resetWorld=async()=>{
     if (!resetWorldArmed) {
       resetWorldArmed=true;
-      resetWorldButton.textContent='确认重置';
+      emit();
       resetWorldTimer=setTimeout(()=>{
         resetWorldArmed=false;
-        resetWorldButton.textContent='重置世界';
+        resetWorldTimer=null;
+        emit();
       },3000);
-      return;
+      return { status:'confirm-required' };
     }
-    clearTimeout(resetWorldTimer);
+    if (resetWorldTimer != null) clearTimeout(resetWorldTimer);
     resetWorldTimer=null;
     resetWorldArmed=false;
-    resetWorldButton.textContent='正在重置…';
-    resetWorldButton.disabled=true;
+    resetBusy=true;
+    emit();
     try {
       editor.select(null);
       if (worldSession?.reset) await worldSession.reset();
@@ -51,92 +73,115 @@ export function bindSceneControls({ root, world, editor, sceneStore, worldSessio
       }
       setTaskState('ready','世界已重置','已恢复当前世界初始状态。');
       log(`世界已重置 · ${world.queries.listObjects().length} 个对象`,'result');
+      return { status:'world-reset' };
     } catch (error) {
       setTaskState('error','重置失败',error.message);
       log(`重置错误：${error.message}`,'error');
+      return { status:'error', error };
     } finally {
-      resetWorldButton.disabled=false;
-      resetWorldButton.textContent='重置世界';
+      resetBusy=false;
+      emit();
     }
-  });
+  };
 
-  listen(root.querySelector('#save-scene'),'click',()=>{
+  const saveScene=()=>{
     const scene=world.serialize({ name:'AgentScape World' });
     sceneStore.save(scene);
     log(`场景已保存到本机 · ${scene.objects.length} 个对象`,'result');
-  });
-  listen(root.querySelector('#load-scene'),'click',async()=>{
+    return scene;
+  };
+
+  const loadScene=async()=>{
     try {
       const scene=sceneStore.load();
-      if (!scene) return log('尚无本机场景存档','error');
+      if (!scene) {
+        log('尚无本机场景存档','error');
+        return null;
+      }
       editor.select(null);
       if (worldSession?.open) await worldSession.open();
       else await world.restore(scene);
       log(`场景已恢复 · ${scene.objects.length} 个对象`,'result');
+      return scene;
     } catch (error) {
       log(`恢复错误：${error.message}`,'error');
+      return null;
     }
-  });
-  listen(root.querySelector('#export-scene'),'click',()=>{
+  };
+
+  const exportScene=()=>{
     const scene=world.serialize({ name:'AgentScape World' });
     downloadJson(`agentscape-${currentEnvironmentDefinition().id}.json`,scene);
     log(`场景已导出 · schema v${scene.schemaVersion}`,'result');
-  });
+    return scene;
+  };
 
-  const importFile=root.querySelector('#import-scene-file');
-  listen(root.querySelector('#import-scene'),'click',()=>importFile.click());
-  listen(importFile,'change',async()=>{
-    const file=importFile.files?.[0];
-    if (!file) return;
+  const importScene=async(file)=>{
+    if (!file) return null;
     try {
       const scene=JSON.parse(await file.text());
       editor.select(null);
       await world.restore(scene);
       sceneStore.save(scene);
       log(`场景已导入 · ${scene.objects.length} 个对象`,'result');
+      return scene;
     } catch (error) {
       log(`导入错误：${error.message}`,'error');
-    } finally {
-      importFile.value='';
+      return null;
     }
-  });
+  };
 
   const runHistory=async(direction)=>{
     editor.select(null);
     try {
       await world.history[direction]();
+      return true;
     } catch (error) {
       log(`${direction === 'undo' ? '撤销' : '重做'}失败：${error.message}`,'error');
+      return false;
     }
   };
 
-  listen(undoButton,'click',()=>runHistory('undo'));
-  listen(redoButton,'click',()=>runHistory('redo'));
-  listen(root.querySelector('#duplicate'),'click',()=>editor.duplicateSelected().catch((error)=>log(`错误：${error.message}`,'error')));
-  listen(root.querySelector('#delete'),'click',()=>editor.deleteSelected()?.catch?.((error)=>log(`错误：${error.message}`,'error')));
+  const duplicate=()=>editor.duplicateSelected().catch((error)=>log(`错误：${error.message}`,'error'));
+  const remove=()=>editor.deleteSelected()?.catch?.((error)=>log(`错误：${error.message}`,'error'));
 
-  listen(window,'keydown',(event)=>{
-    if (event.target.matches('input, textarea, select')) return;
+  const onKeyDown=(event)=>{
+    if (event.target?.matches?.('input, textarea, select')) return;
     const command=event.ctrlKey || event.metaKey;
     if (command && event.key.toLowerCase() === 'z') {
       event.preventDefault();
-      if (event.shiftKey) runHistory('redo'); else runHistory('undo');
+      void runHistory(event.shiftKey ? 'redo' : 'undo');
       return;
     }
     if (command && event.key.toLowerCase() === 'y') {
       event.preventDefault();
-      runHistory('redo');
+      void runHistory('redo');
       return;
     }
-    if (event.key.toLowerCase() === 'w') editor.setMode('translate');
-    if (event.key.toLowerCase() === 'e') editor.setMode('rotate');
-    if (event.key === 'Delete' || event.key === 'Backspace') editor.deleteSelected();
-  });
+    if (event.key.toLowerCase() === 'w') setMode('translate');
+    if (event.key.toLowerCase() === 'e') setMode('rotate');
+    if (event.key === 'Delete' || event.key === 'Backspace') remove();
+  };
+  globalThis.window?.addEventListener?.('keydown',onKeyDown);
+  disposers.push(()=>globalThis.window?.removeEventListener?.('keydown',onKeyDown));
 
   return {
+    subscribe,
+    snapshot:getSnapshot,
+    setMode,
+    resetWorld,
+    saveScene,
+    loadScene,
+    exportScene,
+    importScene,
+    undo:()=>runHistory('undo'),
+    redo:()=>runHistory('redo'),
+    duplicate,
+    deleteSelected:remove,
     dispose() {
       if (resetWorldTimer != null) clearTimeout(resetWorldTimer);
       resetWorldTimer=null;
+      listeners.clear();
       while (disposers.length) disposers.pop()?.();
     }
   };

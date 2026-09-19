@@ -4,7 +4,6 @@ import { bindDebugLayers } from '../debug/bindDebugLayers.js';
 import { bindAuthoringWorldControls } from '../authoring/bindAuthoringWorldControls.js';
 
 export async function activateStudioWorld({
-  app,
   ui,
   world,
   authoringWorlds,
@@ -23,13 +22,10 @@ export async function activateStudioWorld({
     ui,
     autosave:lifecycle.autosave
   });
-  const debugLayers=bindDebugLayers(world,{ log });
-
   await lifecycle.worldOpener.open({ kind:'current' });
   worldSurface.bindEnvironment({ identity:lifecycle.worldSession.current });
 
   const sceneControls=bindSceneControls({
-    root:app,
     world,
     editor,
     sceneStore:lifecycle.sceneStore,
@@ -38,13 +34,16 @@ export async function activateStudioWorld({
     setTaskState:(...args)=>taskPanel.setState(...args)
   });
 
+  ui.attachSceneControls?.(sceneControls);
+
   const authoringControls=authoringWorlds ? bindAuthoringWorldControls({
-    root:app,
     controller:authoringWorlds,
     openWorld:(id)=>lifecycle.worldOpener.open({ kind:'authoring', id }),
     newWorld:(options)=>lifecycle.worldOpener.open({ kind:'authoring-new', options }),
     log
   }) : null;
+  ui.attachAuthoring?.(authoringControls);
+  const debugLayers=bindDebugLayers(world,{ log });
 
   inspector.render(null);
   world.history.clear();
@@ -62,6 +61,8 @@ export async function activateStudioWorld({
 
   return {
     dispose() {
+      ui.attachAuthoring?.(null);
+      ui.attachSceneControls?.(null);
       authoringControls?.dispose();
       sceneControls?.dispose?.();
       debugLayers?.dispose?.();

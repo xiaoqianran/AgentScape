@@ -8,15 +8,17 @@
 
 ## Studio UI 边界
 
-Studio 采用 editor-first 的展示层边界，避免视觉设计反向侵入 World / Agent / Asset / Generation 主链路：
+Studio 采用单 React Root 的产品展示层，避免视觉设计反向侵入 World / Agent / Asset / Generation 主链路：
 
-- `main.js` 只负责产品装配与用例编排，不创建 Studio chrome DOM。
-- `ui/AppShell.js` 是稳定 UI facade，向应用层暴露 `setView`、`addDockAction`、状态与布局回调。
-- `ui/chrome/StudioChrome.js` 只管理导航、面板、Dock、状态和 shell 生命周期。
-- `ui/chrome/studio-tokens.css` 定义设计 token；`studio-base.css` 只负责 reset、可访问性与过渡期 feature token；`studio-shell.css` 只负责 shell、workspace、viewport、outliner、panel、toolbar、command bar 与 world-first chrome。
-- 业务功能需要进入 Dock 时通过 `addDockAction` 注册动作，不直接 `createElement` / `append` 到 shell。
+- `main.js` 只负责产品装配与用例编排，不创建产品 DOM。
+- `ui/AppShell.js` 只创建一次 `createRoot(app)`，并保留一个窄 UI facade 给 bootstrap / runtime adapters 使用。
+- `react/StudioApp.tsx` 是 Shell、Chrome、Dock、Workspace、Command Bar 与产品面板的唯一 DOM owner。
+- `ui/chrome/StudioChrome.js` 只保留导航模型与 URL 纯函数，不再持有 DOM 生命周期。
+- `TaskPanel`、`RunsPanel`、scene controls 与 authoring controls 是独立 controller/store；React 通过 external-store contract 消费它们，不让业务执行逻辑进入 hooks。
+- `StudioWorldSurface`、`HumanViewController`、`WorldInteraction`、`RuntimeDriver` 继续保持 imperative，它们属于 Browser ↔ Runtime adapter，不属于产品 Presentation。
+- Advanced Generation、Developer Settings、Debug Overlay 仍可作为明确的 technical island 使用 imperative DOM，但不能成为普通产品 UI 的依赖方向。
 
-因此 UI 可以独立演进布局、密度、视觉语言和响应式策略，而无需修改 Runtime 或领域 API。
+核心所有权固定为：React owns DOM；WorldRuntime owns World；Three renderer owns GPU scene；controllers connect them。
 
 ### CSS ownership
 
@@ -45,21 +47,36 @@ ui/content/StudioContent.css          small shared content primitives
 
 ## 前端架构
 
-Studio 不复制后端事实，只保存产品交互需要的临时状态。当前边界：
+Studio 不复制 Runtime 事实，只保存产品交互需要的临时状态。当前边界：
 
 ~~~text
 main.js                         composition root
    │
-   ├─ runtime/ editor/ agent/   Browser ↔ Runtime adapters
-   ├─ build/ resources/         product-facing controllers / projections
-   └─ ui/ react/                presentation
-            │
-            ▼
-       studioStore
-       UI-only state
+   ├─ bootstrap/                lifecycle / dependency wiring
+   │
+   ├─ AppShell                  one createRoot(app) + narrow UI facade
+   │      │
+   │      ▼
+   │   StudioApp               React owns product DOM
+   │      ├─ Chrome / Dock / SceneToolbar
+   │      ├─ SceneExplorer / Inspector
+   │      ├─ BuildWorkbench / ArtifactTray
+   │      ├─ TaskPanel / RunsPanel / ResourceLibrary
+   │      └─ studioStore        UI-only state
+   │
+   ├─ controllers/projections   product behavior + external stores
+   │
+   └─ runtime adapters          imperative
+          ├─ StudioWorldSurface
+          ├─ HumanViewController
+          ├─ WorldInteraction
+          └─ RuntimeDriver
+                 │
+                 ▼
+             WorldRuntime
 ~~~
 
-- `react/state/studioStore.ts` 只拥有选择、当前面板、Recent Outputs、Build workflow intent 等 UI 状态，不保存第二份 World / Asset / Generation truth。
+- `react/state/studioStore.ts` 只拥有选择、Workspace / Context、Recent Outputs、Build workflow intent 等 UI 状态，不保存第二份 World / Asset / Generation truth。
 - `SceneExplorer`、`ObjectInspector` 读取 `WorldQueries`；写操作经 `AgentTools` / `WorldCommands`，不直接修改 Runtime systems。
 - `StudioBuildController` 是 Build UI 对 Generation 的产品接口；composition root 只注入 `GenerationRuntime`、事件与状态同步回调，Controller 不持有整个 `WorldRuntime`，组件也不直接操作 Connector / Provider internals。
 - `resources/StudioResources.js` 是 Library / Build preview / Artifact Tray 的产品资源投影；composition root 显式注入 `AssetModule`、`ArtifactModule`、事件与 environment getter，隐藏 Registry、ByteStore 与持久化细节，也不持有整个 `WorldRuntime`。

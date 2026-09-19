@@ -24,6 +24,13 @@ export type BuildWorkflowIntent = {
 export type StudioWorldPresentation = {
   id: string;
   title?: string;
+  number?: string;
+  headline?: string;
+  description?: string;
+  facts?: string[];
+  worldFirst?: boolean;
+  generated?: boolean;
+  persistenceSource?: string | null;
 };
 
 type StudioState = {
@@ -31,6 +38,8 @@ type StudioState = {
   worldPresentation: StudioWorldPresentation | null;
   activeWorkspace: WorkspaceView;
   activeContextView: ContextView;
+  contextOpen: boolean;
+  buildAdvancedOpen: boolean;
   contextRevision: number;
   buildOutputs: BuildOutputRef[];
   selectedBuildOutputKey: string | null;
@@ -40,6 +49,9 @@ type StudioState = {
   setWorldPresentation: (identity: StudioWorldPresentation | null) => void;
   setActiveWorkspace: (view: WorkspaceView) => void;
   setActiveContextView: (view: ContextView) => void;
+  openView: (view: ContextView | 'world') => void;
+  closeContext: () => void;
+  setBuildAdvancedOpen: (open: boolean) => void;
   syncInspector: (id: string | null) => void;
   recordBuildOutput: (output: BuildOutputRef) => void;
   selectBuildOutput: (key: string | null) => void;
@@ -53,6 +65,8 @@ export const useStudioStore = create<StudioState>((set) => ({
   worldPresentation: null,
   activeWorkspace: 'world',
   activeContextView: 'create',
+  contextOpen: false,
+  buildAdvancedOpen: false,
   contextRevision: 0,
   buildOutputs: [],
   selectedBuildOutputKey: null,
@@ -62,6 +76,13 @@ export const useStudioStore = create<StudioState>((set) => ({
   setWorldPresentation: (worldPresentation) => set({ worldPresentation }),
   setActiveWorkspace: (activeWorkspace) => set({ activeWorkspace }),
   setActiveContextView: (activeContextView) => set({ activeContextView }),
+  openView: (view) => set((state) => {
+    if (view === 'world') return { activeWorkspace:'world', contextOpen:false };
+    const activeWorkspace = view === 'create' ? 'create' : view === 'task' ? 'agent' : state.activeWorkspace;
+    return { activeWorkspace, activeContextView:view, contextOpen:true };
+  }),
+  closeContext: () => set({ activeWorkspace:'world', contextOpen:false }),
+  setBuildAdvancedOpen: (buildAdvancedOpen) => set({ buildAdvancedOpen }),
   syncInspector: (selectedObjectId) => set((state) => ({
     selectedObjectId,
     contextRevision: state.contextRevision + 1

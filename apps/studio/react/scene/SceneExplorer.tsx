@@ -1,6 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useState, type DragEvent } from 'react';
-import { flushSync } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
 import { ASSET_DRAG_MIME } from '../../editor/AssetPlacementController.js';
 import { collectSceneObjectSummaries } from '../../ui/scene/SceneExplorer.js';
 import { useStudioStore } from '../state/studioStore';
@@ -59,7 +57,7 @@ const SCENE_REFRESH_EVENTS = [
   'environment.replaced'
 ] as const;
 
-function SceneExplorerView({
+export function SceneExplorerView({
   world,
   editor,
   environmentDefinition,
@@ -258,37 +256,4 @@ function SceneExplorerView({
       </footer>
     </>
   );
-}
-
-export function mountSceneExplorer({
-  root,
-  world,
-  editor,
-  environmentDefinition,
-  resources,
-  placement,
-  openLibrary,
-  openCreate
-}: SceneExplorerProps & { root: HTMLElement }) {
-  useStudioStore.getState().setSelectedObjectId(editor.selectedId ?? null);
-  const reactRoot: Root = createRoot(root);
-  flushSync(() => {
-    reactRoot.render(
-      <SceneExplorerView
-        world={world}
-        editor={editor}
-        environmentDefinition={environmentDefinition}
-        resources={resources}
-        placement={placement}
-        openLibrary={openLibrary}
-        openCreate={openCreate}
-      />
-    );
-  });
-
-  return {
-    destroy() {
-      reactRoot.unmount();
-    }
-  };
 }
