@@ -191,6 +191,11 @@ for (const file of studioPresentationFiles) {
   }
 }
 
+const studioBootstrapFiles = productJs.filter((file) => relative(file).startsWith('apps/studio/bootstrap/'));
+assertNoImports('Studio bootstrap presentation boundary violation', studioBootstrapFiles, [
+  /^apps\/studio\/react\//
+]);
+
 const retiredStudioGlobalCss = path.join(root,'apps','studio','style.css');
 if (fs.existsSync(retiredStudioGlobalCss)) {
   failures.push('Retired Studio global stylesheet must not return: apps/studio/style.css');

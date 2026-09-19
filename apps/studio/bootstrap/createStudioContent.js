@@ -3,7 +3,6 @@ import { StudioResources } from '../resources/StudioResources.js';
 import { BuildSession } from '../build/BuildSession.js';
 import { StudioBuildController } from '../build/StudioBuildController.js';
 import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
-import { useStudioStore } from '../react/state/studioStore.ts';
 
 export function createStudioContent({
   ui,
@@ -29,7 +28,7 @@ export function createStudioContent({
     label:'生成落点',
     title:'在当前世界指定生成物落点',
     onClick:()=>{
-      const ready = useStudioStore.getState().buildOutputs.find((output)=>output.kind === 'asset');
+      const ready = ui.getLatestBuildOutput?.('asset') || null;
       if (ready && placement.armGroundPlacement(ready.primaryId)) {
         log(`点击地面放置生成物：${ready.prompt || ready.primaryId}`,'tool');
         return;
@@ -67,12 +66,12 @@ export function createStudioContent({
     log
   });
 
-  useStudioStore.getState().setSelectedObjectId(editor.selectedId ?? null);
+  ui.setSelectedObjectId?.(editor.selectedId ?? null);
 
   const inspector = {
     render(id) {
       if (id && world.queries.hasObject(id)) world.queries.describeObjectRelations(id);
-      useStudioStore.getState().syncInspector(id);
+      ui.syncInspector?.(id);
     }
   };
 
