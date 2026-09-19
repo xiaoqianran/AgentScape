@@ -1,4 +1,4 @@
-import '../../ui/developer/DeveloperSettings.css';
+import './DeveloperSettings.css';
 
 export function DeveloperSettingsView() {
   return (

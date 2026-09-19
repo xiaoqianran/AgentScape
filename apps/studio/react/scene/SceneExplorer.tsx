@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState, type DragEvent } from 'react';
 import { ASSET_DRAG_MIME } from '../../editor/AssetPlacementController.js';
-import { collectSceneObjectSummaries } from '../../ui/scene/SceneExplorer.js';
+import { collectSceneObjectSummaries } from '../../scene/SceneObjectProjection.js';
 import { useStudioStore } from '../state/studioStore';
 
 type EnvironmentDefinition = {

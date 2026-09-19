@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type DragEvent } from 'react';
 import { ASSET_DRAG_MIME } from '../../editor/AssetPlacementController.js';
-import '../../ui/resources/ResourceLibrary.css';
+import './ResourceLibrary.css';
 
 type ResourceItem = {
   id:string;

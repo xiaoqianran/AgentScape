@@ -1,6 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
-import { STATUS_LABELS, formatDuration } from '../../ui/runs/RunsPanel.js';
-import '../../ui/runs/RunsPanel.css';
+import { STATUS_LABELS, formatDuration } from '../../runs/RunPresentation.js';
+import './RunsPanel.css';
 
 type RunsController = {
   subscribe:(listener:()=>void)=>()=>void;

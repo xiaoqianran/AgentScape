@@ -1,5 +1,5 @@
 import { RESOURCE_BUDGET } from '../../../../modules/asset/model/resourceBudget.js';
-import './DeveloperSettings.css';
+import '../../react/developer/DeveloperSettings.css';
 import { readCapabilityStatus, unavailableCapabilityStatus } from '../../config/capabilityEntry.js';
 
 export class DeveloperSettings {

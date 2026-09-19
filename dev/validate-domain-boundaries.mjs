@@ -178,11 +178,7 @@ for (const file of worldCommandClients) {
   }
 }
 
-const studioPresentationFiles = productJs.filter((file) => {
-  const name=relative(file);
-  return name.startsWith('apps/studio/react/')
-    || name === 'apps/studio/ui/resources/ResourceLibrary.js';
-});
+const studioPresentationFiles = productJs.filter((file) => relative(file).startsWith('apps/studio/react/'));
 const STUDIO_PRESENTATION_RUNTIME_INTERNAL_RE = /\bworld\.(?:assetModule|generation\.artifacts|generationState|physics|store|rendering)\b/;
 for (const file of studioPresentationFiles) {
   const source=fs.readFileSync(file,'utf8');
@@ -190,6 +186,11 @@ for (const file of studioPresentationFiles) {
     failures.push(`Studio presentation runtime-internal boundary violation: ${relative(file)}`);
   }
 }
+
+const studioReactFiles = productJs.filter((file) => relative(file).startsWith('apps/studio/react/'));
+assertNoImports('Studio React legacy UI boundary violation', studioReactFiles, [
+  /^apps\/studio\/ui\//
+]);
 
 const studioBootstrapFiles = productJs.filter((file) => relative(file).startsWith('apps/studio/bootstrap/'));
 assertNoImports('Studio bootstrap presentation boundary violation', studioBootstrapFiles, [
@@ -204,16 +205,16 @@ if (fs.existsSync(retiredStudioGlobalCss)) {
 const studioCssFiles = walk(path.join(root,'apps','studio')).filter((file) => file.endsWith('.css'));
 const studioCssOwners = [
   ['Build', /\.build-[\w-]+/, new Set(['apps/studio/react/build/BuildWorkbench.css'])],
-  ['Task', /\.task-[\w-]+/, new Set(['apps/studio/ui/task/TaskPanel.css'])],
+  ['Task', /\.task-[\w-]+/, new Set(['apps/studio/react/agent/TaskPanel.css'])],
   ['Generation', /\.generation-[\w-]+/, new Set([
-    'apps/studio/ui/generation/GenerationJobCenter.css',
+    'apps/studio/react/generation/GenerationJobCenter.css',
     // Build owns the contextual visibility of the Advanced Generation console.
     'apps/studio/react/build/BuildWorkbench.css'
   ])],
-  ['Resource', /\.resource-[\w-]+/, new Set(['apps/studio/ui/resources/ResourceLibrary.css'])],
-  ['Runs', /\.(?:runs|run)-[\w-]+/, new Set(['apps/studio/ui/runs/RunsPanel.css'])],
+  ['Resource', /\.resource-[\w-]+/, new Set(['apps/studio/react/resources/ResourceLibrary.css'])],
+  ['Runs', /\.(?:runs|run)-[\w-]+/, new Set(['apps/studio/react/runs/RunsPanel.css'])],
   ['Inspector', /\.(?:inspect-[\w-]+|inspector\b|object-title\b)/, new Set(['apps/studio/react/inspect/ObjectInspector.css'])],
-  ['Developer', /\.(?:developer|settings|dialog)-[\w-]+/, new Set(['apps/studio/ui/developer/DeveloperSettings.css'])],
+  ['Developer', /\.(?:developer|settings|dialog)-[\w-]+/, new Set(['apps/studio/react/developer/DeveloperSettings.css'])],
   ['Debug', /\.debug-[\w-]+/, new Set(['apps/studio/debug/DebugLayers.css'])],
   ['World overlay', /\.(?:world-context\b|cabin-[\w-]+|human-[\w-]+|asset-placement-[\w-]+)/, new Set(['apps/studio/ui/WorldOverlays.css'])]
 ];

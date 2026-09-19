@@ -1,4 +1,4 @@
-import '../../ui/generation/GenerationJobCenter.css';
+import './GenerationJobCenter.css';
 
 export function GenerationJobCenterView() {
   return (

@@ -13,8 +13,9 @@ Studio 采用单 React Root 的产品展示层，避免视觉设计反向侵入 
 - `main.js` 只负责产品装配与用例编排，不创建产品 DOM。
 - `ui/AppShell.js` 只创建一次 `createRoot(app)`，并保留一个窄 UI facade 给 bootstrap / runtime adapters 使用。
 - `react/StudioApp.tsx` 是 Shell、Chrome、Dock、Workspace、Command Bar 与产品面板的唯一 DOM owner。
-- `ui/chrome/StudioChrome.js` 只保留导航模型与 URL 纯函数，不再持有 DOM 生命周期。
+- `navigation/StudioNavigation.js` 只保留导航模型与 URL 纯函数；React 与 bootstrap 共享它，不再经过 legacy `ui/`。
 - `TaskPanel`、`RunsPanel`、scene controls 与 authoring controls 是独立 controller/store；React 通过 external-store contract 消费它们，不让业务执行逻辑进入 hooks。
+- `react/` 不再反向 import `ui/`；共享的 navigation / Agent journey / scene projection / run presentation 已移到明确的 feature owner。
 - `StudioWorldSurface`、`HumanViewController`、`WorldInteraction`、`RuntimeDriver` 继续保持 imperative，它们属于 Browser ↔ Runtime adapter，不属于产品 Presentation。
 - Advanced Generation、Developer Settings、Debug Overlay 仍可作为明确的 technical island 使用 imperative DOM，但不能成为普通产品 UI 的依赖方向。
 
@@ -33,11 +34,11 @@ ui/chrome/
 react/build/BuildWorkbench.css        Build
 react/artifacts/*.css                 Artifact Tray
 react/inspect/ObjectInspector.css     Inspector
-ui/task/TaskPanel.css                 Agent task panel
-ui/generation/GenerationJobCenter.css Advanced Generation
-ui/resources/ResourceLibrary.css      Library
-ui/runs/RunsPanel.css                 Runs
-ui/developer/DeveloperSettings.css    Developer dialog
+react/agent/TaskPanel.css              Agent task panel
+react/generation/GenerationJobCenter.css Advanced Generation
+react/resources/ResourceLibrary.css    Library
+react/runs/RunsPanel.css                Runs
+react/developer/DeveloperSettings.css  Developer dialog
 debug/DebugLayers.css                 Debug controls
 ui/WorldOverlays.css                  world-first / cabin / placement overlays
 ui/content/StudioContent.css          small shared content primitives

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
-import { STUDIO_NAVIGATION } from '../ui/chrome/StudioChrome.js';
+import { STUDIO_NAVIGATION } from '../navigation/StudioNavigation.js';
 import { GenerationJobCenterView } from './generation/GenerationJobCenterView';
 import { DeveloperSettingsView } from './developer/DeveloperSettingsView';
 import { useStudioStore } from './state/studioStore';

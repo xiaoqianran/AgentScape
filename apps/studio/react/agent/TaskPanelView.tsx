@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
-import { outcomeLabel } from '../../ui/task/AgentJourney.js';
-import { QUICK_TASK_GROUPS } from '../../ui/task/TaskPanel.js';
-import '../../ui/task/TaskPanel.css';
+import { outcomeLabel } from '../../agent/AgentJourney.js';
+import { QUICK_TASK_GROUPS } from '../../agent/QuickTasks.js';
+import './TaskPanel.css';
 
 type TaskController = {
   subscribe:(listener:()=>void)=>()=>void;

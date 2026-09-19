@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { builtInWorldUrl, STUDIO_NAVIGATION, workspaceForStudioView } from '../../apps/studio/ui/chrome/StudioChrome.js';
+import { builtInWorldUrl, STUDIO_NAVIGATION, workspaceForStudioView } from '../../apps/studio/navigation/StudioNavigation.js';
 
 describe('StudioChrome world navigation', () => {
   it('keeps product workspaces primary and utility contexts secondary', () => {

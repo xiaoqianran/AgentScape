@@ -1,4 +1,4 @@
-import { builtInWorldUrl } from '../ui/chrome/StudioChrome.js';
+import { builtInWorldUrl } from '../navigation/StudioNavigation.js';
 import { createStudioContent } from './createStudioContent.js';
 import { createStudioDeveloperTools } from './createStudioDeveloperTools.js';
 import { activateStudioWorld } from './activateStudioWorld.js';

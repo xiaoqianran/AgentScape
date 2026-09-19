@@ -6,7 +6,7 @@ import {
   applyAgentSequence,
   finalizeAgentJourney,
   journeyRunDetail
-} from '../../apps/studio/ui/task/AgentJourney.js';
+} from '../../apps/studio/agent/AgentJourney.js';
 
 describe('AgentJourney presentation model', () => {
   it('turns tool calls into user-facing actions and verified world changes', () => {
