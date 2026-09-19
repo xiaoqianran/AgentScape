@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStudioStore, type BuildOutputRef } from '../state/studioStore';
+import { executeArtifactTrayAction, type ArtifactTrayActionController } from '../../artifacts/artifactTrayActions';
 import './ArtifactTray.css';
 import './ArtifactTrayAgentTest.css';
 
@@ -21,11 +22,6 @@ type StudioResourcesLike = {
   approvedAssetIds: () => Set<string>;
   approveAsset: (assetId: string, metadata?: Record<string, unknown>) => Promise<unknown>;
   onChange: (listener: (type: string) => void) => (() => void);
-};
-
-type TrayControllerLike = {
-  placeAsset: (assetId: string) => Promise<unknown>;
-  openWorld: (manifestArtifactId: string) => Promise<unknown>;
 };
 
 type AgentVerificationStep = {
@@ -60,7 +56,7 @@ type AgentVerifierLike = {
 
 type ArtifactTrayProps = {
   resources: StudioResourcesLike;
-  controller: TrayControllerLike;
+  controller: ArtifactTrayActionController;
   agentVerifier: AgentVerifierLike;
   openBuild: () => void;
   log: (text: string, kind?: string) => void;
@@ -90,32 +86,6 @@ function outputActionLabel(output: BuildOutputRef, busy: boolean) {
   if (output.kind === 'image') return '继续 → 3D';
   if (output.kind === 'asset') return '放入世界';
   return '打开世界';
-}
-
-export async function executeArtifactTrayAction({
-  output,
-  controller,
-  requestBuildWorkflow,
-  openBuild
-}: {
-  output: BuildOutputRef;
-  controller: TrayControllerLike;
-  requestBuildWorkflow: (action: 'asset-from-image', outputKey: string) => void;
-  openBuild: () => void;
-}) {
-  if (output.kind === 'image') {
-    requestBuildWorkflow('asset-from-image', output.key);
-    openBuild();
-    return { status:'workflow-prepared', kind:output.kind, id:output.primaryId } as const;
-  }
-  if (output.kind === 'asset') {
-    const placement = await controller.placeAsset(output.primaryId) as { id?: string | null; status?: string } | string | null;
-    const instanceId = typeof placement === 'string' ? placement : placement?.id || null;
-    if (!instanceId) throw new Error(`Asset 未成功进入 Runtime：${typeof placement === 'object' ? placement?.status || 'PLACEMENT_FAILED' : 'PLACEMENT_FAILED'}`);
-    return { status:'asset-placed', kind:output.kind, id:output.primaryId, instanceId, placement } as const;
-  }
-  await controller.openWorld(output.primaryId);
-  return { status:'world-opened', kind:output.kind, id:output.primaryId } as const;
 }
 
 function localArtifactEntry(resources: StudioResourcesLike, artifactId: string) {
