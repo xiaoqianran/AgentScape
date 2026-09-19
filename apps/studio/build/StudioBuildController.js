@@ -246,6 +246,51 @@ export class StudioBuildController {
     };
   }
 
+  async runBuild({
+    session,
+    mode,
+    prompt,
+    assetId=null,
+    provider=null,
+    imageResult=null
+  }={}) {
+    if(!session?.begin||!session?.stage||!session?.complete||!session?.fail) {
+      throw new TypeError('StudioBuildController.runBuild requires BuildSession');
+    }
+    if(!['image','asset','world'].includes(mode)) throw new TypeError(`Unsupported build mode: ${mode}`);
+    const text=String(prompt||'').trim();
+    session.begin(text,{mode});
+    try {
+      let result;
+      if(mode==='image') {
+        result=await this.generateImage({
+          prompt:text,
+          provider,
+          onProgress:(job)=>session.stage(1,job?.stage||job?.phase||job?.status||'生成中')
+        });
+      } else if(mode==='asset') {
+        if(!imageResult) throw Object.assign(new Error('请先从「图片资产」选择已确认图片，再进入 Image → 3D。'),{code:'IMAGE_INPUT_REQUIRED'});
+        result=await this.generateAssetFromImage({
+          imageResult,
+          assetId,
+          provider,
+          onProgress:(job)=>session.stage(1,job?.stage||job?.phase||job?.status||'3D 重建中')
+        });
+      } else {
+        result=await this.generateWorld({
+          prompt:text,
+          provider,
+          onProgress:()=>session.stage(1,'生成参考与世界')
+        });
+      }
+      session.complete(result);
+      return result;
+    } catch(error) {
+      session.fail(error);
+      throw error;
+    }
+  }
+
   async placeAsset(assetId) {
     if(!assetId) throw new Error('缺少可放置的 Asset ID');
     // A pinned generation anchor wins; without one the asset still lands on the view center.

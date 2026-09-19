@@ -68,13 +68,9 @@ type CapabilityState = {
 };
 
 type BuildSessionLike = {
-  onChange: (state: BuildState) => void;
   snapshot: () => BuildState;
+  subscribe: (listener: (state: BuildState) => void) => (() => void);
   setMode: (mode: BuildMode) => unknown;
-  begin: (prompt: string, options?: { mode?: BuildMode }) => unknown;
-  stage: (index: number, detail?: string | null) => unknown;
-  complete: (result: BuildResult) => unknown;
-  fail: (error: unknown) => unknown;
 };
 
 type ProviderOption = { id:string; label:string; operation?:string; profiles?:string[]; recommendedProfile?:string | null };
@@ -84,11 +80,14 @@ type BuildControllerLike = {
   providerOptions: (options: { mode:BuildMode; inputType?:'text' | 'image' }) => ProviderOption[];
   onGenerationState: (listener: () => void) => (() => void);
   connect: (options?: { pairingId?: string | null }) => Promise<{ status?: string; reason?: string; pairingId?: string }>;
-  generateImage: (options: { prompt: string; provider?:string | null; onProgress?: (job: any) => void }) => Promise<ImageBuildResult>;
-  approveLocalImage: (options: { bytes: Uint8Array; prompt?: string }) => Promise<ImageBuildResult>;
-  generateAsset: (options: { prompt: string; assetId?: string | null; provider?:string | null; onProgress?: (job: any) => void }) => Promise<AssetBuildResult>;
-  generateAssetFromImage: (options: { imageResult: ImageBuildResult; assetId?: string | null; provider?:string | null; onProgress?: (job: any) => void }) => Promise<AssetBuildResult>;
-  generateWorld: (options: { prompt: string; provider?:string | null; onProgress?: (job: any) => void }) => Promise<WorldBuildResult>;
+  runBuild: (options: {
+    session: BuildSessionLike;
+    mode: BuildMode;
+    prompt: string;
+    assetId?: string | null;
+    provider?: string | null;
+    imageResult?: ImageBuildResult | null;
+  }) => Promise<BuildResult>;
   placeAsset: (assetId: string) => Promise<unknown>;
   openWorld: (manifestArtifactId: string) => Promise<unknown>;
 };
@@ -368,11 +367,8 @@ export function BuildWorkbenchView({
   const [imageQueueBusy, setImageQueueBusy] = useState(false);
 
   useEffect(() => {
-    session.onChange = (next) => setState(next);
     setState(session.snapshot());
-    return () => {
-      session.onChange = () => {};
-    };
+    return session.subscribe(setState);
   }, [session]);
 
   useEffect(() => {
@@ -460,38 +456,20 @@ export function BuildWorkbenchView({
     const mode = session.snapshot().mode;
     const text = prompt.trim();
     if (!text || !costConfirmed) return;
-    const nextAssetId = assetId.trim() || null;
     setCapabilityNotice(null);
-    session.begin(text, { mode });
     try {
-      let result: BuildResult;
-      if (mode === 'image') {
-        result = await controller.generateImage({
-          prompt: text,
-          provider:selectedProvider,
-          onProgress: (job) => session.stage(1, job?.stage || job?.phase || job?.status || '生成中')
-        });
-      } else if (mode === 'asset') {
-        if (!assetSource) throw Object.assign(new Error('请先从「图片资产」选择已确认图片，再进入 Image → 3D。'),{code:'IMAGE_INPUT_REQUIRED'});
-        result = await controller.generateAssetFromImage({
-          imageResult:assetSource,
-          assetId:nextAssetId,
-          provider:selectedProvider,
-          onProgress:(job) => session.stage(1, job?.stage || job?.phase || job?.status || '3D 重建中')
-        });
-      } else {
-        result = await controller.generateWorld({
-          prompt: text,
-          provider:selectedProvider,
-          onProgress: () => session.stage(1, '生成参考与世界')
-        });
-      }
-      session.complete(result);
+      const result = await controller.runBuild({
+        session,
+        mode,
+        prompt:text,
+        assetId:assetId.trim() || null,
+        provider:selectedProvider,
+        imageResult:assetSource
+      });
       recordBuildOutput(buildOutputRef(result));
       if (result.kind === 'asset') setAssetSource(null);
       log(`Build 完成：${result.kind}`, 'result');
     } catch (error) {
-      session.fail(error);
       log(`Build 失败：${resultErrorMessage(error)}`, 'error');
     } finally {
       setCostConfirmed(false);

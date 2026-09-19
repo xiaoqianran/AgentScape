@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { StudioBuildController, buildInputs, buildProviderOptions, selectBuildCapability } from '../../apps/studio/build/StudioBuildController.js';
+import { BuildSession } from '../../apps/studio/build/BuildSession.js';
 
 const imageCapability={
   provider:'modal-2d',operation:'image.text_to_image',category:'image-generation',status:'available',
@@ -170,5 +171,30 @@ describe('StudioBuildController workflows',()=>{
     expect(syncGenerationState).toHaveBeenCalledWith(state);
     off();
     expect(listeners.has('generation.state')).toBe(false);
+  });
+});
+
+describe('StudioBuildController BuildSession orchestration',()=>{
+  it('owns Image build session lifecycle and progress projection',async()=>{
+    const generation={
+      listGenerationCapabilities:()=>({capabilities:[imageCapability]}),
+      submitGenerationJob:vi.fn(async()=>({status:'generation-pending',jobId:'job_image'})),
+      getGenerationJob:vi.fn(async()=>({status:'provider-succeeded',jobId:'job_image',stage:'decode',artifacts:[{id:'image_01',role:'primary-image',mime:'image/png'}]})),
+      importGenerationResult:vi.fn(async()=>({artifact:{id:'image_01',role:'primary-image',mime:'image/png',hash:'sha256:image'}}))
+    };
+    const session=new BuildSession({mode:'image'});
+    const controller=new StudioBuildController({generation,pollIntervalMs:0});
+    const result=await controller.runBuild({session,mode:'image',prompt:'red chair'});
+    expect(result).toMatchObject({kind:'image',artifactId:'image_01'});
+    expect(session.snapshot()).toMatchObject({status:'success',mode:'image',result:{kind:'image',artifactId:'image_01'}});
+    expect(session.snapshot().steps.every((step)=>step.status==='completed')).toBe(true);
+  });
+
+  it('owns failure projection instead of requiring the React view to fail the session',async()=>{
+    const generation={listGenerationCapabilities:()=>({capabilities:[]})};
+    const session=new BuildSession({mode:'asset'});
+    const controller=new StudioBuildController({generation,pollIntervalMs:0});
+    await expect(controller.runBuild({session,mode:'asset',prompt:'chair',imageResult:null})).rejects.toMatchObject({code:'IMAGE_INPUT_REQUIRED'});
+    expect(session.snapshot()).toMatchObject({status:'error',mode:'asset',error:{code:'IMAGE_INPUT_REQUIRED'}});
   });
 });

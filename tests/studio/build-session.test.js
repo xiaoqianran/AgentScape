@@ -27,3 +27,17 @@ describe('BuildSession',()=>{
     expect(session.snapshot().steps).toHaveLength(4);
   });
 });
+
+describe('BuildSession subscriptions',()=>{
+  it('supports explicit subscribe/unsubscribe without exposing a mutable onChange callback',()=>{
+    const session=new BuildSession({mode:'image'});
+    const listener=vi.fn();
+    const unsubscribe=session.subscribe(listener);
+    session.begin('chair');
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    session.complete({kind:'image',artifactId:'image_01'});
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect('onChange' in session).toBe(false);
+  });
+});

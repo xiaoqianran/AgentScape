@@ -17,14 +17,25 @@ function initialSteps(mode) {
 }
 
 export class BuildSession {
-  constructor({mode='asset',onChange=()=>{}}={}) {
-    this.onChange=onChange;
+  constructor({mode='asset',onChange=null}={}) {
+    this.listeners=new Set();
+    if(typeof onChange==='function') this.listeners.add(onChange);
     this.state={mode:assertMode(mode),status:'idle',prompt:'',result:null,error:null,startedAt:null,completedAt:null,steps:initialSteps(mode)};
   }
 
   snapshot(){return clone(this.state);}
 
-  emit(){const snapshot=this.snapshot();this.onChange(snapshot);return snapshot;}
+  subscribe(listener) {
+    if(typeof listener!=='function') throw new TypeError('BuildSession.subscribe requires a listener');
+    this.listeners.add(listener);
+    return ()=>{ this.listeners.delete(listener); };
+  }
+
+  emit(){
+    const snapshot=this.snapshot();
+    for(const listener of this.listeners) listener(snapshot);
+    return snapshot;
+  }
 
   setMode(mode) {
     mode=assertMode(mode);
