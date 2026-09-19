@@ -1,10 +1,12 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { generationJobCenterMarkup } from '../../apps/studio/ui/generation/GenerationJobCenter.js';
-import { developerSettingsMarkup } from '../../apps/studio/ui/developer/DeveloperSettings.js';
+import { DeveloperSettingsView } from '../../apps/studio/react/developer/DeveloperSettingsView';
+import { GenerationJobCenterView } from '../../apps/studio/react/generation/GenerationJobCenterView';
 
 describe('capability-oriented product UI', () => {
   it('shows capability truth without exposing deployment adapter addresses', () => {
-    const html=developerSettingsMarkup();
+    const html=renderToStaticMarkup(createElement(DeveloperSettingsView));
     expect(html).not.toContain('gateway-endpoint');
     expect(html).not.toContain('compiler-endpoint');
     expect(html).not.toContain('asset-generator-endpoint');
@@ -17,7 +19,7 @@ describe('capability-oriented product UI', () => {
   });
 
   it('presents Connector pairing without exposing or editing its URL', () => {
-    const html=generationJobCenterMarkup();
+    const html=renderToStaticMarkup(createElement(GenerationJobCenterView));
     expect(html).not.toContain('generation-connector-endpoint');
     expect(html).not.toContain('generation-save-endpoint');
     expect(html).toContain('<summary>连接器</summary>');

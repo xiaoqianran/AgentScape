@@ -1,5 +1,8 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe,expect,it,vi } from 'vitest';
-import { capabilityHint,GenerationJobCenter,generationJobActions,generationJobCenterMarkup,generationStatusLabel,parseGenerationInputs } from '../../apps/studio/ui/generation/GenerationJobCenter.js';
+import { GenerationJobCenterView } from '../../apps/studio/react/generation/GenerationJobCenterView';
+import { capabilityHint,GenerationJobCenter,generationJobActions,generationStatusLabel,parseGenerationInputs } from '../../apps/studio/ui/generation/GenerationJobCenter.js';
 
 describe('Generation Job Center view model',()=>{
   it('parses only object-shaped generation inputs',()=>{
@@ -24,9 +27,8 @@ describe('Generation Job Center view model',()=>{
     expect(hint).not.toMatch(/\$|USD|minutes/i);
   });
 
-
   it('keeps import, compile/register, spawn, and cost confirmation as separate product actions',()=>{
-    const markup=generationJobCenterMarkup();
+    const markup=renderToStaticMarkup(createElement(GenerationJobCenterView));
     expect(markup).toContain('id="generation-job-import"');
     expect(markup).toContain('id="generation-job-compile"');
     expect(markup).toContain('id="generation-job-spawn"');

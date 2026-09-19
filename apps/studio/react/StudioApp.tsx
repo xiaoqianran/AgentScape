@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { STUDIO_NAVIGATION } from '../ui/chrome/StudioChrome.js';
-import { generationJobCenterMarkup } from '../ui/generation/GenerationJobCenter.js';
-import { developerSettingsMarkup } from '../ui/developer/DeveloperSettings.js';
+import { GenerationJobCenterView } from './generation/GenerationJobCenterView';
+import { DeveloperSettingsView } from './developer/DeveloperSettingsView';
 import { useStudioStore } from './state/studioStore';
 import { SceneExplorerView } from './scene/SceneExplorer';
 import { ObjectInspectorView } from './inspect/ObjectInspector';
@@ -261,7 +261,7 @@ export function StudioApp({
               <button id="build-close-advanced" type="button" onClick={()=>setBuildAdvancedOpen(false)}>← 返回 Build Workbench</button>
               <span>Advanced Generation Console</span>
             </div>
-            <div dangerouslySetInnerHTML={{ __html:generationJobCenterMarkup() }} />
+            <GenerationJobCenterView />
           </div>
           {content ? <ResourceLibraryView {...content.resourceLibrary} /> : null}
           <section className="inspector">
@@ -280,7 +280,7 @@ export function StudioApp({
         </form>
       )}
 
-      <div dangerouslySetInnerHTML={{ __html:developerSettingsMarkup() }} />
+      <DeveloperSettingsView />
 
       <nav className="world-dock" aria-label="Studio workspace">
         {STUDIO_NAVIGATION.map(({ view,label,group })=>{
