@@ -198,3 +198,42 @@ describe('StudioBuildController BuildSession orchestration',()=>{
     expect(session.snapshot()).toMatchObject({status:'error',mode:'asset',error:{code:'IMAGE_INPUT_REQUIRED'}});
   });
 });
+
+describe('StudioBuildController ImageObject workflow',()=>{
+  it('owns local-image approval and Image → 3D resume arguments for one draft',async()=>{
+    const controller=new StudioBuildController({generation:{}});
+    const input={artifactId:'image_01',artifact:{id:'image_01',role:'primary-image',mime:'image/png',hash:'sha256:image'},prompt:'chair'};
+    const result={kind:'asset',assetId:'chair_01'};
+    const approve=vi.spyOn(controller,'approveLocalImage').mockResolvedValue(input);
+    const generate=vi.spyOn(controller,'generateAssetFromImage').mockResolvedValue(result);
+    const onInput=vi.fn(async()=>{});
+    const onProgress=vi.fn(async()=>{});
+    const draft={id:'draft_01',name:'chair',assetId:'chair_01',imageResult:undefined,jobId:undefined};
+    await expect(controller.generateImageObjectDraft({
+      draft,
+      bytes:new Uint8Array([1,2,3]),
+      provider:'modal-3d',
+      onInput,
+      onProgress
+    })).resolves.toEqual({input,result});
+    expect(approve).toHaveBeenCalledWith({bytes:new Uint8Array([1,2,3]),prompt:'chair'});
+    expect(onInput).toHaveBeenCalledWith(input);
+    expect(generate).toHaveBeenCalledWith({
+      imageResult:input,
+      assetId:'chair_01',
+      provider:'modal-3d',
+      resumeJobId:null,
+      idempotencyKey:'image-object-chair_01',
+      onProgress
+    });
+  });
+
+  it('requires terminal job state before allowing a failed ImageObject draft to rebuild',async()=>{
+    const getGenerationJob=vi.fn()
+      .mockResolvedValueOnce({jobId:'job_1',status:'generation-pending'})
+      .mockResolvedValueOnce({jobId:'job_1',status:'generation-failed'});
+    const controller=new StudioBuildController({generation:{getGenerationJob}});
+    await expect(controller.assertImageObjectRetryable('job_1')).rejects.toThrow(/尚未确认失败/);
+    await expect(controller.assertImageObjectRetryable('job_1')).resolves.toMatchObject({status:'generation-failed'});
+  });
+});

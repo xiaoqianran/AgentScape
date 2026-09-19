@@ -201,6 +201,40 @@ export class StudioBuildController {
     return this.generation.getGenerationJob(jobId);
   }
 
+  async generateImageObjectDraft({
+    draft,
+    bytes=null,
+    provider=null,
+    onInput=()=>{},
+    onProgress=()=>{}
+  }={}) {
+    if(!draft?.assetId) throw new TypeError('generateImageObjectDraft requires a draft');
+    let input=draft.imageResult||null;
+    if(!draft.jobId&&!input) {
+      const data=bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes||[]);
+      input=await this.approveLocalImage({bytes:data,prompt:draft.name});
+      await onInput(input);
+    }
+    const result=await this.generateAssetFromImage({
+      imageResult:input,
+      assetId:draft.assetId,
+      provider,
+      resumeJobId:draft.jobId||null,
+      idempotencyKey:`image-object-${draft.assetId}`,
+      onProgress
+    });
+    return {input,result};
+  }
+
+  async assertImageObjectRetryable(jobId) {
+    if(!jobId) throw new Error('缺少可恢复的 Image → 3D Job');
+    const job=await this.getImageAssetJob(jobId);
+    if(!['generation-failed','generation-cancelled','generation-expired'].includes(job.status)) {
+      throw new Error('原任务尚未确认失败，勾选后开始生成将继续查询，不会重复提交');
+    }
+    return job;
+  }
+
   async generateAssetFromImage({imageResult,assetId=null,provider=null,resumeJobId=null,idempotencyKey=null,onProgress=()=>{}}={}) {
     const source=imageResult?.artifact;
     if(!source?.id||!source?.hash) throw new Error('缺少可用于 3D 重建的 Image Artifact');

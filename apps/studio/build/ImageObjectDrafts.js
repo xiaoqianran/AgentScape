@@ -3,6 +3,8 @@ export const DRAFT_DATABASE = 'agentscape-image-workbench-v1';
 export const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 export const MAX_IMAGE_PIXELS = 16 * 1024 * 1024;
 
+const emptyWorkspace = () => ({ sources:[], drafts:[] });
+
 export function validateImageFile(file) {
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('仅支持 PNG、JPEG、WebP 图片');
   if (!file.size || file.size > MAX_IMAGE_BYTES) throw new Error('单张图片须大于 0 且不超过 20 MiB');
@@ -34,6 +36,77 @@ export async function openImageDraftStore(indexedDBImpl=globalThis.indexedDB) {
     write: (workspace) => transact('readwrite', (store) => store.put(workspace, 'current')),
     close: () => db.close()
   };
+}
+
+export class ImageObjectDraftWorkspace {
+  constructor({ openStore=openImageDraftStore }={}) {
+    this.openStore=openStore;
+    this.store=null;
+    this.state=emptyWorkspace();
+    this.listeners=new Set();
+    this.writes=Promise.resolve();
+  }
+
+  snapshot(){ return this.state; }
+
+  subscribe(listener) {
+    if(typeof listener!=='function') throw new TypeError('ImageObjectDraftWorkspace.subscribe requires a listener');
+    this.listeners.add(listener);
+    return ()=>{ this.listeners.delete(listener); };
+  }
+
+  emit() {
+    for(const listener of this.listeners) listener(this.state);
+    return this.state;
+  }
+
+  async open() {
+    this.store=await this.openStore();
+    const saved=await this.store.read();
+    this.state=saved ? { ...saved, drafts:(saved.drafts || []).map(restoredDraft) } : emptyWorkspace();
+    return this.emit();
+  }
+
+  draft(id) {
+    return this.state.drafts.find((draft)=>draft.id===id) || null;
+  }
+
+  commit(change) {
+    const task=this.writes.then(async()=>{
+      if(!this.store) throw new Error('图片物体草稿库尚未打开');
+      const next=change(this.state);
+      if(next.sources.length>40 || next.drafts.length>120) throw new Error('最多保存 40 张原图和 120 个物体，请先移除不需要的项目');
+      const bytes=[...next.sources,...next.drafts].reduce((sum,item)=>sum+item.blob.size,0);
+      if(bytes>256*1024*1024) throw new Error('草稿总量超过 256 MiB，请先移除不需要的项目');
+      await this.store.write(next);
+      this.state=next;
+      this.emit();
+    });
+    this.writes=task.catch(()=>{});
+    return task;
+  }
+
+  updateDraft(id,patch) {
+    return this.commit((workspace)=>({
+      ...workspace,
+      drafts:workspace.drafts.map((draft)=>draft.id===id ? { ...draft, ...patch } : draft)
+    }));
+  }
+
+  runQueue({ drafts, process, shouldStop=()=>false }) {
+    return runImageObjectQueue({
+      drafts,
+      process,
+      shouldStop,
+      update:(id,patch)=>this.updateDraft(id,patch)
+    });
+  }
+
+  async close() {
+    await this.writes.catch(()=>{});
+    this.store?.close?.();
+    this.store=null;
+  }
 }
 
 // Only separate disconnected foreground regions, never claim semantic recognition.

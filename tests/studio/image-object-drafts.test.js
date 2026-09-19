@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  ImageObjectDraftWorkspace,
   MAX_IMAGE_BYTES,
   findForegroundRegions,
   openImageDraftStore,
@@ -87,5 +88,34 @@ describe('ImageObjectDrafts',()=>{
       shouldStop:()=>stop
     });
     expect(processed).toEqual(['a']);
+  });
+
+  it('owns persisted workspace lifecycle and queue failure updates outside React',async()=>{
+    let persisted={
+      sources:[{id:'s1',blob:{size:8}}],
+      drafts:[{id:'d1',sourceId:'s1',blob:{size:4},status:'generating'}]
+    };
+    const store={
+      read:vi.fn(async()=>persisted),
+      write:vi.fn(async(next)=>{ persisted=next; }),
+      close:vi.fn()
+    };
+    const workspace=new ImageObjectDraftWorkspace({openStore:async()=>store});
+    const listener=vi.fn();
+    const unsubscribe=workspace.subscribe(listener);
+    await workspace.open();
+    expect(workspace.draft('d1')).toMatchObject({status:'interrupted'});
+    await workspace.updateDraft('d1',{status:'ready'});
+    expect(workspace.draft('d1')).toMatchObject({status:'ready'});
+    await workspace.runQueue({
+      drafts:[workspace.draft('d1')],
+      process:async()=>{ throw new Error('provider failed'); }
+    });
+    expect(workspace.draft('d1')).toMatchObject({status:'failed',error:'provider failed'});
+    expect(store.write).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(3);
+    unsubscribe();
+    await workspace.close();
+    expect(store.close).toHaveBeenCalledTimes(1);
   });
 });

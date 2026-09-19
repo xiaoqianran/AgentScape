@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { LocalImageEditor, type LocalImageEditorHandle } from './LocalImageEditor';
-import { findForegroundRegions, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS, openImageDraftStore, restoredDraft, runImageObjectQueue, validateImageFile } from '../../build/ImageObjectDrafts.js';
+import { findForegroundRegions, ImageObjectDraftWorkspace, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS, validateImageFile } from '../../build/ImageObjectDrafts.js';
 
 type Rect = {x:number; y:number; width:number; height:number};
 type Source = {id:string; name:string; blob:Blob; width:number; height:number};
@@ -13,7 +13,6 @@ type Props = {
   controller:any; paired:boolean; disabled:boolean; visible:boolean;
   onConnect:()=>void; onOutput:(result:any)=>void; onBusy:(busy:boolean)=>void;
 };
-const empty = ():Workspace => ({sources:[], drafts:[]});
 const message = (error:unknown) => error instanceof Error ? error.message : String(error);
 const labels:Record<string,string> = {draft:'待确认', ready:'已确认', uploading:'保存输入中', generating:'生成 / 编译中', failed:'失败', interrupted:'已中断', done:'已入库'};
 
@@ -50,10 +49,9 @@ function newDraft(source:Source, blob = source.blob, crop:Rect = {x:0,y:0,width:
 }
 
 export function ImageObjectWorkbench({controller, paired, disabled, visible, onConnect, onOutput, onBusy}:Props) {
-  const [workspace,setWorkspace] = useState<Workspace>(empty);
-  const latest = useRef<Workspace>(empty());
-  const store = useRef<any>(null);
-  const writes = useRef<Promise<unknown>>(Promise.resolve());
+  const drafts = useRef<ImageObjectDraftWorkspace | null>(null);
+  if (!drafts.current) drafts.current = new ImageObjectDraftWorkspace();
+  const [workspace,setWorkspace] = useState<Workspace>(() => drafts.current!.snapshot() as Workspace);
   const alive = useRef(true);
   const [loaded,setLoaded] = useState(false);
   const [busy,setBusy] = useState(false);
@@ -76,35 +74,33 @@ export function ImageObjectWorkbench({controller, paired, disabled, visible, onC
 
   useEffect(() => {
     alive.current = true;
+    const workspace = drafts.current!;
+    const unsubscribe = workspace.subscribe((next:Workspace) => {
+      if (alive.current) setWorkspace(next as Workspace);
+    });
     void (async()=>{
       try {
-        const db = await openImageDraftStore();
-        if (!alive.current) { db.close(); return; }
-        store.current = db;
-        const saved = await db.read() as Workspace | undefined;
-        if (!alive.current) return;
-        const next = saved ? {...saved, drafts:saved.drafts.map(restoredDraft)} : empty();
-        latest.current = next; setWorkspace(next); setLoaded(true);
+        const next = await workspace.open() as Workspace;
+        if (!alive.current) {
+          await workspace.close();
+          return;
+        }
+        setLoaded(true);
         for (const draft of next.drafts) if (draft.result) onOutput(draft.result);
-      } catch(error) { if (alive.current) setNotice(`无法打开本地草稿库：${message(error)}。请允许浏览器存储后重试。`); }
+      } catch(error) {
+        if (alive.current) setNotice(`无法打开本地草稿库：${message(error)}。请允许浏览器存储后重试。`);
+      }
     })();
-    return () => { alive.current=false; stop.current=true; void writes.current.finally(()=>store.current?.close()); };
+    return () => {
+      alive.current=false;
+      stop.current=true;
+      unsubscribe();
+      void workspace.close();
+    };
   }, []);
 
-  const commit = (change:(current:Workspace)=>Workspace):Promise<void> => {
-    const task = writes.current.then(async()=>{
-      const next = change(latest.current);
-      if (next.sources.length>40 || next.drafts.length>120) throw new Error('最多保存 40 张原图和 120 个物体，请先移除不需要的项目');
-      const bytes = [...next.sources,...next.drafts].reduce((sum,item)=>sum+item.blob.size,0);
-      if (bytes > 256*1024*1024) throw new Error('草稿总量超过 256 MiB，请先移除不需要的项目');
-      await store.current.write(next);
-      latest.current = next;
-      if (alive.current) setWorkspace(next);
-    });
-    writes.current = task.catch(()=>{});
-    return task;
-  };
-  const update = (id:string, patch:Partial<Draft>) => commit((w)=>({...w,drafts:w.drafts.map((d)=>d.id===id?{...d,...patch}:d)}));
+  const commit = (change:(current:Workspace)=>Workspace) => drafts.current!.commit(change);
+  const update = (id:string, patch:Partial<Draft>) => drafts.current!.updateDraft(id,patch);
   const safe = (action:()=>Promise<unknown>) => { void action().catch((error)=>setNotice(message(error))); };
   const lock = (value:boolean) => { locked.current=value; setBusy(value); onBusy(value); };
   const choose = (item:Source, kind:'source'|'draft') => {
@@ -188,18 +184,21 @@ export function ImageObjectWorkbench({controller, paired, disabled, visible, onC
     if (locked.current || disabled || !paired || !confirmed || !runnable.length || !providers.length) return;
     lock(true); stop.current=false; setStopping(false); setConfirmed(false); setNotice('按顺序生成，单项失败后继续处理下一项。');
     try {
-      await runImageObjectQueue({drafts:runnable,update,shouldStop:()=>stop.current,process:async(draft:Draft)=>{
+      await drafts.current!.runQueue({drafts:runnable,shouldStop:()=>stop.current,process:async(draft:Draft)=>{
         const providerId = Object.hasOwn(draft,'provider') ? draft.provider : provider==='auto'?null:provider;
         await update(draft.id,{status:draft.jobId?'generating':'uploading',error:undefined,provider:providerId});
-        let input=draft.imageResult;
-        if (!draft.jobId && !input) {
-          input=await controller.approveLocalImage({bytes:new Uint8Array(await draft.blob.arrayBuffer()),prompt:draft.name});
-          await update(draft.id,{imageResult:input,status:'generating'}); onOutput(input);
-        }
-        const result=await controller.generateAssetFromImage({imageResult:input,assetId:draft.assetId,provider:providerId,resumeJobId:draft.jobId||null,idempotencyKey:`image-object-${draft.assetId}`,onProgress:async(job:any)=>{
-          if (job.jobId && latest.current.drafts.find((d)=>d.id===draft.id)?.jobId!==job.jobId) await update(draft.id,{jobId:job.jobId,status:'generating'});
-        }});
-        await update(draft.id,{status:'done',result,error:undefined}); onOutput(result);
+        const bytes = !draft.jobId && !draft.imageResult ? new Uint8Array(await draft.blob.arrayBuffer()) : null;
+        const {result}=await controller.generateImageObjectDraft({
+          draft,
+          bytes,
+          provider:providerId,
+          onInput:async(input:any)=>{ await update(draft.id,{imageResult:input,status:'generating'}); onOutput(input); },
+          onProgress:async(job:any)=>{
+            if (job.jobId && (drafts.current!.draft(draft.id) as Draft | null)?.jobId!==job.jobId) await update(draft.id,{jobId:job.jobId,status:'generating'});
+          }
+        });
+        await update(draft.id,{status:'done',result,error:undefined});
+        onOutput(result);
       }});
       setNotice(stop.current?'队列已停止，尚未开始的物体仍可继续。':'本轮处理结束。成功资产已入库，失败项可查询任务或重新生成。');
     } finally { lock(false); setStopping(false); }
@@ -245,7 +244,7 @@ export function ImageObjectWorkbench({controller, paired, disabled, visible, onC
             <button type="button" disabled={unavailable||draft.approved} onClick={()=>safe(()=>update(draft.id,{approved:true,status:'ready'}))}>{draft.approved?'已确认':'确认此物体'}</button>
           </>:null}
           {draft.status==='done'?<button type="button" disabled={unavailable} onClick={()=>safe(async()=>{await controller.placeAsset(draft.result.assetId);setNotice(`${draft.name} 已加入当前世界，可在资产栏执行 Agent 验证。`);})}>加入当前世界</button>:null}
-          {draft.jobId && ['failed','interrupted'].includes(draft.status)?<button type="button" disabled={unavailable} onClick={()=>safe(async()=>{const job=await controller.getImageAssetJob(draft.jobId);if(!['generation-failed','generation-cancelled','generation-expired'].includes(job.status))throw new Error('原任务尚未确认失败，勾选后开始生成将继续查询，不会重复提交');await update(draft.id,{jobId:undefined,imageResult:undefined,assetId:`generated_${crypto.randomUUID()}`,status:'ready',error:undefined});})}>确认失败后重建</button>:null}
+          {draft.jobId && ['failed','interrupted'].includes(draft.status)?<button type="button" disabled={unavailable} onClick={()=>safe(async()=>{await controller.assertImageObjectRetryable(draft.jobId);await update(draft.id,{jobId:undefined,imageResult:undefined,assetId:`generated_${crypto.randomUUID()}`,status:'ready',error:undefined});})}>确认失败后重建</button>:null}
           <button type="button" disabled={unavailable} onClick={()=>safe(async()=>{await commit((w)=>({...w,drafts:w.drafts.filter((d)=>d.id!==draft.id)}));if(active?.id===draft.id)setActive(null);})}>移除草稿</button>
         </div>
       </div>
