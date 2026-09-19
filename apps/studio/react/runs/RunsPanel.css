@@ -266,3 +266,53 @@
 .runs-console {
   padding: 14px 13px 12px;
 }
+
+/* Editor readability integration. */
+.runs-console {
+  padding: 18px 16px 16px;
+  font-size: var(--studio-type-body);
+}
+
+.runs-table {
+  font-size: var(--studio-type-control);
+}
+
+.runs-table th {
+  height: 36px;
+  font-size: var(--studio-type-meta);
+}
+
+.runs-table td {
+  height: 46px;
+  font-size: var(--studio-type-control);
+}
+
+.run-journey > article {
+  border-color: var(--studio-border);
+  background: rgba(255,255,255,.025);
+  box-shadow: none;
+}
+
+.run-detail-heading span {
+  font-size: var(--studio-type-meta);
+}
+
+.run-detail-heading strong,
+.run-journey > article > strong {
+  font-size: var(--studio-type-body);
+}
+
+.run-detail p,
+.run-journey > article > p {
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.compact-filter,
+.compact-filter select {
+  font-size: var(--studio-type-control);
+}
+
+.compact-filter select {
+  height: 34px;
+}

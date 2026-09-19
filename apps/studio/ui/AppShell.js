@@ -7,6 +7,7 @@ import { createStudioUiBridge } from './StudioUiBridge.js';
 import './content/StudioContent.css';
 import './chrome/studio-shell.css';
 import './chrome/studio-spatial.css';
+import './chrome/studio-editor-theme.css';
 
 export function createAppShell({ app, environmentDefinition, environments }) {
   if (!app) throw new TypeError('createAppShell requires #app');

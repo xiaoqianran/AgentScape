@@ -204,3 +204,49 @@
   border-color: var(--studio-border);
   background: rgba(16,17,20,.34);
 }
+
+/* Editor readability integration. */
+.inspector {
+  padding: 18px 16px 16px;
+  font-size: var(--studio-type-body);
+}
+
+.object-title h2 {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.object-title span {
+  font-size: var(--studio-type-meta);
+}
+
+.inspect-section h3 {
+  font-size: var(--studio-type-heading);
+  line-height: 1.3;
+}
+
+.properties div,
+.relation-info strong,
+.relation-info span,
+.spatial-info {
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.transform-scale-editor > label {
+  font-size: var(--studio-type-control);
+}
+
+.transform-scale-editor input {
+  height: 34px;
+  font-size: var(--studio-type-control);
+}
+
+.transform-scale-editor small {
+  font-size: 11px;
+}
+
+.action-list button {
+  min-height: 32px;
+  font-size: var(--studio-type-control);
+}

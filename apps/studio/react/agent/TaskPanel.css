@@ -537,3 +537,39 @@
   background: var(--studio-surface-2);
   transform: none;
 }
+
+/* Editor readability integration. */
+.task-console {
+  padding: 18px 16px 16px;
+  font-size: var(--studio-type-body);
+}
+
+.task-state,
+.agent-stage {
+  border-color: var(--studio-border);
+  border-radius: 8px;
+  background: rgba(255,255,255,.025);
+  box-shadow: none;
+}
+
+.task-console :where(button, input, select, textarea, label) {
+  font-size: var(--studio-type-control);
+}
+
+.task-state strong,
+.agent-stage > header strong {
+  font-size: var(--studio-type-body);
+}
+
+.task-state-copy > span,
+.agent-stage > p,
+.agent-stage-list > p,
+.agent-result-copy > p {
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.agent-stage > header > span,
+.agent-stage > header i {
+  font-size: var(--studio-type-meta);
+}

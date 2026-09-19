@@ -1335,3 +1335,73 @@
   font: 7px/1 var(--font-mono);
   background: rgba(8,8,10,.55);
 }
+
+/* Editor readability integration. Build keeps ownership of its own visual density. */
+.panel:not([data-view="create"]) > .build-workbench-host,
+.panel[data-view="create"].build-advanced-open > .build-workbench-host {
+  display: none;
+}
+
+.panel[data-view="create"]:not(.build-advanced-open) > .build-workbench-host {
+  min-height: 0;
+  display: block;
+  overflow: hidden;
+}
+
+.build-workbench {
+  padding: 18px 16px 16px;
+}
+
+.build-world-context {
+  border-color: var(--studio-border);
+  border-radius: 8px;
+  background: rgba(255,255,255,.025);
+  box-shadow: none;
+}
+
+.build-advanced-button,
+.build-advanced-header button {
+  min-height: 32px;
+  font-size: var(--studio-type-control);
+}
+
+.build-world-context small,
+.build-world-context code,
+.build-mode-tabs button::after {
+  font-size: var(--studio-type-meta);
+}
+
+.build-world-context strong,
+.build-mode-tabs span {
+  font-size: var(--studio-type-body);
+}
+
+.build-mode-tabs button {
+  min-height: 58px;
+  padding: 8px;
+  border-color: var(--studio-border);
+  border-radius: 8px;
+  background: rgba(255,255,255,.025);
+}
+
+.build-mode-tabs button:hover {
+  border-color: var(--studio-border-strong);
+  background: rgba(255,255,255,.05);
+}
+
+.build-mode-tabs button.active {
+  border-color: rgba(122,162,255,.32);
+  background: rgba(122,162,255,.10);
+}
+
+.build-advanced-shell {
+  font-size: var(--studio-type-control);
+}
+
+.build-advanced-shell :where(p, span, label, button, input, select, textarea, td) {
+  font-size: var(--studio-type-control);
+}
+
+.build-advanced-shell :where(small, code, th) {
+  font-size: var(--studio-type-meta);
+}
