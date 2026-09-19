@@ -83,7 +83,8 @@ export function createStudioContent({
       resources,
       placement,
       openLibrary:()=>ui.setView('resources'),
-      openCreate:()=>ui.setView('create')
+      openCreate:()=>ui.setView('create'),
+      openInspect:()=>ui.setView('inspect')
     },
     buildWorkbench:{
       resources,

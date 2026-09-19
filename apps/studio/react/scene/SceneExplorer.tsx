@@ -46,6 +46,7 @@ type SceneExplorerProps = {
   };
   openLibrary?: () => void;
   openCreate?: () => void;
+  openInspect?: () => void;
 };
 
 const SCENE_REFRESH_EVENTS = [
@@ -64,7 +65,8 @@ export function SceneExplorerView({
   resources,
   placement,
   openLibrary = () => {},
-  openCreate = () => {}
+  openCreate = () => {},
+  openInspect = () => {}
 }: SceneExplorerProps) {
   const selectedObjectId = useStudioStore((state) => state.selectedObjectId);
   const worldPresentation = useStudioStore((state) => state.worldPresentation);
@@ -123,8 +125,8 @@ export function SceneExplorerView({
   }, [assets, query]);
 
   const selectObject = (id: string) => {
-    setSelectedObjectId(id);
     editor.select(id);
+    openInspect();
   };
   const startAssetDrag = (event: DragEvent, assetId: string) => {
     if (!placement.beginDrag(assetId)) {

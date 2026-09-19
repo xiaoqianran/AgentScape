@@ -50,7 +50,6 @@ export class StudioWorldSurface {
     this.#assertReady();
     const next=identity || null;
     this.onPresentationChange(next);
-    this.ui.setWorldPresentation?.(next);
     this.editor.select(null);
     this.identity=next;
     return next;

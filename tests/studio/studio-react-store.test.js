@@ -17,23 +17,31 @@ const initial = {
 describe('studio React store build outputs', () => {
   beforeEach(() => useStudioStore.setState(initial));
 
-  it('tracks primary workspace separately from utility context', () => {
-    useStudioStore.getState().setActiveWorkspace('agent');
-    useStudioStore.getState().setActiveContextView('runs');
-    expect(useStudioStore.getState()).toMatchObject({activeWorkspace:'agent',activeContextView:'runs'});
+  it('keeps primary workspaces and utility overlays in one valid navigation state machine', () => {
+    const store=()=>useStudioStore.getState();
+
+    store().openView('create');
+    expect(store()).toMatchObject({activeWorkspace:'create',activeContextView:'create',contextOpen:true});
+    store().openView('resources');
+    expect(store()).toMatchObject({activeWorkspace:'create',activeContextView:'resources',contextOpen:true});
+    store().closeContext();
+    expect(store()).toMatchObject({activeWorkspace:'create',activeContextView:'create',contextOpen:true});
+
+    store().openView('task');
+    expect(store()).toMatchObject({activeWorkspace:'agent',activeContextView:'task',contextOpen:true});
+    store().openView('runs');
+    expect(store()).toMatchObject({activeWorkspace:'agent',activeContextView:'runs',contextOpen:true});
+    store().closeContext();
+    expect(store()).toMatchObject({activeWorkspace:'agent',activeContextView:'task',contextOpen:true});
+
+    store().openView('world');
+    expect(store()).toMatchObject({activeWorkspace:'world',contextOpen:false});
+    store().openView('inspect');
+    expect(store()).toMatchObject({activeWorkspace:'world',activeContextView:'inspect',contextOpen:true});
+    store().closeContext();
+    expect(store()).toMatchObject({activeWorkspace:'world',activeContextView:'inspect',contextOpen:false});
   });
 
-  it('keeps utility context separate from the primary workspace lifecycle', () => {
-    useStudioStore.getState().openView('task');
-    expect(useStudioStore.getState()).toMatchObject({activeWorkspace:'agent',activeContextView:'task',contextOpen:true});
-
-    useStudioStore.getState().openView('runs');
-    useStudioStore.getState().closeContext();
-    expect(useStudioStore.getState()).toMatchObject({activeWorkspace:'agent',activeContextView:'runs',contextOpen:false});
-
-    useStudioStore.getState().openView('world');
-    expect(useStudioStore.getState()).toMatchObject({activeWorkspace:'world',contextOpen:false});
-  });
   it('keeps earlier Build outputs when a new kind is recorded', () => {
     const store = useStudioStore.getState();
     store.recordBuildOutput({

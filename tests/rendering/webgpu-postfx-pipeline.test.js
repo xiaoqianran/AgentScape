@@ -30,6 +30,7 @@ describe('WebGpuPostFxPipeline', () => {
       effects:['gtao','bloom','fxaa']
     });
     expect(pipeline.scenePass).toBeTruthy();
+    expect(pipeline.scenePass.options.samples).toBe(0);
     expect(pipeline.aoNode.resolutionScale).toBe(0.5);
     expect(pipeline.aoNode.samples.value).toBe(12);
     pipeline.dispose();

@@ -66,8 +66,9 @@ describe('StudioWorldSurface', () => {
     const identity={id:'monument-hall',title:'纪念大厅',worldFirst:false};
 
     expect(h.surface.setIdentity(identity)).toBe(identity);
+    expect(h.onPresentationChange).toHaveBeenCalledTimes(1);
     expect(h.onPresentationChange).toHaveBeenCalledWith(identity);
-    expect(h.ui.setWorldPresentation).toHaveBeenCalledWith(identity);
+    expect(h.ui.setWorldPresentation).not.toHaveBeenCalled();
     expect(h.editor.select).toHaveBeenCalledWith(null);
   });
 

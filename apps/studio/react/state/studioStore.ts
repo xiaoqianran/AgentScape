@@ -1,3 +1,4 @@
+import { primaryContextForWorkspace, workspaceForStudioView } from '../../navigation/StudioNavigation.js';
 import { create } from 'zustand';
 
 export type ContextView = 'create' | 'task' | 'resources' | 'inspect' | 'runs';
@@ -47,8 +48,6 @@ type StudioState = {
   buildWorkflowSequence: number;
   setSelectedObjectId: (id: string | null) => void;
   setWorldPresentation: (identity: StudioWorldPresentation | null) => void;
-  setActiveWorkspace: (view: WorkspaceView) => void;
-  setActiveContextView: (view: ContextView) => void;
   openView: (view: ContextView | 'world') => void;
   closeContext: () => void;
   setBuildAdvancedOpen: (open: boolean) => void;
@@ -74,14 +73,19 @@ export const useStudioStore = create<StudioState>((set) => ({
   buildWorkflowSequence: 0,
   setSelectedObjectId: (selectedObjectId) => set({ selectedObjectId }),
   setWorldPresentation: (worldPresentation) => set({ worldPresentation }),
-  setActiveWorkspace: (activeWorkspace) => set({ activeWorkspace }),
-  setActiveContextView: (activeContextView) => set({ activeContextView }),
   openView: (view) => set((state) => {
     if (view === 'world') return { activeWorkspace:'world', contextOpen:false };
-    const activeWorkspace = view === 'create' ? 'create' : view === 'task' ? 'agent' : state.activeWorkspace;
-    return { activeWorkspace, activeContextView:view, contextOpen:true };
+    return {
+      activeWorkspace:workspaceForStudioView(state.activeWorkspace,view),
+      activeContextView:view,
+      contextOpen:true
+    };
   }),
-  closeContext: () => set({ contextOpen:false }),
+  closeContext: () => set((state) => {
+    const primaryContext = primaryContextForWorkspace(state.activeWorkspace);
+    if (!primaryContext) return { contextOpen:false };
+    return { activeContextView:primaryContext, contextOpen:true };
+  }),
   setBuildAdvancedOpen: (buildAdvancedOpen) => set({ buildAdvancedOpen }),
   syncInspector: (selectedObjectId) => set((state) => ({
     selectedObjectId,

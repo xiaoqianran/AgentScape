@@ -62,7 +62,7 @@ export class WebGpuPostFxPipeline {
   }
 
   build() {
-    const scenePass = pass(this.scene, this.camera);
+    const scenePass = pass(this.scene, this.camera, { samples:0 });
     scenePass.setMRT(mrt({ output, normal: normalView }));
 
     const sceneColor = scenePass.getTextureNode('output');

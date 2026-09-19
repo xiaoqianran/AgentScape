@@ -52,29 +52,35 @@ const RELATION_LABELS: Record<string, string> = {
 
 export function ObjectInspectorView({ world, tools, log }: InspectorProps) {
   const selectedObjectId = useStudioStore((state) => state.selectedObjectId);
-  useStudioStore((state) => state.contextRevision);
+  const contextRevision = useStudioStore((state) => state.contextRevision);
 
   const id = selectedObjectId && world.queries.hasObject(selectedObjectId) ? selectedObjectId : null;
   const info = id ? world.queries.getObjectInfo(id) : null;
   const [scaleInput, setScaleInput] = useState('1');
   const [scaleBusy, setScaleBusy] = useState(false);
+  const [visibleRelations, setVisibleRelations] = useState<Relation[]>([]);
 
   useEffect(() => {
     setScaleInput(info ? String(info.scale) : '1');
   }, [id, info?.scale]);
 
   let spatialText = '';
-  let visibleRelations: Relation[] = [];
   if (id) {
     const bounds = world.queries.getBounds(id);
     const nearby = world.queries.findNearby(id, 2);
     spatialText = `尺寸 ${bounds.size.join(' × ')} · 附近 ${nearby.length} 个对象`;
-    visibleRelations = world.queries
-      .describeObjectRelations(id)
-      .outgoing
+  }
+
+  useEffect(() => {
+    if (!id) {
+      setVisibleRelations([]);
+      return;
+    }
+    const outgoing = world.queries.describeObjectRelations(id).outgoing
       .filter((relation) => ['ON', 'NEAR', 'INSIDE'].includes(relation.predicate))
       .slice(0, 8);
-  }
+    setVisibleRelations(outgoing);
+  }, [contextRevision, id, world]);
 
   const actions = info?.actions.filter((action) => Object.hasOwn(ACTION_LABELS, action)) ?? [];
 

@@ -23,3 +23,9 @@ export function workspaceForStudioView(currentWorkspace,view) {
   if (view === 'world') return 'world';
   return PRIMARY_CONTEXTS.get(view) || currentWorkspace;
 }
+
+export function primaryContextForWorkspace(workspace) {
+  if (workspace === 'create') return 'create';
+  if (workspace === 'agent') return 'task';
+  return null;
+}
