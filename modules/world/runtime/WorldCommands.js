@@ -240,6 +240,69 @@ export class WorldCommands {
     };
   }
 
+  async resolveEnvironmentApproach(target, start, { radii = [0.9, 1.2, 1.5, 1.8], samples = 16, maxSnapDistance = 0.75 } = {}) {
+    const runtime = this.runtime;
+    const navigation = runtime.navigation;
+    if (!navigation?.findPath || !Array.isArray(target) || !Array.isArray(start)) {
+      return { reachable:false, reason:'NAVIGATION_UNAVAILABLE', candidates:0 };
+    }
+    // 整圈采样，不按 agent 距离排序：门关着时「朝 agent」可能是屋内侧，会系统性打偏。
+    const candidates = [];
+    for (const radius of radii) {
+      for (let i = 0; i < samples; i += 1) {
+        const angle = (i / samples) * Math.PI * 2;
+        candidates.push([target[0] + Math.sin(angle)*radius, target[1], target[2] + Math.cos(angle)*radius]);
+      }
+      // 明确加轴向外点（门通常有一侧是可站立室外）
+      candidates.push([target[0] + radius, target[1], target[2]]);
+      candidates.push([target[0] - radius, target[1], target[2]]);
+      candidates.push([target[0], target[1], target[2] + radius]);
+      candidates.push([target[0], target[1], target[2] - radius]);
+    }
+    const tried = [];
+    const budget = Math.min(candidates.length, 28);
+    for (let index = 0; index < budget; index += 1) {
+      const end = candidates[index];
+      const route = await navigation.findPath(start, end, { maxSnapDistance, endTolerance: 0.6 });
+      tried.push({ end: vec3Round(end), reachable: route?.reachable === true, reason: route?.reason || null, cost: route?.cost ?? null });
+      if (route?.reachable) {
+        return { reachable:true, end, route, tried, candidates:candidates.length };
+      }
+    }
+    return { reachable:false, reason:'NO_APPROACH_POSE', tried, candidates:candidates.length };
+  }
+
+  async findEnvironmentInteractApproach(interactionId, { actorId = null } = {}) {
+    this.assertReady('findEnvironmentInteractApproach');
+    const runtime = this.runtime;
+    const item = (runtime.environment?.interactions || []).find((entry) => entry.id === interactionId);
+    if (!item) return { status:'interaction-not-found', interactionId };
+    const target = (() => {
+      const object = item.object;
+      if (!object?.isObject3D) return null;
+      object.updateWorldMatrix?.(true, false);
+      const elements = object.matrixWorld?.elements;
+      return elements ? [elements[12], elements[13], elements[14]] : null;
+    })();
+    if (!target) return { status:'interaction-position-unavailable', interactionId };
+    const start = actorId ? runtime.physics?.getPosition?.(actorId) : null;
+    if (!start) return { status:'actor-required-or-unavailable', interactionId, actorId };
+    const approach = await this.resolveEnvironmentApproach(target, start);
+    return {
+      status: approach.reachable ? 'approach-ready' : 'approach-unreachable',
+      interactionId,
+      label:item.label || null,
+      contractId:item.contractId || null,
+      actorId,
+      start:vec3Round(start),
+      target:vec3Round(target),
+      approach: approach.reachable ? vec3Round(approach.end) : null,
+      distance: round3(Math.hypot(target[0]-start[0], target[1]-start[1], target[2]-start[2])),
+      reason: approach.reachable ? null : (approach.reason || 'NO_APPROACH_POSE'),
+      tried: approach.tried || []
+    };
+  }
+
   async approachAndActivateEnvironmentInteract(interactionId, { actorId = null, speed } = {}) {
     this.assertReady('approachAndActivateEnvironmentInteract');
     const runtime = this.runtime;
@@ -271,14 +334,19 @@ export class WorldCommands {
     const distanceToTarget = Math.hypot(target[0]-start[0], target[1]-start[1], target[2]-start[2]);
     if (distanceToTarget <= 1.5) {
       const activation = await this.activateEnvironmentInteraction(interactionId, { actorId });
-      return { ...activation, skill, phase:'activated', start:vec3Round(start), target:vec3Round(target), distance:round3(distanceToTarget) };
+      runtime.navigation?.invalidate?.('environment-interaction-activated');
+      return {
+        ...activation,
+        skill, phase:'activated', start:vec3Round(start), target:vec3Round(target),
+        distance:round3(distanceToTarget), navigated:false,
+        navigationInvalidated:true,
+        nextStepHint:item.contractId
+          ? 'Door/path may have changed; call navigateTo/findPath on a fresh planning round before entering or climbing.'
+          : 'Native activation does not rebuild NavMesh by itself.'
+      };
     }
-    const navigation = runtime.navigation;
-    if (!navigation?.findPath) {
-      return { status:'world-action-blocked', skill, interactionId, reason:'NAVIGATION_UNAVAILABLE', actorId, target:vec3Round(target) };
-    }
-    const route = await navigation.findPath(start, target, { maxSnapDistance: 1.25 });
-    if (!route?.reachable) {
+    const approach = await this.resolveEnvironmentApproach(target, start);
+    if (!approach.reachable) {
       return {
         status:'unreachable',
         skill,
@@ -288,12 +356,11 @@ export class WorldCommands {
         start:vec3Round(start),
         target:vec3Round(target),
         distance:round3(distanceToTarget),
-        reason:route?.reason || 'NO_PATH_TO_ENVIRONMENT_INTERACTION'
+        reason:approach.reason || 'NO_PATH_TO_ENVIRONMENT_INTERACTION',
+        tried:approach.tried || []
       };
     }
-    const end = Array.isArray(route.end?.snapped) ? route.end.snapped
-      : Array.isArray(route.path?.at?.(-1)) ? route.path.at(-1)
-      : target;
+    const end = approach.end;
     const navResult = await runtime.locomotion.navigate(actorId, end, { speed });
     if (navResult?.status !== 'arrived') {
       return {
@@ -307,6 +374,7 @@ export class WorldCommands {
       };
     }
     const activation = await this.activateEnvironmentInteraction(interactionId, { actorId });
+    runtime.navigation?.invalidate?.('environment-interaction-activated');
     return {
       ...activation,
       skill,
@@ -314,7 +382,11 @@ export class WorldCommands {
       start:vec3Round(start),
       approach:vec3Round(end),
       target:vec3Round(target),
-      navigated:true
+      navigated:true,
+      navigationInvalidated:true,
+      nextStepHint:item.contractId
+        ? 'Fresh replan required: re-query path after the door/path change before entering or going upstairs.'
+        : 'Native activation does not rebuild NavMesh by itself.'
     };
   }
 

@@ -19,11 +19,14 @@ export function registerAffordanceSkills(add,runtime) {
     actorId: args.actorId || execution?.context?.actor || null
   }));
   add('approachAndActivateEnvironmentInteract', {
-    ...meta('具身操作环境原生 Three.js 交互的首选单一工具：Runtime 负责按 interactionId 读取物件世界坐标 → Recast 寻路 → locomotion 走到可达点 → 1.5m 内执行激活/契约验证。不要手工拼 navigateTo 坐标。interactionId 来自 listEnvironmentInteractables / listInteractablesNearMe.nativeInteractables。返回 phase=activated 时才算走到并触发；native-provisional 不等于物理力验证。', ['world.write','spatial.read','physics.read','world.read'], ['interactionId'], { interactionId:string, actorId:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }),
+    ...meta('具身操作环境原生 Three.js 交互的首选单一工具：Runtime 在 interactionId 周围采样多个可站立 approach 点（不把门轴/物件中心当终点）→ Recast 寻路 → locomotion → 1.5m 内激活/契约验证。返回 phase=activated 后若 navigationInvalidated=true，必须 fresh replan 再 navigateTo/findPath 进屋或上楼。不要手工拼 navigateTo 坐标，也不要 navigate 到 agent 自身 id。', ['world.write','spatial.read','physics.read','world.read'], ['interactionId'], { interactionId:string, actorId:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }),
     mutates:true, batchable:false
   }, (args, execution) => commands.approachAndActivateEnvironmentInteract(args.interactionId, {
     actorId: args.actorId || execution?.context?.actor || null,
     speed: args.speed
+  }));
+  add('findEnvironmentInteractApproach', meta('只读诊断：为环境原生交互计算可达的可站立 approach 点（门外/楼梯口等），不移动也不激活。当 approachAndActivate 报 unreachable，或需要先确认能否进屋上楼时使用。', ['world.read','spatial.read','physics.read'], ['interactionId'], { interactionId:string, actorId:string }), (args, execution) => commands.findEnvironmentInteractApproach(args.interactionId, {
+    actorId: args.actorId || execution?.context?.actor || null
   }));
   add('inspectWorldAffordance',meta('读取物件状态、动作条件和验证类型。状态验证与物理验证分别报告。', ['world.read'],['targetId'],{targetId:string,actorId:string}),(args,execution)=>queries.inspectAffordance(args.targetId,{actorId:args.actorId || execution.context.actor}));
   add('executeWorldAction',{
