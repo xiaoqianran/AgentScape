@@ -1,4 +1,4 @@
-import { primaryContextForWorkspace, workspaceForStudioView } from '../../navigation/StudioNavigation.js';
+import { workspaceForStudioView } from '../../navigation/StudioNavigation.js';
 import { create } from 'zustand';
 
 export type ContextView = 'create' | 'task' | 'resources' | 'inspect' | 'runs';
@@ -81,11 +81,7 @@ export const useStudioStore = create<StudioState>((set) => ({
       contextOpen:true
     };
   }),
-  closeContext: () => set((state) => {
-    const primaryContext = primaryContextForWorkspace(state.activeWorkspace);
-    if (!primaryContext) return { contextOpen:false };
-    return { activeContextView:primaryContext, contextOpen:true };
-  }),
+  closeContext: () => set({ contextOpen:false }),
   setBuildAdvancedOpen: (buildAdvancedOpen) => set({ buildAdvancedOpen }),
   syncInspector: (selectedObjectId) => set((state) => ({
     selectedObjectId,

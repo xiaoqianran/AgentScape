@@ -1,23 +1,25 @@
 /*
- * Spatial editor composition.
+ * AgentScape Studio spatial composition.
  *
- * This layer intentionally owns only Studio chrome/layout. Product panels,
- * runtime semantics and domain styles stay with their feature modules.
- * The composition borrows the spatial-editor pattern: canvas first, floating
- * tools, an outliner on the left and contextual work on the right.
+ * Information architecture follows mature creative tools:
+ * stable top app bar, persistent scene tree, canvas-first center, contextual
+ * inspector on the right, and a compact manipulation dock close to the canvas.
  */
 
 .shell.spatial-editor {
   position: relative;
   display: block;
+  width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--studio-viewport);
   isolation: isolate;
-  font-size: 11px;
+  background: var(--studio-bg);
+  color: var(--studio-text);
+  font-family: var(--studio-font-ui);
 }
 
-.spatial-editor .workspace {
+.spatial-editor .workspace,
+.spatial-editor.world-first .workspace {
   position: absolute;
   inset: 0;
   display: block;
@@ -25,16 +27,22 @@
   background: var(--studio-viewport);
 }
 
+/* Canvas ------------------------------------------------------------------ */
+
 .spatial-editor .viewport,
 .spatial-editor.world-first .viewport {
   position: absolute;
-  top: 48px;
+  top: var(--studio-header-h);
   right: 0;
   bottom: 0;
   left: var(--studio-scene-w);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   border: 0;
   border-radius: 0;
-  box-shadow: none;
+  background: var(--studio-viewport);
+  box-shadow: inset 0 1px var(--studio-border);
 }
 
 .spatial-editor.context-open .viewport {
@@ -44,13 +52,13 @@
 .spatial-editor .viewport::before {
   display: block;
   background:
-    radial-gradient(circle at 50% 18%, rgba(111,156,255,.055), transparent 34%),
-    linear-gradient(180deg, rgba(0,0,0,.08), transparent 20%);
+    radial-gradient(circle at 50% 30%, rgba(133,160,255,.035), transparent 36%),
+    linear-gradient(180deg, rgba(0,0,0,.06), transparent 18%);
 }
 
 .spatial-editor .viewport::after {
   display: block;
-  box-shadow: inset 0 1px rgba(255,255,255,.025);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.012);
 }
 
 .spatial-editor .world-intro,
@@ -58,17 +66,21 @@
   display: none;
 }
 
-/* Floating app identity / global actions. The middle stays transparent for tools. */
+/* App bar ----------------------------------------------------------------- */
 
 .spatial-editor .brandbar,
 .spatial-editor.world-first .brandbar {
   position: absolute;
-  z-index: 40;
+  z-index: 50;
   top: 0;
-  left: 0;
   right: 0;
-  height: 48px;
-  padding: 0 8px 0 12px;
+  left: 0;
+  height: var(--studio-header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 8px 0 10px;
   border: 0;
   border-bottom: 1px solid var(--studio-border);
   background: var(--studio-surface-1);
@@ -79,34 +91,91 @@
 
 .spatial-editor .brand-lockup,
 .spatial-editor .brand-actions {
-  min-height: 47px;
+  min-height: var(--studio-header-h);
   display: flex;
   align-items: center;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
   pointer-events: auto;
 }
 
 .spatial-editor .brand-lockup {
-  width: 288px;
-  gap: 7px;
+  width: var(--studio-scene-w);
+  min-width: 0;
+  gap: 9px;
+  padding-right: 10px;
+}
+
+.spatial-editor .scene-sidebar-toggle {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: grid;
+  place-items: center;
   padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--studio-text-3);
+  background: transparent;
+  cursor: pointer;
+}
+
+.spatial-editor .scene-sidebar-toggle:hover {
+  border-color: var(--studio-border);
+  color: var(--studio-text);
+  background: var(--studio-surface-2);
+}
+
+.spatial-editor .scene-sidebar-toggle span {
+  display: block;
+  transform: translateY(-1px);
+  font: 600 20px/1 var(--studio-font-ui);
+}
+
+.spatial-editor .brand-lockup strong {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--studio-text);
+  white-space: nowrap;
+}
+
+.spatial-editor .brand-lockup strong::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  border: 1px solid rgba(133,160,255,.72);
+  border-radius: 4px;
+  background:
+    linear-gradient(90deg, transparent 46%, rgba(133,160,255,.82) 46% 54%, transparent 54%),
+    linear-gradient(transparent 46%, rgba(133,160,255,.82) 46% 54%, transparent 54%);
+  box-shadow: inset 0 0 0 3px rgba(133,160,255,.06);
+}
+
+.spatial-editor .brand-lockup em {
+  color: var(--studio-text-3);
+  font-style: normal;
+  font-weight: 520;
 }
 
 .spatial-editor .brand-lockup > span {
-  max-width: 132px;
+  min-width: 0;
+  max-width: 118px;
+  overflow: hidden;
   color: var(--studio-text-3);
-  font: 500 11px/1 var(--studio-font-ui);
-  letter-spacing: 0;
-  text-transform: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spatial-editor .brand-lockup > span::before {
+  content: "/";
+  margin-right: 7px;
+  color: rgba(255,255,255,.18);
 }
 
 .spatial-editor .brand-actions {
   gap: 2px;
-  padding: 0;
+  margin-left: auto;
 }
 
 .spatial-editor .world-control > span {
@@ -118,8 +187,18 @@
 .spatial-editor .icon-button,
 .spatial-editor .runtime-status {
   height: 30px;
-  border-color: transparent;
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--studio-text-2);
   background: transparent;
+  box-shadow: none;
+}
+
+.spatial-editor .world-select {
+  max-width: 214px;
+  padding: 0 26px 0 9px;
+  color: var(--studio-text-2);
 }
 
 .spatial-editor .world-select:hover,
@@ -127,59 +206,232 @@
 .spatial-editor .header-button:hover,
 .spatial-editor .icon-button:hover,
 .spatial-editor .runtime-status.is-actionable:hover {
-  border-color: transparent;
+  border-color: var(--studio-border);
+  color: var(--studio-text);
   background: var(--studio-surface-2);
 }
 
-/* Left: persistent scene hierarchy, independent from whichever right context is open. */
+.spatial-editor .runtime-status {
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.spatial-editor .runtime-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--studio-success);
+  box-shadow: none;
+}
+
+.spatial-editor .icon-button {
+  width: 30px;
+  padding: 0;
+  color: var(--studio-text-3);
+  font-size: 18px;
+}
+
+/* Workspace navigation ----------------------------------------------------- */
+
+.spatial-editor .world-dock {
+  position: absolute;
+  z-index: 54;
+  top: 6px;
+  left: 50%;
+  bottom: auto;
+  width: auto;
+  max-width: min(560px, calc(100vw - var(--studio-scene-w) - 360px));
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  transform: translateX(-50%);
+  border: 1px solid var(--studio-border);
+  border-radius: 8px;
+  background: var(--studio-surface-2);
+  box-shadow: inset 0 1px rgba(255,255,255,.025);
+  scrollbar-width: none;
+}
+
+.spatial-editor .world-dock::-webkit-scrollbar {
+  display: none;
+}
+
+.spatial-editor .world-dock button {
+  position: relative;
+  min-width: 0;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--studio-text-3);
+  background: transparent;
+  cursor: pointer;
+  font: 550 11.5px/1 var(--studio-font-ui);
+  letter-spacing: -.005em;
+  white-space: nowrap;
+}
+
+.spatial-editor .world-dock button:hover {
+  color: var(--studio-text-2);
+  background: rgba(255,255,255,.045);
+}
+
+.spatial-editor .world-dock button[aria-pressed="true"] {
+  color: var(--studio-text);
+  background: var(--studio-surface-3);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
+}
+
+.spatial-editor .world-dock button[data-dock-group="primary"] {
+  color: var(--studio-text-2);
+}
+
+.spatial-editor .world-dock button[data-dock-group="utility"] {
+  padding-inline: 8px;
+  color: var(--studio-text-3);
+  font-size: 10.5px;
+  font-weight: 520;
+}
+
+.spatial-editor .world-dock button[data-dock-view="resources"] {
+  margin-left: 5px;
+}
+
+.spatial-editor .world-dock button[data-dock-view="resources"]::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: -4px;
+  width: 1px;
+  background: var(--studio-border-strong);
+}
+
+.spatial-editor .world-dock button.has-selection:not([aria-pressed="true"])::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--studio-accent);
+}
+
+.spatial-editor .world-dock .dock-extension {
+  margin-left: 2px;
+  color: var(--studio-text-3);
+}
+
+/* Scene tree --------------------------------------------------------------- */
 
 .spatial-editor .scene-panel,
 .spatial-editor.world-first .scene-panel {
   position: absolute;
-  z-index: 24;
-  top: 48px;
+  z-index: 28;
+  top: var(--studio-header-h);
   left: 0;
   bottom: 0;
   width: var(--studio-scene-w);
+  min-width: 0;
   display: grid;
   grid-template-rows: auto auto minmax(0,1fr) auto;
+  overflow: hidden;
   border: 0;
   border-right: 1px solid var(--studio-border);
   border-radius: 0;
-  background: var(--studio-surface-1);
+  background: #151619;
   box-shadow: none;
   backdrop-filter: none;
 }
 
 .spatial-editor .scene-panel-heading {
-  min-height: 44px;
-  padding: 8px 10px 6px;
+  min-height: 70px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 9px;
+  border-bottom: 0;
+}
+
+.spatial-editor .scene-panel-heading > div {
+  min-width: 0;
+}
+
+.spatial-editor .scene-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--studio-text-3);
+  font: 650 9px/1 var(--studio-font-mono);
+  letter-spacing: .11em;
+}
+
+.spatial-editor .scene-panel-heading strong {
+  display: block;
+  overflow: hidden;
+  color: var(--studio-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spatial-editor .scene-count {
+  min-width: 22px;
+  padding: 3px 6px;
+  border: 1px solid var(--studio-border);
+  border-radius: 999px;
+  color: var(--studio-text-3);
+  background: rgba(255,255,255,.025);
+  text-align: center;
+}
+
+.spatial-editor .product-flow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  color: rgba(255,255,255,.30);
+  font: 520 8.5px/1.2 var(--studio-font-mono);
+  letter-spacing: .025em;
+  text-transform: uppercase;
+}
+
+.spatial-editor .product-flow i {
+  color: rgba(255,255,255,.18);
+  font-style: normal;
 }
 
 .spatial-editor .scene-panel-tabs {
+  min-height: 33px;
   display: flex;
+  align-items: center;
   gap: 2px;
   margin: 0 8px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  padding: 2px;
+  border: 1px solid var(--studio-border);
+  border-radius: 7px;
+  background: rgba(255,255,255,.018);
 }
 
 .spatial-editor .scene-panel-tabs button {
-  height: 24px;
-  padding: 0 10px;
+  min-width: 0;
+  height: 27px;
+  flex: 1;
+  padding: 0 8px;
   border: 0;
-  border-radius: 6px;
-  color: var(--studio-text-2);
+  border-radius: 5px;
+  color: var(--studio-text-3);
   background: transparent;
   cursor: pointer;
-  font: 500 12px/1 var(--studio-font-ui);
 }
 
 .spatial-editor .scene-panel-tabs button:hover {
   color: var(--studio-text-2);
-  background: var(--studio-surface-2);
+  background: rgba(255,255,255,.035);
 }
 
 .spatial-editor .scene-panel-tabs button.active {
@@ -195,117 +447,107 @@
 }
 
 .spatial-editor .scene-world-card {
-  margin: 6px 7px 3px;
+  margin: 8px 8px 2px;
+  padding: 8px 9px;
+  border: 1px solid var(--studio-border);
+  border-radius: 7px;
+  background: rgba(255,255,255,.018);
 }
 
 .spatial-editor .scene-search {
-  padding: 7px 8px 4px;
+  padding: 6px 8px 3px;
 }
 
 .spatial-editor .scene-search input {
-  height: 28px;
-  border-color: var(--studio-border);
+  height: 30px;
+  border: 1px solid var(--studio-border);
   border-radius: 6px;
-  background: rgba(255,255,255,.035);
-  font-size: 11px;
+  background: #111316;
+  color: var(--studio-text-2);
+}
+
+.spatial-editor .scene-search input:hover {
+  border-color: var(--studio-border-strong);
+}
+
+.spatial-editor .scene-search input:focus {
+  border-color: var(--studio-border-focus);
+  outline: 0;
+  box-shadow: 0 0 0 2px rgba(133,160,255,.08);
 }
 
 .spatial-editor .scene-section-heading {
-  padding: 9px 10px 6px;
-  font-size: 10px;
+  padding: 10px 10px 5px;
+  color: var(--studio-text-3);
 }
 
-.spatial-editor .scene-object-list {
-  padding: 0 6px 8px;
+.spatial-editor .scene-section-heading small {
+  color: rgba(255,255,255,.28);
 }
 
-.spatial-editor .scene-object-row {
-  font-size: 11px;
-}
-
-.spatial-editor .scene-asset-search {
-  padding-top: 9px;
-}
-
+.spatial-editor .scene-object-list,
 .spatial-editor .scene-asset-list {
   min-height: 0;
-  display: grid;
-  align-content: start;
-  gap: 2px;
   overflow: auto;
   padding: 0 6px 8px;
   scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.12) transparent;
+}
+
+.spatial-editor .scene-object-row,
+.spatial-editor .scene-asset-row {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
 }
 
 .spatial-editor .scene-asset-row {
   min-width: 0;
-  min-height: 34px;
   display: grid;
-  grid-template-columns: 22px minmax(0,1fr) 24px;
-  gap: 6px;
+  grid-template-columns: 22px minmax(0,1fr) 26px;
   align-items: center;
-  padding: 3px 4px 3px 6px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--studio-text-2);
-  background: transparent;
-  cursor: grab;
-  font-size: 11px;
-}
-
-.spatial-editor .scene-asset-row:hover {
-  background: var(--studio-surface-2);
-}
-
-.spatial-editor .scene-asset-row:active {
-  cursor: grabbing;
+  gap: 7px;
+  padding-inline: 7px;
+  text-align: left;
 }
 
 .spatial-editor .scene-asset-glyph {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
-  border-radius: 5px;
-  color: #aebbe0;
-  background: rgba(111,156,255,.10);
-  font: 650 10px/1 var(--studio-font-mono);
+  border-radius: 4px;
+  font: 700 9px/1 var(--studio-font-mono);
 }
 
 .spatial-editor .scene-asset-copy {
   min-width: 0;
   display: grid;
   gap: 2px;
+  overflow: hidden;
 }
 
 .spatial-editor .scene-asset-copy strong,
 .spatial-editor .scene-asset-copy small {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.spatial-editor .scene-asset-copy strong {
-  color: var(--studio-text-2);
-  font-size: 10px;
-  font-weight: 570;
-}
-
-.spatial-editor .scene-asset-copy small {
-  color: var(--studio-text-3);
-  font: 500 7.5px/1.2 var(--studio-font-mono);
-}
-
 .spatial-editor .scene-asset-row > button {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 5px;
   color: var(--studio-text-3);
   background: transparent;
+  font: 500 16px/1 var(--studio-font-ui);
   cursor: pointer;
-  font-size: 15px;
 }
 
 .spatial-editor .scene-asset-row > button:hover {
@@ -314,45 +556,60 @@
   background: var(--studio-surface-3);
 }
 
+.spatial-editor .scene-object-row:hover,
+.spatial-editor .scene-asset-row:hover {
+  background: var(--studio-surface-2);
+}
+
+.spatial-editor .scene-object-row.active {
+  border-color: rgba(133,160,255,.14);
+  background: var(--studio-accent-soft);
+}
+
+.spatial-editor .scene-object-glyph,
+.spatial-editor .scene-asset-glyph {
+  color: #aab8e8;
+  background: rgba(133,160,255,.085);
+}
+
 .spatial-editor .scene-panel-footer {
-  min-height: 43px;
+  min-height: 44px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
   padding: 6px;
   border-top: 1px solid var(--studio-border);
+  background: #151619;
 }
 
 .spatial-editor .scene-panel-footer button {
   min-width: 0;
+  min-height: 31px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 6px;
   color: var(--studio-text-3);
   background: transparent;
   cursor: pointer;
-  font: 560 9px/1 var(--studio-font-ui);
 }
 
 .spatial-editor .scene-panel-footer button:hover {
   border-color: var(--studio-border);
-  color: var(--studio-text);
+  color: var(--studio-text-2);
   background: var(--studio-surface-2);
 }
 
 .spatial-editor .scene-panel-footer button:last-child {
-  color: #dbe6ff;
-  background: rgba(111,156,255,.12);
+  color: #dce4ff;
+  background: rgba(133,160,255,.10);
 }
 
-/* Right: one contextual surface. Navigation lives in the workspace dock;
- * the panel now renders only the active product or utility context.
- */
+/* Context panel ------------------------------------------------------------ */
 
 .spatial-editor .panel,
 .spatial-editor.world-first .panel {
   position: absolute;
-  z-index: 24;
-  top: 48px;
+  z-index: 28;
+  top: var(--studio-header-h);
   right: 0;
   bottom: 0;
   left: auto;
@@ -373,147 +630,125 @@
   display: grid;
 }
 
-/* Top-center editing tools: a separate floating control island. */
+/* Geometry snaps atomically. Animating viewport bounds stretches the WebGPU
+   canvas between renderer resizes and produces a visible one-frame wobble. */
+
+.spatial-editor.scene-collapsed .scene-panel {
+  display: none;
+}
+
+.spatial-editor.scene-collapsed .viewport,
+.spatial-editor.scene-collapsed.world-first .viewport {
+  left: 0;
+}
+
+.spatial-editor.scene-collapsed .brand-lockup {
+  width: auto;
+}
+
+.spatial-editor.scene-collapsed .artifact-tray-host {
+  left: 14px;
+}
+
+.spatial-editor.scene-collapsed .command-bar,
+.spatial-editor.scene-collapsed.world-first .command-bar {
+  left: calc((100vw - var(--studio-panel-w)) / 2);
+}
+
+/* Canvas tool dock --------------------------------------------------------- */
 
 .spatial-editor .editor-toolbar,
 .spatial-editor.world-first .editor-toolbar {
-  z-index: 36;
-  top: 10px;
-  left: 50%;
+  position: absolute;
+  z-index: 40;
+  top: auto;
   right: auto;
-  max-width: min(520px, calc(100vw - 760px));
+  bottom: 14px;
+  left: 50%;
+  width: max-content;
+  max-width: min(620px, calc(100% - 28px));
   min-width: 0;
-  height: 28px;
-  transform: translateX(-50%);
-  padding: 0 2px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
   gap: 2px;
-  border-color: transparent;
-  border-radius: 8px;
-  background: var(--studio-surface-1);
-  box-shadow: none;
-  backdrop-filter: none;
+  padding: 3px;
+  transform: translateX(-50%);
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 9px;
+  background: rgba(23,24,27,.96);
+  box-shadow: var(--studio-shadow-float);
 }
 
 .spatial-editor .editor-toolbar button,
 .spatial-editor .toolbar-more summary {
-  height: 28px;
-  border-radius: 6px;
-  font-size: 11px;
-}
-
-.spatial-editor .editor-toolbar button.active {
-  border-color: rgba(111,156,255,.30);
-  background: rgba(111,156,255,.18);
-}
-
-/* Bottom workspace switcher. WORLD / CREATE / AGENT are primary; utility
- * surfaces stay reachable without competing for first-level meaning.
- */
-
-.spatial-editor .world-dock {
-  position: absolute;
-  z-index: 42;
-  top: 10px;
-  left: calc(var(--studio-scene-w) + 12px);
-  bottom: auto;
-  transform: none;
-  max-width: calc(100vw - var(--studio-scene-w) - var(--studio-panel-w) - 360px);
-  height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.spatial-editor .world-dock button {
-  position: relative;
-  min-width: 0;
-  height: 28px;
-  padding: 0 12px;
-  border: 0;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid transparent;
   border-radius: 6px;
   color: var(--studio-text-2);
   background: transparent;
-  font: 500 11px/1 var(--studio-font-ui);
-  letter-spacing: 0;
-  text-transform: none;
+  cursor: pointer;
 }
 
-.spatial-editor .world-dock button:hover {
+.spatial-editor .editor-toolbar button:hover,
+.spatial-editor .toolbar-more summary:hover {
   color: var(--studio-text);
   background: var(--studio-surface-hover);
 }
 
-.spatial-editor .world-dock button.active {
-  color: var(--studio-text);
-  background: var(--studio-surface-3);
+.spatial-editor .editor-toolbar button.active {
+  border-color: rgba(133,160,255,.16);
+  color: #e8edff;
+  background: var(--studio-accent-soft);
 }
 
-.spatial-editor .world-dock button[data-dock-group="utility"] {
-  min-width: 48px;
-  color: #747780;
-  font-size: 8.5px;
-  text-transform: none;
+.spatial-editor .toolbar-divider {
+  height: 18px;
+  background: var(--studio-border-strong);
 }
 
-.spatial-editor .world-dock button[data-dock-view="resources"] {
-  margin-left: 7px;
-  box-shadow: -5px 0 0 -4px var(--studio-border-strong);
+.spatial-editor .toolbar-more {
+  position: relative;
 }
 
-.spatial-editor .world-dock button[data-dock-group="utility"].active {
-  color: var(--studio-text-2);
-  background: rgba(255,255,255,.055);
+.spatial-editor .toolbar-menu {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 7px);
+  width: 210px;
+  max-height: min(520px, calc(100vh - 100px));
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 9px;
+  background: #1b1d21;
+  box-shadow: var(--studio-shadow-float);
 }
 
-.spatial-editor .world-dock button.has-selection:not(.active)::after {
-  content: "";
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--studio-accent);
-}
-
-.spatial-editor .world-dock .dock-extension {
-  min-width: 34px;
-  margin-left: 3px;
-  border-left-color: var(--studio-border);
-  text-transform: none;
-}
-
-/* Task input and recent outputs belong to the central canvas, never to the
- * contextual side panel.
- */
+/* Agent command and generated artifacts ----------------------------------- */
 
 .spatial-editor .command-bar,
 .spatial-editor.world-first .command-bar {
-  z-index: 32;
-  left: calc(var(--studio-scene-w) + (100vw - var(--studio-scene-w) - var(--studio-panel-w)) / 2);
+  z-index: 36;
   right: auto;
-  bottom: 16px;
-  width: min(620px, calc(100vw - var(--studio-scene-w) - var(--studio-panel-w) - 32px));
+  bottom: 62px;
+  left: calc(var(--studio-scene-w) + (100vw - var(--studio-scene-w) - var(--studio-panel-w)) / 2);
+  width: min(620px, calc(100vw - var(--studio-scene-w) - var(--studio-panel-w) - 36px));
   transform: translateX(-50%);
+  background: rgba(23,24,27,.98);
+  backdrop-filter: none;
 }
 
 .spatial-editor .artifact-tray-host {
-  z-index: 20;
-  left: calc(var(--studio-scene-w) + 16px);
-  right: calc(var(--studio-panel-w) + 16px);
-  bottom: 16px;
+  z-index: 30;
+  right: calc(var(--studio-panel-w) + 14px);
+  bottom: 62px;
+  left: calc(var(--studio-scene-w) + 14px);
 }
 
 .spatial-editor:not(.context-open) .artifact-tray-host {
-  right: 20px;
+  right: 14px;
 }
 
 .spatial-editor:not(.context-open) .panel,
@@ -530,7 +765,7 @@
   display: grid;
 }
 
-/* Cinematic still means canvas-only. */
+/* Cinematic mode ----------------------------------------------------------- */
 
 .spatial-editor.cinematic .brandbar,
 .spatial-editor.cinematic .scene-panel,
@@ -542,12 +777,58 @@
   display: none;
 }
 
-/* Responsive collapse: preserve the canvas before preserving chrome. */
+.spatial-editor.cinematic .viewport,
+.spatial-editor.cinematic.context-open .viewport {
+  inset: 0;
+}
 
-@media (max-width: 1180px) {
+/* Responsive --------------------------------------------------------------- */
+
+@media (max-width: 1280px) {
+  :root {
+    --studio-scene-w: 232px;
+    --studio-panel-w: 340px;
+  }
+}
+
+@media (max-width: 1260px) {
+  .spatial-editor .scene-panel,
+  .spatial-editor.world-first .scene-panel {
+    width: 232px;
+  }
+
+  .spatial-editor .brand-lockup {
+    width: 232px;
+  }
+
+  .spatial-editor .viewport,
+  .spatial-editor.world-first .viewport {
+    left: 232px;
+  }
+
+  .spatial-editor .command-bar,
+  .spatial-editor.world-first .command-bar {
+    left: calc(232px + (100vw - 232px - var(--studio-panel-w)) / 2);
+    width: min(560px, calc(100vw - 232px - var(--studio-panel-w) - 30px));
+  }
+
+  .spatial-editor .artifact-tray-host {
+    left: 246px;
+  }
+
+  .spatial-editor .brand-lockup > span {
+    display: none;
+  }
+}
+
+@media (max-width: 1080px) {
   .spatial-editor .scene-panel,
   .spatial-editor.world-first .scene-panel {
     display: none;
+  }
+
+  .spatial-editor .brand-lockup {
+    width: auto;
   }
 
   .spatial-editor .viewport,
@@ -556,74 +837,73 @@
   }
 
   .spatial-editor.context-open .viewport {
-    right: 340px;
+    right: 336px;
   }
 
   .spatial-editor .panel,
   .spatial-editor.world-first .panel {
-    width: 340px;
-  }
-
-  .spatial-editor .artifact-tray-host {
-    left: 20px;
-    right: 368px;
-    bottom: 58px;
-  }
-
-  .spatial-editor .editor-toolbar,
-  .spatial-editor.world-first .editor-toolbar {
-    max-width: min(520px, calc(100vw - 380px));
+    width: 336px;
   }
 
   .spatial-editor .command-bar,
   .spatial-editor.world-first .command-bar {
-    left: calc((100vw - 340px) / 2);
-    bottom: 58px;
-    width: min(560px, calc(100vw - 400px));
+    left: calc((100vw - 336px) / 2);
+    width: min(560px, calc(100vw - 366px));
+  }
+
+  .spatial-editor .artifact-tray-host {
+    right: 350px;
+    left: 14px;
   }
 
   .spatial-editor .world-dock {
-    top: auto;
-    left: 50%;
-    bottom: 10px;
-    width: auto;
-    max-width: calc(100vw - 24px);
-    height: 38px;
-    padding: 3px;
-    overflow-x: auto;
-    transform: translateX(-50%);
-    border: 1px solid var(--studio-border-strong);
-    border-radius: 9px;
-    background: rgba(30,30,30,.96);
-    box-shadow: 0 10px 28px rgba(0,0,0,.24);
+    max-width: min(520px, calc(100vw - 430px));
   }
 }
 
 @media (max-width: 860px) {
-  .spatial-editor .brandbar,
-  .spatial-editor.world-first .brandbar {
-    inset: 8px 8px auto;
+  :root {
+    --studio-header-h: 44px;
+    --studio-panel-w: 336px;
   }
 
-  .spatial-editor .brand-lockup > span,
+  .spatial-editor .brand-lockup em,
   .spatial-editor .runtime-status span,
   .spatial-editor .header-button {
     display: none;
   }
 
+  .spatial-editor .world-select {
+    max-width: 154px;
+  }
+
+  .spatial-editor .world-dock {
+    top: auto;
+    bottom: 8px;
+    max-width: calc(100vw - 16px);
+    box-shadow: var(--studio-shadow-float);
+  }
+
+  .spatial-editor .viewport,
+  .spatial-editor.context-open .viewport {
+    right: 0;
+  }
+
   .spatial-editor .panel,
   .spatial-editor.world-first .panel {
-    top: 58px;
+    top: calc(var(--studio-header-h) + 8px);
     right: 8px;
-    bottom: 58px;
+    bottom: 52px;
     left: 8px;
     width: auto;
+    border: 1px solid var(--studio-border-strong);
+    border-radius: 10px;
+    box-shadow: var(--studio-shadow);
   }
 
   .spatial-editor .editor-toolbar,
   .spatial-editor.world-first .editor-toolbar {
-    top: 58px;
-    max-width: calc(100vw - 20px);
+    bottom: 52px;
   }
 
   .spatial-editor .artifact-tray-host {
@@ -632,38 +912,45 @@
 
   .spatial-editor .command-bar,
   .spatial-editor.world-first .command-bar {
-    left: 10px;
     right: 10px;
-    bottom: 58px;
+    bottom: 52px;
+    left: 10px;
     width: auto;
     transform: none;
-  }
-
-  .spatial-editor .world-dock {
-    bottom: 8px;
   }
 }
 
 @media (max-width: 620px) {
   .spatial-editor .brand-lockup strong {
-    display: none;
+    font-size: 12px;
   }
 
-  .spatial-editor .brand-lockup {
-    padding: 0 6px;
+  .spatial-editor .brand-lockup strong::before {
+    width: 13px;
+    height: 13px;
+    flex-basis: 13px;
   }
 
   .spatial-editor .world-select {
-    max-width: 132px;
+    max-width: 120px;
+  }
+
+  .spatial-editor .runtime-status {
+    display: none;
   }
 
   .spatial-editor .world-dock button {
-    min-width: 50px;
     padding-inline: 8px;
-    font-size: 8.5px;
+    font-size: 10.5px;
   }
 
   .spatial-editor .world-dock button[data-dock-group="utility"] {
-    min-width: 42px;
+    font-size: 9.5px;
+  }
+
+  .spatial-editor .editor-toolbar #duplicate,
+  .spatial-editor .editor-toolbar #delete,
+  .spatial-editor .toolbar-divider {
+    display: none;
   }
 }

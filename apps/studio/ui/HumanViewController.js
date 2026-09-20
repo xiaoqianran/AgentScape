@@ -131,6 +131,7 @@ export class HumanViewController {
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = label;
+      button.setAttribute('aria-pressed', 'false');
       button.addEventListener('click', () => this.setMode(mode));
       panel.append(button);
       this.buttons.push({ mode, button });
@@ -145,7 +146,11 @@ export class HumanViewController {
   }
 
   refreshPanel() {
-    for (const { mode, button } of this.buttons) button.classList.toggle('active', mode === this.mode);
+    for (const { mode, button } of this.buttons) {
+      const active = mode === this.mode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    }
   }
 
   setMode(mode) {

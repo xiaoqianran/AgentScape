@@ -172,11 +172,7 @@
 }
 
 .inline-input button {
-  transition: border-color .16s ease,background-color .16s ease,transform .16s ease;
-}
-
-.inline-input button:active {
-  transform: scale(.97);
+  transition: border-color .16s ease,background-color .16s ease;
 }
 
 .screen-heading .eyebrow {

@@ -94,8 +94,7 @@
   border-radius: 6px;
 }
 
-.cabin-editors button,
-.cabin-views button {
+.cabin-editors button {
   padding: 9px 12px;
   border: 1px solid #aaa18b;
   border-radius: 6px;
@@ -106,13 +105,41 @@
 
 .cabin-views {
   position: absolute;
-  z-index: 7;
-  top: 130px;
-  left: 18px;
+  z-index: 26;
+  top: 14px;
+  left: 14px;
   display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-  max-width: calc(100vw - 36px);
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 28px);
+  padding: 3px;
+  border: 1px solid var(--studio-border, rgba(255,255,255,.10));
+  border-radius: 8px;
+  background: rgba(23,24,27,.92);
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+
+.cabin-views button {
+  height: 28px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(236,239,246,.72);
+  font: 570 11.5px/1 var(--studio-font-ui, system-ui, sans-serif);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cabin-views button:hover {
+  background: rgba(255,255,255,.07);
+  color: #f6f7fb;
+}
+
+.cabin-views button.active {
+  background: rgba(133,160,255,.18);
+  color: #eef2ff;
 }
 
 .cabin-interact {
@@ -170,22 +197,51 @@
 }
 
 .human-views {
-  top: 180px;
+  top: 14px;
+  left: auto;
+  right: 14px;
+  gap: 2px;
 }
 
 .human-views button.active {
-  border-color: #756d5a;
-  background: #efe3c8;
+  background: rgba(133,160,255,.16);
+  color: #e4eaff;
 }
 
 .human-views-hint {
-  align-self: center;
-  padding: 6px 10px;
-  border: 1px solid #aaa18b;
-  border-radius: 6px;
-  background: #faf6eacc;
-  color: #5a5443;
-  font: 500 11px/1.4 var(--font-mono);
+  position: absolute;
+  top: 42px;
+  right: 0;
+  padding: 5px 7px;
+  border-radius: 5px;
+  background: rgba(17,19,22,.68);
+  color: rgba(230,233,240,.48);
+  font: 500 9.5px/1.2 var(--studio-font-mono, ui-monospace, monospace);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (max-width: 820px) {
+  .cabin-views {
+    left: 10px;
+    max-width: calc(100% - 20px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .cabin-views::-webkit-scrollbar {
+    display: none;
+  }
+
+  .human-views-hint {
+    display: none;
+  }
+
+  .human-views {
+    top: 50px;
+    left: 10px;
+    right: auto;
+  }
 }
 
 .asset-placement-hint {

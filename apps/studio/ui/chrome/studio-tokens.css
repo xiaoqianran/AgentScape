@@ -3,44 +3,43 @@
   --studio-font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --studio-font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
 
-  /* Dense neutral editor chrome: structure comes from spacing and 1px lines,
-   * not floating cards, gradients or heavy shadows. */
-  --studio-bg: #1e1e1e;
-  --studio-surface-1: #1e1e1e;
-  --studio-surface-2: rgba(255,255,255,.05);
-  --studio-surface-3: rgba(255,255,255,.10);
-  --studio-surface-hover: rgba(255,255,255,.08);
-  --studio-viewport: #181818;
+  /* AgentScape Studio 2026: quiet editor chrome, high-contrast work surface. */
+  --studio-bg: #101113;
+  --studio-surface-1: #17181b;
+  --studio-surface-2: #1c1e22;
+  --studio-surface-3: #24272c;
+  --studio-surface-hover: #202329;
+  --studio-viewport: #111315;
 
-  --studio-border: rgba(255,255,255,.05);
-  --studio-border-strong: rgba(255,255,255,.10);
-  --studio-text: rgba(255,255,255,.95);
+  --studio-border: rgba(255,255,255,.065);
+  --studio-border-strong: rgba(255,255,255,.115);
+  --studio-border-focus: rgba(133,160,255,.72);
+  --studio-text: rgba(255,255,255,.94);
   --studio-text-2: rgba(255,255,255,.70);
-  --studio-text-3: rgba(255,255,255,.46);
+  --studio-text-3: rgba(255,255,255,.43);
 
-  --studio-accent: #7aa2ff;
-  --studio-accent-soft: rgba(122,162,255,.14);
-  --studio-success: #74d6a0;
-  --studio-warning: #e6ba73;
-  --studio-danger: #ef8c92;
+  --studio-accent: #85a0ff;
+  --studio-accent-hover: #9ab1ff;
+  --studio-accent-soft: rgba(133,160,255,.13);
+  --studio-success: #78d7a4;
+  --studio-warning: #e9b86f;
+  --studio-danger: #ef858d;
 
-  /* Shared type scale. Feature styles consume these tokens instead of
-   * reaching across presentation ownership boundaries. */
-  --studio-type-title: 20px;
+  --studio-type-title: 19px;
   --studio-type-heading: 13px;
-  --studio-type-body: 12.5px;
+  --studio-type-body: 12px;
   --studio-type-control: 12px;
   --studio-type-meta: 10.5px;
 
   --studio-radius-sm: 6px;
   --studio-radius-md: 8px;
   --studio-radius-lg: 10px;
-  --studio-shadow: none;
-  --studio-shadow-float: none;
+  --studio-shadow: 0 16px 42px rgba(0,0,0,.28);
+  --studio-shadow-float: 0 12px 34px rgba(0,0,0,.34), 0 0 0 1px rgba(255,255,255,.04);
 
-  --studio-header-h: 48px;
+  --studio-header-h: 44px;
   --studio-gap: 8px;
   --studio-pad: 8px;
-  --studio-scene-w: 300px;
-  --studio-panel-w: 360px;
+  --studio-scene-w: 264px;
+  --studio-panel-w: 348px;
 }

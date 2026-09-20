@@ -54,34 +54,34 @@ textarea:disabled {
 
 :root {
   font-family: var(--studio-font-ui);
-  color: #e4e1e6;
-  background: #0e0e10;
-  --bg-canvas: #0e0e10;
-  --bg-shell: #131315;
-  --bg-panel: rgba(28,27,29,.86);
-  --bg-raised: #2a292c;
-  --bg-hover: #353437;
-  --line: rgba(228,225,230,.10);
-  --line-strong: rgba(210,188,255,.34);
-  --text: #e4e1e6;
-  --text-secondary: #c9c5d0;
-  --text-muted: #928f99;
-  --accent: #d2bcff;
-  --success: #a2f4ef;
-  --warning: #ffcf9f;
-  --danger: #ffb3b7;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --shadow-floating: 0 18px 54px rgba(0,0,0,.48),0 0 28px rgba(210,188,255,.035);
+  color: var(--studio-text);
+  background: var(--studio-bg);
+  --bg-canvas: var(--studio-viewport);
+  --bg-shell: var(--studio-surface-1);
+  --bg-panel: var(--studio-surface-1);
+  --bg-raised: var(--studio-surface-3);
+  --bg-hover: var(--studio-surface-hover);
+  --line: var(--studio-border);
+  --line-strong: var(--studio-border-strong);
+  --text: var(--studio-text);
+  --text-secondary: var(--studio-text-2);
+  --text-muted: var(--studio-text-3);
+  --accent: var(--studio-accent);
+  --success: var(--studio-success);
+  --warning: var(--studio-warning);
+  --danger: var(--studio-danger);
+  --radius-sm: var(--studio-radius-sm);
+  --radius-md: var(--studio-radius-md);
+  --radius-lg: var(--studio-radius-lg);
+  --shadow-floating: var(--studio-shadow-float);
   --font-mono: var(--studio-font-mono);
   --font-ui: var(--studio-font-ui);
-  --studio-workspace-pad: 12px;
-  --studio-workspace-gap: 10px;
-  --studio-scene-width: 220px;
-  --studio-panel-width: 372px;
-  --studio-overlay-left-inset: 18px;
-  --studio-overlay-right-inset: 28px;
+  --studio-workspace-pad: 8px;
+  --studio-workspace-gap: 8px;
+  --studio-scene-width: var(--studio-scene-w);
+  --studio-panel-width: var(--studio-panel-w);
+  --studio-overlay-left-inset: 16px;
+  --studio-overlay-right-inset: 16px;
   --studio-overlay-left: calc(var(--studio-workspace-pad) + var(--studio-scene-width) + var(--studio-workspace-gap) + var(--studio-overlay-left-inset));
   --studio-overlay-right: calc(var(--studio-workspace-pad) + var(--studio-panel-width) + var(--studio-overlay-right-inset));
 }
@@ -100,8 +100,7 @@ textarea:disabled {
   *::before,
   *::after {
     scroll-behavior: auto !important;
-    transition-duration: .01ms !important;
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
+    transition: none !important;
+    animation: none !important;
   }
 }

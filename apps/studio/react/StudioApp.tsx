@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { STUDIO_NAVIGATION } from '../navigation/StudioNavigation.js';
 import { GenerationJobCenterView } from './generation/GenerationJobCenterView';
 import { DeveloperSettingsView } from './developer/DeveloperSettingsView';
@@ -158,6 +159,7 @@ export function StudioApp({
   const closeContext = useStudioStore((state)=>state.closeContext);
   const setBuildAdvancedOpen = useStudioStore((state)=>state.setBuildAdvancedOpen);
   const [cinematic,setCinematic] = useState(false);
+  const [sceneCollapsed,setSceneCollapsed] = useState(false);
   const commandInputRef = useRef<HTMLInputElement|null>(null);
 
   const presentation = {
@@ -168,31 +170,44 @@ export function StudioApp({
   const generated = Boolean(presentation.generated);
   const worldSelectValue = generated ? `runtime:${presentation.persistenceSource || worldId}` : worldId;
 
-  const chooseView = (view:string) => openView(view as any);
+  const commitLayoutChange = (change:()=>void) => {
+    flushSync(change);
+    bridge.notifyLayout();
+  };
+
+  const chooseView = (view:string) => {
+    commitLayoutChange(()=>{
+      if (view !== 'world' && contextOpen && activeContextView === view) {
+        closeContext();
+        return;
+      }
+      openView(view as any);
+    });
+  };
 
   useEffect(()=>{
-    bridge.notifyLayout();
     if (contextOpen && activeContextView === 'task') requestAnimationFrame(()=>commandInputRef.current?.focus());
-  },[activeContextView,activeWorkspace,bridge,cinematic,contextOpen]);
+  },[activeContextView,activeWorkspace,contextOpen]);
 
   useEffect(()=>{
     const onKeyDown = (event:KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (cinematic) {
-        setCinematic(false);
+        commitLayoutChange(()=>setCinematic(false));
         return;
       }
-      if (contextOpen) closeContext();
+      if (contextOpen) commitLayoutChange(closeContext);
     };
     document.addEventListener('keydown',onKeyDown);
     return ()=>document.removeEventListener('keydown',onKeyDown);
-  },[cinematic,closeContext,contextOpen]);
+  },[bridge,cinematic,closeContext,contextOpen]);
 
   const shellClass = [
     'shell',
     'spatial-editor',
     presentation.worldFirst ? 'world-first' : '',
     contextOpen ? 'context-open' : '',
+    sceneCollapsed ? 'scene-collapsed' : '',
     cinematic ? 'cinematic' : ''
   ].filter(Boolean).join(' ');
 
@@ -202,7 +217,18 @@ export function StudioApp({
   return (
     <main className={shellClass} data-world={worldId} data-workspace={activeWorkspace} data-context-view={activeContextView}>
       <header className="brandbar">
-        <div className="brand-lockup"><strong>AgentScape <em>Studio</em></strong><span>{presentation.title}</span></div>
+        <div className="brand-lockup">
+          <button
+            id="scene-sidebar-toggle"
+            className="scene-sidebar-toggle"
+            type="button"
+            aria-label={sceneCollapsed ? '展开场景侧边栏' : '收起场景侧边栏'}
+            aria-expanded={!sceneCollapsed}
+            title={sceneCollapsed ? '展开场景侧边栏' : '收起场景侧边栏'}
+            onClick={()=>commitLayoutChange(()=>setSceneCollapsed((value)=>!value))}
+          ><span aria-hidden="true">{sceneCollapsed ? '›' : '‹'}</span></button>
+          <strong>AgentScape <em>Studio</em></strong><span>{presentation.title}</span>
+        </div>
         <div className="brand-actions">
           <label className="world-control">
             <span>世界</span>
@@ -226,7 +252,7 @@ export function StudioApp({
             aria-live="polite"
             onClick={()=>bridgeState.runtimeStatus.recoveryAction?.()}
           ><i /><span>{bridgeState.runtimeStatus.label}</span></button>
-          <button id="cinematic-toggle" className="header-button" type="button" aria-pressed={cinematic} onClick={()=>setCinematic((value)=>!value)}>
+          <button id="cinematic-toggle" className="header-button" type="button" aria-pressed={cinematic} onClick={()=>commitLayoutChange(()=>setCinematic((value)=>!value))}>
             {cinematic ? '返回编辑' : '沉浸模式'}
           </button>
           <button id="open-developer" className="icon-button" type="button" aria-label="打开开发者设置" title="开发者设置" onClick={()=>bridgeState.developerOpenHandler?.()}>⋯</button>
@@ -234,7 +260,7 @@ export function StudioApp({
       </header>
 
       <section className="workspace">
-        <aside className="scene-panel">
+        <aside className="scene-panel" aria-hidden={sceneCollapsed}>
           {content ? <SceneExplorerView {...content.sceneExplorer} /> : null}
         </aside>
         <div id="viewport" className="viewport">

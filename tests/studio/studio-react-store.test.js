@@ -25,14 +25,14 @@ describe('studio React store build outputs', () => {
     store().openView('resources');
     expect(store()).toMatchObject({activeWorkspace:'create',activeContextView:'resources',contextOpen:true});
     store().closeContext();
-    expect(store()).toMatchObject({activeWorkspace:'create',activeContextView:'create',contextOpen:true});
+    expect(store()).toMatchObject({activeWorkspace:'create',activeContextView:'resources',contextOpen:false});
 
     store().openView('task');
     expect(store()).toMatchObject({activeWorkspace:'agent',activeContextView:'task',contextOpen:true});
     store().openView('runs');
     expect(store()).toMatchObject({activeWorkspace:'agent',activeContextView:'runs',contextOpen:true});
     store().closeContext();
-    expect(store()).toMatchObject({activeWorkspace:'agent',activeContextView:'task',contextOpen:true});
+    expect(store()).toMatchObject({activeWorkspace:'agent',activeContextView:'runs',contextOpen:false});
 
     store().openView('world');
     expect(store()).toMatchObject({activeWorkspace:'world',contextOpen:false});

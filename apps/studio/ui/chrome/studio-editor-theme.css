@@ -1,21 +1,18 @@
 /*
- * Studio editor theme.
- *
- * Visual language is intentionally separated from spatial composition and
- * product feature CSS. The shell stays neutral and dense; feature panels own
- * their behavior while this layer enforces readable typography and consistent
- * editor chrome.
+ * AgentScape Studio visual system.
+ * Typography and control treatment only; spatial composition lives in
+ * studio-spatial.css and feature behavior remains feature-owned.
  */
 
 .shell.spatial-editor {
-  font-size: 13px;
+  font-size: 12px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 .spatial-editor .brand-lockup strong {
-  font-size: 14px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 640;
   letter-spacing: -.015em;
 }
 
@@ -23,319 +20,366 @@
 .spatial-editor .world-select,
 .spatial-editor .header-button,
 .spatial-editor .runtime-status {
-  font-size: 12px;
+  font-size: 11.5px;
 }
 
 .spatial-editor .brand-actions button,
 .spatial-editor .brand-actions select {
-  min-height: 32px;
-}
-
-.spatial-editor .world-dock {
-  gap: 3px;
+  font-weight: 520;
 }
 
 .spatial-editor .world-dock button {
-  height: 30px;
-  padding-inline: 12px;
-  border-radius: 7px;
-  font-size: 12.5px;
-  font-weight: 540;
-}
-
-.spatial-editor .world-dock button[data-dock-group="primary"] {
-  color: var(--studio-text-2);
-}
-
-.spatial-editor .world-dock button[data-dock-group="primary"].active,
-.spatial-editor .world-dock button[data-dock-group="primary"][aria-pressed="true"] {
-  color: var(--studio-text);
-  background: rgba(255,255,255,.10);
-}
-
-.spatial-editor .world-dock button[data-dock-group="utility"] {
-  min-width: 0;
-  padding-inline: 9px;
-  color: var(--studio-text-3);
   font-size: 11.5px;
-  font-weight: 500;
-}
-
-.spatial-editor .editor-toolbar {
-  height: 30px;
+  font-weight: 560;
 }
 
 .spatial-editor .editor-toolbar button,
 .spatial-editor .toolbar-more summary {
-  height: 30px;
-  padding-inline: 9px;
-  font-size: 12px;
-  font-weight: 520;
-}
-
-.spatial-editor .toolbar-menu {
-  padding: 6px;
-  border-color: var(--studio-border-strong);
-  border-radius: 8px;
-  background: #242424;
-  box-shadow: 0 12px 32px rgba(0,0,0,.28);
+  font-size: 11.5px;
+  font-weight: 540;
 }
 
 .spatial-editor .toolbar-menu button,
 .spatial-editor .toolbar-menu select {
-  min-height: 32px;
-  font-size: 12px;
+  min-height: 31px;
+  border-radius: 6px;
+  font-size: 11.5px;
+}
+
+.spatial-editor .toolbar-menu button:hover {
+  background: var(--studio-surface-hover);
 }
 
 .spatial-editor .toolbar-menu-label,
 .spatial-editor .toolbar-menu-status {
-  font-size: 10.5px;
+  color: var(--studio-text-3);
+  font-size: 10px;
   line-height: 1.45;
 }
 
-/* Left hierarchy: file/scenes/outliner pattern. */
-.spatial-editor .scene-panel-heading {
-  min-height: 48px;
-  padding: 10px 12px 7px;
-  border-bottom: 1px solid var(--studio-border);
-}
+/* Scene hierarchy ---------------------------------------------------------- */
 
 .spatial-editor .scene-panel-heading strong {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 620;
+  letter-spacing: -.01em;
 }
 
-.spatial-editor .scene-eyebrow,
 .spatial-editor .scene-count,
 .spatial-editor .scene-section-heading,
 .spatial-editor .scene-section-heading small {
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.2;
 }
 
-.spatial-editor .scene-panel-tabs {
-  min-height: 34px;
-  align-items: center;
-  margin-inline: 8px;
-}
-
 .spatial-editor .scene-panel-tabs button {
-  height: 28px;
-  padding-inline: 11px;
-  font-size: 13px;
-  font-weight: 540;
-}
-
-.spatial-editor .scene-search {
-  padding: 8px;
+  font-size: 11.5px;
+  font-weight: 560;
 }
 
 .spatial-editor .scene-search input {
-  height: 32px;
-  padding-inline: 10px;
-  font-size: 12.5px;
-}
-
-.spatial-editor .scene-world-card {
-  padding: 9px 10px;
-  border-radius: 7px;
+  padding-inline: 9px;
+  font-size: 11.5px;
 }
 
 .spatial-editor .scene-world-card strong {
-  font-size: 12px;
+  font-size: 11.5px;
   line-height: 1.3;
 }
 
 .spatial-editor .scene-world-card small {
-  font-size: 10.5px;
-  line-height: 1.35;
+  color: var(--studio-text-3);
+  font-size: 9.5px;
+  line-height: 1.3;
 }
 
 .spatial-editor .scene-object-row,
 .spatial-editor .scene-asset-row {
-  min-height: 40px;
-  padding-block: 5px;
-  font-size: 12.5px;
+  padding-block: 3px;
+  font-size: 11.5px;
 }
 
 .spatial-editor .scene-object-copy strong,
 .spatial-editor .scene-asset-copy strong {
-  font-size: 12.5px;
+  color: var(--studio-text-2);
+  font-size: 11.5px;
   font-weight: 560;
 }
 
 .spatial-editor .scene-object-copy small,
 .spatial-editor .scene-asset-copy small {
-  font-size: 10.5px;
+  color: var(--studio-text-3);
+  font-size: 9.5px;
   line-height: 1.25;
 }
 
-.spatial-editor .scene-panel-footer {
-  min-height: 48px;
-  padding: 7px;
-}
-
 .spatial-editor .scene-panel-footer button {
-  min-height: 32px;
-  font-size: 12px;
-  font-weight: 540;
+  font-size: 11px;
+  font-weight: 560;
 }
 
-/* Context inspector: Spline-like property column, but sized for AgentScape's
- * denser workflow copy. */
+/* Context surfaces --------------------------------------------------------- */
+
 .spatial-editor .panel {
-  font-size: 13px;
   color: var(--studio-text-2);
-  background: #1e1e1e;
+  background: var(--studio-surface-1);
+  font-size: 12px;
 }
 
 .spatial-editor .panel :where(p, li, dt, dd, span) {
-  font-size: 12.5px;
+  font-size: 11.5px;
   line-height: 1.48;
 }
 
 .spatial-editor .panel :where(button, input, select, textarea, label) {
-  font-size: 12.5px;
+  font-size: 11.5px;
   line-height: 1.3;
 }
 
 .spatial-editor .panel :where(small, code, kbd, em) {
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.35;
 }
 
 .spatial-editor .panel h1,
 .spatial-editor .screen-heading h1 {
-  font-size: 20px;
+  margin-block: 0;
+  color: var(--studio-text);
+  font-size: 18px;
   line-height: 1.18;
   font-weight: 640;
-  letter-spacing: -.025em;
+  letter-spacing: -.024em;
 }
 
 .spatial-editor .panel h2 {
-  font-size: 16px;
+  color: var(--studio-text);
+  font-size: 14px;
   line-height: 1.25;
+  font-weight: 620;
 }
 
 .spatial-editor .panel h3 {
-  font-size: 13px;
+  color: var(--studio-text-2);
+  font-size: 12px;
   line-height: 1.3;
+  font-weight: 600;
 }
 
 .spatial-editor .screen-heading .eyebrow {
-  margin-bottom: 7px;
-  font-size: 11px;
+  margin-bottom: 6px;
+  color: var(--studio-text-3);
+  font-size: 9.5px;
   line-height: 1;
-  letter-spacing: .08em;
+  letter-spacing: .09em;
 }
 
 .spatial-editor .screen-heading p {
-  margin-top: 8px;
+  margin-top: 7px;
   color: var(--studio-text-3);
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: 11.5px;
+  line-height: 1.48;
+}
+
+.spatial-editor .panel :where(input, select, textarea) {
+  border-color: var(--studio-border);
+  border-radius: 6px;
+  color: var(--studio-text-2);
+  background: #121417;
+  box-shadow: none;
+}
+
+.spatial-editor .panel :where(input, select, textarea):hover {
+  border-color: var(--studio-border-strong);
+}
+
+.spatial-editor .panel :where(input, select, textarea):focus {
+  border-color: var(--studio-border-focus);
+  outline: 0;
+  box-shadow: 0 0 0 2px rgba(133,160,255,.075);
+}
+
+.spatial-editor .panel :where(button) {
+  border-radius: 6px;
+}
+
+.spatial-editor .panel :where(button):focus-visible {
+  outline-color: var(--studio-border-focus);
 }
 
 .spatial-editor .product-flow {
-  gap: 7px;
-  margin-top: 10px;
-  font-size: 10.5px;
-  line-height: 1.2;
-  letter-spacing: .035em;
+  font-size: 9px;
 }
 
-/* Agent prompt: one strong input surface rather than another floating card. */
+/* Remove the old purple/glass visual language from product panels. */
+.spatial-editor :where(
+  .build-workbench,
+  .task-console,
+  .resource-console,
+  .runs-console,
+  .inspector,
+  .generation-console
+) {
+  color: var(--studio-text-2);
+  background: var(--studio-surface-1);
+}
+
+.spatial-editor :where(
+  .build-mode-tabs button.active,
+  .build-mode-tabs button[aria-pressed="true"],
+  .generation-job-row.selected,
+  .task-card.active,
+  .resource-row.active,
+  .runs-row.active
+) {
+  border-color: rgba(133,160,255,.20);
+  background: var(--studio-accent-soft);
+}
+
+.spatial-editor :where(
+  .generation-primary,
+  .build-primary,
+  .build-generate,
+  .task-primary
+) {
+  border-color: rgba(133,160,255,.42);
+  color: #eef2ff;
+  background: #5f7fe8;
+  box-shadow: none;
+}
+
+.spatial-editor :where(
+  .generation-primary,
+  .build-primary,
+  .build-generate,
+  .task-primary
+):hover:not(:disabled) {
+  border-color: rgba(154,177,255,.58);
+  background: #6f8dee;
+  box-shadow: none;
+}
+
+/* Agent prompt ------------------------------------------------------------- */
+
 .spatial-editor .command-bar {
-  min-height: 48px;
+  min-height: 46px;
   gap: 7px;
 }
 
 .spatial-editor .command-field {
-  min-height: 46px;
-  border-color: var(--studio-border-strong);
+  min-height: 44px;
+  border: 1px solid var(--studio-border-strong);
   border-radius: 9px;
-  background: rgba(30,30,30,.96);
-  box-shadow: 0 10px 28px rgba(0,0,0,.24);
+  background: rgba(20,22,25,.96);
+  box-shadow: var(--studio-shadow-float);
+}
+
+.spatial-editor .command-field:focus-within {
+  border-color: rgba(133,160,255,.48);
+  box-shadow: var(--studio-shadow-float), 0 0 0 2px rgba(133,160,255,.07);
+}
+
+.spatial-editor .command-prefix {
+  color: var(--studio-text-3);
 }
 
 .spatial-editor .command-field input {
-  font-size: 13px;
+  color: var(--studio-text);
+  font-size: 12px;
   line-height: 1.4;
 }
 
-.spatial-editor .command-bar > button {
-  min-height: 46px;
-  padding-inline: 14px;
-  border-radius: 9px;
-  font-size: 12.5px;
+.spatial-editor .command-field input::placeholder {
+  color: rgba(255,255,255,.30);
 }
 
-/* Generated output tray is visually subordinate to the viewport but remains
- * legible. */
-.spatial-editor .artifact-tray {
-  border-color: var(--studio-border-strong);
+.spatial-editor .command-bar > button {
+  min-height: 44px;
+  padding-inline: 13px;
+  border: 1px solid rgba(133,160,255,.35);
   border-radius: 9px;
-  background: rgba(30,30,30,.96);
-  box-shadow: 0 10px 28px rgba(0,0,0,.22);
+  color: #eef2ff;
+  background: #5f7fe8;
+  font-size: 11.5px;
+  font-weight: 650;
+  box-shadow: none;
+}
+
+.spatial-editor .command-bar > button:hover:not(:disabled) {
+  border-color: rgba(154,177,255,.54);
+  background: #6f8dee;
+}
+
+/* Artifact tray ------------------------------------------------------------ */
+
+.spatial-editor .artifact-tray {
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 9px;
+  background: rgba(23,24,27,.99);
+  box-shadow: var(--studio-shadow-float);
   backdrop-filter: none;
 }
 
 .spatial-editor .artifact-tray-header {
-  min-height: 36px;
+  min-height: 35px;
   padding-inline: 10px 7px;
+  border-bottom-color: var(--studio-border);
 }
 
 .spatial-editor .artifact-tray-title {
-  font-size: 11px;
-  letter-spacing: .05em;
+  color: var(--studio-text-2);
+  font-size: 10.5px;
+  letter-spacing: .045em;
 }
 
 .spatial-editor .artifact-tray-title small,
 .spatial-editor .artifact-tray-actions button,
 .spatial-editor .artifact-tray-continue,
 .spatial-editor .artifact-tray-save {
-  font-size: 10.5px;
-}
-
-.spatial-editor .artifact-tray-actions button {
-  min-width: 28px;
-  height: 26px;
-}
-
-.spatial-editor .artifact-tray-empty strong,
-.spatial-editor .artifact-tray-copy strong {
-  font-size: 12px;
-}
-
-.spatial-editor .artifact-tray-empty span,
-.spatial-editor .artifact-tray-copy small,
-.spatial-editor .artifact-tray-copy code,
-.spatial-editor .artifact-tray-copy em {
-  font-size: 10.5px;
+  font-size: 10px;
 }
 
 .spatial-editor .artifact-tray-item {
-  width: 220px;
-  min-width: 220px;
-  min-height: 104px;
+  width: 214px;
+  min-width: 214px;
+  min-height: 100px;
+  border-color: var(--studio-border);
   border-radius: 7px;
-  background: rgba(255,255,255,.025);
+  background: rgba(255,255,255,.02);
 }
 
-@media (max-width: 1180px) {
-  .spatial-editor .panel {
-    font-size: 12.5px;
-  }
+.spatial-editor .artifact-tray-item:hover {
+  border-color: var(--studio-border-strong);
+  background: rgba(255,255,255,.035);
+}
 
+.spatial-editor .artifact-tray-item.active {
+  border-color: rgba(133,160,255,.28);
+  background: var(--studio-accent-soft);
+}
+
+/* Dialogs ----------------------------------------------------------------- */
+
+.spatial-editor .developer-dialog {
+  border-color: var(--studio-border-strong);
+  border-radius: 11px;
+  background: #1a1c20;
+  box-shadow: 0 28px 80px rgba(0,0,0,.48);
+}
+
+@media (max-width: 1080px) {
   .spatial-editor .world-dock button {
-    padding-inline: 9px;
+    padding-inline: 8px;
   }
 }
 
 @media (max-width: 860px) {
   .spatial-editor .panel h1,
   .spatial-editor .screen-heading h1 {
-    font-size: 18px;
+    font-size: 17px;
+  }
+
+  .spatial-editor .command-field,
+  .spatial-editor .command-bar > button {
+    min-height: 42px;
   }
 }
-

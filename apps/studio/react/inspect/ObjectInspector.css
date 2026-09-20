@@ -182,11 +182,7 @@
 }
 
 .action-list button {
-  transition: border-color .16s ease,background-color .16s ease,transform .16s ease;
-}
-
-.action-list button:active {
-  transform: scale(.97);
+  transition: border-color .16s ease,background-color .16s ease;
 }
 
 .properties dd,

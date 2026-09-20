@@ -30,6 +30,47 @@ const createHarness = () => {
 };
 
 describe('RenderingSystem', () => {
+  it('keeps the renderer matched to container layout changes without redundant resizes', async () => {
+    const h = createHarness();
+    const scene = new THREE.Scene();
+    let observerCallback = null;
+    let observer = null;
+    class ResizeObserverStub {
+      constructor(callback) {
+        observerCallback = callback;
+        this.observe = vi.fn();
+        this.disconnect = vi.fn();
+        observer = this;
+      }
+    }
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene,
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory,
+      ResizeObserverClass:ResizeObserverStub
+    });
+
+    await rendering.init();
+    expect(observer.observe).toHaveBeenCalledWith(h.container);
+    expect(h.renderer.setSize).toHaveBeenCalledTimes(1);
+
+    observerCallback();
+    expect(h.renderer.setSize).toHaveBeenCalledTimes(1);
+
+    h.container.clientWidth = 640;
+    observerCallback();
+    expect(h.renderer.setSize).toHaveBeenCalledTimes(2);
+    expect(h.renderer.setSize).toHaveBeenLastCalledWith(640, 400, false);
+    expect(rendering.camera.aspect).toBe(1.6);
+
+    observerCallback();
+    expect(h.renderer.setSize).toHaveBeenCalledTimes(2);
+
+    rendering.dispose();
+    expect(observer.disconnect).toHaveBeenCalledOnce();
+  });
+
   it('owns renderer, camera, controls and environment presentation', async () => {
     const h = createHarness();
     const scene = new THREE.Scene();

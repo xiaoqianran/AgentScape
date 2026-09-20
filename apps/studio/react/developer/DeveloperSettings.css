@@ -242,12 +242,7 @@
 
 .button-row button,
 .secondary-button {
-  transition: border-color .16s ease,background-color .16s ease,transform .16s ease;
-}
-
-.button-row button:active,
-.secondary-button:active {
-  transform: scale(.97);
+  transition: border-color .16s ease,background-color .16s ease;
 }
 
 .technical-report {

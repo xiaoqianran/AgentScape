@@ -71,14 +71,22 @@ export function mountWorldInteraction({ world, ui, editor = null, host = null })
   ui.viewport.append(prompt);
   const controls = document.createElement('div');
   controls.className = 'cabin-views';
+  const viewButtons = [];
   for(const view of environment.views || []) {
     const button=document.createElement('button');
     button.type='button'; button.textContent=view.label;
+    button.setAttribute('aria-pressed','false');
     button.addEventListener('click',()=>{
+      for (const sibling of viewButtons) {
+        const active=sibling === button;
+        sibling.classList.toggle('active',active);
+        sibling.setAttribute('aria-pressed',String(active));
+      }
       viewport.camera.position.set(...view.position);
       viewport.controls.target.set(...view.target);
       viewport.controls.update();
     });
+    viewButtons.push(button);
     controls.append(button);
   }
   if (typeof environment.setCutaway === 'function') {

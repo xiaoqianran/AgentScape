@@ -15,6 +15,7 @@ export class RenderingSystem {
     rendererFactory = createRenderer,
     rendererMode = 'auto',
     rendererTiming = false,
+    ResizeObserverClass = globalThis.ResizeObserver,
     controlsFactory = (camera, domElement) => new OrbitControls(camera, domElement),
     environmentLoader = new HDRLoader(),
     postFxFactory = (options) => new WebGpuPostFxPipeline(options),
@@ -37,6 +38,7 @@ export class RenderingSystem {
     this.rendererFactory = rendererFactory;
     this.rendererMode = rendererMode;
     this.rendererTiming = Boolean(rendererTiming);
+    this.ResizeObserverClass = ResizeObserverClass;
     this.controlsFactory = controlsFactory;
     this.environmentLoader = environmentLoader;
     this.postFxFactory = postFxFactory;
@@ -55,6 +57,9 @@ export class RenderingSystem {
     this.postFx = null;
     this.generatedVisual = null;
     this.generatedVisualState = { status:'none', format:null, splatCount:0 };
+    this.resizeObserver = null;
+    this.resizeWidth = 0;
+    this.resizeHeight = 0;
     this.visualTask = Promise.resolve(false);
     this.decorationRoot = new THREE.Group();
     this.decorationRoot.name = '$visual-decorations';
@@ -123,6 +128,10 @@ export class RenderingSystem {
     this.controls = this.controlsFactory(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.resize();
+    if (typeof this.ResizeObserverClass === 'function') {
+      this.resizeObserver = new this.ResizeObserverClass(() => this.resize());
+      this.resizeObserver.observe(this.container);
+    }
     return this;
   }
 
@@ -317,6 +326,9 @@ export class RenderingSystem {
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     if (!width || !height || !this.camera || !this.renderer) return false;
+    if (width === this.resizeWidth && height === this.resizeHeight) return false;
+    this.resizeWidth = width;
+    this.resizeHeight = height;
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
@@ -334,6 +346,8 @@ export class RenderingSystem {
   }
 
   dispose() {
+    this.resizeObserver?.disconnect?.();
+    this.resizeObserver = null;
     this.environmentVersion += 1;
     this.releaseEnvironmentTexture();
     this.releaseGeneratedVisual();

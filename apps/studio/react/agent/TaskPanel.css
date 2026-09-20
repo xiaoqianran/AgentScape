@@ -507,15 +507,10 @@
 .task-card:hover {
   border-color: rgba(210,188,255,.38);
   background: rgba(81,54,120,.18);
-  transform: translateY(-1px);
 }
 
 .task-card {
-  transition: border-color .16s ease,background-color .16s ease,transform .16s ease;
-}
-
-.task-card:active {
-  transform: scale(.97);
+  transition: border-color .16s ease,background-color .16s ease;
 }
 
 .log-row {

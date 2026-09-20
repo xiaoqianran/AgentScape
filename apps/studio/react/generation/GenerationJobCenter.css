@@ -422,15 +422,10 @@
 .generation-job-row:hover {
   border-color: rgba(210,188,255,.38);
   background: rgba(81,54,120,.18);
-  transform: translateY(-1px);
 }
 
 .generation-job-row {
-  transition: border-color .16s ease,background-color .16s ease,transform .16s ease;
-}
-
-.generation-job-row:active {
-  transform: scale(.97);
+  transition: border-color .16s ease,background-color .16s ease;
 }
 
 .generation-job-row.selected {
