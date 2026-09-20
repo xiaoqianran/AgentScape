@@ -240,6 +240,84 @@ export class WorldCommands {
     };
   }
 
+  async approachAndActivateEnvironmentInteract(interactionId, { actorId = null, speed } = {}) {
+    this.assertReady('approachAndActivateEnvironmentInteract');
+    const runtime = this.runtime;
+    const skill = 'approachAndActivateEnvironmentInteract';
+    const item = (runtime.environment?.interactions || []).find((entry) => entry.id === interactionId);
+    if (!item) {
+      return { status:'interaction-not-found', skill, interactionId, environmentId:runtime.environment?.id || null };
+    }
+    if (typeof item.activate !== 'function') {
+      return { status:'interaction-not-executable', skill, interactionId, label:item.label || null };
+    }
+    if (!actorId) {
+      return { status:'actor-required', skill, interactionId };
+    }
+    const start = runtime.physics?.getPosition?.(actorId);
+    if (!start) {
+      return { status:'world-action-blocked', skill, interactionId, reason:'ACTOR_PHYSICS_UNAVAILABLE', actorId };
+    }
+    const target = (() => {
+      const object = item.object;
+      if (!object?.isObject3D) return null;
+      object.updateWorldMatrix?.(true, false);
+      const elements = object.matrixWorld?.elements;
+      return elements ? [elements[12], elements[13], elements[14]] : null;
+    })();
+    if (!target) {
+      return { status:'world-action-blocked', skill, interactionId, reason:'INTERACTION_POSITION_UNAVAILABLE', actorId };
+    }
+    const distanceToTarget = Math.hypot(target[0]-start[0], target[1]-start[1], target[2]-start[2]);
+    if (distanceToTarget <= 1.5) {
+      const activation = await this.activateEnvironmentInteraction(interactionId, { actorId });
+      return { ...activation, skill, phase:'activated', start:vec3Round(start), target:vec3Round(target), distance:round3(distanceToTarget) };
+    }
+    const navigation = runtime.navigation;
+    if (!navigation?.findPath) {
+      return { status:'world-action-blocked', skill, interactionId, reason:'NAVIGATION_UNAVAILABLE', actorId, target:vec3Round(target) };
+    }
+    const route = await navigation.findPath(start, target, { maxSnapDistance: 1.25 });
+    if (!route?.reachable) {
+      return {
+        status:'unreachable',
+        skill,
+        interactionId,
+        label:item.label || null,
+        actorId,
+        start:vec3Round(start),
+        target:vec3Round(target),
+        distance:round3(distanceToTarget),
+        reason:route?.reason || 'NO_PATH_TO_ENVIRONMENT_INTERACTION'
+      };
+    }
+    const end = Array.isArray(route.end?.snapped) ? route.end.snapped
+      : Array.isArray(route.path?.at?.(-1)) ? route.path.at(-1)
+      : target;
+    const navResult = await runtime.locomotion.navigate(actorId, end, { speed });
+    if (navResult?.status !== 'arrived') {
+      return {
+        ...navResult,
+        skill,
+        phase:'approach',
+        interactionId,
+        label:item.label || null,
+        target:vec3Round(target),
+        approach:vec3Round(end)
+      };
+    }
+    const activation = await this.activateEnvironmentInteraction(interactionId, { actorId });
+    return {
+      ...activation,
+      skill,
+      phase:'activated',
+      start:vec3Round(start),
+      approach:vec3Round(end),
+      target:vec3Round(target),
+      navigated:true
+    };
+  }
+
   pickup(id) {
     this.assertReady('pickup');
     return this.runtime.interactions.pickup(id);

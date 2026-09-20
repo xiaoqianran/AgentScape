@@ -13,10 +13,17 @@ export function registerAffordanceSkills(add,runtime) {
     radius: args.radius
   }));
   add('activateEnvironmentInteract', {
-    ...meta('激活环境原生 Three.js 交互（魔女小屋等场景自带物件）。interactionId 来自 listInteractablesNearMe.nativeInteractables 或 listEnvironmentInteractables。必须在 1.5m 内；OUT_OF_REACH 先 navigateTo 靠近。有 contractId 的会尽量走 WorldAffordances 验证；无契约的原生交互返回 environment-interaction-activated + provisional，不得当作力/关节物理已验证。', ['world.write','physics.read','world.read'], ['interactionId'], { interactionId:string, actorId:string }),
+    ...meta('激活环境原生 Three.js 交互（魔女小屋等场景自带物件）。interactionId 来自 listInteractablesNearMe.nativeInteractables 或 listEnvironmentInteractables。必须已在 1.5m 内；若距离不够请改用 approachAndActivateEnvironmentInteract。有 contractId 的会尽量走 WorldAffordances 验证；无契约的原生交互返回 environment-interaction-activated + provisional，不得当作力/关节物理已验证。', ['world.write','physics.read','world.read'], ['interactionId'], { interactionId:string, actorId:string }),
     mutates:true, batchable:false
   }, (args, execution) => commands.activateEnvironmentInteraction(args.interactionId, {
     actorId: args.actorId || execution?.context?.actor || null
+  }));
+  add('approachAndActivateEnvironmentInteract', {
+    ...meta('具身操作环境原生 Three.js 交互的首选单一工具：Runtime 负责按 interactionId 读取物件世界坐标 → Recast 寻路 → locomotion 走到可达点 → 1.5m 内执行激活/契约验证。不要手工拼 navigateTo 坐标。interactionId 来自 listEnvironmentInteractables / listInteractablesNearMe.nativeInteractables。返回 phase=activated 时才算走到并触发；native-provisional 不等于物理力验证。', ['world.write','spatial.read','physics.read','world.read'], ['interactionId'], { interactionId:string, actorId:string, speed:{type:'number',exclusiveMinimum:0,maximum:8} }),
+    mutates:true, batchable:false
+  }, (args, execution) => commands.approachAndActivateEnvironmentInteract(args.interactionId, {
+    actorId: args.actorId || execution?.context?.actor || null,
+    speed: args.speed
   }));
   add('inspectWorldAffordance',meta('读取物件状态、动作条件和验证类型。状态验证与物理验证分别报告。', ['world.read'],['targetId'],{targetId:string,actorId:string}),(args,execution)=>queries.inspectAffordance(args.targetId,{actorId:args.actorId || execution.context.actor}));
   add('executeWorldAction',{
