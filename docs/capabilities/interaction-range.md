@@ -946,7 +946,7 @@ settled
 
 这是 behavioral smoke，不是模型能力的确定性 benchmark；模型可能在某次 run 先尝试不合适的 pure `navigateTo`，但 Runtime/Probe 会拒绝错误路径，并要求最终使用高层具身工具。
 
-详细本地模型配置见 [`test-agent.md`](test-agent.md)。
+详细本地模型配置见 [`test-agent.md`](../modules/test-agent.md)。
 
 ---
 

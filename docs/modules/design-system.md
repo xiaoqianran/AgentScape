@@ -1,6 +1,6 @@
 # AgentScape Design System
 
-The canonical visual specification for both **Studio** and **Observatory** is [`../DESIGN.md`](../DESIGN.md).
+The canonical visual specification for both **Studio** and **Observatory** is [`../DESIGN.md`](../../DESIGN.md).
 
 All frontend work in `apps/studio/` and `apps/observatory/` should treat that file as the source of truth for:
 

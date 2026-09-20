@@ -1,6 +1,6 @@
 # AgentScape Execution Backlog
 
-> 本文保留早期任务拆分讨论，作为历史参考，不再维护任务状态。唯一任务真相源是各主要所有者旁边的 `tasks.jsonl`；文件发现、字段和更新规则见 [Planning](../planning/README.md)。`status-and-roadmap.md` 只负责产品成熟度与大方向。
+> 本文保留早期任务拆分讨论，作为历史参考，不再维护任务状态。唯一任务真相源是各主要所有者旁边的 `tasks.jsonl`；文件发现、字段和更新规则见 [Planning](../README.md)。`status-and-roadmap.md` 只负责产品成熟度与大方向。
 >
 > Last reviewed: 2026-09-10 · Repository: `AgentScape` · Baseline branch: `main`
 

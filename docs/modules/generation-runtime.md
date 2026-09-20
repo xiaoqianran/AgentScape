@@ -92,4 +92,4 @@ Provider-specific import tool 不属于默认 Agent surface。上游 payload ada
 
 Python SDK 与浏览器 Runtime 使用同一原则：只暴露 Unified Connector contract，不再暴露 Kaggle/direct Modal Provider client。
 
-详见 [`../sdk/python/README.md`](../sdk/python/README.md)。
+详见 [`../sdk/python/README.md`](../../sdk/python/README.md)。

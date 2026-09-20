@@ -98,4 +98,4 @@ See also:
 - [`deterministic-world-composer.md`](deterministic-world-composer.md)
 - [`bounded-world-regeneration.md`](bounded-world-regeneration.md)
 - [`world-viability.md`](world-viability.md)
-- [`generation-runtime.md`](generation-runtime.md)
+- [`generation-runtime.md`](../modules/generation-runtime.md)

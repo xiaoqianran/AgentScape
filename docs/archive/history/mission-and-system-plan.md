@@ -1,7 +1,7 @@
 # AgentScape 最终使命与系统规划
 
 > 本文描述 AgentScape 的 **Target Architecture / 目标架构** 与后续工作分解。
-> 当前已经真实存在的实现、状态所有权与调用链，以 [`architecture.md`](architecture.md) 为准；当前成熟度与近期任务，以 [`status-and-roadmap.md`](status-and-roadmap.md) 为准。
+> 当前已经真实存在的实现、状态所有权与调用链，以 [`architecture.md`](../../architecture.md) 为准；当前成熟度与近期任务，以 [`status-and-roadmap.md`](status-and-roadmap.md) 为准。
 
 ---
 

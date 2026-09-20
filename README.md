@@ -33,7 +33,7 @@ AgentScape 已经从早期的多仓库拼装架构收敛为两个产品代码边
 
 旧的 `AgentScape-agent`、`modal-inference-hub`、各独立 `modal-*` Provider 仓、`kaggle-inference-hub`、`modal-build`、`modal-lab` 与 AgentScape-owned `EmbodiedGen` checkout 都不再是当前仓库边界。Provider 内部仍可按 package/deployment unit 独立测试和部署，但统一归 `modal-provider` monorepo 管理。
 
-详见 [`docs/multi-repository-architecture.md`](docs/multi-repository-architecture.md) 与 [`docs/provider-integration-plan.md`](docs/provider-integration-plan.md)。
+详见 [`docs/multi-repository-architecture.md`](docs/architecture/multi-repository.md) 与 [`docs/provider-integration-plan.md`](docs/archive/history/provider-integration-plan.md)。
 
 ## 一眼看懂
 
@@ -91,7 +91,7 @@ Prompt / GLB / EmbodiedGen / External Generator
 | Asset Compiler | GLB inspection、Part/Joint、collider、resource budget、quality gate |
 | Observatory | Developer Runtime Lab：Physics / Spatial / Navigation / Interaction / Agent / Generation 单步与 replay；Generation Lab 可走真实 Artifact/Compiler/Admission，并验证生成资产的 spawn / pickup / carry / place |
 
-版本演进细节不再塞在 README；完整历史见 [`docs/evolution.md`](docs/evolution.md)，当前真实状态见 [`docs/status-and-roadmap.md`](docs/status-and-roadmap.md)。
+版本演进细节不再塞在 README；完整历史见 [`docs/evolution.md`](docs/archive/history/evolution.md)，当前真实状态见 [`docs/status-and-roadmap.md`](docs/archive/history/status-and-roadmap.md)。
 
 ## Generation → Asset → World
 
@@ -116,7 +116,7 @@ ready / provisional / rejected
 WorldIR canonical pipeline
 ```
 
-`ProviderRegistry` 默认不硬编码任何远程 Provider。`EmbodiedGenAdapter` 等 adapter 只属于 Asset compatibility/import implementation，不代表 AgentScape 的 Provider topology。详见 [`docs/generation-runtime.md`](docs/generation-runtime.md) 与 [`docs/generated-world-admission.md`](docs/generated-world-admission.md)。
+`ProviderRegistry` 默认不硬编码任何远程 Provider。`EmbodiedGenAdapter` 等 adapter 只属于 Asset compatibility/import implementation，不代表 AgentScape 的 Provider topology。详见 [`docs/generation-runtime.md`](docs/modules/generation-runtime.md) 与 [`docs/generated-world-admission.md`](docs/capabilities/generated-world-admission.md)。
 
 ## Generated World 主链
 
@@ -151,7 +151,7 @@ WorldValidator / RepairEngine
 world-ready / world-provisional / world-rejected
 ```
 
-WorldSpec 的未知字段会由 Runtime 自己 deterministic reject；不会依赖模型是否严格遵守 JSON Schema。 Search miss 且 Generator 已配置时，`runWorldPipeline` 还可在同一 mutation 内执行一次固定预算的内部 regeneration retry；详见 [`docs/bounded-world-regeneration.md`](docs/bounded-world-regeneration.md)。
+WorldSpec 的未知字段会由 Runtime 自己 deterministic reject；不会依赖模型是否严格遵守 JSON Schema。 Search miss 且 Generator 已配置时，`runWorldPipeline` 还可在同一 mutation 内执行一次固定预算的内部 regeneration retry；详见 [`docs/bounded-world-regeneration.md`](docs/capabilities/bounded-world-regeneration.md)。
 
 ## 核心设计原则
 
@@ -235,7 +235,7 @@ Quality gate
 ready / provisional / rejected
 ```
 
-浏览器保留保守 fallback；可选重型 Compiler 服务负责 trimesh / CoACD 等 enrichment。详见 [`docs/asset-compiler.md`](docs/asset-compiler.md) 与 [`services/asset-compiler/README.md`](services/asset-compiler/README.md)。
+浏览器保留保守 fallback；可选重型 Compiler 服务负责 trimesh / CoACD 等 enrichment。详见 [`docs/asset-compiler.md`](docs/modules/asset-compiler.md) 与 [`services/asset-compiler/README.md`](services/asset-compiler/README.md)。
 
 ## Curated Worlds
 
@@ -249,15 +249,15 @@ ready / provisional / rejected
 
 三个世界的建筑体块都进入 Three.js / Rapier / Recast，并提供 deterministic composer layout bounds。页面 World selector 使用独立 autosave，World Pack 通过 dynamic import 只加载当前内容。
 
-详见 [`docs/worlds.md`](docs/worlds.md) 与 [`docs/asset-sourcing.md`](docs/asset-sourcing.md)。
+详见 [`docs/worlds.md`](docs/capabilities/worlds.md) 与 [`docs/asset-sourcing.md`](docs/capabilities/asset-sourcing.md)。
 
 ## 外部 Gateway 与凭据
 
 GitHub Pages 是静态前端，模型密钥和重型服务凭据不应提交到浏览器代码或仓库。
 
-- LLM Gateway：[`docs/llm-gateway.md`](docs/llm-gateway.md)
-- 本地测试 Agent：[`docs/test-agent.md`](docs/test-agent.md)
-- Generation Runtime：[`docs/generation-runtime.md`](docs/generation-runtime.md)
+- LLM Gateway：[`docs/llm-gateway.md`](docs/modules/llm-gateway.md)
+- 本地测试 Agent：[`docs/test-agent.md`](docs/modules/test-agent.md)
+- Generation Runtime：[`docs/generation-runtime.md`](docs/modules/generation-runtime.md)
 - Heavy Asset Compiler：[`services/asset-compiler/README.md`](services/asset-compiler/README.md)
 
 `.env.local` 只用于本地测试，并应保持 Git ignore 与最小文件权限。
@@ -266,7 +266,7 @@ GitHub Pages 是静态前端，模型密钥和重型服务凭据不应提交到�
 
 对于有关节资产，可动部件应导出为稳定独立节点；旋转节点原点应放在真实转轴；行为、动作 target 与物理由 Manifest 描述，GLB 主要负责视觉与层级。推荐输出 glTF 2.0 Binary (`.glb`)。
 
-更完整约定与 Compiler 行为见 [`docs/asset-compiler.md`](docs/asset-compiler.md)。
+更完整约定与 Compiler 行为见 [`docs/asset-compiler.md`](docs/modules/asset-compiler.md)。
 
 ## 文档入口
 
@@ -294,7 +294,7 @@ verified recovery / counterfactual docs
 
 AgentScape 的架构是在实际阅读与对比成熟项目后收敛，而不是从空白重造，包括 EmbodiedGen、SceneSmith、Gizmo、Limina、Auto-Threejs、ObjaTHOR、CoACD、glTF-Transform 与 Articulate-Anything。
 
-研究记录：[`docs/research/engine-architecture-study.md`](docs/research/engine-architecture-study.md)、[`docs/research/asset-compiler-study.md`](docs/research/asset-compiler-study.md)、[`THIRD_PARTY.md`](THIRD_PARTY.md)。
+研究记录：[`docs/research/engine-architecture-study.md`](docs/archive/research/engine-architecture-study.md)、[`docs/research/asset-compiler-study.md`](docs/archive/research/asset-compiler-study.md)、[`THIRD_PARTY.md`](THIRD_PARTY.md)。
 
 ## 当前边界
 
@@ -323,4 +323,4 @@ npm run test:modal-e2e
 
 该跨仓库测试作为独立 gate 运行，不混入默认 `npm test` / `npm run check`，避免外部 Python 进程启动时间受 Vitest 并行负载干扰。
 
-`npm run architecture:validate` 会验证这一点：`sdk/python` 必须由 AgentScape 自己拥有，并拒绝任何 `providers/*` Git submodule。详见 [`docs/multi-repository-architecture.md`](docs/multi-repository-architecture.md) 与 [`docs/provider-integration-plan.md`](docs/provider-integration-plan.md)。
+`npm run architecture:validate` 会验证这一点：`sdk/python` 必须由 AgentScape 自己拥有，并拒绝任何 `providers/*` Git submodule。详见 [`docs/multi-repository-architecture.md`](docs/architecture/multi-repository.md) 与 [`docs/provider-integration-plan.md`](docs/archive/history/provider-integration-plan.md)。

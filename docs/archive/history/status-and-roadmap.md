@@ -123,7 +123,7 @@ runtime-world-usable
 
 但 canonical world admission 仍为 `provisional`，原因是当前 Asset/Layout evidence 仍带 `ASSET_PROVISIONAL / LAYOUT_PROVISIONAL`。因此“Runtime 可用”和“所有 admission evidence 已 ready”必须继续区分。
 
-本阶段同时补齐：canonical `INSIDE`、Manifest `receptacles`、cabinet shell collider、carry-aware overlap validation、placement clear-endpoint LOS，以及 restore-time Physics World rebuild。详见 [`world-viability.md`](world-viability.md)。
+本阶段同时补齐：canonical `INSIDE`、Manifest `receptacles`、cabinet shell collider、carry-aware overlap validation、placement clear-endpoint LOS，以及 restore-time Physics World rebuild。详见 [`world-viability.md`](../../capabilities/world-viability.md)。
 
 ---
 
@@ -201,7 +201,7 @@ Generation / Agent Build Lab
 → 更复杂的 Agent-generated World / Asset failure recovery
 ```
 
-详见 [`observatory.md`](observatory.md)。
+详见 [`observatory.md`](../../architecture/observability.md)。
 
 ---
 
@@ -260,7 +260,7 @@ canReach / findPath
 
 分成两种真实能力。当前 `NavigationSystem` 使用 lazy Recast/Detour，支持端点吸附、静态连通性、路径 waypoint 与 path cost；真实 cabinet GLB 已进入 E2E。
 
-1.9 当时的边界是：dynamic object / executable Part 不进入 static base，查询只承诺 `scope=static`。这个边界在 1.10 **没有被删除**，而是保留为 Recast base，再由 TileCache + Rapier collider 形成 current-world overlay；因此不要把 1.9 的 static base 与 1.10 的最终查询 scope 混为一谈。详细契约见 [`navigation.md`](navigation.md)。
+1.9 当时的边界是：dynamic object / executable Part 不进入 static base，查询只承诺 `scope=static`。这个边界在 1.10 **没有被删除**，而是保留为 Recast base，再由 TileCache + Rapier collider 形成 current-world overlay；因此不要把 1.9 的 static base 与 1.10 的最终查询 scope 混为一谈。详细契约见 [`navigation.md`](../../modules/navigation.md)。
 
 ---
 
