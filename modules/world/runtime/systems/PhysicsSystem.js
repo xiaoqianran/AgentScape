@@ -65,11 +65,22 @@ export class PhysicsSystem {
     this.inverseParentWorldRotation = new THREE.Quaternion();
   }
 
-  async init() {
+  async init(characterControllerOptions = null) {
     await this.backend.init();
     this.world = this.backend.createWorld();
+    this.characterControllerOptions = characterControllerOptions || this.characterControllerOptions || null;
     if (!this.solverEnabled || !this.backend.hasCapability('character-controller')) return this;
-    this.characterController=this.backend.createCharacterController(this.world);
+    this.characterController=this.backend.createCharacterController(this.world, this.characterControllerOptions || undefined);
+    return this;
+  }
+
+  setCharacterControllerOptions(options = null) {
+    this.characterControllerOptions = options && typeof options === 'object' ? options : null;
+    if (!this.world || !this.solverEnabled || !this.backend.hasCapability?.('character-controller')) return this;
+    if (this.characterController && this.backend.removeCharacterController) {
+      try { this.backend.removeCharacterController(this.world, this.characterController); } catch {}
+    }
+    this.characterController = this.backend.createCharacterController(this.world, this.characterControllerOptions || undefined);
     return this;
   }
 

@@ -82,6 +82,8 @@ export function createMagicCabin(options = {}) {
     rendering:{background:0xfdfbf6,fog:{color:0xfdfbf6,near:40,far:80},exposure:1},
     // 旋转楼梯步进偏高；Recast 需允许更大爬升，否则 character controller 上不了二楼。
     navigation:{ maxClimb:0.65, maxSlope:55, maxSnapDistance:0.75, endTolerance:0.35, agentRadius:0.28, agentHeight:1.75 },
+    // Rapier/KCC 默认 autostep 0.3m，旋转楼梯上不去。
+    physics:{ characterController:{ autostepHeight:0.55, autostepMinWidth:0.22, snapToGround:0.45, maxSlopeClimbAngle:1.0 } },
     interactions:content.interactions,
     affordances:content.affordances,
     setCamera:content.setCamera,

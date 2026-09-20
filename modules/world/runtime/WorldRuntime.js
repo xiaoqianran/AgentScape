@@ -120,6 +120,10 @@ export class WorldRuntime {
     this.scene.add(environment.root);
     this.rendering?.applyEnvironment(environment);
     this.physics.addEnvironment(environment.colliders,{id:environment.id});
+    const characterOptions = environment.physics?.characterController || environment.characterController || null;
+    if (characterOptions && typeof this.physics.setCharacterControllerOptions === 'function') {
+      this.physics.setCharacterControllerOptions(characterOptions);
+    }
     return environment;
   }
 
