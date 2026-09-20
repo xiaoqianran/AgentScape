@@ -1,5 +1,9 @@
 import { assetAdmission } from '../../asset/model/admission.js';
 
+const round3 = (value) => Number(value.toFixed(3));
+const vec3Round = (value) => Array.isArray(value) ? value.map(round3) : value;
+const yawFromQuat = ([x, y, z, w]) => Math.atan2(2 * (w * y + x * z), 1 - 2 * (y * y + z * z));
+
 export class WorldCommands {
   constructor(runtime) {
     if (!runtime) throw new TypeError('WorldCommands requires a WorldRuntime');
@@ -74,6 +78,74 @@ export class WorldCommands {
   navigate(id, end, options = {}) {
     this.assertReady('navigate');
     return this.runtime.locomotion.navigate(id, end, options);
+  }
+
+  async moveForward(id, { distance = 0.8, speed } = {}) {
+    this.assertReady('moveForward');
+    if (!this.runtime.store?.has?.(id)) {
+      const error = new Error(`Object not found: ${id}`);
+      error.code = 'OBJECT_NOT_FOUND';
+      throw error;
+    }
+    if (!Number.isFinite(distance) || distance <= 0 || distance > 4) {
+      const error = new Error('moveForward distance must be within (0, 4]');
+      error.code = 'MOVE_FORWARD_DISTANCE_INVALID';
+      throw error;
+    }
+    const record = this.runtime.store.get(id);
+    if (record.manifest?.type !== 'agent' || !record.manifest.actions?.includes('navigate')) {
+      const error = new Error(`Object is not a navigable agent: ${id}`);
+      error.code = 'NOT_NAVIGABLE_AGENT';
+      throw error;
+    }
+    if (record.manifest.physics?.body !== 'kinematic') {
+      const error = new Error(`Navigable agent must use a kinematic body: ${id}`);
+      error.code = 'NAVIGABLE_BODY_INVALID';
+      throw error;
+    }
+    const start = this.runtime.physics?.getPosition?.(id);
+    if (!start) {
+      const error = new Error(`Physics body not available: ${id}`);
+      error.code = 'PHYSICS_BODY_UNAVAILABLE';
+      throw error;
+    }
+    const rotation = this.runtime.physics?.getRotation?.(id);
+    if (!Array.isArray(rotation) || rotation.length !== 4 || !rotation.every(Number.isFinite)) {
+      const error = new Error(`Agent rotation unavailable: ${id}`);
+      error.code = 'AGENT_ROTATION_UNAVAILABLE';
+      throw error;
+    }
+    const yaw = yawFromQuat(rotation);
+    // 与 LocomotionSystem.steer 的 character facing 一致：[-sin(yaw), 0, -cos(yaw)]
+    const forward = [-Math.sin(yaw), 0, -Math.cos(yaw)];
+    const end = [
+      start[0] + forward[0] * distance,
+      start[1],
+      start[2] + forward[2] * distance
+    ];
+    const result = await this.runtime.locomotion.navigate(id, end, { speed });
+    const position = Array.isArray(result?.position) ? result.position : null;
+    const moved = position
+      ? Math.hypot(position[0] - start[0], position[2] - start[2])
+      : (result?.status === 'arrived' ? distance : 0);
+    const base = {
+      ...result,
+      skill: 'moveForward',
+      start: vec3Round(start),
+      end: vec3Round(end),
+      distance,
+      yaw: round3(yaw),
+      forward: vec3Round(forward),
+      moved: round3(moved)
+    };
+    if (result?.status === 'arrived' && moved < Math.max(0.05, distance * 0.35)) {
+      return {
+        ...base,
+        status: 'blocked',
+        reason: 'INSUFFICIENT_FORWARD_DISPLACEMENT'
+      };
+    }
+    return base;
   }
 
   pickup(id) {

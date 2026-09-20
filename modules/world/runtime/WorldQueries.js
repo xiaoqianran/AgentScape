@@ -2,6 +2,24 @@ import { composeObservedNearPlacement } from '../compiler/WorldComposer.js';
 import { listObservedEntities, resolveObservedEntity } from './ObservedEntity.js';
 import { uniformScaleValue } from './ObjectTransform.js';
 
+const INTERACTABLE_MANIFEST_ACTIONS = new Set([
+  'pickup', 'drop', 'place', 'open', 'close', 'read', 'write',
+  'turn_on', 'turn_off', 'pull_out', 'return', 'push', 'pull', 'toggle'
+]);
+const round3 = (value) => Number(value.toFixed(3));
+const vec3Round = (value) => Array.isArray(value) ? value.map(round3) : null;
+const horizontalAndVerticalDistance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+function partActionEvidence(manifest) {
+  const evidence = [];
+  for (const [partName, part] of Object.entries(manifest?.parts || {})) {
+    for (const action of part?.actions || []) {
+      if (Number.isFinite(part?.targets?.[action])) evidence.push({ partName, action, target: part.targets[action] });
+    }
+  }
+  return evidence;
+}
+
 export class WorldQueries {
   constructor(runtime) {
     this.runtime = runtime;
@@ -34,6 +52,119 @@ export class WorldQueries {
 
   getBounds(id) { return this.runtime.spatial.getBounds(id); }
   findNearby(id, radius = 2) { return this.runtime.spatial.findNearby(id, radius); }
+
+  listInteractablesNearMe({ actorId = null, radius = 3 } = {}) {
+    const runtime = this.runtime;
+    const id = actorId;
+    const limitRadius = Number.isFinite(radius) && radius > 0 ? Math.min(20, radius) : 3;
+    if (!id) return { status:'actor-required', schema:'agentscape.interactables-near-me.v1' };
+
+    const entries = runtime.store?.list?.() || [];
+    const actorRecord = entries.find(([key]) => key === id)?.[1]
+      || (runtime.store?.has?.(id) ? runtime.store.get(id) : null);
+    if (!actorRecord) {
+      return { status:'actor-not-found', schema:'agentscape.interactables-near-me.v1', actorId:id };
+    }
+
+    const feet = runtime.physics?.getPosition?.(id) || actorRecord.object?.position?.toArray?.() || null;
+    let nearby = [];
+    try {
+      nearby = runtime.spatial?.findNearby?.(id, limitRadius) || [];
+    } catch {
+      nearby = [];
+    }
+    const nearbyMap = new Map(nearby.map((entry) => [entry.id, entry]));
+
+    const objects = [];
+    for (const [objectId, record] of entries) {
+      if (objectId === id) continue;
+      const nearbyEntry = nearbyMap.get(objectId);
+      const position = runtime.physics?.getPosition?.(objectId) || record.object?.position?.toArray?.() || null;
+      let distance = Number.isFinite(nearbyEntry?.distance)
+        ? nearbyEntry.distance
+        : (position && feet ? horizontalAndVerticalDistance(position, feet) : null);
+      if (distance == null) {
+        if (!nearbyMap.has(objectId)) continue;
+        distance = null;
+      } else if (distance > limitRadius) {
+        continue;
+      }
+      const manifest = record.manifest || {};
+      const actions = [...(manifest.actions || [])];
+      const surfaces = (manifest.surfaces || []).map((surface) => surface?.id).filter(Boolean);
+      const partActions = partActionEvidence(manifest);
+      const interactiveActions = actions.filter((action) => INTERACTABLE_MANIFEST_ACTIONS.has(action));
+      const heldBy = record.state?.heldBy || null;
+      const canPlaceOnto = surfaces.length > 0;
+      const interactable = interactiveActions.length > 0 || partActions.length > 0 || canPlaceOnto;
+      objects.push({
+        id: objectId,
+        asset: record.assetId || manifest.id || null,
+        label: manifest.label || record.object?.name || record.assetId || objectId,
+        type: manifest.type || null,
+        distance: Number.isFinite(distance) ? round3(distance) : null,
+        position: vec3Round(position),
+        actions,
+        interactiveActions,
+        partActions,
+        surfaces,
+        canPlaceOnto,
+        interactable,
+        heldBy
+      });
+    }
+    objects.sort((left, right) => (left.distance ?? Infinity) - (right.distance ?? Infinity));
+
+    const affordanceResult = runtime.affordances?.list?.({ actorId:id, limit:50 }) || { entities:[] };
+    const affordances = [];
+    for (const entry of affordanceResult.entities || []) {
+      const actionDistance = (entry.actions || [])
+        .map((action) => action?.distance)
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b)[0];
+      let distance = actionDistance;
+      if (!Number.isFinite(distance) && Array.isArray(entry.position) && feet) {
+        distance = horizontalAndVerticalDistance(entry.position, feet);
+      }
+      if (Number.isFinite(distance) && distance > limitRadius) continue;
+      const actionList = (entry.actions || []).map((action) => ({
+        action: action.action,
+        available: action.available !== false,
+        reason: action.reason || null,
+        distance: Number.isFinite(action.distance) ? round3(action.distance) : null
+      }));
+      affordances.push({
+        id: entry.id,
+        label: entry.label,
+        kind: entry.kind,
+        distance: Number.isFinite(distance) ? round3(distance) : null,
+        position: vec3Round(entry.position),
+        actions: actionList,
+        available: actionList.some((action) => action.available),
+        evidenceKind: entry.evidenceKind || null,
+        physicsVerified: entry.physicsVerified === true
+      });
+    }
+    affordances.sort((left, right) => (left.distance ?? Infinity) - (right.distance ?? Infinity));
+
+    const interactables = objects.filter((entry) => entry.interactable);
+    return {
+      schema: 'agentscape.interactables-near-me.v1',
+      status: 'interactables-near-me',
+      actorId: id,
+      radius: limitRadius,
+      position: vec3Round(feet),
+      objects,
+      interactables,
+      affordances,
+      summary: {
+        objectCount: objects.length,
+        interactableCount: interactables.length,
+        affordanceCount: affordances.length,
+        inReachAffordanceCount: affordances.filter((entry) => entry.available).length
+      }
+    };
+  }
   raycast(origin, direction, maxDistance = 100) { return this.runtime.spatial.raycast(origin, direction, maxDistance); }
   overlaps(id, { ignore = [], margin = 0.01 } = {}) { return this.runtime.spatial.overlappingIds(id, { ignore, margin }); }
 

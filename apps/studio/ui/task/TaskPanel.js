@@ -210,18 +210,37 @@ export class TaskPanel {
     try {
       const demoRunner = demoId ? this.demoRunners?.[demoId] : null;
       const result = demoRunner ? await demoRunner.run(GENERATED_PLACEMENT_TASK) : await this.agent.run(prompt);
-      const completed = result.taskStatus === 'completed' || result.status === 'completed';
-      const tool = result.lastMutation?.tool || 'mutation';
-      const outcome = result.lastMutation?.outcome?.state || 'unknown';
+      const executedSteps = (result.execution || []).filter((entry) => entry.executed !== false);
+      const lastStep = result.lastMutation || executedSteps.at(-1) || null;
+      const tool = lastStep?.tool || 'query';
+      const outcome = lastStep?.outcome?.state || result.taskStatus || 'unknown';
+      const unresolved = result.unresolvedMutations || [];
+      const message = String(result.message || '');
+      const failedMessage = /incomplete|exceeded|失败|error/i.test(message) && result.taskStatus !== 'completed';
+      // 只读查询（如 listInteractablesNearMe）没有 mutation，不应被误判为未完成。
+      const readOnlyAnswered = result.taskStatus === 'no-mutation'
+        && !unresolved.length
+        && Boolean(message)
+        && !failedMessage
+        && executedSteps.length > 0
+        && executedSteps.every((entry) => entry.mutates !== true);
+      const completed = result.taskStatus === 'completed'
+        || result.status === 'completed'
+        || readOnlyAnswered;
       if (completed) {
-        this.setState('success','任务已完成',`${label} · 运行时验证通过。`);
-        this.log('任务状态：已完成 · 变更链已验证','result');
+        if (readOnlyAnswered) {
+          this.setState('success','查询完成',`${label} · ${message.slice(0, 80)}${message.length > 80 ? '…' : ''}`);
+          this.log('任务状态：查询完成 · 只读工具已返回结果','result');
+        } else {
+          this.setState('success','任务已完成',`${label} · 运行时验证通过。`);
+          this.log('任务状态：已完成 · 变更链已验证','result');
+        }
       } else {
         this.setState('partial','任务部分完成',`${label} · ${tool} → ${outcome}`);
         this.log(`任务状态：未完成 · ${tool} → ${outcome}`,'error');
       }
       const status = completed ? 'success' : 'partial';
-      const detail = completed ? (result.message || '运行时验证通过。') : `${tool} → ${outcome}`;
+      const detail = completed ? (message || '运行时验证通过。') : `${tool} → ${outcome}`;
       const journey = this.finishJourney({ result, status, detail });
       this.recordRun({ id:runId, title:label, prompt, status, durationMs:performance.now()-startedAt, detail:journeyRunDetail(journey), journey });
       return result;
