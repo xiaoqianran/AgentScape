@@ -335,13 +335,15 @@ export class WorldCommands {
     if (distanceToTarget <= 1.5) {
       const activation = await this.activateEnvironmentInteraction(interactionId, { actorId });
       runtime.navigation?.invalidate?.('environment-interaction-activated');
+      const navigationBuild = runtime.navigation?.ensureBuilt ? await runtime.navigation.ensureBuilt() : null;
       return {
         ...activation,
         skill, phase:'activated', start:vec3Round(start), target:vec3Round(target),
         distance:round3(distanceToTarget), navigated:false,
         navigationInvalidated:true,
+        navigationBuild: navigationBuild ? { success:navigationBuild.success === true, buildVersion:navigationBuild.buildVersion ?? null, code:navigationBuild.code || null } : null,
         nextStepHint:item.contractId
-          ? 'Door/path may have changed; call navigateTo/findPath on a fresh planning round before entering or climbing.'
+          ? 'NavMesh rebuilt after door/path change; call navigateTo/findPath on a fresh planning round before entering or climbing.'
           : 'Native activation does not rebuild NavMesh by itself.'
       };
     }
@@ -375,6 +377,8 @@ export class WorldCommands {
     }
     const activation = await this.activateEnvironmentInteraction(interactionId, { actorId });
     runtime.navigation?.invalidate?.('environment-interaction-activated');
+    // 门/路径类原生交互后立刻重建 NavMesh，避免下一轮 navigateTo 仍打在关门烘焙结果上。
+    const navigationBuild = runtime.navigation?.ensureBuilt ? await runtime.navigation.ensureBuilt() : null;
     return {
       ...activation,
       skill,
@@ -384,8 +388,9 @@ export class WorldCommands {
       target:vec3Round(target),
       navigated:true,
       navigationInvalidated:true,
+      navigationBuild: navigationBuild ? { success:navigationBuild.success === true, buildVersion:navigationBuild.buildVersion ?? null, code:navigationBuild.code || null } : null,
       nextStepHint:item.contractId
-        ? 'Fresh replan required: re-query path after the door/path change before entering or going upstairs.'
+        ? 'NavMesh rebuilt after door/path change; fresh replan then navigateTo/findPath before entering or going upstairs.'
         : 'Native activation does not rebuild NavMesh by itself.'
     };
   }

@@ -39,6 +39,41 @@ export function createMagicCabin(options = {}) {
     node.userData.navigationIgnore = false;
     colliders.push(meshCollider(node));
   });
+  // 螺旋楼梯可走代理：线稿踏步很薄，Recast erosion + agentRadius 容易把踏步抹掉。
+  // 在踏步中径铺一层略矮的实心盒，既进 NavMesh，也给 KCC 当落脚面。
+  {
+    const stairNavRoot = new THREE.Group();
+    stairNavRoot.name = 'CabinStairNavProxy';
+    const N = 10;
+    const FLOOR_TOP = 3.12;
+    const stepH = FLOOR_TOP / (N + 1);
+    const dTheta = 270 / N;
+    const thetaEnd = -60 - dTheta / 2;
+    const walkR0 = 0.32;
+    const walkR1 = 1.35;
+    const rc = (walkR0 + walkR1) / 2;
+    const width = walkR1 - walkR0;
+    const depth = Math.max(0.45, rc * dTheta * Math.PI / 180 * 1.35);
+    const proxyMat = new THREE.MeshBasicMaterial({ visible:false });
+    for (let k = 0; k < N; k += 1) {
+      const thDeg = thetaEnd - (N - 1 - k) * dTheta;
+      const th = thDeg * Math.PI / 180;
+      const yTop = (k + 1) * stepH;
+      const proxy = new THREE.Mesh(new THREE.BoxGeometry(width, 0.1, depth), proxyMat);
+      proxy.position.set(rc * Math.sin(th), yTop - 0.05, rc * Math.cos(th));
+      proxy.rotation.y = th;
+      proxy.userData.navigationIgnore = false;
+      proxy.userData.cabinStairNavProxy = true;
+      stairNavRoot.add(proxy);
+    }
+    root.add(stairNavRoot);
+    stairNavRoot.traverse(node => {
+      if (!node.isMesh) return;
+      node.userData.navigationIgnore = false;
+      node.matrixAutoUpdate = false;
+      node.updateMatrix();
+    });
+  }
   const floor = root.children.find(node=>node.isMesh && node.geometry.type==='PlaneGeometry');
   const proxies = new THREE.Group();
   proxies.name = 'CabinFurnitureCollision';
