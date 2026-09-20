@@ -7,10 +7,10 @@ export const DEFAULT_BASE_URL = 'https://newapi-jp1.202820.xyz/v1';
 export const DEFAULT_HOST = '127.0.0.1';
 export const DEFAULT_PORT = 8788;
 export const DEFAULT_MODELS = Object.freeze([
-  'google/diffusiongemma-26b-a4b-it',
-  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
   'nvidia/nemotron-3-super-120b-a12b',
-  'meta/muse-glimmer-30b'
+  'meta/muse-glimmer-30b',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
+  'google/diffusiongemma-26b-a4b-it'
 ]);
 export const DEFAULT_MODEL = DEFAULT_MODELS[0];
 export const ALTERNATE_MODEL = DEFAULT_MODELS[1];
@@ -23,6 +23,9 @@ const normalizeModels = ({ model, models } = {}) => {
 };
 
 const retryableUpstreamStatus = (status) => status === 408 || status === 425 || status === 429 || status >= 500;
+const retryableUpstreamMessage = (message = '') => /ResourceExhausted|rate.?limit|too many requests|overloaded|capacity/i.test(String(message));
+const retryDelayMs = (index) => Math.min(2000, 250 * (index + 1));
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function loadEnvFile(path = '.env.local', target = process.env) {
   if (!fs.existsSync(path)) return false;
@@ -176,7 +179,28 @@ export function createAgentGateway({ baseUrl, apiKey, model, models, fetchImpl =
       if (!upstream.ok) {
         const detail = payload.error?.message || `HTTP ${upstream.status}`;
         lastError = new Error(`OpenAI-compatible upstream failed for ${currentModel}: ${detail}`);
-        if (retryableUpstreamStatus(upstream.status) && index + 1 < modelChain.length) continue;
+        const retryable = retryableUpstreamStatus(upstream.status) || retryableUpstreamMessage(detail);
+        if (retryable && index + 1 < modelChain.length) {
+          await sleep(retryDelayMs(index));
+          continue;
+        }
+        if (retryable && index === modelChain.length - 1) {
+          // Single-model chain (e.g. probe ephemeral gateway): brief wait then one last try.
+          await sleep(800);
+          try {
+            const retry = await fetchImpl(chatUrl, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+              body: JSON.stringify(createUpstreamPayload(request, currentModel))
+            });
+            const retryPayload = await retry.json().catch(() => ({}));
+            if (retry.ok) return fromOpenAIResponse(retryPayload);
+            const retryDetail = retryPayload.error?.message || `HTTP ${retry.status}`;
+            lastError = new Error(`OpenAI-compatible upstream failed for ${currentModel}: ${retryDetail}`);
+          } catch (retryError) {
+            lastError = new Error(`OpenAI-compatible upstream transport failed for ${currentModel}: ${retryError.message}`);
+          }
+        }
         throw lastError;
       }
       return fromOpenAIResponse(payload);
