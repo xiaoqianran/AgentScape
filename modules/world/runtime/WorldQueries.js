@@ -10,6 +10,42 @@ const round3 = (value) => Number(value.toFixed(3));
 const vec3Round = (value) => Array.isArray(value) ? value.map(round3) : null;
 const horizontalAndVerticalDistance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
+function objectWorldPosition(object) {
+  if (!object) return null;
+  if (object.isObject3D) {
+    object.updateWorldMatrix?.(true, false);
+    const elements = object.matrixWorld?.elements;
+    if (Array.isArray(elements) || ArrayBuffer.isView(elements)) {
+      return [elements[12], elements[13], elements[14]];
+    }
+    const local = object.position;
+    return local ? [local.x, local.y, local.z] : null;
+  }
+  if (Array.isArray(object.position) && object.position.length === 3) return [...object.position];
+  return null;
+}
+
+function nativeInteractionEvidence(item, { feet, radius, catalog } = {}) {
+  const position = objectWorldPosition(item?.object);
+  const distance = position && feet ? horizontalAndVerticalDistance(position, feet) : null;
+  if (Number.isFinite(distance) && distance > radius) return null;
+  const contractId = item?.contractId || null;
+  return {
+    id: item.id,
+    label: item.label || item.object?.name || item.id,
+    contractId,
+    kind: contractId ? 'affordance-linked' : 'native-scene',
+    // formal contract → executeWorldAction；纯原生 Three.js 交互 → activateEnvironmentInteract
+    executeVia: contractId ? 'executeWorldAction' : 'activateEnvironmentInteract',
+    verification: contractId ? 'runtime-contract' : 'native-provisional',
+    distance: Number.isFinite(distance) ? round3(distance) : null,
+    position: vec3Round(position),
+    group: catalog?.groupOf?.(item) || null,
+    zone: typeof catalog?.labelOf === 'function' ? catalog.labelOf(item, { y: position?.[1] ?? 0 }) : null,
+    source: 'environment.interactions'
+  };
+}
+
 function partActionEvidence(manifest) {
   const evidence = [];
   for (const [partName, part] of Object.entries(manifest?.parts || {})) {
@@ -147,6 +183,17 @@ export class WorldQueries {
     }
     affordances.sort((left, right) => (left.distance ?? Infinity) - (right.distance ?? Infinity));
 
+    // 环境原生 Three.js 交互（如魔女小屋门/窗/座椅/摆件）：来自 environment.interactions，
+    // 不依赖 ObjectStore 资产 Manifest。有 contractId 的与 WorldAffordance 对齐；无契约的标为 native-provisional。
+    const nativeInteractables = [];
+    const catalog = runtime.environment?.catalog || null;
+    for (const item of runtime.environment?.interactions || []) {
+      if (!item?.id || typeof item.activate !== 'function') continue;
+      const evidence = nativeInteractionEvidence(item, { feet, radius: limitRadius, catalog });
+      if (evidence) nativeInteractables.push(evidence);
+    }
+    nativeInteractables.sort((left, right) => (left.distance ?? Infinity) - (right.distance ?? Infinity));
+
     const interactables = objects.filter((entry) => entry.interactable);
     return {
       schema: 'agentscape.interactables-near-me.v1',
@@ -154,14 +201,51 @@ export class WorldQueries {
       actorId: id,
       radius: limitRadius,
       position: vec3Round(feet),
+      environmentId: runtime.environment?.id || null,
       objects,
       interactables,
       affordances,
+      nativeInteractables,
       summary: {
         objectCount: objects.length,
         interactableCount: interactables.length,
         affordanceCount: affordances.length,
-        inReachAffordanceCount: affordances.filter((entry) => entry.available).length
+        inReachAffordanceCount: affordances.filter((entry) => entry.available).length,
+        nativeInteractableCount: nativeInteractables.length,
+        nativeContractLinkedCount: nativeInteractables.filter((entry) => entry.contractId).length,
+        nativeOnlyCount: nativeInteractables.filter((entry) => !entry.contractId).length
+      }
+    };
+  }
+
+  listEnvironmentInteractables({ actorId = null, radius = 20 } = {}) {
+    const runtime = this.runtime;
+    const limitRadius = Number.isFinite(radius) && radius > 0 ? Math.min(20, radius) : 20;
+    const id = actorId;
+    const record = id && (runtime.store?.has?.(id) || runtime.store?.list?.().some(([key]) => key === id))
+      ? (runtime.store?.has?.(id) ? runtime.store.get(id) : runtime.store.list().find(([key]) => key === id)?.[1])
+      : null;
+    const feet = (id && runtime.physics?.getPosition?.(id)) || record?.object?.position?.toArray?.() || null;
+    const catalog = runtime.environment?.catalog || null;
+    const items = [];
+    for (const item of runtime.environment?.interactions || []) {
+      if (!item?.id || typeof item.activate !== 'function') continue;
+      const evidence = nativeInteractionEvidence(item, { feet, radius: limitRadius, catalog });
+      if (evidence) items.push(evidence);
+    }
+    items.sort((left, right) => (left.distance ?? Infinity) - (right.distance ?? Infinity));
+    return {
+      schema: 'agentscape.environment-interactables.v1',
+      status: 'environment-interactables',
+      environmentId: runtime.environment?.id || null,
+      actorId: id,
+      radius: limitRadius,
+      position: vec3Round(feet),
+      items,
+      summary: {
+        count: items.length,
+        contractLinkedCount: items.filter((entry) => entry.contractId).length,
+        nativeOnlyCount: items.filter((entry) => !entry.contractId).length
       }
     };
   }

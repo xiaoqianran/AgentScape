@@ -148,6 +148,98 @@ export class WorldCommands {
     return base;
   }
 
+  activateEnvironmentInteraction(interactionId, { actorId = null, requireReach = true } = {}) {
+    this.assertReady('activateEnvironmentInteraction');
+    const runtime = this.runtime;
+    const interactions = runtime.environment?.interactions || [];
+    const item = interactions.find((entry) => entry.id === interactionId);
+    if (!item) {
+      return { status:'interaction-not-found', interactionId, environmentId:runtime.environment?.id || null };
+    }
+    if (typeof item.activate !== 'function') {
+      return { status:'interaction-not-executable', interactionId, label:item.label || null };
+    }
+
+    const position = (() => {
+      const object = item.object;
+      if (!object) return null;
+      if (object.isObject3D) {
+        object.updateWorldMatrix?.(true, false);
+        const elements = object.matrixWorld?.elements;
+        if (elements) return [elements[12], elements[13], elements[14]];
+      }
+      return null;
+    })();
+
+    if (requireReach && actorId) {
+      const feet = runtime.physics?.getPosition?.(actorId);
+      if (!feet) {
+        return { status:'world-action-blocked', interactionId, reason:'ACTOR_PHYSICS_UNAVAILABLE', actorId };
+      }
+      if (!position) {
+        return { status:'world-action-blocked', interactionId, reason:'INTERACTION_POSITION_UNAVAILABLE', actorId };
+      }
+      const distance = Math.hypot(position[0]-feet[0], position[1]-feet[1], position[2]-feet[2]);
+      if (distance > 1.5) {
+        return {
+          status:'world-action-blocked', interactionId, reason:'OUT_OF_REACH',
+          actorId, distance:round3(distance), maxDistance:1.5, position:vec3Round(position)
+        };
+      }
+      if (runtime.physics?.hasCapability?.('scene-query') && runtime.physics.raycast) {
+        const origin = [feet[0], feet[1] + 1.2, feet[2]];
+        const hit = runtime.physics.raycast(origin, position, { excludeId: actorId });
+        if (hit && hit.distance < distance - 0.12) {
+          return {
+            status:'world-action-blocked', interactionId, reason:'OCCLUDED',
+            actorId, blocker:hit.provenance || { id:hit.id }, distance:round3(distance)
+          };
+        }
+      }
+    }
+
+    // 有 formal contract 的原生物件：走 WorldAffordances 验证路径
+    if (item.contractId) {
+      const contract = runtime.affordances?.get?.(item.contractId);
+      if (contract) {
+        const state = contract.read?.() || {};
+        let action = null;
+        if (contract.kind === 'book') action = state.out ? 'return' : 'pull_out';
+        else if (contract.kind === 'switch') action = state.on ? 'turn_off' : 'turn_on';
+        else if (state.requestedOpen === true || state.out === true) action = 'close';
+        else if (state.requestedOpen === false || state.out === false) action = contract.kind === 'book' ? 'pull_out' : 'open';
+        if (action && contract.actions?.includes(action)) {
+          return runtime.affordances.execute({ targetId:item.contractId, action, actorId }, {});
+        }
+        item.activate();
+        return {
+          status:'environment-interaction-activated',
+          interactionId, label:item.label || null,
+          contractId:item.contractId,
+          via:'native-activate',
+          provisional:false,
+          verification:'runtime-contract'
+        };
+      }
+    }
+
+    item.activate();
+    return {
+      status:'environment-interaction-activated',
+      interactionId,
+      label:item.label || null,
+      contractId:item.contractId || null,
+      environmentId:runtime.environment?.id || null,
+      position:vec3Round(position),
+      via:'native-activate',
+      provisional:true,
+      verification:'native-provisional',
+      evidenceKind:'animated-transform',
+      physicsVerified:false,
+      note:'Native Three.js scene interaction; not force-verified articulated asset physics.'
+    };
+  }
+
   pickup(id) {
     this.assertReady('pickup');
     return this.runtime.interactions.pickup(id);
