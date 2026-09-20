@@ -1,6 +1,6 @@
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import * as THREE from 'three';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 
 it('uses Environment Pack colliders as real fixed Rapier geometry', async () => {
@@ -52,4 +52,18 @@ it('preflights a manifest collider pose against live Environment geometry withou
   expect(physics.checkManifestPose(manifest,[2,.01,2])).toMatchObject({checked:true,clear:true,blockedBy:[]});
   expect(physics.entries.size).toBe(entriesBefore);
   physics.dispose();
+});
+
+it('disposes temporary query shapes when pose preflight throws', async () => {
+  const physics=createRapierPhysicsSystem();
+  await physics.init();
+  const dispose=vi.spyOn(physics.backend,'disposeQueryShape');
+  vi.spyOn(physics.backend,'intersectionsWithShape').mockImplementation(()=>{ throw new Error('query failed'); });
+  const manifest={physics:{body:'fixed',colliders:[{shape:'box',halfExtents:[.3,.5,.3]}]}};
+  try {
+    expect(()=>physics.checkManifestPose(manifest,[0,0,0])).toThrow('query failed');
+    expect(dispose).toHaveBeenCalledTimes(1);
+  } finally {
+    physics.dispose();
+  }
 });

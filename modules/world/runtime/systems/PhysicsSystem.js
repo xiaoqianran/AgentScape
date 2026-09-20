@@ -578,14 +578,17 @@ export class PhysicsSystem {
       const rootRotation=new THREE.Quaternion(...quaternion).normalize();
       const position=new THREE.Vector3(...local).applyQuaternion(rootRotation).add(new THREE.Vector3(...targetPosition));
       const rotation=rootRotation.clone().multiply(new THREE.Quaternion(...(spec.rotation || [0,0,0,1]))).normalize();
-      this.backend.intersectionsWithShape(this.world,position,rotation,shape,(other)=>{
-        const provenance=this.provenanceOfCollider(other);
-        if (provenance?.kind==='object' && excluded.has(provenance.objectId)) return true;
-        blockedBy.add(provenance?.kind==='environment' ? `environment:${provenance.environmentId || '$environment'}`
-          : provenance?.kind==='object' ? `object:${provenance.objectId}:${provenance.partName || ROOT_PART}` : '$unknown');
-        return false;
-      });
-      this.backend.disposeQueryShape(shape);
+      try {
+        this.backend.intersectionsWithShape(this.world,position,rotation,shape,(other)=>{
+          const provenance=this.provenanceOfCollider(other);
+          if (provenance?.kind==='object' && excluded.has(provenance.objectId)) return true;
+          blockedBy.add(provenance?.kind==='environment' ? `environment:${provenance.environmentId || '$environment'}`
+            : provenance?.kind==='object' ? `object:${provenance.objectId}:${provenance.partName || ROOT_PART}` : '$unknown');
+          return false;
+        });
+      } finally {
+        this.backend.disposeQueryShape(shape);
+      }
       if (blockedBy.size) return {checked:true,clear:false,blockedBy:[...blockedBy].sort(),coverage:Object.keys(manifest.parts || {}).length?'root-only':'full-root'};
     }
     return {checked:true,clear:true,blockedBy:[],coverage:Object.keys(manifest.parts || {}).length?'root-only':'full-root'};

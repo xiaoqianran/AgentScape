@@ -123,6 +123,21 @@ describe('Authoring promotion into a real World', () => {
     expect(promotion.list().find(n=>n.nodeId==='draft').status).toBe('outdated');
   });
 
+  it('invalidates stale verification when the linked Runtime entity moves without changing promotion identity', async () => {
+    const { world, authoring, promotion } = await fixture();
+    addAsset(authoring);
+    const promoted = await promotion.promote('draft', {usage:'movable'});
+    expect(promotion.entries.get('draft').verification).toBeTruthy();
+
+    await world.mutate('test:move-promoted', async () => {
+      world.commands.transform(promoted.entityId, {position:[7, 1, 2]});
+    });
+
+    expect(promotion.entries.get('draft').linkId).toBe(promoted.linkId);
+    expect(promotion.entries.get('draft').verification).toBeNull();
+    expect(promotion.list().find(n=>n.nodeId==='draft').verification).toBeNull();
+  });
+
   it('rolls back a failed verification and a failed replacement without hiding the draft or losing the old entity', async () => {
     let fail = true;
     const { world, authoring, promotion } = await fixture({ verify:async()=>({ok:!fail, reason:'test failure'}) });
@@ -157,6 +172,7 @@ describe('Authoring promotion into a real World', () => {
     await controller.newWorld();
     await controller.openWorld(saved.id);
     expect((await promotion.restore()).status).toBe('authoring-restored');
+    expect(promotion.entries.get('draft').verification).toBeTruthy();
     expect(world.physics.getPosition(result.entityId)).toEqual([8, 1, 3]);
     expect(authoring.get('draft').visible).toBe(false);
     expect((await promotion.restore()).results).toEqual([]);

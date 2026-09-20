@@ -20,8 +20,22 @@ export class AuthoringPromotionController {
     this.documentId = uid('authoring');
     this.entries = new Map();
     this.busy = false;
-    this.stops = ['object.removed', 'scene.restored', 'environment.replaced', 'history.changed'].map(event =>
-      world.events.on(event, () => this.reconcile()));
+    this.stops = [
+      world.events.on('object.removed', () => this.reconcile()),
+      world.events.on('scene.restored', () => { this.invalidateVerification(); this.reconcile(); }),
+      world.events.on('environment.replaced', () => { this.invalidateVerification(); this.reconcile(); }),
+      world.events.on('history.changed', () => this.reconcile()),
+      world.events.on('object.transformed', ({ id } = {}) => {
+        this.invalidateVerification(entry => entry.entityId === id);
+        this.reconcile();
+      })
+    ];
+  }
+
+  invalidateVerification(predicate = null) {
+    for (const entry of this.entries.values()) {
+      if (entry.verification && (!predicate || predicate(entry))) entry.verification = null;
+    }
   }
 
   exportState() {
