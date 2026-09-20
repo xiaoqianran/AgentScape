@@ -129,9 +129,11 @@ export class WorldRuntime {
   }
 
   createEnvironmentSystems() {
+    const environmentNavConfig = this.environment?.navigation || this.environment?.navigationConfig || {};
     this.navigation = new NavigationSystem({
       store:this.store,physics:this.physics,environmentRoots:[this.environment.navigationRoot || this.environment.root],
-      backend:this.navigationBackendFactory()
+      backend:this.navigationBackendFactory(),
+      config: environmentNavConfig
     });
     this.locomotion = new LocomotionSystem({ store:this.store, physics:this.physics, navigation:this.navigation, events:this.events });
     this.interactions = new InteractionSystem({

@@ -80,6 +80,8 @@ export function createMagicCabin(options = {}) {
     layout:{bounds:{min:[-11,-11],max:[11,11]},groundY:0,margin:1},
     camera:{position:[13,10,-15],target:[0,2.5,0]},
     rendering:{background:0xfdfbf6,fog:{color:0xfdfbf6,near:40,far:80},exposure:1},
+    // 旋转楼梯步进偏高；Recast 需允许更大爬升，否则 character controller 上不了二楼。
+    navigation:{ maxClimb:0.65, maxSlope:55, maxSnapDistance:0.75, endTolerance:0.35, agentRadius:0.28, agentHeight:1.75 },
     interactions:content.interactions,
     affordances:content.affordances,
     setCamera:content.setCamera,

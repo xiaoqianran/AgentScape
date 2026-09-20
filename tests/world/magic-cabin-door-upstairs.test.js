@@ -20,7 +20,12 @@ function cabinRuntimeWithNav({ agentStart = [6, 0, -5] } = {}) {
     object: { position: { toArray: () => [...positions.agent_01] } },
     state: {}
   });
-  const navigation = createRecastNavigationSystem({ store, environmentRoots: [cabin.root] });
+  const navigation = createRecastNavigationSystem({
+    store,
+    environmentRoots: [cabin.root],
+    backendOptions: {},
+    ...(cabin.navigation || {})
+  });
   const runtime = {
     ready: true,
     environment: cabin,
