@@ -13,6 +13,7 @@ function defaultIdFactory() {
 export class AuthoringWorldController {
   constructor({
     authoring,
+    promotion = null,
     store,
     resolveModel = null,
     idFactory = defaultIdFactory
@@ -25,12 +26,14 @@ export class AuthoringWorldController {
     }
 
     this.authoring = authoring;
+    this.promotion = promotion;
     this.store = store;
     this.resolveModel = resolveModel;
     this.idFactory = idFactory;
     this.currentId = null;
     this.currentName = 'Untitled World';
     this.savedDocument = clone(authoring.export());
+    this.savedPromotions = clone(promotion?.exportState() || null);
   }
 
   status() {
@@ -44,7 +47,8 @@ export class AuthoringWorldController {
 
   isDirty() {
     if (!this.savedDocument) return true;
-    return !diffAuthoringDocuments(this.savedDocument, this.authoring.export()).empty;
+    return !diffAuthoringDocuments(this.savedDocument, this.authoring.export()).empty
+      || JSON.stringify(this.savedPromotions) !== JSON.stringify(this.promotion?.exportState() || null);
   }
 
   async list() {
@@ -52,36 +56,53 @@ export class AuthoringWorldController {
   }
 
   async newWorld({ name = 'Untitled World' } = {}) {
+    if (this.fileBusy || this.promotion?.busy) throw new Error('创作存档或晋升操作尚未完成');
+    this.promotion?.loadState();
     this.authoring.clear();
     const document = this.authoring.export();
     this.authoring.load(document, { label:'New world' });
     this.currentId = null;
     this.currentName = String(name || 'Untitled World');
     this.savedDocument = clone(document);
+    this.savedPromotions = clone(this.promotion?.exportState() || null);
     return this.status();
   }
 
   async openWorld(id) {
-    const record = await this.store.load(id);
-    if (!record) throw new TypeError('Authoring world not found: ' + id);
+    if (this.fileBusy || this.promotion?.busy) throw new Error('创作存档或晋升操作尚未完成');
+    this.fileBusy = true;
+    if (this.promotion) this.promotion.fileBusy = true;
+    try {
+      const record = await this.store.load(id);
+      if (!record) throw new TypeError('Authoring world not found: ' + id);
+      this.promotion?.validateState(record.promotions);
 
-    await this.authoring.loadAsync(record.document, {
-      resolveModel:this.resolveModel,
-      label:'Open ' + (record.name || record.id)
-    });
+      await this.authoring.loadAsync(record.document, {
+        resolveModel:this.resolveModel,
+        label:'Open ' + (record.name || record.id)
+      });
 
-    this.currentId = record.id;
-    this.currentName = record.name || record.id;
-    this.savedDocument = clone(record.document);
-    return this.status();
+      this.promotion?.loadState(record.promotions);
+
+      this.currentId = record.id;
+      this.currentName = record.name || record.id;
+      this.savedDocument = clone(record.document);
+      this.savedPromotions = clone(this.promotion?.exportState() || null);
+      return this.status();
+    } finally {
+      this.fileBusy = false;
+      if (this.promotion) this.promotion.fileBusy = false;
+    }
   }
 
   async save({ name = null } = {}) {
+    if (this.fileBusy || this.promotion?.busy) throw new Error('创作存档或晋升操作尚未完成');
     const id = this.currentId || this.idFactory();
     const nextName = String(name || this.currentName || id);
     const document = this.authoring.export();
 
-    const record = await this.store.save({ id, name:nextName, document });
+    const promotions = this.promotion?.exportState() || null;
+    const record = await this.store.save({ id, name:nextName, document, promotions });
     this.authoring.commit({
       label:'Save ' + nextName,
       source:'save'
@@ -90,16 +111,19 @@ export class AuthoringWorldController {
     this.currentId = record.id;
     this.currentName = record.name;
     this.savedDocument = clone(document);
+    this.savedPromotions = clone(promotions);
     return clone(record);
   }
 
   async saveAs({ id = null, name = null } = {}) {
+    if (this.fileBusy || this.promotion?.busy) throw new Error('创作存档或晋升操作尚未完成');
     const nextId = String(id || this.idFactory()).trim();
     if (!nextId) throw new TypeError('Save As requires a world id');
     const nextName = String(name || this.currentName || nextId);
     const document = this.authoring.export();
 
-    const record = await this.store.save({ id:nextId, name:nextName, document });
+    const promotions = this.promotion?.exportState() || null;
+    const record = await this.store.save({ id:nextId, name:nextName, document, promotions });
     this.authoring.commit({
       label:'Save As ' + nextName,
       source:'save'
@@ -108,6 +132,7 @@ export class AuthoringWorldController {
     this.currentId = record.id;
     this.currentName = record.name;
     this.savedDocument = clone(document);
+    this.savedPromotions = clone(promotions);
     return clone(record);
   }
 }

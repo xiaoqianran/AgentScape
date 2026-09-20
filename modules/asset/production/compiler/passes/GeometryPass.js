@@ -17,7 +17,7 @@ export class GeometryPass {
     const warnings = [...context.structure.warnings];
     if (!Number.isFinite(maxSide) || maxSide <= 0) warnings.push({ code: 'GEOMETRY_EMPTY', severity: 'hard', message: '资产几何为空或 Bounds 无效。' });
     if (maxSide > 100 || (maxSide > 0 && maxSide < 0.001)) warnings.push({ code: 'SCALE_SUSPICIOUS', severity: 'advisory', message: `最长边为 ${maxSide}m，物理尺度可能异常。` });
-    if (Math.abs(min[1]) > 1e-5) warnings.push({ code: 'GROUND_NORMALIZATION_FAILED', severity: 'hard', message: `规范化后最低点仍为 y=${min[1]}。` });
+    if (!context.authoringIntent && Math.abs(min[1]) > 1e-5) warnings.push({ code: 'GROUND_NORMALIZATION_FAILED', severity: 'hard', message: `规范化后最低点仍为 y=${min[1]}。` });
     return {
       ...context,
       geometry: {

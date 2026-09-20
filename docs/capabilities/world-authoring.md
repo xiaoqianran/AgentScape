@@ -245,7 +245,7 @@ restored subtree
 semantically equivalent AuthoringDocument
 ```
 
-Promotion into WorldSpec / WorldIR is deliberately outside v1. Saving a visual authoring document and turning authored content into formal World Entities are separate operations.
+Promotion into WorldSpec / WorldIR is deliberately outside the v1 document format. The application now provides [explicit Asset/World Entity promotion](authoring-promotion.md). Saving a visual authoring document and turning authored content into formal World Entities remain separate operations.
 
 ## Expanded authoring capabilities
 

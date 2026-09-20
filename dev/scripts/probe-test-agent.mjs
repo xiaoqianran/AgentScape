@@ -145,6 +145,7 @@ const server = startServer({
   baseUrl:process.env.AGENTSCAPE_TEST_LLM_BASE_URL || DEFAULT_BASE_URL,
   apiKey,
   model,
+  models:process.env.AGENTSCAPE_TEST_LLM_MODELS || undefined,
   host:'127.0.0.1',
   port:0,
   quiet:true

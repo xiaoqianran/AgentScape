@@ -99,7 +99,9 @@ export class PhysicsSystem {
     if(previousWorld) this.backend.dispose(previousWorld);
     this.world=this.backend.createWorld();
     if(this.solverEnabled && this.backend.hasCapability('character-controller')) {
-      this.characterController=this.backend.createCharacterController(this.world);
+      // Preserve environment KCC options (e.g. cabin autostep); otherwise restore/reset
+      // silently reverts to backend defaults and stairs become unwalkable.
+      this.characterController=this.backend.createCharacterController(this.world, this.characterControllerOptions || undefined);
     }
     return this;
   }
@@ -559,7 +561,7 @@ export class PhysicsSystem {
     return { position:anchorPosition.toArray(), rotation:worldRotation.toArray() };
   }
 
-  checkManifestPose(manifest, targetPosition, { excludeIds = [] } = {}) {
+  checkManifestPose(manifest, targetPosition, { excludeIds = [], quaternion = [0,0,0,1] } = {}) {
     if (!this.backend.hasCapability('collision')) return {checked:false,clear:false,reason:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision'};
     const colliders=manifest?.physics?.colliders || [];
     if (!colliders.length) return {checked:false,clear:false,reason:'ROOT_COLLIDER_UNAVAILABLE'};
@@ -573,8 +575,9 @@ export class PhysicsSystem {
       const spec=colliders[i],shape=shapeFor(spec);
       if (!shape) return {checked:false,clear:false,reason:'ROOT_COLLIDER_UNSUPPORTED',collider:i,shape:spec.shape || null};
       const local=spec.translation || [0,0,0];
-      const position={x:targetPosition[0]+local[0],y:targetPosition[1]+local[1],z:targetPosition[2]+local[2]};
-      const rotation=spec.rotation ? {x:spec.rotation[0],y:spec.rotation[1],z:spec.rotation[2],w:spec.rotation[3]} : {x:0,y:0,z:0,w:1};
+      const rootRotation=new THREE.Quaternion(...quaternion).normalize();
+      const position=new THREE.Vector3(...local).applyQuaternion(rootRotation).add(new THREE.Vector3(...targetPosition));
+      const rotation=rootRotation.clone().multiply(new THREE.Quaternion(...(spec.rotation || [0,0,0,1]))).normalize();
       this.backend.intersectionsWithShape(this.world,position,rotation,shape,(other)=>{
         const provenance=this.provenanceOfCollider(other);
         if (provenance?.kind==='object' && excluded.has(provenance.objectId)) return true;

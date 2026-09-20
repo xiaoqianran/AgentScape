@@ -12,11 +12,14 @@ export function bindAuthoringWorldControls({
   let worlds = [];
   let status = controller.status();
   let disposed = false;
-  let viewSnapshot = Object.freeze({ worlds, status });
+  let busy = false;
+  let message = '';
+  const promotionState = () => ({ nodes:controller.promotion?.list() || [], busy, message });
+  let viewSnapshot = Object.freeze({ worlds, status, ...promotionState() });
 
   const emit = () => {
     status = controller.status();
-    viewSnapshot = Object.freeze({ worlds, status });
+    viewSnapshot = Object.freeze({ worlds, status, ...promotionState() });
     for (const listener of listeners) listener();
   };
   const subscribe = (listener) => {
@@ -38,10 +41,12 @@ export function bindAuthoringWorldControls({
 
   const createNew = async () => {
     if (!allowDiscard()) return null;
-    const result = await newWorld();
-    await refresh();
-    log('已新建空白创作世界','result');
-    return result;
+    try {
+      const result = await newWorld();
+      await refresh();
+      log('已新建空白创作世界','result');
+      return result;
+    } catch (error) { log(`新建创作世界失败：${error.message}`, 'error'); return null; }
   };
 
   const open = async (id) => {
@@ -96,6 +101,30 @@ export function bindAuthoringWorldControls({
   globalThis.window?.addEventListener?.('beforeunload',beforeUnload);
 
   void refresh().catch((error)=>log(`读取创作世界列表失败：${error.message}`,'error'));
+  const stops = ['authoring.changed', 'authoring.promotion.changed', 'scene.restored', 'history.changed', 'object.removed'].map(event =>
+    controller.promotion?.world.events.on(event, () => { if (!disposed) emit(); })).filter(Boolean);
+
+  const promote = async (action, nodeId, options = {}) => {
+    if (busy) return null;
+    busy = true;
+    message = '正在处理创作对象…';
+    emit();
+    try {
+      const result = await controller.tools.call(action, { ...(nodeId ? { nodeId } : {}), ...options });
+      message = result.status === 'authoring-restore-failed'
+        ? result.results.filter(item => item.status === 'authoring-restore-failed').map(item => item.reason).join('；')
+        : ({ 'authoring-prepared':'资产已准备，可检查准入状态后晋升', 'authoring-promoted':'已进入世界，运行检查结果见下方',
+          'authoring-provisional':'已进入编辑态，资产仍未通过正式准入', 'authoring-restored':'关联实体已恢复',
+          'authoring-verified':'运行行为验证通过；资产准入状态保持独立', 'authoring-unverified':'部分运行检查尚未通过，请查看验证结果',
+          'authoring-detached':'关联已解除，正式实体保留，原稿已重新显示' })[result.status] || result.status;
+      log(message, result.status?.endsWith('-failed') ? 'error' : 'result');
+      return result;
+    } catch (error) {
+      message = error.message;
+      log(message, 'error');
+      return null;
+    } finally { busy = false; emit(); }
+  };
 
   return {
     subscribe,
@@ -105,10 +134,12 @@ export function bindAuthoringWorldControls({
     open,
     save,
     saveAs,
+    promote,
     renderStatus:emit,
     dispose() {
       disposed=true;
       listeners.clear();
+      for (const stop of stops) stop();
       globalThis.window?.removeEventListener?.('beforeunload',beforeUnload);
     }
   };

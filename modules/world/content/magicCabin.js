@@ -40,7 +40,7 @@ export function createMagicCabin(options = {}) {
     colliders.push(meshCollider(node));
   });
   // 螺旋楼梯可走代理：线稿踏步很薄，Recast erosion + agentRadius 容易把踏步抹掉。
-  // 在踏步中径铺一层略矮的实心盒，既进 NavMesh，也给 KCC 当落脚面。
+  // 在踏步中径铺一层略矮的实心盒，既进 NavMesh，也进 Rapier（KCC 落脚面）。
   {
     const stairNavRoot = new THREE.Group();
     stairNavRoot.name = 'CabinStairNavProxy';
@@ -65,6 +65,12 @@ export function createMagicCabin(options = {}) {
       proxy.userData.navigationIgnore = false;
       proxy.userData.cabinStairNavProxy = true;
       stairNavRoot.add(proxy);
+      colliders.push({
+        shape: 'box',
+        halfExtents: [width / 2, 0.05, depth / 2],
+        translation: [rc * Math.sin(th), yTop - 0.05, rc * Math.cos(th)],
+        rotation: [0, Math.sin(th / 2), 0, Math.cos(th / 2)]
+      });
     }
     root.add(stairNavRoot);
     stairNavRoot.traverse(node => {

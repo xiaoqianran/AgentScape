@@ -210,53 +210,6 @@
   font-size: 9px;
 }
 
-/* Remove the old purple/glass visual language from product panels. */
-.spatial-editor :where(
-  .build-workbench,
-  .task-console,
-  .resource-console,
-  .runs-console,
-  .inspector,
-  .generation-console
-) {
-  color: var(--studio-text-2);
-  background: var(--studio-surface-1);
-}
-
-.spatial-editor :where(
-  .build-mode-tabs button.active,
-  .build-mode-tabs button[aria-pressed="true"],
-  .generation-job-row.selected,
-  .task-card.active,
-  .resource-row.active,
-  .runs-row.active
-) {
-  border-color: rgba(133,160,255,.20);
-  background: var(--studio-accent-soft);
-}
-
-.spatial-editor :where(
-  .generation-primary,
-  .build-primary,
-  .build-generate,
-  .task-primary
-) {
-  border-color: rgba(133,160,255,.42);
-  color: #eef2ff;
-  background: #5f7fe8;
-  box-shadow: none;
-}
-
-.spatial-editor :where(
-  .generation-primary,
-  .build-primary,
-  .build-generate,
-  .task-primary
-):hover:not(:disabled) {
-  border-color: rgba(154,177,255,.58);
-  background: #6f8dee;
-  box-shadow: none;
-}
 
 /* Agent prompt ------------------------------------------------------------- */
 
@@ -357,14 +310,6 @@
   background: var(--studio-accent-soft);
 }
 
-/* Dialogs ----------------------------------------------------------------- */
-
-.spatial-editor .developer-dialog {
-  border-color: var(--studio-border-strong);
-  border-radius: 11px;
-  background: #1a1c20;
-  box-shadow: 0 28px 80px rgba(0,0,0,.48);
-}
 
 @media (max-width: 1080px) {
   .spatial-editor .world-dock button {

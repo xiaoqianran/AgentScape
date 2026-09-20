@@ -6,6 +6,9 @@ import { SkillRegistry } from './skills/SkillRegistry.js';
 import { registerCoreSkills } from './skills/registerCoreSkills.js';
 import { createWorldAuthoringContext } from './createWorldAuthoringContext.js';
 import { ArticulationVerifier } from '../modules/world/verification/ArticulationVerifier.js';
+import { AuthoringPromotionController } from './world-authoring/AuthoringPromotionController.js';
+import { createAuthoringAssetProducer } from './world-authoring/AuthoringAssetProducer.js';
+import { registerAuthoringSkills } from './skills/packs/authoringSkills.js';
 
 // Composition only. DOM rendering is attached here; frame scheduling and input stay with the host.
 export function createSession(container, {
@@ -44,5 +47,8 @@ export function createSession(container, {
     policy: world.policy, trace: world.trace, runtime: world
   }), world);
   const authoring = world.rendering ? createWorldAuthoringContext(world) : null;
-  return { world, generation, authoring };
+  const promotion = authoring ? new AuthoringPromotionController({ authoring, world,
+    produceAsset:createAuthoringAssetProducer({ assets:assetModule, artifacts:generation.artifacts }) }) : null;
+  if (promotion) registerAuthoringSkills((name, options, handler) => world.skills.register({ name, ...options, handler }), promotion);
+  return { world, generation, authoring, promotion };
 }

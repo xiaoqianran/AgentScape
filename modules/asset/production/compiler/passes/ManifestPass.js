@@ -46,6 +46,7 @@ export class ManifestPass {
         resources: context.resources
       },
       provenance: {
+        ...(context.authoringIntent ? { authoringIntent:structuredClone(context.authoringIntent) } : {}),
         sourceUrl: context.sourceUrl || null,
         compiler:'AgentScape',
         ...(context.providerEvidence ? {

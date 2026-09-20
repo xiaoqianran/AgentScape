@@ -53,7 +53,7 @@ export class AuthoringWorldStore {
     return this.dbPromise;
   }
 
-  async save({ id, name = '', document }) {
+  async save({ id, name = '', document, promotions = null }) {
     const worldId = String(id || '').trim();
     if (!worldId) throw new TypeError('Authoring world save requires id');
     if (!document || typeof document !== 'object') throw new TypeError('Authoring world save requires document');
@@ -65,7 +65,8 @@ export class AuthoringWorldStore {
       name:String(name || worldId),
       createdAt:previous?.createdAt || timestamp,
       updatedAt:timestamp,
-      document:clone(document)
+      document:clone(document),
+      ...(promotions ? { promotions:clone(promotions) } : {})
     };
 
     const db = await this.open();
@@ -105,7 +106,7 @@ export class AuthoringWorldStore {
 
     return records
       .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
-      .map(({ document, ...metadata }) => clone(metadata));
+      .map(({ document, promotions, ...metadata }) => clone(metadata));
   }
 
   async remove(id) {

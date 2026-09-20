@@ -131,11 +131,16 @@ export class AssetProductionPipeline {
   }
 
   async produce(request={}) {
+    const authoringIntent=request.authoringIntent == null ? null : { usage:request.authoringIntent.usage };
+    if (authoringIntent && !['static','movable','interactive'].includes(authoringIntent.usage)) {
+      throw new AssetProductionError('AUTHORING_INTENT_INVALID','Unsupported authored asset usage');
+    }
     const input=this.inspectInput(request);
     if (this.assetRegistry.has?.(input.assetId)) {
       const existing=this.assetRegistry.getManifest(input.assetId);
       const source=existing?.provenance?.assetProduction?.sourceArtifact;
-      if (source?.id===input.artifact.id && source?.hash===input.artifact.hash) {
+      if (source?.id===input.artifact.id && source?.hash===input.artifact.hash
+        && JSON.stringify(existing.provenance?.authoringIntent || null)===JSON.stringify(authoringIntent)) {
         const admission=assetAdmission(existing,{generated:true});
         return {
           status:admission.status==='ready'?'asset-ready':admission.status==='provisional'?'asset-provisional':'asset-rejected',
@@ -170,7 +175,8 @@ export class AssetProductionPipeline {
           bytes:new Uint8Array(input.entry.data),
           sourceName:input.sourceName,
           assetId:input.assetId,
-          label:input.label
+          label:input.label,
+          ...(authoringIntent ? { authoringIntent } : {})
         });
       } catch (error) {
         if (error?.code==='ASSET_COMPILE_REJECTED') {

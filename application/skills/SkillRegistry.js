@@ -25,6 +25,14 @@ function classifyResult(result) {
     if (result.committed === true && result.rolledBack === false) return { state:'verified', verified:true, status:'committed' };
     const status = typeof result.status === 'string' ? result.status : null;
     if (status) {
+      if (status === 'authoring-provisional') return { state:'unverified', verified:false, status, reason:'ASSET_PROVISIONAL' };
+      if (status === 'authoring-verified') {
+        const evidence = result.verification;
+        const verified = evidence?.physics?.registered === true && evidence.physics.placement?.checked === true
+          && evidence.physics.placement.clear === true && evidence.navigation?.success === true
+          && ['verified', 'not-applicable'].includes(evidence.interaction?.status);
+        return { state:verified ? 'verified' : 'unverified', verified, status };
+      }
       if(status==='world-action-completed') return result.verified===true && typeof result.evidenceKind==='string' && result.after
         ? {state:'verified',verified:true,status} : {state:'unverified',verified:false,status,reason:'POST_CONDITION_NOT_VERIFIED'};
       if (VERIFIED_STATUSES.has(status)) {

@@ -34,18 +34,45 @@ export function createWorldAuthoringContext(
   const frameHandlers = new Set();
   const revisions = new AuthoringRevisionHistory({ limit:historyLimit, now });
   let disposed = false;
+  let promotedNodes = new Set();
+  const suppressed = new Map();
+  const restoreVisibility = () => {
+    for (const [object, state] of suppressed) {
+      Object.defineProperty(object, 'visible', { configurable:true, enumerable:true, writable:true, value:state.visible });
+    }
+    suppressed.clear();
+  };
+  const suppressVisibility = () => {
+    root.traverse(object => {
+      if (promotedNodes.has(object.userData?.authoringId)) {
+        if (suppressed.has(object)) return;
+        const state = { visible:object.visible };
+        suppressed.set(object, state);
+        Object.defineProperty(object, 'visible', { configurable:true, enumerable:true,
+          get:()=>false, set:value=>{ state.visible = value; } });
+      }
+    });
+  };
+  const setPromotedNodes = (ids = []) => {
+    restoreVisibility();
+    promotedNodes = new Set(ids);
+    suppressVisibility();
+  };
 
   const assertActive = () => {
     if (disposed) throw new Error('World authoring context is disposed');
   };
+  const changed = () => world.events?.emit?.('authoring.changed', {});
 
   const clear = () => {
     assertActive();
+    restoreVisibility();
     frameHandlers.clear();
     for (const child of [...root.children]) {
       root.remove(child);
       disposeObject3D(child);
     }
+    changed();
     return true;
   };
 
@@ -58,6 +85,7 @@ export function createWorldAuthoringContext(
 
   const update = (delta = 0, elapsed = 0) => {
     if (disposed) return false;
+    restoreVisibility();
     for (const handler of [...frameHandlers]) {
       try {
         handler(delta, elapsed);
@@ -68,6 +96,7 @@ export function createWorldAuthoringContext(
         });
       }
     }
+    suppressVisibility();
     return true;
   };
 
@@ -78,7 +107,9 @@ export function createWorldAuthoringContext(
 
   const capture = () => {
     assertActive();
-    return captureAuthoringState(root);
+    restoreVisibility();
+    try { return captureAuthoringState(root); }
+    finally { suppressVisibility(); }
   };
 
   const exportDocument = () => exportAuthoringDocument(capture());
@@ -101,6 +132,8 @@ export function createWorldAuthoringContext(
     while (hydratedRoot.children.length > 0) {
       root.add(hydratedRoot.children[0]);
     }
+    suppressVisibility();
+    changed();
     return root;
   };
 
@@ -286,6 +319,7 @@ export function createWorldAuthoringContext(
     canUndo,
     canRedo,
     get,
+    setPromotedNodes,
     async run(source) {
       assertActive();
       if (typeof source !== 'string' || !source.trim()) throw new TypeError('World authoring source is required');
@@ -297,7 +331,9 @@ export function createWorldAuthoringContext(
         'modelRef',
         `'use strict';\n${source}`
       );
-      return execute(THREE, root, clear, onFrame, modelRef);
+      restoreVisibility();
+      try { return await execute(THREE, root, clear, onFrame, modelRef); }
+      finally { restoreVisibility(); suppressVisibility(); changed(); }
     },
     dispose() {
       if (disposed) return false;

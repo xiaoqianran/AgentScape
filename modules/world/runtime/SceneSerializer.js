@@ -141,6 +141,12 @@ export class SceneSerializer {
       if (runtime.environment?.colliders?.length) {
         runtime.physics.addEnvironment(runtime.environment.colliders,{id:runtime.environment.id});
       }
+      const characterOptions = runtime.environment?.physics?.characterController
+        || runtime.environment?.characterController
+        || null;
+      if (characterOptions && typeof runtime.physics.setCharacterControllerOptions === 'function') {
+        runtime.physics.setCharacterControllerOptions(characterOptions);
+      }
     }
 
     await runtime.sceneGraph.batch(async () => {

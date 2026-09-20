@@ -1,0 +1,38 @@
+.spatial-editor .scene-menu .toolbar-menu:has(.authoring-promotion[open]) {
+  width: min(360px, calc(100vw - 32px));
+}
+
+.authoring-promotion {
+  border-top: 1px solid var(--studio-border-strong);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.authoring-promotion > label {
+  display: grid;
+  gap: 5px;
+  margin: 10px 6px;
+  color: var(--studio-text-2);
+  font-size: 11px;
+}
+
+.authoring-promotion > label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+}
+
+.authoring-promotion select {
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 6px;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 5px;
+  background: var(--studio-surface-2, #23252a);
+  color: inherit;
+}
+
+.authoring-promotion .toolbar-menu-status {
+  display: grid;
+  gap: 5px;
+  overflow-wrap: anywhere;
+}

@@ -303,7 +303,10 @@ export function createMagicCabinContents({ editorHost, document = globalThis.doc
             floorGeo.rotateX(-Math.PI / 2); floorGeo.translate(0, 3, 0); scene.add(edge(floorGeo));
             const ring = edge(new THREE.TorusGeometry(HOLE_R, 0.04, 8, 32)); ring.rotation.x = Math.PI / 2; ring.position.set(0, FLOOR_TOP + 0.01, 0); scene.add(ring);
 
-            const landingShape = new THREE.Shape(); landingShape.moveTo(0, 0); landingShape.absarc(0, 0, HOLE_R, Math.PI / 6, Math.PI - Math.PI / 6, false); landingShape.lineTo(0, 0);
+            // Landing must cover the spiral stair TOP exit (θ≈-73.5° → atan2(z,x)≈163.5°).
+            // Ending at 150° left a wedge under the 2F slab; the agent stepped off into the hole
+            // and got PHYSICS_BLOCKED against the floor underside. Extend just past the top step.
+            const landingShape = new THREE.Shape(); landingShape.moveTo(0, 0); landingShape.absarc(0, 0, HOLE_R, Math.PI / 6, Math.PI - Math.PI / 12, false); landingShape.lineTo(0, 0);
             const landingGeo = new THREE.ExtrudeGeometry(landingShape, { depth: 0.12, bevelEnabled: false, curveSegments: 10 });
             landingGeo.rotateX(Math.PI / 2); put(edge(landingGeo), 0, FLOOR_TOP + 0.01, 0);
 

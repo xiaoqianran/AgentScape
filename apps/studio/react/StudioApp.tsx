@@ -11,6 +11,7 @@ import { ArtifactTrayView } from './artifacts/ArtifactTray';
 import { TaskPanelView } from './agent/TaskPanelView';
 import { RunsPanelView } from './runs/RunsPanelView';
 import { ResourceLibraryView } from './resources/ResourceLibraryView';
+import { AuthoringPromotionView } from './authoring/AuthoringPromotionView';
 
 type EnvironmentDefinition = {
   id:string;
@@ -47,6 +48,7 @@ function AuthoringMenu({ controller }: { controller:any }) {
       <button id="authoring-save" type="button" onClick={()=>void controller.save()}>保存创作世界</button>
       <button id="authoring-save-as" type="button" onClick={()=>void controller.saveAs()}>另存创作世界</button>
       <span id="authoring-save-status" className="toolbar-menu-status">{state.status?.name || 'Untitled World'}{state.status?.dirty ? ' · 未保存' : ' · 已保存'}</span>
+      <AuthoringPromotionView state={state} controller={controller} />
     </>
   );
 }

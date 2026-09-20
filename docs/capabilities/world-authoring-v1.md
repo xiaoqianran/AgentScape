@@ -4,6 +4,8 @@
 >
 > Canonical v1 description. world-authoring.md keeps detailed design notes and implementation rationale.
 
+Explicit promotion is now available as an application workflow: [Authoring → Asset → World Entity](authoring-promotion.md). It does not change this frozen document format or make visual edits implicit World mutations.
+
 ## Purpose
 
 World Authoring gives an external LLM a familiar Three.js creation surface while keeping AgentScape runtime semantics isolated.
