@@ -1,12 +1,11 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { flushSync } from 'react-dom';
-import { parseStudioRoute, studioProductUrl } from '../navigation/StudioRoutes.js';
 import { GenerationJobCenterView } from './generation/GenerationJobCenterView';
 import { DeveloperSettingsView } from './developer/DeveloperSettingsView';
-import { useStudioStore, type ProductPage } from './state/studioStore';
+import { useStudioStore } from './state/studioStore';
 import { WorldEditorWorkspace } from './world/WorldEditorWorkspace';
 import { ProductHeader } from './shell/ProductHeader';
 import { ProductPages } from './shell/ProductPages';
+import { useStudioProductRouter } from './routing/useStudioProductRouter';
 
 type EnvironmentDefinition = {
   id:string;
@@ -42,13 +41,12 @@ export function StudioApp({
   const cinematic = useStudioStore((state)=>state.layout.cinematic);
   const sceneCollapsed = useStudioStore((state)=>state.layout.sceneCollapsed);
   const worldPresentation = useStudioStore((state)=>state.view.worldPresentation);
-  const openPage = useStudioStore((state)=>state.openPage);
-  const openAgentView = useStudioStore((state)=>state.openAgentView);
   const closeContext = useStudioStore((state)=>state.closeContext);
   const setBuildAdvancedOpen = useStudioStore((state)=>state.setBuildAdvancedOpen);
   const setCinematic = useStudioStore((state)=>state.setCinematic);
   const setSceneCollapsed = useStudioStore((state)=>state.setSceneCollapsed);
   const commandInputRef = useRef<HTMLInputElement|null>(null);
+  const { commitLayoutChange, choosePage, chooseAgentView } = useStudioProductRouter(bridge.notifyLayout);
 
   const presentation = {
     ...environmentDefinition,
@@ -58,44 +56,9 @@ export function StudioApp({
   const generated = Boolean(presentation.generated);
   const worldSelectValue = generated ? 'runtime:' + (presentation.persistenceSource || worldId) : worldId;
 
-  const commitLayoutChange = (change:()=>void) => {
-    flushSync(change);
-    bridge.notifyLayout();
-  };
-
-  const choosePage = (page:ProductPage) => {
-    commitLayoutChange(()=>openPage(page));
-    globalThis.history?.pushState?.(
-      globalThis.history.state,
-      '',
-      studioProductUrl(globalThis.location?.href || 'http://127.0.0.1/',{ page })
-    );
-  };
-
-  const chooseAgentView = (view:'tasks'|'runs') => {
-    commitLayoutChange(()=>openAgentView(view));
-    globalThis.history?.pushState?.(
-      globalThis.history.state,
-      '',
-      studioProductUrl(globalThis.location?.href || 'http://127.0.0.1/',{ page:'agent', agentView:view })
-    );
-  };
-
   useEffect(()=>{
     if (activePage === 'agent' && agentView === 'tasks') requestAnimationFrame(()=>commandInputRef.current?.focus());
   },[activePage,agentView]);
-
-  useEffect(()=>{
-    const onPopState = () => {
-      const route=parseStudioRoute(globalThis.location?.href || 'http://127.0.0.1/');
-      commitLayoutChange(()=>{
-        if (route.page === 'agent') openAgentView(route.agentView);
-        else openPage(route.page as ProductPage);
-      });
-    };
-    globalThis.window?.addEventListener?.('popstate',onPopState);
-    return ()=>globalThis.window?.removeEventListener?.('popstate',onPopState);
-  },[bridge,openAgentView,openPage]);
 
   useEffect(()=>{
     const onKeyDown = (event:KeyboardEvent) => {
@@ -108,7 +71,7 @@ export function StudioApp({
     };
     document.addEventListener('keydown',onKeyDown);
     return ()=>document.removeEventListener('keydown',onKeyDown);
-  },[activePage,bridge,cinematic,closeContext,contextOpen,setCinematic]);
+  },[activePage,cinematic,closeContext,commitLayoutChange,contextOpen,setCinematic]);
 
   const shellClass = [
     'shell',
