@@ -28,11 +28,6 @@
   font-weight: 520;
 }
 
-.spatial-editor .world-dock button {
-  font-size: 11.5px;
-  font-weight: 560;
-}
-
 .spatial-editor .editor-toolbar button,
 .spatial-editor .toolbar-more summary {
   font-size: 11.5px;
@@ -310,12 +305,6 @@
   background: var(--studio-accent-soft);
 }
 
-
-@media (max-width: 1080px) {
-  .spatial-editor .world-dock button {
-    padding-inline: 8px;
-  }
-}
 
 @media (max-width: 860px) {
   .spatial-editor .panel h1,

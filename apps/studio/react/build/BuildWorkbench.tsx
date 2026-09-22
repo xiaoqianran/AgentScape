@@ -349,8 +349,8 @@ export function BuildWorkbenchView({
   log = () => {}
 }: BuildWorkbenchProps) {
   const recordBuildOutput = useStudioStore((store) => store.recordBuildOutput);
-  const buildOutputs = useStudioStore((store) => store.buildOutputs);
-  const workflowIntent = useStudioStore((store) => store.buildWorkflowIntent);
+  const buildOutputs = useStudioStore((store) => store.build.outputs);
+  const workflowIntent = useStudioStore((store) => store.build.workflowIntent);
   const consumeBuildWorkflow = useStudioStore((store) => store.consumeBuildWorkflow);
   const setBuildAdvancedOpen = useStudioStore((store) => store.setBuildAdvancedOpen);
   const [state, setState] = useState<BuildState>(() => session.snapshot());

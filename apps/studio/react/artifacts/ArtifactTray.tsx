@@ -121,8 +121,8 @@ function ArtifactThumbnail({ resources, output, revision }: { resources: StudioR
 }
 
 export function ArtifactTrayView({ resources, controller, agentVerifier, openBuild, log }: ArtifactTrayProps) {
-  const outputs = useStudioStore((state) => state.buildOutputs);
-  const selectedKey = useStudioStore((state) => state.selectedBuildOutputKey);
+  const outputs = useStudioStore((state) => state.build.outputs);
+  const selectedKey = useStudioStore((state) => state.build.selectedOutputKey);
   const selectOutput = useStudioStore((state) => state.selectBuildOutput);
   const clearOutputs = useStudioStore((state) => state.clearBuildOutputs);
   const requestBuildWorkflow = useStudioStore((state) => state.requestBuildWorkflow);

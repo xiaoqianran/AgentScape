@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState, type DragEvent } from 'react';
 import { ASSET_DRAG_MIME } from '../../editor/AssetPlacementController.js';
-import { collectSceneObjectSummaries } from '../../scene/SceneObjectProjection.js';
+import { collectStudioSceneProjection } from '../../scene/SceneObjectProjection.js';
 import { useStudioStore } from '../state/studioStore';
 
 type EnvironmentDefinition = {
@@ -14,18 +14,23 @@ type EventBus = {
 
 type WorldLike = {
   environment?: { id?: string; title?: string; label?: string } | null;
-  queries: { listObjects: () => Array<{ id:string; asset?:string; type?:string; label?:string }> };
+  queries: { listObjects: () => Array<{ id:string; asset?:string; assetId?:string; type?:string; label?:string }> };
   events: EventBus;
 };
 
 type EditorLike = {
   selectedId?: string | null;
-  select: (id: string) => unknown;
+  select: (id: string | null) => unknown;
+};
+
+type AuthoringLike = {
+  export: () => { root?: unknown } | null;
 };
 
 type SceneExplorerProps = {
   world: WorldLike;
   editor: EditorLike;
+  authoring?: AuthoringLike | null;
   environmentDefinition: EnvironmentDefinition;
   resources: {
     snapshot: () => {
@@ -55,12 +60,14 @@ const SCENE_REFRESH_EVENTS = [
   'object.duplicated',
   'scene.restored',
   'scene.cleared',
-  'environment.replaced'
+  'environment.replaced',
+  'authoring.changed'
 ] as const;
 
 export function SceneExplorerView({
   world,
   editor,
+  authoring = null,
   environmentDefinition,
   resources,
   placement,
@@ -68,9 +75,10 @@ export function SceneExplorerView({
   openCreate = () => {},
   openInspect = () => {}
 }: SceneExplorerProps) {
-  const selectedObjectId = useStudioStore((state) => state.selectedObjectId);
-  const worldPresentation = useStudioStore((state) => state.worldPresentation);
-  const setSelectedObjectId = useStudioStore((state) => state.setSelectedObjectId);
+  const selection = useStudioStore((state) => state.editor.selection);
+  const editorRevision = useStudioStore((state) => state.editor.revision);
+  const worldPresentation = useStudioStore((state) => state.view.worldPresentation);
+  const setSelection = useStudioStore((state) => state.setSelection);
   const [revision, setRevision] = useState(0);
   const [resourceRevision, setResourceRevision] = useState(0);
   const [tab, setTab] = useState<'objects' | 'assets'>('objects');
@@ -85,34 +93,46 @@ export function SceneExplorerView({
       if (unsubscribe) unsubscribers.push(unsubscribe);
     }
 
-    const unsubscribeSelection = world.events.on('editor.selection', () => {
-      setSelectedObjectId(editor.selectedId ?? null);
-    });
-    if (unsubscribeSelection) unsubscribers.push(unsubscribeSelection);
-
     return () => {
       for (const unsubscribe of unsubscribers) unsubscribe();
     };
-  }, [editor, setSelectedObjectId, world]);
+  }, [world]);
 
   useEffect(() => resources.onChange(() => setResourceRevision((value) => value + 1)), [resources]);
 
   const environment = world.environment;
   const title = worldPresentation?.title || environment?.title || environment?.label || environmentDefinition.title || environment?.id || 'World';
   const environmentId = worldPresentation?.id || environment?.id || environmentDefinition.id || 'environment';
-  const objects = useMemo(
-    () => collectSceneObjectSummaries(world.queries.listObjects(), selectedObjectId),
-    [revision, selectedObjectId, world.queries]
-  );
-  const visibleObjects = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return objects;
-    return objects.filter((record: any) => (
-      [record.label, record.id, record.assetId, record.type]
+
+  const projection = useMemo(() => collectStudioSceneProjection({
+    runtimeObjects:world.queries.listObjects(),
+    authoringDocument:authoring?.export?.() || null,
+    environment:{
+      id:environmentId,
+      title
+    },
+    selection
+  }), [authoring, editorRevision, environmentId, revision, selection, title, world.queries]);
+
+  const filterRows = (rows:any[]) => {
+    const needle=query.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((record:any)=>(
+      [record.label,record.id,record.assetId,record.type,record.source]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(needle))
+        .some((value)=>String(value).toLowerCase().includes(needle))
     ));
-  }, [objects, query]);
+  };
+
+  const visibleRuntimeObjects = useMemo(
+    () => filterRows(projection.runtimeRows),
+    [projection.runtimeRows,query]
+  );
+  const visibleAuthoringObjects = useMemo(
+    () => filterRows(projection.authoringRows),
+    [projection.authoringRows,query]
+  );
+
   const assets = useMemo(() => resources.snapshot().assets || [], [resourceRevision, resources]);
   const visibleAssets = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -124,10 +144,17 @@ export function SceneExplorerView({
     ));
   }, [assets, query]);
 
-  const selectObject = (id: string) => {
+  const selectRuntimeObject = (id: string) => {
     editor.select(id);
     openInspect();
   };
+
+  const selectAuthoringObject = (id: string) => {
+    editor.select(null);
+    setSelection({ source:'authoring', id });
+    openInspect();
+  };
+
   const startAssetDrag = (event: DragEvent, assetId: string) => {
     if (!placement.beginDrag(assetId)) {
       event.preventDefault();
@@ -137,6 +164,10 @@ export function SceneExplorerView({
     event.dataTransfer.setData('text/plain', assetId);
     event.dataTransfer.effectAllowed = 'copy';
   };
+
+  const runtimeCount=projection.runtimeRows.length;
+  const authoringCount=projection.authoringRows.length;
+  const sceneCount=runtimeCount + authoringCount;
 
   return (
     <>
@@ -148,7 +179,7 @@ export function SceneExplorerView({
             <span>Environment</span><i>→</i><span>Objects</span><i>→</i><span>State</span>
           </div>
         </div>
-        <span id="scene-object-count" className="scene-count">{tab === 'objects' ? objects.length : assets.length}</span>
+        <span id="scene-object-count" className="scene-count">{tab === 'objects' ? sceneCount : assets.length}</span>
       </div>
 
       <div className="scene-panel-tabs" role="tablist" aria-label="Studio sidebar">
@@ -163,7 +194,7 @@ export function SceneExplorerView({
       <div className="scene-panel-body">
         {tab === 'objects' ? (
           <>
-            <div className="scene-world-card">
+            <div className="scene-world-card" data-source="environment">
               <span className="scene-world-dot" />
               <div>
                 <strong id="scene-environment-id">{environmentId}</strong>
@@ -182,21 +213,24 @@ export function SceneExplorerView({
                 onChange={(event) => setQuery(event.target.value)}
               />
             </label>
+
             <div className="scene-section-heading">
-              <span>Scene</span>
-              <small>{visibleObjects.length} Objects</small>
+              <span>Runtime Entities</span>
+              <small>{visibleRuntimeObjects.length} / {runtimeCount}</small>
             </div>
-            <div id="scene-object-list" className="scene-object-list">
-              {visibleObjects.length === 0 ? (
-                <div className="scene-empty">{objects.length ? 'No matching objects' : 'No runtime objects'}</div>
-              ) : visibleObjects.map((record: any) => (
+            <div id="scene-object-list" className="scene-object-list" data-source="runtime">
+              {visibleRuntimeObjects.length === 0 ? (
+                <div className="scene-empty">{runtimeCount ? 'No matching runtime entities' : 'No runtime entities'}</div>
+              ) : visibleRuntimeObjects.map((record: any) => (
                 <button
-                  key={record.id}
+                  key={record.key}
                   type="button"
-                  className={`scene-object-row${record.selected ? ' active' : ''}`}
+                  className={'scene-object-row' + (record.selected ? ' active' : '')}
                   data-object-id={record.id}
+                  data-scene-key={record.key}
+                  data-source={record.source}
                   aria-pressed={record.selected}
-                  onClick={() => selectObject(record.id)}
+                  onClick={() => selectRuntimeObject(record.id)}
                 >
                   <span className="scene-object-glyph">
                     {record.assetId === 'agent' || record.type === 'agent' ? 'A' : '◆'}
@@ -208,6 +242,37 @@ export function SceneExplorerView({
                 </button>
               ))}
             </div>
+
+            {authoringCount > 0 ? (
+              <>
+                <div className="scene-section-heading">
+                  <span>Authoring</span>
+                  <small>{visibleAuthoringObjects.length} / {authoringCount}</small>
+                </div>
+                <div className="scene-object-list" data-source="authoring">
+                  {visibleAuthoringObjects.length === 0 ? (
+                    <div className="scene-empty">No matching authoring nodes</div>
+                  ) : visibleAuthoringObjects.map((record:any)=>(
+                    <button
+                      key={record.key}
+                      type="button"
+                      className={'scene-object-row' + (record.selected ? ' active' : '')}
+                      data-object-id={record.id}
+                      data-scene-key={record.key}
+                      data-source={record.source}
+                      aria-pressed={record.selected}
+                      onClick={()=>selectAuthoringObject(record.id)}
+                    >
+                      <span className="scene-object-glyph">✦</span>
+                      <span className="scene-object-copy">
+                        <strong>{record.label}</strong>
+                        <small>{record.id}</small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : null}
           </>
         ) : (
           <>

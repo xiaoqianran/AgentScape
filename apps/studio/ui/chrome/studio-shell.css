@@ -515,16 +515,6 @@ kbd { margin-left: 4px; color: var(--text-muted); font: inherit; }
 
 .world-first .command-bar { z-index: 10; }
 
-.world-dock button { cursor: pointer; white-space: nowrap; }
-
-@media (max-width:600px) {
-  .world-dock { max-width: calc(100vw - 24px); overflow-x: auto; }
-}
-
-@media (max-width:600px) {
-  .world-dock button { padding: 9px 8px; font-size: 12px; }
-}
-
 @media (max-width:600px) {
   .world-first .brand-lockup span { display: none; }
 }
@@ -1050,42 +1040,6 @@ body { background: var(--studio-bg); font-family: var(--studio-font-ui); }
   transform: translateX(-50%);
 }
 
-.world-dock {
-  position: absolute;
-  z-index: 24;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  max-width: calc(100vw - 24px);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px;
-  overflow-x: auto;
-  border: 1px solid var(--studio-border-strong);
-  border-radius: 11px;
-  background: rgba(25,26,30,.90);
-  box-shadow: var(--studio-shadow);
-  backdrop-filter: blur(16px);
-}
-
-.world-dock button {
-  min-width: 34px;
-  height: 34px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  color: var(--studio-text-3);
-  background: transparent;
-  font: 560 9.5px/1 var(--studio-font-ui);
-}
-
-.world-dock button:hover { color: var(--studio-text); background: var(--studio-surface-hover); }
-
-.world-dock button.active { color: var(--studio-text); background: var(--studio-surface-3); }
-
-.world-dock .dock-extension { margin-left: 3px; border-left-color: var(--studio-border); }
-
 .shell.cinematic .scene-panel,.shell.cinematic .panel,.shell.cinematic .command-bar {
   display: none;
 }
@@ -1154,8 +1108,6 @@ body { background: var(--studio-bg); font-family: var(--studio-font-ui); }
   .world-first .editor-toolbar { top: 58px; }
 
   .world-first .command-bar { bottom: 60px; width: calc(100vw - 20px); }
-
-  .world-dock { bottom: 8px; }
 }
 
 @media (max-width:560px) {

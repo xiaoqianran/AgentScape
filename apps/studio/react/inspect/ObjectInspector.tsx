@@ -1,204 +1,59 @@
 import { useEffect, useState } from 'react';
 import { useStudioStore } from '../state/studioStore';
+import { RuntimeEntityInspector } from './RuntimeEntityInspector';
+import { AuthoringNodeInspector } from './AuthoringNodeInspector';
+import type {
+  EditorCommandsLike,
+  InspectorProjectionLike,
+  InspectorRelation,
+  RuntimeInspectorModel,
+  AuthoringInspectorModel
+} from './InspectorTypes';
 import './ObjectInspector.css';
 
-type ObjectInfo = {
-  id: string;
-  asset: string;
-  type: string;
-  position: number[];
-  rotation: number[];
-  scale: number;
-  actions: string[];
-};
-
-type Relation = {
-  predicate: string;
-  object: string;
-};
-
-type WorldLike = {
-  queries: {
-    hasObject: (id: string) => boolean;
-    getObjectInfo: (id: string) => ObjectInfo;
-    getBounds: (id: string) => { size: number[] };
-    findNearby: (id: string, radius: number) => unknown[];
-    describeObjectRelations: (id: string) => { outgoing: Relation[] };
-  };
-};
-
-type ToolsLike = {
-  call: (name: string, args: Record<string, unknown>) => Promise<unknown>;
-};
-
 type InspectorProps = {
-  world: WorldLike;
-  tools: ToolsLike;
-  log: (text: string, kind?: string) => void;
+  projection:InspectorProjectionLike;
+  commands:EditorCommandsLike;
+  log:(text:string,kind?:string)=>void;
 };
 
-const ACTION_LABELS: Record<string, string> = {
-  open: '打开',
-  close: '关闭',
-  pickup: '拿起',
-  drop: '放下'
-};
+export function ObjectInspectorView({ projection, commands, log }: InspectorProps) {
+  const selection=useStudioStore(state=>state.editor.selection);
+  const revision=useStudioStore(state=>state.editor.revision);
+  const model=projection.project(selection);
+  const [relations,setRelations]=useState<InspectorRelation[]>([]);
 
-const RELATION_LABELS: Record<string, string> = {
-  ON: '位于其上',
-  NEAR: '附近',
-  INSIDE: '位于内部'
-};
+  useEffect(()=>{
+    if (selection?.source !== 'runtime') {
+      setRelations([]);
+      return;
+    }
+    setRelations(projection.relations(selection));
+  },[projection,revision,selection?.id,selection?.source]);
 
-export function ObjectInspectorView({ world, tools, log }: InspectorProps) {
-  const selectedObjectId = useStudioStore((state) => state.selectedObjectId);
-  const contextRevision = useStudioStore((state) => state.contextRevision);
-
-  const id = selectedObjectId && world.queries.hasObject(selectedObjectId) ? selectedObjectId : null;
-  const info = id ? world.queries.getObjectInfo(id) : null;
-  const [scaleInput, setScaleInput] = useState('1');
-  const [scaleBusy, setScaleBusy] = useState(false);
-  const [visibleRelations, setVisibleRelations] = useState<Relation[]>([]);
-
-  useEffect(() => {
-    setScaleInput(info ? String(info.scale) : '1');
-  }, [id, info?.scale]);
-
-  let spatialText = '';
-  if (id) {
-    const bounds = world.queries.getBounds(id);
-    const nearby = world.queries.findNearby(id, 2);
-    spatialText = `尺寸 ${bounds.size.join(' × ')} · 附近 ${nearby.length} 个对象`;
+  if (model.source === 'runtime' && model.kind === 'entity') {
+    return <RuntimeEntityInspector model={model as RuntimeInspectorModel} relations={relations} commands={commands} log={log} />;
   }
 
-  useEffect(() => {
-    if (!id) {
-      setVisibleRelations([]);
-      return;
-    }
-    const outgoing = world.queries.describeObjectRelations(id).outgoing
-      .filter((relation) => ['ON', 'NEAR', 'INSIDE'].includes(relation.predicate))
-      .slice(0, 8);
-    setVisibleRelations(outgoing);
-  }, [contextRevision, id, world]);
-
-  const actions = info?.actions.filter((action) => Object.hasOwn(ACTION_LABELS, action)) ?? [];
-
-  const runAction = async (action: string) => {
-    if (!id) return;
-    try {
-      await tools.call(action === 'drop' ? 'drop' : action, { id });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      log(`错误：${message}`, 'error');
-    }
-  };
-
-  const applyScale = async () => {
-    if (!id || scaleBusy) return;
-    const value = Number(scaleInput);
-    if (!Number.isFinite(value) || value < 0.05 || value > 20) {
-      log('缩放范围必须是 0.05–20。', 'error');
-      return;
-    }
-    setScaleBusy(true);
-    try {
-      await tools.call('scaleObject', { id, scale:value });
-      useStudioStore.getState().syncInspector(id);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      log(`缩放失败：${message}`, 'error');
-    } finally {
-      setScaleBusy(false);
-    }
-  };
+  if (model.source === 'authoring' && model.kind !== 'missing') {
+    return <AuthoringNodeInspector model={model as AuthoringInspectorModel} commands={commands} log={log} />;
+  }
 
   return (
-    <>
+    <div data-inspector-source={model.source || 'none'}>
       <header className="screen-heading product-heading product-heading--utility">
         <div className="eyebrow">INSPECT</div>
-        <h1 id="inspect-heading">{info?.id ?? '请选择对象'}</h1>
+        <h1 id="inspect-heading">{model.kind === 'missing' ? model.id : '请选择对象'}</h1>
         <p id="inspect-subheading">
-          {info ? `${info.type} 实例` : '点击世界中的对象，查看它的状态、关系和可用操作。'}
+          {model.kind === 'missing'
+            ? '当前选择已不再存在。'
+            : '选择 Runtime Entity 或 Authoring Node，查看对应域的属性与操作。'}
         </p>
       </header>
-
-      {!info ? (
-        <div id="empty-selection" className="empty-state">
-          <strong>尚未选择对象</strong>
-          <span>对象仍在视口中选择，这里只显示当前需要的上下文。</span>
-        </div>
-      ) : (
-        <div id="selection" className="selection">
-          <div className="object-title">
-            <div>
-              <h2 id="object-id">{info.id}</h2>
-              <span id="object-type">{info.type}</span>
-            </div>
-          </div>
-
-          <section className="inspect-section">
-            <h3>变换</h3>
-            <dl className="properties">
-              <div><dt>位置</dt><dd id="position">{info.position.join(', ')}</dd></div>
-              <div><dt>旋转</dt><dd id="rotation">{info.rotation.join(', ')}°</dd></div>
-              <div><dt>缩放</dt><dd id="scale">{info.scale}×</dd></div>
-            </dl>
-            <div className="transform-scale-editor">
-              <label htmlFor="object-scale">统一缩放</label>
-              <div className="inline-input">
-                <input
-                  id="object-scale"
-                  type="number"
-                  min="0.05"
-                  max="20"
-                  step="0.05"
-                  value={scaleInput}
-                  disabled={scaleBusy}
-                  onChange={(event) => setScaleInput(event.target.value)}
-                  onKeyDown={(event) => { if (event.key === 'Enter') void applyScale(); }}
-                />
-                <button type="button" disabled={scaleBusy} onClick={() => void applyScale()}>
-                  {scaleBusy ? '应用中…' : '应用'}
-                </button>
-              </div>
-              <small>仅统一缩放；复杂关节资产暂不支持。</small>
-            </div>
-          </section>
-
-          <section className="inspect-section">
-            <h3>关系</h3>
-            <div id="relation-info" className="relation-info">
-              {visibleRelations.length ? visibleRelations.map((relation, index) => (
-                <div key={`${relation.predicate}:${relation.object}:${index}`}>
-                  <strong>{RELATION_LABELS[relation.predicate] ?? relation.predicate}</strong>
-                  <span>{relation.object}</span>
-                </div>
-              )) : <span className="muted-copy">暂无语义关系。</span>}
-            </div>
-            <div id="spatial-info" className="spatial-info">{spatialText}</div>
-          </section>
-
-          <section className="inspect-section">
-            <h3>操作</h3>
-            <div id="actions" className="action-list">
-              {actions.length ? actions.map((action) => (
-                <button key={action} type="button" onClick={() => void runAction(action)}>
-                  {ACTION_LABELS[action]}
-                </button>
-              )) : <span className="muted-copy">暂无可直接执行的操作。</span>}
-            </div>
-          </section>
-
-          <details className="disclosure">
-            <summary>资产详情</summary>
-            <dl className="properties detail-properties">
-              <div><dt>资产</dt><dd id="asset-id">{info.asset}</dd></div>
-              <div><dt>实例</dt><dd id="instance-id">{info.id}</dd></div>
-            </dl>
-          </details>
-        </div>
-      )}
-    </>
+      <div id="empty-selection" className="empty-state">
+        <strong>{model.kind === 'missing' ? '对象不可用' : '尚未选择对象'}</strong>
+        <span>Inspector 不再猜测对象来源；不同 domain 使用独立的属性与命令路径。</span>
+      </div>
+    </div>
   );
 }

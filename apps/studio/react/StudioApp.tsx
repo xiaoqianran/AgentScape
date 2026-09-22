@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { flushSync } from 'react-dom';
-import { STUDIO_NAVIGATION } from '../navigation/StudioNavigation.js';
+import { PRODUCT_NAVIGATION } from '../navigation/StudioNavigation.js';
+import { isProductNavigationActive, parseStudioRoute, studioProductUrl } from '../navigation/StudioRoutes.js';
 import { GenerationJobCenterView } from './generation/GenerationJobCenterView';
 import { DeveloperSettingsView } from './developer/DeveloperSettingsView';
-import { useStudioStore } from './state/studioStore';
-import { SceneExplorerView } from './scene/SceneExplorer';
-import { ObjectInspectorView } from './inspect/ObjectInspector';
+import { useStudioStore, type ProductPage } from './state/studioStore';
 import { BuildWorkbenchView } from './build/BuildWorkbench';
 import { ArtifactTrayView } from './artifacts/ArtifactTray';
 import { TaskPanelView } from './agent/TaskPanelView';
 import { RunsPanelView } from './runs/RunsPanelView';
 import { ResourceLibraryView } from './resources/ResourceLibraryView';
-import { AuthoringPromotionView } from './authoring/AuthoringPromotionView';
+import { WorldEditorWorkspace } from './world/WorldEditorWorkspace';
+import { WorldsPage } from './worlds/WorldsPage';
 
 type EnvironmentDefinition = {
   id:string;
@@ -30,82 +30,6 @@ type Bridge = {
   openWorld:(id:string)=>Promise<unknown>;
 };
 
-function AuthoringMenu({ controller }: { controller:any }) {
-  const state:any = useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
-  const [selected,setSelected] = useState('');
-  useEffect(()=>{
-    if (state.status?.id) setSelected(state.status.id);
-  },[state.status?.id]);
-  return (
-    <>
-      <div className="toolbar-menu-label">创作世界</div>
-      <select id="authoring-world-select" className="world-select" aria-label="创作世界存档" value={selected} onChange={(event)=>setSelected(event.target.value)}>
-        <option value="">选择创作世界…</option>
-        {state.worlds.map((world:any)=><option key={world.id} value={world.id}>{world.name || world.id}</option>)}
-      </select>
-      <button id="authoring-new" type="button" onClick={()=>void controller.createNew()}>新建创作世界</button>
-      <button id="authoring-open" type="button" onClick={()=>void controller.open(selected)}>打开创作世界</button>
-      <button id="authoring-save" type="button" onClick={()=>void controller.save()}>保存创作世界</button>
-      <button id="authoring-save-as" type="button" onClick={()=>void controller.saveAs()}>另存创作世界</button>
-      <span id="authoring-save-status" className="toolbar-menu-status">{state.status?.name || 'Untitled World'}{state.status?.dirty ? ' · 未保存' : ' · 已保存'}</span>
-      <AuthoringPromotionView state={state} controller={controller} />
-    </>
-  );
-}
-
-function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authoring:any }) {
-  const state:any = useSyncExternalStore(controls.subscribe,controls.snapshot,controls.snapshot);
-  const importRef = useRef<HTMLInputElement|null>(null);
-  return (
-    <div className="editor-toolbar" aria-label="场景编辑工具">
-      <button data-mode="translate" className={state.mode === 'translate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('translate')}>移动 <kbd>W</kbd></button>
-      <button data-mode="rotate" className={state.mode === 'rotate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('rotate')}>旋转 <kbd>E</kbd></button>
-      <span className="toolbar-divider" />
-      <button id="duplicate" type="button" onClick={()=>void controls.duplicate()}>复制</button>
-      <button id="delete" className="danger" type="button" onClick={()=>void controls.deleteSelected()}>删除</button>
-      <details className="toolbar-more scene-menu">
-        <summary>场景</summary>
-        <div className="toolbar-menu">
-          <button id="undo" type="button" disabled={!state.history?.canUndo} onClick={()=>void controls.undo()}>撤销 <kbd>⌘Z</kbd></button>
-          <button id="redo" type="button" disabled={!state.history?.canRedo} onClick={()=>void controls.redo()}>重做</button>
-          {authoring ? <AuthoringMenu controller={authoring} /> : null}
-          <div className="toolbar-menu-label">运行时场景</div>
-          <button id="save-scene" type="button" onClick={()=>controls.saveScene()}>保存到本机</button>
-          <button id="load-scene" type="button" onClick={()=>void controls.loadScene()}>加载本机存档</button>
-          <button id="export-scene" type="button" onClick={()=>controls.exportScene()}>导出 JSON</button>
-          <button id="import-scene" type="button" onClick={()=>importRef.current?.click()}>导入 JSON</button>
-          <button id="reset-world" className="danger" type="button" disabled={state.resetBusy} onClick={()=>void controls.resetWorld()}>
-            {state.resetBusy ? '正在重置…' : state.resetWorldArmed ? '确认重置' : '重置世界'}
-          </button>
-        </div>
-      </details>
-      <details className="toolbar-more debug-overlay-menu">
-        <summary>调试图层</summary>
-        <div className="toolbar-menu debug-layer-menu" id="debug-layer-menu" />
-      </details>
-      <input
-        ref={importRef}
-        id="import-scene-file"
-        type="file"
-        accept="application/json,.json"
-        hidden
-        onChange={(event)=>{
-          const file=event.target.files?.[0];
-          if (file) void controls.importScene(file);
-          event.target.value='';
-        }}
-      />
-    </div>
-  );
-}
-
-function SceneToolbar({ bridgeState }: { bridgeState:any }) {
-  if (!bridgeState.sceneControls) {
-    return <div className="editor-toolbar" aria-label="场景编辑工具" aria-busy="true"><span>场景工具启动中…</span><div id="debug-layer-menu" /></div>;
-  }
-  return <ConnectedSceneToolbar controls={bridgeState.sceneControls} authoring={bridgeState.authoring} />;
-}
-
 function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:React.RefObject<HTMLInputElement|null>; draft:any }) {
   const [value,setValue] = useState('');
   const state:any = useSyncExternalStore(taskPanel.subscribe,taskPanel.snapshot,taskPanel.snapshot);
@@ -122,7 +46,7 @@ function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:Re
     void taskPanel.submit(prompt);
   };
   return (
-    <form id="command" className="command-bar" autoComplete="off" onSubmit={submit}>
+    <form id="command" className="command-bar product-command-bar" autoComplete="off" onSubmit={submit}>
       <div className="command-field">
         <span className="command-prefix" aria-hidden="true">›</span>
         <input
@@ -141,6 +65,82 @@ function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:Re
   );
 }
 
+function LoadingPage({ label }: { label:string }) {
+  return <div className="product-page-loading" role="status">{label} 正在连接当前 World Runtime…</div>;
+}
+
+function ProductPages({
+  activePage,
+  bridgeState,
+  environments,
+  presentation,
+  openBuiltinWorld,
+  agentView,
+  openAgentView,
+  commandInputRef
+}: {
+  activePage:ProductPage;
+  bridgeState:any;
+  environments:EnvironmentDefinition[];
+  presentation:any;
+  openBuiltinWorld:(id:string)=>Promise<unknown>;
+  agentView:'tasks'|'runs';
+  openAgentView:(view:'tasks'|'runs')=>void;
+  commandInputRef:React.RefObject<HTMLInputElement|null>;
+}) {
+  const content = bridgeState.content;
+  const agent = bridgeState.agent;
+  if (activePage === 'world') return null;
+
+  return (
+    <section className="product-page-layer" aria-label="AgentScape product page">
+      {activePage === 'worlds' ? (
+        <WorldsPage
+          environments={environments}
+          presentation={presentation}
+          resources={content?.resourceLibrary?.resources || null}
+          authoring={bridgeState.authoring}
+          openBuiltinWorld={openBuiltinWorld}
+          openGeneratedWorld={content?.resourceLibrary?.openGeneratedWorld}
+        />
+      ) : null}
+      {activePage === 'build' ? (
+        <section className="product-page product-build-page" data-product-page="build">
+          {content ? (
+            <>
+              <div className="product-feature-frame product-build-surface"><BuildWorkbenchView {...content.buildWorkbench} /></div>
+              <div className="product-artifact-tray"><ArtifactTrayView {...content.artifactTray} /></div>
+            </>
+          ) : <LoadingPage label="Build" />}
+        </section>
+      ) : null}
+
+      {activePage === 'assets' ? (
+        <section className="product-page product-assets-page" data-product-page="assets">
+          {content ? <div className="product-feature-frame product-assets-surface"><ResourceLibraryView {...content.resourceLibrary} /></div> : <LoadingPage label="Assets" />}
+        </section>
+      ) : null}
+
+      {activePage === 'agent' ? (
+        <section className="product-page product-agent-page" data-product-page="agent">
+          <nav className="product-subnav" aria-label="Agent sections">
+            <button type="button" aria-pressed={agentView === 'tasks'} onClick={()=>openAgentView('tasks')}>Tasks</button>
+            <button type="button" aria-pressed={agentView === 'runs'} onClick={()=>openAgentView('runs')}>Runs</button>
+          </nav>
+          <div className="product-feature-frame product-agent-surface">
+            {agent ? (
+              agentView === 'tasks'
+                ? <TaskPanelView controller={agent.taskPanel} />
+                : <RunsPanelView controller={agent.runsPanel} />
+            ) : <LoadingPage label="Agent" />}
+          </div>
+          {agent && agentView === 'tasks' ? <CommandBar taskPanel={agent.taskPanel} inputRef={commandInputRef} draft={bridgeState.commandDraft} /> : null}
+        </section>
+      ) : null}
+    </section>
+  );
+}
+
 export function StudioApp({
   bridge,
   environmentDefinition,
@@ -151,17 +151,19 @@ export function StudioApp({
   environments:EnvironmentDefinition[];
 }) {
   const bridgeState = useSyncExternalStore(bridge.subscribe,bridge.getSnapshot,bridge.getSnapshot);
-  const activeWorkspace = useStudioStore((state)=>state.activeWorkspace);
-  const activeContextView = useStudioStore((state)=>state.activeContextView);
-  const contextOpen = useStudioStore((state)=>state.contextOpen);
-  const buildAdvancedOpen = useStudioStore((state)=>state.buildAdvancedOpen);
-  const selectedObjectId = useStudioStore((state)=>state.selectedObjectId);
-  const worldPresentation = useStudioStore((state)=>state.worldPresentation);
-  const openView = useStudioStore((state)=>state.openView);
+  const activePage = useStudioStore((state)=>state.product.activePage);
+  const agentView = useStudioStore((state)=>state.product.agentView);
+  const contextOpen = useStudioStore((state)=>state.layout.contextOpen);
+  const buildAdvancedOpen = useStudioStore((state)=>state.layout.buildAdvancedOpen);
+  const cinematic = useStudioStore((state)=>state.layout.cinematic);
+  const sceneCollapsed = useStudioStore((state)=>state.layout.sceneCollapsed);
+  const worldPresentation = useStudioStore((state)=>state.view.worldPresentation);
+  const openPage = useStudioStore((state)=>state.openPage);
+  const openAgentView = useStudioStore((state)=>state.openAgentView);
   const closeContext = useStudioStore((state)=>state.closeContext);
   const setBuildAdvancedOpen = useStudioStore((state)=>state.setBuildAdvancedOpen);
-  const [cinematic,setCinematic] = useState(false);
-  const [sceneCollapsed,setSceneCollapsed] = useState(false);
+  const setCinematic = useStudioStore((state)=>state.setCinematic);
+  const setSceneCollapsed = useStudioStore((state)=>state.setSceneCollapsed);
   const commandInputRef = useRef<HTMLInputElement|null>(null);
 
   const presentation = {
@@ -170,30 +172,50 @@ export function StudioApp({
   };
   const worldId = presentation.id || environmentDefinition.id;
   const generated = Boolean(presentation.generated);
-  const worldSelectValue = generated ? `runtime:${presentation.persistenceSource || worldId}` : worldId;
+  const worldSelectValue = generated ? 'runtime:' + (presentation.persistenceSource || worldId) : worldId;
 
   const commitLayoutChange = (change:()=>void) => {
     flushSync(change);
     bridge.notifyLayout();
   };
 
-  const chooseView = (view:string) => {
-    commitLayoutChange(()=>{
-      if (view !== 'world' && contextOpen && activeContextView === view) {
-        closeContext();
-        return;
-      }
-      openView(view as any);
-    });
+  const choosePage = (page:ProductPage) => {
+    commitLayoutChange(()=>openPage(page));
+    globalThis.history?.pushState?.(
+      globalThis.history.state,
+      '',
+      studioProductUrl(globalThis.location?.href || 'http://127.0.0.1/',{ page })
+    );
+  };
+
+  const chooseAgentView = (view:'tasks'|'runs') => {
+    commitLayoutChange(()=>openAgentView(view));
+    globalThis.history?.pushState?.(
+      globalThis.history.state,
+      '',
+      studioProductUrl(globalThis.location?.href || 'http://127.0.0.1/',{ page:'agent', agentView:view })
+    );
   };
 
   useEffect(()=>{
-    if (contextOpen && activeContextView === 'task') requestAnimationFrame(()=>commandInputRef.current?.focus());
-  },[activeContextView,activeWorkspace,contextOpen]);
+    if (activePage === 'agent' && agentView === 'tasks') requestAnimationFrame(()=>commandInputRef.current?.focus());
+  },[activePage,agentView]);
+
+  useEffect(()=>{
+    const onPopState = () => {
+      const route=parseStudioRoute(globalThis.location?.href || 'http://127.0.0.1/');
+      commitLayoutChange(()=>{
+        if (route.page === 'agent') openAgentView(route.agentView);
+        else openPage(route.page as ProductPage);
+      });
+    };
+    globalThis.window?.addEventListener?.('popstate',onPopState);
+    return ()=>globalThis.window?.removeEventListener?.('popstate',onPopState);
+  },[bridge,openAgentView,openPage]);
 
   useEffect(()=>{
     const onKeyDown = (event:KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape' || activePage !== 'world') return;
       if (cinematic) {
         commitLayoutChange(()=>setCinematic(false));
         return;
@@ -202,121 +224,118 @@ export function StudioApp({
     };
     document.addEventListener('keydown',onKeyDown);
     return ()=>document.removeEventListener('keydown',onKeyDown);
-  },[bridge,cinematic,closeContext,contextOpen]);
+  },[activePage,bridge,cinematic,closeContext,contextOpen,setCinematic]);
 
   const shellClass = [
     'shell',
     'spatial-editor',
     presentation.worldFirst ? 'world-first' : '',
-    contextOpen ? 'context-open' : '',
+    activePage === 'world' && contextOpen ? 'context-open' : '',
     sceneCollapsed ? 'scene-collapsed' : '',
-    cinematic ? 'cinematic' : ''
+    activePage === 'world' && cinematic ? 'cinematic' : '',
+    activePage !== 'world' ? 'product-page-open' : ''
   ].filter(Boolean).join(' ');
 
-  const content = bridgeState.content;
-  const agent = bridgeState.agent;
-
   return (
-    <main className={shellClass} data-world={worldId} data-workspace={activeWorkspace} data-context-view={activeContextView}>
+    <main className={shellClass} data-world={worldId} data-page={activePage} data-agent-view={agentView}>
       <header className="brandbar">
         <div className="brand-lockup">
-          <button
-            id="scene-sidebar-toggle"
-            className="scene-sidebar-toggle"
-            type="button"
-            aria-label={sceneCollapsed ? '展开场景侧边栏' : '收起场景侧边栏'}
-            aria-expanded={!sceneCollapsed}
-            title={sceneCollapsed ? '展开场景侧边栏' : '收起场景侧边栏'}
-            onClick={()=>commitLayoutChange(()=>setSceneCollapsed((value)=>!value))}
-          ><span aria-hidden="true">{sceneCollapsed ? '›' : '‹'}</span></button>
+          {activePage === 'world' ? (
+            <button
+              id="scene-sidebar-toggle"
+              className="scene-sidebar-toggle"
+              type="button"
+              aria-label={sceneCollapsed ? '展开场景侧边栏' : '收起场景侧边栏'}
+              aria-expanded={!sceneCollapsed}
+              title={sceneCollapsed ? '展开场景侧边栏' : '收起场景侧边栏'}
+              onClick={()=>commitLayoutChange(()=>setSceneCollapsed(!sceneCollapsed))}
+            ><span aria-hidden="true">{sceneCollapsed ? '›' : '‹'}</span></button>
+          ) : null}
           <strong>AgentScape <em>Studio</em></strong><span>{presentation.title}</span>
         </div>
+
+        <nav className="product-navigation" aria-label="AgentScape product">
+          {PRODUCT_NAVIGATION.map((item:any)=>(
+            item.href ? (
+              <a key={item.page} href={item.href}>{item.label}</a>
+            ) : (
+              <button
+                key={item.page}
+                type="button"
+                data-product-nav={item.page}
+                aria-pressed={isProductNavigationActive(activePage,item.page)}
+                onClick={()=>choosePage(item.page as ProductPage)}
+              >{item.label}</button>
+            )
+          ))}
+        </nav>
+
         <div className="brand-actions">
-          <label className="world-control">
-            <span>世界</span>
-            <select
-              id="world-select"
-              className="world-select"
-              aria-label="当前世界"
-              value={worldSelectValue}
-              onChange={(event)=>{ if (!event.target.value.startsWith('runtime:')) void bridge.openWorld(event.target.value); }}
-            >
-              {environments.map((item)=><option key={item.id} value={item.id}>{item.number} · {item.title}</option>)}
-              {generated ? <option value={worldSelectValue}>GENERATED · {presentation.title}</option> : null}
-            </select>
-          </label>
+          {activePage !== 'worlds' ? (
+            <label className="world-control">
+              <span>世界</span>
+              <select
+                id="world-select"
+                className="world-select"
+                aria-label="当前世界"
+                value={worldSelectValue}
+                onChange={(event)=>{ if (!event.target.value.startsWith('runtime:')) void bridge.openWorld(event.target.value); }}
+              >
+                {environments.map((item)=><option key={item.id} value={item.id}>{item.number} · {item.title}</option>)}
+                {generated ? <option value={worldSelectValue}>GENERATED · {presentation.title}</option> : null}
+              </select>
+            </label>
+          ) : null}
           <button
             id="runtime-status"
-            className={`runtime-status${bridgeState.runtimeStatus.recoveryAction ? ' is-actionable' : ''}`}
+            className={'runtime-status' + (bridgeState.runtimeStatus.recoveryAction ? ' is-actionable' : '')}
             data-state={bridgeState.runtimeStatus.state}
             type="button"
             disabled={!bridgeState.runtimeStatus.recoveryAction}
             aria-live="polite"
             onClick={()=>bridgeState.runtimeStatus.recoveryAction?.()}
           ><i /><span>{bridgeState.runtimeStatus.label}</span></button>
-          <button id="cinematic-toggle" className="header-button" type="button" aria-pressed={cinematic} onClick={()=>commitLayoutChange(()=>setCinematic((value)=>!value))}>
-            {cinematic ? '返回编辑' : '沉浸模式'}
-          </button>
+          {activePage === 'world' ? (
+            <button id="cinematic-toggle" className="header-button" type="button" aria-pressed={cinematic} onClick={()=>commitLayoutChange(()=>setCinematic(!cinematic))}>
+              {cinematic ? '返回编辑' : '沉浸模式'}
+            </button>
+          ) : null}
           <button id="open-developer" className="icon-button" type="button" aria-label="打开开发者设置" title="开发者设置" onClick={()=>bridgeState.developerOpenHandler?.()}>⋯</button>
         </div>
       </header>
 
-      <section className="workspace">
-        <aside className="scene-panel" aria-hidden={sceneCollapsed}>
-          {content ? <SceneExplorerView {...content.sceneExplorer} /> : null}
-        </aside>
-        <div id="viewport" className="viewport">
-          <SceneToolbar bridgeState={bridgeState} />
-          <div className="world-intro">
-            <div className="world-kicker">{presentation.number || 'WORLD'} // {String(presentation.title || worldId).toUpperCase()}</div>
-            <h2>{presentation.headline || presentation.title}</h2>
-            <p>{presentation.description || ''}</p>
-            <div className="world-facts">{(presentation.facts || []).map((fact:string)=><span key={fact}>{fact}</span>)}</div>
-          </div>
-          <div className="hint">点击选择 · W 移动 · E 旋转 · Del 删除</div>
-        </div>
+      <WorldEditorWorkspace
+        bridgeState={bridgeState}
+        presentation={presentation}
+        active={activePage === 'world'}
+        notifyLayout={bridge.notifyLayout}
+      />
 
-        <aside className={`panel${buildAdvancedOpen ? ' build-advanced-open' : ''}`} data-view={activeContextView} aria-label="上下文面板">
-          {agent ? <TaskPanelView controller={agent.taskPanel} /> : null}
-          <div className="build-workbench-host">
-            {content ? <BuildWorkbenchView {...content.buildWorkbench} /> : null}
+      <ProductPages
+        activePage={activePage}
+        bridgeState={bridgeState}
+        environments={environments}
+        presentation={presentation}
+        openBuiltinWorld={bridge.openWorld}
+        agentView={agentView}
+        openAgentView={chooseAgentView}
+        commandInputRef={commandInputRef}
+      />
+
+      <section
+        className={'persistent-generation-host' + (activePage === 'build' && buildAdvancedOpen ? ' is-active' : '')}
+        aria-hidden={!(activePage === 'build' && buildAdvancedOpen)}
+      >
+        <div className="product-page product-advanced-page">
+          <div className="product-page-toolbar">
+            <button id="build-close-advanced" type="button" onClick={()=>setBuildAdvancedOpen(false)}>← 返回 Build</button>
+            <span>Advanced Generation Console</span>
           </div>
-          <div className="build-advanced-shell">
-            <div className="build-advanced-header">
-              <button id="build-close-advanced" type="button" onClick={()=>setBuildAdvancedOpen(false)}>← 返回 Build Workbench</button>
-              <span>Advanced Generation Console</span>
-            </div>
-            <GenerationJobCenterView />
-          </div>
-          {content ? <ResourceLibraryView {...content.resourceLibrary} /> : null}
-          <section className="inspector">
-            {content ? <ObjectInspectorView {...content.inspector} /> : null}
-          </section>
-          {agent ? <RunsPanelView controller={agent.runsPanel} /> : null}
-        </aside>
+          <GenerationJobCenterView />
+        </div>
       </section>
 
-      <div className="artifact-tray-host">{content ? <ArtifactTrayView {...content.artifactTray} /> : null}</div>
-
-      {agent ? <CommandBar taskPanel={agent.taskPanel} inputRef={commandInputRef} draft={bridgeState.commandDraft} /> : (
-        <form id="command" className="command-bar" autoComplete="off">
-          <div className="command-field"><span className="command-prefix" aria-hidden="true">›</span><input id="input" ref={commandInputRef} disabled placeholder="正在启动…" aria-label="智能体任务" /></div>
-          <button type="submit" disabled><span>启动中…</span></button>
-        </form>
-      )}
-
       <DeveloperSettingsView />
-
-      <nav className="world-dock" aria-label="Studio workspace">
-        {STUDIO_NAVIGATION.map(({ view,label,group })=>{
-          const selected = group === 'primary'
-            ? (view === 'world' ? activeWorkspace === 'world' : view === 'create' ? activeWorkspace === 'create' : activeWorkspace === 'agent')
-            : contextOpen && activeContextView === view;
-          const hasSelection = view === 'inspect' && Boolean(selectedObjectId);
-          return <button key={view} type="button" data-dock-view={view} data-dock-group={group} className={hasSelection ? 'has-selection' : ''} aria-pressed={selected} onClick={()=>chooseView(view)}>{label}</button>;
-        })}
-        {bridgeState.dockActions.map((action:any)=><button key={action.id} id={action.id} type="button" className={['dock-extension',action.className].filter(Boolean).join(' ')} title={action.title || action.label} onClick={action.onClick}>{action.label}</button>)}
-      </nav>
     </main>
   );
 }

@@ -6,6 +6,7 @@ import { AuthoringWorldStore } from '../persistence/AuthoringWorldStore.js';
 import { RuntimeDriver } from '../runtime/RuntimeDriver.js';
 import { StudioEnvironmentMaterializer } from '../ui/StudioEnvironmentMaterializer.js';
 import { StudioWorldSurface } from '../ui/StudioWorldSurface.js';
+import { EditorController } from '../editor/EditorController.js';
 import { CAPABILITY_API, LOCAL_ADAPTER_HOST } from '../config/capabilityEntry.js';
 import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
 
@@ -65,6 +66,10 @@ export async function createStudioRuntime({
     ui,
     tools:studioTools,
     environmentMaterializer,
+    createEditor:(runtime)=>new EditorController(runtime,{
+      getSelection:()=>ui.getSelection?.() || null,
+      setSelection:(selection)=>ui.setSelection?.(selection)
+    }),
     onPresentationChange:(identity)=>ui.setWorldPresentation?.(identity),
     onSurfaceError:(error)=>console.error('Studio world surface cleanup failed', error)
   });

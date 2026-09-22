@@ -1,11 +1,25 @@
 import * as THREE from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
+const sameSelection = (a,b) => (
+  a === b || (a?.source === b?.source && a?.id === b?.id)
+);
+
 export class EditorController {
-  constructor(runtime, { selectionOnRelease = false } = {}) {
+  constructor(runtime, {
+    selectionOnRelease = false,
+    getSelection = null,
+    setSelection = null
+  } = {}) {
     this.runtime = runtime;
     this.selectionOnRelease = Boolean(selectionOnRelease);
-    this.selectedId = null;
+
+    let localSelection=null;
+    this.getSelection = typeof getSelection === 'function' ? getSelection : () => localSelection;
+    this.setSelection = typeof setSelection === 'function'
+      ? setSelection
+      : (selection) => { localSelection=selection; };
+
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
     this.box = new THREE.BoxHelper(undefined, 0x7aa2ff);
@@ -42,33 +56,44 @@ export class EditorController {
 
     this.transform.addEventListener('dragging-changed', ({ value }) => {
       this.controls.enabled = !value;
-      if (!this.selectedId) return;
+      const selectedId=this.selectedId;
+      if (!selectedId) return;
       if (value) {
-        this.dragBlocked = !runtime.beginMutation(`editor:${this.transform.getMode()}`);
+        this.dragBlocked = !runtime.beginMutation('editor:' + this.transform.getMode());
         if (this.dragBlocked) {
           this.transform.reset();
           this.controls.enabled = true;
           return;
         }
-        runtime.commands.beginTransform(this.selectedId);
+        runtime.commands.beginTransform(selectedId);
       } else if (this.dragBlocked) {
         this.dragBlocked = false;
       } else {
-        runtime.commands.endTransform(this.selectedId);
-        runtime.commitMutation({ source: 'editor', id: this.selectedId, mode: this.transform.getMode() });
+        runtime.commands.endTransform(selectedId);
+        runtime.commitMutation({ source:'editor', id:selectedId, mode:this.transform.getMode() });
       }
     });
     this.transform.addEventListener('objectChange', () => {
-      if (!this.selectedId || this.dragBlocked) return;
-      const object=runtime.store.get(this.selectedId).object;
-      runtime.commands.transform(this.selectedId,{
+      const selectedId=this.selectedId;
+      if (!selectedId || this.dragBlocked) return;
+      const object=runtime.store.get(selectedId).object;
+      runtime.commands.transform(selectedId,{
         position:object.position.toArray(),
         quaternion:object.quaternion.toArray(),
         scale:object.scale.toArray()
       },{source:'editor'});
-      runtime.events.emit('editor.transform', { id: this.selectedId, mode: this.transform.getMode() });
+      runtime.events.emit('editor.transform', { id:selectedId, mode:this.transform.getMode() });
       this.box.update();
     });
+  }
+
+  get selection() {
+    return this.getSelection?.() || null;
+  }
+
+  get selectedId() {
+    const selection=this.selection;
+    return selection?.source === 'runtime' ? selection.id : null;
   }
 
   pick(event) {
@@ -88,19 +113,23 @@ export class EditorController {
   }
 
   select(id) {
-    if (id === this.selectedId) return;
-    this.selectedId = id;
+    const next=id ? { source:'runtime', id } : null;
+    if (sameSelection(next,this.selection)) return;
+
+    this.setSelection(next);
+
     if (!id) {
       this.transform.detach();
       this.box.visible = false;
-      this.runtime.events.emit('editor.selection', { id: null });
+      this.runtime.events.emit('editor.selection', { id:null, selection:null });
       return;
     }
+
     const record = this.runtime.store.get(id);
     this.transform.attach(record.object);
     this.box.setFromObject(record.object);
     this.box.visible = true;
-    this.runtime.events.emit('editor.selection', { id });
+    this.runtime.events.emit('editor.selection', { id, selection:next });
   }
 
   setMode(mode) {
@@ -116,18 +145,27 @@ export class EditorController {
   }
 
   async duplicateSelected() {
-    if (!this.selectedId) return null;
-    const result = await this.runtime.mutate('editor:duplicate', () => this.runtime.commands.duplicate(this.selectedId), { source: 'editor', id: this.selectedId });
+    const selectedId=this.selectedId;
+    if (!selectedId) return null;
+    const result = await this.runtime.mutate(
+      'editor:duplicate',
+      () => this.runtime.commands.duplicate(selectedId),
+      { source:'editor', id:selectedId }
+    );
     const id = typeof result === 'string' ? result : result?.id || null;
     if (id) this.select(id);
     return result;
   }
 
   deleteSelected() {
-    if (!this.selectedId) return false;
-    const id = this.selectedId;
+    const selectedId=this.selectedId;
+    if (!selectedId) return false;
     this.select(null);
-    return this.runtime.mutate('editor:delete', () => this.runtime.commands.remove(id), { source: 'editor', id });
+    return this.runtime.mutate(
+      'editor:delete',
+      () => this.runtime.commands.remove(selectedId),
+      { source:'editor', id:selectedId }
+    );
   }
 
   dispose() {
@@ -140,5 +178,6 @@ export class EditorController {
     this.box.material.dispose();
     this.runtime.rendering.removeDecoration(this.box);
     this.runtime.rendering.removeDecoration(this.transformHelper);
+    this.runtime=null;
   }
 }

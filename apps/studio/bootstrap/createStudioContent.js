@@ -3,12 +3,15 @@ import { StudioResources } from '../resources/StudioResources.js';
 import { BuildSession } from '../build/BuildSession.js';
 import { StudioBuildController } from '../build/StudioBuildController.js';
 import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
+import { EditorCommandQueue } from '../editor/EditorCommandQueue.js';
+import { InspectorProjection } from '../inspect/InspectorProjection.js';
 
 export function createStudioContent({
   ui,
   environmentDefinition,
   environments,
   world,
+  authoring = null,
   studioTools,
   editor,
   taskPanel,
@@ -66,7 +69,18 @@ export function createStudioContent({
     log
   });
 
-  ui.setSelectedObjectId?.(editor.selectedId ?? null);
+  const inspectorProjection = new InspectorProjection({ world, authoring });
+  const editorCommands = new EditorCommandQueue({
+    tools:studioTools,
+    authoring,
+    log,
+    onCommitted:(command)=>{
+      if (command.source === 'runtime') ui.syncInspector?.(command.id);
+      else ui.refreshInspector?.();
+    }
+  });
+
+  ui.selectRuntimeObject?.(editor.selectedId ?? null);
 
   const inspector = {
     render(id) {
@@ -79,6 +93,7 @@ export function createStudioContent({
     sceneExplorer:{
       world,
       editor,
+      authoring,
       environmentDefinition,
       resources,
       placement,
@@ -101,8 +116,8 @@ export function createStudioContent({
       openGeneratedWorld
     },
     inspector:{
-      world,
-      tools:studioTools,
+      projection:inspectorProjection,
+      commands:editorCommands,
       log
     },
     artifactTray:{

@@ -31,7 +31,7 @@ export async function createStudioDeveloperTools({
   ui.setLayoutChangeHandler(()=>world.rendering?.resize?.());
 
   const generationJobCenter = await new GenerationJobCenter({
-    root:ui.panel,
+    root:ui.shell,
     world,
     tools:studioTools,
     log

@@ -4,8 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const { studioState } = vi.hoisted(()=>({
   studioState:{
-    buildOutputs:[],
-    selectedBuildOutputKey:null,
+    build:{outputs:[],selectedOutputKey:null},
     selectBuildOutput:vi.fn(),
     clearBuildOutputs:vi.fn(),
     requestBuildWorkflow:vi.fn()
@@ -37,12 +36,12 @@ const agentVerifier={
 
 describe('ArtifactTrayView contract',()=>{
   it('projects image, asset and world outputs with the correct user actions',()=>{
-    studioState.buildOutputs=[
+    studioState.build.outputs=[
       {key:'image:1',kind:'image',primaryId:'image_01',artifactIds:['image_01'],prompt:'red chair',status:'ready',routeLabel:'Modal 2D',createdAt:1},
       {key:'asset:1',kind:'asset',primaryId:'asset_saved',artifactIds:['asset_saved'],prompt:'chair mesh',status:'asset-ready',routeLabel:'Modal 3D',createdAt:2},
       {key:'world:1',kind:'world',primaryId:'world_01',artifactIds:['world_01'],prompt:'garden',status:'world-ready',routeLabel:'Modal World',createdAt:3}
     ];
-    studioState.selectedBuildOutputKey='asset:1';
+    studioState.build.selectedOutputKey='asset:1';
     const html=renderToStaticMarkup(createElement(ArtifactTrayView,{
       resources,controller,agentVerifier,openBuild:vi.fn(),log:vi.fn()
     }));
@@ -58,8 +57,8 @@ describe('ArtifactTrayView contract',()=>{
   });
 
   it('renders the collapsed empty tray contract when no outputs exist',()=>{
-    studioState.buildOutputs=[];
-    studioState.selectedBuildOutputKey=null;
+    studioState.build.outputs=[];
+    studioState.build.selectedOutputKey=null;
     const html=renderToStaticMarkup(createElement(ArtifactTrayView,{
       resources,controller,agentVerifier,openBuild:vi.fn(),log:vi.fn()
     }));

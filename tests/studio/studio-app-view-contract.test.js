@@ -4,15 +4,23 @@ import { describe, expect, it, vi } from 'vitest';
 
 const { studioState } = vi.hoisted(()=>({
   studioState:{
-    activeWorkspace:'agent',
-    activeContextView:'runs',
-    contextOpen:true,
-    buildAdvancedOpen:false,
-    selectedObjectId:'cup_01',
-    worldPresentation:null,
+    product:{activePage:'agent',agentView:'runs'},
+    layout:{
+      activeContextView:'inspect',
+      contextOpen:false,
+      buildAdvancedOpen:false,
+      cinematic:false,
+      sceneCollapsed:false
+    },
+    editor:{selection:{source:'runtime',id:'cup_01'},revision:0},
+    view:{worldPresentation:null},
+    openPage:vi.fn(),
+    openAgentView:vi.fn(),
     openView:vi.fn(),
     closeContext:vi.fn(),
-    setBuildAdvancedOpen:vi.fn()
+    setBuildAdvancedOpen:vi.fn(),
+    setCinematic:vi.fn(),
+    setSceneCollapsed:vi.fn()
   }
 }));
 
@@ -28,6 +36,7 @@ vi.mock('../../apps/studio/react/artifacts/ArtifactTray.tsx',()=>({ArtifactTrayV
 vi.mock('../../apps/studio/react/agent/TaskPanelView.tsx',()=>({TaskPanelView:()=>null}));
 vi.mock('../../apps/studio/react/runs/RunsPanelView.tsx',()=>({RunsPanelView:()=>null}));
 vi.mock('../../apps/studio/react/resources/ResourceLibraryView.tsx',()=>({ResourceLibraryView:()=>null}));
+vi.mock('../../apps/studio/react/authoring/AuthoringPromotionView.tsx',()=>({AuthoringPromotionView:()=>null}));
 
 import { StudioApp } from '../../apps/studio/react/StudioApp.tsx';
 
@@ -40,53 +49,53 @@ function bridge(snapshot) {
   };
 }
 
+const snapshot = () => ({
+  runtimeStatus:{state:'ready',label:'就绪 · WebGPU',recoveryAction:null},
+  sceneControls:null,
+  authoring:null,
+  content:null,
+  agent:null,
+  commandDraft:null,
+  dockActions:[]
+});
+
 describe('StudioApp contract',()=>{
-  it('projects workspace/context selection, runtime status and selected-object dock state',()=>{
+  it('projects product-page navigation while keeping the World Editor mounted in the background',()=>{
     const html=renderToStaticMarkup(createElement(StudioApp,{
-      bridge:bridge({
-        runtimeStatus:{state:'ready',label:'就绪 · WebGPU',recoveryAction:null},
-        sceneControls:null,
-        authoring:null,
-        content:null,
-        agent:null,
-        commandDraft:null,
-        dockActions:[]
-      }),
+      bridge:bridge(snapshot()),
       environmentDefinition:{id:'monument-hall',title:'纪念大厅',number:'WORLD 01',headline:'Hall',description:'Demo world',facts:['4 Objects']},
       environments:[{id:'monument-hall',title:'纪念大厅',number:'WORLD 01'}]
     }));
-    expect(html).toContain('data-workspace="agent"');
-    expect(html).toContain('data-context-view="runs"');
+    expect(html).toContain('data-page="agent"');
+    expect(html).toContain('data-agent-view="runs"');
     expect(html).toContain('就绪 · WebGPU');
-    expect(html).toContain('data-dock-view="task"');
-    expect(html).toMatch(/data-dock-view="task"[^>]*aria-pressed="true"/);
-    expect(html).toMatch(/data-dock-view="runs"[^>]*aria-pressed="true"/);
+    expect(html).toContain('aria-label="AgentScape product"');
+    expect(html).toMatch(/data-product-nav="agent"[^>]*aria-pressed="true"/);
+    expect(html).toContain('href="/observatory/"');
+    expect(html).toContain('aria-label="World Editor"');
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('id="viewport"');
     expect(html).toMatch(/data-dock-view="inspect"[^>]*class="has-selection"/);
-    expect(html).toContain('4 Objects');
+    expect(html).toContain('data-product-page="agent"');
   });
 
-  it('projects generated-world identity without exposing it as a built-in world switch target',()=>{
-    studioState.activeWorkspace='world';
-    studioState.activeContextView='create';
-    studioState.contextOpen=false;
-    studioState.selectedObjectId=null;
-    studioState.worldPresentation={id:'runtime_world',title:'Generated Garden',generated:true,persistenceSource:'artifact_world_01'};
+  it('projects generated-world identity on the active World page without exposing it as a built-in switch target',()=>{
+    studioState.product.activePage='world';
+    studioState.product.agentView='tasks';
+    studioState.layout.contextOpen=false;
+    studioState.editor.selection=null;
+    studioState.view.worldPresentation={id:'runtime_world',title:'Generated Garden',generated:true,persistenceSource:'artifact_world_01'};
     const html=renderToStaticMarkup(createElement(StudioApp,{
-      bridge:bridge({
-        runtimeStatus:{state:'ready',label:'就绪',recoveryAction:null},
-        sceneControls:null,
-        authoring:null,
-        content:null,
-        agent:null,
-        commandDraft:null,
-        dockActions:[]
-      }),
+      bridge:bridge({...snapshot(),runtimeStatus:{state:'ready',label:'就绪',recoveryAction:null}}),
       environmentDefinition:{id:'monument-hall',title:'纪念大厅'},
       environments:[{id:'monument-hall',title:'纪念大厅',number:'WORLD 01'}]
     }));
     expect(html).toContain('data-world="runtime_world"');
+    expect(html).toContain('data-page="world"');
     expect(html).toContain('GENERATED · Generated Garden');
     expect(html).toContain('value="runtime:artifact_world_01"');
-    expect(html).toMatch(/data-dock-view="world"[^>]*aria-pressed="true"/);
+    expect(html).toMatch(/data-product-nav="worlds"[^>]*aria-pressed="true"/);
+    expect(html).toContain('aria-label="World Editor"');
+    expect(html).toContain('aria-hidden="false"');
   });
 });

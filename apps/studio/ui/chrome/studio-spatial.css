@@ -231,102 +231,6 @@
   font-size: 18px;
 }
 
-/* Workspace navigation ----------------------------------------------------- */
-
-.spatial-editor .world-dock {
-  position: absolute;
-  z-index: 54;
-  top: 6px;
-  left: 50%;
-  bottom: auto;
-  width: auto;
-  max-width: min(560px, calc(100vw - var(--studio-scene-w) - 360px));
-  height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  transform: translateX(-50%);
-  border: 1px solid var(--studio-border);
-  border-radius: 8px;
-  background: var(--studio-surface-2);
-  box-shadow: inset 0 1px rgba(255,255,255,.025);
-  scrollbar-width: none;
-}
-
-.spatial-editor .world-dock::-webkit-scrollbar {
-  display: none;
-}
-
-.spatial-editor .world-dock button {
-  position: relative;
-  min-width: 0;
-  height: 26px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--studio-text-3);
-  background: transparent;
-  cursor: pointer;
-  font: 550 11.5px/1 var(--studio-font-ui);
-  letter-spacing: -.005em;
-  white-space: nowrap;
-}
-
-.spatial-editor .world-dock button:hover {
-  color: var(--studio-text-2);
-  background: rgba(255,255,255,.045);
-}
-
-.spatial-editor .world-dock button[aria-pressed="true"] {
-  color: var(--studio-text);
-  background: var(--studio-surface-3);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
-}
-
-.spatial-editor .world-dock button[data-dock-group="primary"] {
-  color: var(--studio-text-2);
-}
-
-.spatial-editor .world-dock button[data-dock-group="utility"] {
-  padding-inline: 8px;
-  color: var(--studio-text-3);
-  font-size: 10.5px;
-  font-weight: 520;
-}
-
-.spatial-editor .world-dock button[data-dock-view="resources"] {
-  margin-left: 5px;
-}
-
-.spatial-editor .world-dock button[data-dock-view="resources"]::before {
-  content: "";
-  position: absolute;
-  top: 5px;
-  bottom: 5px;
-  left: -4px;
-  width: 1px;
-  background: var(--studio-border-strong);
-}
-
-.spatial-editor .world-dock button.has-selection:not([aria-pressed="true"])::after {
-  content: "";
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--studio-accent);
-}
-
-.spatial-editor .world-dock .dock-extension {
-  margin-left: 2px;
-  color: var(--studio-text-3);
-}
-
 /* Scene tree --------------------------------------------------------------- */
 
 .spatial-editor .scene-panel,
@@ -770,7 +674,6 @@
 .spatial-editor.cinematic .brandbar,
 .spatial-editor.cinematic .scene-panel,
 .spatial-editor.cinematic .panel,
-.spatial-editor.cinematic .world-dock,
 .spatial-editor.cinematic .editor-toolbar,
 .spatial-editor.cinematic .command-bar,
 .spatial-editor.cinematic .artifact-tray-host {
@@ -856,9 +759,6 @@
     left: 14px;
   }
 
-  .spatial-editor .world-dock {
-    max-width: min(520px, calc(100vw - 430px));
-  }
 }
 
 @media (max-width: 860px) {
@@ -875,13 +775,6 @@
 
   .spatial-editor .world-select {
     max-width: 154px;
-  }
-
-  .spatial-editor .world-dock {
-    top: auto;
-    bottom: 8px;
-    max-width: calc(100vw - 16px);
-    box-shadow: var(--studio-shadow-float);
   }
 
   .spatial-editor .viewport,
@@ -939,18 +832,469 @@
     display: none;
   }
 
-  .spatial-editor .world-dock button {
-    padding-inline: 8px;
-    font-size: 10.5px;
-  }
-
-  .spatial-editor .world-dock button[data-dock-group="utility"] {
-    font-size: 9.5px;
-  }
-
   .spatial-editor .editor-toolbar #duplicate,
   .spatial-editor .editor-toolbar #delete,
   .spatial-editor .toolbar-divider {
     display: none;
+  }
+}
+
+/* World Editor utilities ---------------------------------------------------
+   Product navigation lives in the app bar; this rail is only contextual
+   editor chrome. */
+
+.spatial-editor .utility-rail {
+  position: absolute;
+  z-index: 44;
+  top: calc(var(--studio-header-h) + 12px);
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  width: 74px;
+  padding: 5px;
+  border: 1px solid var(--studio-border);
+  border-radius: 10px;
+  background: rgba(24,25,28,.88);
+  box-shadow: var(--studio-shadow-float);
+  backdrop-filter: blur(16px);
+}
+
+.spatial-editor.context-open .utility-rail {
+  right: calc(var(--studio-panel-w) + 24px);
+}
+
+.spatial-editor .utility-rail button {
+  position: relative;
+  min-height: 30px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--studio-text-3);
+  background: transparent;
+  cursor: pointer;
+  font: 540 10px/1 var(--studio-font-ui);
+  white-space: nowrap;
+}
+
+.spatial-editor .utility-rail button:hover {
+  color: var(--studio-text-2);
+  background: rgba(255,255,255,.045);
+}
+
+.spatial-editor .utility-rail button[aria-pressed="true"] {
+  color: #edf2ff;
+  background: rgba(133,160,255,.13);
+  box-shadow: inset 0 0 0 1px rgba(133,160,255,.16);
+}
+
+.spatial-editor .utility-rail button.has-selection:not([aria-pressed="true"])::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--studio-accent);
+}
+
+.spatial-editor .utility-rail-divider {
+  height: 1px;
+  margin: 2px 4px;
+  background: var(--studio-border);
+}
+
+.spatial-editor .utility-rail .dock-extension {
+  color: var(--studio-text-3);
+  font-size: 9px;
+  line-height: 1.15;
+  white-space: normal;
+}
+
+/* Keep the canvas geometrically stable when context opens. The inspector is
+   overlay chrome; it no longer takes ownership of a full viewport column. */
+.spatial-editor.context-open .viewport {
+  right: 0;
+}
+
+.spatial-editor .panel,
+.spatial-editor.world-first .panel {
+  top: calc(var(--studio-header-h) + 12px);
+  right: 12px;
+  bottom: 72px;
+  width: min(var(--studio-panel-w), calc(100vw - var(--studio-scene-w) - 44px));
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 12px;
+  background: rgba(24,25,28,.95);
+  box-shadow: 0 18px 48px rgba(0,0,0,.34), var(--studio-shadow-float);
+  backdrop-filter: blur(18px) saturate(118%);
+}
+
+.spatial-editor.scene-collapsed .panel,
+.spatial-editor.scene-collapsed.world-first .panel {
+  width: min(var(--studio-panel-w), calc(100vw - 44px));
+}
+
+.spatial-editor.cinematic .utility-rail {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  .spatial-editor .utility-rail {
+    width: 68px;
+  }
+
+  .spatial-editor.context-open .utility-rail {
+    right: calc(var(--studio-panel-w) + 18px);
+  }
+}
+
+@media (max-width: 860px) {
+  .spatial-editor .utility-rail {
+    top: calc(var(--studio-header-h) + 8px);
+    right: 8px;
+    width: auto;
+    max-width: calc(100vw - 16px);
+    flex-direction: row;
+    padding: 4px;
+    overflow-x: auto;
+  }
+
+  .spatial-editor.context-open .utility-rail {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .spatial-editor .utility-rail-divider {
+    width: 1px;
+    height: 22px;
+    margin: 3px 2px;
+  }
+
+  .spatial-editor .panel,
+  .spatial-editor.world-first .panel {
+    top: calc(var(--studio-header-h) + 8px);
+    right: 8px;
+    bottom: 52px;
+    left: 8px;
+    width: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .spatial-editor .utility-rail button {
+    min-height: 28px;
+    font-size: 9.5px;
+  }
+}
+
+/* Product shell -------------------------------------------------------------
+   Product pages are separate from the persistent World Editor. The editor
+   remains mounted behind page surfaces so Runtime/renderer ownership is never
+   transferred to React navigation. */
+
+.spatial-editor .world-editor-workspace {
+  position: absolute;
+  inset: 0;
+}
+
+.spatial-editor .world-editor-workspace.is-background {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.spatial-editor .product-navigation {
+  position: absolute;
+  z-index: 54;
+  top: 7px;
+  left: 50%;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  transform: translateX(-50%);
+  border: 1px solid var(--studio-border);
+  border-radius: 9px;
+  background: rgba(28,30,34,.94);
+  box-shadow: inset 0 1px rgba(255,255,255,.025);
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+}
+
+.spatial-editor .product-navigation button,
+.spatial-editor .product-navigation a {
+  min-width: 62px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--studio-text-3);
+  background: transparent;
+  cursor: pointer;
+  font: 560 10.5px/1 var(--studio-font-ui);
+  letter-spacing: -.005em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.spatial-editor .product-navigation button:hover,
+.spatial-editor .product-navigation a:hover {
+  color: var(--studio-text-2);
+  background: rgba(255,255,255,.045);
+}
+
+.spatial-editor .product-navigation button[aria-pressed="true"] {
+  color: var(--studio-text);
+  background: var(--studio-surface-3);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+}
+
+.spatial-editor .product-navigation a::after {
+  content: "↗";
+  margin-left: 5px;
+  color: var(--studio-text-3);
+  font-size: 8px;
+}
+
+.spatial-editor .product-page-layer {
+  position: absolute;
+  z-index: 26;
+  top: var(--studio-header-h);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--studio-border);
+  background: var(--studio-bg);
+}
+
+.spatial-editor .product-page {
+  width: min(1180px, 100%);
+  height: 100%;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.spatial-editor .product-build-page {
+  display: grid;
+  grid-template-rows: minmax(0,1fr) auto;
+  gap: 12px;
+}
+
+.spatial-editor .product-feature-frame,
+.spatial-editor .product-advanced-page {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--studio-border);
+  border-radius: 12px;
+  background: var(--studio-surface-1);
+  box-shadow: var(--studio-shadow);
+}
+
+.spatial-editor .product-feature-frame > * {
+  height: 100%;
+}
+
+.spatial-editor .product-artifact-tray {
+  min-height: 0;
+}
+
+.spatial-editor .product-artifact-tray > * {
+  max-height: 174px;
+}
+
+.spatial-editor .product-advanced-page {
+  display: grid;
+  grid-template-rows: auto minmax(0,1fr);
+  overflow: hidden;
+}
+
+.spatial-editor .product-page-toolbar {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--studio-border);
+  color: var(--studio-text-3);
+  font: 600 10px/1 var(--studio-font-mono);
+}
+
+.spatial-editor .product-page-toolbar button {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--studio-border);
+  border-radius: 6px;
+  color: var(--studio-text-2);
+  background: var(--studio-surface-2);
+  cursor: pointer;
+}
+
+.spatial-editor .product-assets-page {
+  display: grid;
+  min-height: 0;
+}
+
+.spatial-editor .product-assets-surface {
+  width: min(980px, 100%);
+  justify-self: center;
+}
+
+.spatial-editor .product-agent-page {
+  display: grid;
+  grid-template-rows: auto minmax(0,1fr) auto;
+  gap: 10px;
+}
+
+.spatial-editor .product-subnav {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: max-content;
+  padding: 3px;
+  border: 1px solid var(--studio-border);
+  border-radius: 8px;
+  background: var(--studio-surface-1);
+}
+
+.spatial-editor .product-subnav button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--studio-text-3);
+  background: transparent;
+  cursor: pointer;
+  font: 560 10px/1 var(--studio-font-ui);
+}
+
+.spatial-editor .product-subnav button[aria-pressed="true"] {
+  color: var(--studio-text);
+  background: var(--studio-surface-3);
+}
+
+.spatial-editor .product-agent-surface {
+  width: min(920px, 100%);
+  min-height: 0;
+  justify-self: center;
+}
+
+.spatial-editor .product-agent-page .product-command-bar,
+.spatial-editor.product-page-open .product-command-bar {
+  position: relative;
+  z-index: 1;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: min(760px, 100%);
+  display: grid !important;
+  justify-self: center;
+  transform: none;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 10px;
+  background: var(--studio-surface-1);
+}
+
+.spatial-editor .product-page-loading {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  color: var(--studio-text-3);
+  font: 520 11px/1.5 var(--studio-font-ui);
+}
+
+.spatial-editor.product-page-open .utility-rail,
+.spatial-editor.product-page-open .world-artifact-tray {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.spatial-editor.cinematic .product-navigation {
+  display: none;
+}
+
+@media (max-width: 1040px) {
+  .spatial-editor .product-navigation {
+    left: 44%;
+  }
+
+  .spatial-editor .product-navigation button,
+  .spatial-editor .product-navigation a {
+    min-width: 52px;
+    padding-inline: 7px;
+    font-size: 9.5px;
+  }
+
+  .spatial-editor .product-page {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 820px) {
+  .spatial-editor .product-navigation {
+    top: auto;
+    bottom: 8px;
+    left: 50%;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+    box-shadow: var(--studio-shadow-float);
+  }
+
+  .spatial-editor .product-page-layer {
+    bottom: 44px;
+  }
+
+  .spatial-editor .product-page {
+    padding: 8px;
+  }
+}
+
+/* The imperative GenerationJobCenter controller still binds the production
+   generation service to DOM ids. Keep exactly one view mounted for that
+   controller; product navigation only changes its visibility. */
+.spatial-editor .persistent-generation-host {
+  position: absolute;
+  z-index: 27;
+  top: var(--studio-header-h);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  border-top: 1px solid var(--studio-border);
+  background: var(--studio-bg);
+}
+
+.spatial-editor .persistent-generation-host.is-active {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.spatial-editor .persistent-generation-host > .product-page {
+  width: min(1180px, 100%);
+  height: 100%;
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.spatial-editor .persistent-generation-host .product-advanced-page > *:last-child {
+  min-height: 0;
+}
+
+@media (max-width: 820px) {
+  .spatial-editor .persistent-generation-host {
+    bottom: 44px;
+  }
+
+  .spatial-editor .persistent-generation-host > .product-page {
+    padding: 8px;
   }
 }

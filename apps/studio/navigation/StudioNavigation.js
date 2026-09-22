@@ -1,31 +1,24 @@
-export function builtInWorldUrl(currentHref, worldId) {
-  const url = new URL(currentHref);
-  for (const key of ['worldManifest','mesh','visual','semantics','up']) url.searchParams.delete(key);
-  url.searchParams.set('world',worldId);
-  return url.toString();
-}
+export { builtInWorldUrl } from './StudioRoutes.js';
 
-export const STUDIO_NAVIGATION = Object.freeze([
-  { view:'world', label:'World', group:'primary' },
-  { view:'create', label:'Create', group:'primary' },
-  { view:'task', label:'Agent', group:'primary' },
-  { view:'resources', label:'Library', group:'utility' },
-  { view:'inspect', label:'Inspect', group:'utility' },
-  { view:'runs', label:'Runs', group:'utility' }
+export const PRODUCT_NAVIGATION = Object.freeze([
+  { page:'worlds', label:'Worlds' },
+  { page:'build', label:'Build' },
+  { page:'assets', label:'Assets' },
+  { page:'agent', label:'Agent' },
+  { page:'observatory', label:'Observatory', href:'/observatory/' }
 ]);
 
-const PRIMARY_CONTEXTS = new Map([
-  ['create','create'],
-  ['task','agent']
+export const WORLD_EDITOR_UTILITIES = Object.freeze([
+  { view:'inspect', label:'Inspect' }
 ]);
 
-export function workspaceForStudioView(currentWorkspace,view) {
-  if (view === 'world') return 'world';
-  return PRIMARY_CONTEXTS.get(view) || currentWorkspace;
+export function pageForStudioView(view) {
+  if (view === 'create') return 'build';
+  if (view === 'resources') return 'assets';
+  if (view === 'task' || view === 'runs') return 'agent';
+  return 'world';
 }
 
-export function primaryContextForWorkspace(workspace) {
-  if (workspace === 'create') return 'create';
-  if (workspace === 'agent') return 'task';
-  return null;
+export function agentViewForStudioView(view) {
+  return view === 'runs' ? 'runs' : 'tasks';
 }
