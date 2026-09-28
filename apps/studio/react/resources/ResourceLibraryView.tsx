@@ -104,7 +104,7 @@ export function ResourceLibraryView({
       <div className="resource-controls">
         <div className="resource-kind-tabs" role="tablist" aria-label="资源类型">
           {(['assets','images','worlds'] as const).map((value)=>(
-            <button key={value} type="button" data-resource-kind={value} className={kind === value ? 'active' : ''} aria-selected={kind === value} onClick={()=>{setKind(value);setQuery('');}}>
+            <button key={value} type="button" role="tab" data-resource-kind={value} className={kind === value ? 'active' : ''} aria-selected={kind === value} onClick={()=>{setKind(value);setQuery('');}}>
               {value === 'assets' ? 'Assets' : value === 'images' ? 'Images' : 'Worlds'}
             </button>
           ))}

@@ -1,0 +1,83 @@
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-1);
+  font-size: var(--type-body);
+  font-weight: 500;
+  border: 0.909091px solid transparent;
+  white-space: nowrap;
+  transition: filter var(--t-base), background var(--t-base), color var(--t-base), border-color var(--t-base);
+}
+
+.icon {
+  display: flex;
+  margin-right: 2px;
+}
+
+.scene {
+  background: var(--color-blue-soft);
+  color: var(--color-blue);
+  border-color: var(--color-blue-border);
+}
+
+.design {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent-border);
+}
+
+.generate {
+  background: var(--color-green-soft);
+  color: var(--color-green);
+  border-color: var(--color-green-border);
+}
+
+.import {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-2);
+  border-color: transparent;
+}
+
+.scene:hover,
+.design:hover,
+.generate:hover {
+  filter: brightness(1.12);
+}
+
+.import:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+  filter: none;
+}
+
+.scene:active,
+.design:active,
+.generate:active,
+.import:active {
+  filter: brightness(0.96);
+}
+
+@media (max-width: 900px) {
+  .label {
+    display: none;
+  }
+
+  .action {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .icon {
+    margin-right: 0;
+  }
+}

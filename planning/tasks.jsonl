@@ -1,4 +1,4 @@
-{"id":"BASELINE-001","type":"test","title":"启动 Agent gateway 并确认进程保持运行","status":"READY","priority":"P0","path":"runtime.baseline","depends":[],"files":["apps/server/openai-compatible-agent-gateway.mjs"],"criteria":["npm run agent:gateway 启动后无 startup error"]}
+{"id":"BASELINE-001","type":"test","title":"启动 Agent gateway 并确认进程保持运行","status":"DONE","priority":"P0","path":"runtime.baseline","depends":[],"files":["apps/server/openai-compatible-agent-gateway.mjs"],"criteria":["npm run agent:gateway 启动后无 startup error"]}
 {"id":"BASELINE-002","type":"test","title":"启动 Studio 并确认 Runtime 进入 ready","status":"READY","priority":"P0","path":"runtime.baseline","depends":["BASELINE-001"],"files":["apps/studio/main.js"],"criteria":["页面显示 Runtime ready，console 无初始化异常"]}
 {"id":"BASELINE-003","type":"test","title":"确认 agent_01 在当前世界存在","status":"READY","priority":"P0","path":"runtime.baseline","depends":["BASELINE-002"],"files":["modules/agent/bootstrapWorld.js"],"criteria":["listObjects 返回 agent_01"]}
 {"id":"BASELINE-004","type":"test","title":"运行“导航状态”Runtime Test","status":"READY","priority":"P0","path":"runtime.baseline","depends":["BASELINE-003"],"files":["apps/studio/agent/AgentRuntimeTestRunner.js"],"criteria":["navigation state=ready 且 locomotion 非 missing"]}
@@ -31,17 +31,17 @@
 {"id":"PERFORMANCE-004","type":"test","title":"autosave stop 取消 pending timer","status":"READY","priority":"P1","path":"performance","depends":[],"files":["apps/studio/persistence/AutosaveController.js"],"criteria":["stop 后不 late save"]}
 {"id":"PERFORMANCE-005","type":"test","title":"restore old scene 缺 agent 时补 bootstrap agent","status":"READY","priority":"P1","path":"performance","depends":[],"files":["apps/studio/main.js"],"criteria":["只补一次"]}
 {"id":"PERFORMANCE-006","type":"test","title":"restore failure fallback bootstrap 不覆盖坏 save","status":"READY","priority":"P1","path":"performance","depends":[],"files":["apps/studio/main.js"],"criteria":["用户可诊断坏数据"]}
-{"id":"CI-001","type":"test","title":"npm run architecture:validate 当前通过","status":"READY","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
-{"id":"CI-002","type":"test","title":"npm run assets:validate 当前通过","status":"READY","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
-{"id":"CI-003","type":"test","title":"npm run world:viability 当前通过","status":"READY","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
-{"id":"CI-004","type":"test","title":"npm run typecheck 当前通过","status":"READY","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
-{"id":"CI-005","type":"test","title":"npm run test 当前通过","status":"READY","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
-{"id":"CI-006","type":"test","title":"npm run build 当前通过","status":"READY","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
-{"id":"CI-007","type":"test","title":"npm run check 作为最终 local gate","status":"READY","priority":"P0","path":"ci","depends":["CI-001"],"files":["package.json"],"criteria":["exit 0"]}
-{"id":"CI-008","type":"test","title":"repository architecture validator 捕获非法顶层目录","status":"READY","priority":"P1","path":"ci","depends":[],"files":["dev/validate-repository-architecture.mjs"],"criteria":["fixture fail"]}
-{"id":"CI-009","type":"test","title":"domain boundary validator 捕获 product→Observatory import","status":"READY","priority":"P1","path":"ci","depends":[],"files":["dev/validate-domain-boundaries.mjs"],"criteria":["fixture fail"]}
-{"id":"CI-010","type":"test","title":"convergence validator 捕获重复 legacy architecture abstraction","status":"READY","priority":"P1","path":"ci","depends":[],"files":["dev/validate-convergence.mjs"],"criteria":["fixture fail"]}
-{"id":"CI-011","type":"test","title":"asset validator 对所有 builtin manifests 给 filename+reason","status":"READY","priority":"P1","path":"ci","depends":[],"files":["dev/validate-assets.mjs"],"criteria":["invalid fixture 可定位"]}
+{"id":"CI-001","type":"test","title":"npm run architecture:validate 当前通过","status":"DONE","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
+{"id":"CI-002","type":"test","title":"npm run assets:validate 当前通过","status":"DONE","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
+{"id":"CI-003","type":"test","title":"npm run world:viability 当前通过","status":"DONE","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
+{"id":"CI-004","type":"test","title":"npm run typecheck 当前通过","status":"DONE","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
+{"id":"CI-005","type":"test","title":"npm run test 当前通过","status":"DONE","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
+{"id":"CI-006","type":"test","title":"npm run build 当前通过","status":"DONE","priority":"P0","path":"ci","depends":[],"files":["package.json"],"criteria":["exit 0"]}
+{"id":"CI-007","type":"test","title":"npm run check 作为最终 local gate","status":"DONE","priority":"P0","path":"ci","depends":["CI-001"],"files":["package.json"],"criteria":["exit 0"]}
+{"id":"CI-008","type":"test","title":"repository architecture validator 捕获非法顶层目录","status":"DONE","priority":"P1","path":"ci","depends":[],"files":["dev/validate-repository-architecture.mjs"],"criteria":["fixture fail"]}
+{"id":"CI-009","type":"test","title":"domain boundary validator 捕获 product→Observatory import","status":"DONE","priority":"P1","path":"ci","depends":[],"files":["dev/validate-domain-boundaries.mjs"],"criteria":["fixture fail"]}
+{"id":"CI-010","type":"test","title":"convergence validator 捕获重复 legacy architecture abstraction","status":"DONE","priority":"P1","path":"ci","depends":[],"files":["dev/validate-convergence.mjs"],"criteria":["fixture fail"]}
+{"id":"CI-011","type":"test","title":"asset validator 对所有 builtin manifests 给 filename+reason","status":"DONE","priority":"P1","path":"ci","depends":[],"files":["dev/validate-assets.mjs"],"criteria":["invalid fixture 可定位"]}
 {"id":"CI-012","type":"test","title":"CI 在 Windows line-ending 不产生 generated diff","status":"READY","priority":"P1","path":"ci","depends":[],"files":[],"criteria":["checkout+check clean"]}
 {"id":"CI-013","type":"feat","title":"agentscape-check workflow 显式跑 architecture/assets/type/test/build","status":"READY","priority":"P1","path":"ci","depends":[],"files":[".github/workflows/agentscape-check.yml"],"criteria":["steps 与 npm check一致"]}
 {"id":"CI-014","type":"feat","title":"production-smoke 不依本机 .env.local","status":"READY","priority":"P1","path":"ci","depends":[],"files":[],"criteria":["secrets only from CI"]}
@@ -56,7 +56,7 @@
 {"id":"EXPERIMENT-003","type":"research","title":"Jolt rigid-body experiment 记录 backend API drift","status":"READY","priority":"P2","path":"tooling.experiment","depends":[],"files":[],"criteria":["version/result 在输出"]}
 {"id":"EXPERIMENT-004","type":"research","title":"existing-assets-world 验证无 generation 路径","status":"READY","priority":"P1","path":"tooling.experiment","depends":[],"files":[],"criteria":["deterministic world-ready"]}
 {"id":"EXPERIMENT-005","type":"research","title":"world viability 输出每 stage timing","status":"READY","priority":"P1","path":"tooling.experiment","depends":[],"files":[],"criteria":["stage table"]}
-{"id":"EXPERIMENT-006","type":"test","title":"probe-test-agent 输出 gateway health+one read-only skill","status":"READY","priority":"P1","path":"tooling.experiment","depends":["BASELINE-001"],"files":[],"criteria":["exit 0"]}
+{"id":"EXPERIMENT-006","type":"test","title":"probe-test-agent 输出 gateway health+one read-only skill","status":"DONE","priority":"P1","path":"tooling.experiment","depends":["BASELINE-001"],"files":[],"criteria":["exit 0"]}
 {"id":"EXPERIMENT-007","type":"test","title":"probe-real-apple-world 输出 Artifact→Asset→World evidence","status":"READY","priority":"P1","path":"tooling.experiment","depends":["ASSET-034"],"files":[],"criteria":["IDs/hash/admission/status"]}
 {"id":"DOCS-001","type":"docs","title":"status-and-roadmap.md 链接到本 execution backlog","status":"READY","priority":"P1","path":"docs","depends":[],"files":[],"criteria":["roadmap 与执行板互相导航"]}
 {"id":"DOCS-002","type":"docs","title":"physics.md 更新“backend abstraction 已完成”状态","status":"READY","priority":"P1","path":"docs","depends":["PHYSICS-001"],"files":["docs/physics.md"],"criteria":["不再留过时 todo"]}

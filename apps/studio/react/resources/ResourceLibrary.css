@@ -112,7 +112,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #727e8c;
+  color: #84909e;
   font: 8.5px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 
@@ -164,7 +164,7 @@
 }
 
 .resource-drag-hint {
-  color: #626e7c;
+  color: #7c8896;
   font-size: 8.5px;
 }
 

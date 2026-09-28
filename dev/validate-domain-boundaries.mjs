@@ -3,7 +3,9 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// Validation entry point. Pass a repository root so CI and tests can validate
+// any tree; the CLI guard at the bottom keeps the original script behavior.
+export function validateDomainBoundaries(root) {
 const PRODUCT_ROOTS = ["apps", "application", "modules", "foundation"];
 const LEGACY_ROOTS = ["src", "server", "tools", "scripts", "experiments", "ops", "studio", "observatory", "agent", "generation", "artifact", "asset", "world", "core", "tooling", "planning-ui"];
 
@@ -295,11 +297,18 @@ for (const file of productJs) {
   }
 }
 
-if (failures.length) {
-  console.error("domain architecture validation failed");
-  failures.forEach((failure) => console.error(`- ${failure}`));
-  process.exit(1);
+  const counts = { core: coreFiles.length, artifact: artifactCore.length, asset: assetCore.length, world: worldCore.length };
+  return { failures, counts };
 }
 
-console.log(`domain architecture validation passed (core ${coreFiles.length}, artifact core ${artifactCore.length}, asset core ${assetCore.length}, world core ${worldCore.length})`);
-console.log("Root architecture: apps / application / modules / foundation; observatory may inspect product runtime, but product runtime must not depend on observatory.");
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const { failures, counts } = validateDomainBoundaries(root);
+  if (failures.length) {
+    console.error("domain architecture validation failed");
+    failures.forEach((failure) => console.error(`- ${failure}`));
+    process.exit(1);
+  }
+  console.log(`domain architecture validation passed (core ${counts.core}, artifact core ${counts.artifact}, asset core ${counts.asset}, world core ${counts.world})`);
+  console.log("Root architecture: apps / application / modules / foundation; observatory may inspect product runtime, but product runtime must not depend on observatory.");
+}

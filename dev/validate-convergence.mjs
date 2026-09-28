@@ -3,7 +3,9 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+// Validation entry point. Pass a repository root so CI and tests can validate
+// any tree; the CLI guard at the bottom keeps the original script behavior.
+export function validateConvergence(root) {
 const exists=(...parts)=>fs.existsSync(path.join(root,...parts));
 const read=(...parts)=>fs.readFileSync(path.join(root,...parts),'utf8');
 const walk=(dir)=>fs.existsSync(dir)
@@ -74,9 +76,16 @@ for(const file of rootTests){
   failures.push(`Tests must be grouped by owner/scope, not flat at tests/: ${rel(file)}`);
 }
 
-if(failures.length){
-  console.error('convergence validation failed');
-  failures.forEach((failure)=>console.error(`- ${failure}`));
-  process.exit(1);
+  return failures;
 }
-console.log('convergence validation passed');
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+  const failures=validateConvergence(root);
+  if(failures.length){
+    console.error('convergence validation failed');
+    failures.forEach((failure)=>console.error(`- ${failure}`));
+    process.exit(1);
+  }
+  console.log('convergence validation passed');
+}

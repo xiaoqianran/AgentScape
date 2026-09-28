@@ -1,0 +1,67 @@
+/* Spline design tokens — measured from app.spline.design/home */
+:root {
+  color-scheme: dark;
+
+  --font-sans: "Spline Sans", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "Spline Sans Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  --color-bg: #1e1e1e;
+  --color-text: #ffffffeb;
+  --color-text-2: #ffffffb3;
+  --color-text-3: #ffffff85;
+  --color-text-4: #ffffff5c;
+
+  /* solid equivalents of white-alpha overlays on #1e1e1e (keeps panels visible under forced-dark) */
+  --color-bg-elevated: #242424;
+  --color-bg-soft: #292929;
+  --color-bg-hover: #2b2b2b;
+  --color-bg-active: #303030;
+  --color-bg-menu: #2a2a2a;
+
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-soft: rgba(255, 255, 255, 0.04);
+
+  --color-accent: #5267ff;
+  --color-accent-text: #7585ff;
+  --color-accent-soft: rgba(82, 103, 255, 0.08);
+  --color-accent-border: rgba(82, 103, 255, 0.26);
+
+  --color-blue: #55adff;
+  --color-blue-soft: rgba(43, 153, 255, 0.08);
+  --color-blue-border: rgba(43, 153, 255, 0.26);
+
+  --color-green: #1cc294;
+  --color-green-soft: rgba(0, 163, 118, 0.08);
+  --color-green-border: rgba(0, 163, 118, 0.26);
+
+  --radius-0: 4px;
+  --radius-1: 8px;
+  --radius-2: 12px;
+  --radius-button-small: 6px;
+  --radius-row: 10px;
+  --radius-prompt: 16px;
+  --radius-pill: 20px;
+
+  --shadow-refer: 0 2px 8px 0 rgba(0, 0, 0, 0.1);
+  --shadow-menu: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 0 1px #ffffff0d;
+  --shadow-prompt: inset 0 0 0 1px #ffffff0d;
+  --shadow-prompt-focus: inset 0 0 0 1px #ffffff1f;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 0.1s ease-in-out;
+  --t-base: 0.12s ease;
+  --t-row: 0.15s ease;
+
+  --sidebar-w: 252px;
+  --header-h: 64px;
+  --row-h: 48px;
+
+  --type-body: 11px;
+  --type-nav: 12px;
+  --type-meta: 12px;
+  --type-label: 11px;
+  --type-name: 14px;
+  --type-chip: 13px;
+  --type-title: 24px;
+  --type-page: 14px;
+}
