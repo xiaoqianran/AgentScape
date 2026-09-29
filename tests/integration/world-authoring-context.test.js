@@ -4,7 +4,7 @@ import { createWorldAuthoringContext } from '../../application/createWorldAuthor
 import { RenderingSystem } from '../../modules/world/runtime/systems/RenderingSystem.js';
 
 describe('World authoring context', () => {
-  it('keeps LLM Three.js drafts inside visual decorations and away from World Entities', async () => {
+  it('mounts a real Three.js Scene without mixing it into World Entities', async () => {
     const scene = new THREE.Scene();
     const rendering = new RenderingSystem({ container:{}, scene });
     const entity = new THREE.Group();
@@ -15,8 +15,10 @@ describe('World authoring context', () => {
     const authoring = createWorldAuthoringContext({ rendering });
 
     expect(authoring.scene.name).toBe('$llm-world');
-    expect(authoring.scene.parent).toBe(rendering.decorationRoot);
-    expect(authoring.scene.userData.visualDecoration).toBe(true);
+    expect(authoring.scene.isScene).toBe(true);
+    expect(authoring.scene.parent).toBeNull();
+    expect(rendering.authoringScenes.get(authoring.scene)).toBe('overlay');
+    expect(authoring.scene.userData).toEqual({});
 
     await authoring.run(`
       const mesh = new THREE.Mesh(
@@ -39,32 +41,45 @@ describe('World authoring context', () => {
 
     expect(authoring.dispose()).toBe(true);
     expect(authoring.scene.parent).toBeNull();
+    expect(rendering.authoringScenes.has(authoring.scene)).toBe(false);
     expect(authoring.dispose()).toBe(false);
   });
 
-  it('supports host-driven animation without exposing the renderer or WorldRuntime', async () => {
+  it('exposes only THREE and scene to authored code while host lifecycle stays outside', async () => {
     const scene = new THREE.Scene();
     const rendering = new RenderingSystem({ container:{}, scene });
     const authoring = createWorldAuthoringContext({ rendering });
     const tick = vi.fn();
 
-    await authoring.run(`
+    const surface = await authoring.run(`
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(1, 1, 1),
         new THREE.MeshBasicMaterial()
       );
       mesh.name = 'animated-draft';
       scene.add(mesh);
-      onFrame((delta, elapsed) => {
-        mesh.rotation.y += delta;
-        mesh.userData.elapsed = elapsed;
-      });
+      return {
+        isScene: scene.isScene,
+        clear: typeof clear,
+        onFrame: typeof onFrame,
+        modelRef: typeof modelRef
+      };
     `);
 
-    authoring.onFrame(tick);
+    expect(surface).toEqual({
+      isScene:true,
+      clear:'undefined',
+      onFrame:'undefined',
+      modelRef:'undefined'
+    });
+    const mesh = authoring.scene.getObjectByName('animated-draft');
+    authoring.onFrame((delta, elapsed) => {
+      mesh.rotation.y += delta;
+      mesh.userData.elapsed = elapsed;
+      tick(delta, elapsed);
+    });
     expect(authoring.update(0.25, 2)).toBe(true);
 
-    const mesh = authoring.scene.getObjectByName('animated-draft');
     expect(mesh.rotation.y).toBeCloseTo(0.25);
     expect(mesh.userData.elapsed).toBe(2);
     expect(tick).toHaveBeenCalledWith(0.25, 2);

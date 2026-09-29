@@ -19,6 +19,67 @@ function findNode(node, name) {
 }
 
 describe('World Authoring persistence round-trip', () => {
+  it('round-trips standard Three.js Scene presentation state', () => {
+    const authoring = createAuthoring();
+    authoring.scene.background = new THREE.Color('#123456');
+    authoring.scene.fog = new THREE.Fog('#334455', 2, 80);
+    authoring.scene.backgroundBlurriness = 0.25;
+    authoring.scene.backgroundIntensity = 0.8;
+    authoring.scene.environmentIntensity = 1.4;
+
+    const first = authoring.export();
+    expect(first.root.components.scene).toEqual({
+      type:'Scene',
+      properties:{
+        background:{ type:'color', value:'#123456' },
+        fog:{ type:'Fog', color:'#334455', near:2, far:80 },
+        backgroundBlurriness:0.25,
+        backgroundIntensity:0.8,
+        environmentIntensity:1.4
+      }
+    });
+
+    authoring.clear();
+    authoring.load(first);
+
+    expect(authoring.scene.isScene).toBe(true);
+    expect(authoring.scene.background.getHexString()).toBe('123456');
+    expect(authoring.scene.fog.isFog).toBe(true);
+    expect(authoring.scene.fog.color.getHexString()).toBe('334455');
+    expect(authoring.scene.fog.near).toBe(2);
+    expect(authoring.scene.fog.far).toBe(80);
+    expect(authoring.scene.backgroundBlurriness).toBe(0.25);
+    expect(authoring.scene.backgroundIntensity).toBe(0.8);
+    expect(authoring.scene.environmentIntensity).toBe(1.4);
+    expect(authoring.export()).toEqual(first);
+  });
+
+  it('keeps AgentScape persistence identity out of Three.js userData', async () => {
+    const authoring = createAuthoring();
+
+    await authoring.run(`
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial()
+      );
+      mesh.name = 'clean-three-object';
+      mesh.userData.semantic = { role:'wall' };
+      scene.add(mesh);
+    `);
+
+    const mesh = authoring.scene.getObjectByName('clean-three-object');
+    authoring.export();
+
+    expect(authoring.scene.userData).toEqual({});
+    expect(mesh.userData).toEqual({ semantic:{ role:'wall' } });
+    expect(mesh.userData.authoringId).toBeUndefined();
+    expect(mesh.geometry.userData.authoringGeometryId).toBeUndefined();
+    expect(mesh.material.userData.authoringMaterialId).toBeUndefined();
+
+    authoring.modelRef(mesh, { uri:'/models/wall.glb' });
+    expect(mesh.userData.authoringModelRef).toBeUndefined();
+  });
+
   it('exports and restores a Three.js subtree as an AuthoringDocument', async () => {
     const authoring = createAuthoring();
 

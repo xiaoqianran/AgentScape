@@ -28,7 +28,6 @@ describe('World Authoring ModelRef', () => {
       tree.name = 'tree-model';
       tree.position.set(3, 0, -2);
       tree.userData.category = 'vegetation';
-      modelRef(tree, { source:{ type:'url', uri:'/models/tree.glb' } });
 
       const runtimeDetail = new THREE.Mesh(
         new THREE.BoxGeometry(1, 2, 1),
@@ -38,6 +37,9 @@ describe('World Authoring ModelRef', () => {
       tree.add(runtimeDetail);
       scene.add(tree);
     `);
+    authoring.modelRef(authoring.scene.getObjectByName('tree-model'), {
+      source:{ type:'url', uri:'/models/tree.glb' }
+    });
 
     const first = authoring.export();
     const modelNode = findNode(first.root, 'tree-model');
@@ -89,9 +91,11 @@ describe('World Authoring ModelRef', () => {
     await authoring.run(`
       const chair = new THREE.Group();
       chair.name = 'chair-model';
-      modelRef(chair, { assetRef:{ assetId:'chair_oak_01' } });
       scene.add(chair);
     `);
+    authoring.modelRef(authoring.scene.getObjectByName('chair-model'), {
+      assetRef:{ assetId:'chair_oak_01' }
+    });
 
     const document = authoring.export();
     const chair = findNode(document.root, 'chair-model');
@@ -150,9 +154,11 @@ describe('World Authoring ModelRef', () => {
     await authoring.run(`
       const model = new THREE.Group();
       model.name = 'movable-model';
-      modelRef(model, { uri:'/models/movable.glb' });
       scene.add(model);
     `);
+    authoring.modelRef(authoring.scene.getObjectByName('movable-model'), {
+      uri:'/models/movable.glb'
+    });
 
     const before = authoring.export();
     const node = findNode(before.root, 'movable-model');

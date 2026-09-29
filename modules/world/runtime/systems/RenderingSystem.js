@@ -64,6 +64,7 @@ export class RenderingSystem {
     this.decorationRoot = new THREE.Group();
     this.decorationRoot.name = '$visual-decorations';
     this.decorationRoot.userData.visualDecorationRoot = true;
+    this.authoringScenes = new Map();
   }
 
   addDecoration(object) {
@@ -84,6 +85,24 @@ export class RenderingSystem {
     if (!object?.isObject3D || object.parent !== this.decorationRoot) return false;
     this.decorationRoot.remove(object);
     return true;
+  }
+
+  addAuthoringScene(scene, { mode = 'overlay' } = {}) {
+    if (!scene?.isScene) throw new TypeError('Authoring presentation requires a THREE.Scene');
+    if (!['overlay', 'replace'].includes(mode)) throw new TypeError(`Unsupported authoring scene mode: ${mode}`);
+    this.authoringScenes.set(scene, mode);
+    return scene;
+  }
+
+  setAuthoringSceneMode(scene, mode = 'overlay') {
+    if (!this.authoringScenes.has(scene)) return false;
+    if (!['overlay', 'replace'].includes(mode)) throw new TypeError(`Unsupported authoring scene mode: ${mode}`);
+    this.authoringScenes.set(scene, mode);
+    return true;
+  }
+
+  removeAuthoringScene(scene) {
+    return this.authoringScenes.delete(scene);
   }
 
   async init() {
@@ -299,7 +318,12 @@ export class RenderingSystem {
 
   render(timestamp = performance.now()) {
     const started=performance.now();
-    if (this.postFx?.enabled) {
+    const entries = [...this.authoringScenes.entries()];
+    const replacement = entries.findLast?.(([, mode]) => mode === 'replace')
+      || [...entries].reverse().find(([, mode]) => mode === 'replace');
+    if (replacement) {
+      this.renderer.render(replacement[0], this.camera);
+    } else if (this.postFx?.enabled) {
       try {
         this.postFx.render();
       } catch (error) {
@@ -308,6 +332,17 @@ export class RenderingSystem {
       }
     } else {
       this.renderer.render(this.scene, this.camera);
+    }
+    if (!replacement && entries.length > 0) {
+      const autoClear = this.renderer.autoClear;
+      this.renderer.autoClear = false;
+      try {
+        for (const [scene, mode] of entries) {
+          if (mode === 'overlay') this.renderer.render(scene, this.camera);
+        }
+      } finally {
+        this.renderer.autoClear = autoClear;
+      }
     }
     this.probe?.afterRender(timestamp,performance.now()-started);
   }
@@ -362,5 +397,6 @@ export class RenderingSystem {
     this.renderer = null;
     this.camera = null;
     this.info = null;
+    this.authoringScenes.clear();
   }
 }

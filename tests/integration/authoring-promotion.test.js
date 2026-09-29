@@ -17,6 +17,7 @@ import { createAuthoringModelResolver } from '../../application/world-authoring/
 import { registerAuthoringSkills } from '../../application/skills/packs/authoringSkills.js';
 import { SkillRegistry } from '../../application/skills/SkillRegistry.js';
 import { AgentTools } from '../../application/AgentTools.js';
+import { getAuthoringObjectId } from '../../application/world-authoring/AuthoringIdentity.js';
 
 const cleanup = [];
 afterEach(() => { for (const dispose of cleanup.splice(0).reverse()) dispose(); vi.unstubAllGlobals(); });
@@ -95,7 +96,7 @@ describe('Authoring promotion into a real World', () => {
     const second = addAsset(authoring, 'cup', 'second');
     await expect(promotion.promote('second', {usage:'movable'})).rejects.toMatchObject({code:'AUTHORING_PLACEMENT_BLOCKED'});
     expect(second.visible).toBe(true);
-    const parentId = object.parent.userData.authoringId;
+    const parentId = getAuthoringObjectId(object.parent);
     await expect(promotion.prepare(parentId)).rejects.toMatchObject({code:'AUTHORING_PROMOTION_OVERLAP'});
   });
 

@@ -367,6 +367,43 @@ describe('RenderingSystem', () => {
       postfx:{ enabled:true, backend:'webgpu', effects:['gtao'] }
     });
   });
+
+  it('renders authoring Scenes as overlay or full replacement without nesting Scenes', async () => {
+    const h = createHarness();
+    const scene = new THREE.Scene();
+    const overlay = new THREE.Scene();
+    const replacement = new THREE.Scene();
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene,
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory
+    });
+
+    await rendering.init();
+    rendering.postFx = null;
+    rendering.addAuthoringScene(overlay, { mode:'overlay' });
+    rendering.render(1);
+
+    expect(overlay.parent).toBeNull();
+    expect(h.renderer.render.mock.calls.slice(-2)).toEqual([
+      [scene, rendering.camera],
+      [overlay, rendering.camera]
+    ]);
+
+    h.renderer.render.mockClear();
+    rendering.addAuthoringScene(replacement, { mode:'replace' });
+    rendering.render(2);
+
+    expect(replacement.parent).toBeNull();
+    expect(h.renderer.render).toHaveBeenCalledTimes(1);
+    expect(h.renderer.render).toHaveBeenCalledWith(replacement, rendering.camera);
+
+    expect(rendering.setAuthoringSceneMode(replacement, 'overlay')).toBe(true);
+    expect(rendering.removeAuthoringScene(replacement)).toBe(true);
+    expect(rendering.removeAuthoringScene(overlay)).toBe(true);
+  });
+
   it('keeps Visual Decoration outside World Entity identity', () => {
     const h = createHarness();
     const scene = new THREE.Scene();

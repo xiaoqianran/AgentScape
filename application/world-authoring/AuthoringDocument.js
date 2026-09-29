@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { cloneAuthoringModelRef, getAuthoringModelRef } from './ModelRef.js';
+import { cloneAuthoringModelRef, getAuthoringModelRef, markAuthoringModelRef } from './ModelRef.js';
+import { getAuthoringObjectId, setAuthoringObjectId } from './AuthoringIdentity.js';
 
 export const AUTHORING_FORMAT = 'agentscape-world-authoring';
 export const AUTHORING_VERSION = 1;
@@ -43,6 +44,11 @@ const TEXTURE_SLOTS = [
   'aoMap'
 ];
 
+const geometryIdsByObject = new WeakMap();
+const materialIdsByObject = new WeakMap();
+const textureIdsByObject = new WeakMap();
+const textureSourcesByObject = new WeakMap();
+
 function makeId(prefix) {
   return `${prefix}_${THREE.MathUtils.generateUUID().toLowerCase()}`;
 }
@@ -52,8 +58,7 @@ function structuredCloneJson(value) {
 }
 
 function ensureObjectId(object, usedIds, isRoot = false) {
-  object.userData ||= {};
-  let id = isRoot ? ROOT_ID : object.userData.authoringId;
+  let id = isRoot ? ROOT_ID : getAuthoringObjectId(object);
   if (
     typeof id !== 'string'
     || !id.trim()
@@ -61,14 +66,13 @@ function ensureObjectId(object, usedIds, isRoot = false) {
   ) {
     id = isRoot ? ROOT_ID : makeId('node');
   }
-  object.userData.authoringId = id;
+  setAuthoringObjectId(object, id);
   usedIds.set(id, object);
   return id;
 }
 
-function ensureResourceId(resource, key, prefix, usedIds) {
-  resource.userData ||= {};
-  let id = resource.userData[key];
+function ensureResourceId(resource, legacyKey, prefix, usedIds, sidecar) {
+  let id = sidecar.get(resource) || resource.userData?.[legacyKey];
   if (
     typeof id !== 'string'
     || !id.trim()
@@ -76,7 +80,7 @@ function ensureResourceId(resource, key, prefix, usedIds) {
   ) {
     id = makeId(prefix);
   }
-  resource.userData[key] = id;
+  sidecar.set(resource, id);
   usedIds.set(id, resource);
   return id;
 }
@@ -140,7 +144,7 @@ function geometryDefinition(geometry) {
 }
 
 function textureSource(texture) {
-  const explicit = texture.userData?.authoringSource;
+  const explicit = textureSourcesByObject.get(texture) || texture.userData?.authoringSource;
   if (explicit && typeof explicit === 'object') {
     const source = toJsonValue(explicit);
     if (source?.type === 'url' && typeof source.uri === 'string' && source.uri) return source;
@@ -208,7 +212,7 @@ function captureMaterial(
       delete json[slot];
       continue;
     }
-    const textureId = ensureResourceId(texture, 'authoringTextureId', 'tex', textureIds);
+    const textureId = ensureResourceId(texture, 'authoringTextureId', 'tex', textureIds, textureIdsByObject);
     if (!textures[textureId]) textures[textureId] = textureDefinition(texture);
     json[slot] = textureId;
   }
@@ -285,8 +289,8 @@ function captureMeshResources(
     throw new TypeError('World Authoring v1 does not persist multi-material Mesh');
   }
 
-  const geometryId = ensureResourceId(object.geometry, 'authoringGeometryId', 'geo', geometryIds);
-  const materialId = ensureResourceId(object.material, 'authoringMaterialId', 'mat', materialIds);
+  const geometryId = ensureResourceId(object.geometry, 'authoringGeometryId', 'geo', geometryIds, geometryIdsByObject);
+  const materialId = ensureResourceId(object.material, 'authoringMaterialId', 'mat', materialIds, materialIdsByObject);
 
   if (!geometries[geometryId]) geometries[geometryId] = geometryDefinition(object.geometry);
   if (!materials[materialId]) {
@@ -311,6 +315,32 @@ function captureInstancedMesh(object) {
   };
 }
 
+function sceneComponent(object, textureIds, textures) {
+  if (!object.isScene) return null;
+  const properties = {};
+  if (object.background?.isColor) {
+    properties.background = { type:'color', value:`#${object.background.getHexString()}` };
+  } else if (object.background?.isTexture) {
+    const textureId = ensureResourceId(object.background, 'authoringTextureId', 'tex', textureIds, textureIdsByObject);
+    if (!textures[textureId]) textures[textureId] = textureDefinition(object.background);
+    properties.background = { type:'texture', textureId };
+  }
+  if (object.environment?.isTexture) {
+    const textureId = ensureResourceId(object.environment, 'authoringTextureId', 'tex', textureIds, textureIdsByObject);
+    if (!textures[textureId]) textures[textureId] = textureDefinition(object.environment);
+    properties.environment = { textureId };
+  }
+  if (object.fog?.isFog) {
+    properties.fog = { type:'Fog', color:`#${object.fog.color.getHexString()}`, near:object.fog.near, far:object.fog.far };
+  } else if (object.fog?.isFogExp2) {
+    properties.fog = { type:'FogExp2', color:`#${object.fog.color.getHexString()}`, density:object.fog.density };
+  }
+  if (Number.isFinite(object.backgroundBlurriness)) properties.backgroundBlurriness = object.backgroundBlurriness;
+  if (Number.isFinite(object.backgroundIntensity)) properties.backgroundIntensity = object.backgroundIntensity;
+  if (Number.isFinite(object.environmentIntensity)) properties.environmentIntensity = object.environmentIntensity;
+  return { type:'Scene', properties };
+}
+
 function captureNode(
   object,
   geometryIds,
@@ -328,6 +358,8 @@ function captureNode(
       type: 'ModelRef',
       properties: cloneAuthoringModelRef(modelRef)
     };
+  } else if (object.isScene) {
+    components.scene = sceneComponent(object, textureIds, textures);
   } else if (object.isInstancedMesh) {
     const { geometryId, materialId } = captureMeshResources(
       object,
@@ -370,7 +402,7 @@ function captureNode(
   }
 
   const node = {
-    id: object.userData.authoringId,
+    id: getAuthoringObjectId(object),
     name: object.name || undefined,
     visible: object.visible === false ? false : undefined,
     components
@@ -527,8 +559,8 @@ function hydrateGeometries(definitions) {
       geometry = new THREE.BufferGeometryLoader().parse(definition.json);
     }
     if (!geometry) throw new TypeError(`Unsupported World Authoring geometry: ${definition.type}`);
-    geometry.userData ||= {};
-    geometry.userData.authoringGeometryId = id;
+    geometryIdsByObject.set(geometry, id);
+
     geometries[id] = geometry;
   }
   return geometries;
@@ -565,8 +597,8 @@ function hydrateTextureSource(source) {
     } else {
       texture = new THREE.Texture();
     }
-    texture.userData ||= {};
-    texture.userData.authoringSource = structuredCloneJson(source);
+
+    textureSourcesByObject.set(texture, structuredCloneJson(source));
     return texture;
   }
 
@@ -593,9 +625,9 @@ function hydrateTextures(definitions) {
     if (Array.isArray(definition.repeat)) texture.repeat.fromArray(definition.repeat);
     if (Array.isArray(definition.center)) texture.center.fromArray(definition.center);
     if (Number.isFinite(definition.rotation)) texture.rotation = definition.rotation;
-    texture.userData ||= {};
-    texture.userData.authoringTextureId = id;
-    if (definition.source) texture.userData.authoringSource = structuredCloneJson(definition.source);
+
+    textureIdsByObject.set(texture, id);
+    if (definition.source) textureSourcesByObject.set(texture, structuredCloneJson(definition.source));
     textures[id] = texture;
   }
   return textures;
@@ -610,8 +642,8 @@ function hydrateMaterials(definitions, textures) {
       throw new TypeError(`Unsupported World Authoring material: ${definition.type}`);
     }
     const material = loader.parse(definition);
-    material.userData ||= {};
-    material.userData.authoringMaterialId = id;
+    materialIdsByObject.set(material, id);
+
     materials[id] = material;
   }
   return materials;
@@ -686,12 +718,28 @@ function createInstancedMesh(component, geometry, material) {
   return object;
 }
 
-function createObjectForNode(node, geometries, materials) {
+function applySceneComponent(scene, component, textures) {
+  const p = component?.properties || {};
+  const background = p.background;
+  if (background?.type === 'color') scene.background = new THREE.Color(background.value);
+  else if (background?.type === 'texture') scene.background = textures[background.textureId] || null;
+  if (p.environment?.textureId) scene.environment = textures[p.environment.textureId] || null;
+  if (p.fog?.type === 'Fog') scene.fog = new THREE.Fog(p.fog.color, p.fog.near, p.fog.far);
+  else if (p.fog?.type === 'FogExp2') scene.fog = new THREE.FogExp2(p.fog.color, p.fog.density);
+  if (Number.isFinite(p.backgroundBlurriness)) scene.backgroundBlurriness = p.backgroundBlurriness;
+  if (Number.isFinite(p.backgroundIntensity)) scene.backgroundIntensity = p.backgroundIntensity;
+  if (Number.isFinite(p.environmentIntensity)) scene.environmentIntensity = p.environmentIntensity;
+}
+
+function createObjectForNode(node, geometries, materials, textures) {
   const components = node.components || {};
   let object;
 
   if (components.modelRef) {
     throw new TypeError('World Authoring ModelRef requires loadAsync()');
+  } else if (components.scene) {
+    object = new THREE.Scene();
+    applySceneComponent(object, components.scene, textures);
   } else if (components.instancedMesh) {
     const { geometry, material } = requiredMeshResources(components, geometries, materials);
     object = createInstancedMesh(components.instancedMesh, geometry, material);
@@ -708,10 +756,8 @@ function createObjectForNode(node, geometries, materials) {
 
   object.name = node.name || '';
   object.visible = node.visible !== false;
-  object.userData = {
-    authoringId: node.id,
-    ...(node.metadata ? structuredCloneJson(node.metadata) : {})
-  };
+  object.userData = node.metadata ? structuredCloneJson(node.metadata) : {};
+  setAuthoringObjectId(object, node.id);
   applyTransform(object, components.transform);
   return object;
 }
@@ -726,7 +772,7 @@ export function hydrateAuthoringState(state) {
   function build(id) {
     const node = state.nodesById[id];
     if (!node) throw new TypeError(`Missing World Authoring node: ${id}`);
-    const object = createObjectForNode(node, geometries, materials);
+    const object = createObjectForNode(node, geometries, materials, textures);
     for (const childId of state.childIdsById[id] || []) object.add(build(childId));
     return object;
   }
@@ -736,9 +782,9 @@ export function hydrateAuthoringState(state) {
 
 
 
-async function createObjectForNodeAsync(node, geometries, materials, resolveModel) {
+async function createObjectForNodeAsync(node, geometries, materials, textures, resolveModel) {
   const components = node.components || {};
-  if (!components.modelRef) return createObjectForNode(node, geometries, materials);
+  if (!components.modelRef) return createObjectForNode(node, geometries, materials, textures);
   if (typeof resolveModel !== 'function') {
     throw new TypeError('World Authoring loadAsync requires resolveModel for ModelRef');
   }
@@ -752,11 +798,9 @@ async function createObjectForNodeAsync(node, geometries, materials, resolveMode
   const object = new THREE.Group();
   object.name = node.name || '';
   object.visible = node.visible !== false;
-  object.userData = {
-    authoringId: node.id,
-    authoringModelRef: reference,
-    ...(node.metadata ? structuredCloneJson(node.metadata) : {})
-  };
+  object.userData = node.metadata ? structuredCloneJson(node.metadata) : {};
+  setAuthoringObjectId(object, node.id);
+  markAuthoringModelRef(object, reference);
   applyTransform(object, components.transform);
   object.add(resolved);
   return object;
@@ -772,7 +816,7 @@ export async function hydrateAuthoringStateAsync(state, { resolveModel } = {}) {
   async function build(id) {
     const node = state.nodesById[id];
     if (!node) throw new TypeError('Missing World Authoring node: ' + id);
-    const object = await createObjectForNodeAsync(node, geometries, materials, resolveModel);
+    const object = await createObjectForNodeAsync(node, geometries, materials, textures, resolveModel);
     for (const childId of state.childIdsById[id] || []) object.add(await build(childId));
     return object;
   }

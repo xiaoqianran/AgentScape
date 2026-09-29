@@ -11,6 +11,7 @@ import { diffAuthoringDocuments } from './world-authoring/AuthoringDiff.js';
 import { patchAuthoringDocument } from './world-authoring/AuthoringPatch.js';
 import { AuthoringRevisionHistory } from './world-authoring/AuthoringRevisionHistory.js';
 import { markAuthoringModelRef } from './world-authoring/ModelRef.js';
+import { getAuthoringObjectId, setAuthoringObjectId } from './world-authoring/AuthoringIdentity.js';
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
@@ -18,18 +19,18 @@ export function createWorldAuthoringContext(
   world,
   {
     historyLimit = 64,
-    now = () => new Date().toISOString()
+    now = () => new Date().toISOString(),
+    presentationMode = 'overlay'
   } = {}
 ) {
-  if (!world?.rendering?.addDecoration || !world?.rendering?.removeDecoration) {
-    throw new TypeError('World authoring requires an attached RenderingSystem');
+  if (!world?.rendering?.addAuthoringScene || !world?.rendering?.removeAuthoringScene) {
+    throw new TypeError('World authoring requires a RenderingSystem with authoring scene support');
   }
 
-  const root = new THREE.Group();
+  const root = new THREE.Scene();
   root.name = '$llm-world';
-  root.userData.worldAuthoringRoot = true;
-  root.userData.authoringId = 'root';
-  world.rendering.addDecoration(root);
+  setAuthoringObjectId(root, 'root');
+  world.rendering.addAuthoringScene(root, { mode:presentationMode });
 
   const frameHandlers = new Set();
   const revisions = new AuthoringRevisionHistory({ limit:historyLimit, now });
@@ -44,7 +45,7 @@ export function createWorldAuthoringContext(
   };
   const suppressVisibility = () => {
     root.traverse(object => {
-      if (promotedNodes.has(object.userData?.authoringId)) {
+      if (promotedNodes.has(getAuthoringObjectId(object))) {
         if (suppressed.has(object)) return;
         const state = { visible:object.visible };
         suppressed.set(object, state);
@@ -72,6 +73,13 @@ export function createWorldAuthoringContext(
       root.remove(child);
       disposeObject3D(child);
     }
+    root.background = null;
+    root.environment = null;
+    root.fog = null;
+    root.overrideMaterial = null;
+    root.backgroundBlurriness = 0;
+    root.backgroundIntensity = 1;
+    root.environmentIntensity = 1;
     changed();
     return true;
   };
@@ -122,12 +130,17 @@ export function createWorldAuthoringContext(
     root.quaternion.copy(hydratedRoot.quaternion);
     root.scale.copy(hydratedRoot.scale);
     root.visible = hydratedRoot.visible;
-    root.userData = {
-      ...hydratedRoot.userData,
-      authoringId: state.rootId,
-      worldAuthoringRoot: true,
-      visualDecoration: true
-    };
+    root.userData = { ...hydratedRoot.userData };
+    setAuthoringObjectId(root, state.rootId);
+    if (hydratedRoot.isScene) {
+      root.background = hydratedRoot.background;
+      root.environment = hydratedRoot.environment;
+      root.fog = hydratedRoot.fog;
+      root.overrideMaterial = hydratedRoot.overrideMaterial;
+      root.backgroundBlurriness = hydratedRoot.backgroundBlurriness;
+      root.backgroundIntensity = hydratedRoot.backgroundIntensity;
+      root.environmentIntensity = hydratedRoot.environmentIntensity;
+    }
 
     while (hydratedRoot.children.length > 0) {
       root.add(hydratedRoot.children[0]);
@@ -281,10 +294,10 @@ export function createWorldAuthoringContext(
   const get = (id) => {
     assertActive();
     if (typeof id !== 'string' || !id) return null;
-    if (root.userData.authoringId === id) return root;
+    if (getAuthoringObjectId(root) === id) return root;
     let found = null;
     root.traverse((object) => {
-      if (!found && object.userData?.authoringId === id) found = object;
+      if (!found && getAuthoringObjectId(object) === id) found = object;
     });
     return found;
   };
@@ -320,26 +333,27 @@ export function createWorldAuthoringContext(
     canRedo,
     get,
     setPromotedNodes,
+    setPresentationMode(mode) {
+      assertActive();
+      return world.rendering.setAuthoringSceneMode(root, mode);
+    },
     async run(source) {
       assertActive();
       if (typeof source !== 'string' || !source.trim()) throw new TypeError('World authoring source is required');
       const execute = new AsyncFunction(
         'THREE',
         'scene',
-        'clear',
-        'onFrame',
-        'modelRef',
         `'use strict';\n${source}`
       );
       restoreVisibility();
-      try { return await execute(THREE, root, clear, onFrame, modelRef); }
+      try { return await execute(THREE, root); }
       finally { restoreVisibility(); suppressVisibility(); changed(); }
     },
     dispose() {
       if (disposed) return false;
       clear();
       disposed = true;
-      return world.rendering.removeDecoration(root);
+      return world.rendering.removeAuthoringScene(root);
     }
   };
 }

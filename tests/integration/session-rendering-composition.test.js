@@ -21,7 +21,9 @@ describe('createSession rendering composition', () => {
     expect(world.rendering.container).toBe(viewport);
     expect(world.rendering.rendererFactory).toBe(rendererFactory);
     expect(authoring.scene.name).toBe('$llm-world');
-    expect(authoring.scene.parent).toBe(world.rendering.decorationRoot);
+    expect(authoring.scene.isScene).toBe(true);
+    expect(authoring.scene.parent).toBeNull();
+    expect(world.rendering.authoringScenes.get(authoring.scene)).toBe('overlay');
   });
 
   it('composes articulation verification through AssetModule instead of WorldRuntime', async () => {

@@ -218,9 +218,9 @@ describe('World Authoring revisions', () => {
       const model = new THREE.Group();
       model.name = 'model';
       model.userData.authoringId = 'model';
-      modelRef(model, { uri:'/models/model.glb' });
       scene.add(model);
     `);
+    authoring.modelRef(authoring.get('model'), { uri:'/models/model.glb' });
     authoring.commit('Add model');
 
     await authoring.run(`
