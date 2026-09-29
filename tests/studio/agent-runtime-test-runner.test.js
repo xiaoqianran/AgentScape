@@ -72,4 +72,61 @@ describe('AgentRuntimeTestRunner', () => {
     await expect(runner.run('place-cup')).rejects.toThrow('approachAndPlace 未通过：placed');
   });
 
+  it('builds a world from code: broken code rolls back, fixed code applies, promotion lands at the authored spot', async () => {
+    const tools=toolsFrom(async(name,args)=>{
+      if(name==='searchAssets') return {results:[{id:'cup'}]};
+      if(name==='listObjects') return [
+        {id:'entity_new',asset:'cup',position:[0.6,0.35,0]}
+      ];
+      if(name==='runAuthoringCode') return args.label.includes('broken')
+        ? {status:'authoring-code-failed',reason:'AUTHORING_CODE_EXECUTION_ERROR',message:'THREE.StandarMaterial is not a constructor'}
+        : {status:'authoring-code-applied',revision:{created:true,revision:{id:'rev_000002'}}};
+      if(name==='promoteAuthoringNode') return {status:'authoring-promoted',nodeId:'desk-cup',entityId:'entity_new'};
+      throw new Error(`unexpected tool ${name}`);
+    });
+    const runner=new AgentRuntimeTestRunner({tools});
+    const result=await runner.run('authoring-code-world');
+    expect(result.status).toBe('completed');
+    expect(result.entity).toEqual({id:'entity_new',asset:'cup',position:[0.6,0.35,0]});
+    const calls=tools.call.mock.calls.map(([name])=>name);
+    expect(calls).toEqual(['searchAssets','runAuthoringCode','runAuthoringCode','promoteAuthoringNode','listObjects']);
+    expect(tools.call.mock.calls[1][1].label).toBe('study room (broken)');
+    expect(tools.call.mock.calls[2][1].label).toBe('study room');
+    expect(tools.call.mock.calls[2][1].code).toContain('modelRef(cup, { assetRef: { assetId:');
+  });
+
+  it('requires the cup asset catalog before building the code world', async () => {
+    const tools=toolsFrom(async(name)=>{
+      if(name==='searchAssets') return {results:[{id:'table'}]};
+      throw new Error(`unexpected tool ${name}`);
+    });
+    const runner=new AgentRuntimeTestRunner({tools});
+    await expect(runner.run('authoring-code-world')).rejects.toThrow('资产目录中没有 cup');
+  });
+
+  it('picks up the code-created cup entity end to end', async () => {
+    const tools=toolsFrom(async(name)=>{
+      if(name==='getNavigationStatus') return {state:'ready'};
+      if(name==='listObjects') return [
+        {id:'cup_01',asset:'cup',position:[2.85,1.4,-3]},
+        {id:'entity_new',asset:'cup',position:[0.6,0.35,0]}
+      ];
+      if(name==='approachAndPickup') return {status:'held',targetId:'entity_new'};
+      if(name==='getCarryStatus') return {status:'held',targetId:'entity_new'};
+      throw new Error(`unexpected tool ${name}`);
+    });
+    const runner=new AgentRuntimeTestRunner({tools});
+    await expect(runner.run('authoring-code-pickup')).resolves.toMatchObject({status:'completed',targetId:'entity_new'});
+    expect(tools.call.mock.calls.map(([name])=>name)).toEqual(['getNavigationStatus','listObjects','approachAndPickup','getCarryStatus']);
+  });
+
+  it('refuses pickup when navigation is not ready in an empty world', async () => {
+    const tools=toolsFrom(async(name)=>{
+      if(name==='getNavigationStatus') return {state:'dirty'};
+      throw new Error(`unexpected tool ${name}`);
+    });
+    const runner=new AgentRuntimeTestRunner({tools});
+    await expect(runner.run('authoring-code-pickup')).rejects.toThrow('导航网格');
+  });
+
 });
