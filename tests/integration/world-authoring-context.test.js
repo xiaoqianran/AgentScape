@@ -45,7 +45,7 @@ describe('World authoring context', () => {
     expect(authoring.dispose()).toBe(false);
   });
 
-  it('exposes only THREE and scene to authored code while host lifecycle stays outside', async () => {
+  it('exposes only the documented authoring surface while host lifecycle stays outside', async () => {
     const scene = new THREE.Scene();
     const rendering = new RenderingSystem({ container:{}, scene });
     const authoring = createWorldAuthoringContext({ rendering });
@@ -68,9 +68,9 @@ describe('World authoring context', () => {
 
     expect(surface).toEqual({
       isScene:true,
-      clear:'undefined',
-      onFrame:'undefined',
-      modelRef:'undefined'
+      clear:'function',
+      onFrame:'function',
+      modelRef:'function'
     });
     const mesh = authoring.scene.getObjectByName('animated-draft');
     authoring.onFrame((delta, elapsed) => {

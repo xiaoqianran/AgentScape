@@ -176,6 +176,13 @@ export function createWorldAuthoringContext(
     return result;
   };
 
+  // Applies a previously exported document without touching revision history.
+  // Used to restore the draft after failed agent code execution.
+  const restore = (document) => {
+    assertActive();
+    return applyDocument(document);
+  };
+
   const normalizeCommitOptions = (options) => {
     if (typeof options === 'string') return { label:options };
     return options || {};
@@ -318,6 +325,7 @@ export function createWorldAuthoringContext(
     export: exportDocument,
     load,
     loadAsync,
+    restore,
     commit,
     history,
     currentRevision,
@@ -343,10 +351,13 @@ export function createWorldAuthoringContext(
       const execute = new AsyncFunction(
         'THREE',
         'scene',
+        'clear',
+        'onFrame',
+        'modelRef',
         `'use strict';\n${source}`
       );
       restoreVisibility();
-      try { return await execute(THREE, root); }
+      try { return await execute(THREE, root, clear, onFrame, modelRef); }
       finally { restoreVisibility(); suppressVisibility(); changed(); }
     },
     dispose() {
