@@ -395,7 +395,16 @@ describe('RenderingSystem', () => {
     rendering.addAuthoringScene(replacement, { mode:'replace' });
     rendering.render(2);
 
+    // An empty replacement draft also renders the authoring stage grid so the
+    // viewport never reads as a broken black screen.
     expect(replacement.parent).toBeNull();
+    expect(h.renderer.render).toHaveBeenCalledTimes(2);
+    expect(h.renderer.render).toHaveBeenNthCalledWith(1, replacement, rendering.camera);
+    expect(h.renderer.render).toHaveBeenNthCalledWith(2, rendering.authoringStage, rendering.camera);
+
+    h.renderer.render.mockClear();
+    replacement.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()));
+    rendering.render(3);
     expect(h.renderer.render).toHaveBeenCalledTimes(1);
     expect(h.renderer.render).toHaveBeenCalledWith(replacement, rendering.camera);
 

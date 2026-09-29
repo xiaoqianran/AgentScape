@@ -22,7 +22,8 @@ export class RenderingSystem {
     postFxOptions = {},
     generatedVisualLoader = loadGaussianSplatVisual,
     onDeviceLost = null,
-    onError = null
+    onError = null,
+    authoringStage = true
   } = {}) {
     if (!container) throw new TypeError('RenderingSystem requires a container');
     if (!scene) throw new TypeError('RenderingSystem requires a scene');
@@ -65,6 +66,21 @@ export class RenderingSystem {
     this.decorationRoot.name = '$visual-decorations';
     this.decorationRoot.userData.visualDecorationRoot = true;
     this.authoringScenes = new Map();
+    this.authoringStageEnabled = authoringStage !== false;
+    this.authoringStage = null;
+  }
+
+  // A tiny editor-like ground reference for empty draft worlds. Rendered only
+  // while a replacement authoring scene is active and has no content yet, so a
+  // brand-new draft does not read as a broken black viewport. Never enters the
+  // authoring document (it lives in its own Scene).
+  ensureAuthoringStage() {
+    if (this.authoringStage) return this.authoringStage;
+    const stage = new THREE.Scene();
+    stage.name = '$authoring-stage';
+    stage.add(new THREE.GridHelper(24, 24, 0x8e909b, 0x303446));
+    this.authoringStage = stage;
+    return stage;
   }
 
   addDecoration(object) {
@@ -323,6 +339,15 @@ export class RenderingSystem {
       || [...entries].reverse().find(([, mode]) => mode === 'replace');
     if (replacement) {
       this.renderer.render(replacement[0], this.camera);
+      if (this.authoringStageEnabled && replacement[0].children.length === 0) {
+        const stageAutoClear = this.renderer.autoClear;
+        this.renderer.autoClear = false;
+        try {
+          this.renderer.render(this.ensureAuthoringStage(), this.camera);
+        } finally {
+          this.renderer.autoClear = stageAutoClear;
+        }
+      }
     } else if (this.postFx?.enabled) {
       try {
         this.postFx.render();
@@ -390,6 +415,10 @@ export class RenderingSystem {
     this.postFx = null;
     this.controls?.dispose?.();
     this.controls = null;
+    if (this.authoringStage) {
+      for (const child of this.authoringStage.children) child.geometry?.dispose?.();
+      this.authoringStage = null;
+    }
     this.probe?.dispose?.();
     this.probe = null;
     this.renderer?.dispose?.();
