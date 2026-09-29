@@ -49,12 +49,14 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: devHost,
+      allowedHosts: true,
       watch: {
         ignored: ["**/.venv/**", "**/__pycache__/**", "**/.git/**", "**/dist/**"]
       }
     },
     preview: {
-      host: devHost
+      host: devHost,
+      allowedHosts: true
     },
     build: {
       rollupOptions: {

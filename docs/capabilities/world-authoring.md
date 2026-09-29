@@ -71,6 +71,22 @@ $visual-decorations
 
 This makes live authoring visual-only until a future explicit promotion step.
 
+## Agent skill: runAuthoringCode
+
+`application/skills/packs/codeSkills.js` exposes the authoring sandbox to the tool-calling agent as the `runAuthoringCode` skill (registered by `createSession` whenever a World authoring context is available):
+
+```text
+runAuthoringCode({ code, label })
+```
+
+Contract:
+
+- The sandbox surface is exactly `THREE`, `scene`, `clear`, `onFrame`, `modelRef` — nothing else.
+- Static fail-closed guards reject ambient capability references (`fetch`, `window`, `document`, `eval`, dynamic `import`, storage, workers, ...) and oversized code before execution.
+- Before execution the current document is exported as a baseline. If the code throws, the draft is restored to that baseline (`authoring.restore`) and the error is returned verbatim as `authoring-code-failed` so the model can fix and resubmit; the world never keeps a half-built draft.
+- A successful run commits an `agent-code` revision and returns a bounded stable-ID diff summary (`authoring-code-applied`).
+- Code output is a draft, not world truth: promoting authored content into runtime entities still requires the explicit promotion skills.
+
 ## Stable identity
 
 Three.js `uuid` is runtime identity. World Authoring assigns a separate persistent identity:
