@@ -61,6 +61,7 @@ export class AuthoringWorldController {
     this.authoring.clear();
     const document = this.authoring.export();
     this.authoring.load(document, { label:'New world' });
+    this.authoring.setPresentationMode?.('replace');
     this.currentId = null;
     this.currentName = String(name || 'Untitled World');
     this.savedDocument = clone(document);
@@ -83,6 +84,7 @@ export class AuthoringWorldController {
       });
 
       this.promotion?.loadState(record.promotions);
+      this.authoring.setPresentationMode?.('replace');
 
       this.currentId = record.id;
       this.currentName = record.name || record.id;
@@ -93,6 +95,11 @@ export class AuthoringWorldController {
       this.fileBusy = false;
       if (this.promotion) this.promotion.fileBusy = false;
     }
+  }
+
+  // Leaves the draft-only presentation so runtime worlds render normally again.
+  restoreOverlayPresentation() {
+    this.authoring.setPresentationMode?.('overlay');
   }
 
   async save({ name = null } = {}) {

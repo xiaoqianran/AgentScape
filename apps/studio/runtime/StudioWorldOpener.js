@@ -19,12 +19,14 @@ export class StudioWorldOpener {
 
   async open(source = null) {
     if (source == null || source.kind === 'persisted' || source.kind === 'current') {
+      this.authoring?.restoreOverlayPresentation?.();
       return this.session.open(null, { reason:source?.reason || 'studio-persisted-world' });
     }
 
     if (source.kind === 'builtin') {
       const definition = this.builtins.get(source.id);
       if (!definition) throw new TypeError('Built-in world not found: ' + source.id);
+      this.authoring?.restoreOverlayPresentation?.();
       return this.session.open(
         () => this.materializeBuiltin(definition),
         { reason:source.reason || 'studio-builtin-world' }
@@ -33,6 +35,7 @@ export class StudioWorldOpener {
 
     if (source.kind === 'generated') {
       if (!source.artifactId) throw new TypeError('Generated world requires artifactId');
+      this.authoring?.restoreOverlayPresentation?.();
       return this.session.open(
         () => this.materializeGenerated(source.artifactId),
         { reason:source.reason || 'studio-generated-world' }
