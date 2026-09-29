@@ -9,6 +9,7 @@ import { ArticulationVerifier } from '../modules/world/verification/Articulation
 import { AuthoringPromotionController } from './world-authoring/AuthoringPromotionController.js';
 import { createAuthoringAssetProducer } from './world-authoring/AuthoringAssetProducer.js';
 import { registerAuthoringSkills } from './skills/packs/authoringSkills.js';
+import { registerCodeSkills } from './skills/packs/codeSkills.js';
 
 // Composition only. DOM rendering is attached here; frame scheduling and input stay with the host.
 export function createSession(container, {
@@ -50,5 +51,6 @@ export function createSession(container, {
   const promotion = authoring ? new AuthoringPromotionController({ authoring, world,
     produceAsset:createAuthoringAssetProducer({ assets:assetModule, artifacts:generation.artifacts }) }) : null;
   if (promotion) registerAuthoringSkills((name, options, handler) => world.skills.register({ name, ...options, handler }), promotion);
+  if (authoring) registerCodeSkills((name, options, handler) => world.skills.register({ name, ...options, handler }), authoring);
   return { world, generation, authoring, promotion };
 }

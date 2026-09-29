@@ -26,6 +26,9 @@ function classifyResult(result) {
     const status = typeof result.status === 'string' ? result.status : null;
     if (status) {
       if (status === 'authoring-provisional') return { state:'unverified', verified:false, status, reason:'ASSET_PROVISIONAL' };
+      if (status === 'authoring-code-applied') return { state:'accepted', verified:null, status };
+      if (status === 'authoring-code-rejected') return { state:'failed', verified:false, status, reason:result.reason || 'AUTHORING_CODE_REJECTED' };
+      if (status === 'authoring-code-empty') return { state:'noop', verified:false, status, reason:'AUTHORING_CODE_NO_CHANGE' };
       if (status === 'authoring-verified') {
         const evidence = result.verification;
         const verified = evidence?.physics?.registered === true && evidence.physics.placement?.checked === true
