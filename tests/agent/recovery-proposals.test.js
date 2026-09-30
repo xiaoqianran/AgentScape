@@ -5,7 +5,7 @@ import { WorldRecovery } from '../../modules/world/runtime/WorldRecovery.js';
 const blockerCandidate={kind:'object',objectId:'blocker_01',partName:'$root',colliderIndex:0};
 const environmentCandidate={kind:'environment',environmentId:'monument-hall',colliderIndex:4};
 
-function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,articulatedAllow=allow,cleanupAllow=allow,carryError=null,planCosts={},recoveryHeld=null,cleanupPlan=null,articulatedStatus=null,articulatedActions=['open','close'],actionGeometry={},physicsCounterfactual=null,physicsConvergence=null,worldCounterfactual=null}={}){
+function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=true,articulatedAllow=allow,cleanupAllow=allow,carryError=null,planCosts={},recoveryHeld=null,cleanupPlan=null,articulatedStatus=null,articulatedActions=['open','close'],articulatedPart={},failureReason='STALL',actionGeometry={},physicsCounterfactual=null,physicsConvergence=null,worldCounterfactual=null}={}){
   const records=new Map([
     ['agent_01',{id:'agent_01',assetId:'agent',manifest:{actions:['navigate']},state:{}}],
     ['cabinet_01',{id:'cabinet_01',assetId:'cabinet',manifest:{actions:['open','close'],parts:{door:{node:'Door',actions:['open','close'],targets:{open:-1,close:0},physics:{body:'dynamic',colliders:[{}]},joint:{type:'revolute'}}}},state:{parts:{door:'close'}}}],
@@ -13,7 +13,7 @@ function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=t
     ['blocker_02',{id:'blocker_02',assetId:'blocker',manifest:{actions:['pickup','drop'],physics:{body:'dynamic'}},state:{}}],
     ['articulated_01',{id:'articulated_01',assetId:'cabinet',manifest:{
       actions:[...new Set(['open','close',...articulatedActions])],physics:{body:'fixed'},
-      parts:{door:{node:'Door',actions:articulatedActions,targets:Object.fromEntries(articulatedActions.map((action,index)=>[action,index===0?-1:index===1?0:.5])),physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.4,.8,.05]}]},joint:{type:'revolute',axis:[0,1,0],limits:[-1,0]}}}
+      parts:{door:{node:'Door',actions:articulatedActions,targets:Object.fromEntries(articulatedActions.map((action,index)=>[action,index===0?-1:index===1?0:.5])),physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.4,.8,.05]}]},joint:{type:'revolute',axis:[0,1,0],limits:[-1,0]},...articulatedPart}}
     },state:{parts:{door:'close'}}}]
   ]);
   const runtime={
@@ -28,7 +28,7 @@ function setup({candidates=[blockerCandidate],current=[blockerCandidate],allow=t
       articulationStatus:vi.fn((id)=>id==='articulated_01'
         ? {id,parts:[articulatedStatus || {partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'close',live:{coordinate:0,target:0,error:0,tolerance:.08}}]}
         : {id:'cabinet_01',parts:[{
-          partName:'door',status:'action-failed',last:{status:'action-failed',reason:'STALL',action:'open',attribution:{status:'contact-evidence',blockerCandidates:candidates}}
+          partName:'door',status:'action-failed',last:{status:'action-failed',reason:failureReason,action:'open',attribution:{status:'contact-evidence',blockerCandidates:candidates}}
         }]}),
       assertAgentCarryable:vi.fn(()=>{if(carryError) throw Object.assign(new Error(carryError),{code:'CARRY_UNAVAILABLE',details:{reason:carryError}});}),
       findPickupPlan:vi.fn(async(_actor,id)=>({pose:{status:'approach-pose',position:[1,0,1],routeCost:planCosts[id] ?? 1},transfer:{clear:true}})),
@@ -551,6 +551,68 @@ describe('verified recovery proposals',()=>{
       }]
     });
     expect(runtime.interactions.findInteractionPose).not.toHaveBeenCalled();
+  });
+
+  it('only offers recovery for an actual STALL failure',async()=>{
+    const {runtime,registry}=setup({failureReason:'TIMEOUT'});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result).toMatchObject({status:'recovery-unavailable',reason:'NO_STALL_FAILURE',actorId:'agent_01',targetId:'cabinet_01',proposals:[]});
+    expect(runtime.interactions.assertAgentCarryable).not.toHaveBeenCalled();
+  });
+
+  it('reports a missing contact blocker candidate instead of guessing one',async()=>{
+    const {runtime,registry}=setup({candidates:[],current:[]});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result).toMatchObject({status:'recovery-unavailable',reason:'NO_CONTACT_BLOCKER_CANDIDATE',partName:'door',proposals:[]});
+  });
+
+  it('refuses a blocker object that no longer exists in the Runtime store',async()=>{
+    const ghost={kind:'object',objectId:'ghost_01',partName:'$root',colliderIndex:0};
+    const {runtime,registry}=setup({candidates:[ghost],current:[ghost]});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.proposals[0]).toMatchObject({eligible:false,status:'ineligible',reason:'BLOCKER_OBJECT_UNAVAILABLE'});
+    expect(runtime.interactions.assertAgentCarryable).not.toHaveBeenCalled();
+  });
+
+  it('refuses an articulated blocker without a usable joint, collider or target set',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const {runtime,registry}=setup({
+      candidates:[articulated],current:[articulated],
+      articulatedPart:{joint:null,physics:null,targets:{}}
+    });
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.proposals[0]).toMatchObject({candidateType:'articulated-part',eligible:false,status:'ineligible',reason:'ARTICULATED_PART_UNAVAILABLE'});
+    expect(runtime.interactions.findInteractionPose).not.toHaveBeenCalled();
+  });
+
+  it('refuses articulated recovery when no alternate action target exists',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const {runtime,registry}=setup({
+      candidates:[articulated],current:[articulated],
+      articulatedActions:['close'],
+      articulatedStatus:{partName:'door',status:'verified-state',requestedAction:null,verifiedAction:'close',live:{coordinate:0,target:0,error:0,tolerance:.08}}
+    });
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.proposals[0]).toMatchObject({eligible:false,status:'ineligible',reason:'NO_ALTERNATE_ARTICULATED_ACTION'});
+    expect(runtime.interactions.findInteractionPose).not.toHaveBeenCalled();
+  });
+
+  it('requires an interaction pose before proposing a single-alternate articulated recovery',async()=>{
+    const articulated={kind:'object',objectId:'articulated_01',partName:'door',colliderIndex:0};
+    const {runtime,registry}=setup({candidates:[articulated],current:[articulated]});
+    runtime.interactions.findInteractionPose.mockResolvedValue(null);
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.proposals[0]).toMatchObject({
+      candidateType:'articulated-part',eligible:false,status:'ineligible',reason:'NO_INTERACTION_POSE',blockerAction:'open'
+    });
+  });
+
+  it('blocks pickup recovery when the transfer preflight is not clear',async()=>{
+    const {runtime,registry}=setup();
+    runtime.interactions.findPickupPlan.mockResolvedValue({pose:{status:'approach-pose',position:[1,0,1],routeCost:1},transfer:{clear:false}});
+    const result=await buildRecoveryProposals(runtime,registry,{actorId:'agent_01',targetId:'cabinet_01'});
+    expect(result.proposals[0]).toMatchObject({eligible:false,status:'ineligible',reason:'PICKUP_TRANSFER_BLOCKED'});
+    expect(result.recommended ?? null).toBeNull();
   });
 
 });
