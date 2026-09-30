@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   mirror:
-    name: GitHub -> CNB1 / GitCode
+    name: GitHub -> CNB1 / CNB2 / GitCode
     runs-on: ubuntu-latest
 
     steps:
@@ -29,15 +29,18 @@ jobs:
       - name: Validate mirror credentials
         env:
           CNB1_TOKEN: ${{ secrets.CNB1_TOKEN }}
+          CNB2_TOKEN: ${{ secrets.CNB2_TOKEN }}
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
         run: |
           set -euo pipefail
           test -n "$CNB1_TOKEN" || { echo "::error::Missing GitHub Actions secret: CNB1_TOKEN"; exit 1; }
+          test -n "$CNB2_TOKEN" || { echo "::error::Missing GitHub Actions secret: CNB2_TOKEN"; exit 1; }
           test -n "$GITCODE_TOKEN" || { echo "::error::Missing GitHub Actions secret: GITCODE_TOKEN"; exit 1; }
 
-      - name: Sync pushed ref to CNB1 and GitCode
+      - name: Sync pushed ref to CNB1, CNB2 and GitCode
         env:
           CNB1_TOKEN: ${{ secrets.CNB1_TOKEN }}
+          CNB2_TOKEN: ${{ secrets.CNB2_TOKEN }}
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
@@ -45,6 +48,7 @@ jobs:
           set -euo pipefail
 
           git remote add cnb1 "https://cnb:${CNB1_TOKEN}@cnb.cool/xiaoqianran/AgentScape.git"
+          git remote add cnb2 "https://cnb:${CNB2_TOKEN}@cnb.cool/chutianqiu/AgentScape.git"
           git remote add gitcode "https://xiaoqianran:${GITCODE_TOKEN}@gitcode.com/xiaoqianran/AgentScape.git"
 
           if [ "$REF_TYPE" = "branch" ]; then
@@ -57,6 +61,7 @@ jobs:
           fi
 
           git push cnb1 "$refspec"
+          git push cnb2 "$refspec"
           git push gitcode "$refspec"
 
-          echo "Mirrored $REF_TYPE $REF_NAME to CNB1 and GitCode."
+          echo "Mirrored $REF_TYPE $REF_NAME to CNB1, CNB2 and GitCode."
