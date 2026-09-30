@@ -27,7 +27,13 @@ const DEFAULT_OPTIONS = Object.freeze({
 const effectOptions = (defaults, value) => {
   if (value === false) return { ...defaults, enabled: false };
   if (value === true || value == null) return { ...defaults };
-  return { ...defaults, ...value, enabled: value.enabled !== false };
+  const merged = { ...defaults, ...value, enabled: value.enabled !== false };
+  for (const [key, fallback] of Object.entries(defaults)) {
+    if (typeof fallback === 'number' && (typeof merged[key] !== 'number' || !Number.isFinite(merged[key]))) {
+      merged[key] = fallback;
+    }
+  }
+  return merged;
 };
 
 export function normalizeWebGpuPostFxOptions(options = {}) {

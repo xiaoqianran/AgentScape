@@ -96,6 +96,23 @@ describe('Connector capability discovery adapter',()=>{
       .toThrow(expect.objectContaining({code:'CONNECTOR_CONTRACT_MISMATCH'}));
   });
 
+  it('binds the snapshot to the exact session connector identity',()=>{
+    const adapter=new ConnectorCapabilityAdapter({now:()=>NOW});
+    for (const field of ['id','instance','version']) {
+      expect(()=>adapter.normalizeSnapshot(snapshot({connector:{...SESSION.connector,[field]:`other_${field}`}}),SESSION))
+        .toThrow(expect.objectContaining({code:'CONNECTOR_CAPABILITY_CONNECTOR_MISMATCH'}));
+    }
+  });
+
+  it('recursively rejects secret-like fields nested inside capability arrays',()=>{
+    const adapter=new ConnectorCapabilityAdapter({now:()=>NOW});
+    const payload=snapshot({providers:[provider('modal-2d',{
+      capabilities:[{...provider('modal-2d').capabilities[0],auth:{accessToken:'nested-secret'}}]
+    })]});
+    expect(()=>adapter.normalizeSnapshot(payload,SESSION))
+      .toThrow(expect.objectContaining({code:'CONNECTOR_CAPABILITY_SECRET_FIELD'}));
+  });
+
   it('rejects expired snapshots and requires a paired session',()=>{
     const adapter=new ConnectorCapabilityAdapter({now:()=>NOW});
     expect(()=>adapter.normalizeSnapshot(snapshot({expiresAt:'2026-08-24T06:29:59.000Z'}),SESSION))

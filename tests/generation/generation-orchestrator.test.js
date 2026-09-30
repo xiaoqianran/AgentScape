@@ -291,4 +291,151 @@ describe("GenerationOrchestrator",()=>{
     await orchestrator.submitGenerationJob(generationRequest());
     await expect(orchestrator.importGenerationResult("job_01")).rejects.toMatchObject({code:"JOB_NOT_READY"});
   });
+
+  it("fails closed when a route capability requires an input without a resolvable default",async()=>{
+    const registry=createProviderRegistry();
+    registry.applyProviderSnapshot({
+      revision:capabilityRevision,hash:capabilityHash,
+      connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"},
+      providers:[{
+        id:"modal-3d",version:"1",status:"available",health:"healthy",contractVersion:"1",
+        capabilities:[{
+          operation,version:"1",displayName:"Text to 3D",status:"available",category:"asset-generation",
+          input:{types:["text"],schema:{type:"object",required:["prompt","style"],properties:{prompt:{type:"string"},style:{type:"string"}}}},
+          output:{roles:["asset"]},execution:{async:true,durationClass:"long",costClass:"gpu"},
+          prerequisites:{authMode:"connector-session",connection:true},support:{cancel:true,resume:true,idempotency:true}
+        }]
+      }]
+    },{sourceId:"connector:unified-connector",sourceKind:"connector"});
+    const request=vi.fn();
+    const connectorClient={request,isPaired:()=>true,session:()=>({status:"paired",connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"}})};
+    const orchestrator=new GenerationOrchestrator({providerRegistry:registry,connectorClient});
+    await expect(orchestrator.generateTextAsset({prompt:"cabinet",assetId:"asset_incomplete_01"}))
+      .rejects.toMatchObject({code:"GENERATION_CAPABILITY_INCOMPLETE",details:{provider:"modal-3d",operation,input:"style"}});
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on the composed asset leg when a required input has no default",async()=>{
+    const registry=createProviderRegistry();
+    registry.applyProviderSnapshot({
+      revision:capabilityRevision,hash:capabilityHash,
+      connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"},
+      providers:[
+        {
+          id:"modal-2d",version:"1",status:"available",health:"healthy",contractVersion:"1",
+          capabilities:[{
+            operation:"modal-2d.image.text_to_image.v1",version:"1",displayName:"Text to Image",status:"available",category:"image-generation",
+            input:{types:["text"],schema:{type:"object",required:["prompt"],properties:{prompt:{type:"string"}}}},
+            output:{roles:["primary-image"],required:["primary-image"]},profiles:{recommended:{}},
+            execution:{async:true,durationClass:"medium",costClass:"gpu"},prerequisites:{authMode:"connector-session",connection:true},support:{cancel:true,resume:true,idempotency:true}
+          }]
+        },
+        {
+          id:"modal-3d",version:"1",status:"available",health:"healthy",contractVersion:"1",
+          capabilities:[{
+            operation:"modal-3d.asset.image_to_3d.v1",version:"1",displayName:"Image to 3D",status:"available",category:"asset-generation",
+            input:{types:["image"],schema:{type:"object",required:["sourceArtifact","lora"],properties:{sourceArtifact:{type:"object"},lora:{type:"string"}}}},
+            output:{roles:["primary-glb"],required:["primary-glb"]},profiles:{recommended:{}},
+            execution:{async:true,durationClass:"long",costClass:"gpu"},prerequisites:{authMode:"connector-session",connection:true},support:{cancel:true,resume:true,idempotency:true}
+          }]
+        }
+      ]
+    },{sourceId:"connector:unified-connector",sourceKind:"connector"});
+    const imageBytes=new Uint8Array([137,80,78,71,13,10,26,10]);
+    const submitted=new Map();
+    const request=vi.fn(async(path,options={})=>{
+      if(path==="/connector/v1/jobs" && options.method==="POST"){
+        const body=JSON.parse(options.body);
+        const id=body.provider==="modal-2d"?"job_image":"job_asset";
+        submitted.set(id,body);
+        return new Response(JSON.stringify({job:{...jobFrom(body),id}}),{status:200,headers:{"content-type":"application/json"}});
+      }
+      if(path==="/connector/v1/jobs/job_image"){
+        const body=submitted.get("job_image");
+        const result={artifacts:[{id:"artifact_image",role:"primary-image",mime:"image/png",bytes:imageBytes.byteLength,hash:sha(imageBytes)}]};
+        return new Response(JSON.stringify({job:{...jobFrom(body,"succeeded",2,result),id:"job_image"}}),{status:200,headers:{"content-type":"application/json"}});
+      }
+      throw new Error(`unexpected request ${path}`);
+    });
+    const connectorClient={request,isPaired:()=>true,session:()=>({status:"paired",connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"}})};
+    const orchestrator=new GenerationOrchestrator({providerRegistry:registry,connectorClient,pollIntervalMs:0});
+    await expect(orchestrator.generateTextAsset({prompt:"a red apple",assetId:"asset_incomplete_02"}))
+      .rejects.toMatchObject({code:"GENERATION_CAPABILITY_INCOMPLETE",details:{provider:"modal-3d",operation:"modal-3d.asset.image_to_3d.v1",input:"lora"}});
+    expect(submitted.has("job_asset")).toBe(false);
+  });
+
+  it("reports job, provider and operation without secrets when waiting for generation times out",async()=>{
+    let submitted=null;
+    const request=vi.fn(async(path,options={})=>{
+      if(path==="/connector/v1/jobs" && options.method==="POST"){
+        submitted=JSON.parse(options.body);
+        return new Response(JSON.stringify({job:jobFrom(submitted)}),{status:200,headers:{"content-type":"application/json"}});
+      }
+      if(path==="/connector/v1/jobs/job_01"){
+        return new Response(JSON.stringify({job:jobFrom(submitted,"running",2)}),{status:200,headers:{"content-type":"application/json"}});
+      }
+      throw new Error(`unexpected request ${path}`);
+    });
+    const connectorClient={request,isPaired:()=>true,session:()=>({status:"paired",connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"}})};
+    let tick=0;
+    const orchestrator=new GenerationOrchestrator({
+      providerRegistry:providerRegistry(),connectorClient,
+      monotonic:()=>(tick+=1000),sleep:async()=>{},pollIntervalMs:0,generationTimeoutMs:500
+    });
+    const timeoutError=await orchestrator.generateTextAsset({prompt:"cabinet",assetId:"asset_timeout_01"}).catch((error)=>error);
+    expect(timeoutError).toMatchObject({code:"GENERATION_TIMEOUT",details:{jobId:"job_01",provider:"modal-3d",operation,timeoutMs:500}});
+    expect(JSON.stringify(timeoutError.details)).not.toMatch(/token|secret|authorization|bearer/i);
+  });
+
+  it("fails the composed route without submitting the asset Job when the image Job yields no PNG source",async()=>{
+    const imageBytes=new Uint8Array([255,216,255,224,0,16,74,70]);
+    const submitted=new Map();
+    const request=vi.fn(async(path,options={})=>{
+      if(path==="/connector/v1/jobs" && options.method==="POST"){
+        const body=JSON.parse(options.body);
+        const id=body.provider==="modal-2d"?"job_image":"job_asset";
+        submitted.set(id,body);
+        return new Response(JSON.stringify({job:{...jobFrom(body),id}}),{status:200,headers:{"content-type":"application/json"}});
+      }
+      if(path==="/connector/v1/jobs/job_image"){
+        const body=submitted.get("job_image");
+        const result={artifacts:[{id:"artifact_image",role:"primary-image",mime:"image/jpeg",bytes:imageBytes.byteLength,hash:sha(imageBytes)}]};
+        return new Response(JSON.stringify({job:{...jobFrom(body,"succeeded",2,result),id:"job_image"}}),{status:200,headers:{"content-type":"application/json"}});
+      }
+      throw new Error(`unexpected request ${path}`);
+    });
+    const connectorClient={request,isPaired:()=>true,session:()=>({status:"paired",connector:{id:"unified-connector",instance:"instance_01",version:"1.0.0"}})};
+    const orchestrator=new GenerationOrchestrator({providerRegistry:composedProviderRegistry(),connectorClient,pollIntervalMs:0});
+    await expect(orchestrator.generateTextAsset({prompt:"a red apple",assetId:"asset_no_png_01"}))
+      .rejects.toMatchObject({code:"GENERATION_SOURCE_ARTIFACT_INVALID",details:{jobId:"job_image",provider:"modal-2d"}});
+    expect(submitted.has("job_asset")).toBe(false);
+  });
+
+  it("locks the provider-succeeded → import → compile → admission order for generateAndCompileAsset",async()=>{
+    const {orchestrator,assets}=await harness();
+    const calls=[];
+    const originalImport=orchestrator.importGenerationResult.bind(orchestrator);
+    orchestrator.importGenerationResult=async(...args)=>{
+      calls.push("import");
+      return originalImport(...args);
+    };
+    const originalProduce=orchestrator.produceAsset;
+    orchestrator.produceAsset=async(...args)=>{
+      calls.push(["produce",orchestrator.artifactRegistry.get(args[0]?.artifactId)?.integrity?.state ?? null]);
+      return originalProduce(...args);
+    };
+
+    const pending=await orchestrator.generateAndCompileAsset({...generationRequest(),assetId:"asset_order_01",label:"Ordered Cabinet"});
+    expect(pending).toMatchObject({status:"generation-pending",jobId:"job_01"});
+    expect(calls).toEqual([]);
+
+    const providerSucceeded=await orchestrator.getGenerationJob("job_01");
+    expect(providerSucceeded.status).toBe("provider-succeeded");
+    expect(calls).toEqual([]);
+    expect(assets.has("asset_order_01")).toBe(false);
+
+    const produced=await orchestrator.generateAndCompileAsset({jobId:"job_01",assetId:"asset_order_01",label:"Ordered Cabinet"});
+    expect(calls).toEqual(["import",["produce","verified"]]);
+    expect(produced).toMatchObject({providerStatus:"provider-succeeded",artifactStatus:"artifact-imported",artifactId:"artifact_01"});
+  });
 });

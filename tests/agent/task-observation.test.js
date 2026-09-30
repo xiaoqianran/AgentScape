@@ -125,4 +125,71 @@ describe('compact task observation',()=>{
     expect(observation.objects.map((item)=>item.id).sort()).toEqual(['agent_01','cabinet_01','table_01']);
     expect(observation.recoveryHints[0]).toMatchObject({action:'report-unverified-or-retry-place',status:'provisional',basedOn:'SUPPORT_NOT_REACHED'});
   });
+
+  it('rounds object and actor positions to 3 decimals for a stable payload',()=>{
+    const runtime=runtimeFixture();
+    runtime.physics.getPosition=(id)=>({agent_01:[1.23456,.00049,-2.67891],cup_01:[.11119,2.5,3.33333]}[id] || [50,0,50]);
+    const lastMutation={
+      tool:'approachAndPickup',args:{actorId:'agent_01',targetId:'cup_01'},
+      outcome:{state:'verified',status:'held',verified:true}
+    };
+    const observation=buildTaskObservation(runtime,{actor:'agent_01',lastMutation});
+    expect(observation.actor.position).toEqual([1.235,0,-2.679]);
+    expect(observation.objects.find((item)=>item.id==='cup_01').position).toEqual([.111,2.5,3.333]);
+  });
+
+  it('caps relations at maxRelations with a default of 8',()=>{
+    const runtime=runtimeFixture();
+    const edges=[];
+    for(let i=0;i<12;i++) edges.push({subject:'agent_01',predicate:'NEAR',object:`junk_${i}`,meta:{distance:i+1}});
+    runtime.sceneGraph.list.mockReturnValue(edges);
+    const observation=buildTaskObservation(runtime,{actor:'agent_01'});
+    expect(observation.relations).toHaveLength(8);
+    const limited=buildTaskObservation(runtime,{actor:'agent_01',maxRelations:3});
+    expect(limited.relations).toHaveLength(3);
+    expect(limited.relations.map((edge)=>edge.object)).toEqual(['junk_0','junk_1','junk_2']);
+  });
+
+  it('keeps at most the first 4 contact evidence entries',()=>{
+    const runtime=runtimeFixture();
+    const status=runtime.interactions.articulationStatus();
+    const entry=status.parts[0].last.attribution.contactEvidence[0];
+    status.parts[0].last.attribution.contactEvidence=Array.from({length:6},(_,index)=>({...entry,contactCount:index+1}));
+    runtime.interactions.articulationStatus.mockReturnValue(status);
+    const lastMutation={
+      tool:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'},
+      outcome:{state:'failed',status:'action-failed',reason:'STALL'}
+    };
+    const observation=buildTaskObservation(runtime,{actor:'agent_01',lastMutation,unresolvedMutations:[lastMutation]});
+    const evidence=observation.articulation[0].parts[0].last.attribution.contactEvidence;
+    expect(evidence).toHaveLength(4);
+    expect(evidence.map((item)=>item.contactCount)).toEqual([1,2,3,4]);
+  });
+
+  it('points navigation failures at suggestNavigationActions as provisional-only hints',()=>{
+    const runtime=runtimeFixture();
+    const lastMutation={
+      tool:'navigateTo',args:{actorId:'agent_01',targetId:'cabinet_01'},
+      outcome:{state:'failed',status:'action-failed',reason:'PATH_NOT_FOUND'}
+    };
+    const observation=buildTaskObservation(runtime,{actor:'agent_01',lastMutation,unresolvedMutations:[lastMutation]});
+    expect(observation.recoveryHints).toEqual([
+      expect.objectContaining({tool:'suggestNavigationActions',status:'provisional',basedOn:'PATH_NOT_FOUND'})
+    ]);
+    expect(observation.recoveryHints.every((hint)=>hint.status==='provisional')).toBe(true);
+  });
+
+  it('never lets settle/support failures claim success in recovery hints',()=>{
+    const runtime=runtimeFixture();
+    for(const reason of ['SUPPORT_NOT_REACHED','SETTLE_TIMEOUT']){
+      const lastMutation={
+        tool:'approachAndPlace',args:{actorId:'agent_01',supportId:'table_01'},
+        outcome:{state:'unverified',status:'place-unverified',reason}
+      };
+      const observation=buildTaskObservation(runtime,{actor:'agent_01',lastMutation,unresolvedMutations:[lastMutation]});
+      expect(observation.recoveryHints).toEqual([
+        expect.objectContaining({action:'report-unverified-or-retry-place',status:'provisional',basedOn:reason})
+      ]);
+    }
+  });
 });

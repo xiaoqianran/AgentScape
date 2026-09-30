@@ -7,6 +7,7 @@ import {
   rendererDiagnostics
 } from '../../modules/rendering/createRenderer.js';
 import { RendererProbe } from '../../modules/rendering/RendererProbe.js';
+import { budgetGaussianData, DEFAULT_RUNTIME_SPLAT_BUDGET } from '../../modules/rendering/loadGaussianSplatVisual.js';
 
 class FakeRenderer {
   constructor(parameters = {}) {
@@ -143,5 +144,71 @@ describe('renderer factory', () => {
   it('fails clearly when WebGPU is required but Three falls back to WebGL2', async () => {
     await expect(createRenderer({ mode: 'webgpu', RendererClass: FallbackRenderer }))
       .rejects.toMatchObject({ code: 'RENDERER_WEBGPU_REQUIRED', backend: 'webgl2' });
+  });
+
+  it('pins the invalid renderer mode fallback strategy with a stable error code', () => {
+    expect(normalizeRendererMode('')).toBe(RENDERER_MODE.AUTO);
+    expect(normalizeRendererMode('  Auto ')).toBe(RENDERER_MODE.AUTO);
+    expect(normalizeRendererMode('WebGL')).toBe(RENDERER_MODE.WEBGL2);
+    for (const invalid of ['canvas2d', 'vulkan', 'webgl3', 'AUTO-', 0, true, {}]) {
+      expect(() => normalizeRendererMode(invalid)).toThrowError(
+        expect.objectContaining({ code: 'RENDERER_MODE_INVALID' })
+      );
+    }
+  });
+
+  it('reports WebGL2 fallback diagnostics with requested, backend and fallback fields in auto mode', async () => {
+    const result = await createRenderer({ mode: 'auto', RendererClass: FallbackRenderer });
+    expect(result.info).toEqual({
+      renderer: 'WebGPURenderer',
+      requestedMode: 'auto',
+      backend: 'webgl2',
+      fallback: true
+    });
+  });
+
+  it('reports timestamp support as unavailable without throwing when the device lacks timestamp-query', () => {
+    const renderer = {
+      isWebGPURenderer: true,
+      backend: {
+        isWebGPUBackend: true,
+        device: { features: new Set(['shader-f16']), limits: { maxBindGroups: 4 } }
+      },
+      resolveTimestampsAsync: vi.fn(async () => 1)
+    };
+    const probe = new RendererProbe(renderer);
+    expect(probe.snapshot()).toMatchObject({ timestampSupported: false, gpuTiming: false, gpuTimeMs: null });
+    expect(() => probe.afterRender(1000)).not.toThrow();
+    expect(renderer.resolveTimestampsAsync).not.toHaveBeenCalled();
+    probe.dispose();
+  });
+});
+
+describe('gaussian splat budget', () => {
+  const splatData = (count) => ({
+    position: new Float32Array(count * 4).map((_, index) => index),
+    color: new Float32Array(count * 4).map((_, index) => index + 1),
+    covariance: new Float32Array(count * 8).map((_, index) => index + 2),
+    extra: { sh1: new Float32Array(count * 2).map((_, index) => index + 3) }
+  });
+
+  it('treats maxSplats=0 and other unusable budgets as the default runtime budget', () => {
+    for (const budget of [0, Number.NaN, Number.POSITIVE_INFINITY, -5]) {
+      const result = budgetGaussianData(splatData(8), budget);
+      expect(result).toMatchObject({ sourceSplatCount: 8, splatCount: 8, sampled: false });
+    }
+    const oversized = budgetGaussianData(splatData(8), DEFAULT_RUNTIME_SPLAT_BUDGET * 2);
+    expect(oversized).toMatchObject({ sourceSplatCount: 8, splatCount: 8, sampled: false });
+  });
+
+  it('samples the same splat set deterministically for identical inputs', () => {
+    const first = budgetGaussianData(splatData(10), 4);
+    const second = budgetGaussianData(splatData(10), 4);
+    expect(first).toMatchObject({ sourceSplatCount: 10, splatCount: 4, sampled: true });
+    expect([...first.data.position]).toEqual([...second.data.position]);
+    expect([...first.data.color]).toEqual([...second.data.color]);
+    expect([...first.data.covariance]).toEqual([...second.data.covariance]);
+    expect([...first.data.extra.sh1]).toEqual([...second.data.extra.sh1]);
+    expect(first.data.position.length).toBe(16);
   });
 });

@@ -66,4 +66,28 @@ describe('createArtifactModule',()=>{
     });
     expect(module.registry.has('artifact_persisted')).toBe(false);
   });
+
+  it('fails closed when a persisted verified descriptor has no persisted byte entry',async()=>{
+    const persistentStore={load:vi.fn(async()=>({descriptors:[descriptor],entries:[]}))};
+    const module=createArtifactModule({persistentStore});
+    await expect(module.hydrate()).rejects.toMatchObject({
+      code:'ARTIFACT_PERSISTENCE_INTEGRITY_MISMATCH',
+      details:expect.objectContaining({artifactId:'artifact_persisted'})
+    });
+    expect(module.registry.has('artifact_persisted')).toBe(false);
+    expect(module.byteStore.get('cache_artifact_persisted')).toBeNull();
+  });
+
+  it('returns false without partial writes when persistArtifact lacks a descriptor or byte entry',async()=>{
+    const persistentStore={putArtifact:vi.fn(async()=>true)};
+    const module=createArtifactModule({persistentStore});
+    await expect(module.persistArtifact('artifact_unknown','cache_missing')).resolves.toBe(false);
+
+    module.registry.register({ ...descriptor, integrity:{state:'declared'} });
+    module.registry.verifyIntegrity('artifact_persisted',{
+      hash:HASH,bytes:4,mime:'model/gltf-binary',verifiedAt:'2026-09-06T12:00:01.000Z',method:'sha256-v1'
+    });
+    await expect(module.persistArtifact('artifact_persisted','cache_missing')).resolves.toBe(false);
+    expect(persistentStore.putArtifact).not.toHaveBeenCalled();
+  });
 });

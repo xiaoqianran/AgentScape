@@ -43,6 +43,16 @@ describe('ConnectorArtifactClient',()=>{
     expect(connectorClient.request).not.toHaveBeenCalled();
   });
 
+  it('only accepts PNG for local image upload and rejects JPEG/WebP before transport',async()=>{
+    const bytes=new Uint8Array([255,216,255,224,0,16]);
+    const connectorClient={request:vi.fn(),session:vi.fn(()=>({status:'paired',connector:{id:'unified-connector',instance:'instance_01'}}))};
+    const client=new ConnectorArtifactClient({connectorClient});
+    for (const mime of ['image/jpeg','image/webp']) {
+      await expect(client.upload(bytes,{mime})).rejects.toMatchObject({code:'CONNECTOR_ARTIFACT_UPLOAD_UNSUPPORTED'});
+    }
+    expect(connectorClient.request).not.toHaveBeenCalled();
+  });
+
   it('fails closed on redirects and non-success responses',async()=>{
     const redirected=new ConnectorArtifactClient({connectorClient:{request:vi.fn(async()=>({ok:true,status:200,redirected:true})),session:vi.fn(()=>({status:'paired',connector:{id:'unified-connector',instance:'instance_01'}}))}});
     await expect(redirected.open('artifact_01')).rejects.toMatchObject({code:'CONNECTOR_ARTIFACT_REDIRECT'});

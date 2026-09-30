@@ -59,5 +59,43 @@ it('composes text-to-image and image-to-world and imports the complete verified 
   expect(result).toMatchObject({status:'world-artifacts-ready',route:{kind:'text-image-world',image:{provider:'modal-2d'},world:{provider:'modal-world'}},jobs:{image:'job_image',world:'job_world'}});
   expect(Object.keys(result.artifacts).sort()).toEqual(['world-manifest','world-mesh','world-navigation','world-semantics','world-visual']);
   expect(Object.values(result.artifacts).every((x)=>x.artifact.integrity==='verified')).toBe(true);
+  for(const role of ['world-mesh','world-semantics','world-visual','world-manifest','world-navigation']){
+    const imported=result.artifacts[role];
+    expect(imported.cacheKey).toMatch(/^cache_/);
+    expect(artifacts.byteStore.get(imported.cacheKey)).toMatchObject({hash:imported.artifact.hash});
+    expect(artifacts.byteStore.get(imported.cacheKey)?.data).toBeInstanceOf(Uint8Array);
+  }
   expect(submitted.get('job_world')).toMatchObject({inputs:{sourceArtifact:{id:'artifact_image',role:'primary-image',mime:'image/png',hash:sha(image)},prompt:'a compact Japanese garden',model:'hyworld2',seed:42},parent:{jobId:'job_image'},outputRoles:['world-manifest','world-mesh','world-navigation','world-semantics','world-visual']});
+});
+
+it('fails closed without downloading anything when the world Job misses a required artifact role',async()=>{
+  const submitted=new Map();
+  const downloads=[];
+  const request=async(path,options={})=>{
+    if(path==='/connector/v1/jobs'&&options.method==='POST'){
+      const body=JSON.parse(options.body); const id=body.provider==='modal-2d'?'job_image':'job_world'; submitted.set(id,body);
+      return new Response(JSON.stringify({job:job(body,id,'accepted')}),{status:200,headers:{'content-type':'application/json'}});
+    }
+    if(path==='/connector/v1/jobs/job_image'){
+      const body=submitted.get('job_image'); const summary={id:'artifact_image',role:'primary-image',mime:'image/png',bytes:image.byteLength,hash:sha(image)};
+      return new Response(JSON.stringify({job:job(body,'job_image','succeeded',{artifacts:[summary]})}),{status:200,headers:{'content-type':'application/json'}});
+    }
+    if(path==='/connector/v1/jobs/job_world'){
+      const body=submitted.get('job_world');
+      const incomplete=worldArtifacts.filter((artifact)=>artifact.role!=='world-semantics');
+      return new Response(JSON.stringify({job:job(body,'job_world','succeeded',{artifacts:incomplete})}),{status:200,headers:{'content-type':'application/json'}});
+    }
+    if(path.startsWith('/connector/v1/artifacts/')){
+      downloads.push(path);
+      const id=path.split('/').at(-1); const item=payloads.get(id); if(!item) throw new Error(`missing ${id}`);
+      return new Response(item.bytes,{status:200,headers:{'content-type':item.mime,'content-length':String(item.bytes.byteLength)}});
+    }
+    throw new Error(`unexpected ${path}`);
+  };
+  const connectorClient={request,session:()=>({status:'paired',connector:{id:'connector',instance:'i1',version:'1'}})};
+  const artifacts=createArtifactModule();
+  const orchestrator=new GenerationOrchestrator({providerRegistry:registry(),connectorClient,artifactRegistry:artifacts.registry,byteStore:artifacts.byteStore,pollIntervalMs:0});
+  await expect(orchestrator.generateTextWorldArtifacts({prompt:'a compact Japanese garden'}))
+    .rejects.toMatchObject({code:'GENERATION_WORLD_ARTIFACTS_INCOMPLETE',details:{jobId:'job_world',missing:['world-semantics']}});
+  expect(downloads).toEqual([]);
 });

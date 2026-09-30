@@ -103,6 +103,10 @@ describe('Generation Job projection truth',()=>{
       .toThrow(expect.objectContaining({code:'JOB_STATUS_UNKNOWN'}));
     expect(()=>normalizeGenerationJobProjection(base({operation:'image_to_3d'})))
       .toThrow(expect.objectContaining({code:'JOB_PROJECTION_INVALID'}));
+    expect(()=>normalizeGenerationJobProjection(base({operation:'modal-3d.asset.image_to_3d'})))
+      .toThrow(expect.objectContaining({code:'JOB_PROJECTION_INVALID'}));
+    expect(()=>normalizeGenerationJobProjection(base({operation:'other.asset.image_to_3d.v1'})))
+      .toThrow(expect.objectContaining({code:'JOB_PROJECTION_INVALID'}));
   });
 
   it('keeps retry/fallback relationships as local Job identities only',()=>{

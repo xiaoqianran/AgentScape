@@ -50,6 +50,17 @@ describe('ArtifactRegistry identity and location semantics',()=>{
     expect(registry.get('artifact_01').id).not.toBe(registry.get('artifact_02').id);
   });
 
+  it('keeps findByHash ordering stable regardless of registration order',()=>{
+    const registry=new ArtifactRegistry({now:()=>NOW});
+    registry.register(artifact({
+      id:'artifact_02',
+      producer:{...artifact().producer,jobId:'job_02'},
+      locations:[{id:'loc_2',kind:'connector',scope:'job',state:'available',access:{kind:'connector-artifact',artifactId:'artifact_02',connector:{id:'unified-connector',instance:'instance_01'}}}]
+    }));
+    registry.register(artifact());
+    expect(registry.findByHash(H1)).toEqual(['artifact_01','artifact_02']);
+  });
+
   it('returns defensive snapshots rather than exposing mutable registry internals',()=>{
     const registry=new ArtifactRegistry({now:()=>NOW});
     const registered=registry.register(artifact());
@@ -73,6 +84,42 @@ describe('ArtifactRegistry identity and location semantics',()=>{
     expect(()=>registry.updateLocation('artifact_01',{
       id:'loc_connector',kind:'local-cache',scope:'application',state:'available',
       access:{kind:'cache-key',key:'cache_artifact_01'}
+    })).toThrow(expect.objectContaining({code:'ARTIFACT_LOCATION_IDENTITY_CONFLICT'}));
+    expect(()=>registry.updateLocation('artifact_01',{
+      id:'loc_connector',kind:'connector',scope:'application',state:'available',
+      access:{kind:'connector-artifact',artifactId:'artifact_01',connector:{id:'unified-connector',instance:'instance_01'}}
+    })).toThrow(expect.objectContaining({code:'ARTIFACT_LOCATION_IDENTITY_CONFLICT'}));
+  });
+
+  it('does not let an expired lease block location removal',()=>{
+    let now=NOW;
+    const registry=new ArtifactRegistry({now:()=>now});
+    registry.register(artifact());
+    registry.acquireLease('artifact_01',{
+      id:'lease_expiring',locationId:'loc_connector',holder:{kind:'transfer',id:'transfer_01'},
+      reason:'artifact-transfer',createdAt:'2026-08-24T07:50:00.000Z',expiresAt:'2026-08-24T08:30:00.000Z'
+    });
+    expect(()=>registry.removeLocation('artifact_01','loc_connector'))
+      .toThrow(expect.objectContaining({code:'ARTIFACT_LOCATION_LEASED'}));
+    now=Date.parse('2026-08-24T09:00:00.000Z');
+    expect(registry.leasesFor('artifact_01')).toEqual([]);
+    expect(registry.leasesFor('artifact_01',{includeExpired:true})).toHaveLength(1);
+    expect(registry.removeLocation('artifact_01','loc_connector').removed).toBe(true);
+    expect(registry.get('artifact_01').locations).toHaveLength(0);
+  });
+
+  it('rejects access identity changes on a live connector location',()=>{
+    const registry=new ArtifactRegistry({now:()=>NOW});
+    registry.register(artifact());
+    expect(()=>registry.updateLocation('artifact_01',{
+      id:'loc_connector',kind:'connector',scope:'job',state:'available',
+      access:{kind:'connector-artifact',artifactId:'artifact_01',connector:{id:'unified-connector',instance:'instance_02'}}
+    })).toThrow(expect.objectContaining({code:'ARTIFACT_LOCATION_IDENTITY_CONFLICT'}));
+    const scopeChange=new ArtifactRegistry({now:()=>NOW});
+    scopeChange.register(artifact());
+    expect(()=>scopeChange.updateLocation('artifact_01',{
+      id:'loc_connector',kind:'connector',scope:'application',state:'available',
+      access:{kind:'connector-artifact',artifactId:'artifact_01',connector:{id:'unified-connector',instance:'instance_01'}}
     })).toThrow(expect.objectContaining({code:'ARTIFACT_LOCATION_IDENTITY_CONFLICT'}));
   });
 

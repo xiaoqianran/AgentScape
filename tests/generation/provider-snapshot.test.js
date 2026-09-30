@@ -44,6 +44,17 @@ describe('ProviderRegistry Connector snapshot ownership',()=>{
     expect(registry.getSnapshotState(opts.sourceId)).toMatchObject({revision:'r2',hash:'h2',providerIds:[]});
   });
 
+  it('drops capabilities that disappear from a newer snapshot of the same provider',()=>{
+    const registry=createProviderRegistry();
+    registry.applyProviderSnapshot(snap([provider('vendor-x',{
+      capabilities:[capability('vendor-x'),capability('vendor-x','asset','text_to_3d','asset')]
+    })]),opts);
+    expect(registry.findCapabilities({provider:'vendor-x'})).toHaveLength(2);
+    registry.applyProviderSnapshot(snap([provider('vendor-x')],{revision:'r2',hash:'h2'}),opts);
+    expect(registry.findCapabilities({provider:'vendor-x'})).toHaveLength(1);
+    expect(registry.getCapability('vendor-x.asset.text_to_3d.v1') ?? null).toBeNull();
+  });
+
   it('clears an entire Connector snapshot back to the local-only registry',()=>{
     const registry=createProviderRegistry({providers:[provider('local-owned')]});
     registry.applyProviderSnapshot(snap([provider('vendor-x')]),opts);

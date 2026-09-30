@@ -48,6 +48,38 @@ describe('Connector pairing session contract',()=>{
       'http://127.0.0.1:48123/connector/v1/session',
       'file:///tmp/connector'
     ]) expect(()=>normalizeConnectorEndpoint(invalid)).toThrow(ConnectorContractError);
+    for (const nonLoopback of ['http://192.168.1.8:48123','http://10.0.0.5:48123','https://connector.example','http://[fe80::1]:48123']) {
+      expect(()=>normalizeConnectorEndpoint(nonLoopback))
+        .toThrow(expect.objectContaining({code:'CONNECTOR_ENDPOINT_NOT_LOOPBACK'}));
+    }
+  });
+
+  it('rejects Connector endpoints carrying query, hash, path or userinfo',()=>{
+    for (const invalid of [
+      'http://127.0.0.1:48123/?x=1',
+      'http://127.0.0.1:48123/#frag',
+      'http://127.0.0.1:48123/connector/v1/session',
+      'http://user:pass@127.0.0.1:48123'
+    ]) {
+      expect(()=>normalizeConnectorEndpoint(invalid))
+        .toThrow(expect.objectContaining({code:'CONNECTOR_ENDPOINT_INVALID'}));
+    }
+  });
+
+  it('deduplicates requested scopes and refuses scopes outside the allowed surface',()=>{
+    const deduped=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,scopes:['jobs.read','jobs.read','capabilities.read'],now:()=>NOW});
+    expect(deduped.scopes).toEqual(['jobs.read','capabilities.read']);
+    for (const scopes of [['credentials.read'],['jobs.read','admin.write'],[]]) {
+      expect(()=>new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,scopes,now:()=>NOW}))
+        .toThrow(expect.objectContaining({code:'CONNECTOR_SCOPE_INVALID'}));
+    }
+  });
+
+  it('rejects a paired response whose clientIdentity does not match this client',async()=>{
+    const fetchImpl=vi.fn(async()=>response(pairedPayload({session:{clientIdentity:'other-app'}})));
+    const client=new ConnectorClient({endpoint:ENDPOINT,origin:ORIGIN,fetchImpl,now:()=>NOW});
+    await expect(client.pair()).rejects.toMatchObject({code:'CONNECTOR_CLIENT_MISMATCH'});
+    expect(client.session()).toBeNull();
   });
 
   it('pairs with least-privilege scopes and never exposes the token in the public session snapshot',async()=>{
@@ -222,5 +254,8 @@ describe('Connector pairing session contract',()=>{
     expect(options.headers.Origin).toBe(ORIGIN);
     expect(client.state()).toBe('connection_required');
     expect(JSON.stringify(client.session())).not.toContain('session-secret-value');
+    await expect(client.request('/connector/v1/capabilities',{scope:'capabilities.read'}))
+      .rejects.toMatchObject({code:'CONNECTOR_SESSION_REVOKED'});
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });

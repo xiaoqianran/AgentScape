@@ -173,4 +173,38 @@ describe('Artifact descriptor contract',()=>{
       expect(()=>normalizeArtifactLocation(bad,'artifact_01')).toThrow(ArtifactContractError);
     }
   });
+
+  it('rejects artifact IDs containing slashes, spaces or control characters',()=>{
+    for (const bad of ['a/b','has space','idx','idx','tab\tid','new\nline']) {
+      expect(()=>requireSafeArtifactId(bad)).toThrow(expect.objectContaining({code:'ARTIFACT_ID_INVALID'}));
+    }
+  });
+
+  it('requires producer operation to be a stable provider-scoped versioned ID',()=>{
+    for (const operation of ['other-provider.asset.image_to_3d.v1','modal-3d.asset.image_to_3d','modal-3d.asset.image_to_3d.vX']) {
+      expect(()=>normalizeArtifactDescriptor(descriptor({
+        producer:{...descriptor().producer,operation}
+      }))).toThrow(expect.objectContaining({code:'ARTIFACT_DESCRIPTOR_INVALID'}));
+    }
+    expect(normalizeArtifactDescriptor(descriptor()).producer.operation).toBe('modal-3d.asset.image_to_3d.v1');
+  });
+
+  it('rejects duplicate lineage parent edges for the same artifact and relation',()=>{
+    const parent={artifactId:'artifact_input',hash:HP,relation:'input'};
+    expect(()=>normalizeArtifactDescriptor(descriptor({
+      lineage:{parents:[parent,{...parent}]}
+    }))).toThrow(expect.objectContaining({code:'ARTIFACT_LINEAGE_INVALID'}));
+    expect(normalizeArtifactDescriptor(descriptor({
+      lineage:{parents:[parent,{artifactId:'artifact_input',hash:HP,relation:'derived_from'}]}
+    })).lineage.parents).toHaveLength(2);
+  });
+
+  it('rejects path-like local-cache access keys outside the safe artifact ID charset',()=>{
+    for (const key of ['../tmp/x','cache/a','cache key','.hidden']) {
+      expect(()=>normalizeArtifactLocation({
+        id:'loc_cache',kind:'local-cache',scope:'application',state:'available',
+        access:{kind:'cache-key',key}
+      },'artifact_01')).toThrow(expect.objectContaining({code:'ARTIFACT_ID_INVALID'}));
+    }
+  });
 });

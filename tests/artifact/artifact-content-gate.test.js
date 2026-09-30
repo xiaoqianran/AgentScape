@@ -106,4 +106,34 @@ describe('ArtifactContentGate',()=>{
       prefix:new Uint8Array([1,2,3]),totalBytes:3
     })).toThrow(expect.objectContaining({code:'ARTIFACT_MIME_UNSUPPORTED'}));
   });
+
+  it('rejects MIME spoofing for PNG, JPEG and WebP signatures independently',()=>{
+    const badPng=new Uint8Array([0x88,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]);
+    expect(()=>validateArtifactContent(descriptor('image/png','png'),{prefix:badPng,totalBytes:badPng.length}))
+      .toThrow(expect.objectContaining({code:'ARTIFACT_MIME_MISMATCH'}));
+    const badJpeg=new Uint8Array([0xff,0xd8,0x00,0xe0]);
+    expect(()=>validateArtifactContent(descriptor('image/jpeg','jpg'),{prefix:badJpeg,totalBytes:badJpeg.length}))
+      .toThrow(expect.objectContaining({code:'ARTIFACT_MIME_MISMATCH'}));
+    const notWebp=new TextEncoder().encode('RIFFxxxxAVI ');
+    expect(()=>validateArtifactContent(descriptor('image/webp','webp'),{prefix:notWebp,totalBytes:notWebp.length}))
+      .toThrow(expect.objectContaining({code:'ARTIFACT_MIME_MISMATCH'}));
+  });
+
+  it('rejects PLY payloads without the ply magic line',()=>{
+    const notPly=new TextEncoder().encode('plX\nformat binary_little_endian 1.0\n');
+    expect(()=>validateArtifactContent(descriptor('model/ply','ply'),{prefix:notPly,totalBytes:notPly.length}))
+      .toThrow(expect.objectContaining({code:'ARTIFACT_MIME_MISMATCH'}));
+    const text=new TextEncoder().encode('v 0 0 0\n');
+    expect(()=>validateArtifactContent(descriptor('model/ply','ply'),{prefix:text,totalBytes:text.length}))
+      .toThrow(expect.objectContaining({code:'ARTIFACT_MIME_MISMATCH'}));
+  });
+
+  it('fails closed on tar and gzip archives the same way as zip',()=>{
+    expect(()=>validateArtifactContent(descriptor('application/x-tar','tar'),{
+      prefix:new TextEncoder().encode('ustar'),totalBytes:5
+    })).toThrow(expect.objectContaining({code:'ARTIFACT_ARCHIVE_UNSUPPORTED'}));
+    expect(()=>validateArtifactContent(descriptor('application/gzip','gz'),{
+      prefix:new Uint8Array([0x1f,0x8b]),totalBytes:2
+    })).toThrow(expect.objectContaining({code:'ARTIFACT_ARCHIVE_UNSUPPORTED'}));
+  });
 });

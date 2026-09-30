@@ -120,6 +120,27 @@ describe('StudioBuildController workflows',()=>{
     }));
   });
 
+  it('resumes an existing Image → 3D Job instead of submitting a duplicate one',async()=>{
+    const generation={
+      listGenerationCapabilities:()=>({capabilities:[assetCapability]}),
+      getGenerationJob:vi.fn(async()=>({
+        status:'provider-succeeded',jobId:'job_1',metadata:{assetId:'chair_01'},
+        artifacts:[{id:'glb_01',role:'primary-glb',mime:'model/gltf-binary'}]
+      })),
+      submitGenerationJob:vi.fn(),
+      generateAndCompileAsset:vi.fn(async()=>({status:'asset-ready',assetId:'chair_01'}))
+    };
+    const controller=new StudioBuildController({generation,pollIntervalMs:0});
+    const result=await controller.generateAssetFromImage({
+      imageResult:{prompt:'chair',artifact:{id:'image_01',role:'primary-image',mime:'image/png',hash:'sha256:image'}},
+      assetId:'chair_01',resumeJobId:'job_1'
+    });
+    expect(generation.submitGenerationJob).not.toHaveBeenCalled();
+    expect(generation.getGenerationJob).toHaveBeenCalledWith('job_1');
+    expect(generation.generateAndCompileAsset).toHaveBeenCalledWith({jobId:'job_1',assetId:'chair_01',label:'chair'});
+    expect(result).toMatchObject({kind:'asset',assetId:'chair_01',sourceArtifactId:'image_01'});
+  });
+
   it('prefers a pinned ground anchor over the view center for generated assets',async()=>{
     const placeAtAnchor=vi.fn(async()=>({status:'placement-committed'}));
     const placeAtCenter=vi.fn(async()=>({status:'placement-committed'}));

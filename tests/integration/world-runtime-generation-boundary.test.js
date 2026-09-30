@@ -84,6 +84,42 @@ describe('WorldRuntime generation boundary',()=>{
     expect(remote?.access).toMatchObject({kind:'connector-artifact',artifactId:'artifact_local_01',connector:{id:'unified-connector',instance:'instance_01'}});
     expect(artifacts.byteStore.get(local.access.key)?.data).toEqual(bytes);
     expect(connectorClient.request).toHaveBeenCalledWith('/connector/v1/artifacts',expect.objectContaining({scope:'artifacts.write',method:'POST',body:bytes}));
+    expect(artifacts.registry.get('artifact_local_01')).toMatchObject({integrity:{state:'verified'},hash,bytes:bytes.byteLength});
+  });
+
+  it('does not submit any Job for generateAsset under the approved-image policy',async()=>{
+    const runtime=createRuntime();
+    const connectorClient={
+      isPaired:vi.fn(()=>true),
+      session:vi.fn(()=>({status:'paired',connector:{id:'unified-connector',instance:'instance_01'}})),
+      request:vi.fn()
+    };
+    const generation=attachGenerationRuntime(runtime,{connectorClient,assetInputPolicy:'approved-image'});
+    await expect(generation.generateAsset('wooden chair')).resolves.toMatchObject({status:'image_input_required',prompt:'wooden chair'});
+    expect(connectorClient.request).not.toHaveBeenCalled();
+  });
+
+  it('rejects a Connector upload whose hash, bytes or mime diverge from the approved local bytes',async()=>{
+    const bytes=new Uint8Array([137,80,78,71,13,10,26,10,1,2,3,4]);
+    const hash=sha256ArtifactHash([bytes]);
+    const mismatches=[
+      {artifact:{id:'artifact_bad_hash',role:'primary-image',mime:'image/png',bytes:bytes.byteLength,hash:'sha256:tampered'}},
+      {artifact:{id:'artifact_bad_bytes',role:'primary-image',mime:'image/png',bytes:bytes.byteLength+1,hash}},
+      {artifact:{id:'artifact_bad_mime',role:'primary-image',mime:'image/jpeg',bytes:bytes.byteLength,hash}}
+    ];
+    for(const response of mismatches){
+      const runtime=createRuntime();
+      const artifacts=createArtifactModule({persistentStore:null});
+      const connectorClient={
+        isPaired:vi.fn(()=>true),
+        session:vi.fn(()=>({status:'paired',connector:{id:'unified-connector',instance:'instance_01'}})),
+        request:vi.fn(async()=>({ok:true,status:201,redirected:false,json:async()=>response}))
+      };
+      const generation=attachGenerationRuntime(runtime,{artifactModule:artifacts,connectorClient});
+      await expect(generation.uploadInputArtifact(bytes)).rejects.toMatchObject({code:'LOCAL_IMAGE_UPLOAD_INTEGRITY_MISMATCH'});
+      expect(connectorClient.request).toHaveBeenCalledWith('/connector/v1/artifacts',expect.objectContaining({method:'POST'}));
+      expect(artifacts.registry.list()).toEqual([]);
+    }
   });
 
   it('delegates compiler endpoint changes to AssetModule without owning compiler internals',()=>{

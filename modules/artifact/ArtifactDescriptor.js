@@ -48,8 +48,9 @@ const safeUiText=(value,field,max=200)=>{
 const optionalSafeUiText=(value,field,max=200)=>value==null||value===''?null:safeUiText(value,field,max);
 
 export function requireSafeArtifactId(value,field='id') {
-  const id=String(value ?? '').trim();
-  if (!id || id.length>160 || CONTROL_RE.test(id) || !SAFE_ID.test(id)) {
+  const raw=String(value ?? '');
+  const id=raw.trim();
+  if (!id || raw!==id || id.length>160 || CONTROL_RE.test(id) || !SAFE_ID.test(id)) {
     throw new ArtifactContractError('ARTIFACT_ID_INVALID','Artifact ID must be an opaque URL-safe identifier',{field});
   }
   return id;

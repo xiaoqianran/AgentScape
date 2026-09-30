@@ -62,4 +62,86 @@ describe('deployment capability adapter registry',()=>{
     expect(body).not.toContain('secret-host');
     expect(JSON.parse(body).capabilities.agent.available).toBe(true);
   });
+
+  it('reports every capability unavailable when no adapter environment is configured',()=>{
+    expect(capabilityAvailability({})).toEqual({
+      agent:{available:false},
+      'asset.compile':{available:false}
+    });
+  });
+
+  it('requires a complete valid endpoint before marking a capability available',()=>{
+    expect(capabilityAvailability({AGENT_ADAPTER_URL:'not a url'}).agent.available).toBe(false);
+    expect(capabilityAvailability({AGENT_ADAPTER_URL:'   '}).agent.available).toBe(false);
+    expect(capabilityAvailability({AGENT_ADAPTER_URL:'ftp://agent.test/run'}).agent.available).toBe(false);
+    expect(capabilityAvailability({ASSET_COMPILE_ADAPTER_URL:'not a url'})['asset.compile'].available).toBe(false);
+    expect(capabilityAvailability({AGENT_ADAPTER_URL:'https://agent.test/run'})).toEqual({
+      agent:{available:true},
+      'asset.compile':{available:false}
+    });
+  });
+
+  it('rejects unknown capabilities with 404 instead of proxying anywhere',async()=>{
+    const fetchImpl=vi.fn();
+    const res=responseRecorder();
+    await invokeCapability({method:'POST',headers:{},body:{}},res,'unknown.capability',{env:{},fetchImpl});
+    expect(res.statusCode).toBe(404);
+    expect(JSON.parse(res.body.toString())).toEqual({code:'CAPABILITY_NOT_FOUND'});
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('forwards only allowlisted method, headers and body to the adapter',async()=>{
+    const fetchImpl=vi.fn(async(_url,options)=>{
+      expect(options.method).toBe('POST');
+      expect(options.redirect).toBe('error');
+      expect(options.headers).toEqual({
+        'content-type':'application/json',
+        accept:'application/json',
+        authorization:'Bearer server-secret'
+      });
+      return new Response('{}',{status:200,headers:{'content-type':'application/json'}});
+    });
+    const res=responseRecorder();
+    await invokeCapability({
+      method:'POST',
+      headers:{
+        'content-type':'application/json',accept:'application/json',
+        authorization:'Bearer browser-secret',cookie:'session=abc',host:'agentscape.test','x-api-key':'browser-key'
+      },
+      body:{task:'hello'}
+    },res,CAPABILITIES.AGENT,{env:{AGENT_ADAPTER_URL:'https://agent.test/run',AGENT_ADAPTER_AUTHORIZATION:'Bearer server-secret'},fetchImpl});
+    expect(res.statusCode).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+
+    const rejected=responseRecorder();
+    await invokeCapability({method:'GET',headers:{}},rejected,CAPABILITIES.AGENT,{env:{AGENT_ADAPTER_URL:'https://agent.test/run'},fetchImpl});
+    expect(rejected.statusCode).toBe(405);
+    expect(rejected.headers.allow).toBe('POST');
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('preserves upstream status and content-type without hop-by-hop headers',async()=>{
+    const fetchImpl=vi.fn(async()=>new Response('compiled',{
+      status:200,
+      headers:{'content-type':'application/octet-stream','connection':'keep-alive','transfer-encoding':'chunked','keep-alive':'timeout=5'}
+    }));
+    const res=responseRecorder();
+    await invokeCapability({method:'POST',headers:{'content-type':'application/json'},body:{x:1}},res,CAPABILITIES.ASSET_COMPILE,{
+      env:{ASSET_COMPILE_ADAPTER_URL:'https://compiler.test/compile'},fetchImpl
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.toString()).toBe('compiled');
+    expect(res.headers).toEqual({'content-type':'application/octet-stream','cache-control':'no-store'});
+  });
+
+  it('returns a stable status payload with booleans only',()=>{
+    const res=responseRecorder();
+    sendCapabilityStatus({method:'GET'},res,{AGENT_ADAPTER_URL:'https://secret-host.test/agent',AGENT_ADAPTER_AUTHORIZATION:'Bearer secret'});
+    expect(JSON.parse(res.body.toString())).toEqual({
+      capabilities:{
+        agent:{available:true},
+        'asset.compile':{available:false}
+      }
+    });
+  });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ConnectorJobClient } from '../../modules/generation/connector/ConnectorJobClient.js';
+import { GenerationJobStore } from '../../modules/generation/jobs/GenerationJobStore.js';
 import { createProviderRegistry } from '../../modules/generation/providers/ProviderRegistry.js';
 
 const CAP_SOURCE='connector:unified-connector';
@@ -137,5 +138,40 @@ describe('ConnectorJobClient',()=>{
     await expect(client.submit({...submitRequest(),metadata:{apiKey:'must-not-cross'}}))
       .rejects.toMatchObject({code:'JOB_SECRET_FIELD'});
     expect(connectorClient.request).not.toHaveBeenCalled();
+  });
+
+  it('rejects secret-like keys in submit inputs and options before transport',async()=>{
+    const connectorClient={request:vi.fn()};
+    const client=new ConnectorJobClient({connectorClient,providerRegistry:registry()});
+    await expect(client.submit({...submitRequest(),inputs:{image:{artifactId:'source_image',apiKey:'nested'}}}))
+      .rejects.toMatchObject({code:'JOB_SECRET_FIELD'});
+    await expect(client.submit({...submitRequest(),options:{accessToken:'nested'}}))
+      .rejects.toMatchObject({code:'JOB_SECRET_FIELD'});
+    expect(connectorClient.request).not.toHaveBeenCalled();
+  });
+
+  it('rejects submit responses whose immutable identity diverges from the request',async()=>{
+    for (const overrides of [
+      {provider:'modal-other',operation:'modal-other.asset.image_to_3d.v1'},
+      {operation:'modal-3d.asset.image_to_3d.v2'},
+      {idempotencyKey:'idem_other'},
+      {capabilityHash:'sha256:other'},
+      {capabilityRevision:'caprev_other'}
+    ]) {
+      const connectorClient={request:vi.fn(async()=>response({job:job('accepted',1,overrides)}))};
+      const client=new ConnectorJobClient({connectorClient,providerRegistry:registry()});
+      await expect(client.submit(submitRequest())).rejects.toMatchObject({code:'JOB_RESPONSE_IDENTITY_MISMATCH'});
+      expect(client.listCached()).toEqual([]);
+    }
+  });
+
+  it('fails closed without clearing the store when the list response lacks a jobs array',async()=>{
+    const store=new GenerationJobStore();
+    store.apply(job('running',2));
+    const connectorClient={request:vi.fn(async()=>response({eventCursor:5}))};
+    const client=new ConnectorJobClient({connectorClient,providerRegistry:registry(),store});
+    await expect(client.list()).rejects.toMatchObject({code:'CONNECTOR_JOB_RESPONSE_INVALID'});
+    expect(client.listCached().map((item)=>item.id)).toEqual(['job_01']);
+    expect(store.get('job_01') ?? store.list?.()?.[0] ?? null).toBeTruthy();
   });
 });

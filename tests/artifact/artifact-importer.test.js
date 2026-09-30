@@ -164,6 +164,44 @@ describe('ArtifactImporter length/budget gates',()=>{
     expectCleanFailure(mismatch);
   });
 
+  it('cancels the reader immediately and rolls back cache when streamed bytes exceed the descriptor',async()=>{
+    const bytes=glb();
+    const cancel=vi.fn(async()=>{});
+    const releaseLock=vi.fn();
+    const reads=[
+      {done:false,value:bytes},
+      {done:false,value:new Uint8Array([0])}
+    ];
+    const reader={read:vi.fn(async()=>reads.shift() ?? {done:true,value:undefined}),cancel,releaseLock};
+    const state=setup(bytes,{
+      open:vi.fn(async()=>({
+        ok:true,status:200,redirected:false,
+        headers:new Headers({'content-type':'model/gltf-binary'}),
+        body:{getReader:()=>reader}
+      }))
+    });
+    await expect(state.importer.import('artifact_01')).rejects.toMatchObject({code:'ARTIFACT_LENGTH_MISMATCH'});
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(releaseLock).toHaveBeenCalledOnce();
+    expectCleanFailure(state);
+  });
+
+  it('rejects an over-budget Content-Length before starting the stream reader',async()=>{
+    const bytes=glb();
+    const getReader=vi.fn();
+    const state=setup(bytes,{
+      maxBytes:24,
+      open:vi.fn(async()=>({
+        ok:true,status:200,redirected:false,
+        headers:new Headers({'content-length':'25','content-type':'model/gltf-binary'}),
+        body:{getReader}
+      }))
+    });
+    await expect(state.importer.import('artifact_01')).rejects.toMatchObject({code:'ARTIFACT_BYTES_LIMIT'});
+    expect(getReader).not.toHaveBeenCalled();
+    expectCleanFailure(state);
+  });
+
   it('aborts when streamed bytes exceed descriptor/max budget',async()=>{
     const expected=glb();
     const actual=new Uint8Array(25); actual.set(expected);

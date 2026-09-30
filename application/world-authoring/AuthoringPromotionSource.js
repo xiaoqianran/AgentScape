@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { parseAuthoringDocument } from './AuthoringDocument.js';
+import { installHeadlessImageSupport } from './HeadlessImageExport.js';
 import { uniformScaleValue } from '../../modules/world/runtime/ObjectTransform.js';
 import { sha256ArtifactHash } from '../../modules/artifact/IncrementalSha256.js';
 
@@ -102,6 +103,9 @@ export async function exportPromotionGLB(source) {
   const wrapper = new THREE.Group();
   wrapper.add(object);
   let meshes = 0;
+  // Headless hosts have no canvas; install a deterministic image encoder so
+  // Agent-authored DataTextures still compile. Browsers keep their real canvas.
+  const restoreImageSupport = installHeadlessImageSupport();
   try {
     expand(wrapper);
     wrapper.traverse(node => {
@@ -115,5 +119,8 @@ export async function exportPromotionGLB(source) {
     if (!meshes) throw promotionError('AUTHORING_MODEL_UNRESOLVED', '对象没有可导出的网格，请先加载模型');
     const bytes = await new GLTFExporter().parseAsync(wrapper, { binary:true, onlyVisible:true });
     return new Uint8Array(bytes);
-  } finally { for (const material of materials) material.dispose(); }
+  } finally {
+    restoreImageSupport?.();
+    for (const material of materials) material.dispose();
+  }
 }
