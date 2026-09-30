@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { ToolCallingAgent } from '../../modules/agent/ToolCallingAgent.js';
+import { ToolCallingAgent, normalizeModelToolCall } from '../../modules/agent/ToolCallingAgent.js';
 
 const policies={
   listObjects:{mutates:false,barrier:false,batchable:true,batchAcceptable:true},
@@ -688,4 +688,205 @@ it('requires a Runtime-issued bounded revision proposal, rejects tampering, and 
   expect(contexts[1]).toMatchObject({name:'recompileWorldRevision',context:{worldRevisionBaseIR:{revision:{id:'world-r1'}}}});
   expect(tools.call.mock.calls.filter(([name])=>name==='recompileWorldRevision')).toHaveLength(1);
   expect(result).toMatchObject({taskStatus:'completed',unresolvedMutations:[],lastMutation:{tool:'recompileWorldRevision',outcome:{state:'verified'}}});
+});
+
+it('encodes a tool invocation throw as a TOOL_ERROR outcome and keeps the loop recoverable',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'x',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}]};
+    return {message:'tool transport failed, cannot continue',toolCalls:[]};
+  })};
+  const tools=makeTools({approachAndInteract:async()=>{throw new Error('transport exploded');}});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:3}).run('open a cabinet');
+  expect(result.execution[0]).toMatchObject({
+    tool:'approachAndInteract',executed:true,
+    outcome:{state:'error',verified:false,reason:'TOOL_ERROR'}
+  });
+  expect(result.unresolvedMutations).toEqual([]);
+});
+
+it('only unwraps redundant quoted embodied arguments and never rewrites other values',()=>{
+  expect(normalizeModelToolCall({name:'approachAndInteract',args:{actorId:'"agent_01"'}}).args.actorId).toBe('agent_01');
+  expect(normalizeModelToolCall({name:'approachAndInteract',args:{actorId:{nested:1}}}).args.actorId).toEqual({nested:1});
+  expect(normalizeModelToolCall({name:'approachAndInteract',args:{actorId:'"unterminated'}}).args.actorId).toBe('"unterminated');
+  expect(normalizeModelToolCall({name:'approachAndInteract',args:{actorId:'123'}}).args.actorId).toBe('123');
+  expect(normalizeModelToolCall({name:'approachAndInteract',args:{actorId:'"a" b'}}).args.actorId).toBe('"a" b');
+  expect(normalizeModelToolCall({name:'approachAndInteract',args:{targetId:'"cabinet_01"',action:'open'}}).args)
+    .toMatchObject({targetId:'cabinet_01',action:'open'});
+});
+
+it('derives the same mutation identity regardless of argument key order',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'a',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'b',name:'approachAndInteract',args:{action:'open',targetId:'cabinet_01',actorId:'agent_01'}}]};
+    return {message:'done',toolCalls:[]};
+  })};
+  const tools=makeTools({approachAndInteract:async()=>({status:'action-completed',targetReached:true,settled:true})});
+  await new ToolCallingAgent({tools,gateway,maxSteps:4}).run('open twice with reordered args');
+  const identities=tools.recordSequence.mock.calls.map(([payload])=>payload.identity).filter(Boolean);
+  expect(identities).toHaveLength(2);
+  expect(identities[0]).toBe(identities[1]);
+});
+
+it('re-reads listObjects at the start of every planning round instead of reusing a cached world',async()=>{
+  let round=0,listCalls=0;
+  const requests=[];
+  const snapshots=[
+    [{id:'agent_01',asset:'agent'},{id:'cabinet_01',asset:'cabinet'}],
+    [{id:'agent_01',asset:'agent'},{id:'cabinet_01',asset:'cabinet'},{id:'cup_01',asset:'cup'}]
+  ];
+  const gateway={isConfigured:()=>true,complete:vi.fn(async(request)=>{
+    requests.push(structuredClone(request)); round++;
+    if(round===1) return {message:'',toolCalls:[{id:'i1',name:'inspect',args:{}}]};
+    return {message:'observed',toolCalls:[]};
+  })};
+  const tools=makeTools({inspect:async()=>({status:'ok'})});
+  tools.call=vi.fn(async(name)=>{
+    if(name!=='listObjects') return {status:'ok'};
+    return snapshots[Math.min(snapshots.length-1,listCalls++)];
+  });
+  await new ToolCallingAgent({tools,gateway,maxSteps:3}).run('observe the world twice');
+  expect(listCalls).toBe(2);
+  expect(requests[1].context.world.map((item)=>item.id)).toContain('cup_01');
+});
+
+it('normalizes an undefined tool result into a stable ok payload for the next round',async()=>{
+  let round=0;
+  const requests=[];
+  const gateway={isConfigured:()=>true,complete:vi.fn(async(request)=>{
+    requests.push(structuredClone(request)); round++;
+    if(round===1) return {message:'',toolCalls:[{id:'i1',name:'inspect',args:{}}]};
+    return {message:'done',toolCalls:[]};
+  })};
+  const tools=makeTools({inspect:async()=>undefined});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:3}).run('inspect something');
+  const message=requests[1].messages.find((entry)=>entry.role==='tool'&&entry.toolCallId==='i1');
+  expect(JSON.parse(message.content)).toMatchObject({ok:true});
+  expect(result.execution.find((entry)=>entry.tool==='inspect')).toMatchObject({executed:true,outcome:{state:'accepted'}});
+});
+
+it('reports a read-only conversation as no-mutation instead of a completed world change',async()=>{
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>({message:'我可以帮你搬运物体。',final:true,toolCalls:[]}))};
+  const result=await new ToolCallingAgent({tools:makeTools({}),gateway,maxSteps:3}).run('你好');
+  expect(result).toMatchObject({taskStatus:'no-mutation'});
+  expect(result.lastMutation ?? null).toBeNull();
+  expect(result.unresolvedMutations).toEqual([]);
+});
+
+it('throws an explicit planning-limit error when the budget runs out without unresolved mutations',async()=>{
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>({message:'',toolCalls:[{id:'o',name:'listObjects',args:{}}]}))};
+  await expect(new ToolCallingAgent({tools:makeTools({}),gateway,maxSteps:2}).run('loop forever'))
+    .rejects.toThrow(/exceeded 2 planning steps/);
+});
+
+it('gates proposeWorldRevision until a pending revision repair context exists',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'rp',name:'proposeWorldRevision',args:{request:{reason:'lift box',edits:[]}}}]};
+    return {message:'cannot revise without context',toolCalls:[]};
+  })};
+  const tools=makeTools({});
+  tools.definitions=()=>[{name:'proposeWorldRevision'}];
+  tools.executionPolicy=(name,result)=>({mutates:false,barrier:false,batchable:true,batchAcceptable:true,outcome:classify(result)});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:3}).run('revise without a rejected world');
+  expect(result.execution.find((entry)=>entry.tool==='proposeWorldRevision')).toMatchObject({executed:false,reason:'WORLD_REVISION_CONTEXT_REQUIRED'});
+  expect(tools.call.mock.calls.filter(([name])=>name==='proposeWorldRevision')).toHaveLength(0);
+});
+
+it('rejects recompileWorldRevision that was not preceded by a Runtime-issued proposal',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'rc',name:'recompileWorldRevision',args:{proposal:{nextRevisionId:'world-r2'},acceptChangedPlan:true}}]};
+    return {message:'cannot recompile without a proposal',toolCalls:[]};
+  })};
+  const tools=makeTools({});
+  tools.definitions=()=>[{name:'proposeWorldRevision'},{name:'recompileWorldRevision'}];
+  tools.executionPolicy=(name,result)=>({
+    mutates:name==='recompileWorldRevision',barrier:name==='recompileWorldRevision',
+    batchable:false,batchAcceptable:true,outcome:classify(result)
+  });
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:3}).run('recompile without proposing');
+  expect(result.execution.find((entry)=>entry.tool==='recompileWorldRevision')).toMatchObject({executed:false,reason:'WORLD_REVISION_PROPOSAL_REQUIRED'});
+  expect(tools.call.mock.calls.filter(([name])=>name==='recompileWorldRevision')).toHaveLength(0);
+});
+
+it('still allows a real mutation after a verified world build instead of keeping the run read-only',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'w',name:'runWorldPipeline',args:{plan:{revision:{id:'rev-1'},intent:{name:'lab'},entities:[],spatial:{relations:[]}}}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'i',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open'}}]};
+    return {message:'opened after world build',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    runWorldPipeline:async()=>({status:'world-ready',admission:{status:'ready'}}),
+    approachAndInteract:async()=>({status:'action-completed',targetReached:true,settled:true})
+  });
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:4}).run('build the world then open a cabinet');
+  expect(tools.call.mock.calls.filter(([name])=>name==='approachAndInteract')).toHaveLength(1);
+  expect(result.execution.find((entry)=>entry.tool==='approachAndInteract')).toMatchObject({executed:true,outcome:{state:'verified'}});
+  expect(result.taskStatus).toBe('completed');
+});
+
+it('does not bind an auxiliary recovery to an unresolved mutation on a different target',async()=>{
+  let round=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'r',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_02',partName:'door',blockerId:'blocker_01'}}]};
+    return {message:'done',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    approachAndInteract:async()=>({status:'action-failed',reason:'STALL',partName:'door'}),
+    recoverPickupBlocker:async()=>({status:'held',targetId:'blocker_01'})
+  },{recoverPickupBlocker:{mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false}});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:4}).run('recover a blocker for another target');
+  const recovery=result.execution.find((entry)=>entry.tool==='recoverPickupBlocker');
+  expect(recovery.executed).toBe(true);
+  expect(recovery).not.toHaveProperty('recoveryOf');
+});
+
+it('resets the read-only recovery round budget after a mutation executes',async()=>{
+  let round=0;
+  const requests=[];
+  const gateway={isConfigured:()=>true,complete:vi.fn(async(request)=>{
+    requests.push(structuredClone(request)); round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o1',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'l1',name:'listObjects',args:{}}]};
+    if(round===3) return {message:'',toolCalls:[{id:'r',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:'blocker_01'}}]};
+    if(round===4) return {message:'',toolCalls:[{id:'l2',name:'listObjects',args:{}}]};
+    return {message:'done',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    approachAndInteract:async()=>({status:'action-failed',reason:'STALL',partName:'door'}),
+    recoverPickupBlocker:async()=>({status:'held',targetId:'blocker_01'})
+  },{recoverPickupBlocker:{mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false}});
+  await new ToolCallingAgent({tools,gateway,maxSteps:8,maxRecoveryReadRounds:3}).run('stall, observe, recover, observe');
+  expect(requests[2].context.recovery.readOnlyRoundsUsed).toBe(1);
+  expect(requests[3].context.recovery.readOnlyRoundsUsed).toBe(0);
+  expect(requests[4].context.recovery.readOnlyRoundsUsed).toBe(1);
+});
+
+it('allows the same auxiliary recovery to be retried after it fails instead of verifying',async()=>{
+  let round=0,recoveryCalls=0;
+  const gateway={isConfigured:()=>true,complete:vi.fn(async()=>{
+    round++;
+    if(round===1) return {message:'',toolCalls:[{id:'o',name:'approachAndInteract',args:{actorId:'agent_01',targetId:'cabinet_01',action:'open',partName:'door'}}]};
+    if(round===2) return {message:'',toolCalls:[{id:'r1',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:'blocker_01'}}]};
+    if(round===3) return {message:'',toolCalls:[{id:'r2',name:'recoverPickupBlocker',args:{actorId:'agent_01',targetId:'cabinet_01',partName:'door',blockerId:'blocker_01'}}]};
+    return {message:'still blocked',toolCalls:[]};
+  })};
+  const tools=makeTools({
+    approachAndInteract:async()=>({status:'action-failed',reason:'STALL',partName:'door'}),
+    recoverPickupBlocker:async()=>{recoveryCalls++;return {status:'pickup-blocked',reason:'APPROACH_FAILED'};}
+  },{recoverPickupBlocker:{mutates:true,barrier:true,auxiliary:true,tracksUnresolved:false,batchable:false}});
+  const result=await new ToolCallingAgent({tools,gateway,maxSteps:5}).run('retry the failing recovery');
+  expect(recoveryCalls).toBe(2);
+  expect(result.taskStatus).toBe('incomplete');
+  expect(result.execution.some((entry)=>entry.reason==='RECOVERY_ALREADY_APPLIED')).toBe(false);
 });
