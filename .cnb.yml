@@ -10,3 +10,24 @@ $:
         - name: ls
           script: ls
 
+main:
+  push:
+    - name: sync-to-github
+      imports:
+        - https://cnb.cool/xiaoqianran/agentscape-secrets/-/blob/main/github.yml
+      stages:
+        - name: push-to-github
+          script: |
+            set -e
+
+            mkdir -p ~/.ssh
+            printf '%s\n' "$GITHUB_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+            chmod 600 ~/.ssh/id_ed25519
+
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+            git remote remove github 2>/dev/null || true
+            git remote add github git@github.com:xiaoqianran/AgentScape.git
+
+            git push github HEAD:main
+
