@@ -29,6 +29,25 @@ box.position.set(1.5, 0.9, -0.5);
 scene.add(box);
 `;
 
+// A DataTexture is the only texture an authoring sandbox can create: it forbids
+// document/window, so CanvasTexture and image loading are unreachable.
+const AGENT_TEXTURED_BOX_CODE = `
+const pixels = new Uint8Array(2 * 2 * 4);
+for (let i = 0; i < pixels.length; i += 4) {
+  pixels[i] = 220; pixels[i + 1] = 40; pixels[i + 2] = 90; pixels[i + 3] = 255;
+}
+const texture = new THREE.DataTexture(pixels, 2, 2);
+texture.needsUpdate = true;
+const box = new THREE.Mesh(
+  new THREE.BoxGeometry(0.6, 0.6, 0.6),
+  new THREE.MeshStandardMaterial({ map: texture })
+);
+box.name = 'textured-box';
+box.userData.authoringId = 'textured-box';
+box.position.set(-1.5, 0.4, 1);
+scene.add(box);
+`;
+
 async function fixture() {
   fileReader();
   const physics = createRapierPhysicsSystem();
@@ -102,8 +121,28 @@ describe('Agent-written three.js compiled as a world asset through createSession
     expect(rechecked.verification.navigation.success).toBe(true);
   });
 
-  it('keeps forbidden ambient APIs out of the draft through the session skill gates', async () => {
-    const { authoring, tools } = await fixture();
+  it('encodes an Agent-authored DataTexture into the compiled GLB without a DOM canvas', async () => {
+    // Headless hosts have neither OffscreenCanvas nor ImageData; the export path must still encode the texture.
+    expect(typeof globalThis.OffscreenCanvas).toBe('undefined');
+    expect(typeof globalThis.ImageData).toBe('undefined');
+    const { world, tools } = await fixture();
+
+    const run = await tools.call('runAuthoringCode', { code: AGENT_TEXTURED_BOX_CODE, label: 'textured box' });
+    expect(run.status).toBe('authoring-code-applied');
+
+    const prepared = await tools.call('prepareAuthoringAsset', { nodeId: 'textured-box', usage: 'movable' });
+    expect(prepared.status).toBe('authoring-prepared');
+
+    const manifest = world.assetModule.getManifest(prepared.assetId);
+    expect(manifest.compiler.inspection.textures).toBe(1);
+    expect(manifest.physics.body).toBe('dynamic');
+
+    const promoted = await tools.call('promoteAuthoringNode', { nodeId: 'textured-box', usage: 'movable', allowProvisional: true });
+    expect(promoted.status).toBe('authoring-provisional');
+    expect(world.physics.getPosition(promoted.entityId)).toBeTruthy();
+  });
+
+  it('keeps forbidden ambient APIs out of the draft through the session skill gates', async () => {    const { authoring, tools } = await fixture();
     const result = await tools.call('runAuthoringCode', { code: 'fetch("/models/leak.glb")', label: 'leak' });
     expect(result).toMatchObject({ status: 'authoring-code-rejected', reason: 'AUTHORING_CODE_FORBIDDEN_API' });
     expect(authoring.scene.children).toHaveLength(0);

@@ -20,6 +20,7 @@ For provisional assets, the explicit **允许未就绪资产进入编辑态** ch
 - Mesh and Group: export the selected subtree, including geometry, supported materials, textures and child transforms.
 - InstancedMesh: materialize individual instances into GLB, preserving transforms and instance colors.
 - Resolved URL ModelRef: export the loaded geometry through the same verified Artifact production boundary.
+- Textures: `DataTexture` is the only texture an Authoring sandbox can create and is encoded into the GLB deterministically. Hosts without a DOM canvas (Node tools, CI) fall back to `application/world-authoring/HeadlessImageExport.js`; browsers keep their real canvas.
 
 Authored GLBs preserve their origin during compilation. Explicit static/movable intent configures body type and actions, but does not supply verification evidence or bypass compiler quality gates. The compiler's coarse collider and low-confidence findings remain provisional.
 
