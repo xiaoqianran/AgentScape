@@ -122,6 +122,12 @@ export async function createStudioWorkspace({
       return;
     }
 
+    if (route.authoringNew) {
+      await newAuthoringWorld({}, { historyMode:'none' });
+      await activation.authoringControls?.refresh?.();
+      return;
+    }
+
     if (route.worldId && lifecycle.worldSession.current?.id !== route.worldId) {
       await openBuiltinWorld(route.worldId,{ historyMode:'none' });
     }

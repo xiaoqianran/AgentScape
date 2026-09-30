@@ -33,6 +33,10 @@ describe('StudioRoutes',()=>{
 
     const authored=authoringWorldUrl(generated,'draft_02');
     expect(parseStudioRoute(authored)).toMatchObject({page:'world',worldId:null,worldArtifactId:null,authoringId:'draft_02'});
+
+    const blank=authoringWorldUrl(authored,null);
+    expect(parseStudioRoute(blank)).toMatchObject({page:'world',worldId:null,worldArtifactId:null,authoringId:null,authoringNew:true});
+    expect(new URL(blank).searchParams.get('authoring')).toBe('new');
   });
 
   it('keeps Worlds selected while a concrete World Editor child route is active',()=>{

@@ -12,6 +12,7 @@ import { patchAuthoringDocument } from './world-authoring/AuthoringPatch.js';
 import { AuthoringRevisionHistory } from './world-authoring/AuthoringRevisionHistory.js';
 import { markAuthoringModelRef } from './world-authoring/ModelRef.js';
 import { getAuthoringObjectId, setAuthoringObjectId } from './world-authoring/AuthoringIdentity.js';
+import { createAuthoringExecutionHost } from './world-authoring/AuthoringExecutionHost.js';
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
@@ -20,7 +21,8 @@ export function createWorldAuthoringContext(
   {
     historyLimit = 64,
     now = () => new Date().toISOString(),
-    presentationMode = 'overlay'
+    presentationMode = 'overlay',
+    executionHost = createAuthoringExecutionHost()
   } = {}
 ) {
   if (!world?.rendering?.addAuthoringScene || !world?.rendering?.removeAuthoringScene) {
@@ -69,6 +71,7 @@ export function createWorldAuthoringContext(
     assertActive();
     restoreVisibility();
     frameHandlers.clear();
+    executionHost.clear();
     for (const child of [...root.children]) {
       root.remove(child);
       disposeObject3D(child);
@@ -315,7 +318,7 @@ export function createWorldAuthoringContext(
   });
 
   return {
-    THREE,
+    THREE:executionHost.THREE,
     scene: root,
     clear,
     onFrame,
@@ -354,10 +357,30 @@ export function createWorldAuthoringContext(
         'clear',
         'onFrame',
         'modelRef',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+        'setTimeout',
+        'clearTimeout',
+        'setInterval',
+        'clearInterval',
         `'use strict';\n${source}`
       );
       restoreVisibility();
-      try { return await execute(THREE, root, clear, onFrame, modelRef); }
+      try {
+        return await execute(
+          executionHost.THREE,
+          root,
+          clear,
+          onFrame,
+          modelRef,
+          executionHost.requestAnimationFrame,
+          executionHost.cancelAnimationFrame,
+          executionHost.setTimeout,
+          executionHost.clearTimeout,
+          executionHost.setInterval,
+          executionHost.clearInterval
+        );
+      }
       finally { restoreVisibility(); suppressVisibility(); changed(); }
     },
     dispose() {

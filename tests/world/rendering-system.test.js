@@ -368,7 +368,7 @@ describe('RenderingSystem', () => {
     });
   });
 
-  it('renders authoring Scenes as overlay or full replacement without nesting Scenes', async () => {
+  it('renders authoring Scenes as hidden, overlay or full replacement without nesting Scenes', async () => {
     const h = createHarness();
     const scene = new THREE.Scene();
     const overlay = new THREE.Scene();
@@ -407,6 +407,13 @@ describe('RenderingSystem', () => {
     rendering.render(3);
     expect(h.renderer.render).toHaveBeenCalledTimes(1);
     expect(h.renderer.render).toHaveBeenCalledWith(replacement, rendering.camera);
+
+    h.renderer.render.mockClear();
+    expect(rendering.setAuthoringSceneMode(replacement, 'hidden')).toBe(true);
+    expect(rendering.setAuthoringSceneMode(overlay, 'hidden')).toBe(true);
+    rendering.render(3);
+    expect(h.renderer.render).toHaveBeenCalledTimes(1);
+    expect(h.renderer.render).toHaveBeenCalledWith(scene, rendering.camera);
 
     expect(rendering.setAuthoringSceneMode(replacement, 'overlay')).toBe(true);
     expect(rendering.removeAuthoringScene(replacement)).toBe(true);

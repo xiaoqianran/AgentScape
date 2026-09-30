@@ -45,7 +45,7 @@ describe('World authoring context', () => {
     expect(authoring.dispose()).toBe(false);
   });
 
-  it('exposes only the documented authoring surface while host lifecycle stays outside', async () => {
+  it('exposes the documented authoring surface plus managed browser lifecycle names', async () => {
     const scene = new THREE.Scene();
     const rendering = new RenderingSystem({ container:{}, scene });
     const authoring = createWorldAuthoringContext({ rendering });
@@ -62,7 +62,9 @@ describe('World authoring context', () => {
         isScene: scene.isScene,
         clear: typeof clear,
         onFrame: typeof onFrame,
-        modelRef: typeof modelRef
+        modelRef: typeof modelRef,
+        requestAnimationFrame: typeof requestAnimationFrame,
+        setTimeout: typeof setTimeout
       };
     `);
 
@@ -70,7 +72,9 @@ describe('World authoring context', () => {
       isScene:true,
       clear:'function',
       onFrame:'function',
-      modelRef:'function'
+      modelRef:'function',
+      requestAnimationFrame:'function',
+      setTimeout:'function'
     });
     const mesh = authoring.scene.getObjectByName('animated-draft');
     authoring.onFrame((delta, elapsed) => {

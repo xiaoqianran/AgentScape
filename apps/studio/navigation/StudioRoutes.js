@@ -6,6 +6,7 @@ const asUrl = (value) => new URL(value, globalThis.location?.origin || 'http://1
 export function parseStudioRoute(currentHref) {
   const url = asUrl(currentHref);
   const explicitPage = url.searchParams.get('page');
+  const authoring = url.searchParams.get('authoring');
   const hasLegacyWorldSource = Boolean(
     url.searchParams.get('world') ||
     url.searchParams.get('worldManifest') ||
@@ -13,7 +14,7 @@ export function parseStudioRoute(currentHref) {
   );
   const page = PRODUCT_PAGES.has(explicitPage)
     ? explicitPage
-    : (hasLegacyWorldSource || url.searchParams.get('worldArtifact') || url.searchParams.get('authoring')
+    : (hasLegacyWorldSource || url.searchParams.get('worldArtifact') || authoring
       ? 'world'
       : 'worlds');
 
@@ -22,7 +23,8 @@ export function parseStudioRoute(currentHref) {
     agentView:page === 'agent' && url.searchParams.get('agent') === 'runs' ? 'runs' : 'tasks',
     worldId:url.searchParams.get('world'),
     worldArtifactId:url.searchParams.get('worldArtifact'),
-    authoringId:url.searchParams.get('authoring'),
+    authoringId:authoring && authoring !== 'new' ? authoring : null,
+    authoringNew:authoring === 'new',
     externalGenerated:Boolean(url.searchParams.get('worldManifest') || url.searchParams.get('mesh'))
   });
 }
@@ -57,8 +59,7 @@ export function generatedArtifactWorldUrl(currentHref, artifactId) {
 export function authoringWorldUrl(currentHref, authoringId = null) {
   const url = asUrl(currentHref);
   for (const key of [...GENERATED_SOURCE_KEYS,'world','worldArtifact']) url.searchParams.delete(key);
-  if (authoringId) url.searchParams.set('authoring',authoringId);
-  else url.searchParams.delete('authoring');
+  url.searchParams.set('authoring',authoringId || 'new');
   url.searchParams.set('page','world');
   url.searchParams.delete('agent');
   return url.toString();

@@ -90,7 +90,7 @@ export function WorldsPage({
         <div>
           <div className="eyebrow">WORLDS</div>
           <h1>Worlds</h1>
-          <p>选择一个运行世界，继续生成世界，或进入创作草稿。World Editor 只负责当前打开的具体世界。</p>
+          <p>选择运行世界、生成世界，或从真正空白的 Three.js Scene 开始创作。AgentScape 运行时规则保持在创作层之外。</p>
         </div>
         {authoring ? <button type="button" className="worlds-primary-action" disabled={busyKey === 'authoring:new'} onClick={()=>void createAuthoring()}>＋ New World</button> : null}
       </header>
@@ -174,7 +174,7 @@ export function WorldsPage({
               );
             })}
           </div>
-        ) : <div className="worlds-empty">还没有创作草稿。New World 会创建一个空白 Authoring Document。</div>}
+        ) : <div className="worlds-empty">还没有创作草稿。New World 会打开一个独立、空白的 THREE.Scene。</div>}
       </section>
     </section>
   );

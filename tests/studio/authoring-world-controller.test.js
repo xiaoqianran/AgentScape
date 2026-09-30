@@ -8,7 +8,9 @@ import { RenderingSystem } from '../../modules/world/runtime/systems/RenderingSy
 function createAuthoring() {
   const scene = new THREE.Scene();
   const rendering = new RenderingSystem({ container:{}, scene });
-  return createWorldAuthoringContext({ rendering });
+  const authoring = createWorldAuthoringContext({ rendering });
+  authoring.testRendering = rendering;
+  return authoring;
 }
 
 describe('AuthoringWorldController', () => {
@@ -62,6 +64,7 @@ describe('AuthoringWorldController', () => {
     expect((await controller.list()).map(item => item.id).sort()).toEqual(['world_a','world_b']);
 
     await controller.newWorld();
+    expect(authoring.testRendering.authoringScenes.get(authoring.scene)).toBe('replace');
     expect(controller.status()).toMatchObject({
       id:null,
       name:'Untitled World',
@@ -71,6 +74,7 @@ describe('AuthoringWorldController', () => {
     expect(authoring.get('house')).toBeNull();
 
     await controller.openWorld('world_a');
+    expect(authoring.testRendering.authoringScenes.get(authoring.scene)).toBe('replace');
     expect(controller.status()).toMatchObject({
       id:'world_a',
       name:'Garden',

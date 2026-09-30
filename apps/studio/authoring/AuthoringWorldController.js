@@ -82,9 +82,9 @@ export class AuthoringWorldController {
         resolveModel:this.resolveModel,
         label:'Open ' + (record.name || record.id)
       });
+      this.authoring.setPresentationMode?.('replace');
 
       this.promotion?.loadState(record.promotions);
-      this.authoring.setPresentationMode?.('replace');
 
       this.currentId = record.id;
       this.currentName = record.name || record.id;

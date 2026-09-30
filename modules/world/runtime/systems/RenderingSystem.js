@@ -105,14 +105,14 @@ export class RenderingSystem {
 
   addAuthoringScene(scene, { mode = 'overlay' } = {}) {
     if (!scene?.isScene) throw new TypeError('Authoring presentation requires a THREE.Scene');
-    if (!['overlay', 'replace'].includes(mode)) throw new TypeError(`Unsupported authoring scene mode: ${mode}`);
+    if (!['hidden', 'overlay', 'replace'].includes(mode)) throw new TypeError(`Unsupported authoring scene mode: ${mode}`);
     this.authoringScenes.set(scene, mode);
     return scene;
   }
 
   setAuthoringSceneMode(scene, mode = 'overlay') {
     if (!this.authoringScenes.has(scene)) return false;
-    if (!['overlay', 'replace'].includes(mode)) throw new TypeError(`Unsupported authoring scene mode: ${mode}`);
+    if (!['hidden', 'overlay', 'replace'].includes(mode)) throw new TypeError(`Unsupported authoring scene mode: ${mode}`);
     this.authoringScenes.set(scene, mode);
     return true;
   }
