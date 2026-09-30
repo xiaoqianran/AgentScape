@@ -10,27 +10,3 @@ $:
         - name: ls
           script: ls
 
-# ===== 推送 main 分支时自动构建并推送镜像到本仓库包仓库 =====
-# 结构：分支(main) -> 事件(push) -> Pipeline -> Stage
-# 参考 cnb-pipeline skill：使用内置变量登录制品库
-#   CNB_TOKEN_USER_NAME (固定 cnb) / CNB_TOKEN / CNB_DOCKER_REGISTRY
-main:
-  push:
-    - name: build-and-push-image
-      docker:
-        image: cnbcool/default-build-env
-      services:
-        - docker
-      stages:
-        - name: build-and-push
-          script: |
-            set -e
-            IMAGE="${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG}:latest"
-            echo "==> 登录制品库 ${CNB_DOCKER_REGISTRY}"
-            echo "${CNB_TOKEN}" | docker login "${CNB_DOCKER_REGISTRY}" \
-              --username "${CNB_TOKEN_USER_NAME}" --password-stdin
-            echo "==> 构建镜像 ${IMAGE}"
-            docker build --no-cache -t "${IMAGE}" -f Dockerfile .
-            echo "==> 推送镜像"
-            docker push "${IMAGE}"
-            echo "==> 完成"
