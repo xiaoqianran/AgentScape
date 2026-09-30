@@ -1,0 +1,91 @@
+name: Reconcile CNB to GitHub
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cnb-to-github-main
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: CNB1 / CNB2 -> GitHub
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout GitHub
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Reconcile main safely
+        env:
+          CNB1_TOKEN: ${{ secrets.CNB1_TOKEN }}
+          CNB2_TOKEN: ${{ secrets.CNB2_TOKEN }}
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          test -n "$CNB1_TOKEN" || { echo "::error::Missing CNB1_TOKEN"; exit 1; }
+          test -n "$CNB2_TOKEN" || { echo "::error::Missing CNB2_TOKEN"; exit 1; }
+          test -n "$GITCODE_TOKEN" || { echo "::error::Missing GITCODE_TOKEN"; exit 1; }
+
+          git remote add cnb1 "https://cnb:${CNB1_TOKEN}@cnb.cool/xiaoqianran/AgentScape.git"
+          git remote add cnb2 "https://cnb:${CNB2_TOKEN}@cnb.cool/chutianqiuer/AgentScape.git"
+          git remote add gitcode "https://xiaoqianran:${GITCODE_TOKEN}@gitcode.com/xiaoqianran/AgentScape.git"
+
+          git fetch origin main
+          git fetch cnb1 main
+          git fetch cnb2 main
+
+          refs=(origin/main cnb1/main cnb2/main)
+          winner=""
+
+          for candidate in "${refs[@]}"; do
+            dominates_all=true
+            for other in "${refs[@]}"; do
+              if ! git merge-base --is-ancestor "$other" "$candidate"; then
+                dominates_all=false
+                break
+              fi
+            done
+            if [ "$dominates_all" = true ]; then
+              winner="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$winner" ]; then
+            echo "::error::GitHub, CNB1 and CNB2 have diverged. Refusing to force-push."
+            echo "GitHub: $(git rev-parse origin/main)"
+            echo "CNB1:   $(git rev-parse cnb1/main)"
+            echo "CNB2:   $(git rev-parse cnb2/main)"
+            exit 1
+          fi
+
+          winner_sha="$(git rev-parse "$winner")"
+          github_sha="$(git rev-parse origin/main)"
+
+          if [ "$winner_sha" != "$github_sha" ]; then
+            echo "Fast-forwarding GitHub main from $github_sha to $winner_sha ($winner)"
+            git push origin "$winner_sha:refs/heads/main"
+          else
+            echo "GitHub main is already at the newest common tip."
+          fi
+
+          status=0
+          git push cnb1 "$winner_sha:refs/heads/main" || status=1
+          git push cnb2 "$winner_sha:refs/heads/main" || status=1
+          git push gitcode "$winner_sha:refs/heads/main" || status=1
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error::GitHub was reconciled, but one or more mirror targets failed."
+            exit "$status"
+          fi
+
+          echo "All main branches converged at $winner_sha."
