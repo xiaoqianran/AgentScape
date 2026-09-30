@@ -1,0 +1,62 @@
+name: Mirror Repository
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-mirror-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    name: GitHub -> CNB / GitCode
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate mirror credentials
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$CNB_TOKEN" || { echo "::error::Missing GitHub Actions secret: CNB_TOKEN"; exit 1; }
+          test -n "$GITCODE_TOKEN" || { echo "::error::Missing GitHub Actions secret: GITCODE_TOKEN"; exit 1; }
+
+      - name: Sync pushed ref to CNB and GitCode
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          git remote add cnb "https://cnb:${CNB_TOKEN}@cnb.cool/xiaoqianran/AgentScape.git"
+          git remote add gitcode "https://xiaoqianran:${GITCODE_TOKEN}@gitcode.com/xiaoqianran/AgentScape.git"
+
+          if [ "$REF_TYPE" = "branch" ]; then
+            refspec="HEAD:refs/heads/$REF_NAME"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            refspec="refs/tags/$REF_NAME:refs/tags/$REF_NAME"
+          else
+            echo "::error::Unsupported ref type: $REF_TYPE"
+            exit 1
+          fi
+
+          git push cnb "$refspec"
+          git push gitcode "$refspec"
+
+          echo "Mirrored $REF_TYPE $REF_NAME to CNB and GitCode."
