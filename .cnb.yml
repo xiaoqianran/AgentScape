@@ -13,14 +13,17 @@ $:
 main:
   push:
     - name: sync-to-github
+
       imports:
-        - https://cnb.cool/xiaoqianran/agentscape-secrets/-/blob/main/github.yml
+        - https://cnb.cool/xiaoqianran/agentscape-keystore/-/blob/main/github.yml
+
       stages:
         - name: push-to-github
           script: |
-            set -e
+            set -eu
 
             mkdir -p ~/.ssh
+
             printf '%s\n' "$GITHUB_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
             chmod 600 ~/.ssh/id_ed25519
 
@@ -29,5 +32,5 @@ main:
             git remote remove github 2>/dev/null || true
             git remote add github git@github.com:xiaoqianran/AgentScape.git
 
-            git push github HEAD:main
-
+            GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes" \
+              git push github HEAD:main

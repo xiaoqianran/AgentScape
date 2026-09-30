@@ -20,3 +20,6 @@ __pycache__/
 
 .vitest/
 storybook-static/
+
+agentscape_cnb_key
+agentscape_cnb_key.pub
