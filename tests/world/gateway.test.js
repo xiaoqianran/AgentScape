@@ -13,4 +13,17 @@ describe('LLM gateway', () => {
     expect(result.message).toBe('done');
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
+
+  it('defaults to a 90 second timeout while still allowing an explicit override', () => {
+    expect(new HttpLLMGateway({ endpoint: 'https://gateway.test/agent' }).timeoutMs).toBe(90000);
+    expect(new HttpLLMGateway({ endpoint: 'https://gateway.test/agent', timeoutMs: 1234 }).timeoutMs).toBe(1234);
+  });
+
+  it('generates stable fallback call ids and treats a message-only response as final', () => {
+    expect(normalizeGatewayResponse({ toolCalls: [{ name: 'open' }, { id: 'kept', name: 'close' }, { name: 'check' }] })
+      .toolCalls.map((call) => call.id)).toEqual(['call_0', 'kept', 'call_2']);
+    expect(normalizeGatewayResponse({ message: 'done' })).toMatchObject({ final: true, toolCalls: [] });
+    expect(normalizeGatewayResponse({ message: '', toolCalls: [{ name: 'open' }] })).toMatchObject({ final: false });
+    expect(normalizeGatewayResponse({ message: '', toolCalls: [{ name: 'open' }] }).toolCalls[0].args).toEqual({});
+  });
 });

@@ -123,7 +123,7 @@ export function isAllowedOrigin(origin, extraOrigins = []) {
   if (!origin) return true;
   try {
     const url = new URL(origin);
-    if ((url.protocol === 'http:' || url.protocol === 'https:') && ['127.0.0.1', 'localhost', '::1'].includes(url.hostname)) return true;
+    if ((url.protocol === 'http:' || url.protocol === 'https:') && ['127.0.0.1', 'localhost', '::1', '[::1]'].includes(url.hostname)) return true;
   } catch {}
   return extraOrigins.includes(origin);
 }
