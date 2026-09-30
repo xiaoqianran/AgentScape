@@ -7,45 +7,69 @@ import { manifestColliderSnapshot, compareManifestToPhysics } from "./ManifestCo
 const makeMaterial = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.68, metalness: 0.04 });
 
 export class PhysicsScenarioContext {
-  constructor({ scene, backend }) {
+  constructor({ scene, backend, characterControllerOptions = null }) {
     if (!backend) throw new TypeError("PhysicsScenarioContext requires a physics backend");
     this.scene = scene;
     this.physics = new PhysicsSystem({ backend });
     this.store = new ObjectStore();
     this.entities = new Map();
     this.visuals = [];
+    this.characterControllerOptions = characterControllerOptions;
     this.lastStepMs = 0;
   }
 
   async init() {
-    await this.physics.init();
+    await this.physics.init(this.characterControllerOptions);
     return this;
   }
 
-  addBox({ id, position = [0, 0, 0], rotation = [0, 0, 0, 1], halfExtents = [0.5, 0.5, 0.5], type = "dynamic", mass = 1, friction = 0.7, accent = false }) {
-    const geometry = new THREE.BoxGeometry(halfExtents[0] * 2, halfExtents[1] * 2, halfExtents[2] * 2);
-    const material = makeMaterial(accent ? 0xd6a44b : type === "fixed" ? 0x687482 : 0xa8b2c1);
-    const object = new THREE.Mesh(geometry, material);
-    object.name = id;
-    object.castShadow = true;
-    object.receiveShadow = true;
+  /**
+   * Generic spawn path: registers a production-style manifest and hands the node to
+   * PhysicsSystem.addObject. Keeps every scenario on the same Runtime contract.
+   */
+  addShapeBody({ id, object, physics, position = [0, 0, 0], rotation = [0, 0, 0, 1], kind = "rigid-body" }) {
+    if (!object) throw new TypeError("addShapeBody requires an object");
+    object.name = object.name || id;
     object.position.fromArray(position);
     object.quaternion.fromArray(rotation);
     this.scene.add(object);
     object.updateMatrixWorld(true);
-
-    const manifest = {
-      id,
-      type: "observatory-fixture",
-      source: { kind: "builtin" },
-      actions: [],
-      physics: { body: type, mass, friction, colliders: [{ shape: "box", halfExtents }] }
-    };
+    const manifest = { id, type: "observatory-fixture", source: { kind: "builtin" }, actions: [], physics };
     this.store.add(id, { id, assetId: id, object, manifest, state: {} });
     this.physics.addObject(id, manifest, object);
-    this.entities.set(id, { id, kind: "rigid-body", initialPosition: [...position] });
+    this.entities.set(id, { id, kind, initialPosition: [...position] });
     this.visuals.push(object);
     return object;
+  }
+
+  addBox({ id, position = [0, 0, 0], rotation = [0, 0, 0, 1], halfExtents = [0.5, 0.5, 0.5], type = "dynamic", mass = 1, friction = 0.7, accent = false, ...rest }) {
+    const geometry = new THREE.BoxGeometry(halfExtents[0] * 2, halfExtents[1] * 2, halfExtents[2] * 2);
+    const material = makeMaterial(accent ? 0xd6a44b : type === "fixed" ? 0x687482 : 0xa8b2c1);
+    const object = new THREE.Mesh(geometry, material);
+    object.castShadow = true;
+    object.receiveShadow = true;
+    return this.addShapeBody({
+      id,
+      object,
+      position,
+      rotation,
+      physics: { body: type, mass, friction, colliders: [{ shape: "box", halfExtents }], ...rest }
+    });
+  }
+
+  addCapsule({ id, position = [0, 0, 0], rotation = [0, 0, 0, 1], halfHeight = 0.53, radius = 0.32, translation = [0, 0.85, 0], type = "kinematic", mass = 1, friction = 0.7, accent = false, ...rest }) {
+    const geometry = new THREE.CapsuleGeometry(radius, halfHeight * 2, 8, 16);
+    const material = makeMaterial(accent ? 0xd6a44b : type === "fixed" ? 0x687482 : 0xa8b2c1);
+    const object = new THREE.Mesh(geometry, material);
+    object.castShadow = true;
+    object.receiveShadow = true;
+    return this.addShapeBody({
+      id,
+      object,
+      position,
+      rotation,
+      physics: { body: type, mass, friction, colliders: [{ shape: "capsule", halfHeight, radius, translation }], ...rest }
+    });
   }
 
   addAssetInstance({ id, assetId, object, manifest, position = [0, 0, 0], initialState = {}, inspectPart = null, target = null }) {
@@ -64,6 +88,18 @@ export class PhysicsScenarioContext {
     }
     this.visuals.push(object);
     return object;
+  }
+
+  /**
+   * Host-owned asset instantiation: keeps `AssetModule` out of the shared physics API surface,
+   * so the surface stays dependency-free and usable from a headless physics harness too.
+   */
+  async spawnAssetInstance({ id, assetId, position = [0, 2, 0], inspectPart = null, target = null } = {}) {
+    if (!id || !assetId) throw new TypeError("spawnAssetInstance requires id and assetId");
+    const { createAssetModule } = await import("../../../../modules/asset/AssetModule.js");
+    const { object, manifest } = await createAssetModule().loader.instantiate(assetId);
+    this.addAssetInstance({ id, assetId, object, manifest, position, inspectPart, target });
+    return { object, manifest };
   }
 
   addHingeCabinet({ id = "cabinet_01", target = -1 } = {}) {

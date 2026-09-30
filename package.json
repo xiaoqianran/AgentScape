@@ -23,6 +23,8 @@
     "test:world": "vitest run tests/world tests/e2e --exclude tests/e2e/generated-cup-runtime-e2e.test.js",
     "experiment:asset": "node dev/experiments/asset/001-real-glb-admission.mjs",
     "experiment:world": "node dev/experiments/world/001-existing-assets-world.mjs",
+    "experiment:physics": "node dev/experiments/physics/002-physics-api-harness.mjs",
+    "physics:check": "node dev/experiments/physics/002-physics-api-harness.mjs",
     "world:viability": "node dev/experiments/world/002-world-viability.mjs",
     "test:agent": "vitest run tests/agent tests/e2e/agent-*",
     "test:generation": "vitest run tests/generation tests/contracts tests/studio/generation-job-center-*",

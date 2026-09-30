@@ -39,6 +39,11 @@ const LABS = [
     load: () => import("./labs/resources/gaussian.js")
   },
   {
+    id: "physics-studio",
+    title: "物理工作台",
+    load: () => import("./labs/physics-studio/index.js")
+  },
+  {
     id: "physics",
     title: "物理（Deprecated）",
     load: () => import("./labs/physics/index.js")

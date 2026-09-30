@@ -16,13 +16,14 @@ import { PhysicsVectorRenderer } from "./visualizers/PhysicsVectorRenderer.js";
 import { createPhysicsBackend } from "./backends.js";
 
 export class PhysicsLab {
-  constructor({ viewport, onTelemetry, backendId = "rapier", autoAnimate = true, rendererMode = "auto", rendererTiming = false, onRendererFailure = null }) {
+  constructor({ viewport, onTelemetry, backendId = "rapier", autoAnimate = true, rendererMode = "auto", rendererTiming = false, onRendererFailure = null, characterControllerOptions = null }) {
     this.viewport = viewport;
     this.backendId = backendId;
     this.onTelemetry = onTelemetry;
     this.rendererMode = rendererMode;
     this.rendererTiming = Boolean(rendererTiming);
     this.onRendererFailure = onRendererFailure;
+    this.characterControllerOptions = characterControllerOptions;
     this.autoAnimate = autoAnimate;
     this.cadence = new FrameCadence({ debugHz: 15, telemetryHz: 5 });
     this.clock = new SimulationClock({ fixedDt: 1 / 60, maxSubSteps: 8 });
@@ -53,7 +54,7 @@ export class PhysicsLab {
       clock: this.clock,
       createContext: async () => {
         const backend = await createPhysicsBackend(this.backendId);
-        return new PhysicsScenarioContext({ scene: this.scene, backend }).init();
+        return new PhysicsScenarioContext({ scene: this.scene, backend, characterControllerOptions: this.characterControllerOptions }).init();
       }
     });
 
