@@ -53,7 +53,7 @@ export class LabActivationController {
         app.shell.setRendererFailure(`${backend} 渲染设备丢失 · ${reason || 'unknown'} · ${message || 'unknown'}`);
       },
       onTelemetry: (data) => {
-        if (data.scenario?.id !== app.activeScenarioId || labId !== app.activeLabId) return;
+        if (version !== app.activationVersion || nextLab !== app.lab || data.scenario?.id !== app.activeScenarioId || labId !== app.activeLabId) return;
         const rendering = renderingInfoForLab(nextLab);
         app.shell.setRunning(data.clock.running);
         app.shell.update(projectLabTelemetry(data, rendering));

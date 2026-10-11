@@ -10,6 +10,7 @@ import { runWebGPUSpatialProbe } from "./probes/rendering/WebGPUSpatialProbe.js"
 import { createAssetModule } from "../../modules/asset/AssetModule.js";
 import { rendererForLab } from './app/TelemetryAdapter.js';
 import { LabActivationController } from './app/LabActivationController.js';
+import { ScenarioController } from './app/ScenarioController.js';
 
 
 const LABS = [
@@ -70,6 +71,7 @@ class ObservatoryApp {
   constructor(root) {
     this.labs = new LabRegistry(LABS);
     this.activationController = new LabActivationController(this);
+    this.scenarioController = new ScenarioController(this);
     this.assetModule = createAssetModule();
     this.shell = new ObservatoryShell(root);
     this.lab = null;
@@ -288,47 +290,9 @@ class ObservatoryApp {
     }
   }
 
-  selectScenario(id) {
-    const version = ++this.scenarioSelectionVersion;
-    const lab = this.lab;
-    this.activeScenarioId = id;
-    const available = this.scenarios.list({ lab: this.activeLabId });
-    this.shell.renderScenarios(available, id, (next) => this.selectScenario(next));
-    this.updateUrl();
-    const scenario = this.scenarios.get(id);
-    this.shell.setBusy(true, `正在准备 ${scenario.title}…`);
-    const operation = this.scenarioLoadPromise.catch(() => {}).then(async () => {
-      if (version !== this.scenarioSelectionVersion || lab !== this.lab) return null;
-      try {
-        await lab.load(scenario);
-        if (version !== this.scenarioSelectionVersion || lab !== this.lab) return null;
-        this.shell.configureToolWorkbench(
-          lab.toolDefinitions?.() || [],
-          (name, args) => this.invokeTool(name, args),
-          lab.suggestedToolName?.()
-        );
-        this.shell.configureResourceWorkbench(lab.resourceWorkbench?.() || null);
-        return scenario;
-      } finally {
-        if (version === this.scenarioSelectionVersion && lab === this.lab) this.shell.setBusy(false);
-      }
-    });
-    this.scenarioLoadPromise = operation;
-    return operation;
-  }
+  selectScenario(id) { return this.scenarioController.selectScenario(id); }
 
-  invokeTool(name, args) {
-    const lab = this.lab;
-    const scenarioVersion = this.scenarioSelectionVersion;
-    const operation = this.scenarioLoadPromise.catch(() => {}).then(() => {
-      if (lab !== this.lab || scenarioVersion !== this.scenarioSelectionVersion) {
-        throw Object.assign(new Error("场景已切换，请在新场景中重新调用工具"), { code: "SCENARIO_CHANGED" });
-      }
-      return lab.invokeTool?.(name, args);
-    });
-    this.scenarioLoadPromise = operation;
-    return operation;
-  }
+  invokeTool(name, args) { return this.scenarioController.invokeTool(name, args); }
 
   updateUrl() {
     const url = new URL(location.href);
