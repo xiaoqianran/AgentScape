@@ -10,7 +10,7 @@ import { runWebGPUComputeProbe } from "./probes/rendering/WebGPUComputeProbe.js"
 import { runWebGPUSpatialProbe } from "./probes/rendering/WebGPUSpatialProbe.js";
 import { createAssetModule } from "../../modules/asset/AssetModule.js";
 import { renderingInfoForLab, rendererForLab, projectLabTelemetry } from './app/TelemetryAdapter.js';
-import { disposeLabProbes, applyLabDebugLayers } from './app/LabLifecycle.js';
+import { disposeLabProbes, applyLabDebugLayers, initializeLabCandidate } from './app/LabLifecycle.js';
 
 
 const LABS = [
@@ -207,11 +207,7 @@ class ObservatoryApp {
         this.shell.update(projectLabTelemetry(data, rendering));
       }
     });
-    await nextLab.init?.();
-    if (version !== this.activationVersion) {
-      await nextLab.dispose?.();
-      return;
-    }
+    if (!await initializeLabCandidate(nextLab, () => version === this.activationVersion)) return;
     this.lab = nextLab;
     this.shell.setComputeProbeAvailability(renderingInfoForLab(this.lab)?.backend === "webgpu");
     applyLabDebugLayers(this.lab, this.shell.refs);

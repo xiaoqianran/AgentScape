@@ -1,4 +1,4 @@
-import { ToolWorkbenchMethods } from './workbench/ToolWorkbench.js';
+import { ToolWorkbenchController } from './workbench/ToolWorkbench.js';
 import { renderObservatoryLayout } from './ObservatoryLayout.js';
 import { configureInspectorPanel, renderInspectorPanel } from './inspector/InspectorPanel.js';
 import { normalizeDiagnostics } from '../core/DiagnosticsContract.js';
@@ -20,10 +20,7 @@ export class ObservatoryShell {
     // Keep every existing layer input / listener intact; regroup only the presentation.
     this.debugLayerGroups = mountDebugLayerGroups(this.root.querySelector('.obs-debug-controls'));
     this.debugLayerDefaults = new Set();
-    this.toolDefinitions = [];
-    this.toolHistory = [];
-    this.activeToolName = null;
-    this.onToolInvoke = null;
+    this.toolWorkbench = new ToolWorkbenchController(this);
 
     this.onWorkspaceChange = null;
     this.refs["workspace-select"].addEventListener("change", event => this.onWorkspaceChange?.(event.target.value));
@@ -63,7 +60,7 @@ export class ObservatoryShell {
       }
     });
     this.refs["tool-clear"].addEventListener("click", () => {
-      this.toolHistory = [];
+      this.toolWorkbench.toolHistory = [];
       this.renderToolHistory();
     });
     const scenarioBadge = this.refs["scenario-badge"];
@@ -79,6 +76,12 @@ export class ObservatoryShell {
     if (matchMedia("(max-width: 1040px)").matches) this.setPanelVisible("results", false);
     if (matchMedia("(max-width: 760px)").matches) this.setPanelVisible("scenarios", false);
   }
+
+  configureToolWorkbench(...args) { return this.toolWorkbench.configureToolWorkbench(...args); }
+  renderToolList(...args) { return this.toolWorkbench.renderToolList(...args); }
+  selectTool(...args) { return this.toolWorkbench.selectTool(...args); }
+  invokeSelectedTool(...args) { return this.toolWorkbench.invokeSelectedTool(...args); }
+  renderToolHistory(...args) { return this.toolWorkbench.renderToolHistory(...args); }
 
   setRightTab(tab) {
     const requested = this.root.querySelector(`[data-right-tab="${tab}"]`);
@@ -566,5 +569,3 @@ const icon = (name) => {
   };
   return `<svg viewBox="0 0 20 20" aria-hidden="true">${paths[name] || ""}</svg>`;
 };
-
-Object.assign(ObservatoryShell.prototype, ToolWorkbenchMethods);

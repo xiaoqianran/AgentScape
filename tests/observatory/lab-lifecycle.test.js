@@ -1,6 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
-import {disposeLabProbes, applyLabDebugLayers, DEBUG_SETTERS} from '../../apps/observatory/app/LabLifecycle.js';
-import {ToolWorkbenchMethods} from '../../apps/observatory/ui/workbench/ToolWorkbench.js';
+import {disposeLabProbes, applyLabDebugLayers, DEBUG_SETTERS, initializeLabCandidate} from '../../apps/observatory/app/LabLifecycle.js';
+import {ToolWorkbenchController} from '../../apps/observatory/ui/workbench/ToolWorkbench.js';
 
 describe('Observatory lifecycle and tools',()=>{
   it('releases each active probe once and clears its UI state',()=>{
@@ -20,6 +20,20 @@ describe('Observatory lifecycle and tools',()=>{
     expect(Object.keys(DEBUG_SETTERS).length).toBeGreaterThan(10);
   });
   it('maintains the existing tool-workbench interface',()=>{
-    expect(['configureToolWorkbench','renderToolList','selectTool','invokeSelectedTool','renderToolHistory'].every(name=>typeof ToolWorkbenchMethods[name]==='function')).toBe(true);
+    expect(['configureToolWorkbench','renderToolList','selectTool','invokeSelectedTool','renderToolHistory'].every(name=>typeof ToolWorkbenchController.prototype[name]==='function')).toBe(true);
+  });
+  it('disposes an outdated asynchronously initialized Lab',async()=>{
+    let release;
+    const gate=new Promise(resolve=>{release=resolve;});
+    const dispose=vi.fn();let current=true;
+    const pending=initializeLabCandidate({init:()=>gate,dispose},()=>current);
+    current=false;release();
+    expect(await pending).toBe(false);
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+  it('disposes an unsuccessfully initialized Lab and preserves current errors',async()=>{
+    const dispose=vi.fn();
+    await expect(initializeLabCandidate({init:()=>Promise.reject(new Error('GPU unavailable')),dispose},()=>true)).rejects.toThrow('GPU unavailable');
+    expect(dispose).toHaveBeenCalledOnce();
   });
 });

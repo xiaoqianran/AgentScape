@@ -15,6 +15,21 @@ export function disposeLabProbes(app) {
   }
 }
 
+export async function initializeLabCandidate(candidate, isCurrent) {
+  try {
+    await candidate.init?.();
+  } catch (error) {
+    await candidate.dispose?.();
+    if (isCurrent()) throw error;
+    return false;
+  }
+  if (!isCurrent()) {
+    await candidate.dispose?.();
+    return false;
+  }
+  return true;
+}
+
 export const DEBUG_SETTERS = Object.freeze({
   native:'setNativeDebug', manifest:'setManifestDebug', difference:'setDifferenceDebug',
   normalized:'setNormalizedDebug', velocity:'setVelocityDebug', joint:'setJointDebug',

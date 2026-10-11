@@ -21,7 +21,16 @@ const toolArgumentValue = (key, schema) => {
 };
 
 
-export const ToolWorkbenchMethods = {
+export class ToolWorkbenchController {
+  constructor(shell) {
+    this.root = shell.root;
+    this.refs = shell.refs;
+    this.setRightTab = (tab) => shell.setRightTab(tab);
+    this.toolDefinitions = [];
+    this.toolHistory = [];
+    this.activeToolName = null;
+    this.onToolInvoke = null;
+  }
   configureToolWorkbench(definitions = [], onInvoke = null, preferredToolName = null) {
     this.toolDefinitions = [...definitions].sort((a, b) => a.name.localeCompare(b.name));
     this.onToolInvoke = onInvoke;
@@ -38,7 +47,7 @@ export const ToolWorkbenchMethods = {
       ? this.activeToolName
       : this.toolDefinitions[0].name);
     this.selectTool(selected);
-  },
+  }
 
   renderToolList() {
     const query = this.refs["tool-search"].value.trim().toLowerCase();
@@ -55,7 +64,7 @@ export const ToolWorkbenchMethods = {
       return button;
     }));
     if (!filtered.length) this.refs["tool-list"].innerHTML = `<div class="obs-empty">没有匹配的工具</div>`;
-  },
+  }
 
   selectTool(name) {
     const definition = this.toolDefinitions.find((item) => item.name === name);
@@ -69,7 +78,7 @@ export const ToolWorkbenchMethods = {
     this.refs["tool-error"].hidden = true;
     this.refs["tool-invoke"].disabled = false;
     this.renderToolList();
-  },
+  }
 
   async invokeSelectedTool() {
     if (!this.activeToolName || !this.onToolInvoke || this.refs["tool-invoke"].disabled) return;
@@ -108,7 +117,7 @@ export const ToolWorkbenchMethods = {
       this.refs["tool-invoke"].classList.remove("is-running");
       this.refs["tool-invoke"].querySelector("span").textContent = "调用工具";
     }
-  },
+  }
 
   renderToolHistory() {
     if (!this.toolHistory.length) {
@@ -119,5 +128,4 @@ export const ToolWorkbenchMethods = {
       <i></i><div><strong>${escapeHtml(entry.name)}</strong><small>${escapeHtml(entry.outcome)} · ${entry.elapsedMs.toFixed(1)} ms · ${entry.time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</small></div>
     </article>`).join("");
   }
-};
-
+}
