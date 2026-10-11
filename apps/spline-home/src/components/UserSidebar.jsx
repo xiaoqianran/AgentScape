@@ -66,6 +66,12 @@ export default function UserSidebar({ route, onRoute, onToast, mcpVisible, onDis
           </ul>
         </nav>
 
+        <nav className={styles.nav} aria-label="AgentScape applications">
+          <ul>
+            <li><a className={styles.navItem} href="/">World Studio ↗</a></li>
+            <li><a className={styles.navItem} href="/observatory/">Observatory ↗</a></li>
+          </ul>
+        </nav>
         <div className={styles.projectsHead}>
           <h4>Projects</h4>
           <button type="button" className={styles.iconBtnSm} aria-label="New Project" onClick={() => onToast("New Project")}>

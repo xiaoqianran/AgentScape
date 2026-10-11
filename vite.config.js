@@ -5,10 +5,10 @@ import { capabilityDevPlugin } from "./dev/capabilityDevPlugin.js";
 function observatoryRoutePlugin() {
   const redirect = (req, res, next) => {
     const path = req.url?.split("?", 1)[0];
-    if (path !== "/observatory") return next();
+    if (path !== "/observatory" && path !== "/home") return next();
     const query = req.url?.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
     res.statusCode = 308;
-    res.setHeader("Location", `/observatory/${query}`);
+    res.setHeader("Location", `${path}/${query}`);
     res.end();
   };
   return {
@@ -17,6 +17,9 @@ function observatoryRoutePlugin() {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const pathname = req.url?.split("?", 1)[0];
+        if (pathname === "/home/" || pathname === "/home/index.html") {
+          req.url = req.url.replace(pathname, "/apps/spline-home/index.html");
+        }
         if (pathname === "/observatory/" || pathname === "/observatory/index.html") {
           req.url = req.url.replace(pathname, "/apps/observatory/index.html");
         }
@@ -27,6 +30,11 @@ function observatoryRoutePlugin() {
     generateBundle: {
       order: "post",
       handler(_, bundle) {
+        const home = bundle["apps/spline-home/index.html"];
+        if (home) {
+          delete bundle["apps/spline-home/index.html"];
+          this.emitFile({ type: "asset", fileName: "home/index.html", source: home.source });
+        }
         const entry = bundle["apps/observatory/index.html"];
         if (entry) {
           delete bundle["apps/observatory/index.html"];
@@ -62,7 +70,8 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           studio: new URL("./index.html", import.meta.url).pathname,
-          observatory: new URL("./apps/observatory/index.html", import.meta.url).pathname
+          observatory: new URL("./apps/observatory/index.html", import.meta.url).pathname,
+          home: new URL("./apps/spline-home/index.html", import.meta.url).pathname
         },
         output: {
           manualChunks(id) {
