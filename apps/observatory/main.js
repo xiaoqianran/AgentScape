@@ -3,6 +3,7 @@ import { createWebGPUIndirectDrawProbe } from './probes/rendering/WebGPUIndirect
 import { createGPUResidentCullingProbe } from './probes/rendering/WebGPUResidentCullingProbe.js';
 import "./style.css";
 import { LabRegistry } from "./core/LabRegistry.js";
+import { WORKSPACES, resolveWorkspace } from "./core/WorkspaceRegistry.js";
 import { ScenarioRegistry } from "./core/ScenarioRegistry.js";
 import { ObservatoryShell } from "./ui/ObservatoryShell.js";
 import { runWebGPUComputeProbe } from "./probes/rendering/WebGPUComputeProbe.js";
@@ -89,6 +90,7 @@ class ObservatoryApp {
     this.labDefinition = null;
     this.scenarios = null;
     this.activeLabId = null;
+    this.activeWorkspaceId = null;
     this.activeBackendId = null;
     this.activeScenarioId = null;
     this.rendererMode = "auto";
@@ -100,7 +102,18 @@ class ObservatoryApp {
     this.scenarioSelectionVersion = 0;
     this.scenarioLoadPromise = Promise.resolve();
 
+    this.shell.configureWorkspaces(WORKSPACES);
     this.shell.configureLabs(this.labs.list(), null);
+    this.shell.onWorkspaceChange = async (workspaceId) => {
+      const workspace = WORKSPACES.find(item => item.id === workspaceId);
+      if (!workspace) return;
+      this.activeWorkspaceId = workspaceId;
+      if (this.activeLabId === workspace.defaultLab) {
+        this.shell.configureWorkspace(workspace, this.activeLabId);
+        if (workspace.id === "rendering") this.shell.setRightTab("inspect");
+        this.updateUrl();
+      } else await this.activateLab(workspace.defaultLab);
+    };
     this.shell.bind({
       onRun: () => this.lab?.toggleRunning?.(),
       onStep: () => this.lab?.step?.(1),
@@ -147,7 +160,8 @@ class ObservatoryApp {
     const requestedLab = params.get("lab");
     this.rendererMode = params.get("renderer") || "auto";
     this.rendererTiming = params.get("gpuTiming") === "1";
-    const labId = this.labs.has(requestedLab) ? requestedLab : this.labs.list()[0].id;
+    const labId = this.labs.has(requestedLab) ? requestedLab : "physics-studio";
+    this.activeWorkspaceId = resolveWorkspace(params.get("workspace"), labId).id;
     await this.activateLab(labId, {
       backendId: params.get("backend"),
       scenarioId: params.get("scenario")
@@ -192,15 +206,18 @@ class ObservatoryApp {
 
     const normalizedBackend = definition.normalizeBackend?.(backendId) || backendId || definition.backends?.[0]?.id || null;
     this.activeLabId = labId;
+    const workspace = resolveWorkspace(this.activeWorkspaceId, labId);
+    this.activeWorkspaceId = workspace.id;
     this.activeBackendId = normalizedBackend;
     this.labDefinition = definition;
     this.scenarios = new ScenarioRegistry((definition.scenarios || []).map((scenario) => ({ ...scenario, lab: labId })));
 
     this.shell.configureLabs(this.labs.list(), labId);
     this.shell.configureBackends(definition.backends || [], normalizedBackend);
-    this.shell.setLabTitle(this.labs.list().find((item) => item.id === labId)?.title || definition.title);
+    this.shell.setLabTitle(workspace.id === "rendering" ? "渲染诊断" : (workspace.tools.find((tool) => tool.id === labId)?.title || (labId === "physics" ? "基础物理场景" : definition.title)));
     this.shell.setLabIdentity(labId);
     this.shell.setResourceMode(Boolean(definition.resourceLab));
+    this.shell.configureWorkspace(workspace, labId, {legacyTitle:definition.title});
     this.shell.configureDebugLayers(definition.debugLayers || ["grid"], definition.defaultDebugLayers || ["grid"]);
 
     let nextLab = null;
@@ -453,6 +470,7 @@ class ObservatoryApp {
   updateUrl() {
     const url = new URL(location.href);
     url.searchParams.set("lab", this.activeLabId);
+    url.searchParams.set("workspace", this.activeWorkspaceId);
     if (this.activeBackendId) url.searchParams.set("backend", this.activeBackendId);
     else url.searchParams.delete("backend");
     if (this.activeScenarioId) url.searchParams.set("scenario", this.activeScenarioId);

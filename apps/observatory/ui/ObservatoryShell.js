@@ -15,18 +15,20 @@ export class ObservatoryShell {
                 <span id="obs-lab-title">观测台 · 运行时验证</span>
               </div>
             </a>
-            <nav class="obs-domain-nav" aria-label="引擎工作台">
-              <button type="button" data-quick-lab="physics-studio">物理</button>
-              <button type="button" data-quick-lab="navigation">导航</button>
-              <button type="button" data-quick-lab="physics-studio" data-open-rendering="true">渲染诊断</button>
+            <nav class="obs-domain-nav" aria-label="工作区">
+              <button type="button" data-workspace="simulation">仿真与验证</button>
+              <button type="button" data-workspace="assets">资产检查</button>
+              <button type="button" data-workspace="agent">智能体验证</button>
+              <button type="button" data-workspace="rendering">渲染诊断</button>
             </nav>
             <div class="obs-context" aria-label="实验上下文">
+              <label class="obs-context-field obs-workspace-picker"><span>工作区</span><select id="obs-workspace-select" aria-label="工作区选择"></select></label>
               <label class="obs-context-field">
-                <span>场景模块</span>
+                <span>当前工具</span>
                 <select id="obs-lab-select" aria-label="Lab"></select>
               </label>
               <label class="obs-context-field">
-                <span>仿真后端</span>
+                <span>运行后端</span>
                 <select id="obs-backend-select" aria-label="Backend"></select>
               </label>
             </div>
@@ -211,7 +213,7 @@ export class ObservatoryShell {
     this.refs = Object.fromEntries([
       "run", "step", "step10", "reset", "checkpoint", "restore", "checkpoint-frame", "frame", "time", "active-action", "scenario-list", "viewport",
       "scenario-badge", "status-layer", "status-text", "status-action", "result-summary", "run-scenario-card", "inspector", "native-debug", "manifest-debug", "difference-debug", "normalized-debug", "velocity-debug", "joint-debug", "contact-debug", "bounds-debug", "ray-debug", "spatial-query-debug", "navmesh-debug", "path-debug", "endpoints-debug", "obstacles-debug", "interaction-los-debug", "interaction-support-debug", "interaction-state-debug", "agent-tool-debug", "labels-debug", "grid-debug", "assertions", "metrics",
-      "lab-title", "lab-select", "backend-select", "focus-view", "scenarios-toggle", "results-toggle", "sidebar-title", "sidebar-subtitle",
+      "lab-title", "lab-select", "workspace-select", "backend-select", "focus-view", "scenarios-toggle", "results-toggle", "sidebar-title", "sidebar-subtitle",
       "tools-tab", "resources-tab", "resource-host", "resource-browser-host", "tool-search", "tool-list", "tool-name", "tool-required", "tool-description", "tool-args", "tool-error", "tool-invoke", "tool-outcome", "tool-result", "tool-clear", "tool-history", "resident-culling-probe", "indirect-draw-probe", "compaction-probe", "compute-probe", "compute-probe-result", "spatial-probe", "spatial-probe-result"
     ].map((name) => [name, root.querySelector(`#obs-${name}`)]));
 
@@ -243,14 +245,10 @@ export class ObservatoryShell {
     this.activeToolName = null;
     this.onToolInvoke = null;
 
-    this.root.querySelectorAll('[data-quick-lab]').forEach((button) => button.addEventListener('click', () => {
-      if (button.dataset.openRendering === 'true') {
-        this.setPanelVisible('results', true);
-        this.setRightTab('inspect');
-        return;
-      }
-      this.refs['lab-select'].value = button.dataset.quickLab;
-      this.refs['lab-select'].dispatchEvent(new Event('change', { bubbles: true }));
+    this.onWorkspaceChange = null;
+    this.refs["workspace-select"].addEventListener("change", event => this.onWorkspaceChange?.(event.target.value));
+    this.root.querySelectorAll('[data-workspace]').forEach(button => button.addEventListener('click', () => {
+      this.onWorkspaceChange?.(button.dataset.workspace);
     }));
     this.root.querySelectorAll('[data-layer-preset]').forEach((button) => button.addEventListener('click', () => {
       const mode = button.dataset.layerPreset;
@@ -643,8 +641,35 @@ export class ObservatoryShell {
     button.title = `${result.expectedVisible}/${result.count} 实例应可见 · compute ${result.computeSubmitMs.toFixed(3)} ms · GPU ${gpu}`;
   }
 
+  configureWorkspace(workspace, activeLabId, { legacyTitle = null } = {}) {
+    this.root.dataset.workspace = workspace.id;
+    this.refs["workspace-select"].replaceChildren(...this.workspaces.map(item => new Option(item.title, item.id, false, item.id === workspace.id)));
+    this.root.classList.toggle('obs-rendering-workspace', workspace.id === 'rendering');
+    this.root.querySelectorAll('[data-workspace]').forEach(button => {
+      const active = button.dataset.workspace === workspace.id;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-current', active ? 'page' : 'false');
+    });
+    const choices = workspace.tools.map(tool => new Option(tool.title, tool.id, false, tool.id === activeLabId));
+    if (!workspace.tools.some(tool => tool.id === activeLabId)) {
+      choices.push(new Option(activeLabId === "physics" ? "基础物理场景（兼容）" : (legacyTitle || activeLabId), activeLabId, true, true));
+    }
+    this.refs['lab-select'].replaceChildren(...choices);
+    this.refs['lab-select'].disabled = choices.length < 2;
+    this.refs['sidebar-title'].textContent = workspace.id === 'assets' ? '资源浏览' : workspace.id === 'rendering' ? '渲染实验场景' : '测试场景';
+    this.refs['sidebar-subtitle'].textContent = workspace.id === 'rendering' ? '借用真实物理场景作为 GPU 诊断环境' : workspace.title;
+    if (workspace.id === 'rendering') {
+      this.setPanelVisible('results', true);
+      this.setRightTab('inspect');
+    }
+  }
+
+  configureWorkspaces(workspaces) {
+    this.workspaces = workspaces;
+  }
+
   configureLabs(labs, activeId) {
-    this.refs["lab-select"].replaceChildren(...labs.map((lab) => new Option(lab.title, lab.id, false, lab.id === activeId)));
+    this.knownLabs = labs;
   }
 
   configureBackends(backends, activeId) {
