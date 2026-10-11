@@ -1,3 +1,10 @@
+const INSPECTOR_PROFILES = Object.freeze({
+  simulation: { title: '仿真状态', description: '物理、导航、空间查询与交互的运行时状态。', metrics: '仿真测量', gpu: false, defaultTab: 'run' },
+  assets: { title: '资产检视', description: '资产结构、加载状态和资源校验数据。', metrics: '资源指标', gpu: false, defaultTab: 'resources' },
+  agent: { title: '智能体验证', description: '任务、工具调用与执行轨迹。', metrics: '执行指标', gpu: false, defaultTab: 'run' },
+  rendering: { title: '渲染诊断', description: 'Renderer、GPU 后端与 WebGPU 诊断。', metrics: '渲染指标', gpu: true, defaultTab: 'inspect' }
+});
+
 export class ObservatoryShell {
   constructor(root) {
     this.root = root;
@@ -172,8 +179,8 @@ export class ObservatoryShell {
                 <div id="obs-inspector" class="obs-inspector"></div>
                 <div class="obs-metrics-title"><span>测量</span><strong>测量数据</strong></div>
                 <div id="obs-metrics" class="obs-metrics"></div>
-                <div class="obs-metrics-title"><span>WebGPU</span><strong>GPU 诊断实验</strong></div>
-                <div class="obs-compute-probe">
+                <div class="obs-metrics-title" data-gpu-diagnostics><span>WebGPU</span><strong>GPU 诊断实验</strong></div>
+                <div class="obs-compute-probe" data-gpu-diagnostics>
                   <button id="obs-compute-probe" type="button">运行计算与回读测试</button>
                   <pre id="obs-compute-probe-result">尚未运行。仅验证当前 WebGPU renderer 的 storage buffer / compute / readback。</pre>
                   <button id="obs-spatial-probe" type="button">运行 GPU / CPU 空间对比</button><button id="obs-resident-culling-probe" type="button">显示 GPU 剔除</button><button id="obs-indirect-draw-probe" type="button">显示间接绘制</button><button id="obs-compaction-probe" type="button">显示 GPU 压缩</button>
@@ -301,6 +308,8 @@ export class ObservatoryShell {
   }
 
   setRightTab(tab) {
+    const requested = this.root.querySelector(`[data-right-tab="${tab}"]`);
+    if (!requested || requested.hidden) return;
     this.root.querySelectorAll("[data-right-tab]").forEach((button) => button.classList.toggle("is-active", button.dataset.rightTab === tab));
     this.root.querySelectorAll("[data-right-panel]").forEach((panel) => panel.classList.toggle("is-active", panel.dataset.rightPanel === tab));
   }
@@ -643,6 +652,7 @@ export class ObservatoryShell {
 
   configureWorkspace(workspace, activeLabId, { legacyTitle = null } = {}) {
     this.root.dataset.workspace = workspace.id;
+    this.configureInspectorProfile(workspace.id);
     this.refs["workspace-select"].replaceChildren(...this.workspaces.map(item => new Option(item.title, item.id, false, item.id === workspace.id)));
     this.root.classList.toggle('obs-rendering-workspace', workspace.id === 'rendering');
     this.root.querySelectorAll('[data-workspace]').forEach(button => {
@@ -661,7 +671,23 @@ export class ObservatoryShell {
     this.root.querySelector('.obs-fixed-pill').hidden = workspace.id === 'rendering' || workspace.id === 'assets';
     if (workspace.id === 'rendering') {
       this.setPanelVisible('results', true);
-      this.setRightTab('inspect');
+    }
+  }
+
+  configureInspectorProfile(workspaceId) {
+    const profile = INSPECTOR_PROFILES[workspaceId] || INSPECTOR_PROFILES.simulation;
+    const heading = this.root.querySelector('[data-right-panel="inspect"] .obs-panel-heading');
+    heading.querySelector('strong').textContent = profile.title;
+    heading.querySelector('small').textContent = profile.description;
+    this.root.querySelector('#obs-metrics').previousElementSibling.querySelector('strong').textContent = profile.metrics;
+    this.root.querySelectorAll('[data-gpu-diagnostics]').forEach(element => { element.hidden = !profile.gpu; });
+    const inspectorTab = this.root.querySelector('[data-right-tab="inspect"] span');
+    inspectorTab.textContent = workspaceId === 'rendering' ? '渲染' : '检视';
+    // Preserve the current tab on a refresh within one workspace. A workspace
+    // transition gets its own default without altering lab-specific panels.
+    if (this.inspectorWorkspace !== workspaceId) {
+      this.inspectorWorkspace = workspaceId;
+      this.setRightTab(profile.defaultTab === 'resources' && this.refs['resources-tab'].hidden ? 'inspect' : profile.defaultTab);
     }
   }
 
