@@ -4,13 +4,12 @@ import { createGPUResidentCullingProbe } from './probes/rendering/WebGPUResident
 import "./style.css";
 import { LabRegistry } from "./core/LabRegistry.js";
 import { WORKSPACES, resolveWorkspace } from "./core/WorkspaceRegistry.js";
-import { ScenarioRegistry } from "./core/ScenarioRegistry.js";
 import { ObservatoryShell } from "./ui/ObservatoryShell.js";
 import { runWebGPUComputeProbe } from "./probes/rendering/WebGPUComputeProbe.js";
 import { runWebGPUSpatialProbe } from "./probes/rendering/WebGPUSpatialProbe.js";
 import { createAssetModule } from "../../modules/asset/AssetModule.js";
-import { renderingInfoForLab, rendererForLab, projectLabTelemetry } from './app/TelemetryAdapter.js';
-import { disposeLabProbes, applyLabDebugLayers, initializeLabCandidate } from './app/LabLifecycle.js';
+import { rendererForLab } from './app/TelemetryAdapter.js';
+import { LabActivationController } from './app/LabActivationController.js';
 
 
 const LABS = [
@@ -70,6 +69,7 @@ const LABS = [
 class ObservatoryApp {
   constructor(root) {
     this.labs = new LabRegistry(LABS);
+    this.activationController = new LabActivationController(this);
     this.assetModule = createAssetModule();
     this.shell = new ObservatoryShell(root);
     this.lab = null;
@@ -154,77 +154,8 @@ class ObservatoryApp {
     });
   }
 
-  async activateLab(labId, { backendId = null, scenarioId = null } = {}) {
-    const version = ++this.activationVersion;
-    ++this.scenarioSelectionVersion;
-    this.shell.setBusy(true, `正在加载 ${labId} Lab…`);
-    this.shell.configureToolWorkbench([]);
-    this.shell.configureResourceWorkbench(null);
-    const module = await this.labs.load(labId);
-    if (version !== this.activationVersion) return;
-    const definition = module.labDefinition;
-    if (!definition || definition.id !== labId || typeof definition.create !== "function") {
-      throw new Error(`Invalid Observatory lab module: ${labId}`);
-    }
-
-    await this.scenarioLoadPromise.catch(() => {});
-    if (version !== this.activationVersion) return;
-    disposeLabProbes(this);
-    await this.lab?.dispose?.();
-    if (version !== this.activationVersion) return;
-
-    const normalizedBackend = definition.normalizeBackend?.(backendId) || backendId || definition.backends?.[0]?.id || null;
-    this.activeLabId = labId;
-    const workspace = resolveWorkspace(this.activeWorkspaceId, labId);
-    this.activeWorkspaceId = workspace.id;
-    this.activeBackendId = normalizedBackend;
-    this.labDefinition = definition;
-    this.scenarios = new ScenarioRegistry((definition.scenarios || []).map((scenario) => ({ ...scenario, lab: labId })));
-
-    this.shell.configureLabs(this.labs.list(), labId);
-    this.shell.configureBackends(definition.backends || [], normalizedBackend);
-    this.shell.setLabTitle(workspace.id === "rendering" ? "渲染诊断" : (workspace.tools.find((tool) => tool.id === labId)?.title || (labId === "physics" ? "基础物理场景" : definition.title)));
-    this.shell.setLabIdentity(labId);
-    this.shell.setResourceMode(Boolean(definition.resourceLab));
-    this.shell.configureWorkspace(workspace, labId, {legacyTitle:definition.title});
-    this.shell.configureDebugLayers(definition.debugLayers || ["grid"], definition.defaultDebugLayers || ["grid"]);
-
-    let nextLab = null;
-    nextLab = definition.create({
-      viewport: this.shell.refs.viewport,
-      assetModule: this.assetModule,
-      backendId: normalizedBackend,
-      rendererMode: this.rendererMode,
-      rendererTiming: this.rendererTiming,
-      onRendererFailure: ({ api, reason, message }) => {
-        const backend = api || 'GPU';
-        this.shell.setRendererFailure(`${backend} 渲染设备丢失 · ${reason || 'unknown'} · ${message || 'unknown'}`);
-      },
-      onTelemetry: (data) => {
-        if (data.scenario?.id !== this.activeScenarioId || labId !== this.activeLabId) return;
-        const rendering = renderingInfoForLab(nextLab);
-        this.shell.setRunning(data.clock.running);
-        this.shell.update(projectLabTelemetry(data, rendering));
-      }
-    });
-    if (!await initializeLabCandidate(nextLab, () => version === this.activationVersion)) return;
-    this.lab = nextLab;
-    this.shell.setComputeProbeAvailability(renderingInfoForLab(this.lab)?.backend === "webgpu");
-    applyLabDebugLayers(this.lab, this.shell.refs);
-
-    const available = this.scenarios.list({ lab: labId });
-    const initialScenario = available.some((scenario) => scenario.id === scenarioId)
-      ? scenarioId
-      : available[0]?.id;
-    if (!initialScenario) throw new Error(`Lab ${labId} has no scenarios`);
-    await this.selectScenario(initialScenario);
-    if (this.activeWorkspaceId === "rendering") {
-      this.shell.setPanelVisible("results", true);
-      this.shell.setRightTab("inspect");
-    } else if (this.lab.toolDefinitions?.().length) {
-      this.shell.setRightTab("tools");
-      if (!matchMedia("(max-width: 1040px)").matches) this.shell.setPanelVisible("results", true);
-    }
+  async activateLab(labId, options = {}) {
+    return this.activationController.activateLab(labId, options);
   }
 
   async runComputeProbe() {
