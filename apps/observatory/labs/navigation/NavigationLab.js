@@ -57,9 +57,14 @@ export class NavigationLab {
   async load(scenario) {
     this.checkpointFrame = null;
     this.clock.pause();
+    // Revisions are local to each context. Two different scenarios can finish
+    // with the same revision, so never reuse a previous scene's debug snapshot.
+    this.lastDebugContext = null;
+    this.lastDebugRevision = null;
+    this.lastDebugSnapshot = null;
     await this.runner.load(scenario);
     this.fitScenario(scenario);
-    this.refreshDebug();
+    this.refreshDebug({ force: true });
     this.emitTelemetry();
   }
 
@@ -135,8 +140,9 @@ export class NavigationLab {
     const context = this.runner.context;
     if (!context) return false;
     const revision = context.debugRevision ?? 0;
-    if (!force && revision === this.lastDebugRevision) return false;
+    if (!force && context === this.lastDebugContext && revision === this.lastDebugRevision) return false;
     const snapshot = context.debugSnapshot?.();
+    this.lastDebugContext = context;
     this.lastDebugRevision = revision;
     this.lastDebugSnapshot = snapshot || null;
     this.worldLabels.setLabels(worldLabelsForNavigation(snapshot || null));
