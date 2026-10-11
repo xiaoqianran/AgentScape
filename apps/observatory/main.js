@@ -10,6 +10,7 @@ import { runWebGPUComputeProbe } from "./probes/rendering/WebGPUComputeProbe.js"
 import { runWebGPUSpatialProbe } from "./probes/rendering/WebGPUSpatialProbe.js";
 import { createAssetModule } from "../../modules/asset/AssetModule.js";
 import { renderingInfoForLab, rendererForLab, projectLabTelemetry } from './app/TelemetryAdapter.js';
+import { disposeLabProbes, applyLabDebugLayers } from './app/LabLifecycle.js';
 
 
 const LABS = [
@@ -168,24 +169,7 @@ class ObservatoryApp {
 
     await this.scenarioLoadPromise.catch(() => {});
     if (version !== this.activationVersion) return;
-    if (this.residentCullingProbe) {
-      this.residentCullingProbe.scene?.remove(this.residentCullingProbe.result.mesh);
-      this.residentCullingProbe.result.dispose?.();
-      this.residentCullingProbe = null;
-      this.shell.setResidentCullingResult(null);
-    }
-    if (this.indirectDrawProbe) {
-      this.indirectDrawProbe.scene?.remove(this.indirectDrawProbe.result.mesh);
-      this.indirectDrawProbe.result.dispose?.();
-      this.indirectDrawProbe = null;
-      this.shell.setIndirectDrawResult(null);
-    }
-    if (this.compactionProbe) {
-      this.compactionProbe.scene?.remove(this.compactionProbe.result.mesh);
-      this.compactionProbe.result.dispose?.();
-      this.compactionProbe = null;
-      this.shell.setCompactionResult(null);
-    }
+    disposeLabProbes(this);
     await this.lab?.dispose?.();
     if (version !== this.activationVersion) return;
 
@@ -230,26 +214,7 @@ class ObservatoryApp {
     }
     this.lab = nextLab;
     this.shell.setComputeProbeAvailability(renderingInfoForLab(this.lab)?.backend === "webgpu");
-    this.lab.setNativeDebug?.(this.shell.refs["native-debug"].checked);
-    this.lab.setManifestDebug?.(this.shell.refs["manifest-debug"].checked);
-    this.lab.setDifferenceDebug?.(this.shell.refs["difference-debug"].checked);
-    this.lab.setNormalizedDebug?.(this.shell.refs["normalized-debug"].checked);
-    this.lab.setVelocityDebug?.(this.shell.refs["velocity-debug"].checked);
-    this.lab.setJointDebug?.(this.shell.refs["joint-debug"].checked);
-    this.lab.setContactDebug?.(this.shell.refs["contact-debug"].checked);
-    this.lab.setBoundsDebug?.(this.shell.refs["bounds-debug"].checked);
-    this.lab.setRayDebug?.(this.shell.refs["ray-debug"].checked);
-    this.lab.setSpatialQueryDebug?.(this.shell.refs["spatial-query-debug"].checked);
-    this.lab.setNavMeshDebug?.(this.shell.refs["navmesh-debug"].checked);
-    this.lab.setPathDebug?.(this.shell.refs["path-debug"].checked);
-    this.lab.setEndpointsDebug?.(this.shell.refs["endpoints-debug"].checked);
-    this.lab.setObstaclesDebug?.(this.shell.refs["obstacles-debug"].checked);
-    this.lab.setInteractionLosDebug?.(this.shell.refs["interaction-los-debug"].checked);
-    this.lab.setInteractionSupportDebug?.(this.shell.refs["interaction-support-debug"].checked);
-    this.lab.setInteractionStateDebug?.(this.shell.refs["interaction-state-debug"].checked);
-    this.lab.setAgentToolDebug?.(this.shell.refs["agent-tool-debug"].checked);
-    this.lab.setWorldLabelsVisible?.(this.shell.refs["labels-debug"].checked);
-    this.lab.setGridVisible?.(this.shell.refs["grid-debug"].checked);
+    applyLabDebugLayers(this.lab, this.shell.refs);
 
     const available = this.scenarios.list({ lab: labId });
     const initialScenario = available.some((scenario) => scenario.id === scenarioId)
