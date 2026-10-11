@@ -106,69 +106,82 @@ spacing:
   container-max: 1200px
 ---
 
-## Brand & Style
-This design system leverages a soft-dark aesthetic characterized by low-eye-strain contrast and a soothing color temperature. The target audience includes developers, creative professionals, and night-owl power users who value long-form focus and a high degree of visual refinement.
+## 品牌与风格
 
-The style is a hybrid of **Minimalism** and **Glassmorphism**. It utilizes semi-transparent layers and backdrop blurs to create a sense of environmental depth without the harshness of high-contrast shadows. The emotional response should be one of calm, precision, and digital comfort.
+本设计系统采用柔和暗色（soft-dark）美学，以低视觉疲劳的对比度与舒心的冷色温为特征。目标受众包括开发者、创意专业人士与习惯夜间工作的重度用户，他们重视长时间专注与高度视觉精致度。
 
-## Colors
-The palette is rooted in the Frappé flavor of the Catppuccin color scheme, prioritizing a desaturated blue-gray base that feels expansive and cool. 
+风格是 **极简主义（Minimalism）** 与 **玻璃拟态（Glassmorphism）** 的混合。它利用半透明图层与背景模糊营造环境纵深感，而不依赖高对比阴影的生硬感。期望带来的情绪反应是平静、精确与数字舒适。
 
-- **Primary (Blue):** Used for main actions and active states.
-- **Secondary (Lavender):** Used for supportive UI elements and decorative highlights.
-- **Surface (Crust):** Applied to recessed containers and background layers.
-- **Text & Subtext:** Hierarchy is established through the transition from high-readability Text to the muted Subtext for metadata.
+## 颜色
 
-## Typography
-Typography is split between the systematic clarity of **Inter** for all functional UI and prose, and **JetBrains Mono** for technical identifiers, data points, and code snippets. 
+调色板植根于 Catppuccin 的 Frappé 风味，以去饱和的蓝灰色基底为主，开阔而清凉。
 
-Headlines use tight letter-spacing to maintain a modern, "locked-in" appearance. Body text maintains generous line heights to ensure readability against the dark background. For mobile devices, `headline-xl` should scale down to 32px and `headline-lg` to 28px.
+- **主色（Primary，蓝）：** 用于主要操作与激活态。
+- **辅助色（Secondary，薰衣草）：** 用于辅助 UI 元素与装饰性高亮。
+- **表面（Surface，Crust）：** 用于凹陷容器与背景层。
+- **文字与次文字：** 通过从高可读性的 Text 到柔和 Subtext 的过渡建立层级。
 
-## Layout & Spacing
-The layout follows a **fluid grid** model with an 8px base rhythm. This ensures consistent alignment across all components.
+## 字体排印
 
-- **Desktop:** 12-column grid, 32px margins, 24px gutters.
-- **Tablet:** 8-column grid, 24px margins, 16px gutters.
-- **Mobile:** 4-column grid, 16px margins, 16px gutters.
+字体排印在系统化的 **Inter**（用于所有功能性 UI 与正文）与 **JetBrains Mono**（用于技术标识符、数据点、代码片段）之间拆分。
 
-Large containers should use the primary background color, while internal modules use the Surface (Crust) color to create a clear "carved-out" visual hierarchy.
+标题使用紧凑的字距，保持现代、"锁定"的外观。正文在暗色背景上保持宽松的行高以确保可读性。移动端 `headline-xl` 应缩放至 32px，`headline-lg` 至 28px。
 
-## Elevation & Depth
-Depth is created through **Glassmorphism** and **Tonal Layers** rather than heavy shadows.
+## 布局与间距
 
-- **Level 1 (Base):** #303446 (Base).
-- **Level 2 (Recessed):** #292c3c (Crust).
-- **Level 3 (Elevated):** Semi-transparent white (5% opacity) overlays with a `20px` backdrop blur. This is reserved for modals, navigation bars, and floating action menus.
-- **Borders:** Instead of shadows, use 1px solid borders using the Subtext color at 10% opacity to define edges softly.
+布局遵循 **流体网格（fluid grid）** 模型，以 8px 为基础节奏，确保跨组件对齐一致。
 
-## Shapes
-The design system adopts a **Rounded** shape language to reinforce the "gentle" brand personality. 
+- **桌面：** 12 列网格，32px margin，24px gutter。
+- **平板：** 8 列网格，24px margin，16px gutter。
+- **移动：** 4 列网格，16px margin，16px gutter。
 
-- **Standard Buttons & Inputs:** 16px (1rem) corner radius.
-- **Small Components (Chips/Badges):** Fully pill-shaped.
-- **Large Containers (Cards/Modals):** 24px (1.5rem) corner radius to create a soft, friendly structure.
+大容器使用主背景色，内部模块使用 Surface（Crust）色，形成清晰的"雕刻"视觉层级。
 
-## Components
+## 层级与纵深
 
-### Buttons
-- **Primary:** Filled with Primary (Blue), text in Base (#303446) for maximum contrast.
-- **Secondary:** Outlined with Secondary (Lavender) at 40% opacity, text in Secondary.
-- **Ghost:** No background, text in Subtext. On hover, apply a 10% Primary color tint background.
+纵深通过 **玻璃拟态** 与 **色调图层（Tonal Layers）** 营造，而非沉重阴影。
 
-### Inputs
-- **Field:** Background in Surface (Crust), 16px radius, 1px border using Subtext at 20% opacity.
-- **Focus State:** 2px border using Primary (Blue) with a subtle outer glow (4px blur, same color).
+- **一级（Base）：** #303446（Base）。
+- **二级（凹陷）：** #292c3c（Crust）。
+- **三级（抬升）：** 半透明白色（5% 不透明度）叠加，配 `20px` 背景模糊。保留给模态框、导航栏与浮动操作菜单。
+- **边框：** 用 1px 实线边框代替阴影，使用 Subtext 色 10% 不透明度柔和界定边缘。
 
-### Cards
-- **Style:** Background color #292c3c (Crust).
-- **Interactive:** On hover, increase brightness by 5% and add a 12px backdrop blur if the card is floating.
+## 形状
 
-### Chips & Badges
-- **Status:** Use Accent (Success), Warning, and Error colors at 15% opacity for backgrounds, with full-saturation text of the same color for labels. High-legibility monospaced font should be used for the label.
+设计系统采用 **圆角（Rounded）** 形状语言，强化"温和"的品牌个性。
 
-### Lists
-- Separate list items with a subtle 1px divider using the Crust color. Active items should use a vertical 4px "pill" indicator on the left edge in the Primary color.
-## Language & Localization
-- All visible product UI copy in **Studio** and **Observatory** must use **Simplified Chinese** by default.
-- Canonical technical identifiers may retain their original spelling when translation would reduce precision, including API/function names, backend/runtime names, object IDs, file formats, protocol names, and keyboard shortcut keys.
-- When a technical term benefits from explanation, prefer a Chinese label with the canonical identifier in parentheses, for example `获取边界（getBounds）`.
+- **标准按钮与输入框：** 16px（1rem）圆角。
+- **小组件（Chip/Badge）：** 完全胶囊形。
+- **大容器（卡片/模态框）：** 24px（1.5rem）圆角，形成柔和友好的结构。
+
+## 组件
+
+### 按钮
+
+- **主按钮（Primary）：** 填充主色（蓝），文字用 Base（#303446）以获得最高对比。
+- **次按钮（Secondary）：** 以辅助色（薰衣草）40% 不透明度描边，文字用辅助色。
+- **幽灵按钮（Ghost）：** 无背景，文字用 Subtext。悬停时应用 10% 主色色调背景。
+
+### 输入框
+
+- **字段（Field）：** 背景用 Surface（Crust），16px 圆角，1px 边框使用 Subtext 20% 不透明度。
+- **聚焦态：** 2px 边框使用主色（蓝），并带微妙外发光（4px 模糊，同色）。
+
+### 卡片
+
+- **样式：** 背景色 #292c3c（Crust）。
+- **交互态：** 悬停时亮度提高 5%，若卡片浮动则加 12px 背景模糊。
+
+### Chip 与 Badge
+
+- **状态：** 使用 Accent（成功）、Warning、Error 色 15% 不透明度作背景，同色满饱和度文字作标签。标签应使用高可读等宽字体。
+
+### 列表
+
+- 用 Crust 色 1px 细分隔线分隔列表项。激活项在左缘使用 4px 竖"胶囊"指示条，用主色。
+
+## 语言与本地化
+
+- Studio 与 Observatory 中所有可见产品 UI 文案默认使用 **简体中文**。
+- 当翻译会降低精度时，规范技术标识符可保留原拼写，包括 API/函数名、后端/运行时名、对象 ID、文件格式、协议名与快捷键。
+- 当技术术语需要解释时，优先使用中文标签并在括号中给出规范标识符，例如 `获取边界（getBounds）`。

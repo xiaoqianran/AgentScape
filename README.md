@@ -199,16 +199,16 @@ npm run assets:validate
 ## 常用开发入口
 
 ```text
-world/runtime/WorldRuntime.js              Runtime composition root
-world/compiler/createWorldPipeline.js      Generated-world canonical pipeline
-world/spec/WorldSpec.js                WorldSpec schema + deterministic normalization
-world/compiler/WorldComposer.js            Deterministic placement / relation geometry
-generation/orchestration/GenerationRuntime.js Connector / Job / Artifact / Asset production composition
-observatory/main.js                         Developer Runtime Observatory entry
-asset/AssetCatalog.js                  Reusable Asset read/search facade
-world/runtime/systems/PhysicsSystem.js     Rapier truth + hypothetical shape queries
-agent/skills/registerCoreSkills.js         Domain skill-pack composition entry
-agent/ToolCallingAgent.js            Plan → act → observe orchestration
+modules/world/runtime/WorldRuntime.js              Runtime composition root
+modules/world/compiler/createWorldPipeline.js      Generated-world canonical pipeline
+modules/world/spec/WorldSpec.js                WorldSpec schema + deterministic normalization
+modules/world/compiler/WorldComposer.js            Deterministic placement / relation geometry
+application/generation/GenerationRuntime.js Connector / Job / Artifact / Asset production composition
+apps/observatory/main.js                         Developer Runtime Observatory entry
+modules/asset/registry/AssetCatalog.js                  Reusable Asset read/search facade
+modules/world/runtime/systems/PhysicsSystem.js     Rapier truth + hypothetical shape queries
+application/skills/registerCoreSkills.js         Domain skill-pack composition entry
+modules/agent/ToolCallingAgent.js            Plan → act → observe orchestration
 ```
 
 ## Asset Compiler
