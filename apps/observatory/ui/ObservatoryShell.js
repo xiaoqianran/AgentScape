@@ -15,9 +15,14 @@ export class ObservatoryShell {
                 <span id="obs-lab-title">观测台 · 运行时验证</span>
               </div>
             </a>
+            <nav class="obs-domain-nav" aria-label="引擎工作台">
+              <button type="button" data-quick-lab="physics-studio">物理</button>
+              <button type="button" data-quick-lab="navigation">导航</button>
+              <button type="button" data-quick-lab="physics-studio" data-open-rendering="true">渲染诊断</button>
+            </nav>
             <div class="obs-context" aria-label="实验上下文">
               <label class="obs-context-field">
-                <span>实验模块</span>
+                <span>场景模块</span>
                 <select id="obs-lab-select" aria-label="Lab"></select>
               </label>
               <label class="obs-context-field">
@@ -42,8 +47,8 @@ export class ObservatoryShell {
           <aside class="obs-left-sidebar obs-glass" aria-label="实验场景">
             <button id="obs-scenarios-toggle" class="obs-edge-toggle obs-edge-toggle-right" type="button" aria-label="显示或隐藏场景面板" aria-pressed="true">${icon("chevron-left")}</button>
             <div class="obs-sidebar-head">
-              <strong id="obs-sidebar-title">运行图</strong>
-              <span id="obs-sidebar-subtitle">实时执行</span>
+              <strong id="obs-sidebar-title">测试场景</strong>
+              <span id="obs-sidebar-subtitle">选择一个场景开始验证</span>
             </div>
             <div id="obs-scenario-list" class="obs-scenario-list"></div>
             <div id="obs-resource-browser-host" class="obs-resource-browser-host" hidden></div>
@@ -52,9 +57,9 @@ export class ObservatoryShell {
           <section class="obs-center-column" aria-label="运行时视口">
             <div class="obs-center-toolbar">
               <div class="obs-view-tabs" role="tablist" aria-label="视图模式">
-                <button class="obs-view-tab is-active" type="button" data-view="world" aria-label="真实世界">${icon("world")}<span>真实世界 <b>世界</b></span></button>
-                <button class="obs-view-tab" type="button" data-view="evidence" aria-label="运行证据">${icon("evidence")}<span>运行证据 <b>证据</b></span></button>
-                <button class="obs-view-tab" type="button" data-view="inspect" aria-label="运行时检视">${icon("cube")}<span>运行时检视 <b>检视</b></span></button>
+                <button class="obs-view-tab is-active" type="button" data-view="world" aria-label="真实世界">${icon("world")}<span>3D 视口 <b>世界</b></span></button>
+                <button class="obs-view-tab" type="button" data-view="evidence" aria-label="运行证据">${icon("evidence")}<span>测试结果 <b>结果</b></span></button>
+                <button class="obs-view-tab" type="button" data-view="inspect" aria-label="运行时检视">${icon("cube")}<span>状态指标 <b>指标</b></span></button>
               </div>
               <div class="obs-fixed-pill"><i></i><span>仿真 · 固定 60 HZ</span></div>
             </div>
@@ -135,6 +140,7 @@ export class ObservatoryShell {
 
               <section class="obs-right-panel" data-right-panel="layers">
                 <div class="obs-panel-heading"><span>调试视图</span><strong>视觉图层</strong><small>只改变观测方式，不改变 Runtime 真值。</small></div>
+                <div class="obs-layer-presets" role="group" aria-label="调试图层预设"><button type="button" data-layer-preset="defaults">默认</button><button type="button" data-layer-preset="all">全部开启</button><button type="button" data-layer-preset="off">全部关闭</button></div>
                 <div class="obs-debug-controls">
                   ${debugToggle("native", "native-debug", "原生物理")}
                   ${debugToggle("manifest", "manifest-debug", "清单碰撞体")}
@@ -164,11 +170,11 @@ export class ObservatoryShell {
                 <div id="obs-inspector" class="obs-inspector"></div>
                 <div class="obs-metrics-title"><span>测量</span><strong>测量数据</strong></div>
                 <div id="obs-metrics" class="obs-metrics"></div>
-                <div class="obs-metrics-title"><span>WebGPU</span><strong>Compute Probe</strong></div>
+                <div class="obs-metrics-title"><span>WebGPU</span><strong>GPU 诊断实验</strong></div>
                 <div class="obs-compute-probe">
-                  <button id="obs-compute-probe" type="button">运行 Compute Probe</button>
+                  <button id="obs-compute-probe" type="button">运行计算与回读测试</button>
                   <pre id="obs-compute-probe-result">尚未运行。仅验证当前 WebGPU renderer 的 storage buffer / compute / readback。</pre>
-                  <button id="obs-spatial-probe" type="button">运行 Spatial Probe</button><button id="obs-resident-culling-probe" type="button">显示 GPU Culling</button><button id="obs-indirect-draw-probe" type="button">显示 Indirect Draw</button><button id="obs-compaction-probe" type="button">显示 GPU Compaction</button>
+                  <button id="obs-spatial-probe" type="button">运行 GPU / CPU 空间对比</button><button id="obs-resident-culling-probe" type="button">显示 GPU 剔除</button><button id="obs-indirect-draw-probe" type="button">显示间接绘制</button><button id="obs-compaction-probe" type="button">显示 GPU 压缩</button>
                   <pre id="obs-spatial-probe-result">尚未运行。GPU 与 CPU 将对同一批位置做距离阈值筛选并逐项比对。</pre>
                 </div>
               </section>
@@ -209,11 +215,54 @@ export class ObservatoryShell {
       "tools-tab", "resources-tab", "resource-host", "resource-browser-host", "tool-search", "tool-list", "tool-name", "tool-required", "tool-description", "tool-args", "tool-error", "tool-invoke", "tool-outcome", "tool-result", "tool-clear", "tool-history", "resident-culling-probe", "indirect-draw-probe", "compaction-probe", "compute-probe", "compute-probe-result", "spatial-probe", "spatial-probe-result"
     ].map((name) => [name, root.querySelector(`#obs-${name}`)]));
 
+    // Keep every existing layer input / listener intact; regroup only the presentation.
+    const layerContainer = this.root.querySelector('.obs-debug-controls');
+    const groups = [
+      ['physics', '物理 / 碰撞', ['native','manifest','difference','normalized','velocity','joint','contact']],
+      ['navigation', '导航 / 空间', ['bounds','ray','spatial-query','navmesh','path','endpoints','obstacles']],
+      ['interaction', '交互 / Agent', ['interaction-los','interaction-support','interaction-state','agent-tool']],
+      ['common', '通用显示', ['labels','grid']]
+    ];
+    this.debugLayerGroups = groups.map(([key, title, layers]) => {
+      const section = document.createElement('section');
+      section.className = 'obs-layer-group';
+      section.dataset.layerGroup = key;
+      const heading = document.createElement('h3');
+      heading.textContent = title;
+      section.append(heading);
+      for (const layer of layers) {
+        const row = layerContainer.querySelector('[data-debug-layer="' + layer + '"]');
+        if (row) section.append(row);
+      }
+      layerContainer.append(section);
+      return section;
+    });
+    this.debugLayerDefaults = new Set();
     this.toolDefinitions = [];
     this.toolHistory = [];
     this.activeToolName = null;
     this.onToolInvoke = null;
 
+    this.root.querySelectorAll('[data-quick-lab]').forEach((button) => button.addEventListener('click', () => {
+      if (button.dataset.openRendering === 'true') {
+        this.setPanelVisible('results', true);
+        this.setRightTab('inspect');
+        return;
+      }
+      this.refs['lab-select'].value = button.dataset.quickLab;
+      this.refs['lab-select'].dispatchEvent(new Event('change', { bubbles: true }));
+    }));
+    this.root.querySelectorAll('[data-layer-preset]').forEach((button) => button.addEventListener('click', () => {
+      const mode = button.dataset.layerPreset;
+      for (const row of this.root.querySelectorAll('[data-debug-layer]:not([hidden])')) {
+        const input = row.querySelector('input');
+        const checked = mode === 'all' || (mode === 'defaults' && this.debugLayerDefaults.has(row.dataset.debugLayer));
+        if (input && input.checked !== checked) {
+          input.checked = checked;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    }));
     this.refs["scenarios-toggle"].addEventListener("click", () => this.togglePanel("scenarios"));
     this.refs["results-toggle"].addEventListener("click", () => this.togglePanel("results"));
     this.root.querySelectorAll("[data-right-tab]").forEach((button) => button.addEventListener("click", () => this.setRightTab(button.dataset.rightTab)));
@@ -607,6 +656,7 @@ export class ObservatoryShell {
   configureDebugLayers(layerIds = [], defaultIds = layerIds) {
     const enabled = new Set(layerIds);
     const defaults = new Set(defaultIds);
+    this.debugLayerDefaults = defaults;
     for (const label of this.root.querySelectorAll("[data-debug-layer]")) {
       const active = enabled.has(label.dataset.debugLayer);
       label.hidden = !active;
