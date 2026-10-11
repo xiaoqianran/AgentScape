@@ -8,11 +8,10 @@ export const WORKSPACES = Object.freeze([
   { id:'agent', title:'智能体验证', defaultLab:'generation', tools:[
     {id:'generation',title:'构建与集成'}, {id:'agent',title:'工具调用'}, {id:'agent-trace',title:'执行轨迹'}
   ]},
-  { id:'rendering', title:'渲染诊断', defaultLab:'physics-studio', tools:[
-    {id:'physics-studio',title:'渲染运行场景'}
+  { id:'rendering', title:'渲染诊断', defaultLab:'rendering', tools:[
+    {id:'rendering',title:'渲染测试场景'}
   ]}
 ]);
-export const LEGACY_LABS = Object.freeze({physics:'physics-studio'});
 export function workspaceForLab(labId) {
   return WORKSPACES.find(space=>space.id!=='rendering' && space.tools.some(tool=>tool.id===labId))?.id
     || (labId==='physics'?'simulation':null);

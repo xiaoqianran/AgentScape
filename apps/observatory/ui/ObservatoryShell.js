@@ -657,7 +657,8 @@ export class ObservatoryShell {
     this.refs['lab-select'].replaceChildren(...choices);
     this.refs['lab-select'].disabled = choices.length < 2;
     this.refs['sidebar-title'].textContent = workspace.id === 'assets' ? '资源浏览' : workspace.id === 'rendering' ? '渲染实验场景' : '测试场景';
-    this.refs['sidebar-subtitle'].textContent = workspace.id === 'rendering' ? '借用真实物理场景作为 GPU 诊断环境' : workspace.title;
+    this.refs['sidebar-subtitle'].textContent = workspace.id === 'rendering' ? '独立渲染场景 · GPU 诊断' : workspace.title;
+    this.root.querySelector('.obs-fixed-pill').hidden = workspace.id === 'rendering' || workspace.id === 'assets';
     if (workspace.id === 'rendering') {
       this.setPanelVisible('results', true);
       this.setRightTab('inspect');

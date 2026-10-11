@@ -29,6 +29,7 @@ const computeWorkgroupSummary = (limits = {}) => {
 };
 
 const LABS = [
+  {id:"rendering",title:"渲染诊断",load:()=>import("./labs/rendering/index.js")},
   {
     id: "assets",
     title: "资产目录",
@@ -289,7 +290,10 @@ class ObservatoryApp {
       : available[0]?.id;
     if (!initialScenario) throw new Error(`Lab ${labId} has no scenarios`);
     await this.selectScenario(initialScenario);
-    if (this.lab.toolDefinitions?.().length) {
+    if (this.activeWorkspaceId === "rendering") {
+      this.shell.setPanelVisible("results", true);
+      this.shell.setRightTab("inspect");
+    } else if (this.lab.toolDefinitions?.().length) {
       this.shell.setRightTab("tools");
       if (!matchMedia("(max-width: 1040px)").matches) this.shell.setPanelVisible("results", true);
     }

@@ -10,7 +10,7 @@ describe('Observatory workspace IA',()=>{
   it('resolves legacy lab links and keeps rendering as a separate context',()=>{
     expect(workspaceForLab('navigation')).toBe('simulation');
     expect(workspaceForLab('physics')).toBe('simulation');
-    expect(resolveWorkspace('rendering','physics-studio').id).toBe('rendering');
+    expect(resolveWorkspace('rendering','rendering').id).toBe('rendering');
     expect(resolveWorkspace(null,'gaussian').id).toBe('assets');
   });
 });
