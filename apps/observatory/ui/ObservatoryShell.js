@@ -1,9 +1,6 @@
-const INSPECTOR_PROFILES = Object.freeze({
-  simulation: { title: '仿真状态', description: '物理、导航、空间查询与交互的运行时状态。', metrics: '仿真测量', gpu: false, defaultTab: 'run' },
-  assets: { title: '资产检视', description: '资产结构、加载状态和资源校验数据。', metrics: '资源指标', gpu: false, defaultTab: 'resources' },
-  agent: { title: '智能体验证', description: '任务、工具调用与执行轨迹。', metrics: '执行指标', gpu: false, defaultTab: 'run' },
-  rendering: { title: '渲染诊断', description: 'Renderer、GPU 后端与 WebGPU 诊断。', metrics: '渲染指标', gpu: true, defaultTab: 'inspect' }
-});
+import { configureInspectorPanel, renderInspectorPanel } from './inspector/InspectorPanel.js';
+import { normalizeDiagnostics } from '../core/DiagnosticsContract.js';
+import { mountDebugLayerGroups } from './debugging/DebugLayerGroups.js';
 
 export class ObservatoryShell {
   constructor(root) {
@@ -225,27 +222,7 @@ export class ObservatoryShell {
     ].map((name) => [name, root.querySelector(`#obs-${name}`)]));
 
     // Keep every existing layer input / listener intact; regroup only the presentation.
-    const layerContainer = this.root.querySelector('.obs-debug-controls');
-    const groups = [
-      ['physics', '物理 / 碰撞', ['native','manifest','difference','normalized','velocity','joint','contact']],
-      ['navigation', '导航 / 空间', ['bounds','ray','spatial-query','navmesh','path','endpoints','obstacles']],
-      ['interaction', '交互 / Agent', ['interaction-los','interaction-support','interaction-state','agent-tool']],
-      ['common', '通用显示', ['labels','grid']]
-    ];
-    this.debugLayerGroups = groups.map(([key, title, layers]) => {
-      const section = document.createElement('section');
-      section.className = 'obs-layer-group';
-      section.dataset.layerGroup = key;
-      const heading = document.createElement('h3');
-      heading.textContent = title;
-      section.append(heading);
-      for (const layer of layers) {
-        const row = layerContainer.querySelector('[data-debug-layer="' + layer + '"]');
-        if (row) section.append(row);
-      }
-      layerContainer.append(section);
-      return section;
-    });
+    this.debugLayerGroups = mountDebugLayerGroups(this.root.querySelector('.obs-debug-controls'));
     this.debugLayerDefaults = new Set();
     this.toolDefinitions = [];
     this.toolHistory = [];
@@ -652,7 +629,7 @@ export class ObservatoryShell {
 
   configureWorkspace(workspace, activeLabId, { legacyTitle = null } = {}) {
     this.root.dataset.workspace = workspace.id;
-    this.configureInspectorProfile(workspace.id);
+    this.configureInspectorProfile(activeLabId);
     this.refs["workspace-select"].replaceChildren(...this.workspaces.map(item => new Option(item.title, item.id, false, item.id === workspace.id)));
     this.root.classList.toggle('obs-rendering-workspace', workspace.id === 'rendering');
     this.root.querySelectorAll('[data-workspace]').forEach(button => {
@@ -674,19 +651,12 @@ export class ObservatoryShell {
     }
   }
 
-  configureInspectorProfile(workspaceId) {
-    const profile = INSPECTOR_PROFILES[workspaceId] || INSPECTOR_PROFILES.simulation;
-    const heading = this.root.querySelector('[data-right-panel="inspect"] .obs-panel-heading');
-    heading.querySelector('strong').textContent = profile.title;
-    heading.querySelector('small').textContent = profile.description;
-    this.root.querySelector('#obs-metrics').previousElementSibling.querySelector('strong').textContent = profile.metrics;
-    this.root.querySelectorAll('[data-gpu-diagnostics]').forEach(element => { element.hidden = !profile.gpu; });
-    const inspectorTab = this.root.querySelector('[data-right-tab="inspect"] span');
-    inspectorTab.textContent = workspaceId === 'rendering' ? '渲染' : '检视';
+  configureInspectorProfile(labId) {
+    const profile = configureInspectorPanel(this.root, labId);
     // Preserve the current tab on a refresh within one workspace. A workspace
     // transition gets its own default without altering lab-specific panels.
-    if (this.inspectorWorkspace !== workspaceId) {
-      this.inspectorWorkspace = workspaceId;
+    if (this.inspectorLab !== labId) {
+      this.inspectorLab = labId;
       this.setRightTab(profile.defaultTab === 'resources' && this.refs['resources-tab'].hidden ? 'inspect' : profile.defaultTab);
     }
   }
@@ -773,6 +743,15 @@ export class ObservatoryShell {
   }
 
   update({ scenario, clock, inspector, assertions, metrics, checkpointFrame = null }) {
+    const diagnostics = normalizeDiagnostics({inspector, assertions, metrics, capabilities: {
+      gpu: this.root.dataset.workspace === 'rendering',
+      tools: !this.refs['tools-tab'].hidden,
+      resources: !this.refs['resources-tab'].hidden,
+      layers: [...this.root.querySelectorAll('[data-debug-layer]:not([hidden])')].map(row => row.dataset.debugLayer)
+    }});
+    inspector = diagnostics.inspector;
+    assertions = diagnostics.assertions;
+    metrics = diagnostics.metrics;
     this.refs.frame.textContent = String(clock.frame);
     this.refs.time.textContent = `${clock.time.toFixed(3)} s`;
     const hasCheckpoint = Number.isInteger(checkpointFrame) && checkpointFrame >= 0;
@@ -803,7 +782,7 @@ export class ObservatoryShell {
       summary.classList.add("is-neutral");
     }
 
-    this.refs.inspector.innerHTML = renderInspector(inspector);
+    this.refs.inspector.innerHTML = renderInspectorPanel(inspector, escapeHtml, displayKey, formatValue);
     this.refs.assertions.innerHTML = normalizedAssertions.map(renderAssertion).join("") || `<div class="obs-empty">暂无执行节点</div>`;
     this.refs.metrics.innerHTML = Object.entries(metrics || {}).map(([key, value]) => `<div><span>${escapeHtml(displayKey(key))}</span><b>${escapeHtml(formatValue(value))}</b></div>`).join("") || `<div class="obs-empty">暂无测量数据</div>`;
 
@@ -848,12 +827,6 @@ const formatValue = (value) => {
   if (value == null) return "—";
   if (typeof value === "object") return JSON.stringify(value);
   return DISPLAY_VALUES[String(value)] || String(value);
-};
-
-const renderInspector = (inspector) => {
-  if (!inspector) return `<div class="obs-empty">运行场景后显示关键 Runtime 状态。</div>`;
-  const rows = Object.entries(inspector.values || {}).map(([key, value]) => `<div class="obs-kv"><span>${escapeHtml(displayKey(key))}</span><b>${escapeHtml(formatValue(value))}</b></div>`).join("");
-  return `<div class="obs-inspector-head"><span>对象 / 系统</span><b>${escapeHtml(inspector.title || "Runtime")}</b><small>${escapeHtml(inspector.kind || "")}</small></div>${rows}`;
 };
 
 const renderAssertion = (assertion, index) => {

@@ -9,24 +9,8 @@ import { ObservatoryShell } from "./ui/ObservatoryShell.js";
 import { runWebGPUComputeProbe } from "./probes/rendering/WebGPUComputeProbe.js";
 import { runWebGPUSpatialProbe } from "./probes/rendering/WebGPUSpatialProbe.js";
 import { createAssetModule } from "../../modules/asset/AssetModule.js";
+import { renderingInfoForLab, rendererForLab, projectLabTelemetry } from './app/TelemetryAdapter.js';
 
-const renderingInfoForLab = (lab) => lab?.rendererProbe?.snapshot?.() || lab?.left?.rendererProbe?.snapshot?.() || lab?.rendererInfo || lab?.left?.rendererInfo || null;
-const rendererForLab = (lab) => lab?.renderer || lab?.left?.renderer || null;
-const rendererFeatureSummary = (features = []) => {
-  const set = new Set(features || []);
-  const selected = ['timestamp-query', 'shader-f16', 'subgroups', 'texture-compression-bc'].filter((name) => set.has(name));
-  return selected.length ? selected.join(', ') : '—';
-};
-const formatRendererBytes = (value) => Number.isFinite(value)
-  ? (value >= 1024 ** 3 ? `${(value / 1024 ** 3).toFixed(1)} GiB` : `${(value / 1024 ** 2).toFixed(0)} MiB`)
-  : '—';
-const computeWorkgroupSummary = (limits = {}) => {
-  const shape = [limits.maxComputeWorkgroupSizeX, limits.maxComputeWorkgroupSizeY, limits.maxComputeWorkgroupSizeZ]
-    .map((value) => Number.isFinite(value) ? value : '—')
-    .join('×');
-  const invocations = Number.isFinite(limits.maxComputeInvocationsPerWorkgroup) ? limits.maxComputeInvocationsPerWorkgroup : '—';
-  return `${shape} / ${invocations}`;
-};
 
 const LABS = [
   {id:"rendering",title:"渲染诊断",load:()=>import("./labs/rendering/index.js")},
@@ -236,24 +220,7 @@ class ObservatoryApp {
         if (data.scenario?.id !== this.activeScenarioId || labId !== this.activeLabId) return;
         const rendering = renderingInfoForLab(nextLab);
         this.shell.setRunning(data.clock.running);
-        this.shell.update(rendering ? {
-          ...data,
-          metrics: {
-            ...(data.metrics || {}),
-            renderer: rendering.renderer,
-            "render backend": rendering.backend,
-            "render mode": rendering.requestedMode,
-            "render fallback": rendering.fallback,
-            "render health": rendering.health || "ready",
-            "gpu timing": rendering.gpuTiming ?? false,
-            "gpu render": Number.isFinite(rendering.gpuTimeMs) ? `${rendering.gpuTimeMs.toFixed(3)} ms` : "—",
-            "timestamp query": rendering.timestampSupported ?? false,
-            "webgpu compatibility": rendering.compatibilityMode ?? "—",
-            "webgpu features": rendererFeatureSummary(rendering.features),
-            "storage buffer": formatRendererBytes(rendering.limits?.maxStorageBufferBindingSize),
-            "compute workgroup": computeWorkgroupSummary(rendering.limits)
-          }
-        } : data);
+        this.shell.update(projectLabTelemetry(data, rendering));
       }
     });
     await nextLab.init?.();

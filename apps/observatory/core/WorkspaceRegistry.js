@@ -13,6 +13,7 @@ export const WORKSPACES = Object.freeze([
   ]}
 ]);
 export function workspaceForLab(labId) {
+  if (labId === 'rendering') return 'rendering';
   return WORKSPACES.find(space=>space.id!=='rendering' && space.tools.some(tool=>tool.id===labId))?.id
     || (labId==='physics'?'simulation':null);
 }

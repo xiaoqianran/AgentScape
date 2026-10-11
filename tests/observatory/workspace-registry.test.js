@@ -11,6 +11,7 @@ describe('Observatory workspace IA',()=>{
     expect(workspaceForLab('navigation')).toBe('simulation');
     expect(workspaceForLab('physics')).toBe('simulation');
     expect(resolveWorkspace('rendering','rendering').id).toBe('rendering');
+    expect(resolveWorkspace('simulation','rendering').id).toBe('rendering');
     expect(resolveWorkspace(null,'gaussian').id).toBe('assets');
   });
 });

@@ -13,6 +13,8 @@ The user-visible Observatory navigation is **not** an exhaustive list of impleme
 
 The Rendering workspace uses its own standalone RenderingLab and renderer diagnostic fixture, not Physics Studio or PhysicsSystem. GPU probes remain feature-gated by WebGPU availability; simulation controls are hidden. Material-level rendering assertions and GPU frame tracing are not yet implemented.
 
-`?lab=<id>` deep links remain supported, including legacy lab IDs; `?workspace=rendering&lab=physics-studio` selects the rendering diagnostics context. Narrow viewports use the workspace dropdown when the desktop workspace bar is hidden.
+`?lab=<id>` deep links remain supported, including legacy lab IDs. Workspace/lab mismatches resolve to the workspace that actually owns the selected Lab; for example `?workspace=rendering&lab=physics-studio` resolves to simulation, and `?workspace=simulation&lab=rendering` resolves to rendering. Narrow viewports use the workspace dropdown when the desktop workspace bar is hidden.
 
 `LabRegistry`, `ScenarioRegistry`, scenario execution and engine state remain unchanged. Do not make `WorkspaceRegistry` own simulation truth. When adding a new testing module, register it in `LabRegistry` and attach an appropriate user-visible tool in `WorkspaceRegistry`.
+
+Inspector titles, metrics labels, WebGPU sections and default tabs are selected by **Lab ID** using `ui/inspector/InspectorProfiles.js`, not by workspace alone. `ui/inspector/InspectorPanel.js` owns presentation, and `ui/debugging/DebugLayerGroups.js` owns layer grouping. `app/TelemetryAdapter.js` projects renderer snapshots onto the versioned, read-only `core/DiagnosticsContract.js` data shape; none of these modules may write Runtime truth.
