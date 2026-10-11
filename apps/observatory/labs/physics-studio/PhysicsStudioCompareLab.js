@@ -1,5 +1,5 @@
 import { PhysicsCompareLab } from "../physics/PhysicsCompareLab.js";
-import { createPhysicsWorkbench } from "./workbench.js";
+import { attachPhysicsWorkbench } from "./attachPhysicsWorkbench.js";
 
 /**
  * Same workbench, but the API calls are routed to the Rapier pane so a single live
@@ -8,7 +8,7 @@ import { createPhysicsWorkbench } from "./workbench.js";
 export class PhysicsStudioCompareLab extends PhysicsCompareLab {
   constructor(options) {
     super(options);
-    const workbench = createPhysicsWorkbench({
+    attachPhysicsWorkbench(this, {
       getContext:() => this.left?.runner?.context || null,
       afterInvoke:() => {
         this.left?.refreshDebug?.();
@@ -16,11 +16,6 @@ export class PhysicsStudioCompareLab extends PhysicsCompareLab {
         this.emitTelemetry();
       }
     });
-    this.toolDefinitions = () => workbench.toolDefinitions();
-    this.suggestedToolName = () => workbench.suggestedToolName();
-    this.invokeTool = (name, args) => workbench.invokeTool(name, args);
-    this.apiHistory = () => workbench.apiHistory();
-    this.apiCoverageMetrics = () => workbench.apiCoverageMetrics();
   }
 
   telemetry() {

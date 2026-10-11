@@ -1,5 +1,5 @@
 import { PhysicsLab } from "../physics/PhysicsLab.js";
-import { createPhysicsWorkbench } from "./workbench.js";
+import { attachPhysicsWorkbench } from "./attachPhysicsWorkbench.js";
 
 /**
  * Dedicated physics frontend: the production PhysicsLab (viewport, debug contract,
@@ -9,18 +9,13 @@ import { createPhysicsWorkbench } from "./workbench.js";
 export class PhysicsStudioLab extends PhysicsLab {
   constructor(options) {
     super(options);
-    const workbench = createPhysicsWorkbench({
+    attachPhysicsWorkbench(this, {
       getContext:() => this.runner.context,
       afterInvoke:() => {
         this.refreshDebug();
         this.emitTelemetry();
       }
     });
-    this.toolDefinitions = () => workbench.toolDefinitions();
-    this.suggestedToolName = () => workbench.suggestedToolName();
-    this.invokeTool = (name, args) => workbench.invokeTool(name, args);
-    this.apiHistory = () => workbench.apiHistory();
-    this.apiCoverageMetrics = () => workbench.apiCoverageMetrics();
   }
 
   telemetry() {
