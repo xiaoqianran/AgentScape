@@ -2,7 +2,9 @@ name: Reconcile CNB to GitHub
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "7,22,37,52 * * * *"
+  repository_dispatch:
+    types: [cnb-main-updated]
   workflow_dispatch:
 
 permissions:
