@@ -24,7 +24,7 @@
   color: var(--text-muted);
   background: var(--bg-raised);
   cursor: pointer;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 680;
 }
 
@@ -34,9 +34,9 @@
 }
 
 .resource-kind-tabs button.active {
-  border-color: #425a8c;
-  color: #dfe8ff;
-  background: #17233a;
+  border-color: var(--ds-border-strong);
+  color: var(--ds-text);
+  background: var(--ds-surface-3);
 }
 
 .resource-search {
@@ -47,7 +47,7 @@
   border-radius: var(--radius-sm);
   color: var(--text);
   background: var(--bg-raised);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .resource-list {
@@ -59,7 +59,7 @@
   padding-right: 2px;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: #303946 transparent;
+  scrollbar-color: var(--ds-border-strong) transparent;
 }
 
 .resource-card {
@@ -69,7 +69,7 @@
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: #0d131a;
+  background: var(--ds-surface-1);
 }
 
 .resource-asset-card {
@@ -82,7 +82,7 @@
 
 .resource-asset-card.dragging {
   opacity: .55;
-  border-color: #425a8c;
+  border-color: var(--ds-border-strong);
 }
 
 .resource-card-top {
@@ -103,7 +103,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #e1e6ec;
+  color: var(--ds-accent);
   font-size: 11.5px;
   font-weight: 660;
 }
@@ -112,8 +112,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #84909e;
-  font: 8.5px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color: var(--ds-text-2);
+  font: 11px/1.3 var(--ds-font-mono);
 }
 
 .resource-pill {
@@ -121,23 +121,23 @@
   padding: 3px 5px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  color: #8996a5;
-  background: #111821;
-  font: 700 7.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color: var(--ds-text-2);
+  background: var(--ds-surface-2);
+  font: 700 11px/1 var(--ds-font-mono);
   text-transform: uppercase;
 }
 
 .resource-card-meta,
 .resource-card-note {
-  color: #788492;
-  font-size: 9.5px;
+  color: var(--ds-text-3);
+  font-size: 11px;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
 .resource-card-note {
   padding-top: 2px;
-  color: #697583;
+  color: var(--ds-text-3);
 }
 
 .resource-card-actions {
@@ -152,20 +152,20 @@
   padding: 0 8px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
-  color: #cfd7e1;
+  color: var(--ds-accent);
   background: var(--bg-raised);
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .resource-action:hover {
-  border-color: #4d5b6d;
+  border-color: var(--ds-border-strong);
   background: var(--bg-hover);
 }
 
 .resource-drag-hint {
-  color: #7c8896;
-  font-size: 8.5px;
+  color: var(--ds-text-3);
+  font-size: 11px;
 }
 
 .resource-image-card {
@@ -181,9 +181,9 @@
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  color: #647181;
-  background: #080c11;
-  font: 700 8px ui-monospace,SFMono-Regular,Menlo,monospace;
+  color: var(--ds-text-3);
+  background: var(--ds-bg);
+  font: 700 11px var(--ds-font-mono);
 }
 
 .resource-image-preview img {
@@ -207,12 +207,12 @@
 }
 
 .resource-empty strong {
-  color: #aeb6c0;
+  color: var(--ds-text-2);
   font-size: 11px;
 }
 
 .resource-empty span {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -235,7 +235,7 @@
 
 .resource-card {
   border-color: var(--studio-border);
-  background: rgba(16,17,20,.34);
+  background: rgba(0,0,0,.34);
 }
 
 .resource-card:hover {
@@ -252,7 +252,7 @@
 
 .resource-card {
   border-color: var(--studio-border);
-  border-radius: 8px;
+  border-radius: var(--ds-radius-md);
   background: rgba(255,255,255,.025);
   box-shadow: none;
 }
@@ -268,8 +268,8 @@
 }
 
 .resource-kind-tabs button.active {
-  border-color: rgba(122,162,255,.32);
-  background: rgba(122,162,255,.10);
+  border-color: rgba(var(--ds-accent-rgb),.32);
+  background: rgba(var(--ds-accent-rgb),.10);
 }
 
 .resource-search {

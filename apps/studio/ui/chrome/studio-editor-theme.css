@@ -37,7 +37,7 @@
 .spatial-editor .toolbar-menu button,
 .spatial-editor .toolbar-menu select {
   min-height: 31px;
-  border-radius: 6px;
+  border-radius: var(--ds-radius-sm);
   font-size: 11.5px;
 }
 
@@ -48,7 +48,7 @@
 .spatial-editor .toolbar-menu-label,
 .spatial-editor .toolbar-menu-status {
   color: var(--studio-text-3);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -63,7 +63,7 @@
 .spatial-editor .scene-count,
 .spatial-editor .scene-section-heading,
 .spatial-editor .scene-section-heading small {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.2;
 }
 
@@ -84,7 +84,7 @@
 
 .spatial-editor .scene-world-card small {
   color: var(--studio-text-3);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1.3;
 }
 
@@ -104,7 +104,7 @@
 .spatial-editor .scene-object-copy small,
 .spatial-editor .scene-asset-copy small {
   color: var(--studio-text-3);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1.25;
 }
 
@@ -132,7 +132,7 @@
 }
 
 .spatial-editor .panel :where(small, code, kbd, em) {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.35;
 }
 
@@ -163,7 +163,7 @@
 .spatial-editor .screen-heading .eyebrow {
   margin-bottom: 6px;
   color: var(--studio-text-3);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1;
   letter-spacing: .09em;
 }
@@ -177,9 +177,9 @@
 
 .spatial-editor .panel :where(input, select, textarea) {
   border-color: var(--studio-border);
-  border-radius: 6px;
+  border-radius: var(--ds-radius-sm);
   color: var(--studio-text-2);
-  background: #121417;
+  background: var(--ds-surface-1);
   box-shadow: none;
 }
 
@@ -190,11 +190,11 @@
 .spatial-editor .panel :where(input, select, textarea):focus {
   border-color: var(--studio-border-focus);
   outline: 0;
-  box-shadow: 0 0 0 2px rgba(133,160,255,.075);
+  box-shadow: 0 0 0 2px rgba(var(--ds-accent-rgb),.075);
 }
 
 .spatial-editor .panel :where(button) {
-  border-radius: 6px;
+  border-radius: var(--ds-radius-sm);
 }
 
 .spatial-editor .panel :where(button):focus-visible {
@@ -202,7 +202,7 @@
 }
 
 .spatial-editor .product-flow {
-  font-size: 9px;
+  font-size: 11px;
 }
 
 
@@ -216,14 +216,14 @@
 .spatial-editor .command-field {
   min-height: 44px;
   border: 1px solid var(--studio-border-strong);
-  border-radius: 9px;
-  background: rgba(20,22,25,.96);
+  border-radius: var(--ds-radius-md);
+  background: rgba(0,0,0,.96);
   box-shadow: var(--studio-shadow-float);
 }
 
 .spatial-editor .command-field:focus-within {
-  border-color: rgba(133,160,255,.48);
-  box-shadow: var(--studio-shadow-float), 0 0 0 2px rgba(133,160,255,.07);
+  border-color: rgba(var(--ds-accent-rgb),.48);
+  box-shadow: var(--studio-shadow-float), 0 0 0 2px rgba(var(--ds-accent-rgb),.07);
 }
 
 .spatial-editor .command-prefix {
@@ -243,26 +243,26 @@
 .spatial-editor .command-bar > button {
   min-height: 44px;
   padding-inline: 13px;
-  border: 1px solid rgba(133,160,255,.35);
-  border-radius: 9px;
-  color: #eef2ff;
-  background: #5f7fe8;
+  border: 1px solid rgba(var(--ds-accent-rgb),.35);
+  border-radius: var(--ds-radius-md);
+  color: var(--ds-text);
+  background: var(--ds-accent);
   font-size: 11.5px;
   font-weight: 650;
   box-shadow: none;
 }
 
 .spatial-editor .command-bar > button:hover:not(:disabled) {
-  border-color: rgba(154,177,255,.54);
-  background: #6f8dee;
+  border-color: rgba(var(--ds-accent-rgb),.54);
+  background: var(--ds-accent);
 }
 
 /* Artifact tray ------------------------------------------------------------ */
 
 .spatial-editor .artifact-tray {
   border: 1px solid var(--studio-border-strong);
-  border-radius: 9px;
-  background: rgba(23,24,27,.99);
+  border-radius: var(--ds-radius-md);
+  background: rgba(0,0,0,.99);
   box-shadow: var(--studio-shadow-float);
   backdrop-filter: none;
 }
@@ -275,7 +275,7 @@
 
 .spatial-editor .artifact-tray-title {
   color: var(--studio-text-2);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: .045em;
 }
 
@@ -283,7 +283,7 @@
 .spatial-editor .artifact-tray-actions button,
 .spatial-editor .artifact-tray-continue,
 .spatial-editor .artifact-tray-save {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .spatial-editor .artifact-tray-item {
@@ -291,7 +291,7 @@
   min-width: 214px;
   min-height: 100px;
   border-color: var(--studio-border);
-  border-radius: 7px;
+  border-radius: var(--ds-radius-sm);
   background: rgba(255,255,255,.02);
 }
 
@@ -301,7 +301,7 @@
 }
 
 .spatial-editor .artifact-tray-item.active {
-  border-color: rgba(133,160,255,.28);
+  border-color: rgba(var(--ds-accent-rgb),.28);
   background: var(--studio-accent-soft);
 }
 

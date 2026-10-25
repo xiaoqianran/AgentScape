@@ -37,7 +37,7 @@
   display: block;
   margin-top: 3px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .08em;
 }
@@ -49,8 +49,8 @@
 
 .inspect-section h3 {
   margin: 0 0 9px;
-  color: #aeb7c2;
-  font-size: 10.5px;
+  color: var(--ds-accent);
+  font-size: 11px;
   font-weight: 680;
 }
 
@@ -64,7 +64,7 @@
   display: grid;
   grid-template-columns: 72px minmax(0,1fr);
   gap: 8px;
-  font-size: 10.5px;
+  font-size: 11px;
 }
 
 .properties dt {
@@ -77,8 +77,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #bfc7d1;
-  font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+  color: var(--ds-accent);
+  font-family: var(--ds-font-mono);
 }
 
 .transform-scale-editor {
@@ -89,7 +89,7 @@
 
 .transform-scale-editor > label {
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 11px;
 }
 
 .transform-scale-editor input {
@@ -102,16 +102,16 @@
   background: var(--bg-raised);
   padding: 0 8px;
   outline: 0;
-  font: 10px var(--font-mono);
+  font: 11px var(--font-mono);
 }
 
 .transform-scale-editor input:focus {
-  border-color: rgba(210,188,255,.7);
+  border-color: rgba(185,162,232,.7);
 }
 
 .transform-scale-editor small {
-  color: #697684;
-  font-size: 8.5px;
+  color: var(--ds-text-3);
+  font-size: 11px;
   line-height: 1.4;
 }
 
@@ -121,8 +121,8 @@
 
 .spatial-info {
   margin-top: 8px;
-  color: #788492;
-  font: 9.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color: var(--ds-text-3);
+  font: 11px/1.5 var(--ds-font-mono);
 }
 
 .relation-info {
@@ -137,16 +137,16 @@
 }
 
 .relation-info strong {
-  color: #a7b9df;
-  font: 700 9px ui-monospace,SFMono-Regular,Menlo,monospace;
+  color: var(--ds-accent);
+  font: 700 11px var(--ds-font-mono);
 }
 
 .relation-info span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #929daa;
-  font: 9.5px ui-monospace,SFMono-Regular,Menlo,monospace;
+  color: var(--ds-text-2);
+  font: 11px var(--ds-font-mono);
 }
 
 .action-list {
@@ -160,14 +160,14 @@
   padding: 0 10px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
-  color: #d7dee7;
+  color: var(--ds-accent);
   background: var(--bg-raised);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .action-list button:hover {
-  border-color: #4d5b6d;
+  border-color: var(--ds-border-strong);
   background: var(--bg-hover);
 }
 
@@ -198,7 +198,7 @@
 
 .inspect-section {
   border-color: var(--studio-border);
-  background: rgba(16,17,20,.34);
+  background: rgba(0,0,0,.34);
 }
 
 /* Editor readability integration. */
