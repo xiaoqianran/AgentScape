@@ -1,6 +1,7 @@
 import { createWebGPUCompactionProbe } from './probes/rendering/WebGPUCompactionProbe.js';
 import { createWebGPUIndirectDrawProbe } from './probes/rendering/WebGPUIndirectDrawProbe.js';
 import { createGPUResidentCullingProbe } from './probes/rendering/WebGPUResidentCullingProbe.js';
+import "../shared/design/tokens.css";
 import "./style.css";
 import { LabRegistry } from "./core/LabRegistry.js";
 import { WORKSPACES, resolveWorkspace } from "./core/WorkspaceRegistry.js";
@@ -11,6 +12,7 @@ import { createAssetModule } from "../../modules/asset/AssetModule.js";
 import { rendererForLab } from './app/TelemetryAdapter.js';
 import { LabActivationController } from './app/LabActivationController.js';
 import { ScenarioController } from './app/ScenarioController.js';
+import { ServiceHealthMonitor } from './app/ServiceHealthMonitor.js';
 
 
 const LABS = [
@@ -89,6 +91,10 @@ class ObservatoryApp {
     this.activationVersion = 0;
     this.scenarioSelectionVersion = 0;
     this.scenarioLoadPromise = Promise.resolve();
+
+    this.serviceHealth = new ServiceHealthMonitor({ onChange: (services) => this.shell.serviceHealth.render(services) });
+    this.shell.serviceHealth.onRefresh(() => this.serviceHealth.refresh());
+    this.serviceHealth.start();
 
     this.shell.configureWorkspaces(WORKSPACES);
     this.shell.configureLabs(this.labs.list(), null);

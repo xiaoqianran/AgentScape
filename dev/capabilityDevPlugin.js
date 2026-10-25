@@ -1,9 +1,11 @@
 import capabilityIndex from "../api/capabilities/index.js";
 import agentCapability from "../api/capabilities/agent.js";
+import healthCapability from "../api/capabilities/health.js";
 import assetCompileCapability from "../api/capabilities/asset-compile.js";
 
 export const DEV_CAPABILITY_ROUTES = new Map([
   ["/api/capabilities", capabilityIndex],
+  ["/api/capabilities/health", healthCapability],
   ["/api/capabilities/agent", agentCapability],
   ["/api/capabilities/asset-compile", assetCompileCapability]
 ]);

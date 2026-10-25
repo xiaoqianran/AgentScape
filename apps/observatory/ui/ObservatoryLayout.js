@@ -1,3 +1,5 @@
+import { renderServiceHealthMarkup } from './ServiceHealthPanel.js';
+
 export function renderObservatoryLayout({icon, debugToggle}) {
   return `
       <div class="obs-app">
@@ -35,6 +37,7 @@ export function renderObservatoryLayout({icon, debugToggle}) {
               ${icon("focus")}
               <span>聚焦</span>
             </button>
+            ${renderServiceHealthMarkup()}
             <a class="obs-studio-link" href="/">${icon("terminal")}<span>工作室</span></a>
             <i class="obs-top-separator" aria-hidden="true"></i>
             <button class="obs-top-icon" type="button" data-open-right="layers" title="调试图层" aria-label="打开 调试图层">${icon("settings")}</button>
