@@ -368,10 +368,64 @@ describe('RenderingSystem', () => {
     });
   });
 
+  it('preserves the postprocessed world when an empty authoring overlay is registered', async () => {
+    const h = createHarness();
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene:new THREE.Scene(),
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory
+    });
+    await rendering.init();
+    const postFx = { enabled:true, render:vi.fn() };
+    rendering.postFx = postFx;
+    rendering.addAuthoringScene(new THREE.Scene(), { mode:'overlay' });
+
+    rendering.render(1);
+
+    expect(postFx.render).toHaveBeenCalledOnce();
+    expect(h.renderer.render).not.toHaveBeenCalled();
+  });
+
+  it('composes populated overlays with the direct world buffer and resumes postfx when cleared', async () => {
+    const h = createHarness();
+    h.renderer.autoClear = true;
+    const scene = new THREE.Scene();
+    const overlay = new THREE.Scene();
+    overlay.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()));
+    const rendering = new RenderingSystem({
+      container:h.container,
+      scene,
+      rendererFactory:h.rendererFactory,
+      controlsFactory:h.controlsFactory
+    });
+    await rendering.init();
+    const postFx = { enabled:true, render:vi.fn() };
+    rendering.postFx = postFx;
+    rendering.addAuthoringScene(overlay, { mode:'overlay' });
+    const clears = [];
+    h.renderer.render.mockImplementation(() => clears.push(h.renderer.autoClear));
+
+    rendering.render(1);
+
+    expect(postFx.render).not.toHaveBeenCalled();
+    expect(h.renderer.render.mock.calls).toEqual([[scene, rendering.camera], [overlay, rendering.camera]]);
+    expect(clears).toEqual([true, false]);
+    expect(h.renderer.autoClear).toBe(true);
+    expect(overlay.parent).toBeNull();
+
+    overlay.clear();
+    h.renderer.render.mockClear();
+    rendering.render(2);
+    expect(postFx.render).toHaveBeenCalledOnce();
+    expect(h.renderer.render).not.toHaveBeenCalled();
+  });
+
   it('renders authoring Scenes as hidden, overlay or full replacement without nesting Scenes', async () => {
     const h = createHarness();
     const scene = new THREE.Scene();
     const overlay = new THREE.Scene();
+    overlay.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()));
     const replacement = new THREE.Scene();
     const rendering = new RenderingSystem({
       container:h.container,
