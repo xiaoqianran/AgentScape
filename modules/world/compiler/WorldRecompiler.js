@@ -137,7 +137,7 @@ async function recompileInitialState(runtime,{nextIR,compilation,before,previous
     });
 
     if(admission.status==='rejected'){
-      await runtime.restore(before);
+      await runtime.restoreSnapshot(before);
       restoreWorldAuthority(runtime,previous);
       return {
         status:'world-rejected',reason:admission.reasons[0]||'WORLD_REJECTED',rolledBack:true,
@@ -157,7 +157,7 @@ async function recompileInitialState(runtime,{nextIR,compilation,before,previous
       recompile:{canonical:true,mode:'incremental-state',freshVerification:true,committed:true,affectedEntityIds:[...impact.affectedEntityIds]}
     };
   }catch(error){
-    try { await runtime.restore(before); restoreWorldAuthority(runtime,previous); }
+    try { await runtime.restoreSnapshot(before); restoreWorldAuthority(runtime,previous); }
     catch(rollbackError){
       const failure=new Error(`World revision incremental recompile failed and rollback failed: ${error.message}; rollback: ${rollbackError.message}`,{cause:error});
       failure.code='WORLD_RECOMPILE_ROLLBACK_FAILED'; failure.rollbackError=rollbackError; throw failure;
@@ -264,7 +264,7 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
       timelineName:'incremental_position_revision',started
     });
     if(admission.status==='rejected'){
-      await runtime.restore(before);
+      await runtime.restoreSnapshot(before);
       restoreWorldAuthority(runtime,previous);
       return {
         status:'world-rejected',reason:admission.reasons[0]||'WORLD_REJECTED',rolledBack:true,
@@ -284,7 +284,7 @@ async function recompilePosition(runtime,{nextIR,compilation,before,previous,bas
       recompile:{canonical:true,mode:'incremental-position',freshVerification:true,committed:true,affectedEntityIds:[id]}
     };
   }catch(error){
-    try { await runtime.restore(before); restoreWorldAuthority(runtime,previous); }
+    try { await runtime.restoreSnapshot(before); restoreWorldAuthority(runtime,previous); }
     catch(rollbackError){
       const failure=new Error(`World revision incremental position failed and rollback failed: ${error.message}; rollback: ${rollbackError.message}`,{cause:error});
       failure.code='WORLD_RECOMPILE_ROLLBACK_FAILED'; failure.rollbackError=rollbackError; throw failure;
@@ -305,7 +305,7 @@ async function recompileFull(runtime,{pipeline,nextIR,before,previous,baseRevisi
       throw error;
     }
     if(admission.status==='rejected'){
-      await runtime.restore(before);
+      await runtime.restoreSnapshot(before);
       restoreWorldAuthority(runtime,previous);
       return {
         status:'world-rejected',reason:admission.reasons?.[0]||'WORLD_REJECTED',rolledBack:true,
@@ -319,7 +319,7 @@ async function recompileFull(runtime,{pipeline,nextIR,before,previous,baseRevisi
       recompile:{canonical:true,mode:'full',freshVerification:true,committed:true}
     };
   }catch(error){
-    try { await runtime.restore(before); restoreWorldAuthority(runtime,previous); }
+    try { await runtime.restoreSnapshot(before); restoreWorldAuthority(runtime,previous); }
     catch(rollbackError){
       const failure=new Error(`World revision recompile failed and rollback failed: ${error.message}; rollback: ${rollbackError.message}`,{cause:error});
       failure.code='WORLD_RECOMPILE_ROLLBACK_FAILED'; failure.rollbackError=rollbackError; throw failure;
@@ -330,7 +330,7 @@ async function recompileFull(runtime,{pipeline,nextIR,before,previous,baseRevisi
 
 export async function recompileWorldRevision(runtime,{baseWorldIR,proposal,acceptChangedPlan=false,pipeline=null}={}){
   if(!pipeline?.run) throw new Error('Canonical world pipeline unavailable');
-  if(typeof runtime.snapshot!=='function'||typeof runtime.restore!=='function'||typeof runtime.clearObjects!=='function') throw new Error('Runtime revision recompile lifecycle unavailable');
+  if(typeof runtime.snapshot!=='function'||typeof runtime.restoreSnapshot!=='function'||typeof runtime.clearObjects!=='function') throw new Error('Runtime revision recompile lifecycle unavailable');
 
   // Scope/change acceptance and canonical IR validation happen before any Runtime mutation.
   const nextIR=applyWorldRevisionProposal(baseWorldIR,proposal,{acceptChangedPlan});

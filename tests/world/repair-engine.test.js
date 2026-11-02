@@ -7,7 +7,7 @@ function belowGroundRuntime({ worsen = false } = {}) {
   let validationCalls = 0;
   const runtime = {
     snapshot: vi.fn(() => ({ before: true })),
-    restore: vi.fn(async () => {}),
+    restoreSnapshot: vi.fn(async () => {}),
     store: { get: () => ({ object }) },
     spatial: {
       getBounds: () => ({ min: [0, object.position.y, 0] }),
@@ -41,7 +41,7 @@ describe('RepairEngine', () => {
     const engine = new RepairEngine(runtime);
     const result = await engine.repair({ counts:{hard:1,advisory:0}, hard:[{ code:'G_BELOW_GROUND', object:'a' }] });
     expect(result.accepted).toBe(false);
-    expect(runtime.restore).toHaveBeenCalledWith({ before:true });
+    expect(runtime.restoreSnapshot).toHaveBeenCalledWith({ before:true });
   });
 });
 

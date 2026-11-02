@@ -52,19 +52,19 @@ function evaluateCondition(condition,stateReader){
   return condition.kind==='equals' ? Object.is(value,condition.value) : !Object.is(value,condition.value);
 }
 
-export function executeRuleEffects(runtime,effects,{source='rule-graph',eventId=null}={}){
+export function executeRuleEffects(runtime,effects,{source='rule-graph',eventId=null,ruleCascadeDepth=null}={}){
   if(!Array.isArray(effects)) throw new TypeError('Rule effects must be an array');
   if(!effects.length) return Promise.resolve({status:'no-rule-match',effects:[]});
   return runtime.mutate(`rule:${eventId||source}`,async()=>{
     const applied=[];
     for(const effect of effects){
       if(effect.kind!=='set-state') { const error=new TypeError(`Unsupported rule effect: ${effect.kind}`); error.code='RULE_EFFECT_UNSUPPORTED'; throw error; }
-      const result=runtime.applyStateTransition(effect.targetId,effect.stateKey,effect.value,{source:'rule-graph',event:eventId});
+      const result=runtime.applyStateTransition(effect.targetId,effect.stateKey,effect.value,{source:'rule-graph',event:eventId,...(ruleCascadeDepth == null ? {} : {ruleCascadeDepth})});
       if(result?.status!=='state-transition-applied') throw new Error(`Rule state transition rejected: ${effect.targetId}.${effect.stateKey}`);
       applied.push(result);
     }
     return {status:'rule-effects-applied',effects:applied};
-  });
+  }, ruleCascadeDepth == null ? {} : {ruleCascadeDepth});
 }
 
 export {SCHEMA as RULE_GRAPH_SCHEMA,VERSION as RULE_GRAPH_VERSION};

@@ -49,7 +49,7 @@ it('restores the before snapshot when an async world mutation partially changes 
       cancel:vi.fn(() => { pending=false; })
     },
     snapshot:vi.fn(() => structuredClone(runtime.state)),
-    restore:vi.fn(async(before) => { runtime.state=structuredClone(before); }),
+    restoreSnapshot:vi.fn(async(before) => { runtime.state=structuredClone(before); }),
     sceneGraph:{batch:async(operation)=>operation(),changed:vi.fn()}
   };
   const original=new Error('partial mutation failed');
@@ -61,8 +61,8 @@ it('restores the before snapshot when an async world mutation partially changes 
   });
 
   await expect(mutation).rejects.toBe(original);
-  expect(runtime.restore).toHaveBeenCalledOnce();
-  expect(runtime.restore).toHaveBeenCalledWith({position:[0,0,0],mode:'idle'});
+  expect(runtime.restoreSnapshot).toHaveBeenCalledOnce();
+  expect(runtime.restoreSnapshot).toHaveBeenCalledWith({position:[0,0,0],mode:'idle'});
   expect(runtime.state).toEqual({position:[0,0,0],mode:'idle'});
   expect(runtime.history.cancel).toHaveBeenCalledOnce();
   expect(runtime.history.commit).not.toHaveBeenCalled();
@@ -82,14 +82,15 @@ it('fails closed when mutation rollback cannot restore the before snapshot', asy
       commit:vi.fn(() => { pending=false; return true; }),
       cancel:vi.fn(() => { pending=false; })
     },
-    snapshot:vi.fn(() => ({world:'before'})),
-    restore:vi.fn(async()=>{ throw rollback; }),
+    state:{world:'before'},
+    snapshot:vi.fn(() => structuredClone(runtime.state)),
+    restoreSnapshot:vi.fn(async()=>{ throw rollback; }),
     sceneGraph:{batch:async(operation)=>operation(),changed:vi.fn()}
   };
 
   let failure;
   try {
-    await WorldRuntime.prototype.mutate.call(runtime,'skill:rollback-failure',async()=>{ throw original; });
+    await WorldRuntime.prototype.mutate.call(runtime,'skill:rollback-failure',async()=>{ runtime.state.world='partial'; throw original; });
   } catch (error) { failure=error; }
 
   expect(failure).toBeInstanceOf(AggregateError);
@@ -132,7 +133,7 @@ it('restores committed world authority and interaction evidence when a mutation 
       commit:vi.fn(()=>{pending=false;return true;}),
       cancel:vi.fn(()=>{pending=false;})
     },
-    snapshot:vi.fn(()=>({scene:'before'})),restore:vi.fn(async()=>{}),
+    snapshot:vi.fn(()=>({scene:'before'})),restoreSnapshot:vi.fn(async()=>{}),
     loadRuleGraph:vi.fn(),sceneGraph:{batch:async(operation)=>operation(),changed:vi.fn()}
   };
   const failure=new Error('candidate failed');
@@ -171,7 +172,7 @@ it('cancels history and restores authority when a mutation reports that it rolle
       commit:vi.fn(()=>{pending=false;return true;}),
       cancel:vi.fn(()=>{pending=false;})
     },
-    snapshot:vi.fn(()=>({scene:'same'})),restore:vi.fn(async()=>{}),loadRuleGraph:vi.fn(),
+    snapshot:vi.fn(()=>({scene:'same'})),restoreSnapshot:vi.fn(async()=>{}),loadRuleGraph:vi.fn(),
     sceneGraph:{batch:async(operation)=>operation(),changed:vi.fn()}
   };
   const result=await WorldRuntime.prototype.mutate.call(runtime,'skill:rolled-back',async()=>{
@@ -204,7 +205,7 @@ it('cancels history when a bounded recompile explicitly reports committed=false 
       commit:vi.fn(()=>{pending=false;return true;}),
       cancel:vi.fn(()=>{pending=false;})
     },
-    snapshot:vi.fn(()=>({scene:'same'})),restore:vi.fn(async()=>{}),
+    snapshot:vi.fn(()=>({scene:'same'})),restoreSnapshot:vi.fn(async()=>{}),
     sceneGraph:{batch:async(operation)=>operation(),changed:vi.fn()}
   };
   const result=await WorldRuntime.prototype.mutate.call(runtime,'skill:recompile',async()=>({status:'world-rejected',rolledBack:false,recompile:{committed:false}}));

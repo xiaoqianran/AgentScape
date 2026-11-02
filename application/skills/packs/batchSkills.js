@@ -13,7 +13,7 @@ export function registerBatchSkills(add,runtime,registry) {
       const policy = registry.executionPolicy(call.name, result.result);
       results.push({ name:call.name, ...result, outcome:policy.outcome });
       if (!result.success || !policy.batchAcceptable) {
-        await runtime.restore(before);
+        await runtime.restoreSnapshot(before);
         return { committed:false, rolledBack:true, reason:result.success ? 'SEMANTIC_STEP_NOT_VERIFIED' : 'SKILL_ERROR', results };
       }
     }

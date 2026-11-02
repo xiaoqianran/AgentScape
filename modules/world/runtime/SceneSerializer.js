@@ -1,4 +1,6 @@
 import { uniformScaleValue } from './ObjectTransform.js';
+import { compileRuleGraph } from './behavior/RuleGraph.js';
+import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
 
 export const SCENE_SCHEMA = 'agentscape.scene';
 export const SCENE_VERSION = 1;
@@ -7,8 +9,8 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 const isFiniteVec = (value, length) => Array.isArray(value) && value.length === length && value.every(Number.isFinite);
 
 export class SceneSerializer {
-  serialize(runtime, { name = 'Untitled World' } = {}) {
-    runtime.sceneGraph?.update?.();
+  serialize(runtime, { name = 'Untitled World', includeRelations = true } = {}) {
+    if (includeRelations) runtime.sceneGraph?.update?.();
     const usedAssets = new Set();
     const objects = runtime.store.list().map(([id, record]) => {
       usedAssets.add(record.assetId);
@@ -46,7 +48,11 @@ export class SceneSerializer {
       },
       assets,
       objects,
-      relations: runtime.sceneGraph?.list?.() || [],
+      configuration: {
+        behaviorBundle: runtime.currentBehaviorBundle ? clone(runtime.currentBehaviorBundle) : null,
+        physicsRequirements: runtime.currentPhysicsRequirements ? clone(runtime.currentPhysicsRequirements) : null
+      },
+      ...(includeRelations ? { relations:runtime.sceneGraph?.list?.() || [] } : {}),
       ...(acceptanceEvidence?{verification:{acceptanceEvidence}}:{}),
       ...(cameraState?{camera:cameraState}:{})
     };
@@ -64,6 +70,22 @@ export class SceneSerializer {
       if (!worldRevision || typeof worldRevision !== 'object' || Array.isArray(worldRevision)) throw new Error('Scene worldRevision must be an object');
       if (!worldRevision.revision?.id) throw new Error('Scene worldRevision requires revision.id');
       if (!worldRevision.provenance?.source) throw new Error('Scene worldRevision requires provenance.source');
+    }
+    const configuration = scene.configuration;
+    if (configuration != null) {
+      if (typeof configuration !== 'object' || Array.isArray(configuration)) throw new Error('Invalid scene configuration');
+      for (const key of ['behaviorBundle', 'physicsRequirements']) {
+        const value = configuration[key];
+        if (value != null && (typeof value !== 'object' || Array.isArray(value))) throw new Error(`Invalid scene ${key}`);
+        if (value?.worldRevisionId && value.worldRevisionId !== worldRevision?.revision?.id) {
+          throw new Error(`Scene ${key} revision mismatch`);
+        }
+      }
+      const graph = configuration.behaviorBundle?.ruleGraph || [];
+      if (!Array.isArray(graph) && (graph.schema !== 'agentscape.rule-graph' || graph.schemaVersion !== 1)) {
+        throw new Error('Invalid scene rule graph');
+      }
+      compileRuleGraph(Array.isArray(graph) ? graph : graph.rules);
     }
     const acceptanceEvidence=scene.verification?.acceptanceEvidence;
     if (acceptanceEvidence != null) {
@@ -114,12 +136,19 @@ export class SceneSerializer {
 
     // 预检已通过，从这里开始才会破坏当前世界。失败时恢复加载前的场景，而不是留下半个世界。
     const previous = typeof runtime.snapshot === 'function' ? runtime.snapshot() : null;
+    const previousAuthority = captureWorldAuthority(runtime);
+    const previousPhysics = runtime.physics?.captureState?.();
     if (!previous) return this.applyScene(runtime, scene);
     try {
       return await this.applyScene(runtime, scene);
     } catch (error) {
       try {
         await this.applyScene(runtime, previous);
+        if (previousPhysics) {
+          runtime.physics.restoreState(previousPhysics);
+          runtime.sceneGraph?.invalidate?.();
+        }
+        restoreWorldAuthority(runtime, previousAuthority);
       } catch (rollbackError) {
         const failure = new AggregateError([error, rollbackError], 'Scene restore rollback failed', { cause:error });
         failure.code = 'SCENE_RESTORE_ROLLBACK_FAILED';
@@ -172,6 +201,10 @@ export class SceneSerializer {
     runtime.currentWorldRevision=scene.metadata?.worldRevision ? clone(scene.metadata.worldRevision) : null;
     runtime.restoredAcceptanceEvidence=scene.verification?.acceptanceEvidence ? clone(scene.verification.acceptanceEvidence) : null;
     runtime.lastAcceptanceBundle=null;
+    runtime.currentBehaviorBundle=scene.configuration?.behaviorBundle ? clone(scene.configuration.behaviorBundle) : null;
+    runtime.currentPhysicsRequirements=scene.configuration?.physicsRequirements ? clone(scene.configuration.physicsRequirements) : null;
+    runtime.interactionEvidence?.clear?.();
+    runtime.loadRuleGraph?.(runtime.currentBehaviorBundle?.ruleGraph || []);
     runtime.events.emit('scene.restored', { objects: scene.objects.length, worldRevisionId:runtime.currentWorldRevision?.revision?.id || null, hasAcceptanceEvidence:Boolean(runtime.restoredAcceptanceEvidence) });
     return scene;
   }

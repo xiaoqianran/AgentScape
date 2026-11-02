@@ -38,8 +38,8 @@ async function fixture({ verify = null } = {}) {
   cleanup.push(() => world.navigation.dispose());
   world.locomotion = { cancel:vi.fn(), cancelAll:vi.fn() };
   world.interactions = { cancelPending:vi.fn(), beforeRemove:vi.fn(), rebuildHeldOwnership:vi.fn() };
-  world.sceneGraph = { batch:async fn=>fn(), changed:vi.fn(), update:vi.fn(), list:()=>[], removeObject:vi.fn() };
-  world.history = new CommandHistory({ apply:scene=>world.restore(scene), events:world.events });
+  world.sceneGraph = { invalidate:vi.fn(), batch:async fn=>fn(), changed:vi.fn(), update:vi.fn(), list:()=>[], removeObject:vi.fn() };
+  world.history = new CommandHistory({ apply:scene=>world.restoreSnapshot(scene), runExclusive:operation=>world.exclusiveMutation('history:restore',operation), events:world.events });
   const authoring = createWorldAuthoringContext(world);
   cleanup.push(() => authoring.dispose());
   const producer = createAuthoringAssetProducer({ assets, artifacts });

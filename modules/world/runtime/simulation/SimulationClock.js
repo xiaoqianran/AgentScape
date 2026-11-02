@@ -67,7 +67,7 @@ export class SimulationClock {
     };
   }
 
-  restore(snapshot = {}) {
+  validateSnapshot(snapshot = {}) {
     if (!snapshot || typeof snapshot !== 'object') throw new TypeError('SimulationClock snapshot must be an object');
     if (snapshot.fixedDt !== this.fixedDt) {
       const error = new Error(`SimulationClock fixedDt mismatch: ${snapshot.fixedDt} != ${this.fixedDt}`);
@@ -75,6 +75,11 @@ export class SimulationClock {
       throw error;
     }
     if (!Number.isInteger(snapshot.tick) || snapshot.tick < 0) throw new TypeError('SimulationClock snapshot tick must be a non-negative integer');
+    return snapshot;
+  }
+
+  restore(snapshot = {}) {
+    this.validateSnapshot(snapshot);
     this.tick = snapshot.tick;
     this.time = this.tick * this.fixedDt;
     this.accumulator = 0;

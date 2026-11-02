@@ -702,6 +702,66 @@ export class PhysicsSystem {
     return world.toArray();
   }
 
+  // Portable body checkpoint, not an exact snapshot of the solver/contact caches.
+  captureState() {
+    const capture = (body, node) => ({
+      position:node.position.toArray(), rotation:node.quaternion.toArray(),
+      ...(body ? {
+        type:this.backend.bodyType(body),
+        pose:this.backend.bodyPose(body),
+        motion:this.backend.bodyMotion(body),
+        ...(this.backend.bodyType(body) === 'kinematic' ? { nextPose:this.backend.bodyPose(body, { next:true }) } : {})
+      } : {})
+    });
+    return [...this.entries].map(([id, entry]) => ({
+      id,
+      root:capture(entry.body, entry.root),
+      held:entry.held === true,
+      heldOriginalType:entry.heldOriginalType ?? null,
+      parts:[...entry.parts].map(([name, part]) => ({
+        name, ...capture(part.body, part.node), motorTarget:part.motorTarget ?? null
+      }))
+    }));
+  }
+
+  restoreState(state) {
+    const restore = (body, node, value) => {
+      node.position.fromArray(value.position);
+      node.quaternion.fromArray(value.rotation);
+      node.updateMatrixWorld(true);
+      if (!body) return;
+      if (this.backend.bodyType(body) !== value.type) this.backend.setBodyType(body, value.type);
+      this.backend.setBodyPose(body, { ...value.pose, wake:false });
+      if (value.nextPose) this.backend.setBodyPose(body, { ...value.nextPose, next:true, wake:false });
+      if (value.motion && value.type === 'dynamic') {
+        this.backend.setBodyMotion(body, { ...value.motion, wake:false });
+        if (value.motion.sleeping) this.backend.sleepBody(body);
+        else this.backend.wakeBody(body);
+      }
+    };
+    for (const item of state) {
+      const entry = this.entries.get(item.id);
+      if (!entry) throw new Error(`Physics checkpoint object missing: ${item.id}`);
+      entry.held = item.held;
+      if (item.heldOriginalType == null) delete entry.heldOriginalType;
+      else entry.heldOriginalType = item.heldOriginalType;
+      restore(entry.body, entry.root, item.root);
+      entry.root.getWorldPosition(entry.lastPosition);
+      entry.root.getWorldQuaternion(entry.lastRotation);
+      for (const value of item.parts) {
+        const part = entry.parts.get(value.name);
+        if (!part) throw new Error(`Physics checkpoint part missing: ${item.id}:${value.name}`);
+        if (part.joint && part.spec.joint.type !== 'fixed') {
+          this.backend.setJointTarget(part.joint, value.motorTarget, part.spec.joint.motor || {});
+        }
+        part.motorTarget = value.motorTarget;
+        restore(part.body, part.node, value);
+        part.lastLocalPosition.copy(part.node.position);
+        part.lastLocalRotation.copy(part.node.quaternion);
+      }
+    }
+  }
+
   getMotion(id, { partName = ROOT_PART } = {}) {
     const entry = this.entries.get(id);
     const body = partName===ROOT_PART ? entry?.body : entry?.parts.get(partName)?.body;
@@ -1230,6 +1290,7 @@ export class PhysicsSystem {
     const motor=part.spec.joint.motor || {};
     const applied=this.backend.setJointTarget(part.joint,target,motor);
     if(!applied) return false;
+    part.motorTarget=target;
     this.backend.wakeBody(part.body);
     return true;
   }
@@ -1242,6 +1303,7 @@ export class PhysicsSystem {
     const motor=part.spec.joint.motor || {};
     const applied=this.backend.setJointTarget(part.joint,state.coordinate,motor);
     if(!applied) return false;
+    part.motorTarget=state.coordinate;
     this.backend.wakeBody(part.body);
     return true;
   }

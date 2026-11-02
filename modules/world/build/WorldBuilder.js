@@ -21,7 +21,7 @@ export class WorldBuilder {
 
     const restoreBefore = async (cause = null) => {
       try {
-        await runtime.restore(before);
+        await runtime.restoreSnapshot(before);
         restoreWorldAuthority(runtime,authorityBefore);
       } catch (rollbackError) {
         const failure = new AggregateError(

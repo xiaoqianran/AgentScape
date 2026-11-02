@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { WorldBuilder } from '../../modules/world/build/WorldBuilder.js';
 
-const harness = ({ pipelineRun, restore } = {}) => {
+const harness = ({ pipelineRun, restoreSnapshot } = {}) => {
   const runtime = {
     snapshot:vi.fn(() => ({ scene:'before' })),
-    restore:restore || vi.fn(async () => {}),
+    restoreSnapshot:restoreSnapshot || vi.fn(async () => {}),
     currentWorldRevision:{revision:{id:'before'},provenance:{source:'test'}},
     currentBehaviorBundle:{ruleGraph:[{id:'rule-before'}]},
     currentPhysicsRequirements:{requirements:[]},
@@ -33,8 +33,8 @@ describe('WorldBuilder rollback', () => {
 
     expect(h.runtime.loadRuleGraph).toHaveBeenNthCalledWith(1, []);
     expect(h.runtime.clearObjects).toHaveBeenCalledWith({ silent:true });
-    expect(h.runtime.restore).toHaveBeenCalledOnce();
-    expect(h.runtime.restore).toHaveBeenCalledWith({ scene:'before' });
+    expect(h.runtime.restoreSnapshot).toHaveBeenCalledOnce();
+    expect(h.runtime.restoreSnapshot).toHaveBeenCalledWith({ scene:'before' });
     expect(h.runtime.currentWorldRevision).toMatchObject({revision:{id:'before'}});
     expect(h.runtime.currentBehaviorBundle).toEqual({ruleGraph:[{id:'rule-before'}]});
     expect(h.runtime.loadRuleGraph).toHaveBeenLastCalledWith([{id:'rule-before'}]);
@@ -51,7 +51,7 @@ describe('WorldBuilder rollback', () => {
     await expect(h.builder.run({})).rejects.toBe(failure);
 
     expect(h.pipeline.run).not.toHaveBeenCalled();
-    expect(h.runtime.restore).toHaveBeenCalledOnce();
+    expect(h.runtime.restoreSnapshot).toHaveBeenCalledOnce();
     expect(h.runtime.currentWorldRevision).toMatchObject({revision:{id:'before'}});
     expect(h.runtime.loadRuleGraph).toHaveBeenLastCalledWith([{id:'rule-before'}]);
   });
@@ -61,7 +61,7 @@ describe('WorldBuilder rollback', () => {
     const rollbackFailure = new Error('restore failed');
     const h = harness({
       pipelineRun:vi.fn(async () => { throw buildFailure; }),
-      restore:vi.fn(async () => { throw rollbackFailure; })
+      restoreSnapshot:vi.fn(async () => { throw rollbackFailure; })
     });
 
     await expect(h.builder.run({})).rejects.toMatchObject({

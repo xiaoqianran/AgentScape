@@ -51,3 +51,33 @@ describe('SimulationSession', () => {
     expect(session.time).toBeCloseTo(2/60, 10);
   });
 });
+
+
+it('preflights an invalid clock before restoring the world', async () => {
+  const restoreWorld = vi.fn();
+  const session = new SimulationSession({ executeStep:() => {}, snapshotWorld:() => ({}), restoreWorld });
+  session.play();
+  const snapshot = session.snapshot();
+  snapshot.clock.tick = -1;
+  await expect(session.restore(snapshot)).rejects.toThrow('non-negative integer');
+  expect(restoreWorld).not.toHaveBeenCalled();
+  expect(session.running).toBe(true);
+});
+
+it('resumes the previously running session when world restoration fails', async () => {
+  const session = new SimulationSession({
+    executeStep:() => {}, snapshotWorld:() => ({}),
+    restoreWorld:async () => { throw new Error('world busy'); }
+  });
+  session.play();
+  session.step();
+  await expect(session.restore(session.snapshot())).rejects.toThrow('world busy');
+  expect(session.running).toBe(true);
+  expect(session.tick).toBe(1);
+});
+
+it('does not advance the clock when the runtime refuses a destructive-restore tick', () => {
+  const session = new SimulationSession({ executeStep:() => false });
+  expect(session.step()).toMatchObject({ tick:0, dt:0, skipped:true });
+  expect(session.time).toBe(0);
+});

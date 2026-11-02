@@ -35,7 +35,7 @@ describe('bounded generated-world retry',()=>{
       interactions:{place:vi.fn(),move:vi.fn()},sceneGraph:{changed:vi.fn(),update:vi.fn()},
       validator:{run:vi.fn(()=>({ok:true,counts:{hard:0,advisory:0},hard:[],advisory:[],coverage:{objects:spawned.length,relations:0}}))},
       repair:{repair:vi.fn()},serialize:vi.fn(({name})=>({schema:'agentscape.scene',name,objects:spawned.map((x)=>x.id)})),
-      store:{get:vi.fn()},snapshot:vi.fn(()=>structuredClone(snapshot)),restore:vi.fn(async()=>{}),mutate:vi.fn(async(_label,fn)=>fn()),
+      store:{get:vi.fn()},snapshot:vi.fn(()=>structuredClone(snapshot)),restoreSnapshot:vi.fn(async()=>{}),mutate:vi.fn(async(_label,fn)=>fn()),
       clearObjects:vi.fn(async()=>{spawned.length=0;}),loadRuleGraph:vi.fn()
     };
     const registry=registerCoreSkills(new SkillRegistry({policy:runtime.policy,trace:runtime.trace,runtime}),runtime);
@@ -59,7 +59,7 @@ describe('bounded generated-world retry',()=>{
     expect(assets.has('retry_fixture_qx9')).toBe(true);
     expect(runtime.spawn).toHaveBeenCalledOnce();
     expect(runtime.spawn).toHaveBeenCalledWith('retry_fixture_qx9',expect.objectContaining({id:'fixture_01'}));
-    expect(runtime.restore).toHaveBeenCalledOnce();
+    expect(runtime.restoreSnapshot).toHaveBeenCalledOnce();
     expect(runtime.clearObjects).toHaveBeenCalledTimes(2);
     expect(runtime.loadRuleGraph).toHaveBeenCalledWith([]);
     expect(registry.executionPolicy('runWorldPipeline',result.result).outcome).toMatchObject({state:'verified',verified:true,status:'world-ready'});
