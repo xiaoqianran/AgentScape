@@ -14,8 +14,8 @@ export function PersistentGenerationHost({
     >
       <div className="product-page product-advanced-page">
         <div className="product-page-toolbar">
-          <button id="build-close-advanced" type="button" onClick={close}>← 返回 Build</button>
-          <span>Advanced Generation Console</span>
+          <button id="build-close-advanced" type="button" onClick={close}>← 返回生成工作台</button>
+          <span>生成任务与服务状态</span>
         </div>
         <GenerationJobCenterView />
       </div>

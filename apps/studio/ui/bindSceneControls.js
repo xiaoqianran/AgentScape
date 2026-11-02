@@ -11,6 +11,12 @@ export function bindSceneControls({
   log = () => {},
   setTaskState = () => {}
 }) {
+  const assertWorldIdle = () => {
+    if (!world.mutationOwner && !world.history?.pending && !world.history?.suspended) return;
+    const error = new Error('World mutation already in progress');
+    error.code = 'WORLD_MUTATION_BUSY';
+    throw error;
+  };
   const currentEnvironmentDefinition=()=>worldSession?.current || getEnvironmentDefinition?.() || environmentDefinition || { id:'environment', bootstrap:{} };
   const listeners = new Set();
   const disposers = [];
@@ -63,6 +69,7 @@ export function bindSceneControls({
     resetBusy=true;
     emit();
     try {
+      assertWorldIdle();
       editor.select(null);
       if (worldSession?.reset) await worldSession.reset();
       else {
@@ -98,6 +105,7 @@ export function bindSceneControls({
         log('尚无本机场景存档','error');
         return null;
       }
+      assertWorldIdle();
       editor.select(null);
       if (worldSession?.open) await worldSession.open();
       else await world.restore(scene);
@@ -120,6 +128,7 @@ export function bindSceneControls({
     if (!file) return null;
     try {
       const scene=JSON.parse(await file.text());
+      assertWorldIdle();
       editor.select(null);
       await world.restore(scene);
       sceneStore.save(scene);
@@ -132,8 +141,9 @@ export function bindSceneControls({
   };
 
   const runHistory=async(direction)=>{
-    editor.select(null);
     try {
+      assertWorldIdle();
+      editor.select(null);
       await world.history[direction]();
       return true;
     } catch (error) {

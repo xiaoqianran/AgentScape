@@ -41,3 +41,5 @@
   color: var(--text-muted);
   text-decoration: line-through;
 }
+
+@media(max-width:820px) { .debug-overlay-menu { display:none; } }

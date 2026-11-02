@@ -1,3 +1,4 @@
+import { StudioIcon } from '../shared/StudioIcon';
 import { useSyncExternalStore } from 'react';
 import { outcomeLabel } from '../../agent/AgentJourney.js';
 import { QUICK_TASK_GROUPS } from '../../agent/QuickTasks.js';
@@ -42,9 +43,9 @@ export function TaskPanelView({ controller }: { controller:TaskController }) {
       <header className="screen-heading product-heading">
         <div className="eyebrow">AGENT</div>
         <h1>让世界发生变化</h1>
-        <p>目标 → 行动 → 世界变化 → 结果。技术日志只在需要时展开。</p>
+        <p>描述目标，查看执行过程，并确认世界中真实发生的变化。</p>
         <div className="product-flow" aria-label="Agent workflow">
-          <span>Intent</span><i>→</i><span>Action</span><i>→</i><span>World</span><i>→</i><span>Result</span>
+          <span>目标</span><i>→</i><span>行动</span><i>→</i><span>验证</span><i>→</i><span>结果</span>
         </div>
       </header>
 
@@ -58,13 +59,13 @@ export function TaskPanelView({ controller }: { controller:TaskController }) {
       </div>
 
       <div className="task-scroll">
-        <section id="agent-journey" className="agent-journey" data-state={journey?.state || 'idle'} aria-label="Agent 执行过程">
+        {journey ? <section id="agent-journey" className="agent-journey" data-state={journey?.state || 'idle'} aria-label="Agent 执行过程">
           <article className="agent-stage" data-stage="intent" data-state={journey ? 'success' : 'idle'}>
-            <header><span>01</span><strong>想做什么</strong><i>Intent</i></header>
+            <header><span>01</span><strong>想做什么</strong><i>目标</i></header>
             <p id="agent-intent">{journey?.intent || '等待一个目标。'}</p>
           </article>
           <article className="agent-stage" data-stage="actions" data-state={actionState}>
-            <header><span>02</span><strong>做了什么</strong><i>Actions</i></header>
+            <header><span>02</span><strong>做了什么</strong><i>行动</i></header>
             <div id="agent-actions" className="agent-stage-list">
               {journey?.actions?.length ? journey.actions.map((entry:any,index:number)=>(
                 <JourneyRow key={`${entry.label}:${index}`} entry={entry} detail={outcomeLabel(entry.outcome)} />
@@ -72,7 +73,7 @@ export function TaskPanelView({ controller }: { controller:TaskController }) {
             </div>
           </article>
           <article className="agent-stage" data-stage="changes" data-state={changeState}>
-            <header><span>03</span><strong>世界发生了什么变化</strong><i>World</i></header>
+            <header><span>03</span><strong>世界发生了什么变化</strong><i>变化</i></header>
             <div id="agent-changes" className="agent-stage-list">
               {journey?.changes?.length ? journey.changes.map((entry:any,index:number)=>(
                 <JourneyRow key={`${entry.label}:${index}`} entry={entry} detail={entry.detail} />
@@ -80,41 +81,25 @@ export function TaskPanelView({ controller }: { controller:TaskController }) {
             </div>
           </article>
           <article className="agent-stage" data-stage="result" data-state={journey?.result?.state || 'idle'}>
-            <header><span>04</span><strong>最后是否成功</strong><i>Result</i></header>
+            <header><span>04</span><strong>最后是否成功</strong><i>结果</i></header>
             <div className="agent-result-copy">
               <strong id="agent-result-label">{journey?.result?.label || '等待执行'}</strong>
               <p id="agent-result-detail">{journey?.result?.detail || '完成后会明确显示成功、部分完成或失败。'}</p>
             </div>
           </article>
-        </section>
+        </section> : <section className="agent-welcome"><div className="agent-welcome-icon"><StudioIcon name="agent" size={28} /></div><div><h2>先给智能体一个目标</h2><p>选择下方任务，或在底部输入指令。执行后，这里会显示每一步的行动与验证结果。</p></div></section>}
 
         <div className="quick-tasks">
-          {QUICK_TASK_GROUPS.map((group:any)=>(
-            <section className="task-group" key={group.label}>
-              <div className="section-label">{group.label}</div>
-              <div className="task-grid">
-                {group.tasks.map((task:any)=>{
-                  const key = task.id || task.demo || task.prompt || task.title;
-                  const disabled = state.busy || (!task.id && !state.available);
-                  return (
-                    <button
-                      key={key}
-                      className={`task-card${task.wide ? ' wide' : ''}${state.activeTaskKey === key ? ' is-running' : ''}`}
-                      type="button"
-                      disabled={disabled}
-                      onClick={()=>void controller.runQuickTask(task)}
-                    >
-                      <strong>{task.title}</strong><span>{task.detail}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+          {QUICK_TASK_GROUPS.filter((group:any)=>group.label!=='Runtime 验收').map((group:any)=>(
+            <TaskGroup key={group.label} group={group} state={state} controller={controller} />
           ))}
+          <details className="task-diagnostics"><summary>开发与验收工具<span>验证运行时能力</span></summary>
+            {QUICK_TASK_GROUPS.filter((group:any)=>group.label==='Runtime 验收').map((group:any)=><TaskGroup key={group.label} group={group} state={state} controller={controller} />)}
+          </details>
         </div>
 
         <details className="activity-panel" onToggle={(event)=>{ if ((event.currentTarget as HTMLDetailsElement).open) controller.markActivityRead(); }}>
-          <summary><span>Raw activity</span><small id="activity-count">{state.activityCount}</small></summary>
+          <summary><span>技术日志</span><small id="activity-count">{state.activityCount}</small></summary>
           <div id="log" className="log" aria-label="任务活动日志">
             {state.logs.map((entry:any)=><div key={entry.id} className={`log-row ${entry.kind}`}>{entry.text}</div>)}
           </div>
@@ -122,4 +107,12 @@ export function TaskPanelView({ controller }: { controller:TaskController }) {
       </div>
     </section>
   );
+}
+
+function TaskGroup({ group,state,controller }: { group:any;state:any;controller:TaskController }) {
+  return <section className="task-group"><div className="section-label">{group.label}</div><div className="task-grid">{group.tasks.map((task:any)=>{
+    const key=task.id || task.demo || task.prompt || task.title;
+    const disabled=state.busy || (!task.id && !state.available);
+    return <button key={key} className={'task-card'+(task.wide?' wide':'')+(state.activeTaskKey===key?' is-running':'')} type="button" disabled={disabled} onClick={()=>void controller.runQuickTask(task)}><strong>{task.title}</strong><span>{task.detail}</span><StudioIcon name="arrow" size={15} /></button>;
+  })}</div></section>;
 }

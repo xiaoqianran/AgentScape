@@ -1,3 +1,4 @@
+import { StudioIcon } from '../shared/StudioIcon';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
 import { WORLD_EDITOR_UTILITIES } from '../../navigation/StudioNavigation.js';
@@ -20,11 +21,12 @@ function AuthoringMenu({ controller }: { controller:any }) {
         <option value="">选择创作世界…</option>
         {state.worlds.map((item:any)=><option key={item.id} value={item.id}>{item.name || item.id}</option>)}
       </select>
-      <button id="authoring-new" type="button" onClick={()=>void controller.createNew()}>新建创作世界</button>
-      <button id="authoring-open" type="button" onClick={()=>void controller.open(selected)}>打开创作世界</button>
-      <button id="authoring-save" type="button" onClick={()=>void controller.save()}>保存创作世界</button>
-      <button id="authoring-save-as" type="button" onClick={()=>void controller.saveAs()}>另存创作世界</button>
-      <span id="authoring-save-status" className="toolbar-menu-status">{state.status?.name || 'Untitled World'}{state.status?.dirty ? ' · 未保存' : ' · 已保存'}</span>
+      <button id="authoring-new" type="button" onClick={()=>void controller.createNew()}>新建草稿</button>
+      <button id="authoring-open" disabled={!selected} type="button" onClick={()=>void controller.open(selected)}>打开草稿</button>
+      <button id="authoring-save" type="button" onClick={()=>void controller.save()}>保存草稿</button>
+      <button id="authoring-save-as" type="button" onClick={()=>void controller.saveAs()}>草稿另存为</button>
+      <span id="authoring-save-status" className="toolbar-menu-status">{state.status?.name==='Untitled World'?'未命名草稿':state.status?.name || '未命名草稿'}{!state.status?.id ? ' · 尚未保存' : state.status?.dirty ? ' · 有未保存更改' : ' · 已保存'}</span>
+      {state.fileError ? <span className="toolbar-menu-status" role="alert">{state.fileError}</span> : null}
       <AuthoringPromotionView state={state} controller={controller} />
     </>
   );
@@ -33,18 +35,21 @@ function AuthoringMenu({ controller }: { controller:any }) {
 function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authoring:any }) {
   const state:any = useSyncExternalStore(controls.subscribe,controls.snapshot,controls.snapshot);
   const importRef = useRef<HTMLInputElement|null>(null);
+  const selection = useStudioStore(state=>state.editor.selection);
   return (
     <div className="editor-toolbar" aria-label="场景编辑工具">
-      <button data-mode="translate" className={state.mode === 'translate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('translate')}>移动 <kbd>W</kbd></button>
-      <button data-mode="rotate" className={state.mode === 'rotate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('rotate')}>旋转 <kbd>E</kbd></button>
+      <span className="editor-toolbar-title">编辑工具</span>
+      <button id="undo" title="撤销 (Ctrl+Z)" aria-label="撤销" type="button" disabled={!state.history?.canUndo} onClick={()=>void controls.undo()}><StudioIcon name="undo" /></button>
+      <button id="redo" title="重做 (Ctrl+Shift+Z)" aria-label="重做" type="button" disabled={!state.history?.canRedo} onClick={()=>void controls.redo()}><StudioIcon name="redo" /></button>
       <span className="toolbar-divider" />
-      <button id="duplicate" type="button" onClick={()=>void controls.duplicate()}>复制</button>
-      <button id="delete" className="danger" type="button" onClick={()=>void controls.deleteSelected()}>删除</button>
+      <button data-mode="translate" className={state.mode === 'translate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('translate')}><StudioIcon name="move" size={16} />移动 <kbd>W</kbd></button>
+      <button data-mode="rotate" className={state.mode === 'rotate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('rotate')}><StudioIcon name="rotate" size={16} />旋转 <kbd>E</kbd></button>
+      <span className="toolbar-divider" />
+      <button id="duplicate" disabled={selection?.source!=='runtime'} type="button" onClick={()=>void controls.duplicate()}>复制</button>
+      <button id="delete" className="danger" disabled={selection?.source!=='runtime'} type="button" onClick={()=>void controls.deleteSelected()}>删除</button>
       <details className="toolbar-more scene-menu">
-        <summary>场景</summary>
+        <summary>保存与文件 <span aria-hidden="true">⌄</span></summary>
         <div className="toolbar-menu">
-          <button id="undo" type="button" disabled={!state.history?.canUndo} onClick={()=>void controls.undo()}>撤销 <kbd>⌘Z</kbd></button>
-          <button id="redo" type="button" disabled={!state.history?.canRedo} onClick={()=>void controls.redo()}>重做</button>
           {authoring ? <AuthoringMenu controller={authoring} /> : null}
           <div className="toolbar-menu-label">运行时场景</div>
           <button id="save-scene" type="button" onClick={()=>controls.saveScene()}>保存到本机</button>
@@ -119,22 +124,18 @@ export function WorldEditorWorkspace({
         <aside className="scene-panel" aria-hidden={sceneCollapsed}>
           {content ? <SceneExplorerView {...content.sceneExplorer} /> : null}
         </aside>
+        <SceneToolbar bridgeState={bridgeState} />
         <div id="viewport" className="viewport">
-          <SceneToolbar bridgeState={bridgeState} />
-          <div className="world-intro">
-            <div className="world-kicker">{presentation.number || 'WORLD'} // {String(presentation.title || presentation.id).toUpperCase()}</div>
-            <h2>{presentation.headline || presentation.title}</h2>
-            <p>{presentation.description || ''}</p>
-            <div className="world-facts">{(presentation.facts || []).map((fact:string)=><span key={fact}>{fact}</span>)}</div>
-          </div>
-          <div className="hint">点击选择 · W 移动 · E 旋转 · Del 删除</div>
+
         </div>
 
         <aside className="panel" data-view="inspect" aria-label="上下文面板">
+          <div className="inspector-chrome"><strong>对象属性</strong><button type="button" aria-label="关闭属性面板" onClick={()=>commitLayoutChange(closeContext)}><StudioIcon name="close" size={17} /></button></div>
           <section className="inspector">
             {content ? <ObjectInspectorView {...content.inspector} /> : null}
           </section>
         </aside>
+        <div className="editor-statusbar"><span>{presentation.title}</span><span>{selection ? '已选中 '+selection.id : '点击画布或左侧列表选择对象'}</span><span className="editor-shortcuts">W 移动 · E 旋转 · Del 删除</span></div>
       </section>
 
       <div className="artifact-tray-host world-artifact-tray">{content ? <ArtifactTrayView {...content.artifactTray} /> : null}</div>

@@ -52,6 +52,10 @@ describe('TaskPanelView contract',()=>{
     expect(html).toContain('LLM Agent 未连接');
     expect(html).toContain('Runtime 验收');
     expect(html).toContain('常用任务');
+    expect(html).toContain('先给智能体一个目标');
+    expect(html).not.toContain('id="agent-journey"');
+    expect(html).toContain('<details class="task-diagnostics">');
+    expect(html.indexOf('常用任务')).toBeLessThan(html.indexOf('Runtime 验收</div>'));
     expect(html).toContain('配置');
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*><strong>拿起杯子<\/strong>/);
   });

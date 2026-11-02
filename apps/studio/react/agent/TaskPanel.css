@@ -568,3 +568,31 @@
 .agent-stage > header i {
   font-size: var(--studio-type-meta);
 }
+
+/* Intent first; execution evidence appears only once a run exists. */
+.task-console { padding:28px; gap:20px; }
+.task-console > .screen-heading .product-flow { display:none; }
+.task-state { padding:13px 15px; min-height:60px; background:var(--studio-surface-2); }
+.task-state strong { font-size:13px; }
+.task-state-copy > span { font-size:12px; line-height:1.6; }
+.agent-welcome { display:flex; align-items:center; gap:20px; margin:0 0 28px; padding:28px 20px; border:1px solid var(--studio-border); border-radius:10px; background:var(--studio-bg); }
+.agent-welcome-icon { width:60px; height:60px; display:grid; place-items:center; flex-shrink:0; border:1px solid rgba(var(--ds-accent-rgb),.2); border-radius:15px; color:var(--studio-accent); background:var(--studio-accent-soft); }
+.agent-welcome h2 { font-size:18px; font-weight:600; margin:0 0 8px; }
+.agent-welcome p { margin:0; max-width:510px; color:var(--studio-text-3); font-size:12px; line-height:1.8; }
+.quick-tasks { gap:24px; }
+.task-group > .section-label { font-size:12px; font-weight:550; color:var(--studio-text-2); margin-bottom:12px; }
+.task-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.task-card,.task-card.wide { position:relative; grid-column:auto; min-height:90px; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:8px; padding:16px 36px 16px 16px; border:1px solid var(--studio-border); border-radius:9px; background:var(--studio-surface-2); }
+.task-card strong { font-size:13px; font-weight:600; color:var(--studio-text); }
+.task-card > span { color:var(--studio-text-3); font-size:12px; line-height:1.6; }
+.task-card > .studio-icon { position:absolute; right:14px; top:18px; color:var(--studio-text-3); }
+.task-card:hover:not(:disabled) { border-color:rgba(var(--ds-accent-rgb),.4); background:var(--studio-accent-soft); }
+.task-diagnostics { padding-top:4px; }
+.task-diagnostics summary { display:flex; align-items:center; justify-content:space-between; min-height:42px; color:var(--studio-text-2); font-size:12px; cursor:pointer; border-top:1px solid var(--studio-border); }
+.task-diagnostics summary > span { color:var(--studio-text-3); font-size:11px; }
+.task-diagnostics .task-group { padding-top:12px; }
+.activity-panel { margin-top:18px; }
+.agent-stage { padding:17px 16px 17px 40px; }
+.agent-stage > header strong { font-size:13px; }
+.agent-stage > p,.agent-stage-list > p,.agent-result-copy > p { font-size:12px; line-height:1.7; }
+@media(max-width:620px) { .task-console { padding:18px 14px; gap:16px; } .agent-welcome { align-items:flex-start; padding:20px 16px; gap:13px; } .agent-welcome-icon { width:42px; height:42px; border-radius:10px; } .agent-welcome h2 { font-size:16px; } .task-grid { grid-template-columns:1fr; } .task-card,.task-card.wide { min-height:80px; } }

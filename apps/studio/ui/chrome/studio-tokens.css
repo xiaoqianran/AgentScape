@@ -29,8 +29,8 @@
 
   --studio-type-title: 19px;
   --studio-type-heading: var(--ds-type-body);
-  --studio-type-body: 12.5px;
-  --studio-type-control: 12.5px;
+  --studio-type-body: 13px;
+  --studio-type-control: 13px;
   --studio-type-meta: var(--ds-type-meta);
 
   --studio-radius-sm: var(--ds-radius-sm);
@@ -39,9 +39,9 @@
   --studio-shadow: 0 16px 42px rgba(0,0,0,.28);
   --studio-shadow-float: var(--ds-shadow-float);
 
-  --studio-header-h: var(--ds-header-h);
+  --studio-header-h: 64px;
   --studio-gap: 8px;
   --studio-pad: 8px;
-  --studio-scene-w: 264px;
-  --studio-panel-w: 348px;
+  --studio-scene-w: 256px;
+  --studio-panel-w: 320px;
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bindSceneControls } from '../../apps/studio/ui/bindSceneControls.js';
 
-function fixture({ undo = async () => {}, redo = async () => {}, worldSession = null } = {}) {
+function fixture({ undo = async () => {}, redo = async () => {}, worldSession = null, mutationOwner = null } = {}) {
   const keydown = [];
   const removeWindowListener = vi.fn((name, handler) => {
     if (name !== 'keydown') return;
@@ -14,20 +14,22 @@ function fixture({ undo = async () => {}, redo = async () => {}, worldSession = 
   });
   const log = vi.fn();
   const stopHistory = vi.fn();
+  const select = vi.fn();
   const binding = bindSceneControls({
     world: {
+      mutationOwner,
       events:{ on:()=>stopHistory },
       history:{ status:()=>({canUndo:true,canRedo:true}), undo:vi.fn(undo), redo:vi.fn(redo), clear:vi.fn() },
       clearObjects:async()=>{}, serialize:()=>({schemaVersion:1,objects:[]}), restore:async()=>{},
       queries:{listObjects:()=>[]}
     },
-    editor:{ select:vi.fn(), setMode:vi.fn(), duplicateSelected:async()=>{}, deleteSelected:vi.fn() },
+    editor:{ select, setMode:vi.fn(), duplicateSelected:async()=>{}, deleteSelected:vi.fn() },
     sceneStore:{ save:vi.fn(), load:()=>null, clear:vi.fn() },
     worldSession,
     tools:{}, environmentDefinition:{ id:'monument-hall', bootstrap:{} },
     log, setTaskState:vi.fn()
   });
-  return { keydown, log, binding, stopHistory, removeWindowListener };
+  return { keydown, log, binding, stopHistory, removeWindowListener, select };
 }
 
 const press = (handler, { key = 'z', shiftKey = false } = {}) => handler({ preventDefault(){}, ctrlKey:true, shiftKey, key, target:{ matches:() => false } });
@@ -70,4 +72,22 @@ describe('Studio history controls', () => {
     expect(f.removeWindowListener).toHaveBeenCalledWith('keydown',expect.any(Function));
     expect(f.keydown).toHaveLength(0);
   });
+});
+
+
+it('does not detach the editor selection when undo conflicts with an active drag', async () => {
+  const undo = vi.fn();
+  const f = fixture({ undo, mutationOwner:'editor' });
+  expect(await f.binding.undo()).toBe(false);
+  expect(undo).not.toHaveBeenCalled();
+  expect(f.select).not.toHaveBeenCalled();
+  expect(f.log).toHaveBeenCalledWith(expect.stringContaining('World mutation already in progress'),'error');
+  f.binding.dispose();
+});
+
+it('rejects imports while a world writer is active without changing selection', async () => {
+  const f = fixture({ mutationOwner:'skill:navigateTo' });
+  expect(await f.binding.importScene({ text:async () => JSON.stringify({objects:[]}) })).toBeNull();
+  expect(f.select).not.toHaveBeenCalled();
+  f.binding.dispose();
 });

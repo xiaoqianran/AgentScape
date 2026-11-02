@@ -14,12 +14,13 @@ export function bindAuthoringWorldControls({
   let disposed = false;
   let busy = false;
   let message = '';
+  let fileError = '';
   const promotionState = () => ({ nodes:controller.promotion?.list() || [], busy, message });
-  let viewSnapshot = Object.freeze({ worlds, status, ...promotionState() });
+  let viewSnapshot = Object.freeze({ worlds, status, fileError, ...promotionState() });
 
   const emit = () => {
     status = controller.status();
-    viewSnapshot = Object.freeze({ worlds, status, ...promotionState() });
+    viewSnapshot = Object.freeze({ worlds, status, fileError, ...promotionState() });
     for (const listener of listeners) listener();
   };
   const subscribe = (listener) => {
@@ -40,16 +41,18 @@ export function bindAuthoringWorldControls({
   };
 
   const createNew = async () => {
+    fileError='';emit();
     if (!allowDiscard()) return null;
     try {
       const result = await newWorld();
       await refresh();
       log('已新建空白创作世界','result');
       return result;
-    } catch (error) { log(`新建创作世界失败：${error.message}`, 'error'); return null; }
+    } catch (error) { fileError=`新建草稿失败：${error.message}`;emit();log(fileError,'error');return null; }
   };
 
   const open = async (id) => {
+    fileError='';emit();
     if (!id) {
       log('请选择要打开的创作世界','error');
       return null;
@@ -61,24 +64,26 @@ export function bindAuthoringWorldControls({
       log(`已打开创作世界：${controller.status().name}`,'result');
       return result;
     } catch (error) {
-      log(`打开创作世界失败：${error.message}`,'error');
+      fileError=`打开草稿失败：${error.message}`;emit();log(fileError,'error');
       return null;
     }
   };
 
   const save = async () => {
+    fileError='';emit();
     try {
       const record = await controller.save();
       await refresh();
       log(`创作世界已保存：${record.name}`,'result');
       return record;
     } catch (error) {
-      log(`保存创作世界失败：${error.message}`,'error');
+      fileError=`保存草稿失败：${error.message}`;emit();log(fileError,'error');
       return null;
     }
   };
 
   const saveAs = async () => {
+    fileError='';emit();
     const current = controller.status();
     const name = promptImpl ? promptImpl('创作世界名称',current.name) : current.name;
     if (name == null) return null;
@@ -88,7 +93,7 @@ export function bindAuthoringWorldControls({
       log(`创作世界已另存为：${record.name}`,'result');
       return record;
     } catch (error) {
-      log(`另存创作世界失败：${error.message}`,'error');
+      fileError=`另存草稿失败：${error.message}`;emit();log(fileError,'error');
       return null;
     }
   };

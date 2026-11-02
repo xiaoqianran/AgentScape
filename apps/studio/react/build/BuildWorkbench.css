@@ -1405,3 +1405,52 @@
 .build-advanced-shell :where(small, code, th) {
   font-size: var(--studio-type-meta);
 }
+
+/* Studio workspace presentation; input/editing behavior stays unchanged. */
+.build-workbench { padding:28px; gap:20px; }
+.build-heading .product-flow { display:none; }
+.build-advanced-button { min-height:34px; padding:0 12px; font:12px/1.4 var(--studio-font-ui); background:transparent; }
+.build-world-context { min-height:44px; display:flex; gap:10px; padding:9px 13px; border-color:var(--studio-border); background:var(--studio-surface-2); }
+.build-world-context > div { display:flex; align-items:center; gap:10px; }
+.build-world-context code { margin-left:auto; }
+.build-world-context small { color:var(--studio-text-3); font:11px/1.4 var(--studio-font-ui); }
+.build-world-context strong { font-size:12px; }
+.build-context-dot { box-shadow:none; width:6px; height:6px; background:var(--studio-accent); }
+.build-mode-tabs { gap:12px; }
+.build-mode-tabs button { grid-template-columns:24px 1fr; gap:5px 10px; min-height:74px; padding:14px; background:var(--studio-surface-2); }
+.build-mode-tabs .studio-icon { grid-row:span 2; align-self:center; }
+.build-mode-tabs span { font-size:14px; font-weight:600; }
+.build-mode-tabs small { font-size:11px; color:var(--studio-text-3); }
+.build-scroll { display:grid; grid-template-columns:minmax(0,1fr) 240px; gap:22px; align-content:start; }
+.build-compose { min-width:0; padding:0; border:0; background:transparent; }
+.build-mode-copy { margin-bottom:16px; }
+.build-mode-copy strong { font-size:15px; }
+.build-mode-copy > span { font-size:12px; line-height:1.6; }
+.build-guide { align-self:start; padding:22px; border:1px solid var(--studio-border); border-radius:10px; background:var(--studio-surface-2); }
+.build-guide .eyebrow { font-size:10px; color:var(--studio-text-3); }
+.build-guide h2 { margin:9px 0 24px; font-size:15px; font-weight:600; }
+.build-guide ol { display:grid; gap:25px; padding:0; margin:0; list-style:none; }
+.build-guide li { display:flex; align-items:flex-start; gap:11px; }
+.build-guide li > span { font:11px/1.7 var(--studio-font-mono); color:var(--studio-accent); }
+.build-guide strong { font-size:12px; font-weight:600; }
+.build-guide p { margin:6px 0 0; font-size:11px; color:var(--studio-text-3); line-height:1.8; }
+.build-guide-note { display:flex; gap:10px; align-items:flex-start; margin-top:25px; padding-top:18px; border-top:1px solid var(--studio-border); color:var(--studio-text-3); }
+.build-guide-note p { margin:0; }
+.build-pipeline,.build-result { grid-column:1/-1; }
+.image-intake-drop { display:flex; align-items:center; flex-direction:column; justify-content:center; min-height:260px; padding:28px 22px; text-align:center; border:1px dashed var(--studio-border-strong); border-radius:10px; background:var(--studio-bg); }
+.image-intake-icon { display:grid; place-items:center; width:60px; height:60px; margin-bottom:20px; border:1px solid var(--studio-border); border-radius:15px; color:var(--studio-accent); background:var(--studio-accent-soft); }
+.image-intake-drop > strong { font-size:17px; font-weight:600; }
+.image-intake-drop > p { max-width:330px; font-size:12px; line-height:1.8; color:var(--studio-text-3); }
+.image-intake-drop .build-local-image-file { min-height:38px; padding:10px 20px; background:var(--studio-accent); color:var(--ds-on-accent); border-radius:7px; font-size:12px; font-weight:600; }
+.build-local-image-file:focus-within { outline:2px solid var(--studio-accent); outline-offset:3px; }
+.image-intake-drop small { margin-top:14px; color:var(--studio-text-3); line-height:1.7; }
+.build-remote-controls textarea { min-height:115px; padding:14px; font-size:14px; line-height:1.7; background:var(--studio-bg); }
+.build-prompt-label { font-size:13px; }
+.build-primary-actions > button { min-height:40px; font-size:13px; }
+.build-primary-actions .build-generate { background:var(--studio-accent); color:var(--ds-on-accent); }
+.build-cost-confirm { margin:16px 0; font-size:12px; line-height:1.65; }
+.build-cloud-image-options { margin-top:16px; }
+.build-cloud-image-options summary,.build-technical-options summary { min-height:34px; font-size:12px; cursor:pointer; }
+.build-local-image-state { font-size:11px; line-height:1.6; }
+@media(max-width:960px) { .build-scroll { grid-template-columns:1fr; } .build-guide { display:none; } .build-workbench { padding:22px; } }
+@media(max-width:620px) { .build-workbench { padding:18px 14px; gap:16px; } .build-heading { flex-wrap:wrap; } .build-heading h1 { font-size:23px; } .build-mode-tabs { gap:7px; } .build-mode-tabs button { padding:10px; grid-template-columns:1fr; min-height:90px; } .build-mode-tabs .studio-icon { grid-row:auto; } .build-mode-tabs span { font-size:12px; } .build-mode-tabs small { font-size:10px; } .build-world-context code { display:none; } .image-intake-drop { min-height:250px; padding:24px 16px; } }

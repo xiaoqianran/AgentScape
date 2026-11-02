@@ -87,6 +87,7 @@ export function StudioApp({
         environments={environments}
         presentation={presentation}
         openBuiltinWorld={bridge.openWorld}
+        navigate={choosePage}
         agentView={agentView}
         openAgentView={chooseAgentView}
         commandInputRef={commandInputRef}

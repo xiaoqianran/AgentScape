@@ -1,3 +1,6 @@
+import { StudioIcon } from '../shared/StudioIcon';
+import { assetDisplayName } from '../shared/ResourcePresentation';
+import './SceneExplorer.css';
 import { useEffect, useLayoutEffect, useMemo, useState, type DragEvent } from 'react';
 import { ASSET_DRAG_MIME } from '../../editor/AssetPlacementController.js';
 import { collectStudioSceneProjection } from '../../scene/SceneObjectProjection.js';
@@ -118,7 +121,7 @@ export function SceneExplorerView({
     const needle=query.trim().toLowerCase();
     if (!needle) return rows;
     return rows.filter((record:any)=>(
-      [record.label,record.id,record.assetId,record.type,record.source]
+      [assetDisplayName(record.assetId || record.type,record.label),record.label,record.id,record.assetId,record.type,record.source]
         .filter(Boolean)
         .some((value)=>String(value).toLowerCase().includes(needle))
     ));
@@ -138,7 +141,7 @@ export function SceneExplorerView({
     const needle = query.trim().toLowerCase();
     if (!needle) return assets;
     return assets.filter((asset) => (
-      [asset.label, asset.id, asset.type, asset.source, ...(asset.actions || [])]
+      [assetDisplayName(asset.id,asset.label),asset.label, asset.id, asset.type, asset.source, ...(asset.actions || [])]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle))
     ));
@@ -173,21 +176,21 @@ export function SceneExplorerView({
     <>
       <div className="scene-panel-heading">
         <div>
-          <span className="scene-eyebrow">WORLD</span>
+          <span className="scene-eyebrow">场景</span>
           <strong id="scene-world-title">{title}</strong>
           <div className="product-flow" aria-label="World workflow">
-            <span>Environment</span><i>→</i><span>Objects</span><i>→</i><span>State</span>
+            <span>环境</span><i>→</i><span>对象</span><i>→</i><span>状态</span>
           </div>
         </div>
         <span id="scene-object-count" className="scene-count">{tab === 'objects' ? sceneCount : assets.length}</span>
       </div>
 
-      <div className="scene-panel-tabs" role="tablist" aria-label="Studio sidebar">
-        <button type="button" className={tab === 'objects' ? 'active' : ''} aria-selected={tab === 'objects'} onClick={() => { setTab('objects'); setQuery(''); }}>
-          Objects
+      <div className="scene-panel-tabs" role="group" aria-label="场景侧栏内容">
+        <button type="button" className={tab === 'objects' ? 'active' : ''} aria-pressed={tab === 'objects'} onClick={() => { setTab('objects'); setQuery(''); }}>
+          场景对象
         </button>
-        <button type="button" className={tab === 'assets' ? 'active' : ''} aria-selected={tab === 'assets'} onClick={() => { setTab('assets'); setQuery(''); }}>
-          Assets
+        <button type="button" className={tab === 'assets' ? 'active' : ''} aria-pressed={tab === 'assets'} onClick={() => { setTab('assets'); setQuery(''); }}>
+          添加资源
         </button>
       </div>
 
@@ -198,7 +201,7 @@ export function SceneExplorerView({
               <span className="scene-world-dot" />
               <div>
                 <strong id="scene-environment-id">{environmentId}</strong>
-                <small>Current environment</small>
+                <small>当前场景环境</small>
               </div>
             </div>
             <label className="scene-search">
@@ -208,19 +211,19 @@ export function SceneExplorerView({
                 name="sceneObjectSearch"
                 type="search"
                 value={query}
-                placeholder="Search objects"
+                placeholder="搜索场景对象…"
                 aria-label="搜索场景对象"
                 onChange={(event) => setQuery(event.target.value)}
               />
             </label>
 
             <div className="scene-section-heading">
-              <span>Runtime Entities</span>
+              <span>可交互对象</span>
               <small>{visibleRuntimeObjects.length} / {runtimeCount}</small>
             </div>
             <div id="scene-object-list" className="scene-object-list" data-source="runtime">
               {visibleRuntimeObjects.length === 0 ? (
-                <div className="scene-empty">{runtimeCount ? 'No matching runtime entities' : 'No runtime entities'}</div>
+                <div className="scene-empty">{runtimeCount ? '没有匹配的对象' : '场景中还没有对象'}</div>
               ) : visibleRuntimeObjects.map((record: any) => (
                 <button
                   key={record.key}
@@ -233,10 +236,10 @@ export function SceneExplorerView({
                   onClick={() => selectRuntimeObject(record.id)}
                 >
                   <span className="scene-object-glyph">
-                    {record.assetId === 'agent' || record.type === 'agent' ? 'A' : '◆'}
+                    <StudioIcon name={record.assetId === 'agent' || record.type === 'agent' ? 'agent' : 'cube'} size={16} />
                   </span>
                   <span className="scene-object-copy">
-                    <strong>{record.label}</strong>
+                    <strong>{assetDisplayName(record.assetId || record.type,record.label)}</strong>
                     <small>{record.id}</small>
                   </span>
                 </button>
@@ -246,12 +249,12 @@ export function SceneExplorerView({
             {authoringCount > 0 ? (
               <>
                 <div className="scene-section-heading">
-                  <span>Authoring</span>
+                  <span>创作中的对象</span>
                   <small>{visibleAuthoringObjects.length} / {authoringCount}</small>
                 </div>
                 <div className="scene-object-list" data-source="authoring">
                   {visibleAuthoringObjects.length === 0 ? (
-                    <div className="scene-empty">No matching authoring nodes</div>
+                    <div className="scene-empty">没有匹配的创作对象</div>
                   ) : visibleAuthoringObjects.map((record:any)=>(
                     <button
                       key={record.key}
@@ -283,18 +286,18 @@ export function SceneExplorerView({
                 name="sceneAssetSearch"
                 type="search"
                 value={query}
-                placeholder="Search assets"
+                placeholder="搜索可用资源…"
                 aria-label="搜索资源"
                 onChange={(event) => setQuery(event.target.value)}
               />
             </label>
             <div className="scene-section-heading">
-              <span>Assets</span>
-              <small>{visibleAssets.length} Reusable</small>
+              <span>可用资源</span>
+              <small>{visibleAssets.length} 个</small>
             </div>
             <div className="scene-asset-list">
               {visibleAssets.length === 0 ? (
-                <div className="scene-empty">{assets.length ? 'No matching assets' : 'No reusable assets'}</div>
+                <div className="scene-empty">{assets.length ? '没有匹配的资源' : '暂无可用资源'}</div>
               ) : visibleAssets.map((asset) => (
                 <article
                   key={asset.id}
@@ -304,9 +307,9 @@ export function SceneExplorerView({
                   onDragStart={(event) => startAssetDrag(event, asset.id)}
                   onDragEnd={() => placement.cancelDrag()}
                 >
-                  <span className="scene-asset-glyph">◇</span>
+                  <span className="scene-asset-glyph"><StudioIcon name="cube" size={16} /></span>
                   <div className="scene-asset-copy">
-                    <strong>{asset.label || asset.id}</strong>
+                    <strong>{assetDisplayName(asset.id,asset.label)}</strong>
                     <small>{[asset.type, asset.source].filter(Boolean).join(' · ') || asset.id}</small>
                   </div>
                   <button type="button" title="放到视口中心" onClick={() => void placement.placeAtCenter(asset.id)}>＋</button>
@@ -318,8 +321,8 @@ export function SceneExplorerView({
       </div>
 
       <footer className="scene-panel-footer">
-        <button type="button" onClick={openLibrary}>Library</button>
-        <button type="button" onClick={openCreate}>＋ Create</button>
+        <button type="button" onClick={openLibrary}><StudioIcon name="folder" size={15} />资源库</button>
+        <button type="button" onClick={openCreate}><StudioIcon name="plus" size={15} />生成物体</button>
       </footer>
     </>
   );

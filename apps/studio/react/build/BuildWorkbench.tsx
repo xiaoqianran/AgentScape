@@ -1,3 +1,4 @@
+import { StudioIcon } from '../shared/StudioIcon';
 import { useEffect, useMemo, useState } from 'react';
 import { BUILD_MODE_META, BUILD_MODES } from '../../build/BuildSession.js';
 import { useStudioStore, type BuildOutputRef } from '../state/studioStore';
@@ -125,15 +126,15 @@ function capabilityText(caps: CapabilityState, mode: BuildMode) {
 }
 
 function generateLabel(mode: BuildMode) {
-  if (mode === 'image') return 'Create Image';
-  if (mode === 'world') return 'Create World';
-  return 'Create 3D Asset';
+  if (mode === 'image') return '生成图片';
+  if (mode === 'world') return '生成世界';
+  return '生成 3D 物体';
 }
 
 function modeLabel(mode: BuildMode) {
-  if (mode === 'image') return 'Image';
-  if (mode === 'asset') return '3D Asset';
-  return 'World';
+  if (mode === 'image') return '图片';
+  if (mode === 'asset') return '3D 物体';
+  return '世界';
 }
 
 function modeDescription(mode: BuildMode) {
@@ -495,7 +496,7 @@ export function BuildWorkbenchView({
 
   const remoteGenerationControls = (
     <div className="build-remote-controls">
-      <label className="build-prompt-label">{state.mode === 'asset' ? 'Name' : 'Describe'}
+      <label className="build-prompt-label">{state.mode === 'asset' ? '物体名称' : '描述你的想法'}
         <textarea
           id="build-prompt"
           rows={state.mode === 'asset' ? 2 : 4}
@@ -511,13 +512,13 @@ export function BuildWorkbenchView({
           {!assetSource ? (
             <div className="build-source-empty">
               <span>需要一张已确认的图片作为 3D 输入。</span>
-              <button type="button" disabled={running} onClick={() => setMode('image')}>Choose Image</button>
+              <button type="button" disabled={running} onClick={() => setMode('image')}>选择参考图</button>
             </div>
           ) : null}
           {assetSource ? (
             <div className="build-source-artifact">
               <div>
-                <small>SOURCE IMAGE</small>
+                <small>参考图片</small>
                 <strong>{assetSource.prompt || 'Image'}</strong>
                 <code>{assetSource.artifactId}</code>
               </div>
@@ -533,7 +534,7 @@ export function BuildWorkbenchView({
       <div className="build-primary-actions">
         {!caps.paired ? (
           <button id="build-connect" type="button" className="build-connect" disabled={connecting} onClick={() => void connect()}>
-            {pairingId ? '继续配对' : connecting ? '连接中…' : 'Connect'}
+            {pairingId ? '继续配对' : connecting ? '连接中…' : '连接生成服务'}
           </button>
         ) : null}
         <button id="build-generate" type="button" className="build-generate" disabled={generateDisabled} onClick={() => void generate()}>
@@ -541,10 +542,10 @@ export function BuildWorkbenchView({
         </button>
       </div>
       <details className="build-technical-options">
-        <summary>Advanced options</summary>
-        <label className="build-provider-field">Provider <span>默认自动路由</span>
+        <summary>高级设置</summary>
+        <label className="build-provider-field">生成服务 <span>默认自动路由</span>
           <select id="build-provider" name="build-provider" value={providerId} disabled={running || !caps.paired} onChange={(event) => setProviderId(event.target.value)}>
-            <option value="auto">Auto · Recommended</option>
+            <option value="auto">自动选择 · 推荐</option>
             {providerOptions.map((provider) => (
               <option key={provider.id} value={provider.id}>{provider.label} · {provider.id}</option>
             ))}
@@ -566,25 +567,25 @@ export function BuildWorkbenchView({
       <header className="build-heading screen-heading product-heading">
         <div>
           <div className="eyebrow">CREATE</div>
-          <h1>Create</h1>
-          <p>Image、3D Asset 或 World。选择结果，其余技术细节交给系统。</p>
+          <h1>把想法带进世界</h1>
+          <p>从一张参考图开始，生成物体；或描述一个完整的环境。</p>
           <div className="product-flow" aria-label="Create workflow">
-            <span>Input</span><i>→</i><span>Generate</span><i>→</i><span>Artifact</span>
+            <span>输入</span><i>→</i><span>生成</span><i>→</i><span>预览与使用</span>
           </div>
         </div>
-        <button id="build-open-advanced" className="build-advanced-button" type="button" onClick={() => setBuildAdvancedOpen(true)}>{running ? 'Jobs' : 'Advanced'}</button>
+        <button id="build-open-advanced" className="build-advanced-button" type="button" onClick={() => setBuildAdvancedOpen(true)}>{running ? '查看生成任务' : '生成任务与高级设置'}</button>
       </header>
 
       <div className="build-world-context">
         <span className="build-context-dot" />
-        <div><small>CREATE INTO</small><strong id="build-world-name">{worldName}</strong></div>
+        <div><small>当前世界</small><strong id="build-world-name">{worldName}</strong></div>
         <code id="build-world-id">{worldId}</code>
       </div>
 
-      <div className="build-mode-tabs" role="tablist" aria-label="构建类型">
+      <div className="build-mode-tabs" role="group" aria-label="构建类型">
         {(['image', 'asset', 'world'] as const).map((mode) => {
           const active = state.mode === mode;
-          const sublabel = mode === 'image' ? '2D' : mode === 'asset' ? '3D' : 'ENV';
+          const sublabel = mode === 'image' ? '上传或生成参考图' : mode === 'asset' ? '从图片生成物体' : '从描述生成环境';
           return (
             <button
               key={mode}
@@ -592,10 +593,10 @@ export function BuildWorkbenchView({
               data-build-mode={mode}
               className={active ? 'active' : ''}
               disabled={running}
-              aria-selected={active}
+              aria-pressed={active}
               onClick={() => setMode(mode)}
             >
-              <span>{modeLabel(mode)}</span><small>{sublabel}</small>
+              <StudioIcon name={mode==='image'?'image':mode==='asset'?'cube':'worlds'} size={20} /><span>{modeLabel(mode)}</span><small>{sublabel}</small>
             </button>
           );
         })}
@@ -622,8 +623,10 @@ export function BuildWorkbenchView({
           ) : remoteGenerationControls}
         </section>
 
+        <aside className="build-guide" aria-label="创作步骤"><span className="eyebrow">创作指引</span><h2>从输入到可用结果</h2><ol><li><span>01</span><div><strong>准备输入</strong><p>上传图片，或清楚描述物体与环境。</p></div></li><li><span>02</span><div><strong>确认后生成</strong><p>检查输入并连接生成服务。使用计算资源前需要你的确认。</p></div></li><li><span>03</span><div><strong>预览，再放入世界</strong><p>结果会保留在下方，也可以从资源库再次使用。</p></div></li></ol><div className="build-guide-note"><StudioIcon name="folder" size={18} /><p>可以先在本机整理图片；开始生成时才上传确认的输入。</p></div></aside>
+
         {state.status === 'running' || state.status === 'error' ? <section className="build-pipeline" aria-label="Build Pipeline">
-          <div className="build-section-heading"><span>Pipeline</span><small id="build-status-label">{state.status.toUpperCase()}</small></div>
+          <div className="build-section-heading"><span>生成进度</span><small id="build-status-label">{state.status.toUpperCase()}</small></div>
           <div id="build-step-list" className="build-step-list">
             {state.steps.map((step) => (
               <div key={step.id} className="build-step" data-state={step.status}>
@@ -637,7 +640,7 @@ export function BuildWorkbenchView({
 
         {state.result ? (
           <section id="build-result" className="build-result" aria-label="Build Result">
-            <div className="build-section-heading"><span>Current Result</span><small>READY</small></div>
+            <div className="build-section-heading"><span>生成结果</span><small>READY</small></div>
             {state.result.kind === 'image' ? (
               <ImageResultView resources={resources} result={state.result} onGenerate3D={prepare3DFromImage} />
             ) : state.result.kind === 'asset' ? (

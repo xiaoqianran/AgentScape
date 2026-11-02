@@ -1,14 +1,7 @@
-/*
- * AgentScape Studio spatial composition.
- *
- * Information architecture follows mature creative tools:
- * stable top app bar, persistent scene tree, canvas-first center, contextual
- * inspector on the right, and a compact manipulation dock close to the canvas.
- */
+/* One layout owner. Product pages never unmount the live world/renderer. */
 
 .shell.spatial-editor {
   position: relative;
-  display: block;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -18,1284 +11,536 @@
   font-family: var(--studio-font-ui);
 }
 
-.spatial-editor .workspace,
-.spatial-editor.world-first .workspace {
-  position: absolute;
-  inset: 0;
-  display: block;
-  padding: 0;
-  background: var(--studio-viewport);
-}
-
-/* Canvas ------------------------------------------------------------------ */
-
-.spatial-editor .viewport,
-.spatial-editor.world-first .viewport {
-  position: absolute;
-  top: var(--studio-header-h);
-  right: 0;
-  bottom: 0;
-  left: var(--studio-scene-w);
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  background: var(--studio-viewport);
-  box-shadow: inset 0 1px var(--studio-border);
-}
-
-.spatial-editor.context-open .viewport {
-  right: var(--studio-panel-w);
-}
-
-.spatial-editor .viewport::before {
-  display: block;
-  background:
-    radial-gradient(circle at 50% 30%, rgba(var(--ds-accent-rgb),.035), transparent 36%),
-    linear-gradient(180deg, rgba(0,0,0,.06), transparent 18%);
-}
-
-.spatial-editor .viewport::after {
-  display: block;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.012);
-}
-
-.spatial-editor .world-intro,
-.spatial-editor .hint {
-  display: none;
-}
-
-/* App bar ----------------------------------------------------------------- */
-
-.spatial-editor .brandbar,
-.spatial-editor.world-first .brandbar {
+.brandbar {
   position: absolute;
   z-index: 50;
-  top: 0;
-  right: 0;
-  left: 0;
+  inset: 0 0 auto;
   height: var(--studio-header-h);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 8px 0 10px;
-  border: 0;
+  gap: 28px;
+  padding: 0 20px;
   border-bottom: 1px solid var(--studio-border);
   background: var(--studio-surface-1);
-  box-shadow: none;
-  backdrop-filter: none;
-  pointer-events: none;
 }
 
-.spatial-editor .brand-lockup,
-.spatial-editor .brand-actions {
-  min-height: var(--studio-header-h);
+.brand-lockup,.brand-actions,.product-navigation {
   display: flex;
   align-items: center;
-  pointer-events: auto;
 }
 
-.spatial-editor .brand-lockup {
-  width: var(--studio-scene-w);
-  min-width: 0;
-  gap: 9px;
-  padding-right: 10px;
-}
-
-.spatial-editor .scene-sidebar-toggle {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--ds-radius-sm);
-  color: var(--studio-text-3);
-  background: transparent;
-  cursor: pointer;
-}
-
-.spatial-editor .scene-sidebar-toggle:hover {
-  border-color: var(--studio-border);
-  color: var(--studio-text);
-  background: var(--studio-surface-2);
-}
-
-.spatial-editor .scene-sidebar-toggle span {
-  display: block;
-  transform: translateY(-1px);
-  font: 600 20px/1 var(--studio-font-ui);
-}
-
-.spatial-editor .brand-lockup strong {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--studio-text);
-  white-space: nowrap;
-}
-
-.spatial-editor .brand-lockup strong::before {
-  content: "";
-  width: 15px;
-  height: 15px;
-  flex: 0 0 15px;
-  border: 1px solid rgba(var(--ds-accent-rgb),.72);
-  border-radius: 4px;
-  background:
-    linear-gradient(90deg, transparent 46%, rgba(var(--ds-accent-rgb),.82) 46% 54%, transparent 54%),
-    linear-gradient(transparent 46%, rgba(var(--ds-accent-rgb),.82) 46% 54%, transparent 54%);
-  box-shadow: inset 0 0 0 3px rgba(var(--ds-accent-rgb),.06);
-}
-
-.spatial-editor .brand-lockup em {
-  color: var(--studio-text-3);
-  font-style: normal;
-  font-weight: 520;
-}
-
-.spatial-editor .brand-lockup > span {
-  min-width: 0;
-  max-width: 118px;
-  overflow: hidden;
-  color: var(--studio-text-3);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spatial-editor .brand-lockup > span::before {
-  content: "/";
-  margin-right: 7px;
-  color: rgba(255,255,255,.18);
-}
-
-.spatial-editor .brand-actions {
-  gap: 2px;
-  margin-left: auto;
-}
-
-.spatial-editor .world-control > span {
-  display: none;
-}
-
-.spatial-editor .world-select,
-.spatial-editor .header-button,
-.spatial-editor .icon-button,
-.spatial-editor .runtime-status {
-  height: 30px;
-  min-height: 30px;
-  border: 1px solid transparent;
-  border-radius: var(--ds-radius-sm);
-  color: var(--studio-text-2);
-  background: transparent;
-  box-shadow: none;
-}
-
-.spatial-editor .world-select {
-  max-width: 214px;
-  padding: 0 26px 0 9px;
-  color: var(--studio-text-2);
-}
-
-.spatial-editor .world-select:hover,
-.spatial-editor .world-select:focus-visible,
-.spatial-editor .header-button:hover,
-.spatial-editor .icon-button:hover,
-.spatial-editor .runtime-status.is-actionable:hover {
-  border-color: var(--studio-border);
-  color: var(--studio-text);
-  background: var(--studio-surface-2);
-}
-
-.spatial-editor .runtime-status {
-  gap: 6px;
-  padding: 0 8px;
-}
-
-.spatial-editor .runtime-status i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--studio-success);
-  box-shadow: none;
-}
-
-.spatial-editor .icon-button {
-  width: 30px;
-  padding: 0;
-  color: var(--studio-text-3);
-  font-size: 18px;
-}
-
-/* Scene tree --------------------------------------------------------------- */
-
-.spatial-editor .scene-panel,
-.spatial-editor.world-first .scene-panel {
-  position: absolute;
-  z-index: 28;
-  top: var(--studio-header-h);
-  left: 0;
-  bottom: 0;
-  width: var(--studio-scene-w);
-  min-width: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0,1fr) auto;
-  overflow: hidden;
-  border: 0;
-  border-right: 1px solid var(--studio-border);
-  border-radius: 0;
-  background: var(--ds-surface-2);
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.spatial-editor .scene-panel-heading {
-  min-height: 70px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+.brand-lockup {
   gap: 8px;
-  padding: 12px 12px 9px;
-  border-bottom: 0;
+  flex-shrink: 0;
 }
 
-.spatial-editor .scene-panel-heading > div {
-  min-width: 0;
-}
-
-.spatial-editor .scene-eyebrow {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--studio-text-3);
-  font: 650 11px/1 var(--studio-font-mono);
-  letter-spacing:.04em;
-}
-
-.spatial-editor .scene-panel-heading strong {
-  display: block;
-  overflow: hidden;
-  color: var(--studio-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spatial-editor .scene-count {
-  min-width: 22px;
-  padding: 3px 6px;
-  border: 1px solid var(--studio-border);
-  border-radius: 999px;
-  color: var(--studio-text-3);
-  background: rgba(255,255,255,.025);
-  text-align: center;
-}
-
-.spatial-editor .product-flow {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 7px;
-  color: rgba(255,255,255,.30);
-  font: 520 11px/1.2 var(--studio-font-mono);
-  letter-spacing: .025em;
-  text-transform: uppercase;
-}
-
-.spatial-editor .product-flow i {
-  color: rgba(255,255,255,.18);
-  font-style: normal;
-}
-
-.spatial-editor .scene-panel-tabs {
-  min-height: 33px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin: 0 8px;
-  padding: 2px;
-  border: 1px solid var(--studio-border);
-  border-radius: var(--ds-radius-sm);
-  background: rgba(255,255,255,.018);
-}
-
-.spatial-editor .scene-panel-tabs button {
-  min-width: 0;
-  height: 27px;
-  flex: 1;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--ds-radius-sm);
-  color: var(--studio-text-3);
-  background: transparent;
-  cursor: pointer;
-}
-
-.spatial-editor .scene-panel-tabs button:hover {
-  color: var(--studio-text-2);
-  background: rgba(255,255,255,.035);
-}
-
-.spatial-editor .scene-panel-tabs button.active {
-  color: var(--studio-text);
-  background: var(--studio-surface-3);
-}
-
-.spatial-editor .scene-panel-body {
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto auto minmax(0,1fr);
-  overflow: hidden;
-}
-
-.spatial-editor .scene-world-card {
-  margin: 8px 8px 2px;
-  padding: 8px 9px;
-  border: 1px solid var(--studio-border);
-  border-radius: var(--ds-radius-sm);
-  background: rgba(255,255,255,.018);
-}
-
-.spatial-editor .scene-search {
-  padding: 6px 8px 3px;
-}
-
-.spatial-editor .scene-search input {
-  height: 30px;
-  border: 1px solid var(--studio-border);
-  border-radius: var(--ds-radius-sm);
-  background: var(--ds-surface-1);
-  color: var(--studio-text-2);
-}
-
-.spatial-editor .scene-search input:hover {
-  border-color: var(--studio-border-strong);
-}
-
-.spatial-editor .scene-search input:focus {
-  border-color: var(--studio-border-focus);
-  outline: 0;
-  box-shadow: 0 0 0 2px rgba(var(--ds-accent-rgb),.08);
-}
-
-.spatial-editor .scene-section-heading {
-  padding: 10px 10px 5px;
-  color: var(--studio-text-3);
-}
-
-.spatial-editor .scene-section-heading small {
-  color: rgba(255,255,255,.28);
-}
-
-.spatial-editor .scene-object-list,
-.spatial-editor .scene-asset-list {
-  min-height: 0;
-  overflow: auto;
-  padding: 0 6px 8px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,.12) transparent;
-}
-
-.spatial-editor .scene-object-row,
-.spatial-editor .scene-asset-row {
-  min-height: 34px;
-  border: 1px solid transparent;
-  border-radius: var(--ds-radius-sm);
-  background: transparent;
-}
-
-.spatial-editor .scene-asset-row {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 22px minmax(0,1fr) 26px;
-  align-items: center;
-  gap: 7px;
-  padding-inline: 7px;
-  text-align: left;
-}
-
-.spatial-editor .scene-asset-glyph {
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: 4px;
-  font: 700 11px/1 var(--studio-font-mono);
-}
-
-.spatial-editor .scene-asset-copy {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-  overflow: hidden;
-}
-
-.spatial-editor .scene-asset-copy strong,
-.spatial-editor .scene-asset-copy small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spatial-editor .scene-asset-row > button {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--ds-radius-sm);
-  color: var(--studio-text-3);
-  background: transparent;
-  font: 500 16px/1 var(--studio-font-ui);
-  cursor: pointer;
-}
-
-.spatial-editor .scene-asset-row > button:hover {
-  border-color: var(--studio-border);
-  color: var(--studio-text);
-  background: var(--studio-surface-3);
-}
-
-.spatial-editor .scene-object-row:hover,
-.spatial-editor .scene-asset-row:hover {
-  background: var(--studio-surface-2);
-}
-
-.spatial-editor .scene-object-row.active {
-  border-color: rgba(var(--ds-accent-rgb),.14);
-  background: var(--studio-accent-soft);
-}
-
-.spatial-editor .scene-object-glyph,
-.spatial-editor .scene-asset-glyph {
-  color: var(--ds-accent);
-  background: rgba(var(--ds-accent-rgb),.085);
-}
-
-.spatial-editor .scene-panel-footer {
-  min-height: 44px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.product-navigation {
   gap: 4px;
-  padding: 6px;
-  border-top: 1px solid var(--studio-border);
-  background: var(--ds-surface-2);
-}
-
-.spatial-editor .scene-panel-footer button {
   min-width: 0;
-  min-height: 31px;
-  border: 1px solid transparent;
-  border-radius: var(--ds-radius-sm);
-  color: var(--studio-text-3);
-  background: transparent;
-  cursor: pointer;
 }
 
-.spatial-editor .scene-panel-footer button:hover {
-  border-color: var(--studio-border);
-  color: var(--studio-text-2);
-  background: var(--studio-surface-2);
-}
-
-.spatial-editor .scene-panel-footer button:last-child {
-  color: var(--ds-text);
-  background: rgba(var(--ds-accent-rgb),.10);
-}
-
-/* Context panel ------------------------------------------------------------ */
-
-.spatial-editor .panel,
-.spatial-editor.world-first .panel {
-  position: absolute;
-  z-index: 28;
-  top: var(--studio-header-h);
-  right: 0;
-  bottom: 0;
-  left: auto;
-  width: min(var(--studio-panel-w), calc(100vw - var(--studio-scene-w)));
-  max-height: none;
-  display: none;
-  grid-template-rows: minmax(0,1fr);
-  overflow: hidden;
-  border: 0;
-  border-left: 1px solid var(--studio-border);
-  border-radius: 0;
-  background: var(--studio-surface-1);
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.spatial-editor.context-open .panel {
-  display: grid;
-}
-
-/* Geometry snaps atomically. Animating viewport bounds stretches the WebGPU
-   canvas between renderer resizes and produces a visible one-frame wobble. */
-
-.spatial-editor.scene-collapsed .scene-panel {
-  display: none;
-}
-
-.spatial-editor.scene-collapsed .viewport,
-.spatial-editor.scene-collapsed.world-first .viewport {
-  left: 0;
-}
-
-.spatial-editor.scene-collapsed .brand-lockup {
-  width: auto;
-}
-
-.spatial-editor.scene-collapsed .artifact-tray-host {
-  left: 14px;
-}
-
-.spatial-editor.scene-collapsed .command-bar,
-.spatial-editor.scene-collapsed.world-first .command-bar {
-  left: calc((100vw - var(--studio-panel-w)) / 2);
-}
-
-/* Canvas tool dock --------------------------------------------------------- */
-
-.spatial-editor .editor-toolbar,
-.spatial-editor.world-first .editor-toolbar {
-  position: absolute;
-  z-index: 40;
-  top: auto;
-  right: auto;
-  bottom: 14px;
-  left: 50%;
-  width: max-content;
-  max-width: min(620px, calc(100% - 28px));
+.brand-actions {
+  gap: 5px;
+  margin-left: auto;
   min-width: 0;
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  transform: translateX(-50%);
-  border: 1px solid var(--studio-border-strong);
-  border-radius: var(--ds-radius-md);
-  background: rgba(0,0,0,.96);
-  box-shadow: var(--studio-shadow-float);
 }
 
-.spatial-editor .editor-toolbar button,
-.spatial-editor .toolbar-more summary {
-  height: 30px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: var(--ds-radius-sm);
-  color: var(--studio-text-2);
-  background: transparent;
-  cursor: pointer;
-}
-
-.spatial-editor .editor-toolbar button:hover,
-.spatial-editor .toolbar-more summary:hover {
-  color: var(--studio-text);
-  background: var(--studio-surface-hover);
-}
-
-.spatial-editor .editor-toolbar button.active {
-  border-color: rgba(var(--ds-accent-rgb),.16);
-  color: var(--ds-text);
-  background: var(--studio-accent-soft);
-}
-
-.spatial-editor .toolbar-divider {
-  height: 18px;
-  background: var(--studio-border-strong);
-}
-
-.spatial-editor .toolbar-more {
-  position: relative;
-}
-
-.spatial-editor .toolbar-menu {
-  top: auto;
-  right: 0;
-  bottom: calc(100% + 7px);
-  width: 210px;
-  max-height: min(520px, calc(100vh - 100px));
-  overflow: auto;
-  padding: 6px;
-  border: 1px solid var(--studio-border-strong);
-  border-radius: var(--ds-radius-md);
-  background: var(--ds-surface-2);
-  box-shadow: var(--studio-shadow-float);
-}
-
-/* Agent command and generated artifacts ----------------------------------- */
-
-.spatial-editor .command-bar,
-.spatial-editor.world-first .command-bar {
-  z-index: 36;
-  right: auto;
-  bottom: 62px;
-  left: calc(var(--studio-scene-w) + (100vw - var(--studio-scene-w) - var(--studio-panel-w)) / 2);
-  width: min(620px, calc(100vw - var(--studio-scene-w) - var(--studio-panel-w) - 36px));
-  transform: translateX(-50%);
-  background: rgba(0,0,0,.98);
-  backdrop-filter: none;
-}
-
-.spatial-editor .artifact-tray-host {
-  z-index: 30;
-  right: calc(var(--studio-panel-w) + 14px);
-  bottom: 62px;
-  left: calc(var(--studio-scene-w) + 14px);
-}
-
-.spatial-editor:not(.context-open) .artifact-tray-host {
-  right: 14px;
-}
-
-.spatial-editor:not(.context-open) .panel,
-.spatial-editor:not(.context-open) .command-bar,
-.spatial-editor:not(.context-open) .artifact-tray-host {
-  display: none;
-}
-
-.spatial-editor[data-context-view="create"].context-open .artifact-tray-host {
-  display: block;
-}
-
-.spatial-editor[data-context-view="task"].context-open .command-bar {
-  display: grid;
-}
-
-/* Cinematic mode ----------------------------------------------------------- */
-
-.spatial-editor.cinematic .brandbar,
-.spatial-editor.cinematic .scene-panel,
-.spatial-editor.cinematic .panel,
-.spatial-editor.cinematic .editor-toolbar,
-.spatial-editor.cinematic .command-bar,
-.spatial-editor.cinematic .artifact-tray-host {
-  display: none;
-}
-
-.spatial-editor.cinematic .viewport,
-.spatial-editor.cinematic.context-open .viewport {
-  inset: 0;
-}
-
-/* Responsive --------------------------------------------------------------- */
-
-@media (max-width: 1280px) {
-  :root {
-    --studio-scene-w: 232px;
-    --studio-panel-w: 340px;
-  }
-}
-
-@media (max-width: 1260px) {
-  .spatial-editor .scene-panel,
-  .spatial-editor.world-first .scene-panel {
-    width: 232px;
-  }
-
-  .spatial-editor .brand-lockup {
-    width: 232px;
-  }
-
-  .spatial-editor .viewport,
-  .spatial-editor.world-first .viewport {
-    left: 232px;
-  }
-
-  .spatial-editor .command-bar,
-  .spatial-editor.world-first .command-bar {
-    left: calc(232px + (100vw - 232px - var(--studio-panel-w)) / 2);
-    width: min(560px, calc(100vw - 232px - var(--studio-panel-w) - 30px));
-  }
-
-  .spatial-editor .artifact-tray-host {
-    left: 246px;
-  }
-
-  .spatial-editor .brand-lockup > span {
-    display: none;
-  }
-}
-
-@media (max-width: 1080px) {
-  .spatial-editor .scene-panel,
-  .spatial-editor.world-first .scene-panel {
-    display: none;
-  }
-
-  .spatial-editor .brand-lockup {
-    width: auto;
-  }
-
-  .spatial-editor .viewport,
-  .spatial-editor.world-first .viewport {
-    left: 0;
-  }
-
-  .spatial-editor.context-open .viewport {
-    right: 336px;
-  }
-
-  .spatial-editor .panel,
-  .spatial-editor.world-first .panel {
-    width: 336px;
-  }
-
-  .spatial-editor .command-bar,
-  .spatial-editor.world-first .command-bar {
-    left: calc((100vw - 336px) / 2);
-    width: min(560px, calc(100vw - 366px));
-  }
-
-  .spatial-editor .artifact-tray-host {
-    right: 350px;
-    left: 14px;
-  }
-
-}
-
-@media (max-width: 860px) {
-  :root {
-    --studio-header-h: 44px;
-    --studio-panel-w: 336px;
-  }
-
-  .spatial-editor .brand-lockup em,
-  .spatial-editor .runtime-status span,
-  .spatial-editor .header-button {
-    display: none;
-  }
-
-  .spatial-editor .world-select {
-    max-width: 154px;
-  }
-
-  .spatial-editor .viewport,
-  .spatial-editor.context-open .viewport {
-    right: 0;
-  }
-
-  .spatial-editor .panel,
-  .spatial-editor.world-first .panel {
-    top: calc(var(--studio-header-h) + 8px);
-    right: 8px;
-    bottom: 52px;
-    left: 8px;
-    width: auto;
-    border: 1px solid var(--studio-border-strong);
-    border-radius: var(--ds-radius-md);
-    box-shadow: var(--studio-shadow);
-  }
-
-  .spatial-editor .editor-toolbar,
-  .spatial-editor.world-first .editor-toolbar {
-    bottom: 52px;
-  }
-
-  .spatial-editor .artifact-tray-host {
-    display: none !important;
-  }
-
-  .spatial-editor .command-bar,
-  .spatial-editor.world-first .command-bar {
-    right: 10px;
-    bottom: 52px;
-    left: 10px;
-    width: auto;
-    transform: none;
-  }
-}
-
-@media (max-width: 620px) {
-  .spatial-editor .brand-lockup strong {
-    font-size: 12px;
-  }
-
-  .spatial-editor .brand-lockup strong::before {
-    width: 13px;
-    height: 13px;
-    flex-basis: 13px;
-  }
-
-  .spatial-editor .world-select {
-    max-width: 120px;
-  }
-
-  .spatial-editor .runtime-status {
-    display: none;
-  }
-
-  .spatial-editor .editor-toolbar #duplicate,
-  .spatial-editor .editor-toolbar #delete,
-  .spatial-editor .toolbar-divider {
-    display: none;
-  }
-}
-
-/* World Editor utilities ---------------------------------------------------
-   Product navigation lives in the app bar; this rail is only contextual
-   editor chrome. */
-
-.spatial-editor .utility-rail {
-  position: absolute;
-  z-index: 44;
-  top: calc(var(--studio-header-h) + 12px);
-  right: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 3px;
-  width: 74px;
-  padding: 5px;
-  border: 1px solid var(--studio-border);
-  border-radius: var(--ds-radius-md);
-  background: rgba(0,0,0,.88);
-  box-shadow: var(--studio-shadow-float);
-  backdrop-filter: blur(16px);
-}
-
-.spatial-editor.context-open .utility-rail {
-  right: calc(var(--studio-panel-w) + 24px);
-}
-
-.spatial-editor .utility-rail button {
-  position: relative;
-  min-height: 30px;
-  padding: 0 7px;
-  border: 0;
-  border-radius: var(--ds-radius-sm);
-  color: var(--studio-text-3);
-  background: transparent;
-  cursor: pointer;
-  font: 540 11px/1 var(--studio-font-ui);
-  white-space: nowrap;
-}
-
-.spatial-editor .utility-rail button:hover {
-  color: var(--studio-text-2);
-  background: rgba(255,255,255,.045);
-}
-
-.spatial-editor .utility-rail button[aria-pressed="true"] {
-  color: var(--ds-text);
-  background: rgba(var(--ds-accent-rgb),.13);
-  box-shadow: inset 0 0 0 1px rgba(var(--ds-accent-rgb),.16);
-}
-
-.spatial-editor .utility-rail button.has-selection:not([aria-pressed="true"])::after {
-  content: "";
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--studio-accent);
-}
-
-.spatial-editor .utility-rail-divider {
-  height: 1px;
-  margin: 2px 4px;
-  background: var(--studio-border);
-}
-
-.spatial-editor .utility-rail .dock-extension {
-  color: var(--studio-text-3);
-  font-size: 11px;
-  line-height: 1.15;
-  white-space: normal;
-}
-
-/* Keep the canvas geometrically stable when context opens. The inspector is
-   overlay chrome; it no longer takes ownership of a full viewport column. */
-.spatial-editor.context-open .viewport {
-  right: 0;
-}
-
-.spatial-editor .panel,
-.spatial-editor.world-first .panel {
-  top: calc(var(--studio-header-h) + 12px);
-  right: 12px;
-  bottom: 72px;
-  width: min(var(--studio-panel-w), calc(100vw - var(--studio-scene-w) - 44px));
-  border: 1px solid var(--studio-border-strong);
-  border-radius: var(--ds-radius-lg);
-  background: rgba(0,0,0,.95);
-  box-shadow: 0 18px 48px rgba(0,0,0,.34), var(--studio-shadow-float);
-  backdrop-filter: blur(18px) saturate(118%);
-}
-
-.spatial-editor.scene-collapsed .panel,
-.spatial-editor.scene-collapsed.world-first .panel {
-  width: min(var(--studio-panel-w), calc(100vw - 44px));
-}
-
-.spatial-editor.cinematic .utility-rail {
-  display: none;
-}
-
-@media (max-width: 1080px) {
-  .spatial-editor .utility-rail {
-    width: 68px;
-  }
-
-  .spatial-editor.context-open .utility-rail {
-    right: calc(var(--studio-panel-w) + 18px);
-  }
-}
-
-@media (max-width: 860px) {
-  .spatial-editor .utility-rail {
-    top: calc(var(--studio-header-h) + 8px);
-    right: 8px;
-    width: auto;
-    max-width: calc(100vw - 16px);
-    flex-direction: row;
-    padding: 4px;
-    overflow-x: auto;
-  }
-
-  .spatial-editor.context-open .utility-rail {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .spatial-editor .utility-rail-divider {
-    width: 1px;
-    height: 22px;
-    margin: 3px 2px;
-  }
-
-  .spatial-editor .panel,
-  .spatial-editor.world-first .panel {
-    top: calc(var(--studio-header-h) + 8px);
-    right: 8px;
-    bottom: 52px;
-    left: 8px;
-    width: auto;
-  }
-}
-
-@media (max-width: 520px) {
-  .spatial-editor .utility-rail button {
-    min-height: 28px;
-    font-size: 11px;
-  }
-}
-
-/* Product shell -------------------------------------------------------------
-   Product pages are separate from the persistent World Editor. The editor
-   remains mounted behind page surfaces so Runtime/renderer ownership is never
-   transferred to React navigation. */
-
-.spatial-editor .world-editor-workspace {
+.world-editor-workspace,.workspace {
   position: absolute;
   inset: 0;
 }
 
-.spatial-editor .world-editor-workspace.is-background {
+.world-editor-workspace.is-background {
   visibility: hidden;
   pointer-events: none;
 }
 
-.spatial-editor .product-navigation {
+.viewport {
   position: absolute;
-  z-index: 54;
-  top: 7px;
-  left: 50%;
-  height: 30px;
+  top: calc(var(--studio-header-h) + 48px);
+  left: var(--studio-scene-w);
+  right: 0;
+  bottom: 28px;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  background: var(--studio-viewport);
+}
+
+.viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.viewport canvas.asset-drop-target {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: -2px;
+}
+
+.scene-panel {
+  position: absolute;
+  top: var(--studio-header-h);
+  bottom: 0;
+  left: 0;
+  width: var(--studio-scene-w);
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0,1fr) auto;
+  border-right: 1px solid var(--studio-border);
+  background: var(--studio-surface-1);
+  overflow: hidden;
+}
+
+.editor-toolbar {
+  position: absolute;
+  z-index: 20;
+  top: var(--studio-header-h);
+  left: var(--studio-scene-w);
+  right: 0;
+  height: 48px;
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
-  transform: translateX(-50%);
-  border: 1px solid var(--studio-border);
-  border-radius: var(--ds-radius-md);
-  background: rgba(0,0,0,.94);
-  box-shadow: inset 0 1px rgba(255,255,255,.025);
-  backdrop-filter: blur(16px);
-  pointer-events: auto;
+  gap: 3px;
+  padding: 0 14px;
+  background: var(--studio-surface-1);
+  border-bottom: 1px solid var(--studio-border);
 }
 
-.spatial-editor .product-navigation button,
-.spatial-editor .product-navigation a {
-  min-width: 62px;
-  height: 24px;
-  display: inline-flex;
+.panel {
+  position: absolute;
+  z-index: 22;
+  top: calc(var(--studio-header-h) + 48px);
+  right: 0;
+  bottom: 28px;
+  width: var(--studio-panel-w);
+  display: none;
+  grid-template-rows: 44px minmax(0,1fr);
+  border-left: 1px solid var(--studio-border);
+  background: var(--studio-surface-1);
+  overflow: hidden;
+}
+
+.context-open .panel {
+  display: grid;
+}
+
+.context-open .viewport {
+  right: var(--studio-panel-w);
+}
+
+.scene-collapsed .scene-panel {
+  display: none;
+}
+
+.scene-collapsed .viewport,.scene-collapsed .editor-toolbar,.scene-collapsed .editor-statusbar {
+  left: 0;
+}
+
+.editor-statusbar {
+  position: absolute;
+  z-index: 23;
+  bottom: 0;
+  left: var(--studio-scene-w);
+  right: 0;
+  height: 28px;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--ds-radius-sm);
-  color: var(--studio-text-3);
-  background: transparent;
-  cursor: pointer;
-  font: 560 12px/1 var(--studio-font-ui);
-  letter-spacing: 0;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.spatial-editor .product-navigation button:hover,
-.spatial-editor .product-navigation a:hover {
-  color: var(--studio-text-2);
-  background: rgba(255,255,255,.045);
-}
-
-.spatial-editor .product-navigation button[aria-pressed="true"] {
-  color: var(--studio-text);
-  background: var(--studio-surface-3);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
-}
-
-.spatial-editor .product-navigation a::after {
-  content: "↗";
-  margin-left: 5px;
+  gap: 20px;
+  padding: 0 14px;
+  border-top: 1px solid var(--studio-border);
+  background: var(--studio-surface-1);
   color: var(--studio-text-3);
   font-size: 11px;
 }
 
-.spatial-editor .product-page-layer {
+.editor-statusbar > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.editor-shortcuts {
+  margin-left: auto;
+}
+
+.utility-rail {
   position: absolute;
-  z-index: 26;
+  z-index: 24;
+  right: 12px;
+  top: calc(var(--studio-header-h) + 59px);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--studio-border);
+  border-radius: 8px;
+  background: var(--studio-surface-1);
+  box-shadow: var(--studio-shadow-float);
+}
+
+.context-open .utility-rail {
+  right: calc(var(--studio-panel-w) + 12px);
+}
+
+.utility-rail button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--studio-text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.utility-rail button:hover {
+  background: var(--studio-surface-3);
+}
+
+.utility-rail button[aria-pressed="true"] {
+  background: var(--studio-accent-soft);
+  color: var(--studio-accent);
+}
+
+.utility-rail-divider {
+  width: 1px;
+  margin: 5px 2px;
+  background: var(--studio-border);
+}
+
+.world-artifact-tray {
+  position: absolute;
+  z-index: 24;
+  left: calc(var(--studio-scene-w) + 16px);
+  right: 16px;
+  bottom: 42px;
+  display: none;
+}
+
+.product-page-layer,.persistent-generation-host {
+  position: absolute;
+  z-index: 30;
   top: var(--studio-header-h);
   right: 0;
   bottom: 0;
   left: 0;
   overflow: hidden;
-  border-top: 1px solid var(--studio-border);
   background: var(--studio-bg);
 }
 
-.spatial-editor .product-page {
-  width: min(1180px, 100%);
+.product-page {
+  width: min(1200px,100%);
   height: 100%;
   min-height: 0;
   margin: 0 auto;
-  padding: 18px;
+  padding: 28px 32px;
 }
 
-.spatial-editor .product-build-page {
+.product-build-page {
   display: grid;
   grid-template-rows: minmax(0,1fr) auto;
   gap: 12px;
 }
 
-.spatial-editor .product-feature-frame,
-.spatial-editor .product-advanced-page {
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
-  border: 1px solid var(--studio-border);
-  border-radius: var(--ds-radius-lg);
-  background: var(--studio-surface-1);
-  box-shadow: var(--studio-shadow);
-}
-
-.spatial-editor .product-feature-frame > * {
-  height: 100%;
-}
-
-.spatial-editor .product-artifact-tray {
-  min-height: 0;
-}
-
-.spatial-editor .product-artifact-tray > * {
-  max-height: 174px;
-}
-
-.spatial-editor .product-advanced-page {
+.product-assets-page {
   display: grid;
-  grid-template-rows: auto minmax(0,1fr);
-  overflow: hidden;
 }
 
-.spatial-editor .product-page-toolbar {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--studio-border);
-  color: var(--studio-text-3);
-  font: 600 11px/1 var(--studio-font-mono);
-}
-
-.spatial-editor .product-page-toolbar button {
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--studio-border);
-  border-radius: var(--ds-radius-sm);
-  color: var(--studio-text-2);
-  background: var(--studio-surface-2);
-  cursor: pointer;
-}
-
-.spatial-editor .product-assets-page {
-  display: grid;
-  min-height: 0;
-}
-
-.spatial-editor .product-assets-surface {
-  width: min(980px, 100%);
-  justify-self: center;
-}
-
-.spatial-editor .product-agent-page {
+.product-agent-page {
+  width: min(1040px,100%);
   display: grid;
   grid-template-rows: auto minmax(0,1fr) auto;
-  gap: 10px;
+  gap: 14px;
 }
 
-.spatial-editor .product-subnav {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  width: max-content;
-  padding: 3px;
-  border: 1px solid var(--studio-border);
-  border-radius: var(--ds-radius-md);
-  background: var(--studio-surface-1);
-}
-
-.spatial-editor .product-subnav button {
-  height: 28px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--ds-radius-sm);
-  color: var(--studio-text-3);
-  background: transparent;
-  cursor: pointer;
-  font: 560 11px/1 var(--studio-font-ui);
-}
-
-.spatial-editor .product-subnav button[aria-pressed="true"] {
-  color: var(--studio-text);
-  background: var(--studio-surface-3);
-}
-
-.spatial-editor .product-agent-surface {
-  width: min(920px, 100%);
+.product-feature-frame {
   min-height: 0;
-  justify-self: center;
-}
-
-.spatial-editor .product-agent-page .product-command-bar,
-.spatial-editor.product-page-open .product-command-bar {
-  position: relative;
-  z-index: 1;
-  right: auto;
-  bottom: auto;
-  left: auto;
-  width: min(760px, 100%);
-  display: grid !important;
-  justify-self: center;
-  transform: none;
-  border: 1px solid var(--studio-border-strong);
-  border-radius: var(--ds-radius-md);
+  overflow: hidden;
+  border: 1px solid var(--studio-border);
+  border-radius: 12px;
   background: var(--studio-surface-1);
 }
 
-.spatial-editor .product-page-loading {
-  min-height: 180px;
-  display: grid;
-  place-items: center;
-  color: var(--studio-text-3);
-  font: 520 11px/1.5 var(--studio-font-ui);
+.product-feature-frame > * {
+  height: 100%;
 }
 
-.spatial-editor.product-page-open .utility-rail,
-.spatial-editor.product-page-open .world-artifact-tray {
+.product-artifact-tray {
+  min-height: 0;
+}
+
+.product-artifact-tray > * {
+  max-height: 180px;
+}
+
+.product-command-bar {
+  width: 100%;
+}
+
+.persistent-generation-host {
+  z-index: 35;
   visibility: hidden;
   pointer-events: none;
 }
 
-.spatial-editor.cinematic .product-navigation {
-  display: none;
-}
-
-@media (max-width: 1040px) {
-  .spatial-editor .product-navigation {
-    left: 44%;
-  }
-
-  .spatial-editor .product-navigation button,
-  .spatial-editor .product-navigation a {
-    min-width: 52px;
-    padding-inline: 7px;
-    font-size: 11px;
-  }
-
-  .spatial-editor .product-page {
-    padding: 12px;
-  }
-}
-
-@media (max-width: 820px) {
-  .spatial-editor .product-navigation {
-    top: auto;
-    bottom: 8px;
-    left: 50%;
-    max-width: calc(100vw - 16px);
-    overflow-x: auto;
-    box-shadow: var(--studio-shadow-float);
-  }
-
-  .spatial-editor .product-page-layer {
-    bottom: 44px;
-  }
-
-  .spatial-editor .product-page {
-    padding: 8px;
-  }
-}
-
-/* The imperative GenerationJobCenter controller still binds the production
-   generation service to DOM ids. Keep exactly one view mounted for that
-   controller; product navigation only changes its visibility. */
-.spatial-editor .persistent-generation-host {
-  position: absolute;
-  z-index: 27;
-  top: var(--studio-header-h);
-  right: 0;
-  bottom: 0;
-  left: 0;
-  visibility: hidden;
-  pointer-events: none;
-  border-top: 1px solid var(--studio-border);
-  background: var(--studio-bg);
-}
-
-.spatial-editor .persistent-generation-host.is-active {
+.persistent-generation-host.is-active {
   visibility: visible;
   pointer-events: auto;
 }
 
-.spatial-editor .persistent-generation-host > .product-page {
-  width: min(1180px, 100%);
+.product-advanced-page {
   height: 100%;
-  margin: 0 auto;
-  padding: 18px;
+  display: grid;
+  grid-template-rows: auto minmax(0,1fr);
+  border: 1px solid var(--studio-border);
+  border-radius: 12px;
+  background: var(--studio-surface-1);
+  overflow: hidden;
 }
 
-.spatial-editor .persistent-generation-host .product-advanced-page > *:last-child {
+.product-advanced-page > :last-child {
   min-height: 0;
 }
 
-@media (max-width: 820px) {
-  .spatial-editor .persistent-generation-host {
-    bottom: 44px;
+.cinematic .scene-panel,.cinematic .panel,.cinematic .editor-toolbar,.cinematic .utility-rail,.cinematic .editor-statusbar {
+  display: none;
+}
+
+.cinematic .viewport {
+  top: var(--studio-header-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.cinematic .product-navigation {
+  visibility: hidden;
+}
+
+@media (max-width:1280px) {
+  .brandbar {
+    gap: 18px;
+    padding: 0 14px;
   }
 
-  .spatial-editor .persistent-generation-host > .product-page {
-    padding: 8px;
+  .brand-home em {
+    display: none;
+  }
+
+  .product-navigation button,.product-navigation a {
+    padding: 0 10px;
+  }
+
+  .world-control > span {
+    display: none;
+  }
+
+  .world-select {
+    max-width: 145px;
+  }
+
+  .editor-toolbar-title {
+    display: none;
+  }
+}
+
+@media (max-width:1060px) {
+  .brandbar {
+    gap: 12px;
+  }
+
+  .product-nav-lab {
+    display: none !important;
+  }
+
+  .brand-actions .runtime-status {
+    display: none;
+  }
+
+  .product-page {
+    padding: 20px;
+  }
+
+  .shell {
+    --studio-scene-w: 220px;
+    --studio-panel-w: 290px;
+  }
+
+  .editor-toolbar .toolbar-more:last-of-type {
+    margin-left: auto;
+  }
+
+  .editor-shortcuts {
+    display: none;
+  }
+}
+
+@media (max-width:820px) {
+  .shell {
+    --studio-header-h: 104px;
+    --studio-scene-w: 230px;
+    --studio-panel-w: 300px;
+  }
+
+  .brandbar {
+    height: 104px;
+    align-items: flex-start;
+    padding: 10px 14px 0;
+  }
+
+  .brand-lockup,.brand-actions {
+    height: 36px;
+  }
+
+  .product-navigation {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 8px;
+    height: 40px;
+    display: grid;
+    grid-template-columns: repeat(4,minmax(0,1fr));
+    gap: 5px;
+  }
+
+  .product-navigation button {
+    height: 38px;
+  }
+
+  .product-navigation .product-nav-lab {
+    display: none;
+  }
+
+  .brand-actions .header-button {
+    display: none;
+  }
+
+  .brand-actions .world-select {
+    max-width: 148px;
+  }
+
+  .scene-panel {
+    z-index: 25;
+    box-shadow: var(--studio-shadow-float);
+  }
+
+  .viewport,.editor-toolbar,.editor-statusbar {
+    left: 0;
+  }
+
+  .scene-panel {
+    display: none;
+  }
+
+  .shell:not(.scene-collapsed) .scene-panel {
+    display: grid;
+  }
+
+  .shell:not(.scene-collapsed) .scene-panel {
+    bottom: 28px;
+  }
+
+  .editor-toolbar {
+    overflow: visible;
+    gap: 1px;
+    padding: 0 8px;
+  }
+
+  .editor-toolbar #duplicate,.editor-toolbar #delete {
+    display: none;
+  }
+
+  .editor-toolbar button,.toolbar-more summary {
+    padding: 0 6px;
+  }
+
+  .editor-toolbar kbd {
+    display: none;
+  }
+
+  .panel {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 36px;
+    width: auto;
+    max-height: 55%;
+    height: 450px;
+    border: 1px solid var(--studio-border-strong);
+    border-radius: 10px;
+    box-shadow: var(--studio-shadow-float);
+  }
+
+  .context-open .viewport {
+    right: 0;
+  }
+
+  .context-open .utility-rail {
+    right: 12px;
+  }
+
+  .product-page {
+    padding: 16px;
+  }
+
+  .cinematic .product-navigation {
+    visibility: visible;
+  }
+}
+
+@media (max-width:540px) {
+  .brandbar {
+    padding-inline: 10px;
+  }
+
+  .brand-home strong {
+    font-size: 14px;
+  }
+
+  .brand-symbol {
+    width: 28px;
+    height: 28px;
+  }
+
+  .brand-actions {
+    gap: 0;
+  }
+
+  .world-select {
+    max-width: 116px !important;
+    padding-left: 5px;
+    font-size: 11px;
+  }
+
+  .scene-sidebar-toggle {
+    width: 26px;
+  }
+
+  .product-navigation button {
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .product-page {
+    padding: 10px;
+  }
+
+  .command-bar {
+    grid-template-columns: minmax(0,1fr) 86px;
+  }
+
+  .command-bar > button {
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  .command-field input {
+    font-size: 13px;
+    padding-left: 0;
+  }
+
+  .command-prefix {
+    display: none;
   }
 }

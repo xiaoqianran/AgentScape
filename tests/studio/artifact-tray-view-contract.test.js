@@ -45,7 +45,7 @@ describe('ArtifactTrayView contract',()=>{
     const html=renderToStaticMarkup(createElement(ArtifactTrayView,{
       resources,controller,agentVerifier,openBuild:vi.fn(),log:vi.fn()
     }));
-    expect(html).toContain('RECENT OUTPUTS');
+    expect(html).toContain('最近生成结果');
     expect(html).toContain('red chair');
     expect(html).toContain('继续 → 3D');
     expect(html).toContain('chair mesh');
@@ -62,7 +62,7 @@ describe('ArtifactTrayView contract',()=>{
     const html=renderToStaticMarkup(createElement(ArtifactTrayView,{
       resources,controller,agentVerifier,openBuild:vi.fn(),log:vi.fn()
     }));
-    expect(html).toContain('RECENT OUTPUTS');
+    expect(html).toContain('最近生成结果');
     expect(html).toContain('artifact-tray is-collapsed');
     expect(html).toContain('aria-label="展开 Artifact Tray"');
   });

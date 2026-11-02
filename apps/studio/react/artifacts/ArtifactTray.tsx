@@ -210,7 +210,7 @@ export function ArtifactTrayView({ resources, controller, agentVerifier, openBui
     <section className={`artifact-tray${collapsed ? ' is-collapsed' : ''}`} aria-label="Artifact Tray">
       <header className="artifact-tray-header">
         <div className="artifact-tray-title">
-          <span>RECENT OUTPUTS</span>
+          <span>最近生成结果</span>
           <small>{outputs.length}</small>
         </div>
         <div className="artifact-tray-actions">
