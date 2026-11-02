@@ -99,6 +99,8 @@ Capability 文档可以引用多个 Module Contract，但不能重新定义底�
 
 执行计划、backlog、未来事项属于仓库根目录 [`../planning/`](../planning/)，不属于 Current Docs。
 
+本轮产品闭环的可复现基线、测试入口与验收边界见 [产品验收交接](product-acceptance.md)。任务状态仍以各所有者的 `tasks.jsonl` 为准。
+
 历史 `execution-backlog.md` 已移动到 `planning/archive/`。
 
 ## 推荐阅读路径
