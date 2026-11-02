@@ -53,7 +53,10 @@ export default defineConfig(({ mode }) => {
     base: "/",
     plugins: [react(), observatoryRoutePlugin(), capabilityDevPlugin()],
     test: {
-      include: ["tests/**/*.test.js"]
+      include: ["tests/**/*.test.js"],
+      // Physics/WASM world fixtures each own native resources; cap concurrent
+      // workers so desktop and CI runs do not compete with dozens of runtimes.
+      maxWorkers: 4
     },
     server: {
       host: devHost,
