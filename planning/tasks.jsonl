@@ -63,3 +63,4 @@
 {"id":"DOCS-003","type":"docs","title":"navigation.md 标出 Locomotion 已独立存在","status":"READY","priority":"P1","path":"docs","depends":["LOCOMOTION-001"],"files":["docs/navigation.md"],"criteria":["删除过时“not do”误导"]}
 {"id":"DOCS-004","type":"docs","title":"Observatory README 明确 Studio 主产品界面","status":"READY","priority":"P1","path":"docs","depends":["OBSERVATORY-001"],"files":[],"criteria":["ownership清楚"]}
 {"id":"DOCS-005","type":"docs","title":"execution backlog 每次架构改动要求同步功能地图","status":"READY","priority":"P1","path":"docs","depends":[],"files":[],"criteria":["maintenance rule写入贡献规范/本文件"]}
+{"id":"ACCEPTANCE-BASELINE","type":"docs","title":"固定产品闭环的独立可复现基线","status":"DONE","priority":"P0","path":"product.acceptance","depends":[],"files":["docs/product-acceptance.md"],"criteria":["按来源拆分保存运行时与 Studio 成果","独立检出安装并通过 npm run check","说明默认与单独测试入口及未验证项"],"evidence":["39fd555","924dcca","独立检出 npm ci 与 npm run check 通过：305 files / 1567 tests"]}
