@@ -44,7 +44,7 @@ npm exec vitest run tests/e2e/cabinet-cup-acceptance.test.js
 完整报告默认输出 `.tmp/cabinet-cup-acceptance.json`，包含所有尝试、工具执行和后置条件。CLI 任一用例不符合预期即非零退出；测试是默认 Vitest 的一部分。报告中的固定 gateway 必须保持明确标签。
 
 本轮也重跑了 `003`、`004`、`005`。原默认布局的准入拒绝和小屋门的导航分区仍可复现；004 出现“新一次构建被拒绝但仍操作上一次遗留对象”的假通过风险，因此标准套件要求每次都实例化四个对象、构建不得 rejected，且使用新修订验证证据。旧实验的 console summary 还误用了 `supportOnTable.on` 字段；应读 `supported`。旧实验结果仅用于诊断，不作为验收通过门。
-# Studio 用户入口
+## Studio 用户入口
 
 打开任一已支持世界，在画布右侧“任务过程”选择“准备标准任务场景”。此按钮会经 Skill 权限、WorldIR 编译、准入和 Runtime 事务替换当前场景对象，支持撤销；不会调用生成服务。没有模型服务也能准备和检查场景。
 
