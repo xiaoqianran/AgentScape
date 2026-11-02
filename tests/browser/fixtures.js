@@ -19,7 +19,7 @@ export const test = base.extend({
     if (!page.isClosed()) await testInfo.attach('navigation-timing.json', { body: JSON.stringify(await page.evaluate(() => ({ navigation: performance.getEntriesByType('navigation').map(entry => entry.toJSON()), canvasCount: document.querySelectorAll('#viewport canvas').length })), null, 2), contentType: 'application/json' });
     expect(pageErrors, 'Browser must have no uncaught initialization/runtime errors').toEqual([]);
   }, { auto: true }],
-  gateway: async ({ page }, use) => {
+  gateway: async ({ page }, use, testInfo) => {
     const requests = [];
     let handler = () => ({ message: '固定协议：观察完成。', toolCalls: [] });
     await page.route('**/api/capabilities', route => route.fulfill({ json: { capabilities: { agent: { available: true }, 'asset.compile': { available: false } } } }));
@@ -34,6 +34,7 @@ export const test = base.extend({
     // Never connect to a user's paired service during ordinary browser acceptance.
     await page.route('http://127.0.0.1:48123/**', route => route.abort('connectionrefused'));
     await use({ requests, respondWith: next => { handler = next; } });
+    await testInfo.attach('fixed-protocol-requests.json', { body: JSON.stringify(requests.map((request, index) => ({ round: index + 1, observedObjectIds: request.context?.world?.map(object => object.id), toolNames: request.tools?.map(tool => tool.name) })), null, 2), contentType: 'application/json' });
   }
 });
 export { expect };
@@ -59,7 +60,7 @@ export async function verifyRenderedWorld(page, testInfo) {
   expect(webgl, 'WebGL unavailable/lost; a blank canvas is not a successful browser acceptance').toMatchObject({ available: true, lost: false });
   expect(webgl.width).toBeGreaterThan(200);
   expect(webgl.height).toBeGreaterThan(200);
-  const screenshot = await canvas.screenshot();
+  const screenshot = await canvas.screenshot({ path: testInfo.outputPath('rendered-world.png') });
   const statistics = await sharp(screenshot).stats();
   expect(Math.max(...statistics.channels.slice(0, 3).map(channel => channel.stdev)), 'Canvas is uniform/blank despite Runtime ready').toBeGreaterThan(4);
   await testInfo.attach('rendered-world.png', { body: screenshot, contentType: 'image/png' });

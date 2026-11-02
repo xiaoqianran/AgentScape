@@ -1,5 +1,18 @@
 import { test, expect, enterWorld, verifyRenderedWorld, expectSameCanvas, openFiles } from './fixtures.js';
 
+test('unconfigured first visit explains unavailable agent while the world remains usable', async ({ page }, testInfo) => {
+  await page.route('**/api/capabilities', route => route.fulfill({ json: { capabilities: { agent: { available: false }, 'asset.compile': { available: false } } } }));
+  await page.route('http://127.0.0.1:48123/**', route => route.abort('connectionrefused'));
+  await enterWorld(page);
+  await verifyRenderedWorld(page, testInfo);
+  await page.locator('#open-world-task').click();
+  await expect(page.locator('#task-state')).toHaveAttribute('data-state', 'offline');
+  await expect(page.locator('#task-state-detail')).toContainText('需要');
+  await expect(page.locator('#input')).toBeDisabled();
+  await expect(page.locator('#send')).toBeDisabled();
+  await expect(page.locator('#viewport canvas')).toBeVisible();
+});
+
 test('first visit, object editing, undo/redo, invalid input and persistent canvas', async ({ page, gateway }, testInfo) => {
   await enterWorld(page);
   const canvas = await verifyRenderedWorld(page, testInfo);
@@ -84,10 +97,12 @@ test('fixed protocol task starts, cancels its pending model request and retries 
   await enterWorld(page);
   const canvas = await verifyRenderedWorld(page, testInfo);
   const objects = await page.locator('#scene-object-list [data-object-id]').count();
+  await page.locator('[data-object-id="cup_01"]').click();
   await page.locator('#open-world-task').click();
   await page.locator('#input').fill('固定协议验收：观察世界后等待取消');
   await page.locator('#send').click();
   await expect.poll(() => gateway.requests.length).toBe(1);
+  expect(gateway.requests[0].messages.findLast(message => message.role === 'user').content).toContain('"id":"cup_01"');
   await expect(page.locator('#viewport canvas')).toBeVisible();
   await expectSameCanvas(page, canvas);
   await page.locator('#cancel-task').click();
