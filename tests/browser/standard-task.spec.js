@@ -1,0 +1,35 @@
+import { test,expect,enterWorld,verifyRenderedWorld,expectSameCanvas } from './fixtures.js';
+
+test('standard scene prepares through the UI and a missing cup blocks the model request',async({page,gateway},testInfo)=>{
+  await enterWorld(page);
+  const canvas = await verifyRenderedWorld(page,testInfo);
+  await page.locator('#open-world-task').click();
+  await page.locator('#check-standard-task').click();
+  await expect(page.locator('#standard-task-conditions')).toContainText('TASK_CUP_NOT_IN_CABINET');
+  await page.locator('#run-standard-task').click();
+  await expect(page.locator('#check-standard-task')).toBeEnabled();
+  expect(gateway.requests).toHaveLength(0);
+  await page.locator('#prepare-standard-task').click();
+  await expect(page.locator('#task-state-label')).toHaveText('标准场景已准备');
+  await expect(page.locator('#standard-task-conditions')).toContainText('world-provisional');
+  await expect(page.locator('#scene-object-list [data-object-id]')).toHaveCount(4);
+  await expectSameCanvas(page,canvas);
+  await page.locator('#scene-object-list [data-object-id="cup_01"]').click();
+  await page.locator('#delete').click();
+  await expect(page.locator('#scene-object-list [data-object-id="cup_01"]')).toHaveCount(0);
+  await page.locator('#open-world-task').click();
+  await page.locator('#run-standard-task').click();
+  await expect(page.locator('#standard-task-conditions')).toContainText('TASK_OBJECT_MISSING');
+  expect(gateway.requests).toHaveLength(0);
+  await page.locator('#undo').click();
+  await expect(page.locator('#scene-object-list [data-object-id="cup_01"]')).toBeVisible();
+  await page.locator('#scene-object-list [data-object-id="cup_01"]').click();
+  await page.locator('#open-world-task').click();
+  await page.locator('#input').fill('查看我选择的杯子');
+  await page.locator('#send').click();
+  await expect.poll(()=>gateway.requests.length).toBe(1);
+  const intent = gateway.requests[0].messages.find(message=>message.role==='user').content;
+  expect(intent).toContain('对象引用（只针对这个真实对象）：{"id":"cup_01"}');
+  await expectSameCanvas(page,canvas);
+  await expect(page.locator('#viewport canvas')).toBeVisible();
+});
