@@ -612,3 +612,7 @@
 .agent-stage > header strong { font-size:13px; }
 .agent-stage > p,.agent-stage-list > p,.agent-result-copy > p { font-size:12px; line-height:1.7; }
 @media(max-width:620px) { .task-console { padding:18px 14px; gap:16px; } .agent-welcome { align-items:flex-start; padding:20px 16px; gap:13px; } .agent-welcome-icon { width:42px; height:42px; border-radius:10px; } .agent-welcome h2 { font-size:16px; } .task-grid { grid-template-columns:1fr; } .task-card,.task-card.wide { min-height:80px; } }
+.standard-task { margin: 0 0 18px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
+.standard-task h2 { margin: 0 0 8px; font-size: 14px; }
+.standard-task p, .standard-task li { font-size: 12px; line-height: 1.6; }
+.standard-task ul { padding-left: 18px; }

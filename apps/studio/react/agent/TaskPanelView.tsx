@@ -13,6 +13,9 @@ type TaskController = {
   cancel?:()=>unknown;
   retry?:()=>unknown;
   focusCurrentTarget?:()=>unknown;
+  checkStandardTask?:()=>Promise<unknown>;
+  prepareStandardTask?:()=>Promise<unknown>;
+  runStandardTask?:()=>Promise<unknown>;
 };
 
 function entryState(entries:any[] = [], runningState = 'running') {
@@ -68,6 +71,20 @@ export function TaskPanelView({ controller }: { controller:TaskController }) {
         {journey?.actions?.length ? <button id="focus-task-target" type="button" onClick={()=>controller.focusCurrentTarget?.()}>聚焦当前目标</button> : null}
       </div>
       <div className="task-scroll">
+        <section className="standard-task" aria-label="柜内取杯标准任务">
+          <h2>把柜内杯子放到桌上</h2>
+          <p>纪念大厅、林间工坊和魔女小屋可准备此任务。准备会替换当前场景对象，可撤销；不调用生成服务。</p>
+          <div className="task-controls">
+            <button id="prepare-standard-task" type="button" disabled={state.busy} onClick={()=>void controller.prepareStandardTask?.()}>准备标准任务场景</button>
+            <button id="check-standard-task" type="button" disabled={state.busy} onClick={()=>void controller.checkStandardTask?.()}>检查当前条件</button>
+            <button id="run-standard-task" type="button" disabled={state.busy || !state.available} onClick={()=>void controller.runStandardTask?.()}>开始标准任务</button>
+          </div>
+          {state.standardTask ? <div id="standard-task-conditions" role="status">
+            {state.standardTask.supported ? <p>上次检查的初始条件满足；开始任务时会重新检查，执行结果仍需验证。</p> : <ul>{state.standardTask.reasons?.map((reason:any,index:number)=><li key={index}>{reason.message} <small>({reason.code})</small></li>)}</ul>}
+            {state.standardTask.admission ? <small>场景准入：{state.standardTask.admission}</small> : null}
+          </div> : null}
+          {!state.available ? <p>自然语言执行尚未连接模型服务。仍可准备、检查场景和使用开发验收工具。<button type="button" className="text-button" onClick={()=>controller.openSettings()}>配置服务</button></p> : null}
+        </section>
         {journey ? <section id="agent-journey" className="agent-journey" data-state={journey?.state || 'idle'} aria-label="Agent 执行过程">
           <article className="agent-stage" data-stage="intent" data-state={journey ? 'success' : 'idle'}>
             <header><span>01</span><strong>想做什么</strong><i>目标</i></header>
