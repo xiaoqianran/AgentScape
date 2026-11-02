@@ -21,6 +21,8 @@ __pycache__/
 
 .vitest/
 storybook-static/
+playwright-report/
+test-results/
 
 agentscape_cnb_key
 agentscape_cnb_key.pub

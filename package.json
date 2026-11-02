@@ -32,7 +32,8 @@
     "test:studio": "vitest run tests/studio",
     "test:observatory": "vitest run tests/observatory",
     "typecheck": "tsc --noEmit",
-    "test:artifact": "vitest run tests/artifact"
+    "test:artifact": "vitest run tests/artifact",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
@@ -51,6 +52,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/addon-mcp": "^10.6.0",
     "@storybook/react-vite": "^10.6.0",
