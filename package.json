@@ -26,6 +26,7 @@
     "experiment:physics": "node dev/experiments/physics/002-physics-api-harness.mjs",
     "physics:check": "node dev/experiments/physics/002-physics-api-harness.mjs",
     "world:viability": "node dev/experiments/world/002-world-viability.mjs",
+    "acceptance:world": "node dev/acceptance/cabinetCup.mjs",
     "test:agent": "vitest run tests/agent tests/e2e/agent-*",
     "test:generation": "vitest run tests/generation tests/contracts tests/studio/generation-job-center-*",
     "test:modal-e2e": "vitest run tests/e2e/generated-cup-runtime-e2e.test.js",

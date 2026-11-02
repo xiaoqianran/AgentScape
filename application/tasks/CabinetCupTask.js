@@ -60,6 +60,9 @@ export async function inspectCabinetCupTask(runtime) {
   const table = runtime.store.get(refs.supportId);
   check('cabinet-receptacle',cabinet.manifest.receptacles?.some((item)=>item.id === 'interior'),'TASK_RECEPTACLE_MISSING','柜子缺少可用的内部容器。');
   check('support-surface',table.manifest.surfaces?.some((item)=>item.id === refs.surfaceId),'TASK_SURFACE_MISSING','桌子缺少可用的支撑面。');
+  check('cabinet-open-action',cabinet.manifest.actions?.includes('open'),'TASK_ACTION_UNSUPPORTED','此柜子没有开门能力。');
+  check('cup-actions',['pickup','place'].every((action)=>cup.manifest.actions?.includes(action)),'TASK_ACTION_UNSUPPORTED','此杯子没有拿取和放置能力。');
+  if (reasons.length) return {supported:false,refs,stages,reasons};
   check('cup-in-cabinet',!cup.state?.heldBy && runtime.spatial.containmentGeometry(refs.cupId,refs.cabinetId,{receptacleId:'interior'}).inside === true,'TASK_CUP_NOT_IN_CABINET','杯子当前不在柜内；请准备标准任务场景，或针对当前杯子发起其他任务。');
   for (const targetId of [refs.cabinetId,refs.supportId]) {
     try {
