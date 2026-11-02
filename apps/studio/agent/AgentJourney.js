@@ -245,6 +245,8 @@ export function finalizeAgentJourney(journey, {
 
   const resultCopy = status === 'success'
     ? { state:'success', label:'成功', detail:message || '世界状态已经验证。' }
+    : status === 'cancelled'
+      ? { state:'cancelled', label:'已停止', detail:message || '已完成的世界变化已保留。' }
     : status === 'partial'
       ? { state:'partial', label:'部分完成', detail:message || '部分世界变化未能完成验证。' }
       : { state:'error', label:'失败', detail:message || '任务执行失败。' };

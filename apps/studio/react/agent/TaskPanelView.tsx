@@ -10,6 +10,9 @@ type TaskController = {
   runQuickTask:(task:any)=>Promise<unknown>;
   markActivityRead:()=>void;
   openSettings:()=>void;
+  cancel?:()=>unknown;
+  retry?:()=>unknown;
+  focusCurrentTarget?:()=>unknown;
 };
 
 function entryState(entries:any[] = [], runningState = 'running') {
@@ -28,6 +31,7 @@ function JourneyRow({ entry, detail }: { entry:any; detail?:string }) {
         <strong>{entry.label}</strong>
         {detail && detail !== '状态未知' ? <small>{detail}</small> : null}
       </div>
+
     </div>
   );
 }
@@ -58,6 +62,11 @@ export function TaskPanelView({ controller }: { controller:TaskController }) {
         {state.status.action ? <button id="task-state-action" className="text-button" type="button" onClick={()=>controller.openSettings()}>{state.status.action}</button> : null}
       </div>
 
+      <div className="task-controls" aria-label="任务控制">
+        {state.busy ? <button id="cancel-task" type="button" disabled={!state.canCancel} onClick={()=>controller.cancel?.()}>{state.status.state==='cancelling' ? '正在取消…' : state.canCancel ? '停止任务' : '当前验收运行中'}</button> : null}
+        {!state.busy && state.canRetry ? <button id="retry-task" type="button" onClick={()=>void controller.retry?.()}>重新观察并重试</button> : null}
+        {journey?.actions?.length ? <button id="focus-task-target" type="button" onClick={()=>controller.focusCurrentTarget?.()}>聚焦当前目标</button> : null}
+      </div>
       <div className="task-scroll">
         {journey ? <section id="agent-journey" className="agent-journey" data-state={journey?.state || 'idle'} aria-label="Agent 执行过程">
           <article className="agent-stage" data-stage="intent" data-state={journey ? 'success' : 'idle'}>

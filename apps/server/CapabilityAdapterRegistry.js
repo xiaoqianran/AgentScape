@@ -36,6 +36,8 @@ export async function invokeCapability(req, res, capability, { env = process.env
   if (!target) return sendJson(res, 503, { code: 'CAPABILITY_UNAVAILABLE' });
 
   const controller = new AbortController();
+  const disconnected=()=>{ if (!res.writableEnded) controller.abort(); };
+  res.once?.('close',disconnected);
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const body = await requestBody(req);
@@ -47,17 +49,19 @@ export async function invokeCapability(req, res, capability, { env = process.env
       signal: controller.signal
     });
     const bytes = Buffer.from(await response.arrayBuffer());
+    if (res.destroyed) return;
     res.statusCode = response.status;
     const contentType = response.headers.get('content-type');
     if (contentType) res.setHeader('content-type', contentType);
     res.setHeader('cache-control', 'no-store');
     res.end(bytes);
   } catch (error) {
-    if (res.headersSent || res.writableEnded) return;
+    if (res.headersSent || res.writableEnded || res.destroyed) return;
     if (error?.name === 'AbortError') return sendJson(res, 504, { code: 'ADAPTER_TIMEOUT', message: safeMessage(error) });
     sendJson(res, 502, { code: 'ADAPTER_UNAVAILABLE', message: safeMessage(error) });
   } finally {
     clearTimeout(timer);
+    res.removeListener?.('close',disconnected);
   }
 }
 

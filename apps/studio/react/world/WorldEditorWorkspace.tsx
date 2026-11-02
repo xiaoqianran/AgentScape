@@ -7,6 +7,8 @@ import { AuthoringPromotionView } from '../authoring/AuthoringPromotionView';
 import { ObjectInspectorView } from '../inspect/ObjectInspector';
 import { SceneExplorerView } from '../scene/SceneExplorer';
 import { useStudioStore } from '../state/studioStore';
+import { TaskPanelView } from '../agent/TaskPanelView';
+import { CommandBar } from '../shell/ProductPages';
 
 function AuthoringMenu({ controller }: { controller:any }) {
   const state:any = useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
@@ -100,11 +102,13 @@ export function WorldEditorWorkspace({
   notifyLayout:()=>void;
 }) {
   const contextOpen = useStudioStore((state)=>state.layout.contextOpen);
+  const contextView = useStudioStore((state)=>state.layout.activeContextView);
   const sceneCollapsed = useStudioStore((state)=>state.layout.sceneCollapsed);
   const selection = useStudioStore((state)=>state.editor.selection);
   const openView = useStudioStore((state)=>state.openView);
   const closeContext = useStudioStore((state)=>state.closeContext);
   const content = bridgeState.content;
+  const commandInputRef=useRef<HTMLInputElement|null>(null);
 
   const commitLayoutChange = (change:()=>void) => {
     flushSync(change);
@@ -129,11 +133,17 @@ export function WorldEditorWorkspace({
 
         </div>
 
-        <aside className="panel" data-view="inspect" aria-label="上下文面板">
-          <div className="inspector-chrome"><strong>对象属性</strong><button type="button" aria-label="关闭属性面板" onClick={()=>commitLayoutChange(closeContext)}><StudioIcon name="close" size={17} /></button></div>
-          <section className="inspector">
+        <aside className={'panel'+(contextView==='task'?' task-mode-panel':'')} data-view={contextView} aria-label="上下文面板">
+          <div className="inspector-chrome">
+            <button id="world-inspect-mode" type="button" aria-pressed={contextView==='inspect'} onClick={()=>commitLayoutChange(()=>openView('inspect'))}>对象属性</button>
+            <button id="world-task-mode" type="button" aria-pressed={contextView==='task'} onClick={()=>commitLayoutChange(()=>openView('world-task'))}>任务过程</button>
+            <button type="button" aria-label="关闭上下文面板" onClick={()=>commitLayoutChange(closeContext)}><StudioIcon name="close" size={17} /></button>
+          </div>
+          {contextView==='task' ? <div className="world-task-content">
+            {active && bridgeState.agent ? <><TaskPanelView controller={bridgeState.agent.taskPanel} /><CommandBar taskPanel={bridgeState.agent.taskPanel} inputRef={commandInputRef} draft={bridgeState.commandDraft} /></> : <p role="status">任务面板启动中…</p>}
+          </div> : <section className="inspector">
             {content ? <ObjectInspectorView {...content.inspector} /> : null}
-          </section>
+          </section>}
         </aside>
         <div className="editor-statusbar"><span>{presentation.title}</span><span>{selection ? '已选中 '+selection.id : '点击画布或左侧列表选择对象'}</span><span className="editor-shortcuts">W 移动 · E 旋转 · Del 删除</span></div>
       </section>
@@ -141,6 +151,7 @@ export function WorldEditorWorkspace({
       <div className="artifact-tray-host world-artifact-tray">{content ? <ArtifactTrayView {...content.artifactTray} /> : null}</div>
 
       <nav className="utility-rail" aria-label="World Editor utilities">
+        <button id="open-world-task" type="button" aria-pressed={contextOpen && contextView==='task'} onClick={()=>commitLayoutChange(()=>openView('world-task'))}>任务</button>
         {WORLD_EDITOR_UTILITIES.map(({ view,label })=>{
           const selected = contextOpen && view === 'inspect';
           const hasSelection = view === 'inspect' && Boolean(selection);

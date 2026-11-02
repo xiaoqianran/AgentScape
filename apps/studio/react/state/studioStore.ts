@@ -3,8 +3,8 @@ import { create } from 'zustand';
 
 export type ProductPage = 'worlds' | 'world' | 'build' | 'assets' | 'agent';
 export type AgentPageView = 'tasks' | 'runs';
-export type ContextView = 'inspect';
-export type LegacyStudioView = 'world' | 'create' | 'task' | 'resources' | 'inspect' | 'runs';
+export type ContextView = 'inspect' | 'task';
+export type LegacyStudioView = 'world' | 'create' | 'task' | 'world-task' | 'resources' | 'inspect' | 'runs';
 export type BuildOutputKind = 'image' | 'asset' | 'world';
 export type StudioSelectionSource = 'runtime' | 'authoring' | 'environment';
 
@@ -161,6 +161,12 @@ export const useStudioStore = create<StudioState>((set) => ({
   })),
 
   openView: (view) => set((state) => {
+    if (view === 'world-task') {
+      return {
+        product:{ ...state.product, activePage:'world' },
+        layout:{ ...state.layout, activeContextView:'task', contextOpen:true, cinematic:false }
+      };
+    }
     if (view === 'inspect') {
       return {
         product:{ ...state.product, activePage:'world' },

@@ -33,6 +33,8 @@ export class TaskPanel {
     this.logs = [];
     this.listeners = new Set();
     this.sequence = 0;
+    this.abortController = null;
+    this.lastRequest = null;
     this.viewSnapshot = this.#snapshot();
   }
 
@@ -44,7 +46,9 @@ export class TaskPanel {
       activityCount:this.activityCount,
       status:this.status,
       journey:this.journey,
-      logs:this.logs
+      logs:this.logs,
+      canCancel:Boolean(this.abortController) && !this.abortController.signal.aborted,
+      canRetry:Boolean(this.lastRequest) && !this.busy && this.available
     });
   }
 
@@ -152,13 +156,13 @@ export class TaskPanel {
   async submit(value) {
     const prompt = String(value || '').trim();
     if (!prompt || this.busy) return null;
-    this.setView('task');
+    this.setView('world-task');
     return this.execute(prompt,prompt.length > 54 ? `${prompt.slice(0,54)}…` : prompt);
   }
 
   async runQuickTask(task) {
     if (!task || this.busy) return null;
-    this.setView('task');
+    this.setView('world-task');
     const label = task.title || '任务';
     const key = task.id || task.demo || task.prompt || label;
     if (task.id) return this.executeRuntimeTest(task.id,label,key);
@@ -203,13 +207,22 @@ export class TaskPanel {
 
     const startedAt = performance.now();
     const runId = `run_${Date.now().toString(36)}`;
+    this.abortController = demoId ? null : new AbortController();
+    this.lastRequest = demoId ? null : { prompt,label };
     this.beginJourney(prompt,label,demoId ? null : 'agent');
     this.setBusy(true,sourceKey);
     this.setState('running','正在执行任务',label);
 
     try {
       const demoRunner = demoId ? this.demoRunners?.[demoId] : null;
-      const result = demoRunner ? await demoRunner.run(GENERATED_PLACEMENT_TASK) : await this.agent.run(prompt);
+      const result = demoRunner ? await demoRunner.run(GENERATED_PLACEMENT_TASK) : await this.agent.run(prompt,{ signal:this.abortController.signal });
+      if (result.taskStatus === 'cancelled') {
+        const detail = result.message || '任务已停止；已完成的世界变化已保留。';
+        this.setState('cancelled','任务已停止',detail);
+        const journey=this.finishJourney({ result,status:'cancelled',detail });
+        this.recordRun({id:runId,title:label,prompt,status:'cancelled',durationMs:performance.now()-startedAt,detail:journeyRunDetail(journey),journey});
+        return result;
+      }
       const executedSteps = (result.execution || []).filter((entry) => entry.executed !== false);
       const lastStep = result.lastMutation || executedSteps.at(-1) || null;
       const tool = lastStep?.tool || 'query';
@@ -236,7 +249,7 @@ export class TaskPanel {
           this.log('任务状态：已完成 · 变更链已验证','result');
         }
       } else {
-        this.setState('partial','任务部分完成',`${label} · ${tool} → ${outcome}`);
+        this.setState('partial','任务未完成',`${label} · ${tool} → ${lastStep?.outcome?.reason || outcome}。请检查对象、通路和支撑面后重试；重试会重新观察世界。`);
         this.log(`任务状态：未完成 · ${tool} → ${outcome}`,'error');
       }
       const status = completed ? 'success' : 'partial';
@@ -251,11 +264,38 @@ export class TaskPanel {
       this.recordRun({ id:runId, title:label, prompt, status:'error', durationMs:performance.now()-startedAt, detail:journeyRunDetail(journey), journey });
       return null;
     } finally {
+      this.abortController = null;
       this.setBusy(false);
     }
   }
 
+  cancel() {
+    if (!this.busy || !this.abortController || this.abortController.signal.aborted) return false;
+    this.abortController.abort();
+    this.setState('cancelling','正在取消','已请求停止；当前动作将在安全边界结束，不再开始后续动作。已完成的变化和持有物会保留。');
+    return true;
+  }
+
+  retry() {
+    if (!this.lastRequest || this.busy) return null;
+    this.setView('world-task');
+    return this.execute(this.lastRequest.prompt,this.lastRequest.label);
+  }
+
+  focusCurrentTarget() {
+    const world=this.agent?.tools?.runtime;
+    const active=this.journey?.actions?.at(-1)?.args;
+    const id=active?.targetId || active?.supportId || active?.id;
+    if (!id || !world?.queries?.hasObject?.(id)) return false;
+    const bounds=id && world?.queries?.getBounds?.(id);
+    if (!bounds?.center) return false;
+    const [x,y,z]=bounds.center;
+    world.rendering?.applyCameraState?.({position:[x+3,y+2.5,z+4],target:[x,y,z]});
+    return true;
+  }
+
   dispose() {
+    this.abortController?.abort();
     this.listeners.clear();
   }
 }

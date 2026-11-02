@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import {
   CAPABILITIES,
   capabilityAvailability,
@@ -11,6 +12,18 @@ import {
 function responseRecorder(){return{statusCode:0,headers:{},body:Buffer.alloc(0),setHeader(key,value){this.headers[String(key).toLowerCase()]=String(value);},end(value=''){this.body=Buffer.isBuffer(value)?value:Buffer.from(value);}};}
 
 describe('deployment capability adapter registry',()=>{
+  it('aborts the adapter request when the browser connection closes',async()=>{
+    const res=Object.assign(new EventEmitter(),responseRecorder());
+    let signal;
+    const fetchImpl=vi.fn(async(_url,options)=>{
+      signal=options.signal;
+      return new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('cancelled','AbortError')),{once:true}));
+    });
+    const run=invokeCapability({method:'POST',headers:{'content-type':'application/json'},body:{}},res,CAPABILITIES.AGENT,{env:{AGENT_ADAPTER_URL:'https://agent.test/run'},fetchImpl});
+    await vi.waitFor(()=>expect(signal).toBeDefined());
+    res.destroyed=true;res.emit('close');await run;
+    expect(signal.aborted).toBe(true);expect(res.body).toHaveLength(0);expect(res.listenerCount('close')).toBe(0);
+  });
   it('reports only capability availability and validates adapter URLs',()=>{
     expect(capabilityAvailability({
       AGENT_ADAPTER_URL:'https://agent.test/run',

@@ -8,7 +8,7 @@
 
 .task-console {
   display: grid;
-  grid-template-rows: auto auto minmax(0,1fr);
+  grid-template-rows: auto auto auto minmax(0,1fr);
   gap: 15px;
 }
 
@@ -24,6 +24,22 @@
   border-radius: var(--radius-md);
   background: var(--ds-surface-2);
 }
+
+.task-controls { display:flex; flex-wrap:wrap; gap:8px; }
+.task-controls button { padding:7px 10px; border:1px solid var(--studio-border); border-radius:6px; background:var(--studio-surface-2); color:var(--studio-text); cursor:pointer; }
+.task-controls button:disabled { opacity:.6; cursor:default; }
+.world-task-content { display:grid; grid-template-rows:minmax(0,1fr) auto; min-height:0; overflow:hidden; }
+.world-task-content .task-console { padding:14px; gap:12px; }
+.world-task-content .task-console h1 { font-size:18px; }
+.world-task-content .task-console .product-heading { padding:0; }
+.world-task-content .task-grid { grid-template-columns:1fr; }
+.world-task-content .quick-tasks { display:none; }
+.world-task-content .command-bar { position:static; margin:10px; width:auto; display:flex; flex-wrap:wrap; gap:8px; padding:10px; }
+.world-task-content .command-field { width:100%; }
+.world-task-content .command-bar > button { width:100%; }
+.task-object-reference { display:flex; gap:6px; align-items:center; grid-column:1/-1; width:100%; font-size:12px; color:var(--studio-text-2); }
+.task-object-reference code { overflow-wrap:anywhere; }
+.task-object-reference input { width:auto; }
 
 .task-state-dot {
   width: 8px;

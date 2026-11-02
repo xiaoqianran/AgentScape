@@ -6,6 +6,7 @@ import { RunsPanelView } from '../runs/RunsPanelView';
 import { ResourceLibraryView } from '../resources/ResourceLibraryView';
 import { WorldsPage } from '../worlds/WorldsPage';
 import type { ProductPage } from '../state/studioStore';
+import { useStudioStore } from '../state/studioStore';
 
 type EnvironmentDefinition = {
   id:string;
@@ -13,8 +14,10 @@ type EnvironmentDefinition = {
   number?:string;
 };
 
-function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:RefObject<HTMLInputElement|null>; draft:any }) {
+export function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:RefObject<HTMLInputElement|null>; draft:any }) {
   const [value,setValue] = useState('');
+  const [bindSelection,setBindSelection] = useState(true);
+  const selection=useStudioStore(state=>state.editor.selection);
   const state:any = useSyncExternalStore(taskPanel.subscribe,taskPanel.snapshot,taskPanel.snapshot);
   useEffect(()=>{
     if (!draft) return;
@@ -26,10 +29,12 @@ function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:Re
     const prompt = value.trim();
     if (!prompt || state.busy || !state.available) return;
     setValue('');
-    void taskPanel.submit(prompt);
+    const reference=bindSelection && selection?.source==='runtime' ? `\n对象引用（只针对这个真实对象）：${JSON.stringify({id:selection.id})}` : '';
+    void taskPanel.submit(prompt+reference);
   };
   return (
     <form id="command" className="command-bar product-command-bar" autoComplete="off" onSubmit={submit}>
+      {selection?.source==='runtime' ? <label className="task-object-reference"><input type="checkbox" checked={bindSelection} disabled={state.busy} onChange={event=>setBindSelection(event.target.checked)} />针对对象 <code>{selection.id}</code></label> : null}
       <div className="command-field">
         <span className="command-prefix" aria-hidden="true">›</span>
         <input
@@ -43,7 +48,7 @@ function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:Re
           aria-label="智能体任务"
         />
       </div>
-      <button type="submit" disabled={!value.trim() || state.busy || !state.available}><span>{state.busy ? '执行中…' : '执行任务'}</span></button>
+      <button id="send" type="submit" disabled={!value.trim() || state.busy || !state.available}><span>{state.busy ? '执行中…' : '执行任务'}</span></button>
     </form>
   );
 }
