@@ -1,0 +1,92 @@
+{
+  "schema": "agentscape.browser-acceptance-summary",
+  "schemaVersion": 1,
+  "date": "2026-11-02",
+  "implementationRevision": "988c908",
+  "platform": {
+    "os": "win32",
+    "arch": "x64",
+    "node": "v24.18.0",
+    "browser": "Playwright Chromium",
+    "rendering": "SwiftShader software WebGL",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    }
+  },
+  "scope": {
+    "model": "fixed-protocol-fixture",
+    "runtime": "real-browser-world-runtime",
+    "paidServices": false,
+    "personalBrowserState": false
+  },
+  "stats": {
+    "startTime": "2026-11-02T02:44:28.939Z",
+    "duration": 239815.443,
+    "expected": 6,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "title": "standard scene prepares through the UI and a missing cup blocks the model request",
+      "file": "standard-task.spec.js",
+      "status": "expected",
+      "result": "passed",
+      "durationMs": 26669,
+      "retry": 0
+    },
+    {
+      "title": "unconfigured first visit explains unavailable agent while the world remains usable",
+      "file": "studio.spec.js",
+      "status": "expected",
+      "result": "passed",
+      "durationMs": 23540,
+      "retry": 0
+    },
+    {
+      "title": "first visit, object editing, undo/redo, invalid input and persistent canvas",
+      "file": "studio.spec.js",
+      "status": "expected",
+      "result": "passed",
+      "durationMs": 37922,
+      "retry": 0
+    },
+    {
+      "title": "resource placement and saved runtime scene survive reload; corrupt import preserves project",
+      "file": "studio.spec.js",
+      "status": "expected",
+      "result": "passed",
+      "durationMs": 38128,
+      "retry": 0
+    },
+    {
+      "title": "authoring draft can save, reload and reopen from the user file menu",
+      "file": "studio.spec.js",
+      "status": "expected",
+      "result": "passed",
+      "durationMs": 83877,
+      "retry": 0
+    },
+    {
+      "title": "fixed protocol task starts, cancels its pending model request and retries from a fresh observation",
+      "file": "studio.spec.js",
+      "status": "expected",
+      "result": "passed",
+      "durationMs": 21622,
+      "retry": 0
+    }
+  ],
+  "artifacts": {
+    "report": "playwright-report/index.html",
+    "rawResults": "test-results/browser/results.json",
+    "trace": "test-results/browser/ (retained on failure)",
+    "ci": "AgentScape Check / Studio browser acceptance (fixed protocol)"
+  },
+  "limitations": [
+    "Not a real model or paid generation evaluation",
+    "Software rendering timings are not a hardware frame-rate benchmark",
+    "No human first-use test or portable project package verification"
+  ]
+}
