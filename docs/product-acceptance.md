@@ -34,6 +34,8 @@ npm run check
 
 独立目录不能复制 `.env.local`、浏览器配置或 `node_modules`。验收日志存放在目录内的 `baseline-install.log` / `baseline-check.log`（不提交机器日志）。
 
+独立检出安装首次遇到 `ECONNRESET`；使用 `npm ci --prefer-offline` 重试成功，随后完整 check 同样通过 305 个文件、1567 项测试。未导入本机私有配置。
+
 ## 单独入口与证据边界
 
 | 入口 | 证明范围与依赖 |
@@ -47,6 +49,8 @@ npm run check
 | `node dev/experiments/world/004-cross-world-cabin-layout-recovery.mjs` / `005-cabin-door-reachability.mjs` | 布局／可达性实验，须记录新运行结果 |
 
 默认 `npm test` 明确排除 `tests/e2e/generated-cup-runtime-e2e.test.js`，原因是跨仓库 Python Connector 依赖，不是付费模型调用。
+
+本机已单独运行 `npm run test:modal-e2e`：发现断言仍使用旧空间字段 `on`，按当前 `SpatialSystem.supportGeometry` 契约改为 `supported` 后通过（1 文件 / 1 测试）。该测试真实启动 Python Connector、配对、获取固定产物、编译准入、放置并检查几何可见性；不是在线生成、Agent 搬运或浏览器实际绘制证据。
 
 ## 必须保持的不变量
 
