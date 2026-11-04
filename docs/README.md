@@ -129,6 +129,8 @@ README
 
 ## 文档维护规则
 
+待实施公共契约草案：[`Scene API / Asset Package / StylePack v1`](../planning/public-contracts-v1.md)。该提案不代表当前实现，不替代 L1–L3 现行契约。
+
 1. 新接口首先更新 Module Contract。
 2. 跨模块行为再更新 Capability Contract。
 3. 架构 ownership 改变才更新 L1。
