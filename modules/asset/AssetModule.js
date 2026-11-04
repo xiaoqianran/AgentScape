@@ -7,6 +7,22 @@ import { CompiledAssetStore } from './persistence/CompiledAssetStore.js';
 import { AssetManifestStore } from './persistence/AssetManifestStore.js';
 import { LocalAssetLibrary } from './persistence/LocalAssetLibrary.js';
 import { LocalAssetLibraryStore } from './persistence/LocalAssetLibraryStore.js';
+import { assetAdmission } from './model/admission.js';
+
+export async function verifyAndUpdateAssetArticulation(assets,assetId,options) {
+ const report=await assets.verifyArticulation(assetId,options);
+ const manifest=assets.getManifest(assetId);
+ manifest.verification={...(manifest.verification||{}),articulation:report};
+ const quality=manifest.compiler?.quality;
+ if(quality){
+  quality.advisory=(quality.advisory||[]).filter(item=>!['ARTICULATION_UNVERIFIED','ARTICULATION_VERIFICATION_FAILED'].includes(item.code));
+  if(!report.ok)quality.advisory.push({code:'ARTICULATION_VERIFICATION_FAILED',message:'运行时运动验证失败'});
+  quality.status=quality.hard?.length?'rejected':quality.advisory.length?'provisional':'ready';
+ }
+ await assets.registerManifest(manifest,{replace:true});
+ const admission=assetAdmission(manifest);
+ return {...report,readiness:admission.status,admission};
+}
 
 export function createAssetModule({
   manifests,
@@ -97,13 +113,17 @@ export function createAssetModule({
       return module;
     },
 
-    async verifyArticulation(assetId) {
+    async verifyArticulation(assetId, options) {
       if (!articulationVerifier) {
         const error = new Error('Asset articulation verification is not configured');
         error.code = 'ASSET_ARTICULATION_VERIFIER_UNAVAILABLE';
         throw error;
       }
-      return articulationVerifier.verify(assetId);
+      return options==null ? articulationVerifier.verify(assetId) : articulationVerifier.verify(assetId, options);
+    },
+
+    async verifyAndUpdateArticulation(assetId, options) {
+      return verifyAndUpdateAssetArticulation(module,assetId,options);
     },
 
     async hydrate() {

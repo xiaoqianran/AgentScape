@@ -176,7 +176,8 @@ export class AssetProductionPipeline {
           sourceName:input.sourceName,
           assetId:input.assetId,
           label:input.label,
-          ...(authoringIntent ? { authoringIntent } : {})
+          ...(authoringIntent ? { authoringIntent } : {}),
+          ...(request.definition ? {definition:request.definition} : {})
         });
       } catch (error) {
         if (error?.code==='ASSET_COMPILE_REJECTED') {

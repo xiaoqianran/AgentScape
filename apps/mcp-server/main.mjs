@@ -6,8 +6,18 @@ import { toWebRequest } from '@modelcontextprotocol/node';
 import { SessionManager } from './SessionManager.js';
 import { registerTools } from './registerTools.js';
 import { createSecurity } from './security.js';
-export async function startServer({tokens,port=39015,root=path.resolve('.mcp-sessions'),security={},managerOptions={}}) {
- const authorize=createSecurity(tokens,security); const manager=new SessionManager({root,...managerOptions});
+import { FileAssetRepository } from './FileAssetRepository.js';
+import { DockerBuildRunner } from './DockerBuildRunner.js';
+import { ProgrammaticAssets } from './ProgrammaticAssets.js';
+import { ProgrammaticAssetBuilder } from '../../application/programmatic-assets/ProgrammaticAssetBuilder.js';
+import { createHeadlessGLTFLoader } from './HeadlessGLTFLoader.js';
+import { installHeadlessAssetIO } from './HeadlessAssetIO.js';
+export async function startServer({tokens,port=39015,root=path.resolve('.mcp-sessions'),dataRoot='D:/AgentScapeData/mcp-assets',security={},managerOptions={},buildRunner=null}={}) {
+ installHeadlessAssetIO();
+ const repository=new FileAssetRepository(dataRoot);
+ const runner=buildRunner || new DockerBuildRunner({configPath:path.join(dataRoot,'sandbox.json')});
+ const assets=new ProgrammaticAssets({repository,runner,builder:new ProgrammaticAssetBuilder({runner,gltfLoader:createHeadlessGLTFLoader()})});
+ const authorize=createSecurity(tokens,security); const manager=new SessionManager({root,repository,hostOptions:{sandboxConfig:path.join(dataRoot,'sandbox.json')},...managerOptions});
  const connections=new Set();
  const http=createServer(async(req,res)=>{
   let server;
@@ -17,8 +27,8 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
    if(req.method!=='POST') {res.writeHead(405).end();return;}
    // The unified SDK handler supports modern per-request envelopes and legacy initialization.
    const handler=createMcpHandler(()=>{
-    server=new McpServer({name:'AgentScape Remote MCP',version:'0.2.0'});
-    registerTools(server,manager,owner);
+    server=new McpServer({name:'AgentScape Remote MCP',version:'0.3.0'});
+    registerTools(server,manager,owner,assets);
     connections.add(server);
     return server;
    });
@@ -31,12 +41,12 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
  http.requestTimeout=35000; http.headersTimeout=10000;
  try {await new Promise((resolve,reject)=>{http.once('error',reject);http.listen(port,'127.0.0.1',resolve);});}
  catch(e){await manager.dispose();throw e;}
- return {http,manager,port:http.address().port,async close(){await manager.dispose();await Promise.all([...connections].map(s=>s.close()));await new Promise(r=>http.close(r));}};
+ return {http,manager,assets,port:http.address().port,async close(){await assets.close();await manager.dispose();await Promise.all([...connections].map(s=>s.close()));await new Promise(r=>http.close(r));}};
 }
 if(process.argv[1] && import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href) {
  // Deliberately do not load dotenv or the Studio configuration.
  const tokens=JSON.parse(process.env.AGENTSCAPE_MCP_TOKENS||'[]');
- const app=await startServer({tokens});
+ const app=await startServer({tokens,dataRoot:process.env.AGENTSCAPE_MCP_DATA_ROOT || 'D:/AgentScapeData/mcp-assets'});
  console.log(`AgentScape Remote MCP: http://127.0.0.1:${app.port}/mcp`);
  for(const signal of ['SIGINT','SIGTERM']) process.once(signal,()=>app.close().then(()=>process.exit(0)));
 }

@@ -6,11 +6,11 @@ import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { createMonumentHall } from '../../modules/world/content/monumentHall.js';
 import { WorldBuilder } from '../../modules/world/build/WorldBuilder.js';
-import { createIsolatedAuthoringExecutor } from './IsolatedAuthoringExecutor.js';
+import { DockerBuildRunner } from './DockerBuildRunner.js';
 import { installHeadlessAssetIO } from './HeadlessAssetIO.js';
 import { createHeadlessGLTFLoader } from './HeadlessGLTFLoader.js';
 export const authoringSkills = ['runAuthoringCode','listAuthoringNodes','prepareAuthoringAsset','promoteAuthoringNode','updateAuthoringEntity','verifyAuthoringEntity'];
-export const allowedSkills = ['spawnAsset','moveObject','approachAndInteract','approachAndPickup','approachAndPlace','navigateTo'];
+export const allowedSkills = ['spawnAsset','moveObject','approachAndInteract','approachAndPickup','approachAndPlace','navigateTo','replaceAsset'];
 export const criteria = [
  {id:'valid',kind:'world-valid'},
  {id:'open',kind:'interaction-verified',targetId:'cabinet_01',capability:'OPEN'},
@@ -27,11 +27,11 @@ export class HeadlessWorldHost {
   manifests.cabinet.source={kind:'glb',url:`data:model/gltf-binary;base64,${bytes.toString('base64')}`};
   // Start with trusted template assets; later assets are compiled within this session.
   const local=Object.fromEntries(['agent','cabinet','cup','table'].map(id=>[id,manifests[id]]));
-  const executor=createIsolatedAuthoringExecutor();
-  const session=createSession(null,{authoringOptions:{executeCode:request=>executor.execute(request)},assetModule:createAssetModule({manifests:local,manifestStore:null,libraryStore:null,gltfLoader:createHeadlessGLTFLoader()}),environmentFactory:o=>createMonumentHall({...o,loadAssets:false})});
+  const executor=options.executorFactory ? options.executorFactory() : new DockerBuildRunner({configPath:options.sandboxConfig || 'D:/AgentScapeData/mcp-assets/sandbox.json'});
+  const session=createSession(null,{authoringOptions:{executeCode:request=>executor.execute(request)},assetModule:createAssetModule({manifests:local,compiledStore:options.repository?.compiledStore(options.owner),manifestStore:null,libraryStore:null,gltfLoader:createHeadlessGLTFLoader()}),environmentFactory:o=>createMonumentHall({...o,loadAssets:false})});
   const {world}=session;
   const host=new HeadlessWorldHost(world,{...options,session,executor});
-  try { await world.init(); await host.prepare(); return host; }
+  try { if(options.repository&&options.assetIds?.length)await options.repository.attach(options.owner,world.assetModule,options.assetIds);await world.init(); await host.prepare(); return host; }
   catch(error) { host.close(); throw error; }
  }
  constructor(world,{maxSteps=12000,timeoutMs=30000,maxObjects=64,session,executor}={}) {
@@ -55,6 +55,7 @@ export class HeadlessWorldHost {
  }
  async execute(skill,args,signal) {
   if(this.closed) throw new Error('HOST_CLOSED');
+  if(signal?.aborted)throw new Error('ACTION_CANCELLED');
   if(![...allowedSkills,...authoringSkills].includes(skill)) throw new Error('SKILL_FORBIDDEN');
   if(++this.actionCount>256) throw new Error('ACTION_BUDGET_EXHAUSTED');
   if(['spawnAsset','promoteAuthoringNode'].includes(skill) && this.world.store.list().length>=this.maxObjects) throw new Error('OBJECT_LIMIT');

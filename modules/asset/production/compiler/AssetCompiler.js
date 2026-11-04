@@ -21,6 +21,7 @@ import { RESOURCE_BUDGET } from '../../model/resourceBudget.js';
 import { CompileQualityPass } from './passes/CompileQualityPass.js';
 import { ManifestPass } from './passes/ManifestPass.js';
 import { AuthoringIntentPass } from './passes/AuthoringIntentPass.js';
+import { ExplicitDefinitionPass } from './passes/ExplicitDefinitionPass.js';
 
 export class AssetCompiler {
   constructor({ store, provider = null, events = null, version = 'dev' } = {}) {
@@ -44,6 +45,7 @@ export class AssetCompiler {
       new PartGeometryEnrichmentPass({ provider, io:this.io }),
       new ArticulatedCollisionPass(),
       new OptimizeGLBPass({ io: this.io }),
+      new ExplicitDefinitionPass(),
       new ResourceBudgetPass(),
       new CompileQualityPass(),
       new ManifestPass()
@@ -76,7 +78,7 @@ export class AssetCompiler {
     return bytes;
   }
 
-  async compile({ url, bytes, sourceName, assetId, label, partProposal = null, partSegmentation = null, providerEvidence = null, authoringIntent = null } = {}) {
+  async compile({ url, bytes, sourceName, assetId, label, partProposal = null, partSegmentation = null, providerEvidence = null, authoringIntent = null, definition = null } = {}) {
     if (!bytes && !url) throw new Error('AssetCompiler requires url or bytes');
     const inputBytes = bytes instanceof Uint8Array ? bytes : bytes ? new Uint8Array(bytes) : await this.fetchBytes(url);
     if (inputBytes.byteLength > RESOURCE_BUDGET.maxInputBytes) {
@@ -85,7 +87,7 @@ export class AssetCompiler {
       throw error;
     }
     const name = sourceName || (url ? new URL(url, globalThis.location?.href || 'http://localhost').pathname.split('/').pop() : 'asset.glb');
-    let context = { bytes:inputBytes, sourceUrl:url || null, sourceName:name, assetId, label, partProposal, partSegmentation, providerEvidence, authoringIntent, compilerVersion:this.version };
+    let context = { bytes:inputBytes, sourceUrl:url || null, sourceName:name, assetId, label, partProposal, partSegmentation, providerEvidence, authoringIntent, definition, compilerVersion:this.version };
     for (const pass of this.passes) {
       const started = performance.now();
       this.events?.emit('assetCompiler.pass.started', { pass: pass.constructor.name, sourceName: name });

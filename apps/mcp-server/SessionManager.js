@@ -3,17 +3,18 @@ import { mkdir, writeFile, readFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { HeadlessWorldHost } from './HeadlessWorldHost.js';
 export class SessionManager {
- constructor({root,maxSessions=4,ttlMs=900000,maxExportBytes=4194304,hostOptions={}}) {
+ constructor({root,maxSessions=4,ttlMs=900000,maxExportBytes=4194304,hostOptions={},repository=null}={}) {
   this.root=path.resolve(root); this.maxSessions=maxSessions; this.ttlMs=ttlMs; this.maxExportBytes=maxExportBytes; this.hostOptions=hostOptions; this.sessions=new Map(); this.pending=0;
   this.timer=setInterval(()=>this.reap().catch(()=>{}),Math.min(ttlMs,30000)); this.timer.unref();
+  this.repository=repository;this.restoreRequests=new Map();
  }
- async create(owner) {
+ async create(owner,{assetIds=[]}={}) {
   if(this.disposed) throw new Error('MANAGER_CLOSED');
   if(this.sessions.size+this.pending>=this.maxSessions) throw new Error('SESSION_LIMIT');
   this.pending++;
   let host;
   try {
-   host=await HeadlessWorldHost.create(this.hostOptions);
+   host=await HeadlessWorldHost.create({...this.hostOptions,owner,repository:this.repository,assetIds});
    if(this.disposed) throw new Error('MANAGER_CLOSED');
    const id=randomUUID(),directory=path.join(this.root,id); await mkdir(directory,{recursive:true});
    this.sessions.set(id,{id,owner,host,directory,lastUsed:Date.now(),active:null,closing:false,requests:new Map()});
@@ -41,6 +42,24 @@ export class SessionManager {
   try { await writeFile(temporary,json,{flag:'wx'}); JSON.parse(await readFile(temporary,'utf8')); await rename(temporary,target); }
   finally { await rm(temporary,{force:true}); }
   return {state:'exported',fileName:name,bytes:Buffer.byteLength(json),snapshot,scope:'scene-json-only'};
+ }
+ async save(owner,s) {
+  if(!this.repository)throw new Error('PERSISTENCE_UNAVAILABLE');
+  return this.repository.saveWorld(owner,s.host.world.serialize({name:'Saved MCP world'}));
+ }
+ async restore(owner,saveId,requestId) {
+  if(!this.repository)throw new Error('PERSISTENCE_UNAVAILABLE');
+  const key=JSON.stringify([owner,requestId]);
+  const existing=this.restoreRequests.get(key);
+  if(existing){if(existing.saveId!==saveId)throw new Error('IDEMPOTENCY_CONFLICT');return existing.promise;}
+  if(this.restoreRequests.size>=256)throw new Error('RESTORE_REQUEST_LIMIT');
+  const promise=(async()=>{
+   const data=await this.repository.loadWorld(owner,saveId);
+   const session=await this.create(owner,{assetIds:data.dependencies.map(d=>d.assetId)});
+   try{await this.run(owner,session.worldSessionId,s=>s.host.world.restoreSnapshot(data.snapshot));return this.status(owner,session.worldSessionId);}
+   catch(error){await this.close(owner,session.worldSessionId);throw error;}
+  })();
+  this.restoreRequests.set(key,{saveId,promise});return promise;
  }
  async exportAuthoring(s) {
   const document=s.host.session.authoring.export();

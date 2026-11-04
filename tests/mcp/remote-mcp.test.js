@@ -20,7 +20,7 @@ describe('Remote MCP real HTTP and physics',()=>{
    expect((await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:'x'.repeat(65537)})).status).toBe(413);
    await client.connect(new StreamableHTTPClientTransport(url,{requestInit:{headers:{Authorization:`Bearer ${token}`}}}));
    await bob.connect(new StreamableHTTPClientTransport(url,{requestInit:{headers:{Authorization:`Bearer ${other}`}}}));
-   expect((await client.listTools()).tools).toHaveLength(16);
+   expect((await client.listTools()).tools).toHaveLength(24);
    const a=await call(client,'session_create'),b=await call(bob,'session_create');
    const args={worldSessionId:a.worldSessionId};
    expect(a.worldSessionId).toBeTruthy();

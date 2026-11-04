@@ -5,11 +5,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { startServer } from '../../apps/mcp-server/main.mjs';
+import { createIsolatedAuthoringExecutor } from '../../apps/mcp-server/IsolatedAuthoringExecutor.js';
 
 it('authors a new mesh over authenticated MCP, installs it through real asset compilation, picks it up and verifies custom criteria',async()=>{
  const root=await mkdtemp(path.join(tmpdir(),'agentscape-authoring-'));
  const token=randomBytes(32).toString('hex');
- const app=await startServer({tokens:[{identity:'author',token}],port:0,root});
+ const app=await startServer({tokens:[{identity:'author',token}],port:0,root,dataRoot:path.join(root,'assets'),managerOptions:{hostOptions:{executorFactory:createIsolatedAuthoringExecutor}}});
  const client=new Client({name:'authoring-acceptance',version:'1'});
  const call=async(name,args)=>{
   const response=await client.callTool({name,arguments:args});

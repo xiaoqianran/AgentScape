@@ -19,6 +19,7 @@ export class ManifestPass {
       aliases: context.semantics.aliases || [],
       source: { kind: 'compiled', key: context.storageKey || id, fallbackUrl: context.sourceUrl || null },
       actions: [...actions],
+      ...(context.definition ? Object.fromEntries(['requiredNodes','surfaces','receptacles','interactionContract'].filter(key=>context.definition[key]!=null).map(key=>[key,structuredClone(context.definition[key])])) : {}),
       ...(parts ? { parts } : {}),
       physics: {
         body: physics.body || (actions.has('pickup') ? 'dynamic' : 'fixed'),
