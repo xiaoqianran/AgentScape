@@ -1,5 +1,7 @@
 # MCP 程序化创作 v0.2
 
+v0.3 更新：这些接口继续保留，但远程执行现已要求 Docker OS 隔离；新增完整程序化资产文件持久化与可信世界恢复接口。下面的 Worker/WASM 描述是 v0.2 的执行基线，最新隔离及保存契约以 [PROGRAMMATIC-ASSETS.md](./PROGRAMMATIC-ASSETS.md) 为准。
+
 AI 可以通过现有 `agentscape-world` 连接提交 Three.js，生成草稿、编译资产并晋升为当前私有世界中的实体。Studio 与 MCP 共用创作文档、资产编译器、晋升控制器和 WorldRuntime；无头创作不需要打开浏览器。
 
 ## 接口

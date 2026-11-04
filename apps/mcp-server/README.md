@@ -1,6 +1,8 @@
-# AgentScape Remote MCP v0.2
+# AgentScape Remote MCP v0.3
 
-新增通过隔离 Three.js 构建草稿并晋升到世界的七个接口，以及参数化 `world_verify`。当前共十六工具。工作流、执行预算和保存边界见 [AUTHORING.md](./AUTHORING.md)。
+新增容器隔离的程序化资产构建/发布、不可变版本与文件存储、可信世界保存恢复。当前共24工具，使用同一个 `agentscape-world` 连接。契约、示例、隔离设施和保存边界见 [PROGRAMMATIC-ASSETS.md](./PROGRAMMATIC-ASSETS.md)。
+
+v0.2 的七个草稿接口和参数化 `world_verify` 保留；远程源码执行现已要求同一受限容器，不再仅依赖 Worker/WASM。原草稿工作流见 [AUTHORING.md](./AUTHORING.md)。
 
 独立 Node.js 进程，为外部 Agent 提供可观察、可执行、可验证的私有 3D 世界。无需内部 LLM，不调用在线生成。SDK 固定为官方 MCP v2 2.4.0。
 
