@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "starter": "vite --open /starter/",
+    "test:starter": "vitest run tests/integration/starter-scene.test.js",
+    "test:browser:starter": "playwright test tests/browser/starter.spec.js",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",

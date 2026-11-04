@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AgentScape · First world</title></head>
+<body>
+  <main>
+    <aside>
+      <a class="brand" href="/">AgentScape <span>STARTER</span></a>
+      <h1>A world you<br>can interact with.</h1>
+      <p>Pick up a cup. Put it on the table. Save your world and open it again.</p>
+      <div class="steps">
+        <button id="pickup" disabled>1. Pick up the cup</button>
+        <button id="place" disabled>2. Place on the table</button>
+        <button id="save" disabled>3. Download world</button>
+      </div>
+      <div class="secondary">
+        <button id="add" disabled>Add a chair</button>
+        <button id="move" disabled>Move the chair</button>
+        <button id="restore" disabled>Open saved world</button>
+        <input id="file" type="file" accept="application/json,.json" hidden>
+      </div>
+      <p id="status" role="status" aria-live="polite">Loading physics and navigation…</p>
+      <p class="hint">Drag to orbit · Scroll to zoom<br>No API key, AI provider or Docker required.</p>
+      <details><summary>Make it yours</summary><p>Edit <code>apps/starter/scene.json</code>, then reload. The JavaScript in <code>main.js</code> uses the experimental Scene API.</p><p>This starter supports four bundled physical assets. GLB uploads, style packs and general project packages are not available here yet.</p></details>
+      <a href="https://github.com/xiaoqianran/AgentScape" target="_blank" rel="noreferrer">Source & contribution guide ↗</a>
+    </aside>
+    <section id="viewport" aria-label="Interactive 3D world"><div class="badge">LIVE PHYSICS <span id="count"></span></div></section>
+  </main>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

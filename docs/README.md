@@ -1,5 +1,7 @@
 # AgentScape 文档体系
 
+第一次使用请先看[可运行 Starter](../apps/starter/README.md)；参与开发请看[贡献指南](../CONTRIBUTING.md)。下面的分层导航面向需要深入内部实现的开发者。
+
 AgentScape 文档按“当前真相”与“历史背景”分层。阅读和开发时不要把所有 Markdown 视为同等权威。
 
 ## 权威优先级

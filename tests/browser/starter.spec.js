@@ -1,0 +1,31 @@
+import { test, expect } from '@playwright/test';
+
+test('first world: real interaction, download, reload and restore', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/starter/');
+  const status = page.getByRole('status');
+  await expect(status).toContainText('Ready.', { timeout: 60000 });
+  await page.getByRole('button', { name: '1. Pick up the cup' }).click();
+  await expect(status).toContainText('Verified: the helper is holding', { timeout: 60000 });
+  await page.getByRole('button', { name: '2. Place on the table' }).click();
+  await expect(status).toContainText('Verified: the cup is settled', { timeout: 60000 });
+  await page.getByRole('button', { name: 'Add a chair', exact: true }).click();
+  await expect(status).toContainText('Chair added');
+  await page.getByRole('button', { name: 'Move the chair', exact: true }).click();
+  await expect(status).toContainText('Chair moved');
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: '3. Download world' }).click();
+  const download = await downloadPromise;
+  const savedPath = await download.path();
+  await page.reload();
+  await expect(status).toContainText('Ready.', { timeout: 60000 });
+  await page.locator('#file').setInputFiles(savedPath);
+  await expect(status).toContainText('Restored 4 objects');
+  await expect(page.locator('#count')).toHaveText('4 objects');
+  await page.screenshot({ path: 'test-results/browser/starter-restored.png' });
+  await page.locator('#file').setInputFiles({ name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{"schema":"unsupported"}') });
+  await expect(status).toContainText('ERROR');
+  await expect(page.locator('#count')).toHaveText('4 objects');
+  expect(errors).toEqual([]);
+});

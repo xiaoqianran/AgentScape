@@ -5,7 +5,7 @@ import { capabilityDevPlugin } from "./dev/capabilityDevPlugin.js";
 function observatoryRoutePlugin() {
   const redirect = (req, res, next) => {
     const path = req.url?.split("?", 1)[0];
-    if (path !== "/observatory" && path !== "/home") return next();
+    if (path !== "/observatory" && path !== "/home" && path !== "/starter") return next();
     const query = req.url?.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
     res.statusCode = 308;
     res.setHeader("Location", `${path}/${query}`);
@@ -17,6 +17,9 @@ function observatoryRoutePlugin() {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const pathname = req.url?.split("?", 1)[0];
+        if (pathname === "/starter/" || pathname === "/starter/index.html") {
+          req.url = req.url.replace(pathname, "/apps/starter/index.html");
+        }
         if (pathname === "/home/" || pathname === "/home/index.html") {
           req.url = req.url.replace(pathname, "/apps/spline-home/index.html");
         }
@@ -30,6 +33,11 @@ function observatoryRoutePlugin() {
     generateBundle: {
       order: "post",
       handler(_, bundle) {
+        const starter = bundle["apps/starter/index.html"];
+        if (starter) {
+          delete bundle["apps/starter/index.html"];
+          this.emitFile({ type: "asset", fileName: "starter/index.html", source: starter.source });
+        }
         const home = bundle["apps/spline-home/index.html"];
         if (home) {
           delete bundle["apps/spline-home/index.html"];
@@ -72,6 +80,7 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         input: {
+          starter: new URL("./apps/starter/index.html", import.meta.url).pathname,
           studio: new URL("./index.html", import.meta.url).pathname,
           observatory: new URL("./apps/observatory/index.html", import.meta.url).pathname,
           home: new URL("./apps/spline-home/index.html", import.meta.url).pathname
