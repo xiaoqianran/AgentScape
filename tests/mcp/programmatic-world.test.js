@@ -39,6 +39,11 @@ it.runIf(process.env.AGENTSCAPE_SANDBOX_INTEGRATION==='1')('builds box/table/fri
   expect((await action('approachAndInteract',{actorId:'agent_01',targetId:'my_fridge',action:'close'})).state).toBe('verified');
   const criteria=[{id:'support',kind:'relation-exists',subject:'my_box',predicate:'ON',object:'my_table',surfaceId:'top'},{id:'opened',kind:'interaction-verified',targetId:'my_fridge',capability:'OPEN'}];
   expect((await call('world_verify',{...base,criteria})).state).toBe('verified');
+  const spinning=await call('asset_build_submit',{contract:'agentscape.procedural-asset.v1',source:'export function createAsset(THREE){while(true){}}',definition:box.definition,requestId:randomUUID()});
+  const duringBuild=await call('world_observe',base);
+  expect(duringBuild.objects).toHaveLength(7);
+  expect(app.assets.running.has(spinning.buildId)).toBe(true);
+  expect((await call('asset_build_cancel',{buildId:spinning.buildId})).status).toBe('cancelled');
   const saved=await call('world_save',base);
   const nextSource=box.source.replace('0xff8844','0x4488ff');
   const next=await call('asset_build_submit',{contract:'agentscape.procedural-asset.v1',source:nextSource,definition:box.definition,requestId:randomUUID()});
