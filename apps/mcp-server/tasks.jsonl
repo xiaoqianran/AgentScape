@@ -1,0 +1,6 @@
+{"id":"MCP-000","type":"feat","title":"独立工作区及基线验证","status":"DONE","priority":"P1","path":"apps/mcp-server","depends":[],"files":["apps/mcp-server/README.md"],"criteria":["独立工作区及基线验证"]}
+{"id":"MCP-001","type":"feat","title":"正式装配的 Headless Host 与真实物理动作","status":"DONE","priority":"P1","path":"apps/mcp-server","depends":["MCP-000"],"files":["apps/mcp-server/README.md"],"criteria":["正式装配的 Headless Host 与真实物理动作"]}
+{"id":"MCP-002","type":"feat","title":"私有会话、互斥、取消及资源预算","status":"DONE","priority":"P1","path":"apps/mcp-server","depends":["MCP-001"],"files":["apps/mcp-server/README.md"],"criteria":["私有会话、互斥、取消及资源预算"]}
+{"id":"MCP-003","type":"feat","title":"鉴权的 MCP v2 Streamable HTTP 九工具","status":"DONE","priority":"P1","path":"apps/mcp-server","depends":["MCP-002"],"files":["apps/mcp-server/README.md"],"criteria":["鉴权的 MCP v2 Streamable HTTP 九工具"]}
+{"id":"MCP-004","type":"feat","title":"官方 MCP 客户端真实开柜取杯放置验收","status":"DONE","priority":"P1","path":"apps/mcp-server","depends":["MCP-003"],"files":["apps/mcp-server/README.md"],"criteria":["官方 MCP 客户端真实开柜取杯放置验收"]}
+{"id":"MCP-005","type":"test","title":"安全和项目回归验证","status":"DONE","priority":"P1","path":"apps/mcp-server","depends":["MCP-004"],"files":["apps/mcp-server/README.md"],"criteria":["安全和项目回归验证"]}

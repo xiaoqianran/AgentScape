@@ -34,13 +34,17 @@
     "test:observatory": "vitest run tests/observatory",
     "typecheck": "tsc --noEmit",
     "test:artifact": "vitest run tests/artifact",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "mcp:serve": "node apps/mcp-server/main.mjs",
+    "test:mcp": "vitest run tests/mcp"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
     "@gltf-transform/core": "^4.4.2",
     "@gltf-transform/extensions": "^4.4.2",
     "@gltf-transform/functions": "^4.4.2",
+    "@modelcontextprotocol/node": "2.1.2",
+    "@modelcontextprotocol/server": "2.4.0",
     "@recast-navigation/core": "^0.43.1",
     "@recast-navigation/generators": "^0.43.1",
     "@sparkjsdev/spark": "~2.1.0",
@@ -50,9 +54,11 @@
     "three": "^0.186.0",
     "three-gsmesh": "^0.0.3",
     "three-mesh-bvh": "^0.9.1",
+    "zod": "4.6.7",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@playwright/test": "^1.63.0",
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/addon-mcp": "^10.6.0",
