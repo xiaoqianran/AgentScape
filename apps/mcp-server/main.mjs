@@ -1,8 +1,8 @@
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { McpServer } from '@modelcontextprotocol/server';
-import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
+import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
+import { toWebRequest } from '@modelcontextprotocol/node';
 import { SessionManager } from './SessionManager.js';
 import { registerTools } from './registerTools.js';
 import { createSecurity } from './security.js';
@@ -15,11 +15,17 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
    if(req.url!=='/mcp') {res.writeHead(404).end();return;}
    const {owner,body}=await authorize(req);
    if(req.method!=='POST') {res.writeHead(405).end();return;}
-   server=new McpServer({name:'AgentScape Remote MCP',version:'0.1.0'});
-   registerTools(server,manager,owner);
-   const transport=new NodeStreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true});
-   connections.add(server); res.on('close',()=>{connections.delete(server);server.close().catch(()=>{});});
-   await server.connect(transport); await transport.handleRequest(req,res,body);
+   // The unified SDK handler supports modern per-request envelopes and legacy initialization.
+   const handler=createMcpHandler(()=>{
+    server=new McpServer({name:'AgentScape Remote MCP',version:'0.1.0'});
+    registerTools(server,manager,owner);
+    connections.add(server);
+    return server;
+   });
+   res.on('close',()=>{connections.delete(server);handler.close().catch(()=>{});});
+   const response=await handler.fetch(await toWebRequest(req,body));
+   res.writeHead(response.status,Object.fromEntries(response.headers));
+   res.end(Buffer.from(await response.arrayBuffer()));
   } catch(e) {if(!res.headersSent) res.writeHead(e.status||500).end(JSON.stringify({error:e.status?'HTTP_REQUEST_REJECTED':'INTERNAL_ERROR'}));}
  });
  http.requestTimeout=35000; http.headersTimeout=10000;

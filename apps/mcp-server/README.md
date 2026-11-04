@@ -18,7 +18,7 @@ flowchart TD
 在独立检出目录执行。Node.js 20+，本次使用本机 Node.js；安装依赖不会加载 Studio 私有配置。
 
 ```powershell
-cd D:\a_programming_list\A-Python-Project\wk08\AgentScape-MCP
+cd D:\a_programming_list\A-Python-Project\wk08\AgentScape
 npm ci
 $credential = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 $env:AGENTSCAPE_MCP_TOKENS = ConvertTo-Json -Compress -AsArray @{ identity = 'my-agent'; token = $credential }
@@ -73,7 +73,7 @@ HTTP 请求体最多64 KiB，每身份每分钟120次请求；Host 白名单默�
 
 通过可信 TLS 反向代理或隧道转发到 127.0.0.1:39015，保留 Authorization。代理应将上游 Host 设为 localhost；浏览器客户端需由部署代码向 startServer 的 security.origins 传入明确完整 Origin，禁止通配。默认 CLI 不开放跨域浏览器访问。不要暴露本地端口。
 
-这是私有 Bearer 部署，不包含 OAuth 授权发现；要求 OAuth 的托管客户端需要额外授权层。尚未验证 ChatGPT、Claude、Codex、OpenCode 各自产品的连接配置；已使用官方 MCP v2 Client 验证协议和完整工作流。
+这是私有 Bearer 部署，不包含 OAuth 授权发现；要求 OAuth 的托管客户端需要额外授权层。已通过 PC2 AgentDock 的真实工具调用验证完整工作流，部署详情见 DEPLOYMENT-PC2.md；其他客户端各自的直连配置尚未验证。
 
 ## 文件职责与验证
 
