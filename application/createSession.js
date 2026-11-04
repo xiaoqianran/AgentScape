@@ -18,6 +18,7 @@ export function createSession(container, {
   rendererMode = 'auto',
   rendererTiming = false,
   articulationVerifier = null,
+  authoringOptions = null,
   ...worldOptions
 } = {}) {
   const assetModule = worldOptions.assetModule || createAssetModule();
@@ -47,7 +48,7 @@ export function createSession(container, {
   world.skills = registerCoreSkills(new SkillRegistry({
     policy: world.policy, trace: world.trace, runtime: world
   }), world);
-  const authoring = world.rendering ? createWorldAuthoringContext(world) : null;
+  const authoring = world.rendering || authoringOptions ? createWorldAuthoringContext(world, authoringOptions || {}) : null;
   const promotion = authoring ? new AuthoringPromotionController({ authoring, world,
     produceAsset:createAuthoringAssetProducer({ assets:assetModule, artifacts:generation.artifacts }) }) : null;
   if (promotion) registerAuthoringSkills((name, options, handler) => world.skills.register({ name, ...options, handler }), promotion);

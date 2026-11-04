@@ -13,6 +13,7 @@ export function createAssetModule({
   compiledStore = null,
   manifestStore = undefined,
   libraryStore = undefined,
+  gltfLoader = undefined,
   now = () => Date.now()
 } = {}) {
   const store = compiledStore || new CompiledAssetStore();
@@ -21,7 +22,7 @@ export function createAssetModule({
     : manifestStore;
 
   const registry = new AssetRegistry({ manifests });
-  const loader = new AssetLoader({ registry, compiledStore:store });
+  const loader = new AssetLoader({ registry, compiledStore:store, ...(gltfLoader ? {gltfLoader} : {}) });
   const catalog = new AssetCatalog({ registry });
 
   const durableLibrary = libraryStore === undefined

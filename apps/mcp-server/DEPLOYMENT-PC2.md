@@ -6,7 +6,7 @@ Validated on 2026-11-04 on PC2 (`RANRAN4060`). MCP is merged into
 - Source: `D:\a_programming_list\A-Python-Project\wk08\AgentScape`
 - Application: `apps/mcp-server/main.mjs`; Studio starts independently.
 - AgentDock dynamic server: `agentscape-world`, Streamable HTTP,
-  `http://127.0.0.1:39015/mcp`, nine tools.
+  `http://127.0.0.1:39015/mcp`, sixteen tools after the v0.2 authoring upgrade.
 - Authorization header references the server's isolated environment variable
   `AGENTSCAPE_WORLD_AUTHORIZATION`, configured through `mcp_manage`.
 - Windows task `AgentScape-World-MCP` starts a hidden supervisor at the current

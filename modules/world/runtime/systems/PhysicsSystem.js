@@ -615,11 +615,12 @@ export class PhysicsSystem {
       const collider=bodyColliders[i];
       const snapshot=this.backend.colliderSnapshot(collider);
       const spec = entry.rootSpec.colliders?.[i] || {};
-      if (!['cylinder','capsule'].includes(spec.shape)) return { clear:false, code:'CARRY_COLLIDER_UNSUPPORTED', collider:i, shape:spec.shape || null };
+      if (!['box','cylinder','capsule'].includes(spec.shape)) return { clear:false, code:'CARRY_COLLIDER_UNSUPPORTED', collider:i, shape:spec.shape || null };
       const local = new THREE.Vector3(...(spec.translation || [0,0,0]));
       const targetCenter = local.applyQuaternion(nextRotation).add(targetBody);
       let overlap = null;
-      this.backend.intersectionsWithShape(this.world,targetCenter,nextRotation,snapshot.shapeRef,(other)=>{
+      const colliderRotation=nextRotation.clone().multiply(new THREE.Quaternion(...(spec.rotation || [0,0,0,1])));
+      this.backend.intersectionsWithShape(this.world,targetCenter,colliderRotation,snapshot.shapeRef,(other)=>{
         const parent=this.backend.colliderParent(other);
         const owner=parent ? this.ownerOfBody(parent) : null;
         if (owner && excluded.has(owner.id)) return true;
@@ -653,7 +654,7 @@ export class PhysicsSystem {
       const collider=bodyColliders[i];
       const snapshot=this.backend.colliderSnapshot(collider);
       const spec = entry.rootSpec.colliders?.[i] || {};
-      if (!['cylinder','capsule'].includes(spec.shape)) return { clear:false, code:'CARRY_COLLIDER_UNSUPPORTED', collider:i, shape:spec.shape || null };
+      if (!['box','cylinder','capsule'].includes(spec.shape)) return { clear:false, code:'CARRY_COLLIDER_UNSUPPORTED', collider:i, shape:spec.shape || null };
       const local = new THREE.Vector3(...(spec.translation || [0,0,0]));
       const targetCenter = local.applyQuaternion(nextRotation).add(targetBody);
       const delta=targetCenter.clone().sub(new THREE.Vector3(snapshot.position.x,snapshot.position.y,snapshot.position.z));

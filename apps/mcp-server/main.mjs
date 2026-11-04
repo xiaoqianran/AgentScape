@@ -17,7 +17,7 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
    if(req.method!=='POST') {res.writeHead(405).end();return;}
    // The unified SDK handler supports modern per-request envelopes and legacy initialization.
    const handler=createMcpHandler(()=>{
-    server=new McpServer({name:'AgentScape Remote MCP',version:'0.1.0'});
+    server=new McpServer({name:'AgentScape Remote MCP',version:'0.2.0'});
     registerTools(server,manager,owner);
     connections.add(server);
     return server;

@@ -1,4 +1,6 @@
-# AgentScape Remote MCP v0.1
+# AgentScape Remote MCP v0.2
+
+新增通过隔离 Three.js 构建草稿并晋升到世界的七个接口，以及参数化 `world_verify`。当前共十六工具。工作流、执行预算和保存边界见 [AUTHORING.md](./AUTHORING.md)。
 
 独立 Node.js 进程，为外部 Agent 提供可观察、可执行、可验证的私有 3D 世界。无需内部 LLM，不调用在线生成。SDK 固定为官方 MCP v2 2.4.0。
 
@@ -45,7 +47,7 @@ npm run mcp:serve
 
 MCP Transport 使用无状态 HTTP；没有 MCP 协议会话 ID，worldSessionId 专属于世界生命周期。每个工具调用仍要求 Bearer 鉴权。SDK 处理协议消息及参数验证；工具执行错误返回 isError 和脱敏错误码。
 
-动作白名单：spawnAsset、moveObject、navigateTo、approachAndInteract、approachAndPickup、approachAndPlace。参数完全遵循 skills_list 返回的 Schema；拒绝未知字段。资产仅限本地 agent / cabinet / cup / table。不能指定 URL、磁盘目录或执行代码。profile、actor 的授权身份均由服务端固定，actorId 只是世界内对象 ID。
+动作白名单：spawnAsset、moveObject、navigateTo、approachAndInteract、approachAndPickup、approachAndPlace。参数完全遵循 skills_list 返回的 Schema；拒绝未知字段。初始资产为本地 agent / cabinet / cup / table，也允许实例化当前会话已编译注册的创作资产。动作接口不能指定 URL 或磁盘目录；Three.js 代码只能通过 authoring_execute 在受限引擎内执行。profile、actor 的授权身份均由服务端固定，actorId 只是世界内对象 ID。
 
 按顺序调用（每次动作生成独立 requestId；重试相同动作使用原 ID）：
 

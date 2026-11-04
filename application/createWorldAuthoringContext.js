@@ -22,17 +22,17 @@ export function createWorldAuthoringContext(
     historyLimit = 64,
     now = () => new Date().toISOString(),
     presentationMode = 'overlay',
-    executionHost = createAuthoringExecutionHost()
+    executionHost = createAuthoringExecutionHost(),
+    executeCode = null
   } = {}
 ) {
-  if (!world?.rendering?.addAuthoringScene || !world?.rendering?.removeAuthoringScene) {
-    throw new TypeError('World authoring requires a RenderingSystem with authoring scene support');
-  }
+  if (!world || (!world.rendering && !executeCode)) throw new TypeError('World authoring requires a rendering presentation or isolated code executor');
+  const presentation = world.rendering;
 
   const root = new THREE.Scene();
   root.name = '$llm-world';
   setAuthoringObjectId(root, 'root');
-  world.rendering.addAuthoringScene(root, { mode:presentationMode });
+  presentation?.addAuthoringScene(root, { mode:presentationMode });
 
   const frameHandlers = new Set();
   const revisions = new AuthoringRevisionHistory({ limit:historyLimit, now });
@@ -346,11 +346,17 @@ export function createWorldAuthoringContext(
     setPromotedNodes,
     setPresentationMode(mode) {
       assertActive();
-      return world.rendering.setAuthoringSceneMode(root, mode);
+      return presentation?.setAuthoringSceneMode(root, mode) ?? false;
     },
     async run(source) {
       assertActive();
       if (typeof source !== 'string' || !source.trim()) throw new TypeError('World authoring source is required');
+      if (executeCode) {
+        const document = await executeCode({ code:source, document:exportDocument() });
+        applyDocument(document);
+        return;
+      }
+      if (!presentation) throw new Error('Headless authoring requires an isolated code executor');
       const execute = new AsyncFunction(
         'THREE',
         'scene',
@@ -387,7 +393,7 @@ export function createWorldAuthoringContext(
       if (disposed) return false;
       clear();
       disposed = true;
-      return world.rendering.removeAuthoringScene(root);
+      return presentation?.removeAuthoringScene(root) ?? true;
     }
   };
 }

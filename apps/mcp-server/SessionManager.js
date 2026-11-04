@@ -42,6 +42,16 @@ export class SessionManager {
   finally { await rm(temporary,{force:true}); }
   return {state:'exported',fileName:name,bytes:Buffer.byteLength(json),snapshot,scope:'scene-json-only'};
  }
+ async exportAuthoring(s) {
+  const document=s.host.session.authoring.export();
+  const draft={schema:'agentscape.remote-authoring',schemaVersion:1,sources:s.host.authoringSources,document,promotions:s.host.session.promotion.exportState()};
+  const json=JSON.stringify(draft);
+  if(Buffer.byteLength(json)>this.maxExportBytes) throw new Error('EXPORT_LIMIT');
+  const fileName=`authoring-${randomUUID()}.json`,temporary=path.join(s.directory,`${fileName}.tmp`),target=path.join(s.directory,fileName);
+  try {await writeFile(temporary,json,{flag:'wx'});JSON.parse(await readFile(temporary,'utf8'));await rename(temporary,target);}
+  finally {await rm(temporary,{force:true});}
+  return {state:'exported',fileName,bytes:Buffer.byteLength(json),scope:'authoring-source-and-document-only',draft};
+ }
  async close(owner,id) { const s=this.get(owner,id); s.closing=true; s.active?.controller.abort(); try { await s.active?.promise.catch(()=>{}); s.host.close(); } finally { this.sessions.delete(id); } return {worldSessionId:id,state:'closed'}; }
  async reap() { for(const s of this.sessions.values()) if(!s.active && Date.now()-s.lastUsed>=this.ttlMs) await this.close(s.owner,s.id); }
  async dispose() { this.disposed=true; clearInterval(this.timer); await Promise.all([...this.sessions.values()].map(s=>this.close(s.owner,s.id))); }
