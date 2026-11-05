@@ -1,5 +1,7 @@
 import * as z from 'zod/v4';
 
+export const threeCodeInputSchema = z.object({ kind:z.literal('three-code'), source:z.string().min(1).max(32768), definition:z.record(z.string(),z.unknown()).optional() }).strict();
+
 const number = z.number().finite().min(-100).max(100);
 const size = z.number().finite().positive().max(100);
 const vector = z.tuple([number, number, number]);

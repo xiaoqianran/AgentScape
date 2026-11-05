@@ -56,8 +56,8 @@ export async function exportScenePackage(world, { name = 'Untitled World', readR
 }
 
 /** Prepare entirely in a fresh Runtime. Failure never mutates the caller's world. */
-/** @param {any} input @param {{container?: HTMLElement|null, assetModule?: any}} options */
-export async function openScenePackage(input, { container = null, assetModule = null } = {}) {
+/** @param {any} input @param {{container?: HTMLElement|null, assetModule?: any, codeExecutor?: any, codeGLTFLoader?: any}} options */
+export async function openScenePackage(input, { container = null, assetModule = null, codeExecutor = null, codeGLTFLoader } = {}) {
   if (typeof input === 'string') {
     if (input.length > 96 * 1024 * 1024) throw new Error('DOCUMENT_LIMIT');
     input = JSON.parse(input);
@@ -88,7 +88,7 @@ export async function openScenePackage(input, { container = null, assetModule = 
     await assets.importPackageAsset(item);
   }
   const { openScene } = await import('./SceneFacade.js');
-  const scene = await openScene({ container, assetModule: assets, project: { ...project, objects: [], style: undefined } });
+  const scene = await openScene({ container, assetModule: assets, codeExecutor, codeGLTFLoader, project: { ...project, objects: [], style: undefined } });
   try { await scene.restoreSnapshot(bundle.snapshot, { prepared: true }); if (bundle.style) await scene.setStyle(bundle.style); return scene; }
   catch (error) { scene.close(); throw error; }
 }

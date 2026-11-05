@@ -5,7 +5,8 @@ import { createMonumentHall } from '../../modules/world/content/monumentHall.js'
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { assetAdmission } from '../../modules/asset/model/admission.js';
-import { recipeSchema, glbInputSchema } from '../../modules/asset/model/AssetInputContracts.js';
+import { recipeSchema, glbInputSchema, threeCodeInputSchema } from '../../modules/asset/model/AssetInputContracts.js';
+import { prepareThreeCodeAsset } from '../programmatic-assets/ThreeCodeAsset.js';
 import { mechanicalDraftSchema } from '../../modules/asset/model/MechanicalAssetDraft.js';
 import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 import { StyleSystem } from '../../modules/rendering/style/StyleSystem.js';
@@ -60,7 +61,7 @@ export const sceneInteractionSchema = z.discriminatedUnion('action', [
 const diagnostic = error => ({ code: error.code || 'INVALID_OPERATION', message: error.code || 'Operation failed', stage: 'scene', retryable: false });
 
 /** One application service per existing Runtime. No entity or asset cache. */
-export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', maxObjects = 32 } = {}) {
+export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', maxObjects = 32, codeExecutor = null, codeGLTFLoader = undefined } = {}) {
   if (services.has(world)) return services.get(world);
   let busy = false, closed = false, revision = 0, selectedActor = null;
   const jobs = new Map(), requests = new Map();
@@ -174,10 +175,24 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       const source=glbInputSchema.omit({review:true}).parse(input);
       return exclusive(()=>world.assetModule.prepareInteraction(source));
     },
-    async addModel(input) {
+    async addModel(input, { signal } = {}) {
       assertIdle();
       if (typeof input?.asset !== 'string') {
         const source = input?.asset;
+        if (source?.kind === 'three-code') {
+          const code = threeCodeInputSchema.parse(source);
+          const model = modelSchema.parse({ ...input, asset:'builtin://pending', level:input.level ?? (code.definition ? 'physical' : 'visual') });
+          if (world.store.has(model.id)) throw sceneError('DUPLICATE_ID');
+          if (world.store.list().length >= maxObjects) throw sceneError('OBJECT_LIMIT');
+          return exclusive(async () => {
+            const prepared = await prepareThreeCodeAsset(world.assetModule, codeExecutor, code, { signal, gltfLoader:codeGLTFLoader });
+            return prepared.install(async () => {
+              if (signal?.aborted) throw sceneError('BUILD_CANCELLED');
+              const added = await executeEdit({ type:'add', model:{...model,asset:prepared.asset} });
+              return {...added, execution:{status:'succeeded'}, buildValidation:prepared.validation};
+            });
+          });
+        }
         const glb = source?.kind === 'glb' ? glbInputSchema.parse(source) : null;
         const machine = source?.schema === 'agentscape.mechanical-draft' ? mechanicalDraftSchema.parse(source) : null;
         const recipe = glb || machine ? null : recipeSchema.parse(source);
@@ -264,7 +279,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     },
     frame(timestamp) { assertOpen(); cancelPending(); world.simulation.pump(timestamp); world.rendering?.render(timestamp); },
     step() { assertOpen(); cancelPending(); return world.simulation.step(); },
-    close() { if (closed) return; assertIdle(); closed = true; unsubscribe.forEach(fn => fn()); if (ownsWorld) world.dispose(); }
+    close() { if (closed) return; assertIdle(); closed = true; codeExecutor?.close(); unsubscribe.forEach(fn => fn()); if (ownsWorld) world.dispose(); }
   };
   async function single(op) { const batch = await handle.apply({ operations: [op] }); if (batch.status === 'failed') throw sceneError(batch.diagnostics[0].code); return batch.value.applied[0]; }
   function getJob(key) { const job = jobs.get(key); if (!job) throw sceneError('JOB_NOT_FOUND'); return job; }
@@ -302,8 +317,8 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
   return handle;
 }
 
-/** @param {{project?: any, container?: HTMLElement|null, assetModule?: any}} options */
-export async function openScene({ project, container = null, assetModule = null } = {}) {
+/** @param {{project?: any, container?: HTMLElement|null, assetModule?: any, codeExecutor?: any, codeGLTFLoader?: any}} options */
+export async function openScene({ project, container = null, assetModule = null, codeExecutor = null, codeGLTFLoader } = {}) {
   const definition = parseSceneProject(project);
   const assets = assetModule || createAssetModule({ volatile: true, manifests: Object.fromEntries(['agent', 'cup', 'table', 'chair'].map(key => [key, structuredClone(assetManifests[key])])), manifestStore: null, libraryStore: null });
   const world = new WorldRuntime({ assetModule: assets, environmentFactory: () => createMonumentHall({ loadAssets: false }) });
@@ -312,7 +327,7 @@ export async function openScene({ project, container = null, assetModule = null 
   world.skills = new SkillRegistry({ policy: world.policy, trace: world.trace, runtime: world });
   const add = (name, options, handler) => world.skills.register({ name, ...options, handler });
   registerSceneSkills(add, world); registerSpatialSkills(add, world); registerInteractionSkills(add, world);
-  const scene = createSceneFacade(world, { ownsWorld: true, name: definition.name });
+  const scene = createSceneFacade(world, { ownsWorld: true, name: definition.name, codeExecutor, codeGLTFLoader });
   try {
     await world.init();
     if (definition.objects.length) { const initialized = await scene.apply({ operations: definition.objects.map(model => ({ type: 'add', model })) }); if (initialized.status !== 'succeeded') throw sceneError(initialized.diagnostics[0].code); }

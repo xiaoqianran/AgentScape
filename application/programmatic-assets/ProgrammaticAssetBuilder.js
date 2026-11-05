@@ -5,14 +5,14 @@ import { assetAdmission } from '../../modules/asset/model/admission.js';
 import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 import { createWorldAuthoringContext } from '../createWorldAuthoringContext.js';
 import { createAuthoringAssetProducer } from '../world-authoring/AuthoringAssetProducer.js';
-import { capturePromotionSource } from '../world-authoring/AuthoringPromotionSource.js';
+import { capturePromotionSource, exportPromotionGLB } from '../world-authoring/AuthoringPromotionSource.js';
 import { disposeObject3D } from '../../modules/rendering/disposeObject3D.js';
 import { parseDefinition } from './ProgrammaticAssetContract.js';
 
 export class ProgrammaticAssetBuilder {
  constructor({runner,gltfLoader}) {Object.assign(this,{runner,gltfLoader});}
  async build({source,definition,assetId},{signal}={}) {
-  const draft=parseDefinition(definition);
+  const draft=definition == null ? null : parseDefinition(definition);
   const result=await this.runner.run({mode:'procedural',source},{signal});
   if(signal?.aborted)throw new Error('BUILD_CANCELLED');
   const authoring=createWorldAuthoringContext({events:{emit(){}}},{executeCode:()=>{throw Error('SOURCE_EXECUTION_FORBIDDEN');}});
@@ -23,13 +23,21 @@ export class ProgrammaticAssetBuilder {
    authoring.load(result.document);
    const object=authoring.get('asset-root');
    const names=new Map();object.traverse(n=>{if(n.name)names.set(n.name,(names.get(n.name)||0)+1);});
-   const required=[...(draft.requiredNodes||[]),...Object.values(draft.parts||{}).map(p=>p.node)];
+   const required=[...(draft?.requiredNodes||[]),...Object.values(draft?.parts||{}).map(p=>p.node)];
    if(required.some(name=>names.get(name)!==1))throw Object.assign(new Error('PROCEDURAL_REQUIRED_NODE_INVALID'),{details:{invalidNodes:required.filter(name=>names.get(name)!==1)}});
    const box=new THREE.Box3().setFromObject(object),size=box.getSize(new THREE.Vector3());
    if(![size.x,size.y,size.z].every(v=>Number.isFinite(v)&&v>0&&v<=100))throw new Error('PROCEDURAL_DIMENSIONS_INVALID');
+   const captured=capturePromotionSource(authoring,'asset-root');
+   if (!draft) {
+    const bytes=await exportPromotionGLB(captured);
+    const output=await assets.importPackageAsset({bytes,id:assetId,definition:{capabilityLevel:'visual',label:'Code asset'}});
+    if(signal?.aborted)throw new Error('BUILD_CANCELLED');
+    return {bytes:(await assets.compiledStore.get(assetId)).bytes,manifest:output.manifest,environment:result.environment,security:result.security,
+     validation:{execution:'succeeded',runtime:{status:'not-requested'}},admission:assetAdmission(output.manifest)};
+   }
    const resolved={...draft,id:assetId};
    if(resolved.interactionContract)resolved.interactionContract={...resolved.interactionContract,entityId:assetId};
-   const produced=await createAuthoringAssetProducer({assets,artifacts})(capturePromotionSource(authoring,'asset-root'),{usage:'interactive',definition:resolved,assetId});
+   const produced=await createAuthoringAssetProducer({assets,artifacts})(captured,{usage:'interactive',definition:resolved,assetId});
    if(produced.status==='asset-rejected')throw new Error('PROCEDURAL_ASSET_REJECTED');
    const runtime=await assets.verifyAndUpdateArticulation(assetId,{requireRegistration:true});
    if(!runtime.ok||!runtime.physicsRegistered)throw Object.assign(new Error('PROCEDURAL_RUNTIME_VERIFICATION_FAILED'),{details:runtime});
@@ -37,7 +45,10 @@ export class ProgrammaticAssetBuilder {
    const loaded=await assets.instantiate(assetId);disposeObject3D(loaded.object);
    const compiled=await assets.compiledStore.get(manifest.source.key);
    if(!compiled?.bytes||compiled.bytes.byteLength>4194304)throw new Error('BUILD_OUTPUT_LIMIT');
-   return {bytes:compiled.bytes,manifest,environment:result.environment,security:result.security,validation:{nodes:[...names.keys()],bounds:{min:box.min.toArray(),max:box.max.toArray()},runtime},admission:assetAdmission(manifest)};
-  } finally {authoring.dispose();}
+   if(signal?.aborted)throw new Error('BUILD_CANCELLED');
+   manifest.capabilityLevel=Object.keys(draft.parts||{}).length?'interactive':'physical';
+   return {bytes:compiled.bytes,manifest,environment:result.environment,security:result.security,validation:{execution:'succeeded',nodes:[...names.keys()],bounds:{min:box.min.toArray(),max:box.max.toArray()},runtime},admission:assetAdmission(manifest)};
+  } catch(error) {error.execution={status:'succeeded'};throw error;}
+  finally {authoring.dispose();}
  }
 }

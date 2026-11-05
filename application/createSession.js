@@ -21,6 +21,8 @@ export function createSession(container, {
   rendererTiming = false,
   articulationVerifier = null,
   authoringOptions = null,
+  codeExecutor = null,
+  codeGLTFLoader = undefined,
   ...worldOptions
 } = {}) {
   const assetModule = worldOptions.assetModule || createAssetModule();
@@ -55,7 +57,7 @@ export function createSession(container, {
     produceAsset:createAuthoringAssetProducer({ assets:assetModule, artifacts:generation.artifacts }) }) : null;
   if (promotion) registerAuthoringSkills((name, options, handler) => world.skills.register({ name, ...options, handler }), promotion);
   if (authoring) registerCodeSkills((name, options, handler) => world.skills.register({ name, ...options, handler }), authoring);
-  const scene = createSceneFacade(world);
+  const scene = createSceneFacade(world, { codeExecutor, codeGLTFLoader });
   world.skills.register({ name:'addSceneModel', description:'通过 Scene API 添加已有 AssetRef 或声明式 Asset Recipe。基础几何用 Recipe JSON，不生成或执行 JavaScript。返回添加、准入和验证三个独立结果。', permissions:['world.write','asset.write'], required:['model'], properties:{model:z.toJSONSchema(sceneAgentModelSchema)}, mutates:true, manualMutation:true, batchable:false,
     handler:({model})=>scene.addModel(sceneAgentModelSchema.parse(model)) });
   return { world, generation, authoring, promotion, scene };
