@@ -105,43 +105,24 @@ describe('world-first interaction overlay', () => {
     expect(host.listeners.size).toBe(0);
   });
 
-  it('activates the clicked world interaction and skips a look-around drag', () => {
-    const stub = domStub();
-    vi.stubGlobal('document', stub.document);
-    const h = scene3d();
-    const ui = { viewport: stub.document.createElement('div') };
-    const editor = { select: vi.fn() };
-    const overlay = mountWorldInteraction({ world:h.world, ui, editor });
-    const prompt = ui.viewport.children[0];
-    const controls = ui.viewport.children[1];
-    expect(prompt.className).toBe('cabin-interact');
-    expect(prompt.hidden).toBe(true);
-    expect(controls.className).toBe('cabin-views');
-    expect(controls.children.map((button) => button.textContent)).toEqual(['全景']);
-
-    controls.children[0].listeners.get('click')();
-    expect(h.camera.position.toArray()).toEqual([1,2,3]);
-    expect(h.controls.target.toArray()).toEqual([0,0,0]);
-
-    // A drag is a camera move, not a selection.
-    h.element.listeners.get('pointerdown')({ button:0, clientX:20, clientY:50, pointerId:1 });
-    h.element.listeners.get('pointerup')({ clientX:60, clientY:50, pointerId:1, stopImmediatePropagation() {} });
-    expect(h.activated).not.toHaveBeenCalled();
-
-    h.element.listeners.get('pointerdown')({ button:0, clientX:100, clientY:50, pointerId:2 });
-    h.element.listeners.get('pointerup')({ clientX:100, clientY:50, pointerId:2, stopImmediatePropagation() {} });
-    expect(h.activated).toHaveBeenCalledOnce();
-    expect(editor.select).toHaveBeenCalledWith(null);
-    expect(prompt.hidden).toBe(false);
-    expect(prompt.textContent).toBe('告示板文字');
-    expect(h.world.events.emit).toHaveBeenCalledWith('environment.interaction', {
-      environmentId:'test-world', id:'test:board', label:'告示板文字'
-    });
-
-    // Repeating the prompt repeats the same world action.
-    prompt.listeners.get('click')();
-    expect(h.activated).toHaveBeenCalledTimes(2);
-    overlay.dispose();
+  it('owns camera controls without installing a competing pointer handler or prompt',()=>{
+    const stub=domStub();vi.stubGlobal('document',stub.document);const h=scene3d();
+    const ui={viewport:stub.document.createElement('div')};
+    const overlay=mountWorldInteraction({world:h.world,ui});
+    expect(ui.viewport.children.map(item=>item.className)).toEqual(['cabin-views']);
+    expect(h.element.listeners.size).toBe(0);
+    ui.viewport.children[0].children[0].listeners.get('click')();
+    expect(h.camera.position.toArray()).toEqual([1,2,3]);overlay.dispose();
+  });
+  it('catalog selection uses the shared controller without executing',()=>{
+    const stub=domStub();vi.stubGlobal('document',stub.document);const h=scene3d();
+    h.environment.catalog={label:'Objects'};h.environment.interactions[0].contractId='board';
+    const editor={selectSelection:vi.fn()};const ui={viewport:stub.document.createElement('div')};
+    const overlay=mountWorldInteraction({world:h.world,ui,editor});
+    const catalog=ui.viewport.children[0].children.at(-1);
+    catalog.children[1].children[0].listeners.get('click')();
+    expect(editor.selectSelection).toHaveBeenCalledWith({source:'environment',id:'board'});
+    expect(h.activated).not.toHaveBeenCalled();overlay.dispose();
   });
 
   it('does not mount when the world declares no interactions', () => {

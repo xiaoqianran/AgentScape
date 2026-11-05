@@ -1,3 +1,4 @@
+import { useStudioStore } from '../state/studioStore';
 import { assetDisplayName } from '../shared/ResourcePresentation';
 import { useEffect, useState } from 'react';
 import type { EditorCommandsLike, InspectorRelation, RuntimeInspectorModel } from './InspectorTypes';
@@ -21,6 +22,7 @@ export function RuntimeEntityInspector({
   log:(text:string,kind?:string)=>void;
 }) {
   const [scaleInput,setScaleInput]=useState(String(model.transform.scale));
+  const editing=useStudioStore(state=>state.editor.interactionMode==='edit');
   const [busy,setBusy]=useState<string|null>(null);
   const [errorMessage,setErrorMessage]=useState('');
 
@@ -29,7 +31,7 @@ export function RuntimeEntityInspector({
   },[model.id,model.transform.scale]);
 
   const applyScale=async()=>{
-    if (busy) return;
+    if (busy || !editing) return;
     const value=Number(scaleInput);
     if (!Number.isFinite(value) || value < 0.05 || value > 20) {
       setErrorMessage('缩放范围必须是 0.05–20。');log('缩放范围必须是 0.05–20。','error');
@@ -57,7 +59,7 @@ export function RuntimeEntityInspector({
         {errorMessage ? <div className="inspect-error" role="alert">{errorMessage}</div> : null}
 
         <section className="inspect-section">
-          <h3>变换</h3>
+          <h3>变换</h3>{!editing ? <p>切换到编辑模式以修改对象。</p> : null}
           <dl className="properties">
             <div><dt>位置</dt><dd id="position">{model.transform.position.join(', ')}</dd></div>
             <div><dt>旋转</dt><dd id="rotation">{model.transform.rotation.join(', ')}°</dd></div>
@@ -73,11 +75,11 @@ export function RuntimeEntityInspector({
                 max="20"
                 step="0.05"
                 value={scaleInput}
-                disabled={Boolean(busy)}
+                disabled={Boolean(busy) || !editing}
                 onChange={(event)=>setScaleInput(event.target.value)}
                 onKeyDown={(event)=>{ if(event.key==='Enter') void applyScale(); }}
               />
-              <button type="button" disabled={Boolean(busy)} onClick={()=>void applyScale()}>
+              <button type="button" disabled={Boolean(busy) || !editing} onClick={()=>void applyScale()}>
                 {busy === 'scale' ? '应用中…' : '应用'}
               </button>
             </div>

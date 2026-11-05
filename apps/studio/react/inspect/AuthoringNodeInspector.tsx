@@ -1,3 +1,4 @@
+import { useStudioStore } from '../state/studioStore';
 import { useEffect, useState } from 'react';
 import type { AuthoringInspectorModel, EditorCommandsLike } from './InspectorTypes';
 
@@ -13,6 +14,7 @@ export function AuthoringNodeInspector({
   const [name,setName]=useState(model.name);
   const [position,setPosition]=useState(()=>model.transform.position.map(String));
   const [uniformScale,setUniformScale]=useState(String(model.transform.scale[0] ?? 1));
+  const editing=useStudioStore(state=>state.editor.interactionMode==='edit');
   const [busy,setBusy]=useState<string|null>(null);
 
   useEffect(()=>{
@@ -22,7 +24,7 @@ export function AuthoringNodeInspector({
   },[model.id,model.name,model.transform.position.join(','),model.transform.scale.join(',')]);
 
   const applyName=async()=>{
-    if (busy) return;
+    if (busy || !editing) return;
     setBusy('name');
     try {
       await commands.renameAuthoringNode(model.id,name);
@@ -34,7 +36,7 @@ export function AuthoringNodeInspector({
   };
 
   const applyTransform=async()=>{
-    if (busy) return;
+    if (busy || !editing) return;
     const nextPosition=position.map(Number);
     const scale=Number(uniformScale);
     if (nextPosition.some(value=>!Number.isFinite(value))) {
@@ -76,11 +78,11 @@ export function AuthoringNodeInspector({
               <input
                 id="authoring-name"
                 value={name}
-                disabled={Boolean(busy)}
+                disabled={Boolean(busy) || !editing}
                 onChange={(event)=>setName(event.target.value)}
                 onKeyDown={(event)=>{ if(event.key==='Enter') void applyName(); }}
               />
-              <button type="button" disabled={Boolean(busy)} onClick={()=>void applyName()}>
+              <button type="button" disabled={Boolean(busy) || !editing} onClick={()=>void applyName()}>
                 {busy === 'name' ? '保存中…' : '保存'}
               </button>
             </div>
@@ -94,7 +96,7 @@ export function AuthoringNodeInspector({
         </section>
 
         <section className="inspect-section">
-          <h3>位置与尺寸</h3>
+          <h3>位置与尺寸</h3>{!editing ? <p>切换到编辑模式以修改对象。</p> : null}
           <div className="transform-scale-editor">
             <label>位置 XYZ</label>
             <div className="inspect-vector-input">
@@ -105,7 +107,7 @@ export function AuthoringNodeInspector({
                   type="number"
                   step="0.05"
                   value={value}
-                  disabled={Boolean(busy)}
+                  disabled={Boolean(busy) || !editing}
                   onChange={(event)=>setPosition(current=>current.map((item,itemIndex)=>itemIndex===index ? event.target.value : item))}
                 />
               ))}
@@ -119,11 +121,11 @@ export function AuthoringNodeInspector({
                 max="100"
                 step="0.05"
                 value={uniformScale}
-                disabled={Boolean(busy)}
+                disabled={Boolean(busy) || !editing}
                 onChange={(event)=>setUniformScale(event.target.value)}
                 onKeyDown={(event)=>{ if(event.key==='Enter') void applyTransform(); }}
               />
-              <button type="button" disabled={Boolean(busy)} onClick={()=>void applyTransform()}>
+              <button type="button" disabled={Boolean(busy) || !editing} onClick={()=>void applyTransform()}>
                 {busy === 'transform' ? '应用中…' : '应用'}
               </button>
             </div>

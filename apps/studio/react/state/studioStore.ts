@@ -56,6 +56,7 @@ export type StudioLayoutState = {
 };
 
 export type StudioEditorState = {
+  interactionMode: 'explore' | 'edit';
   selection: StudioSelection;
   revision: number;
 };
@@ -77,6 +78,7 @@ type StudioState = {
   editor: StudioEditorState;
   view: StudioViewState;
   build: StudioBuildState;
+  setInteractionMode: (mode:'explore'|'edit') => void;
   setSelection: (selection: StudioSelection) => void;
   selectRuntimeObject: (id: string | null) => void;
   setWorldPresentation: (identity: StudioWorldPresentation | null) => void;
@@ -117,6 +119,7 @@ export const useStudioStore = create<StudioState>((set) => ({
     sceneCollapsed:false
   },
   editor: {
+    interactionMode:'explore',
     selection:null,
     revision:0
   },
@@ -129,6 +132,8 @@ export const useStudioStore = create<StudioState>((set) => ({
     workflowIntent:null,
     workflowSequence:0
   },
+
+  setInteractionMode: (interactionMode) => set(state=>({editor:{...state.editor,interactionMode}})),
 
   setSelection: (selection) => set((state) => ({
     editor:{ ...state.editor, selection }
@@ -201,6 +206,7 @@ export const useStudioStore = create<StudioState>((set) => ({
 
   syncInspector: (id) => set((state) => ({
     editor:{
+      ...state.editor,
       selection:id ? { source:'runtime', id } : state.editor.selection,
       revision:state.editor.revision + 1
     }

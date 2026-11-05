@@ -1,6 +1,5 @@
 import { EditorController } from '../editor/EditorController.js';
 import { HumanViewController } from './HumanViewController.js';
-import { mountWorldContext } from './WorldContext.js';
 import { mountWorldInteraction } from './WorldInteraction.js';
 
 const disposeQuietly = (value, onError) => {
@@ -21,8 +20,7 @@ export class StudioWorldSurface {
     onSurfaceError = () => {},
     createEditor = (runtime) => new EditorController(runtime),
     mountInteraction = mountWorldInteraction,
-    createHumanView = (options) => new HumanViewController(options),
-    mountContext = mountWorldContext
+    createHumanView = (options) => new HumanViewController(options)
   } = {}) {
     if (!world?.rendering?.viewport?.()) throw new TypeError('StudioWorldSurface requires an initialized WorldRuntime');
     if (!ui?.viewport) throw new TypeError('StudioWorldSurface requires Studio UI');
@@ -31,10 +29,10 @@ export class StudioWorldSurface {
 
     Object.assign(this,{
       world,ui,tools,environmentMaterializer,onPresentationChange,onSurfaceError,
-      mountInteraction,createHumanView,mountContext
+      mountInteraction,createHumanView
     });
     this.editor=createEditor(world);
-    if (!this.editor?.select || !this.editor?.setSelectionOnRelease || !this.editor?.dispose) {
+    if (!this.editor?.select || !this.editor?.dispose) {
       throw new TypeError('StudioWorldSurface editor contract is incomplete');
     }
 
@@ -42,7 +40,6 @@ export class StudioWorldSurface {
     this.boundWorldFirst=false;
     this.interaction=null;
     this.humanView=null;
-    this.context=null;
     this.disposed=false;
   }
 
@@ -60,14 +57,10 @@ export class StudioWorldSurface {
     const worldFirst=Boolean(identity?.worldFirst);
     const previousInteraction=this.interaction;
     const previousHumanView=this.humanView;
-    const previousContext=this.context;
-    const previousWorldFirst=this.boundWorldFirst;
 
     let nextInteraction=null;
     let nextHumanView=worldFirst ? previousHumanView : null;
-    let nextContext=worldFirst ? previousContext : null;
     let createdHumanView=false;
-    let createdContext=false;
 
     try {
       nextInteraction=this.mountInteraction({
@@ -86,43 +79,27 @@ export class StudioWorldSurface {
         createdHumanView=true;
       }
 
-      if (worldFirst && !nextContext) {
-        nextContext=this.mountContext({
-          world:this.world,
-          editor:this.editor,
-          tools:this.tools,
-          ui:this.ui
-        });
-        createdContext=true;
-      }
 
-      this.editor.setSelectionOnRelease(worldFirst);
       nextHumanView?.resetForEnvironment?.();
       this.editor.select(null);
     } catch (error) {
       disposeQuietly(nextInteraction,this.onSurfaceError);
       if (createdHumanView) disposeQuietly(nextHumanView,this.onSurfaceError);
-      if (createdContext) disposeQuietly(nextContext,this.onSurfaceError);
-      try { this.editor.setSelectionOnRelease(previousWorldFirst); }
-      catch (restoreError) { this.onSurfaceError?.(restoreError); }
       throw error;
     }
 
     this.interaction=nextInteraction;
     this.humanView=nextHumanView;
-    this.context=nextContext;
     this.boundWorldFirst=worldFirst;
 
     disposeQuietly(previousInteraction,this.onSurfaceError);
     if (previousHumanView && previousHumanView!==nextHumanView) disposeQuietly(previousHumanView,this.onSurfaceError);
-    if (previousContext && previousContext!==nextContext) disposeQuietly(previousContext,this.onSurfaceError);
 
     return {
       identity,
       worldFirst,
       interaction:Boolean(nextInteraction),
       humanView:Boolean(nextHumanView),
-      context:Boolean(nextContext)
     };
   }
 
@@ -138,11 +115,9 @@ export class StudioWorldSurface {
     if (this.disposed) return;
     this.disposed=true;
     disposeQuietly(this.interaction,this.onSurfaceError);
-    disposeQuietly(this.context,this.onSurfaceError);
     disposeQuietly(this.humanView,this.onSurfaceError);
     disposeQuietly(this.editor,this.onSurfaceError);
     this.interaction=null;
-    this.context=null;
     this.humanView=null;
   }
 

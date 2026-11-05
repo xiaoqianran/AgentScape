@@ -34,6 +34,16 @@ export class InspectorProjection {
     this.scene=scene;
   }
 
+  projectActions(selection) {
+    if (!selection) return {kind:'empty',id:null};
+    if(selection.source==='authoring') return this.project(selection);
+    if(selection.source==='runtime' && !this.world.queries.hasObject(selection.id)) return {kind:'missing',id:selection.id};
+    const actor=this.scene?.actors?.().selected ?? null;
+    const legacy=this.world.environment?.interactions?.find(item=>!item.contractId && item.id===selection.id);
+    const affordances=legacy ? null : this.scene?.inspect?.(selection.id,actor?{actor}:{}) || null;
+    return {legacyAction:legacy?.label || null,kind:'entity',id:selection.id,title:affordances?.label || legacy?.label || selection.id,actor,affordances,type:selection.source==='runtime'?this.world.queries.getObjectInfo(selection.id).type:null};
+  }
+
   project(selection) {
     if (!selection) return { source:null, kind:'empty', id:null };
 
@@ -93,12 +103,13 @@ export class InspectorProjection {
     if (selection.source === 'environment') {
       const environment=this.world.environment;
       const actor=this.scene?.actors?.().selected ?? null;
-      const affordances=this.scene?.inspect?.(selection.id,actor?{actor}:{}) || null;
+      const legacy=environment?.interactions?.find(item=>!item.contractId && item.id===selection.id);
+      const affordances=legacy ? null : this.scene?.inspect?.(selection.id,actor?{actor}:{}) || null;
       return {
         source:'environment',
         kind:'environment',
         id:selection.id,
-        title:environment?.title || environment?.label || selection.id,
+        title:affordances?.label || selection.id,
         subtitle:'Environment',
         actor,
         affordances

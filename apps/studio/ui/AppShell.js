@@ -76,6 +76,8 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     closeContext,
     addDockAction:(action)=>bridge.addDockAction(action),
     getLatestBuildOutput:(kind)=>useStudioStore.getState().build.outputs.find((output)=>output.kind===kind) || null,
+    getInteractionMode:()=>useStudioStore.getState().editor.interactionMode,
+    subscribeInteractionMode:(listener)=>useStudioStore.subscribe((state,previous)=>{if(state.editor.interactionMode!==previous.editor.interactionMode) listener(state.editor.interactionMode);}),
     getSelection:()=>useStudioStore.getState().editor.selection,
     setSelection:(selection)=>useStudioStore.getState().setSelection(selection),
     selectRuntimeObject:(id)=>useStudioStore.getState().selectRuntimeObject(id),

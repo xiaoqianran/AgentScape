@@ -13,7 +13,7 @@ const reset = () => {
       cinematic:false,
       sceneCollapsed:false
     },
-    editor:{ selection:null, revision:0 },
+    editor:{ interactionMode:'explore',selection:null, revision:0 },
     view:{ worldPresentation:null },
     build:{ outputs:[], selectedOutputKey:null, workflowIntent:null, workflowSequence:0 }
   });

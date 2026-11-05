@@ -2,6 +2,7 @@ import { test,expect,enterWorld,verifyRenderedWorld,expectSameCanvas } from './f
 
 test('standard scene prepares through the UI and a missing cup blocks the model request',async({page,gateway},testInfo)=>{
   await enterWorld(page);
+  await page.getByRole('button',{name:'编辑',exact:true}).click();
   const canvas = await verifyRenderedWorld(page,testInfo);
   await page.locator('#open-world-task').click();
   await page.locator('#check-standard-task').click();
@@ -29,7 +30,7 @@ test('standard scene prepares through the UI and a missing cup blocks the model 
   await page.locator('#send').click();
   await expect.poll(()=>gateway.requests.length).toBe(1);
   const intent = gateway.requests[0].messages.find(message=>message.role==='user').content;
-  expect(intent).toContain('对象引用（只针对这个真实对象）：{"id":"cup_01"}');
+  expect(intent).toContain('对象引用（只针对这个真实对象）：{"source":"runtime","id":"cup_01"}');
   await expectSameCanvas(page,canvas);
   await expect(page.locator('#viewport canvas')).toBeVisible();
 });

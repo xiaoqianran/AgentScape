@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 import './WorldOverlays.css';
 
-// Shared world-first overlay: click-to-interact, in-place text / image editing, camera view
-// presets and an optional cutaway toggle. The cabin-prefixed class names are shared with the
-// world-first stylesheet so both worlds keep one presentation contract.
+// Environment camera presets, catalog and inline editors. Pointer selection and actions
+// belong to EditorController and the shared React dock.
 export const CABIN_INLINE_EDITORS = Object.freeze([
   Object.freeze({ id:'sign', label:'路牌文字', maxLength:10 }),
   Object.freeze({ id:'note', label:'便签文字', maxLength:10 }),
@@ -62,13 +61,6 @@ export function mountWorldInteraction({ world, ui, editor = null, host = null })
   const viewport = world.rendering?.viewport?.();
   if (!environment || !viewport || !environment.interactions?.length) return null;
   environment.setCamera?.(viewport.camera);
-  const ray = new THREE.Raycaster();
-  const pointer = new THREE.Vector2();
-  const prompt = document.createElement('button');
-  prompt.className = 'cabin-interact';
-  prompt.type = 'button';
-  prompt.hidden = true;
-  ui.viewport.append(prompt);
   const controls = document.createElement('div');
   controls.className = 'cabin-views';
   const viewButtons = [];
@@ -101,25 +93,6 @@ export function mountWorldInteraction({ world, ui, editor = null, host = null })
     controls.applyCutawayState=(value)=>{ open=Boolean(value); cutaway.textContent=open?'显示完整外墙':'剖开房屋'; };
   }
   ui.viewport.append(controls);
-  const byObject = new Map(environment.interactions.map(item=>[item.object,item]));
-  const visible = object => {
-    for(let node=object;node;node=node.parent) if(!node.visible) return false;
-    return true;
-  };
-  const pick = event => {
-    const rect=viewport.element.getBoundingClientRect();
-    pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);
-    ray.setFromCamera(pointer,viewport.camera);
-    const hits=ray.intersectObjects([environment.root,...world.store.list().map(([,record])=>record.object)],true);
-    for(const hit of hits) {
-      if(!hit.object.isMesh || hit.object.userData.noHit || hit.object.material?.visible===false || hit.object.userData.cabinCollisionProxy || !visible(hit.object)) continue;
-      for(let node=hit.object;node;node=node.parent) if(byObject.has(node)) return byObject.get(node);
-      // A visible wall or unrelated entity occludes the interaction behind it.
-      return null;
-    }
-    return null;
-  };
-  let start=null,selected=null;
   const center=new THREE.Vector3();
   const bounds=new THREE.Box3();
   const catalog=environment.catalog;
@@ -140,17 +113,12 @@ export function mountWorldInteraction({ world, ui, editor = null, host = null })
       const prefix=catalog.labelOf?.(item,center) || null;
       button.textContent=prefix ? `${prefix} · ${item.label}` : item.label;
       button.addEventListener('click',()=>{
-        selected=item;
+
         bounds.setFromObject(item.object).getCenter(center);
         viewport.controls.target.copy(center);
         viewport.camera.position.copy(center).add(new THREE.Vector3(2,1.2,-2));
         viewport.controls.update();
-        editor?.select?.(null);
-        if (item.contractId && world.affordances?.get?.(item.contractId)) {
-          ui.setSelection?.({source:'environment',id:item.contractId});
-          ui.setView?.('inspect');
-        }
-        prompt.hidden=false;prompt.textContent=item.label;
+        editor?.selectSelection?.({source:'environment',id:item.contractId || item.id});
         details.open=false;
       });
       list.append(button);
@@ -161,51 +129,17 @@ export function mountWorldInteraction({ world, ui, editor = null, host = null })
     try {
       const operation=()=>world.commands.executeAffordance(command,{editor:true});
       const result=world.mutate ? await world.mutate('editor:world-action',operation,{source:'editor',...command}) : await operation();
-      if(!result.verified && result.status!=='world-state-read') {prompt.hidden=false;prompt.textContent=`未完成：${result.reason || result.status}`;}
+      if(!result.verified && result.status!=='world-state-read') throw new Error(result.reason || result.status);
       persist();
       return result;
-    } catch(error) {prompt.hidden=false;prompt.textContent=`操作失败：${error.message}`;return {verified:false,reason:error.message};}
+    } catch(error) {return {verified:false,reason:error.message};}
   };
   if(host && world.affordances) host.executeWorldEdit=({targetId,text})=>executeTyped({targetId,action:'write',args:{text}});
-  const activate = async () => {
-    if(!selected || !visible(selected.object)) {prompt.hidden=true;return;}
-    try {
-      const contract=selected.contractId && world.affordances?.get(selected.contractId);
-      if(contract && contract.kind!=='text') {
-        const state=contract.read();
-        const action=contract.kind==='switch'?(state.on?'turn_off':'turn_on'):contract.kind==='book'?(state.out?'return':'pull_out'):(state.requestedOpen?'close':'open');
-        await executeTyped({targetId:contract.id,action});
-        return;
-      }
-      selected.activate();
-      world.events.emit('environment.interaction',{environmentId:environment.id,id:selected.id,label:selected.label});
-    } catch(error) { prompt.textContent=`操作失败：${error.message}`; }
-  };
-  const down=event=>{
-    if(event.button!==0 || editor?.transform?.axis) {start=null;return;}
-    start={x:event.clientX,y:event.clientY,id:event.pointerId};
-  };
-  const up=event=>{
-    const previous=start; start=null;
-    if(!previous || previous.id!==event.pointerId || Math.hypot(event.clientX-previous.x,event.clientY-previous.y)>=6) return;
-    selected=pick(event);
-    prompt.hidden=!selected;
-    if(!selected) return;
-    event.stopImmediatePropagation();
-    editor?.select?.(null);
-    prompt.textContent=selected.label;
-    activate();
-  };
-  const cancel=()=>{start=null;};
-  prompt.addEventListener('click',activate);
-  // Capturing prevents a world click from also selecting an unrelated runtime asset.
-  viewport.element.addEventListener('pointerdown',down,true);
-  viewport.element.addEventListener('pointerup',up,true);
-  viewport.element.addEventListener('pointercancel',cancel,true);
   const persist=()=>{
     if (!environment.storageKey) return;
     try { localStorage.setItem(environment.storageKey,JSON.stringify(environment.snapshot())); } catch { /* Storage can be disabled. */ }
   };
+  const stopInteraction=world.events.on?.('environment.interaction',persist);
   const saved=(()=>{
     if (!environment.storageKey) return null;
     try{return JSON.parse(localStorage.getItem(environment.storageKey)||'null');}catch{return null;}
@@ -217,13 +151,11 @@ export function mountWorldInteraction({ world, ui, editor = null, host = null })
   }
   return {persist,dispose(){
     persist();
-    viewport.element.removeEventListener('pointerdown',down,true);
-    viewport.element.removeEventListener('pointerup',up,true);
-    viewport.element.removeEventListener('pointercancel',cancel,true);
+    stopInteraction?.();
     if (host) {
       delete host.executeWorldEdit;
       host.removeEventListener('click',persist);host.removeEventListener('keyup',persist);
     }
-    prompt.remove();controls.remove();
+    controls.remove();
   }};
 }

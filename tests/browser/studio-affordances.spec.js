@@ -3,6 +3,8 @@ import {test,expect,enterWorld} from './fixtures.js';
 test('Studio uses the same live Affordance vocabulary as Scene SDK and rejects fixed-body forces',async({page},testInfo)=>{
   await enterWorld(page);
   await page.locator('[data-object-id="table_01"]').click();
+  await expect(page.locator('#affordance-choice')).toHaveCount(0);
+  await page.locator('.selection-action-dock').getByRole('button',{name:'属性',exact:true}).click();
   await expect(page.locator('#inspect-subheading')).toHaveText('table_01');
   const affordances=page.locator('#actions');
   await expect(affordances).toHaveAttribute('data-affordance-source','asset');
@@ -27,6 +29,7 @@ test('multiple Agents require an explicit shared choice in inspector and task pl
   await page.locator('[data-asset-id="agent"] button[title="放到视口中心"]').click();
   await page.getByRole('button',{name:'场景对象',exact:true}).click();
   await page.locator('[data-object-id="cup_01"]').click();
+  await page.locator('.selection-action-dock').getByRole('button',{name:'属性',exact:true}).click();
   const actor=page.locator('#affordance-actor');
   await expect(actor).toHaveValue('');
   await expect(page.locator('#execute-affordance')).toBeDisabled();

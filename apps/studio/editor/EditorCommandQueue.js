@@ -1,8 +1,10 @@
+import { ActionController } from './ActionController.js';
 export class EditorCommandQueue {
   constructor({
     tools,
     scene = null,
     authoring = null,
+    legacyAction = null,
     onCommitted = () => {},
     log = () => {}
   } = {}) {
@@ -10,9 +12,11 @@ export class EditorCommandQueue {
     this.tools = tools;
     this.scene = scene;
     this.authoring = authoring;
+    this.legacyAction = legacyAction;
     this.onCommitted = onCommitted;
     this.log = log;
     this.tail = Promise.resolve();
+    this.actions = new ActionController({log});
     this.listeners = new Set();
     this.state = {
       pending:0,
@@ -76,15 +80,24 @@ export class EditorCommandQueue {
   /** The SDK, MCP and Studio share the same SceneFacade job/verification boundary. */
   listActors() {return this.scene?.actors?.() || {agents:[],selected:null};}
   selectActor(actor) {const result=this.scene.selectActor(actor);this.onCommitted({type:'actor-selection'},result);return result;}
+  executeLegacy(target) {
+    if(!this.legacyAction) return Promise.reject(new Error('Legacy interaction unavailable'));
+    return this.actions.execute({actor:null,target,action:'legacy'},(isCurrent)=>this.enqueue({type:'legacy-action',source:'environment',id:target},async()=>{if(!isCurrent())throw new Error('世界已切换');await this.legacyAction(target);return {legacy:true};}));
+  }
+  subscribeActions(listener) {return this.actions.subscribe(listener);}
+  actionSnapshot(actor,target) {return this.actions.snapshot(actor,target);}
+  isActionPending(target) {return this.actions.isPending(target);}
   executeAffordance(interaction) {
     if (!this.scene?.interact || !this.scene?.waitJob) throw new Error('SCENE_INTERACTION_UNAVAILABLE');
     if (!interaction?.actor || !interaction?.target || !interaction?.action) throw new TypeError('Interaction requires actor, target and action');
     const source=this.scene.inspect?.(interaction.target)?.source === 'environment' ? 'environment' : 'runtime';
-    return this.enqueue(
+    return this.actions.execute(interaction,(isCurrent)=>this.enqueue(
       { type:'scene-interaction', source, id:interaction.target, action:interaction.action },
       async () => {
+        if(!isCurrent())throw new Error('世界已切换');
         const job=this.scene.interact(interaction);
         const completed=await this.scene.waitJob(job.id);
+        if(!isCurrent())throw new Error('世界已切换');
         const result=completed.result;
         if (completed.status !== 'succeeded' || result?.verification?.status !== 'verified') {
           const reason=result?.value?.reason || result?.diagnostics?.[0]?.code || result?.value?.status || completed.status;
@@ -92,7 +105,7 @@ export class EditorCommandQueue {
         }
         return result;
       }
-    );
+    ));
   }
 
   scaleRuntime(id, scale) {

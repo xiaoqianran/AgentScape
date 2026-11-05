@@ -1,65 +1,5 @@
 /*Owned by overlay presentation.*/
 
-.world-context button {
-  border: 1px solid var(--ds-border-strong);
-  background: var(--ds-accent-soft);
-  color: var(--ds-text);
-  border-radius: var(--ds-radius-sm);
-  padding: 9px 12px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.world-context button:hover {
-  background: var(--ds-border-strong);
-}
-
-.world-context {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 8;
-  width: 270px;
-  max-width: calc(100% - 24px);
-  padding: 14px;
-  border: 1px solid var(--ds-border-strong);
-  border-radius: var(--ds-radius-lg);
-  background: rgba(0,0,0,.94);
-  box-shadow: 0 10px 32px rgba(0,0,0,.3);
-  color: var(--ds-text);
-}
-
-.world-context[hidden] {
-  display: none;
-}
-
-.world-context strong {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 13px;
-}
-
-.world-context > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.world-context p {
-  font-size: 12px;
-  margin: 8px 0 0;
-  overflow-wrap: anywhere;
-}
-
-.world-context p:empty {
-  display: none;
-}
-
-.world-context button:disabled {
-  opacity: .5;
-  cursor: wait;
-}
-
 .cabin-editors > section {
   display: none;
   position: absolute;
@@ -142,27 +82,6 @@
 .cabin-views button.active {
   background: rgba(var(--ds-accent-rgb),.18);
   color: var(--ds-text);
-}
-
-.cabin-interact {
-  position: absolute;
-  z-index: 11;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100vw - 36px);
-  padding: 14px 24px;
-  border: 1px solid var(--ds-border-strong);
-  border-radius: var(--ds-radius-md);
-  background: var(--ds-surface-3);
-  color: var(--ds-text);
-  font-size: 15px;
-  cursor: pointer;
-  box-shadow: 0 5px 25px #1112;
-}
-
-.cabin-interact[hidden] {
-  display: none;
 }
 
 .cabin-catalog {

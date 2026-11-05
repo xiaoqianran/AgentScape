@@ -1,21 +1,8 @@
+import { LABELS, REASONS } from './ActionPresentation';
+import { useActionOperation } from './useActionOperation';
 import { useEffect, useState } from 'react';
 import type { EditorCommandsLike, InspectorAffordanceAction, InspectorAffordances } from './InspectorTypes';
 
-const LABELS:Record<string,string>={
-  pickup:'拿取',place:'放置',open:'打开',close:'关闭',push:'推动',drag:'拖动',
-  rotate:'旋转刚体',slide:'滑动关节',rotateJoint:'旋转关节',
-  turn_on:'开启',turn_off:'关闭',pull_out:'抽出',return:'放回',write:'修改文字'
-};
-const REASONS:Record<string,string>={
-  ACTOR_NOT_FOUND:'未找到指定 Agent',ACTOR_NOT_AGENT:'选中角色不是 Agent',
-  ACTOR_REQUIRED_FOR_REACH_CHECK:'尚未选择 Agent',OUT_OF_REACH:'当前距离过远',
-  OCCLUDED:'目标被遮挡',NOT_HOLDING_OBJECT:'Agent 尚未持有物体',
-  HANDS_FULL:'Agent 正在持有其他物体',TARGET_NOT_DYNAMIC:'物体不是动态刚体',
-  EXECUTOR_UNAVAILABLE:'当前未实现此动作',ACTION_IN_PROGRESS:'已有动作正在执行',
-  RUNTIME_VERIFICATION_REQUIRED:'资产尚未通过物理准入',
-  TARGET_PHYSICS_UNAVAILABLE:'目标没有可用的物理碰撞体',
-  SIMULATION_PAUSED:'模拟暂停'
-};
 const DIRECTION:Record<string,[number,number,number]>={
   'x+':[1,0,0],'x-':[-1,0,0],'z+':[0,0,1],'z-':[0,0,-1]
 };
@@ -41,17 +28,16 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
   const [jointTarget,setJointTarget]=useState('0.3');
   const [surfaceId,setSurfaceId]=useState('');
   const [text,setText]=useState('');
-  const [running,setRunning]=useState(false);
-  const [feedback,setFeedback]=useState('');
+  const {running,feedback,error:operationError}=useActionOperation(commands,actor,targetId);
   const [error,setError]=useState('');
   const actions=(affordances?.actions || []).filter(item=>item.execution==='interaction' || item.execution==='world-action');
   const selected=actions.find(item=>key(item)===chosen) || actions.find(item=>item.available===true) || actions[0];
   const selectedKey=selected ? key(selected) : '';
 
-  useEffect(()=>{setChosen('');setFeedback('');setError('');},[targetId,actor]);
+  useEffect(()=>{setChosen('');setError('');},[targetId,actor]);
 
   const select=(value:string)=>{
-    setChosen(value);setFeedback('');setError('');
+    setChosen(value);setError('');
     const next=actions.find(item=>key(item)===value);
     const limits=next?.parameters?.target?.limits;
     if(Array.isArray(limits) && limits.length===2 && limits.every(Number.isFinite))setJointTarget(String((limits[0]+limits[1])/2));
@@ -61,7 +47,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
 
   const execute=async()=>{
     if(!selected || !actor || (selected.available!==true && !selected.canApproach) || !commands.executeAffordance || running || disabled)return;
-    setRunning(true);setFeedback('');setError('');
+    setError('');
     try {
       const interaction:{actor:string;target:string;action:string;args?:Record<string,unknown>;partName?:string;surfaceId?:string}={
         actor,target:targetId,action:selected.action
@@ -87,15 +73,12 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
         const surfaces=selected.parameters.surfaceId?.enum || [];
         if(surfaceId || surfaces.length)interaction.surfaceId=surfaceId || surfaces[0];
       } else if(selected.partName) interaction.partName=selected.partName;
-      const result=await commands.executeAffordance(interaction);
-      const physical=result.value?.physicsVerified===true;
-      const message=physical ? '物理状态已验证' : '状态已验证（非抓取力或物理力学证明）';
-      setFeedback(message);
-      log(`${LABELS[selected.action] || selected.action} ${targetId}：${message}`,'result');
+      // Completion belongs to the shared controller, never to this mounted target's local state.
+      void commands.executeAffordance(interaction).catch(()=>{});
     } catch(cause) {
       const message=cause instanceof Error ? cause.message : String(cause);
       setError(message);log('交互失败：'+message,'error');
-    } finally {setRunning(false);}
+    }
   };
 
   return <div id="actions" className="affordance-panel" data-affordance-source={affordances?.source || 'unknown'}>
@@ -147,7 +130,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
         {running ? '执行与验证中…' : '执行 '+(LABELS[selected?.action || ''] || selected?.action)}
       </button>
     </> : <p className="muted-copy">当前对象没有已注册的具身交互或环境操作。可继续使用独立的编辑器变换功能。</p>}
-    {error ? <p className="affordance-reason" role="alert">{error}</p> : null}
+    {error || operationError ? <p className="affordance-reason" role="alert">{error || operationError}</p> : null}
     {feedback ? <p className="affordance-feedback" role="status">{feedback}</p> : null}
   </div>;
 }

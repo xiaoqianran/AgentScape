@@ -23,6 +23,7 @@ type WorldLike = {
 
 type EditorLike = {
   selectedId?: string | null;
+  selectSelection: (selection:{source:'authoring'|'runtime'|'environment';id:string}|null)=>unknown;
   select: (id: string | null) => unknown;
 };
 
@@ -86,7 +87,6 @@ export function SceneExplorerView({
   const selection = useStudioStore((state) => state.editor.selection);
   const editorRevision = useStudioStore((state) => state.editor.revision);
   const worldPresentation = useStudioStore((state) => state.view.worldPresentation);
-  const setSelection = useStudioStore((state) => state.setSelection);
   const [revision, setRevision] = useState(0);
   const [resourceRevision, setResourceRevision] = useState(0);
   const [tab, setTab] = useState<'objects' | 'assets'>('objects');
@@ -161,13 +161,12 @@ export function SceneExplorerView({
 
   const selectRuntimeObject = (id: string) => {
     editor.select(id);
-    openInspect();
+
   };
 
   const selectAuthoringObject = (id: string) => {
-    editor.select(null);
-    setSelection({ source:'authoring', id });
-    openInspect();
+    editor.selectSelection({ source:'authoring', id });
+
   };
 
   const startAssetDrag = (event: DragEvent, assetId: string) => {
@@ -352,7 +351,7 @@ export function SceneExplorerView({
         )}
       </div>
 
-      <footer className="scene-panel-footer">
+      <footer className="scene-panel-footer"><button type="button" disabled={!selection} onClick={openInspect}>查看属性</button>
         <button type="button" onClick={openLibrary}><StudioIcon name="folder" size={15} />资源库</button>
         <button type="button" onClick={openCreate}><StudioIcon name="plus" size={15} />生成物体</button>
       </footer>

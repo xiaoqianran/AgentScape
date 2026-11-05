@@ -1,3 +1,5 @@
+import { getAuthoringObjectId } from '../../../application/world-authoring/AuthoringIdentity.js';
+import { resolvePointerSelection } from './PointerSelection.js';
 import * as THREE from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
@@ -7,12 +9,13 @@ const sameSelection = (a,b) => (
 
 export class EditorController {
   constructor(runtime, {
-    selectionOnRelease = false,
+    getAuthoringRoot = ()=>null,
     getSelection = null,
     setSelection = null
   } = {}) {
     this.runtime = runtime;
-    this.selectionOnRelease = Boolean(selectionOnRelease);
+    this.getAuthoringRoot=getAuthoringRoot;
+    this.interactionMode = 'edit';
 
     let localSelection=null;
     this.getSelection = typeof getSelection === 'function' ? getSelection : () => localSelection;
@@ -41,7 +44,8 @@ export class EditorController {
     runtime.rendering.addDecoration(this.transformHelper);
 
     this.onPointerDown = (event) => {
-      if (!this.selectionOnRelease) return this.pick(event);
+      if (event.button !== 0) return;
+
       this.clickStart = event.button === 0 && !this.transform.axis ? { x:event.clientX, y:event.clientY, id:event.pointerId } : null;
     };
     this.onPointerUp = (event) => {
@@ -49,9 +53,14 @@ export class EditorController {
       this.clickStart = null;
       if (start && start.id === event.pointerId && Math.hypot(event.clientX-start.x,event.clientY-start.y)<6) this.pick(event);
     };
+    this.onPointerMove = (event) => {
+      const start=this.clickStart;
+      if(start && Math.hypot(event.clientX-start.x,event.clientY-start.y)>=6)this.clickStart=null;
+    };
     this.onPointerCancel = () => { this.clickStart = null; };
     this.element.addEventListener('pointerdown', this.onPointerDown);
     this.element.addEventListener('pointerup', this.onPointerUp);
+    this.element.addEventListener('pointermove', this.onPointerMove);
     this.element.addEventListener('pointercancel', this.onPointerCancel);
 
     this.transform.addEventListener('dragging-changed', ({ value }) => {
@@ -104,47 +113,50 @@ export class EditorController {
     this.raycaster.setFromCamera(this.pointer, this.camera);
 
     const roots = this.runtime.store.list().map(([, record]) => record.object);
+    if(this.runtime.environment?.root) roots.push(this.runtime.environment.root);
+    const authoringRoot=this.getAuthoringRoot?.();
+    if(authoringRoot)roots.push(authoringRoot);
     const hits = this.raycaster.intersectObjects(roots, true);
-    if (!hits.length) return this.select(null);
-
-    let current = hits[0].object;
-    while (current && !current.userData.instanceId) current = current.parent;
-    this.select(current?.userData.instanceId || null);
+    this.selectSelection(resolvePointerSelection(hits,this.runtime.environment));
   }
 
-  select(id) {
-    const next=id ? { source:'runtime', id } : null;
-    if (sameSelection(next,this.selection)) return;
+  select(id) {return this.selectSelection(id ? {source:'runtime',id} : null);}
 
+  selectSelection(next) {
+    if(next && !['runtime','environment','authoring'].includes(next.source))throw new TypeError('Unknown selection source');
+    if(sameSelection(next,this.selection))return;
+    this.transform.detach();this.box.visible=false;
     this.setSelection(next);
-
-    if (!id) {
-      this.transform.detach();
-      this.box.visible = false;
-      this.runtime.events.emit('editor.selection', { id:null, selection:null });
-      return;
+    let object=null;
+    if(next?.source==='runtime')object=this.runtime.store.get(next.id)?.object;
+    if(next?.source==='environment')object=this.runtime.environment?.interactions?.find(item=>(item.contractId || item.id)===next.id)?.object;
+    if(next?.source==='authoring')this.getAuthoringRoot?.()?.traverse(node=>{if(getAuthoringObjectId(node)===next.id)object=node;});
+    if(object) {
+      if(next.source==='runtime' && this.interactionMode==='edit')this.transform.attach(object);
+      this.box.setFromObject(object);this.box.visible=true;
     }
+    this.runtime.events.emit('editor.selection',{id:next?.source==='runtime'?next.id:null,selection:next});
+  }
 
-    const record = this.runtime.store.get(id);
-    this.transform.attach(record.object);
-    this.box.setFromObject(record.object);
-    this.box.visible = true;
-    this.runtime.events.emit('editor.selection', { id, selection:next });
+  setInteractionMode(mode) {
+    if (!['explore','edit'].includes(mode)) return false;
+    if (this.transform.dragging) this.transform.pointerUp({button:0});
+    this.interactionMode=mode;
+    this.transform.detach();
+    this.transform.enabled=mode==='edit';
+    if (mode==='edit' && this.selectedId) this.transform.attach(this.runtime.store.get(this.selectedId).object);
+    return true;
   }
 
   setMode(mode) {
+    if (this.interactionMode !== 'edit') return;
     if (!['translate', 'rotate'].includes(mode)) return;
     this.transform.setMode(mode);
     this.runtime.events.emit('editor.mode', { mode });
   }
 
-  setSelectionOnRelease(enabled) {
-    this.selectionOnRelease = Boolean(enabled);
-    this.clickStart = null;
-    return this.selectionOnRelease;
-  }
-
   async duplicateSelected() {
+    if (this.interactionMode !== 'edit') return null;
     const selectedId=this.selectedId;
     if (!selectedId) return null;
     const result = await this.runtime.mutate(
@@ -158,6 +170,7 @@ export class EditorController {
   }
 
   deleteSelected() {
+    if (this.interactionMode !== 'edit') return false;
     const selectedId=this.selectedId;
     if (!selectedId) return false;
     this.select(null);
@@ -171,6 +184,7 @@ export class EditorController {
   dispose() {
     this.element.removeEventListener('pointerdown', this.onPointerDown);
     this.element.removeEventListener('pointerup', this.onPointerUp);
+    this.element.removeEventListener('pointermove', this.onPointerMove);
     this.element.removeEventListener('pointercancel', this.onPointerCancel);
     this.transform.detach();
     this.transform.dispose();

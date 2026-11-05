@@ -37,7 +37,7 @@ export function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, aut
   listen('locomotion.blocked',({ id, reason })=>log(`受阻：${id} · ${reason}`,'error'));
   listen('editor.selection',({ id })=>{
     inspector.render(id);
-    if (id) ui.setView('inspect');
+
   });
   listen('editor.transform',({ id })=>inspector.render(id));
   listen('object.removed',({ id })=>{

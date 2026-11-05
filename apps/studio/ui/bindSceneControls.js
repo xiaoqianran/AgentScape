@@ -48,6 +48,7 @@ export function bindSceneControls({
   if (typeof stopHistory === 'function') disposers.push(stopHistory);
 
   const setMode=(next)=>{
+    if (editor.interactionMode === 'explore') return;
     if (!['translate','rotate'].includes(next)) return;
     mode=next;
     editor.setMode(next);
@@ -151,6 +152,7 @@ export function bindSceneControls({
   };
 
   const runHistory=async(direction)=>{
+    if (editor.interactionMode === 'explore') return false;
     try {
       assertWorldIdle();
       editor.select(null);
@@ -166,6 +168,7 @@ export function bindSceneControls({
   const remove=()=>editor.deleteSelected()?.catch?.((error)=>log(`错误：${error.message}`,'error'));
 
   const onKeyDown=(event)=>{
+    if (editor.interactionMode === 'explore' || event.defaultPrevented || event.target?.isContentEditable) return;
     if (event.target?.matches?.('input, textarea, select')) return;
     const command=event.ctrlKey || event.metaKey;
     if (command && event.key.toLowerCase() === 'z') {

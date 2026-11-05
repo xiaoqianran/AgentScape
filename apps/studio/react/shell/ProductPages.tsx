@@ -29,12 +29,12 @@ export function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inpu
     const prompt = value.trim();
     if (!prompt || state.busy || !state.available) return;
     setValue('');
-    const reference=bindSelection && selection?.source==='runtime' ? `\n对象引用（只针对这个真实对象）：${JSON.stringify({id:selection.id})}` : '';
+    const reference=bindSelection && Boolean(selection) ? `\n对象引用（只针对这个真实对象）：${JSON.stringify({source:selection?.source,id:selection?.id})}` : '';
     void taskPanel.submit(prompt+reference);
   };
   return (
     <form id="command" className="command-bar product-command-bar" autoComplete="off" onSubmit={submit}>
-      {selection?.source==='runtime' ? <label className="task-object-reference"><input type="checkbox" checked={bindSelection} disabled={state.busy} onChange={event=>setBindSelection(event.target.checked)} />针对对象 <code>{selection.id}</code></label> : null}
+      {selection ? <label className="task-object-reference"><input type="checkbox" checked={bindSelection} disabled={state.busy} onChange={event=>setBindSelection(event.target.checked)} />针对对象 <code>{selection?.id}</code></label> : null}
       <div className="command-field">
         <span className="command-prefix" aria-hidden="true">›</span>
         <input

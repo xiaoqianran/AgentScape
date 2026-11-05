@@ -72,6 +72,7 @@ export async function createStudioRuntime({
     tools:studioTools,
     environmentMaterializer,
     createEditor:(runtime)=>new EditorController(runtime,{
+      getAuthoringRoot:()=>authoring?.scene || null,
       getSelection:()=>ui.getSelection?.() || null,
       setSelection:(selection)=>ui.setSelection?.(selection)
     }),
@@ -80,6 +81,8 @@ export async function createStudioRuntime({
   });
 
   const editor = worldSurface.editor;
+  editor.setInteractionMode(ui.getInteractionMode?.() || 'explore');
+  const stopInteractionMode=ui.subscribeInteractionMode?.(mode=>editor.setInteractionMode(mode));
   const runtimeDriver = new RuntimeDriver(world, {
     authoring,
     syncInput:(frameTime)=>worldSurface.syncInput(frameTime),
@@ -96,6 +99,7 @@ export async function createStudioRuntime({
     worldSurface,
     editor,
     dispose() {
+      stopInteractionMode?.();
       worldSurface.dispose();
       runtimeDriver.dispose();
       promotion?.dispose();

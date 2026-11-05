@@ -75,11 +75,11 @@ describe('UI runtime event lifecycle', () => {
     expect(f.editor.selectedId).toBe('cup_01');
   });
 
-  it('opens the contextual inspector whenever an object is selected', () => {
+  it('updates selection without opening the inspector', () => {
     const f = fixture();
     f.handlers.get('editor.selection')({ id: 'table_01' });
     expect(f.inspector.render).toHaveBeenCalledWith('table_01');
-    expect(f.ui.setView).toHaveBeenCalledWith('inspect');
+    expect(f.ui.setView).not.toHaveBeenCalled();
   });
 
   it('refreshes the selected inspector after semantic relations are rebuilt', () => {

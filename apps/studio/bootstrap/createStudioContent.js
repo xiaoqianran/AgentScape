@@ -82,17 +82,24 @@ export function createStudioContent({
     scene,
     authoring,
     log,
+    legacyAction:async(target)=>{
+      const item=world.environment?.interactions?.find(item=>!item.contractId && item.id===target);
+      if(!item)throw new Error('旧式交互对象已不存在');
+      await item.activate();
+      world.events.emit('environment.interaction',{environmentId:world.environment.id,id:target});
+    },
     onCommitted:(command)=>{
-      if (command.source === 'runtime') ui.syncInspector?.(command.id);
+      if (command.source === 'runtime' && ui.getSelection?.()?.source==='runtime' && ui.getSelection().id===command.id) ui.syncInspector?.(command.id);
       else ui.refreshInspector?.();
     }
   });
+
+  const stopActionReset=['environment.replaced','scene.restored','scene.cleared'].map(event=>world.events.on(event,()=>editorCommands.actions.reset()));
 
   ui.selectRuntimeObject?.(editor.selectedId ?? null);
 
   const inspector = {
     render(id) {
-      if (id && world.queries.hasObject(id)) world.queries.describeObjectRelations(id);
       ui.syncInspector?.(id);
     }
   };
@@ -146,6 +153,8 @@ export function createStudioContent({
   return {
     inspector,
     dispose() {
+      stopActionReset.forEach(stop=>stop?.());
+      editorCommands.actions.reset();
       ui.attachContent?.(null);
       placement.dispose();
     }

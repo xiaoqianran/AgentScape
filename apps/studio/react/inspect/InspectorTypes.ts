@@ -88,10 +88,16 @@ export type InspectorModel = RuntimeInspectorModel | AuthoringInspectorModel | E
 
 export type InspectorProjectionLike = {
   project:(selection:InspectorSelection)=>InspectorModel;
+  projectActions?:(selection:InspectorSelection)=>{legacyAction?:string|null;kind:string;id:string|null;title?:string;type?:string;actor?:string|null;affordances?:InspectorAffordances|null};
   relations:(selection:InspectorSelection)=>InspectorRelation[];
 };
 
+export type ActionOperation = {operationId:number;actor:string|null;targetId:string;action:string;status:string;feedback:string;error:string};
 export type EditorCommandsLike = {
+  executeLegacy?:(target:string)=>Promise<unknown>;
+  subscribeActions?:(listener:()=>void)=>()=>void;
+  actionSnapshot?:(actor:string|null,target:string)=>ActionOperation|null;
+  isActionPending?:(target:string)=>boolean;
   listActors?:()=>{agents:Array<{id:string}>;selected:string|null};
   selectActor?:(actor:string)=>unknown;
   runtimeAction:(action:string,id:string,args?:Record<string,unknown>)=>Promise<unknown>;

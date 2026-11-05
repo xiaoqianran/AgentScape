@@ -4,6 +4,7 @@ test('unconfigured first visit explains unavailable agent while the world remain
   await page.route('**/api/capabilities', route => route.fulfill({ json: { capabilities: { agent: { available: false }, 'asset.compile': { available: false } } } }));
   await page.route('http://127.0.0.1:48123/**', route => route.abort('connectionrefused'));
   await enterWorld(page);
+  await page.getByRole('button',{name:'编辑',exact:true}).click();
   await verifyRenderedWorld(page, testInfo);
   await page.locator('#open-world-task').click();
   await expect(page.locator('#task-state')).toHaveAttribute('data-state', 'offline');
@@ -15,8 +16,10 @@ test('unconfigured first visit explains unavailable agent while the world remain
 
 test('first visit, object editing, undo/redo, invalid input and persistent canvas', async ({ page, gateway }, testInfo) => {
   await enterWorld(page);
+  await page.getByRole('button',{name:'编辑',exact:true}).click();
   const canvas = await verifyRenderedWorld(page, testInfo);
   await page.locator('[data-object-id="cup_01"]').click();
+  await page.locator('.selection-action-dock').getByRole('button',{name:'属性',exact:true}).click();
   await expect(page.locator('#inspect-subheading')).toHaveText('cup_01');
   await page.locator('#object-scale').fill('1.25');
   await page.locator('#object-scale').press('Enter');

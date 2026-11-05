@@ -1,3 +1,4 @@
+import { SelectionActionDock } from './SelectionActionDock';
 import { StudioIcon } from '../shared/StudioIcon';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
@@ -38,17 +39,23 @@ function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authorin
   const state:any = useSyncExternalStore(controls.subscribe,controls.snapshot,controls.snapshot);
   const importRef = useRef<HTMLInputElement|null>(null);
   const selection = useStudioStore(state=>state.editor.selection);
+  const interactionMode=useStudioStore(state=>state.editor.interactionMode);
+  const setInteractionMode=useStudioStore(state=>state.setInteractionMode);
+  const exploring=interactionMode!=='edit';
   return (
     <div className="editor-toolbar" aria-label="场景编辑工具">
-      <span className="editor-toolbar-title">编辑工具</span>
-      <button id="undo" title="撤销 (Ctrl+Z)" aria-label="撤销" type="button" disabled={!state.history?.canUndo} onClick={()=>void controls.undo()}><StudioIcon name="undo" /></button>
-      <button id="redo" title="重做 (Ctrl+Shift+Z)" aria-label="重做" type="button" disabled={!state.history?.canRedo} onClick={()=>void controls.redo()}><StudioIcon name="redo" /></button>
+      <div role="group" aria-label="世界交互模式">
+        <button type="button" aria-pressed={exploring} onClick={()=>setInteractionMode('explore')}>探索</button>
+        <button type="button" aria-pressed={!exploring} onClick={()=>setInteractionMode('edit')}>编辑</button>
+      </div>
+      <button id="undo" title="撤销 (Ctrl+Z)" aria-label="撤销" type="button" disabled={exploring || !state.history?.canUndo} onClick={()=>void controls.undo()}><StudioIcon name="undo" /></button>
+      <button id="redo" title="重做 (Ctrl+Shift+Z)" aria-label="重做" type="button" disabled={exploring || !state.history?.canRedo} onClick={()=>void controls.redo()}><StudioIcon name="redo" /></button>
       <span className="toolbar-divider" />
-      <button data-mode="translate" className={state.mode === 'translate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('translate')}><StudioIcon name="move" size={16} />移动 <kbd>W</kbd></button>
-      <button data-mode="rotate" className={state.mode === 'rotate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('rotate')}><StudioIcon name="rotate" size={16} />旋转 <kbd>E</kbd></button>
+      <button disabled={exploring} data-mode="translate" className={state.mode === 'translate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('translate')}><StudioIcon name="move" size={16} />移动 <kbd>W</kbd></button>
+      <button disabled={exploring} data-mode="rotate" className={state.mode === 'rotate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('rotate')}><StudioIcon name="rotate" size={16} />旋转 <kbd>E</kbd></button>
       <span className="toolbar-divider" />
-      <button id="duplicate" disabled={selection?.source!=='runtime'} type="button" onClick={()=>void controls.duplicate()}>复制</button>
-      <button id="delete" className="danger" disabled={selection?.source!=='runtime'} type="button" onClick={()=>void controls.deleteSelected()}>删除</button>
+      <button id="duplicate" disabled={exploring || selection?.source!=='runtime'} type="button" onClick={()=>void controls.duplicate()}>复制</button>
+      <button id="delete" className="danger" disabled={exploring || selection?.source!=='runtime'} type="button" onClick={()=>void controls.deleteSelected()}>删除</button>
       <details className="toolbar-more scene-menu">
         <summary>保存与文件 <span aria-hidden="true">⌄</span></summary>
         <div className="toolbar-menu">
@@ -102,6 +109,7 @@ export function WorldEditorWorkspace({
   active:boolean;
   notifyLayout:()=>void;
 }) {
+  const interactionMode=useStudioStore(state=>state.editor.interactionMode);
   const contextOpen = useStudioStore((state)=>state.layout.contextOpen);
   const contextView = useStudioStore((state)=>state.layout.activeContextView);
   const sceneCollapsed = useStudioStore((state)=>state.layout.sceneCollapsed);
@@ -131,6 +139,7 @@ export function WorldEditorWorkspace({
         </aside>
         <SceneToolbar bridgeState={bridgeState} />
         <div id="viewport" className="viewport">
+          {active && content ? <SelectionActionDock {...content.inspector} openInspect={()=>commitLayoutChange(()=>openView('inspect'))} /> : null}
 
         </div>
 
@@ -143,10 +152,10 @@ export function WorldEditorWorkspace({
           {contextView==='task' ? <div className="world-task-content">
             {active && bridgeState.agent ? <><TaskPanelView controller={bridgeState.agent.taskPanel} /><CommandBar taskPanel={bridgeState.agent.taskPanel} inputRef={commandInputRef} draft={bridgeState.commandDraft} /></> : <p role="status">任务面板启动中…</p>}
           </div> : <section className="inspector">
-            {content ? <ObjectInspectorView {...content.inspector} /> : null}
+            {active && contextOpen && content ? <ObjectInspectorView key={selection?.source+':'+selection?.id} {...content.inspector} /> : null}
           </section>}
         </aside>
-        <div className="editor-statusbar"><span>{presentation.title}</span><span>{selection ? '已选中 '+selection.id : '点击画布或左侧列表选择对象'}</span><span className="editor-shortcuts">W 移动 · E 旋转 · Del 删除</span></div>
+        <div className="editor-statusbar"><span>{presentation.title}</span><span>{selection ? '已选中 '+selection.id : '点击画布或左侧列表选择对象'}</span><span className="editor-shortcuts">{interactionMode==='edit' ? 'W 移动 · E 旋转 · Del 删除' : '探索模式 · 选中后执行动作'}</span></div>
       </section>
 
       <div className="artifact-tray-host world-artifact-tray">{content ? <ArtifactTrayView {...content.artifactTray} /> : null}</div>
