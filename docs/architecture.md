@@ -1,5 +1,7 @@
 # AgentScape 当前架构全景
 
+> v2 应用层现已增加统一 SceneFacade、JSON 项目包和声明式 StylePack。当前公共边界与限制见 [v1 契约](../planning/public-contracts-v1.md)，验收见 [v2 发布清单](v2-release.md)。下文作为旧内核运行机制参考。
+
 > 目录与任务归属已迁移到 apps / application / modules / foundation，当前规范见 [repository-layout.md](repository-layout.md)。下文保留 1.34.2 运行机制说明；旧目录图不再作为目录约束。Skills 与跨域 GenerationRuntime 已归 application，内部运行契约本次保持。
 
 本文描述 **1.34.2** 的真实架构，不描述未来设想。

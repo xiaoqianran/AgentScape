@@ -39,7 +39,9 @@ export class SimulationSession {
   step() {
     const tick = this.clock.tick + 1;
     const time = tick * this.fixedDt;
-    this.executeStep(this.fixedDt, { tick, time });
+    if (this.executeStep(this.fixedDt, { tick, time }) === false) {
+      return { tick:this.tick, time:this.time, dt:0, skipped:true };
+    }
     this.clock.advance();
     return { tick:this.tick, time:this.time, dt:this.fixedDt };
   }
@@ -67,9 +69,12 @@ export class SimulationSession {
     if (!this.restoreWorld) throw new Error('SimulationSession restoreWorld is not configured');
     const wasRunning = this.running;
     this.pause();
-    await this.restoreWorld(snapshot.world);
-    this.clock.restore(snapshot.clock);
-    if (wasRunning) this.play();
+    try {
+      await this.restoreWorld(snapshot.world);
+      this.clock.restore(snapshot.clock);
+    } finally {
+      if (wasRunning) this.play();
+    }
     this.events?.emit?.('simulation.restored', {
       tick:this.tick,
       time:this.time,
@@ -87,6 +92,7 @@ export class SimulationSession {
     if (snapshot.exact !== false || snapshot.scope !== 'canonical-world+clock') {
       throw new Error('SimulationSession v1 only accepts canonical-world+clock snapshots');
     }
+    this.clock.validateSnapshot(snapshot.clock);
     if (!snapshot.world || typeof snapshot.world !== 'object') throw new TypeError('SimulationSession snapshot requires world state');
     return snapshot;
   }

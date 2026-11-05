@@ -159,23 +159,26 @@ export function createAgentGateway({ baseUrl, apiKey, model, models, fetchImpl =
   const chatUrl = `${String(baseUrl).replace(/\/$/, '')}/chat/completions`;
   const modelChain = normalizeModels({ model, models });
 
-  return async (request) => {
+  return async (request, { signal } = {}) => {
     let lastError = null;
     for (let index = 0; index < modelChain.length; index++) {
+      signal?.throwIfAborted();
       const currentModel = modelChain[index];
       let upstream;
       try {
         upstream = await fetchImpl(chatUrl, {
           method: 'POST',
           headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify(createUpstreamPayload(request, currentModel))
+          body: JSON.stringify(createUpstreamPayload(request, currentModel)), signal
         });
       } catch (error) {
+        signal?.throwIfAborted();
         lastError = new Error(`OpenAI-compatible upstream transport failed for ${currentModel}: ${error.message}`);
         if (index + 1 < modelChain.length) continue;
         throw lastError;
       }
       const payload = await upstream.json().catch(() => ({}));
+      signal?.throwIfAborted();
       if (!upstream.ok) {
         const detail = payload.error?.message || `HTTP ${upstream.status}`;
         lastError = new Error(`OpenAI-compatible upstream failed for ${currentModel}: ${detail}`);
@@ -187,17 +190,19 @@ export function createAgentGateway({ baseUrl, apiKey, model, models, fetchImpl =
         if (retryable && index === modelChain.length - 1) {
           // Single-model chain (e.g. probe ephemeral gateway): brief wait then one last try.
           await sleep(800);
+          signal?.throwIfAborted();
           try {
             const retry = await fetchImpl(chatUrl, {
               method: 'POST',
               headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-              body: JSON.stringify(createUpstreamPayload(request, currentModel))
+              body: JSON.stringify(createUpstreamPayload(request, currentModel)), signal
             });
             const retryPayload = await retry.json().catch(() => ({}));
             if (retry.ok) return fromOpenAIResponse(retryPayload);
             const retryDetail = retryPayload.error?.message || `HTTP ${retry.status}`;
             lastError = new Error(`OpenAI-compatible upstream failed for ${currentModel}: ${retryDetail}`);
           } catch (retryError) {
+            signal?.throwIfAborted();
             lastError = new Error(`OpenAI-compatible upstream transport failed for ${currentModel}: ${retryError.message}`);
           }
         }
@@ -223,11 +228,17 @@ export function startServer(options = {}) {
       return json(response, 200, { ok:true, model:models[0], models }, origin);
     }
     if (request.method !== 'POST' || request.url !== '/agent') return json(response, 404, { error:'Not found' }, origin);
+    const controller=new AbortController();
+    const disconnected=()=>{ if (!response.writableEnded) controller.abort(); };
+    response.once('close',disconnected);
     try {
       const body = await readJson(request);
-      json(response, 200, await complete(body), origin);
+      const result=await complete(body,{signal:controller.signal});
+      if (!response.destroyed) json(response, 200, result, origin);
     } catch (error) {
-      json(response, 502, { error:error.message }, origin);
+      if (!response.destroyed) json(response, 502, { error:error.message }, origin);
+    } finally {
+      response.removeListener('close',disconnected);
     }
   });
   server.listen(port, host, () => {

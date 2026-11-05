@@ -22,6 +22,17 @@ const reset = () => {
 describe('studio React store', () => {
   beforeEach(reset);
 
+  it('opens task controls in the existing world and can return to object properties',()=>{
+    const store=()=>useStudioStore.getState();
+    store().selectRuntimeObject('cup_01');
+    store().openView('world-task');
+    expect(store().product.activePage).toBe('world');
+    expect(store().layout).toMatchObject({contextOpen:true,activeContextView:'task'});
+    expect(store().editor.selection).toEqual({source:'runtime',id:'cup_01'});
+    store().openView('inspect');
+    expect(store().layout.activeContextView).toBe('inspect');
+  });
+
   it('keeps product pages separate from World Editor contextual state', () => {
     const store=()=>useStudioStore.getState();
 

@@ -138,7 +138,7 @@ export class ToolCallingAgent {
 
   get mode() { return this.gateway?.isConfigured() ? 'llm' : 'unconfigured'; }
 
-  async run(text) {
+  async run(text, { signal } = {}) {
     this.log(`goal: ${text}`, 'goal');
     const toolDefinitions=this.tools.definitions();
     const messages = [
@@ -161,13 +161,24 @@ export class ToolCallingAgent {
     let pendingWorldRevisionRepair=null;
     let lastMutation = null;
     let recoveryReadRounds = 0;
+    const cancelled = (steps) => ({
+      message:'任务已停止；已完成的世界变化已保留。重试将重新观察当前世界。',
+      taskStatus:'cancelled', termination:'user-cancelled', steps,
+      lastMutation:lastMutation ? structuredClone(lastMutation) : null,
+      unresolvedMutations:[...unresolvedMutations.values()].map((entry)=>structuredClone(entry)),
+      execution:structuredClone(execution),
+      ...(taskAcceptanceBundle ? { acceptanceBundle:structuredClone(taskAcceptanceBundle) } : {})
+    });
 
     for (let step = 0; step < this.maxSteps; step++) {
+      if (signal?.aborted) return cancelled(step);
       const world = await this.tools.call('listObjects');
+      if (signal?.aborted) return cancelled(step);
       const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
       const task = this.tools.taskObservation?.({ lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved }) || null;
       if (this.tools.runtime) this.tools.runtime.lastTaskObservation = task ? structuredClone(task) : null;
-      const response = await gateway.complete({
+      let response;
+      try { response = await gateway.complete({
         messages,
         tools:toolDefinitions,
         context:{
@@ -178,7 +189,12 @@ export class ToolCallingAgent {
             readOnlyRoundsRemaining:Math.max(0,this.maxRecoveryReadRounds-recoveryReadRounds)
           } } : {})
         }
-      });
+      }, { signal }); }
+      catch (error) {
+        if (signal?.aborted) return cancelled(step + 1);
+        throw error;
+      }
+      if (signal?.aborted) return cancelled(step + 1);
       response.toolCalls = response.toolCalls.map(normalizeModelToolCall);
       if (!response.toolCalls.length) {
         const proposedFinal = response.message || '任务完成。';
@@ -242,6 +258,9 @@ export class ToolCallingAgent {
       let executedTool = false;
       let mutationExecuted = false;
       for (const call of response.toolCalls) {
+        // A running world tool finishes at its own safe boundary. Never drop a
+        // held object or roll back a completed action merely to stop planning.
+        if (signal?.aborted) return cancelled(step + 1);
         if (barrier) {
           const skipped = {
             status:'not-executed',
@@ -338,6 +357,7 @@ export class ToolCallingAgent {
         }
 
         this.log(`plan: ${call.name} ${JSON.stringify(call.args)}`, 'plan');
+        if (signal?.aborted) return cancelled(step + 1);
         executedTool = true;
         const acceptanceBefore=this.tools.runtime?.lastAcceptanceBundle || null;
         let result;
@@ -445,6 +465,7 @@ export class ToolCallingAgent {
       if (!unresolvedMutations.size || mutationExecuted) recoveryReadRounds=0;
       else if (executedTool) recoveryReadRounds += 1;
     }
+    if (signal?.aborted) return cancelled(this.maxSteps);
     const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
     if (unresolved.length) {
       const message = `Task incomplete: planning limit reached with ${unresolved.length} unresolved world mutation(s).`;

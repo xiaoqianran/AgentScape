@@ -1,4 +1,5 @@
 import { assetAdmission } from '../../asset/model/admission.js';
+import { physicsManifestForUniformScale } from './ObjectTransform.js';
 
 const round3 = (value) => Number(value.toFixed(3));
 const vec3Round = (value) => Array.isArray(value) ? value.map(round3) : value;
@@ -36,13 +37,38 @@ export class WorldCommands {
       : { status:'asset-provisional', id, assetId, admission };
   }
 
+  async replaceAsset(id, assetId) {
+    this.assertReady('replaceAsset');
+    const record=this.runtime.store.get(id);
+    if(record.state?.heldBy)throw Object.assign(new Error('Put down the object before upgrading its asset'),{code:'ASSET_INSTANCE_HELD'});
+    if(record.manifest.type==='agent')throw Object.assign(new Error('Agent embodiment upgrades are not supported'),{code:'ASSET_UPGRADE_AGENT_UNSUPPORTED'});
+    const manifest=this.runtime.assetModule.getManifest(assetId);
+    if(assetAdmission(manifest).status!=='ready')throw Object.assign(new Error('Asset is not ready'),{code:'ASSET_NOT_READY'});
+    const pose={id,position:record.object.position.toArray(),quaternion:record.object.quaternion.toArray(),scale:record.object.scale.x};
+    const previousAssetId=record.assetId;
+    return this.runtime.mutate('asset:replace',async()=>{
+      // A material-only upgrade must preserve legitimate resting contacts, including solver tolerance.
+      const sameCollision=!Object.keys(manifest.parts||{}).length&&!Object.keys(record.manifest.parts||{}).length
+        && manifest.physics?.body===record.manifest.physics?.body
+        && JSON.stringify(manifest.physics?.colliders)===JSON.stringify(record.manifest.physics?.colliders);
+      const check=sameCollision || manifest.capabilityLevel==='visual'?{checked:true,clear:true}:this.runtime.physics.checkManifestPose(physicsManifestForUniformScale(manifest,pose.scale),pose.position,{quaternion:pose.quaternion,excludeIds:[id]});
+      if(!check.checked||!check.clear)throw Object.assign(new Error('New asset does not fit at the current pose'),{code:'ASSET_UPGRADE_PLACEMENT_BLOCKED'});
+      this.remove(id);await this.spawn(assetId,pose);
+      const navigation=await this.runtime.navigation.ensureCurrent();
+      if(!navigation.success || (manifest.capabilityLevel!=='visual' && !this.runtime.physics.getPosition(id)))throw Object.assign(new Error('New entity failed runtime registration'),{code:'ASSET_UPGRADE_FAILED'});
+      return {status:'asset-instance-updated',id,assetId,previousAssetId,stateReset:true};
+    });
+  }
+
   transform(id, transform = {}, options = {}) {
     this.assertReady('transform');
+    if (this.runtime.store.get(id).state?.heldBy || this.runtime.interactions?.isHeld?.(id) || this.runtime.interactions?.carry?.agentHeld?.has(id)) throw Object.assign(new Error('Put down the object before editing'), { code: 'OBJECT_HELD' });
     return this.runtime.applyObjectTransform(id, transform, options);
   }
 
   beginTransform(id) {
     this.assertReady('beginTransform');
+    if (this.runtime.store.get(id).state?.heldBy || this.runtime.interactions?.isHeld?.(id) || this.runtime.interactions?.carry?.agentHeld?.has(id)) throw Object.assign(new Error('Put down the object before editing'), { code: 'OBJECT_HELD' });
     return this.runtime.physics.beginTransform(id);
   }
 
@@ -72,6 +98,7 @@ export class WorldCommands {
 
   remove(id, options = {}) {
     this.assertReady('remove');
+    if (this.runtime.store.get(id).state?.heldBy || this.runtime.interactions?.isHeld?.(id) || this.runtime.interactions?.carry?.agentHeld?.has(id)) throw Object.assign(new Error('Put down the object before editing'), { code: 'OBJECT_HELD' });
     return this.runtime.remove(id, options);
   }
 

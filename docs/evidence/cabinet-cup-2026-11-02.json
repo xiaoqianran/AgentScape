@@ -1,0 +1,4901 @@
+{
+  "schema": "agentscape.cabinet-cup-acceptance",
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-02T02:37:07.396Z",
+  "mode": "scripted-gateway-real-runtime",
+  "modelUsed": false,
+  "cases": [
+    {
+      "worldId": "monument-hall",
+      "fault": null,
+      "repeats": 3,
+      "mode": "scripted-gateway-real-runtime",
+      "attempts": [
+        {
+          "index": 1,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 55,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 181,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 148,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 226,
+              "status": "action-completed",
+              "reason": null,
+              "targetReached": true,
+              "settled": true
+            },
+            {
+              "name": "pickup",
+              "durationMs": 48,
+              "status": "held",
+              "reason": null
+            },
+            {
+              "name": "place",
+              "durationMs": 402,
+              "status": "placed",
+              "reason": null,
+              "supportVerified": true,
+              "settled": true,
+              "stillHeld": false
+            },
+            {
+              "name": "verify",
+              "durationMs": 3,
+              "status": "world-accepted",
+              "reason": null,
+              "verifiedCount": 6,
+              "failedCount": 0,
+              "checks": [
+                {
+                  "id": "world-valid",
+                  "kind": "world-valid",
+                  "verified": true
+                },
+                {
+                  "id": "cabinet-open",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cabinet_01",
+                  "expected": "OPEN"
+                },
+                {
+                  "id": "cup-picked-up",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cup_01",
+                  "expected": "PICKUP"
+                },
+                {
+                  "id": "cup-placed",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "table_01",
+                  "expected": "PLACE"
+                },
+                {
+                  "id": "cup-on-table",
+                  "kind": "relation-exists",
+                  "verified": true,
+                  "subject": "cup_01",
+                  "predicate": "ON",
+                  "object": "table_01",
+                  "surfaceId": "top"
+                },
+                {
+                  "id": "no-unresolved",
+                  "kind": "no-unresolved",
+                  "verified": true
+                }
+              ]
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "pickupOwnership": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          },
+          "taskStatus": "completed",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "action-completed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 2,
+              "tool": "approachAndPickup",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cup_01"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "held"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 3,
+              "tool": "approachAndPlace",
+              "args": {
+                "actorId": "agent_01",
+                "supportId": "table_01",
+                "surfaceId": "top"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "placed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 4,
+              "tool": "evaluateWorldAcceptance",
+              "args": {
+                "criteria": [
+                  {
+                    "id": "world-valid",
+                    "kind": "world-valid"
+                  },
+                  {
+                    "id": "cabinet-open",
+                    "kind": "interaction-verified",
+                    "targetId": "cabinet_01",
+                    "capability": "OPEN"
+                  },
+                  {
+                    "id": "cup-picked-up",
+                    "kind": "interaction-verified",
+                    "targetId": "cup_01",
+                    "capability": "PICKUP"
+                  },
+                  {
+                    "id": "cup-placed",
+                    "kind": "interaction-verified",
+                    "targetId": "table_01",
+                    "capability": "PLACE"
+                  },
+                  {
+                    "id": "cup-on-table",
+                    "kind": "relation-exists",
+                    "subject": "cup_01",
+                    "predicate": "ON",
+                    "object": "table_01",
+                    "surfaceId": "top"
+                  },
+                  {
+                    "id": "no-unresolved",
+                    "kind": "no-unresolved"
+                  }
+                ]
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "world-accepted"
+              },
+              "mutates": false,
+              "auxiliary": false
+            }
+          ],
+          "support": {
+            "supported": true,
+            "subjectId": "cup_01",
+            "targetId": "table_01",
+            "surfaceId": "top",
+            "withinX": true,
+            "withinZ": true,
+            "aboveSurface": true,
+            "verticalGap": -0.02,
+            "gap": 0.02,
+            "tolerance": 0.12,
+            "evidence": "spatial-geometry"
+          },
+          "hands": "empty"
+        },
+        {
+          "index": 2,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 18,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 100,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 50,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 230,
+              "status": "action-completed",
+              "reason": null,
+              "targetReached": true,
+              "settled": true
+            },
+            {
+              "name": "pickup",
+              "durationMs": 46,
+              "status": "held",
+              "reason": null
+            },
+            {
+              "name": "place",
+              "durationMs": 656,
+              "status": "placed",
+              "reason": null,
+              "supportVerified": true,
+              "settled": true,
+              "stillHeld": false
+            },
+            {
+              "name": "verify",
+              "durationMs": 1,
+              "status": "world-accepted",
+              "reason": null,
+              "verifiedCount": 6,
+              "failedCount": 0,
+              "checks": [
+                {
+                  "id": "world-valid",
+                  "kind": "world-valid",
+                  "verified": true
+                },
+                {
+                  "id": "cabinet-open",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cabinet_01",
+                  "expected": "OPEN"
+                },
+                {
+                  "id": "cup-picked-up",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cup_01",
+                  "expected": "PICKUP"
+                },
+                {
+                  "id": "cup-placed",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "table_01",
+                  "expected": "PLACE"
+                },
+                {
+                  "id": "cup-on-table",
+                  "kind": "relation-exists",
+                  "verified": true,
+                  "subject": "cup_01",
+                  "predicate": "ON",
+                  "object": "table_01",
+                  "surfaceId": "top"
+                },
+                {
+                  "id": "no-unresolved",
+                  "kind": "no-unresolved",
+                  "verified": true
+                }
+              ]
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "pickupOwnership": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          },
+          "taskStatus": "completed",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "action-completed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 2,
+              "tool": "approachAndPickup",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cup_01"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "held"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 3,
+              "tool": "approachAndPlace",
+              "args": {
+                "actorId": "agent_01",
+                "supportId": "table_01",
+                "surfaceId": "top"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "placed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 4,
+              "tool": "evaluateWorldAcceptance",
+              "args": {
+                "criteria": [
+                  {
+                    "id": "world-valid",
+                    "kind": "world-valid"
+                  },
+                  {
+                    "id": "cabinet-open",
+                    "kind": "interaction-verified",
+                    "targetId": "cabinet_01",
+                    "capability": "OPEN"
+                  },
+                  {
+                    "id": "cup-picked-up",
+                    "kind": "interaction-verified",
+                    "targetId": "cup_01",
+                    "capability": "PICKUP"
+                  },
+                  {
+                    "id": "cup-placed",
+                    "kind": "interaction-verified",
+                    "targetId": "table_01",
+                    "capability": "PLACE"
+                  },
+                  {
+                    "id": "cup-on-table",
+                    "kind": "relation-exists",
+                    "subject": "cup_01",
+                    "predicate": "ON",
+                    "object": "table_01",
+                    "surfaceId": "top"
+                  },
+                  {
+                    "id": "no-unresolved",
+                    "kind": "no-unresolved"
+                  }
+                ]
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "world-accepted"
+              },
+              "mutates": false,
+              "auxiliary": false
+            }
+          ],
+          "support": {
+            "supported": true,
+            "subjectId": "cup_01",
+            "targetId": "table_01",
+            "surfaceId": "top",
+            "withinX": true,
+            "withinZ": true,
+            "aboveSurface": true,
+            "verticalGap": -0.02,
+            "gap": 0.02,
+            "tolerance": 0.12,
+            "evidence": "spatial-geometry"
+          },
+          "hands": "empty"
+        },
+        {
+          "index": 3,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 17,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 144,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 55,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 264,
+              "status": "action-completed",
+              "reason": null,
+              "targetReached": true,
+              "settled": true
+            },
+            {
+              "name": "pickup",
+              "durationMs": 70,
+              "status": "held",
+              "reason": null
+            },
+            {
+              "name": "place",
+              "durationMs": 433,
+              "status": "placed",
+              "reason": null,
+              "supportVerified": true,
+              "settled": true,
+              "stillHeld": false
+            },
+            {
+              "name": "verify",
+              "durationMs": 2,
+              "status": "world-accepted",
+              "reason": null,
+              "verifiedCount": 6,
+              "failedCount": 0,
+              "checks": [
+                {
+                  "id": "world-valid",
+                  "kind": "world-valid",
+                  "verified": true
+                },
+                {
+                  "id": "cabinet-open",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cabinet_01",
+                  "expected": "OPEN"
+                },
+                {
+                  "id": "cup-picked-up",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cup_01",
+                  "expected": "PICKUP"
+                },
+                {
+                  "id": "cup-placed",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "table_01",
+                  "expected": "PLACE"
+                },
+                {
+                  "id": "cup-on-table",
+                  "kind": "relation-exists",
+                  "verified": true,
+                  "subject": "cup_01",
+                  "predicate": "ON",
+                  "object": "table_01",
+                  "surfaceId": "top"
+                },
+                {
+                  "id": "no-unresolved",
+                  "kind": "no-unresolved",
+                  "verified": true
+                }
+              ]
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "pickupOwnership": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          },
+          "taskStatus": "completed",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "action-completed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 2,
+              "tool": "approachAndPickup",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cup_01"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "held"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 3,
+              "tool": "approachAndPlace",
+              "args": {
+                "actorId": "agent_01",
+                "supportId": "table_01",
+                "surfaceId": "top"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "placed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 4,
+              "tool": "evaluateWorldAcceptance",
+              "args": {
+                "criteria": [
+                  {
+                    "id": "world-valid",
+                    "kind": "world-valid"
+                  },
+                  {
+                    "id": "cabinet-open",
+                    "kind": "interaction-verified",
+                    "targetId": "cabinet_01",
+                    "capability": "OPEN"
+                  },
+                  {
+                    "id": "cup-picked-up",
+                    "kind": "interaction-verified",
+                    "targetId": "cup_01",
+                    "capability": "PICKUP"
+                  },
+                  {
+                    "id": "cup-placed",
+                    "kind": "interaction-verified",
+                    "targetId": "table_01",
+                    "capability": "PLACE"
+                  },
+                  {
+                    "id": "cup-on-table",
+                    "kind": "relation-exists",
+                    "subject": "cup_01",
+                    "predicate": "ON",
+                    "object": "table_01",
+                    "surfaceId": "top"
+                  },
+                  {
+                    "id": "no-unresolved",
+                    "kind": "no-unresolved"
+                  }
+                ]
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "world-accepted"
+              },
+              "mutates": false,
+              "auxiliary": false
+            }
+          ],
+          "support": {
+            "supported": true,
+            "subjectId": "cup_01",
+            "targetId": "table_01",
+            "surfaceId": "top",
+            "withinX": true,
+            "withinZ": true,
+            "aboveSurface": true,
+            "verticalGap": -0.02,
+            "gap": 0.02,
+            "tolerance": 0.12,
+            "evidence": "spatial-geometry"
+          },
+          "hands": "empty"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "worldId": "woodland-workshop",
+      "fault": null,
+      "repeats": 3,
+      "mode": "scripted-gateway-real-runtime",
+      "attempts": [
+        {
+          "index": 1,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 8,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 114,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 13,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 158,
+              "status": "action-completed",
+              "reason": null,
+              "targetReached": true,
+              "settled": true
+            },
+            {
+              "name": "pickup",
+              "durationMs": 139,
+              "status": "held",
+              "reason": null
+            },
+            {
+              "name": "place",
+              "durationMs": 123,
+              "status": "placed",
+              "reason": null,
+              "supportVerified": true,
+              "settled": true,
+              "stillHeld": false
+            },
+            {
+              "name": "verify",
+              "durationMs": 1,
+              "status": "world-accepted",
+              "reason": null,
+              "verifiedCount": 6,
+              "failedCount": 0,
+              "checks": [
+                {
+                  "id": "world-valid",
+                  "kind": "world-valid",
+                  "verified": true
+                },
+                {
+                  "id": "cabinet-open",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cabinet_01",
+                  "expected": "OPEN"
+                },
+                {
+                  "id": "cup-picked-up",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cup_01",
+                  "expected": "PICKUP"
+                },
+                {
+                  "id": "cup-placed",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "table_01",
+                  "expected": "PLACE"
+                },
+                {
+                  "id": "cup-on-table",
+                  "kind": "relation-exists",
+                  "verified": true,
+                  "subject": "cup_01",
+                  "predicate": "ON",
+                  "object": "table_01",
+                  "surfaceId": "top"
+                },
+                {
+                  "id": "no-unresolved",
+                  "kind": "no-unresolved",
+                  "verified": true
+                }
+              ]
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "pickupOwnership": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          },
+          "taskStatus": "completed",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "action-completed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 2,
+              "tool": "approachAndPickup",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cup_01"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "held"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 3,
+              "tool": "approachAndPlace",
+              "args": {
+                "actorId": "agent_01",
+                "supportId": "table_01",
+                "surfaceId": "top"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "placed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 4,
+              "tool": "evaluateWorldAcceptance",
+              "args": {
+                "criteria": [
+                  {
+                    "id": "world-valid",
+                    "kind": "world-valid"
+                  },
+                  {
+                    "id": "cabinet-open",
+                    "kind": "interaction-verified",
+                    "targetId": "cabinet_01",
+                    "capability": "OPEN"
+                  },
+                  {
+                    "id": "cup-picked-up",
+                    "kind": "interaction-verified",
+                    "targetId": "cup_01",
+                    "capability": "PICKUP"
+                  },
+                  {
+                    "id": "cup-placed",
+                    "kind": "interaction-verified",
+                    "targetId": "table_01",
+                    "capability": "PLACE"
+                  },
+                  {
+                    "id": "cup-on-table",
+                    "kind": "relation-exists",
+                    "subject": "cup_01",
+                    "predicate": "ON",
+                    "object": "table_01",
+                    "surfaceId": "top"
+                  },
+                  {
+                    "id": "no-unresolved",
+                    "kind": "no-unresolved"
+                  }
+                ]
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "world-accepted"
+              },
+              "mutates": false,
+              "auxiliary": false
+            }
+          ],
+          "support": {
+            "supported": true,
+            "subjectId": "cup_01",
+            "targetId": "table_01",
+            "surfaceId": "top",
+            "withinX": true,
+            "withinZ": true,
+            "aboveSurface": true,
+            "verticalGap": -0.02,
+            "gap": 0.02,
+            "tolerance": 0.12,
+            "evidence": "spatial-geometry"
+          },
+          "hands": "empty"
+        },
+        {
+          "index": 2,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 9,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 115,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 18,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 121,
+              "status": "action-completed",
+              "reason": null,
+              "targetReached": true,
+              "settled": true
+            },
+            {
+              "name": "pickup",
+              "durationMs": 169,
+              "status": "held",
+              "reason": null
+            },
+            {
+              "name": "place",
+              "durationMs": 153,
+              "status": "placed",
+              "reason": null,
+              "supportVerified": true,
+              "settled": true,
+              "stillHeld": false
+            },
+            {
+              "name": "verify",
+              "durationMs": 1,
+              "status": "world-accepted",
+              "reason": null,
+              "verifiedCount": 6,
+              "failedCount": 0,
+              "checks": [
+                {
+                  "id": "world-valid",
+                  "kind": "world-valid",
+                  "verified": true
+                },
+                {
+                  "id": "cabinet-open",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cabinet_01",
+                  "expected": "OPEN"
+                },
+                {
+                  "id": "cup-picked-up",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cup_01",
+                  "expected": "PICKUP"
+                },
+                {
+                  "id": "cup-placed",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "table_01",
+                  "expected": "PLACE"
+                },
+                {
+                  "id": "cup-on-table",
+                  "kind": "relation-exists",
+                  "verified": true,
+                  "subject": "cup_01",
+                  "predicate": "ON",
+                  "object": "table_01",
+                  "surfaceId": "top"
+                },
+                {
+                  "id": "no-unresolved",
+                  "kind": "no-unresolved",
+                  "verified": true
+                }
+              ]
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "pickupOwnership": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          },
+          "taskStatus": "completed",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "action-completed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 2,
+              "tool": "approachAndPickup",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cup_01"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "held"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 3,
+              "tool": "approachAndPlace",
+              "args": {
+                "actorId": "agent_01",
+                "supportId": "table_01",
+                "surfaceId": "top"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "placed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 4,
+              "tool": "evaluateWorldAcceptance",
+              "args": {
+                "criteria": [
+                  {
+                    "id": "world-valid",
+                    "kind": "world-valid"
+                  },
+                  {
+                    "id": "cabinet-open",
+                    "kind": "interaction-verified",
+                    "targetId": "cabinet_01",
+                    "capability": "OPEN"
+                  },
+                  {
+                    "id": "cup-picked-up",
+                    "kind": "interaction-verified",
+                    "targetId": "cup_01",
+                    "capability": "PICKUP"
+                  },
+                  {
+                    "id": "cup-placed",
+                    "kind": "interaction-verified",
+                    "targetId": "table_01",
+                    "capability": "PLACE"
+                  },
+                  {
+                    "id": "cup-on-table",
+                    "kind": "relation-exists",
+                    "subject": "cup_01",
+                    "predicate": "ON",
+                    "object": "table_01",
+                    "surfaceId": "top"
+                  },
+                  {
+                    "id": "no-unresolved",
+                    "kind": "no-unresolved"
+                  }
+                ]
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "world-accepted"
+              },
+              "mutates": false,
+              "auxiliary": false
+            }
+          ],
+          "support": {
+            "supported": true,
+            "subjectId": "cup_01",
+            "targetId": "table_01",
+            "surfaceId": "top",
+            "withinX": true,
+            "withinZ": true,
+            "aboveSurface": true,
+            "verticalGap": -0.02,
+            "gap": 0.02,
+            "tolerance": 0.12,
+            "evidence": "spatial-geometry"
+          },
+          "hands": "empty"
+        },
+        {
+          "index": 3,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 6,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 118,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 13,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 159,
+              "status": "action-completed",
+              "reason": null,
+              "targetReached": true,
+              "settled": true
+            },
+            {
+              "name": "pickup",
+              "durationMs": 155,
+              "status": "held",
+              "reason": null
+            },
+            {
+              "name": "place",
+              "durationMs": 108,
+              "status": "placed",
+              "reason": null,
+              "supportVerified": true,
+              "settled": true,
+              "stillHeld": false
+            },
+            {
+              "name": "verify",
+              "durationMs": 1,
+              "status": "world-accepted",
+              "reason": null,
+              "verifiedCount": 6,
+              "failedCount": 0,
+              "checks": [
+                {
+                  "id": "world-valid",
+                  "kind": "world-valid",
+                  "verified": true
+                },
+                {
+                  "id": "cabinet-open",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cabinet_01",
+                  "expected": "OPEN"
+                },
+                {
+                  "id": "cup-picked-up",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cup_01",
+                  "expected": "PICKUP"
+                },
+                {
+                  "id": "cup-placed",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "table_01",
+                  "expected": "PLACE"
+                },
+                {
+                  "id": "cup-on-table",
+                  "kind": "relation-exists",
+                  "verified": true,
+                  "subject": "cup_01",
+                  "predicate": "ON",
+                  "object": "table_01",
+                  "surfaceId": "top"
+                },
+                {
+                  "id": "no-unresolved",
+                  "kind": "no-unresolved",
+                  "verified": true
+                }
+              ]
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "pickupOwnership": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          },
+          "taskStatus": "completed",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "action-completed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 2,
+              "tool": "approachAndPickup",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cup_01"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "held"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 3,
+              "tool": "approachAndPlace",
+              "args": {
+                "actorId": "agent_01",
+                "supportId": "table_01",
+                "surfaceId": "top"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "placed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 4,
+              "tool": "evaluateWorldAcceptance",
+              "args": {
+                "criteria": [
+                  {
+                    "id": "world-valid",
+                    "kind": "world-valid"
+                  },
+                  {
+                    "id": "cabinet-open",
+                    "kind": "interaction-verified",
+                    "targetId": "cabinet_01",
+                    "capability": "OPEN"
+                  },
+                  {
+                    "id": "cup-picked-up",
+                    "kind": "interaction-verified",
+                    "targetId": "cup_01",
+                    "capability": "PICKUP"
+                  },
+                  {
+                    "id": "cup-placed",
+                    "kind": "interaction-verified",
+                    "targetId": "table_01",
+                    "capability": "PLACE"
+                  },
+                  {
+                    "id": "cup-on-table",
+                    "kind": "relation-exists",
+                    "subject": "cup_01",
+                    "predicate": "ON",
+                    "object": "table_01",
+                    "surfaceId": "top"
+                  },
+                  {
+                    "id": "no-unresolved",
+                    "kind": "no-unresolved"
+                  }
+                ]
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "world-accepted"
+              },
+              "mutates": false,
+              "auxiliary": false
+            }
+          ],
+          "support": {
+            "supported": true,
+            "subjectId": "cup_01",
+            "targetId": "table_01",
+            "surfaceId": "top",
+            "withinX": true,
+            "withinZ": true,
+            "aboveSurface": true,
+            "verticalGap": -0.02,
+            "gap": 0.02,
+            "tolerance": 0.12,
+            "evidence": "spatial-geometry"
+          },
+          "hands": "empty"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "worldId": "magic-cabin",
+      "fault": null,
+      "repeats": 3,
+      "mode": "scripted-gateway-real-runtime",
+      "attempts": [
+        {
+          "index": 1,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 21,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 130,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 105,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 433,
+              "status": "action-completed",
+              "reason": null,
+              "targetReached": true,
+              "settled": true
+            },
+            {
+              "name": "pickup",
+              "durationMs": 268,
+              "status": "held",
+              "reason": null
+            },
+            {
+              "name": "place",
+              "durationMs": 277,
+              "status": "placed",
+              "reason": null,
+              "supportVerified": true,
+              "settled": true,
+              "stillHeld": false
+            },
+            {
+              "name": "verify",
+              "durationMs": 1,
+              "status": "world-accepted",
+              "reason": null,
+              "verifiedCount": 6,
+              "failedCount": 0,
+              "checks": [
+                {
+                  "id": "world-valid",
+                  "kind": "world-valid",
+                  "verified": true
+                },
+                {
+                  "id": "cabinet-open",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cabinet_01",
+                  "expected": "OPEN"
+                },
+                {
+                  "id": "cup-picked-up",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cup_01",
+                  "expected": "PICKUP"
+                },
+                {
+                  "id": "cup-placed",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "table_01",
+                  "expected": "PLACE"
+                },
+                {
+                  "id": "cup-on-table",
+                  "kind": "relation-exists",
+                  "verified": true,
+                  "subject": "cup_01",
+                  "predicate": "ON",
+                  "object": "table_01",
+                  "surfaceId": "top"
+                },
+                {
+                  "id": "no-unresolved",
+                  "kind": "no-unresolved",
+                  "verified": true
+                }
+              ]
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "pickupOwnership": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          },
+          "taskStatus": "completed",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "action-completed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 2,
+              "tool": "approachAndPickup",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cup_01"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "held"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 3,
+              "tool": "approachAndPlace",
+              "args": {
+                "actorId": "agent_01",
+                "supportId": "table_01",
+                "surfaceId": "top"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "placed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 4,
+              "tool": "evaluateWorldAcceptance",
+              "args": {
+                "criteria": [
+                  {
+                    "id": "world-valid",
+                    "kind": "world-valid"
+                  },
+                  {
+                    "id": "cabinet-open",
+                    "kind": "interaction-verified",
+                    "targetId": "cabinet_01",
+                    "capability": "OPEN"
+                  },
+                  {
+                    "id": "cup-picked-up",
+                    "kind": "interaction-verified",
+                    "targetId": "cup_01",
+                    "capability": "PICKUP"
+                  },
+                  {
+                    "id": "cup-placed",
+                    "kind": "interaction-verified",
+                    "targetId": "table_01",
+                    "capability": "PLACE"
+                  },
+                  {
+                    "id": "cup-on-table",
+                    "kind": "relation-exists",
+                    "subject": "cup_01",
+                    "predicate": "ON",
+                    "object": "table_01",
+                    "surfaceId": "top"
+                  },
+                  {
+                    "id": "no-unresolved",
+                    "kind": "no-unresolved"
+                  }
+                ]
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "world-accepted"
+              },
+              "mutates": false,
+              "auxiliary": false
+            }
+          ],
+          "support": {
+            "supported": true,
+            "subjectId": "cup_01",
+            "targetId": "table_01",
+            "surfaceId": "top",
+            "withinX": true,
+            "withinZ": true,
+            "aboveSurface": true,
+            "verticalGap": -0.02,
+            "gap": 0.02,
+            "tolerance": 0.12,
+            "evidence": "spatial-geometry"
+          },
+          "hands": "empty"
+        },
+        {
+          "index": 2,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 10,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 126,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 65,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 399,
+              "status": "action-completed",
+              "reason": null,
+              "targetReached": true,
+              "settled": true
+            },
+            {
+              "name": "pickup",
+              "durationMs": 247,
+              "status": "held",
+              "reason": null
+            },
+            {
+              "name": "place",
+              "durationMs": 278,
+              "status": "placed",
+              "reason": null,
+              "supportVerified": true,
+              "settled": true,
+              "stillHeld": false
+            },
+            {
+              "name": "verify",
+              "durationMs": 0,
+              "status": "world-accepted",
+              "reason": null,
+              "verifiedCount": 6,
+              "failedCount": 0,
+              "checks": [
+                {
+                  "id": "world-valid",
+                  "kind": "world-valid",
+                  "verified": true
+                },
+                {
+                  "id": "cabinet-open",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cabinet_01",
+                  "expected": "OPEN"
+                },
+                {
+                  "id": "cup-picked-up",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cup_01",
+                  "expected": "PICKUP"
+                },
+                {
+                  "id": "cup-placed",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "table_01",
+                  "expected": "PLACE"
+                },
+                {
+                  "id": "cup-on-table",
+                  "kind": "relation-exists",
+                  "verified": true,
+                  "subject": "cup_01",
+                  "predicate": "ON",
+                  "object": "table_01",
+                  "surfaceId": "top"
+                },
+                {
+                  "id": "no-unresolved",
+                  "kind": "no-unresolved",
+                  "verified": true
+                }
+              ]
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "pickupOwnership": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          },
+          "taskStatus": "completed",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "action-completed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 2,
+              "tool": "approachAndPickup",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cup_01"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "held"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 3,
+              "tool": "approachAndPlace",
+              "args": {
+                "actorId": "agent_01",
+                "supportId": "table_01",
+                "surfaceId": "top"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "placed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 4,
+              "tool": "evaluateWorldAcceptance",
+              "args": {
+                "criteria": [
+                  {
+                    "id": "world-valid",
+                    "kind": "world-valid"
+                  },
+                  {
+                    "id": "cabinet-open",
+                    "kind": "interaction-verified",
+                    "targetId": "cabinet_01",
+                    "capability": "OPEN"
+                  },
+                  {
+                    "id": "cup-picked-up",
+                    "kind": "interaction-verified",
+                    "targetId": "cup_01",
+                    "capability": "PICKUP"
+                  },
+                  {
+                    "id": "cup-placed",
+                    "kind": "interaction-verified",
+                    "targetId": "table_01",
+                    "capability": "PLACE"
+                  },
+                  {
+                    "id": "cup-on-table",
+                    "kind": "relation-exists",
+                    "subject": "cup_01",
+                    "predicate": "ON",
+                    "object": "table_01",
+                    "surfaceId": "top"
+                  },
+                  {
+                    "id": "no-unresolved",
+                    "kind": "no-unresolved"
+                  }
+                ]
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "world-accepted"
+              },
+              "mutates": false,
+              "auxiliary": false
+            }
+          ],
+          "support": {
+            "supported": true,
+            "subjectId": "cup_01",
+            "targetId": "table_01",
+            "surfaceId": "top",
+            "withinX": true,
+            "withinZ": true,
+            "aboveSurface": true,
+            "verticalGap": -0.02,
+            "gap": 0.02,
+            "tolerance": 0.12,
+            "evidence": "spatial-geometry"
+          },
+          "hands": "empty"
+        },
+        {
+          "index": 3,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 9,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 125,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 58,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 392,
+              "status": "action-completed",
+              "reason": null,
+              "targetReached": true,
+              "settled": true
+            },
+            {
+              "name": "pickup",
+              "durationMs": 260,
+              "status": "held",
+              "reason": null
+            },
+            {
+              "name": "place",
+              "durationMs": 247,
+              "status": "placed",
+              "reason": null,
+              "supportVerified": true,
+              "settled": true,
+              "stillHeld": false
+            },
+            {
+              "name": "verify",
+              "durationMs": 1,
+              "status": "world-accepted",
+              "reason": null,
+              "verifiedCount": 6,
+              "failedCount": 0,
+              "checks": [
+                {
+                  "id": "world-valid",
+                  "kind": "world-valid",
+                  "verified": true
+                },
+                {
+                  "id": "cabinet-open",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cabinet_01",
+                  "expected": "OPEN"
+                },
+                {
+                  "id": "cup-picked-up",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "cup_01",
+                  "expected": "PICKUP"
+                },
+                {
+                  "id": "cup-placed",
+                  "kind": "interaction-verified",
+                  "verified": true,
+                  "targetId": "table_01",
+                  "expected": "PLACE"
+                },
+                {
+                  "id": "cup-on-table",
+                  "kind": "relation-exists",
+                  "verified": true,
+                  "subject": "cup_01",
+                  "predicate": "ON",
+                  "object": "table_01",
+                  "surfaceId": "top"
+                },
+                {
+                  "id": "no-unresolved",
+                  "kind": "no-unresolved",
+                  "verified": true
+                }
+              ]
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "pickupOwnership": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          },
+          "taskStatus": "completed",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "action-completed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 2,
+              "tool": "approachAndPickup",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cup_01"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "held"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 3,
+              "tool": "approachAndPlace",
+              "args": {
+                "actorId": "agent_01",
+                "supportId": "table_01",
+                "surfaceId": "top"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "placed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 4,
+              "tool": "evaluateWorldAcceptance",
+              "args": {
+                "criteria": [
+                  {
+                    "id": "world-valid",
+                    "kind": "world-valid"
+                  },
+                  {
+                    "id": "cabinet-open",
+                    "kind": "interaction-verified",
+                    "targetId": "cabinet_01",
+                    "capability": "OPEN"
+                  },
+                  {
+                    "id": "cup-picked-up",
+                    "kind": "interaction-verified",
+                    "targetId": "cup_01",
+                    "capability": "PICKUP"
+                  },
+                  {
+                    "id": "cup-placed",
+                    "kind": "interaction-verified",
+                    "targetId": "table_01",
+                    "capability": "PLACE"
+                  },
+                  {
+                    "id": "cup-on-table",
+                    "kind": "relation-exists",
+                    "subject": "cup_01",
+                    "predicate": "ON",
+                    "object": "table_01",
+                    "surfaceId": "top"
+                  },
+                  {
+                    "id": "no-unresolved",
+                    "kind": "no-unresolved"
+                  }
+                ]
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "world-accepted"
+              },
+              "mutates": false,
+              "auxiliary": false
+            }
+          ],
+          "support": {
+            "supported": true,
+            "subjectId": "cup_01",
+            "targetId": "table_01",
+            "surfaceId": "top",
+            "withinX": true,
+            "withinZ": true,
+            "aboveSurface": true,
+            "verticalGap": -0.02,
+            "gap": 0.02,
+            "tolerance": 0.12,
+            "evidence": "spatial-geometry"
+          },
+          "hands": "empty"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "worldId": "monument-hall",
+      "fault": "missing-target",
+      "repeats": 1,
+      "mode": "scripted-gateway-real-runtime",
+      "attempts": [
+        {
+          "index": 1,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 7,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 114,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 0,
+              "status": "unsupported",
+              "reason": null
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": false,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": false,
+                "code": "TASK_OBJECT_MISSING"
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [
+              {
+                "code": "TASK_OBJECT_MISSING",
+                "message": "缺少杯子（cup_01），请准备标准任务场景。"
+              }
+            ],
+            "status": "unsupported"
+          },
+          "stoppedBeforeMutation": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "worldId": "monument-hall",
+      "fault": "blocked-door",
+      "repeats": 1,
+      "mode": "scripted-gateway-real-runtime",
+      "attempts": [
+        {
+          "index": 1,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 6,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 118,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 26,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 269,
+              "status": "action-failed",
+              "reason": "STALL",
+              "targetReached": false,
+              "settled": false
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "stopReason": {
+            "error": 0.4580019396795155,
+            "sequence": {
+              "outcome": {
+                "state": "failed",
+                "verified": false,
+                "status": "action-failed",
+                "reason": "STALL"
+              },
+              "barrier": true,
+              "replanRequired": true,
+              "instruction": "This step did not verify completion. Do not advance to a later dependent mutation; diagnose, recover, retry, or report the task incomplete."
+            }
+          },
+          "taskStatus": "incomplete",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "failed",
+                "verified": false,
+                "status": "action-failed",
+                "reason": "STALL"
+              },
+              "mutates": true,
+              "auxiliary": false
+            }
+          ],
+          "stoppedBeforePickup": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "worldId": "monument-hall",
+      "fault": "occupied-surface",
+      "repeats": 1,
+      "mode": "scripted-gateway-real-runtime",
+      "attempts": [
+        {
+          "index": 1,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 6,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 117,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 18,
+              "status": "supported",
+              "reason": null
+            },
+            {
+              "name": "open",
+              "durationMs": 230,
+              "status": "action-completed",
+              "reason": null,
+              "targetReached": true,
+              "settled": true
+            },
+            {
+              "name": "pickup",
+              "durationMs": 47,
+              "status": "held",
+              "reason": null
+            },
+            {
+              "name": "place",
+              "durationMs": 2,
+              "status": "error",
+              "reason": "PLACE_UNAVAILABLE",
+              "message": "agent_01 cannot place on table_01: NO_INTERACTION_POSE"
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": true,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": true,
+                "code": null
+              }
+            ],
+            "reasons": [],
+            "status": "supported"
+          },
+          "pickupOwnership": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          },
+          "stopReason": {
+            "error": "agent_01 cannot place on table_01: NO_INTERACTION_POSE",
+            "sequence": {
+              "outcome": {
+                "state": "error",
+                "verified": false,
+                "reason": "PLACE_UNAVAILABLE"
+              },
+              "barrier": true,
+              "replanRequired": true,
+              "instruction": "This step did not verify completion. Do not advance to a later dependent mutation; diagnose, recover, retry, or report the task incomplete."
+            }
+          },
+          "taskStatus": "incomplete",
+          "execution": [
+            {
+              "planningStep": 1,
+              "tool": "approachAndInteract",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cabinet_01",
+                "action": "open"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "action-completed"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 2,
+              "tool": "approachAndPickup",
+              "args": {
+                "actorId": "agent_01",
+                "targetId": "cup_01"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "verified",
+                "verified": true,
+                "status": "held"
+              },
+              "mutates": true,
+              "auxiliary": false
+            },
+            {
+              "planningStep": 3,
+              "tool": "approachAndPlace",
+              "args": {
+                "actorId": "agent_01",
+                "supportId": "table_01",
+                "surfaceId": "top"
+              },
+              "executed": true,
+              "outcome": {
+                "state": "error",
+                "verified": false,
+                "reason": "PLACE_UNAVAILABLE"
+              },
+              "mutates": true,
+              "auxiliary": false
+            }
+          ],
+          "heldAfterFailure": {
+            "kind": "agent",
+            "id": "agent_01",
+            "anchor": "hold"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "worldId": "magic-cabin",
+      "fault": "unreachable",
+      "repeats": 1,
+      "mode": "scripted-gateway-real-runtime",
+      "attempts": [
+        {
+          "index": 1,
+          "stages": [
+            {
+              "name": "build",
+              "durationMs": 8,
+              "status": "world-provisional",
+              "reason": null
+            },
+            {
+              "name": "settle-initial",
+              "durationMs": 82,
+              "status": "settled",
+              "reason": null
+            },
+            {
+              "name": "preflight",
+              "durationMs": 54,
+              "status": "unsupported",
+              "reason": null
+            }
+          ],
+          "passed": true,
+          "admission": {
+            "status": "provisional",
+            "reasons": [
+              "ASSET_PROVISIONAL",
+              "LAYOUT_PROVISIONAL"
+            ]
+          },
+          "initialInside": true,
+          "settledInside": true,
+          "prerequisites": {
+            "supported": false,
+            "refs": {
+              "actorId": "agent_01",
+              "cabinetId": "cabinet_01",
+              "cupId": "cup_01",
+              "supportId": "table_01",
+              "surfaceId": "top"
+            },
+            "stages": [
+              {
+                "stage": "exists:actorId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cabinetId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:cupId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "exists:supportId",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-receptacle",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "support-surface",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cabinet-open-action",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-actions",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "cup-in-cabinet",
+                "ok": true,
+                "code": null
+              },
+              {
+                "stage": "reachable:cabinet_01",
+                "ok": false,
+                "code": "TASK_PATH_UNREACHABLE"
+              },
+              {
+                "stage": "reachable:table_01",
+                "ok": false,
+                "code": "TASK_PATH_UNREACHABLE"
+              }
+            ],
+            "reasons": [
+              {
+                "code": "TASK_PATH_UNREACHABLE",
+                "message": "智能体没有可达的交互位置（cabinet_01），请检查门和障碍物。"
+              },
+              {
+                "code": "TASK_PATH_UNREACHABLE",
+                "message": "智能体没有可达的交互位置（table_01），请检查门和障碍物。"
+              }
+            ],
+            "status": "unsupported"
+          },
+          "stoppedBeforeMutation": true
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "provenance": {
+    "baseline": "66c13d5",
+    "runtimeFixture": "22dd348",
+    "platform": "win32",
+    "node": "v24.18.0",
+    "command": "npm run acceptance:world",
+    "note": "Historical local execution; rerun for current validation."
+  },
+  "diagnostics": {
+    "scope": "Historical experiment reruns before shelf semantic correction; diagnostic only, including failures.",
+    "experiment003": [
+      {
+        "worldId": "monument-hall",
+        "layout": "declared-bootstrap",
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            9
+          ],
+          "table": [
+            5.2,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            -5.2,
+            0,
+            3.9
+          ],
+          "cup": [
+            5.55,
+            1.4,
+            4.2
+          ]
+        },
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "BATCH_FOOTPRINT_OVERLAP"
+        ],
+        "objects": 0,
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "monument-hall",
+        "layout": "task-adjusted",
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            9
+          ],
+          "table": [
+            5.2,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            -5.2,
+            0,
+            3.9
+          ],
+          "cup": [
+            5.55,
+            1.4,
+            4.2
+          ]
+        },
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "objects": 4,
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 3,
+          "cost": 8.163
+        },
+        "settled": true,
+        "agentTravel": 6.114,
+        "taskStatus": "completed",
+        "acceptance": {
+          "status": "world-accepted",
+          "verified": 7,
+          "failed": 0
+        },
+        "doorState": "open",
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": true,
+          "gap": 0.02
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=verified/held",
+          "approachAndPlace=verified/placed"
+        ]
+      },
+      {
+        "worldId": "monument-hall",
+        "layout": "auto-placed",
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            9
+          ],
+          "table": [
+            5.2,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            -5.2,
+            0,
+            3.9
+          ],
+          "cup": [
+            5.55,
+            1.4,
+            4.2
+          ]
+        },
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "objects": 4,
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 2,
+          "cost": 1.65
+        },
+        "settled": true,
+        "agentTravel": 3.056,
+        "taskStatus": "completed",
+        "acceptance": {
+          "status": "world-accepted",
+          "verified": 7,
+          "failed": 0
+        },
+        "doorState": "open",
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": true,
+          "gap": 0.02
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=verified/held",
+          "approachAndPlace=verified/placed"
+        ]
+      },
+      {
+        "worldId": "ruined-courtyard",
+        "layout": "declared-bootstrap",
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            12
+          ],
+          "table": [
+            11.8,
+            1.2,
+            5.1
+          ],
+          "cabinet": [
+            -11.6,
+            0.8,
+            -5.8
+          ],
+          "cup": [
+            12.1,
+            2.6,
+            5.1
+          ]
+        },
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "WORLD_POSE_BLOCKED"
+        ],
+        "objects": 0,
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "ruined-courtyard",
+        "layout": "task-adjusted",
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            12
+          ],
+          "table": [
+            11.8,
+            1.2,
+            5.1
+          ],
+          "cabinet": [
+            -11.6,
+            0.8,
+            -5.8
+          ],
+          "cup": [
+            12.1,
+            2.6,
+            5.1
+          ]
+        },
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "WORLD_POSE_BLOCKED"
+        ],
+        "objects": 0,
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "ruined-courtyard",
+        "layout": "auto-placed",
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            12
+          ],
+          "table": [
+            11.8,
+            1.2,
+            5.1
+          ],
+          "cabinet": [
+            -11.6,
+            0.8,
+            -5.8
+          ],
+          "cup": [
+            12.1,
+            2.6,
+            5.1
+          ]
+        },
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "objects": 4,
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 2,
+          "cost": 1.847
+        },
+        "settled": true,
+        "agentTravel": 0.696,
+        "taskStatus": "incomplete",
+        "acceptance": {
+          "status": "world-incomplete",
+          "verified": 2,
+          "failed": 5
+        },
+        "doorState": "open",
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": false,
+          "gap": 1
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=blocked/pickup-blocked",
+          "approachAndPlace=blocked/place-blocked"
+        ]
+      },
+      {
+        "worldId": "woodland-workshop",
+        "layout": "declared-bootstrap",
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            3
+          ],
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ],
+          "cup": [
+            2.85,
+            1.4,
+            -3
+          ]
+        },
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "WORLD_POSE_BLOCKED"
+        ],
+        "objects": 0,
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "woodland-workshop",
+        "layout": "task-adjusted",
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            3
+          ],
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ],
+          "cup": [
+            2.85,
+            1.4,
+            -3
+          ]
+        },
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "WORLD_POSE_BLOCKED"
+        ],
+        "objects": 0,
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "woodland-workshop",
+        "layout": "auto-placed",
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            3
+          ],
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ],
+          "cup": [
+            2.85,
+            1.4,
+            -3
+          ]
+        },
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "objects": 4,
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 5,
+          "cost": 4.466
+        },
+        "settled": true,
+        "agentTravel": 3.054,
+        "taskStatus": "completed",
+        "acceptance": {
+          "status": "world-accepted",
+          "verified": 7,
+          "failed": 0
+        },
+        "doorState": "open",
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": true,
+          "gap": 0.02
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=verified/held",
+          "approachAndPlace=verified/placed"
+        ]
+      }
+    ],
+    "experiment004": [
+      {
+        "worldId": "monument-hall",
+        "layout": "declared-bootstrap",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            9
+          ],
+          "table": [
+            5.2,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            -5.2,
+            0,
+            3.9
+          ],
+          "cup": [
+            5.55,
+            1.4,
+            4.2
+          ]
+        },
+        "corner": {
+          "table": [
+            4.8,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            2.4,
+            0,
+            4.2
+          ]
+        },
+        "objects": 0,
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "BATCH_FOOTPRINT_OVERLAP"
+        ],
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "monument-hall",
+        "layout": "task-adjusted",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            9
+          ],
+          "table": [
+            5.2,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            -5.2,
+            0,
+            3.9
+          ],
+          "cup": [
+            5.55,
+            1.4,
+            4.2
+          ]
+        },
+        "corner": {
+          "table": [
+            4.8,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            2.4,
+            0,
+            4.2
+          ]
+        },
+        "objects": 4,
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 3,
+          "cost": 8.163
+        },
+        "settled": true,
+        "agentTravel": 6.114,
+        "taskStatus": "completed",
+        "acceptance": {
+          "status": "world-accepted",
+          "verified": 7,
+          "failed": 0
+        },
+        "acceptanceFailures": [],
+        "door": {
+          "reached": "open",
+          "stable": true,
+          "afterSettle": "open"
+        },
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": true,
+          "gap": 0.02
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=verified/held",
+          "approachAndPlace=verified/placed"
+        ],
+        "recovery": {
+          "snapshotObjects": 4,
+          "driftDetected": true,
+          "driftFailedCount": 1,
+          "restoredPersistent": "world-accepted",
+          "restoredVerified": 7,
+          "restoredFailed": 0,
+          "restoredSupportOn": true,
+          "restoredSupportGap": 0.02,
+          "restoredHistorical": "world-incomplete",
+          "restoredHistoricalForged": false
+        }
+      },
+      {
+        "worldId": "monument-hall",
+        "layout": "coffee-corner",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            9
+          ],
+          "table": [
+            5.2,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            -5.2,
+            0,
+            3.9
+          ],
+          "cup": [
+            5.55,
+            1.4,
+            4.2
+          ]
+        },
+        "corner": {
+          "table": [
+            4.8,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            2.4,
+            0,
+            4.2
+          ]
+        },
+        "objects": 0,
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "BATCH_FOOTPRINT_OVERLAP"
+        ],
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "monument-hall",
+        "layout": "auto-placed",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            9
+          ],
+          "table": [
+            5.2,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            -5.2,
+            0,
+            3.9
+          ],
+          "cup": [
+            5.55,
+            1.4,
+            4.2
+          ]
+        },
+        "corner": {
+          "table": [
+            4.8,
+            0,
+            4.2
+          ],
+          "cabinet": [
+            2.4,
+            0,
+            4.2
+          ]
+        },
+        "objects": 4,
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 2,
+          "cost": 1.65
+        },
+        "settled": true,
+        "agentTravel": 3.056,
+        "taskStatus": "completed",
+        "acceptance": {
+          "status": "world-accepted",
+          "verified": 7,
+          "failed": 0
+        },
+        "acceptanceFailures": [],
+        "door": {
+          "reached": "open",
+          "stable": true,
+          "afterSettle": "open"
+        },
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": true,
+          "gap": 0.02
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=verified/held",
+          "approachAndPlace=verified/placed"
+        ],
+        "recovery": {
+          "snapshotObjects": 4,
+          "driftDetected": true,
+          "driftFailedCount": 1,
+          "restoredPersistent": "world-accepted",
+          "restoredVerified": 7,
+          "restoredFailed": 0,
+          "restoredSupportOn": true,
+          "restoredSupportGap": 0.02,
+          "restoredHistorical": "world-incomplete",
+          "restoredHistoricalForged": false
+        }
+      },
+      {
+        "worldId": "ruined-courtyard",
+        "layout": "declared-bootstrap",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            12
+          ],
+          "table": [
+            11.8,
+            1.2,
+            5.1
+          ],
+          "cabinet": [
+            -11.6,
+            0.8,
+            -5.8
+          ],
+          "cup": [
+            12.1,
+            2.6,
+            5.1
+          ]
+        },
+        "corner": {
+          "table": [
+            10.5,
+            1.2,
+            3.5
+          ],
+          "cabinet": [
+            8.4,
+            1.2,
+            3.5
+          ]
+        },
+        "objects": 0,
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "WORLD_POSE_BLOCKED"
+        ],
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "ruined-courtyard",
+        "layout": "task-adjusted",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            12
+          ],
+          "table": [
+            11.8,
+            1.2,
+            5.1
+          ],
+          "cabinet": [
+            -11.6,
+            0.8,
+            -5.8
+          ],
+          "cup": [
+            12.1,
+            2.6,
+            5.1
+          ]
+        },
+        "corner": {
+          "table": [
+            10.5,
+            1.2,
+            3.5
+          ],
+          "cabinet": [
+            8.4,
+            1.2,
+            3.5
+          ]
+        },
+        "objects": 0,
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "WORLD_POSE_BLOCKED"
+        ],
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "ruined-courtyard",
+        "layout": "coffee-corner",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            12
+          ],
+          "table": [
+            11.8,
+            1.2,
+            5.1
+          ],
+          "cabinet": [
+            -11.6,
+            0.8,
+            -5.8
+          ],
+          "cup": [
+            12.1,
+            2.6,
+            5.1
+          ]
+        },
+        "corner": {
+          "table": [
+            10.5,
+            1.2,
+            3.5
+          ],
+          "cabinet": [
+            8.4,
+            1.2,
+            3.5
+          ]
+        },
+        "objects": 0,
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "WORLD_POSE_BLOCKED"
+        ],
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "ruined-courtyard",
+        "layout": "auto-placed",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            12
+          ],
+          "table": [
+            11.8,
+            1.2,
+            5.1
+          ],
+          "cabinet": [
+            -11.6,
+            0.8,
+            -5.8
+          ],
+          "cup": [
+            12.1,
+            2.6,
+            5.1
+          ]
+        },
+        "corner": {
+          "table": [
+            10.5,
+            1.2,
+            3.5
+          ],
+          "cabinet": [
+            8.4,
+            1.2,
+            3.5
+          ]
+        },
+        "objects": 4,
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 2,
+          "cost": 1.847
+        },
+        "settled": true,
+        "agentTravel": 0.696,
+        "taskStatus": "incomplete",
+        "acceptance": {
+          "status": "world-incomplete",
+          "verified": 2,
+          "failed": 5
+        },
+        "acceptanceFailures": [
+          "world-valid:WORLD_VALIDATION_FAILED",
+          "cup-pickup-verified:INTERACTION_NOT_VERIFIED",
+          "cup-place-verified:INTERACTION_NOT_VERIFIED",
+          "cup-on-table:RELATION_NOT_FOUND",
+          "no-unresolved:UNRESOLVED_MUTATIONS"
+        ],
+        "door": {
+          "reached": "open",
+          "stable": true,
+          "afterSettle": "open"
+        },
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": false,
+          "gap": 1
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=blocked/pickup-blocked",
+          "approachAndPlace=blocked/place-blocked"
+        ],
+        "recovery": {
+          "snapshotObjects": 4,
+          "driftDetected": true,
+          "driftFailedCount": 5,
+          "restoredPersistent": "world-incomplete",
+          "restoredVerified": 4,
+          "restoredFailed": 3,
+          "restoredSupportOn": false,
+          "restoredSupportGap": 1,
+          "restoredHistorical": "world-incomplete",
+          "restoredHistoricalForged": false
+        }
+      },
+      {
+        "worldId": "woodland-workshop",
+        "layout": "declared-bootstrap",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            3
+          ],
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ],
+          "cup": [
+            2.85,
+            1.4,
+            -3
+          ]
+        },
+        "corner": {
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ]
+        },
+        "objects": 0,
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "WORLD_POSE_BLOCKED"
+        ],
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "woodland-workshop",
+        "layout": "task-adjusted",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            3
+          ],
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ],
+          "cup": [
+            2.85,
+            1.4,
+            -3
+          ]
+        },
+        "corner": {
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ]
+        },
+        "objects": 0,
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "WORLD_POSE_BLOCKED"
+        ],
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "woodland-workshop",
+        "layout": "coffee-corner",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            3
+          ],
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ],
+          "cup": [
+            2.85,
+            1.4,
+            -3
+          ]
+        },
+        "corner": {
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ]
+        },
+        "objects": 4,
+        "agentSpawnCheck": {
+          "spawn": [
+            0,
+            0.01,
+            0
+          ],
+          "toCabinet": true,
+          "toCabinetAgain": true,
+          "toTable": false,
+          "allReachable": false
+        },
+        "agentFallback": {
+          "reason": "composer spawn cannot reach task targets",
+          "spawn": [
+            0,
+            0.01,
+            0
+          ],
+          "used": [
+            0,
+            0,
+            3
+          ]
+        },
+        "agentSpawnCheckAfterFallback": {
+          "spawn": [
+            0,
+            0.01,
+            0
+          ],
+          "toCabinet": true,
+          "toCabinetAgain": true,
+          "toTable": false,
+          "allReachable": false
+        },
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "WORLD_POSE_BLOCKED"
+        ],
+        "cupStart": "INSIDE cabinet interior = 0",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 3,
+          "cost": 7.014
+        },
+        "settled": true,
+        "agentTravel": 5.132,
+        "taskStatus": "completed",
+        "acceptance": {
+          "status": "world-accepted",
+          "verified": 7,
+          "failed": 0
+        },
+        "acceptanceFailures": [],
+        "door": {
+          "reached": "open",
+          "stable": true,
+          "afterSettle": "open"
+        },
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": true,
+          "gap": 0.02
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=verified/held",
+          "approachAndPlace=verified/placed"
+        ],
+        "recovery": {
+          "snapshotObjects": 4,
+          "driftDetected": true,
+          "driftFailedCount": 1,
+          "restoredPersistent": "world-accepted",
+          "restoredVerified": 7,
+          "restoredFailed": 0,
+          "restoredSupportOn": true,
+          "restoredSupportGap": 0.02,
+          "restoredHistorical": "world-incomplete",
+          "restoredHistoricalForged": false
+        }
+      },
+      {
+        "worldId": "woodland-workshop",
+        "layout": "auto-placed",
+        "driveEnvironment": false,
+        "bootstrap": {
+          "agent": [
+            0,
+            0,
+            3
+          ],
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ],
+          "cup": [
+            2.85,
+            1.4,
+            -3
+          ]
+        },
+        "corner": {
+          "table": [
+            2.5,
+            0,
+            -3
+          ],
+          "cabinet": [
+            -3,
+            0,
+            -5
+          ]
+        },
+        "objects": 4,
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 5,
+          "cost": 4.466
+        },
+        "settled": true,
+        "agentTravel": 3.054,
+        "taskStatus": "completed",
+        "acceptance": {
+          "status": "world-accepted",
+          "verified": 7,
+          "failed": 0
+        },
+        "acceptanceFailures": [],
+        "door": {
+          "reached": "open",
+          "stable": true,
+          "afterSettle": "open"
+        },
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": true,
+          "gap": 0.02
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=verified/held",
+          "approachAndPlace=verified/placed"
+        ],
+        "recovery": {
+          "snapshotObjects": 4,
+          "driftDetected": true,
+          "driftFailedCount": 1,
+          "restoredPersistent": "world-accepted",
+          "restoredVerified": 7,
+          "restoredFailed": 0,
+          "restoredSupportOn": true,
+          "restoredSupportGap": 0.02,
+          "restoredHistorical": "world-incomplete",
+          "restoredHistoricalForged": false
+        }
+      },
+      {
+        "worldId": "magic-cabin",
+        "layout": "declared-bootstrap",
+        "driveEnvironment": true,
+        "bootstrap": {
+          "agent": [
+            6,
+            0,
+            -5
+          ],
+          "table": [
+            7,
+            0,
+            2
+          ],
+          "cabinet": [
+            7,
+            0,
+            5
+          ],
+          "cup": [
+            7.35,
+            1.4,
+            2
+          ]
+        },
+        "corner": {
+          "table": [
+            7,
+            0,
+            2
+          ],
+          "cabinet": [
+            7,
+            0,
+            5
+          ]
+        },
+        "objects": 0,
+        "worldAdmission": "rejected",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "BATCH_FOOTPRINT_OVERLAP"
+        ],
+        "skipped": "no objects instantiated; task not attempted"
+      },
+      {
+        "worldId": "magic-cabin",
+        "layout": "task-adjusted",
+        "driveEnvironment": true,
+        "bootstrap": {
+          "agent": [
+            6,
+            0,
+            -5
+          ],
+          "table": [
+            7,
+            0,
+            2
+          ],
+          "cabinet": [
+            7,
+            0,
+            5
+          ],
+          "cup": [
+            7.35,
+            1.4,
+            2
+          ]
+        },
+        "corner": {
+          "table": [
+            7,
+            0,
+            2
+          ],
+          "cabinet": [
+            7,
+            0,
+            5
+          ]
+        },
+        "objects": 4,
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 4,
+          "cost": 10.303
+        },
+        "settled": true,
+        "agentTravel": 8.606,
+        "taskStatus": "completed",
+        "acceptance": {
+          "status": "world-accepted",
+          "verified": 7,
+          "failed": 0
+        },
+        "acceptanceFailures": [],
+        "door": {
+          "reached": "open",
+          "stable": true,
+          "afterSettle": "open"
+        },
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": true,
+          "gap": 0.02
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=verified/held",
+          "approachAndPlace=verified/placed"
+        ],
+        "recovery": {
+          "snapshotObjects": 4,
+          "driftDetected": true,
+          "driftFailedCount": 1,
+          "restoredPersistent": "world-accepted",
+          "restoredVerified": 7,
+          "restoredFailed": 0,
+          "restoredSupportOn": true,
+          "restoredSupportGap": 0.02,
+          "restoredHistorical": "world-incomplete",
+          "restoredHistoricalForged": false
+        }
+      },
+      {
+        "worldId": "magic-cabin",
+        "layout": "coffee-corner",
+        "driveEnvironment": true,
+        "bootstrap": {
+          "agent": [
+            6,
+            0,
+            -5
+          ],
+          "table": [
+            7,
+            0,
+            2
+          ],
+          "cabinet": [
+            7,
+            0,
+            5
+          ],
+          "cup": [
+            7.35,
+            1.4,
+            2
+          ]
+        },
+        "corner": {
+          "table": [
+            7,
+            0,
+            2
+          ],
+          "cabinet": [
+            7,
+            0,
+            5
+          ]
+        },
+        "objects": 4,
+        "agentSpawnCheck": {
+          "spawn": [
+            -0.5,
+            0.01,
+            0
+          ],
+          "toCabinet": false,
+          "toCabinetAgain": false,
+          "toTable": false,
+          "allReachable": false
+        },
+        "agentFallback": {
+          "reason": "composer spawn cannot reach task targets",
+          "spawn": [
+            -0.5,
+            0.01,
+            0
+          ],
+          "used": [
+            6,
+            0,
+            -5
+          ]
+        },
+        "agentSpawnCheckAfterFallback": {
+          "spawn": [
+            6,
+            0.01,
+            -5
+          ],
+          "toCabinet": true,
+          "toCabinetAgain": true,
+          "toTable": false,
+          "allReachable": false
+        },
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 4,
+          "cost": 10.303
+        },
+        "settled": true,
+        "agentTravel": 8.606,
+        "taskStatus": "completed",
+        "acceptance": {
+          "status": "world-accepted",
+          "verified": 7,
+          "failed": 0
+        },
+        "acceptanceFailures": [],
+        "door": {
+          "reached": "open",
+          "stable": true,
+          "afterSettle": "open"
+        },
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": true,
+          "gap": 0.02
+        },
+        "mutations": [
+          "approachAndInteract=verified/action-completed",
+          "approachAndPickup=verified/held",
+          "approachAndPlace=verified/placed"
+        ],
+        "recovery": {
+          "snapshotObjects": 4,
+          "driftDetected": true,
+          "driftFailedCount": 1,
+          "restoredPersistent": "world-accepted",
+          "restoredVerified": 7,
+          "restoredFailed": 0,
+          "restoredSupportOn": true,
+          "restoredSupportGap": 0.02,
+          "restoredHistorical": "world-incomplete",
+          "restoredHistoricalForged": false
+        }
+      },
+      {
+        "worldId": "magic-cabin",
+        "layout": "auto-placed",
+        "driveEnvironment": true,
+        "bootstrap": {
+          "agent": [
+            6,
+            0,
+            -5
+          ],
+          "table": [
+            7,
+            0,
+            2
+          ],
+          "cabinet": [
+            7,
+            0,
+            5
+          ],
+          "cup": [
+            7.35,
+            1.4,
+            2
+          ]
+        },
+        "corner": {
+          "table": [
+            7,
+            0,
+            2
+          ],
+          "cabinet": [
+            7,
+            0,
+            5
+          ]
+        },
+        "objects": 4,
+        "worldAdmission": "provisional",
+        "worldAdmissionReasons": [
+          "ASSET_PROVISIONAL",
+          "LAYOUT_PROVISIONAL"
+        ],
+        "cupStart": "INSIDE cabinet interior = 1",
+        "agentToCabinet": {
+          "reachable": true,
+          "points": 2,
+          "cost": 1.697
+        },
+        "settled": true,
+        "agentTravel": 1.429,
+        "taskStatus": "incomplete",
+        "acceptance": {
+          "status": "world-incomplete",
+          "verified": 1,
+          "failed": 6
+        },
+        "acceptanceFailures": [
+          "world-valid:WORLD_VALIDATION_FAILED",
+          "cabinet-open-verified:INTERACTION_NOT_VERIFIED",
+          "cup-pickup-verified:INTERACTION_NOT_VERIFIED",
+          "cup-place-verified:INTERACTION_NOT_VERIFIED",
+          "cup-on-table:RELATION_NOT_FOUND",
+          "no-unresolved:UNRESOLVED_MUTATIONS"
+        ],
+        "door": {
+          "reached": null,
+          "stable": true,
+          "afterSettle": null
+        },
+        "cupHeldBy": "none",
+        "hands": "empty",
+        "supportOnTable": {
+          "supported": false,
+          "gap": 1
+        },
+        "mutations": [
+          "approachAndInteract=failed/action-failed",
+          "approachAndPickup=error",
+          "approachAndPlace=blocked/place-blocked"
+        ],
+        "recovery": {
+          "snapshotObjects": 4,
+          "driftDetected": true,
+          "driftFailedCount": 5,
+          "restoredPersistent": "world-incomplete",
+          "restoredVerified": 4,
+          "restoredFailed": 3,
+          "restoredSupportOn": false,
+          "restoredSupportGap": 1,
+          "restoredHistorical": "world-incomplete",
+          "restoredHistoricalForged": false
+        }
+      }
+    ],
+    "experiment005": [
+      {
+        "label": "inside->outside (z2 -> z6)",
+        "from": "inside-z2",
+        "to": "outside-z6",
+        "closed": false,
+        "opened": true
+      },
+      {
+        "label": "inside-center -> outdoor cabinet",
+        "from": "agent-auto-coffee",
+        "to": "cabinet-outdoor",
+        "closed": false,
+        "opened": true
+      },
+      {
+        "label": "declared agent -> outdoor cabinet",
+        "from": "agent-declared",
+        "to": "cabinet-outdoor",
+        "closed": true,
+        "opened": true
+      },
+      {
+        "label": "outside -> outdoor cabinet",
+        "from": "outside-z6",
+        "to": "cabinet-outdoor",
+        "closed": true,
+        "opened": true
+      },
+      {
+        "label": "declared agent -> outdoor table",
+        "from": "agent-declared",
+        "to": "table-outdoor",
+        "closed": true,
+        "opened": true
+      },
+      {
+        "label": "inside-center -> outdoor table",
+        "from": "agent-auto-coffee",
+        "to": "table-outdoor",
+        "closed": false,
+        "opened": true
+      },
+      {
+        "label": "inside-center -> z2",
+        "from": "agent-auto-coffee",
+        "to": "inside-z2",
+        "closed": true,
+        "opened": true
+      },
+      {
+        "label": "declared agent -> upstairs",
+        "from": "agent-declared",
+        "to": "upper-floor",
+        "closed": false,
+        "opened": true
+      }
+    ]
+  }
+}

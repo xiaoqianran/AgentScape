@@ -1,0 +1,332 @@
+{
+  "schema": "agentscape.remote-mcp.acceptance",
+  "actions": [
+    {
+      "state": "verified",
+      "status": "action-completed",
+      "steps": 285
+    },
+    {
+      "state": "verified",
+      "status": "held",
+      "steps": 60
+    },
+    {
+      "state": "verified",
+      "status": "placed",
+      "steps": 336
+    }
+  ],
+  "verification": {
+    "state": "verified",
+    "evidence": {
+      "schema": "agentscape.world-acceptance",
+      "schemaVersion": 1,
+      "status": "world-accepted",
+      "checks": [
+        {
+          "id": "valid",
+          "kind": "world-valid",
+          "verified": true,
+          "evidence": {
+            "validation": {
+              "schema": 1,
+              "ok": true,
+              "counts": {
+                "hard": 0,
+                "advisory": 0
+              },
+              "hard": [],
+              "advisory": [],
+              "coverage": {
+                "objects": 4,
+                "relations": 8
+              },
+              "findings": []
+            }
+          }
+        },
+        {
+          "id": "open",
+          "kind": "interaction-verified",
+          "verified": true,
+          "targetId": "cabinet_01",
+          "expected": "OPEN",
+          "evidence": {
+            "schema": "agentscape.interaction-evidence",
+            "schemaVersion": 1,
+            "worldRevisionId": "remote-monument-r1",
+            "targetId": "cabinet_01",
+            "capability": "OPEN",
+            "verified": true,
+            "source": "approachAndInteract",
+            "commandId": "interaction:direct-open",
+            "result": {
+              "status": "action-completed",
+              "action": "open",
+              "targetId": "cabinet_01",
+              "actorId": "agent_01",
+              "targetReached": true,
+              "settled": true
+            }
+          }
+        },
+        {
+          "id": "pickup",
+          "kind": "interaction-verified",
+          "verified": true,
+          "targetId": "cup_01",
+          "expected": "PICKUP",
+          "evidence": {
+            "schema": "agentscape.interaction-evidence",
+            "schemaVersion": 1,
+            "worldRevisionId": "remote-monument-r1",
+            "targetId": "cup_01",
+            "capability": "PICKUP",
+            "verified": true,
+            "source": "approachAndPickup",
+            "commandId": "interaction:direct-pickup",
+            "result": {
+              "status": "held",
+              "targetId": "cup_01",
+              "actorId": "agent_01"
+            }
+          }
+        },
+        {
+          "id": "place",
+          "kind": "interaction-verified",
+          "verified": true,
+          "targetId": "table_01",
+          "expected": "PLACE",
+          "evidence": {
+            "schema": "agentscape.interaction-evidence",
+            "schemaVersion": 1,
+            "worldRevisionId": "remote-monument-r1",
+            "targetId": "table_01",
+            "capability": "PLACE",
+            "verified": true,
+            "source": "approachAndPlace",
+            "commandId": "interaction:direct-place",
+            "result": {
+              "status": "placed",
+              "targetId": "table_01",
+              "actorId": "agent_01",
+              "settled": true,
+              "supportVerified": true
+            }
+          }
+        },
+        {
+          "id": "support",
+          "kind": "relation-exists",
+          "verified": true,
+          "subject": "cup_01",
+          "predicate": "ON",
+          "object": "table_01",
+          "surfaceId": "top",
+          "evidence": {
+            "subject": "cup_01",
+            "predicate": "ON",
+            "object": "table_01",
+            "meta": {
+              "surfaceId": "top",
+              "gap": 0.02,
+              "evidence": "spatial-geometry"
+            }
+          }
+        },
+        {
+          "id": "unresolved",
+          "kind": "no-unresolved",
+          "verified": true
+        }
+      ],
+      "verifiedCount": 6,
+      "failedCount": 0,
+      "acceptanceBundle": {
+        "schema": "agentscape.acceptance-evidence",
+        "schemaVersion": 1,
+        "required": true,
+        "source": "agent-tool",
+        "worldRevisionId": "remote-monument-r1",
+        "provenance": {
+          "source": "remote-mcp",
+          "createdBy": "AgentScape",
+          "evidenceRefs": []
+        },
+        "criteria": [
+          {
+            "id": "valid",
+            "kind": "world-valid"
+          },
+          {
+            "id": "open",
+            "kind": "interaction-verified",
+            "targetId": "cabinet_01",
+            "capability": "OPEN"
+          },
+          {
+            "id": "pickup",
+            "kind": "interaction-verified",
+            "targetId": "cup_01",
+            "capability": "PICKUP"
+          },
+          {
+            "id": "place",
+            "kind": "interaction-verified",
+            "targetId": "table_01",
+            "capability": "PLACE"
+          },
+          {
+            "id": "support",
+            "kind": "relation-exists",
+            "subject": "cup_01",
+            "predicate": "ON",
+            "object": "table_01",
+            "surfaceId": "top"
+          },
+          {
+            "id": "unresolved",
+            "kind": "no-unresolved"
+          }
+        ],
+        "result": {
+          "schema": "agentscape.world-acceptance",
+          "schemaVersion": 1,
+          "status": "world-accepted",
+          "checks": [
+            {
+              "id": "valid",
+              "kind": "world-valid",
+              "verified": true,
+              "evidence": {
+                "validation": {
+                  "schema": 1,
+                  "ok": true,
+                  "counts": {
+                    "hard": 0,
+                    "advisory": 0
+                  },
+                  "hard": [],
+                  "advisory": [],
+                  "coverage": {
+                    "objects": 4,
+                    "relations": 8
+                  },
+                  "findings": []
+                }
+              }
+            },
+            {
+              "id": "open",
+              "kind": "interaction-verified",
+              "verified": true,
+              "targetId": "cabinet_01",
+              "expected": "OPEN",
+              "evidence": {
+                "schema": "agentscape.interaction-evidence",
+                "schemaVersion": 1,
+                "worldRevisionId": "remote-monument-r1",
+                "targetId": "cabinet_01",
+                "capability": "OPEN",
+                "verified": true,
+                "source": "approachAndInteract",
+                "commandId": "interaction:direct-open",
+                "result": {
+                  "status": "action-completed",
+                  "action": "open",
+                  "targetId": "cabinet_01",
+                  "actorId": "agent_01",
+                  "targetReached": true,
+                  "settled": true
+                }
+              }
+            },
+            {
+              "id": "pickup",
+              "kind": "interaction-verified",
+              "verified": true,
+              "targetId": "cup_01",
+              "expected": "PICKUP",
+              "evidence": {
+                "schema": "agentscape.interaction-evidence",
+                "schemaVersion": 1,
+                "worldRevisionId": "remote-monument-r1",
+                "targetId": "cup_01",
+                "capability": "PICKUP",
+                "verified": true,
+                "source": "approachAndPickup",
+                "commandId": "interaction:direct-pickup",
+                "result": {
+                  "status": "held",
+                  "targetId": "cup_01",
+                  "actorId": "agent_01"
+                }
+              }
+            },
+            {
+              "id": "place",
+              "kind": "interaction-verified",
+              "verified": true,
+              "targetId": "table_01",
+              "expected": "PLACE",
+              "evidence": {
+                "schema": "agentscape.interaction-evidence",
+                "schemaVersion": 1,
+                "worldRevisionId": "remote-monument-r1",
+                "targetId": "table_01",
+                "capability": "PLACE",
+                "verified": true,
+                "source": "approachAndPlace",
+                "commandId": "interaction:direct-place",
+                "result": {
+                  "status": "placed",
+                  "targetId": "table_01",
+                  "actorId": "agent_01",
+                  "settled": true,
+                  "supportVerified": true
+                }
+              }
+            },
+            {
+              "id": "support",
+              "kind": "relation-exists",
+              "verified": true,
+              "subject": "cup_01",
+              "predicate": "ON",
+              "object": "table_01",
+              "surfaceId": "top",
+              "evidence": {
+                "subject": "cup_01",
+                "predicate": "ON",
+                "object": "table_01",
+                "meta": {
+                  "surfaceId": "top",
+                  "gap": 0.02,
+                  "evidence": "spatial-geometry"
+                }
+              }
+            },
+            {
+              "id": "unresolved",
+              "kind": "no-unresolved",
+              "verified": true
+            }
+          ],
+          "verifiedCount": 6,
+          "failedCount": 0
+        },
+        "findings": []
+      }
+    },
+    "carry": {
+      "status": "empty",
+      "actorId": "agent_01"
+    }
+  },
+  "export": {
+    "bytes": 9140,
+    "scope": "scene-json-only"
+  }
+}

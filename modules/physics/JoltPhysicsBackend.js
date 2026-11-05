@@ -553,6 +553,7 @@ export class JoltPhysicsBackend extends PhysicsBackend {
   setJointTarget(joint,target,{stiffness=40,damping=8}={}){
     if(!joint || joint.type==='fixed') return false;
     const Jolt=this.Jolt;
+    if(target == null) { joint.native.SetMotorState(Jolt.EMotorState_Off); return true; }
     const motor=joint.native.GetMotorSettings();
     motor.mSpringSettings.mMode=Jolt.ESpringMode_StiffnessAndDamping;
     motor.mSpringSettings.mStiffness=stiffness;

@@ -1,6 +1,7 @@
 import { assetAdmission } from '../../../modules/asset/model/admission.js';
 import { WorldCommands } from '../../../modules/world/runtime/WorldCommands.js';
 import { meta, string } from '../skillPrimitives.js';
+import { verifyAndUpdateAssetArticulation } from '../../../modules/asset/AssetModule.js';
 
 const registerManifest = async (runtime, manifest, options = {}) => {
   if (typeof runtime.assetModule?.registerManifest !== 'function') throw new TypeError('Asset skills require AssetModule.registerManifest');
@@ -10,6 +11,7 @@ const registerManifest = async (runtime, manifest, options = {}) => {
 export function registerAssetSkills(add,runtime) {
   const commands = runtime.commands ||= new WorldCommands(runtime);
   if (!commands) throw new TypeError('registerAssetSkills requires runtime.commands');
+  add('replaceAsset',{...meta('显式升级实体引用的资产版本，保留实体标识和变换，重置交互状态；失败恢复原实体。',['world.write','asset.read','physics.read'],['id','assetId'],{id:string,assetId:string}),mutates:true,manualMutation:true,batchable:false},a=>commands.replaceAsset(a.id,a.assetId));
   add('compileAsset', {
     ...meta('把 GLB 编译为可运行的 Agent 资产。', ['asset.write'], [], { url:string, sourceName:string, assetId:string, label:string, partProposal:{type:'object'}, partSegmentation:{type:'object'} }),
     validate: (input) => input?.url || input?.bytes ? { ok: true } : { ok: false, message: 'url or bytes required' }
@@ -22,16 +24,8 @@ export function registerAssetSkills(add,runtime) {
     return result;
   });
   add('verifyAssetArticulation', { ...meta('在隔离的已配置 physics backend 中执行 Part/Joint 运动轨迹验证（目标、碰撞、停滞、回程），并把结果写回 Manifest；backend 缺少所需 capability 时验证应失败关闭。', ['asset.write', 'physics.read'], ['assetId'], { assetId: string }), mutates: false }, async (a) => {
-    const report = await runtime.assetModule.verifyArticulation(a.assetId);
+    const report = await verifyAndUpdateAssetArticulation(runtime.assetModule,a.assetId);
     const manifest = structuredClone(runtime.assetModule.getManifest(a.assetId));
-    manifest.verification = { ...(manifest.verification || {}), articulation: report };
-    const quality = manifest.compiler?.quality;
-    if (quality) {
-      quality.advisory = (quality.advisory || []).filter((item) => item.code !== 'ARTICULATION_UNVERIFIED');
-      if (!report.ok) quality.advisory.push({ code: 'ARTICULATION_VERIFICATION_FAILED', message: '可执行 Part/Joint 未通过运行时运动轨迹验证。' });
-      quality.status = quality.hard?.length ? 'rejected' : quality.advisory.length ? 'provisional' : 'ready';
-    }
-    await registerManifest(runtime, manifest, { replace: true });
     commands.syncAssetVerification(a.assetId, manifest);
     const admission=assetAdmission(manifest);
     runtime.events.emit('asset.verified', { assetId: a.assetId, articulation: report, admission:admission.status });

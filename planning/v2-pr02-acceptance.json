@@ -1,0 +1,79 @@
+{
+  "schema": "agentscape.development-acceptance",
+  "schemaVersion": 1,
+  "stage": "PR-02",
+  "status": "passed-with-explicit-skips",
+  "scope": "Project parser and in-memory byte resource resolution; no Runtime entry integration",
+  "sourceFiles": [
+    {
+      "path": "application/scene/SceneProject.js",
+      "sha256": "b8e3a26e070e66cb5aa0cf3215e54384990d769a836a75ec45e3c4ec8daccc0c"
+    },
+    {
+      "path": "tests/contracts/scene-project.test.js",
+      "sha256": "9ca49f92b0a5f03fd47e7f6b66198458dc35f124ae23de61884456525a4608a0"
+    }
+  ],
+  "checks": [
+    {
+      "command": "npm exec -- vitest run tests/contracts/scene-project.test.js",
+      "passed": 25,
+      "exitCode": 0
+    },
+    {
+      "command": "npm run check",
+      "log": ".v2-pr02-check-final.log",
+      "exitCode": 0,
+      "passed": 1622,
+      "skipped": 3
+    },
+    {
+      "command": "npm run test:mcp",
+      "log": ".v2-pr02-mcp.log",
+      "exitCode": 0,
+      "passed": 10,
+      "skipped": 3
+    },
+    {
+      "command": "npm run test:browser",
+      "log": ".v2-pr02-browser.log",
+      "status": "failed",
+      "exitCode": 1,
+      "passed": 6,
+      "failed": 1,
+      "reason": "authoring entry exceeded 20s ready wait; no page errors",
+      "preservedResult": ".tmp-v2-pr02-browser-results.json"
+    },
+    {
+      "command": "npm exec -- playwright test tests/browser/studio.spec.js --grep 'authoring draft'",
+      "exitCode": 0,
+      "passed": 1,
+      "log": ".v2-pr02-browser-authoring-retry.log"
+    },
+    {
+      "command": "npm run test:browser",
+      "exitCode": 0,
+      "passed": 7,
+      "log": ".v2-pr02-browser-stable.log",
+      "change": "Separate 60s cold initialization budget from 20s UI assertions; actual timing retained"
+    }
+  ],
+  "resolvedFindings": [
+    "Default transform arrays shared across entities in original draft; factory defaults now allocate per entity"
+  ],
+  "retainedEvidence": [
+    ".v2-pr02-check.log retains the initial failing shared-default test run"
+  ],
+  "notImplemented": [
+    "Host filesystem or archive extraction adapters (must reject symlinks before handing over bytes)",
+    "Asset package recursive dependency compilation and admission",
+    "Scene lock file persistence and clean-machine migration",
+    "Public SDK or SceneFacade Runtime wiring"
+  ],
+  "nextStageFindings": [
+    "Existing SceneFacade calls Starter.transform/remove which do not exist",
+    "Existing SceneFacade passes quaternion and scale to strict Starter schemas which reject them",
+    "Scene schema acceptance must never imply Runtime capability acceptance"
+  ],
+  "nextStageGate": "PR-03 unlocked"
+}

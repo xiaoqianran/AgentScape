@@ -41,7 +41,7 @@ export class RepairEngine {
     this.runtime.sceneGraph.changed();
     const after = this.runtime.validator.run({worldRevisionId:currentRevisionId});
     if (after.counts.hard > beforeCounts.hard) {
-      await this.runtime.restore(before);
+      await this.runtime.restoreSnapshot(before);
       return { status:'repair-failed',accepted: false, reason: 'hard_findings_increased', before: beforeCounts, after: after.counts, applied: [], ignored, findingsConsumed:hardFindings.map((finding)=>finding.id) };
     }
     return { status:'repair-applied',accepted: true, before: beforeCounts, after: after.counts, applied, ignored, findingsConsumed:hardFindings.map((finding)=>finding.id) };

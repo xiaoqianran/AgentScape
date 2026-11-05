@@ -87,6 +87,8 @@ export function validateAssetManifest(manifest) {
   if (!manifest || typeof manifest !== 'object') throw Errors.invalidManifest('Manifest must be an object');
   if (!manifest.id || typeof manifest.id !== 'string') throw Errors.invalidManifest('Manifest requires string id');
   if (!manifest.type || typeof manifest.type !== 'string') throw Errors.invalidManifest('Manifest requires string type', { id: manifest.id });
+  if (manifest.capabilityLevel != null && !['visual', 'physical', 'interactive'].includes(manifest.capabilityLevel)) throw Errors.invalidManifest('Invalid capability level');
+  if (manifest.capabilityLevel === 'visual' && (manifest.physics || Object.keys(manifest.parts || {}).length || manifest.actions?.length || manifest.surfaces?.length)) throw Errors.invalidManifest('Visual assets cannot declare physical capabilities');
   if (!Array.isArray(manifest.actions)) throw Errors.invalidManifest('Manifest actions must be an array', { id: manifest.id });
   if (new Set(manifest.actions).size !== manifest.actions.length) throw Errors.invalidManifest('Manifest actions must be unique', { id: manifest.id });
   if (!['builtin', 'glb', 'compiled'].includes(manifest.source?.kind)) throw Errors.invalidManifest('Manifest source.kind must be builtin, glb or compiled', { id: manifest.id });

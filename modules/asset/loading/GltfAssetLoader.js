@@ -1,6 +1,7 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { assertEmbeddedGLB } from '../model/AssetInputContracts.js';
 
 export class GltfAssetLoader {
   constructor({
@@ -40,6 +41,15 @@ export class GltfAssetLoader {
 
   async loadScene(url) {
     const gltf = await this.load(url);
+    gltf.scene.animations = [...(gltf.animations || [])];
+    return gltf.scene;
+  }
+
+  async loadBytes(bytes) {
+    if (!globalThis.document && !globalThis.createImageBitmap && assertEmbeddedGLB(bytes).images?.length) throw Object.assign(new Error('Headless texture decoder unavailable'), { code: 'HEADLESS_TEXTURE_DECODER_UNAVAILABLE' });
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    const gltf = await this.loader.parseAsync(buffer, '');
+    if (!gltf?.scene) throw new Error('GLTF has no default scene');
     gltf.scene.animations = [...(gltf.animations || [])];
     return gltf.scene;
   }

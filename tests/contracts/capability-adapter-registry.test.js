@@ -1,14 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import {
   CAPABILITIES,
   capabilityAvailability,
   invokeCapability,
+  probeCapabilities,
+  sendCapabilityHealth,
   sendCapabilityStatus
 } from '../../apps/server/CapabilityAdapterRegistry.js';
 
 function responseRecorder(){return{statusCode:0,headers:{},body:Buffer.alloc(0),setHeader(key,value){this.headers[String(key).toLowerCase()]=String(value);},end(value=''){this.body=Buffer.isBuffer(value)?value:Buffer.from(value);}};}
 
 describe('deployment capability adapter registry',()=>{
+  it('aborts the adapter request when the browser connection closes',async()=>{
+    const res=Object.assign(new EventEmitter(),responseRecorder());
+    let signal;
+    const fetchImpl=vi.fn(async(_url,options)=>{
+      signal=options.signal;
+      return new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('cancelled','AbortError')),{once:true}));
+    });
+    const run=invokeCapability({method:'POST',headers:{'content-type':'application/json'},body:{}},res,CAPABILITIES.AGENT,{env:{AGENT_ADAPTER_URL:'https://agent.test/run'},fetchImpl});
+    await vi.waitFor(()=>expect(signal).toBeDefined());
+    res.destroyed=true;res.emit('close');await run;
+    expect(signal.aborted).toBe(true);expect(res.body).toHaveLength(0);expect(res.listenerCount('close')).toBe(0);
+  });
   it('reports only capability availability and validates adapter URLs',()=>{
     expect(capabilityAvailability({
       AGENT_ADAPTER_URL:'https://agent.test/run',
@@ -143,5 +158,62 @@ describe('deployment capability adapter registry',()=>{
         'asset.compile':{available:false}
       }
     });
+  });
+});
+
+describe('capability health probing',()=>{
+  const env={AGENT_ADAPTER_URL:'https://agent.test/run',AGENT_ADAPTER_AUTHORIZATION:'Bearer server-secret',ASSET_COMPILE_ADAPTER_URL:'https://compiler.test/compile'};
+
+  it('reports unconfigured adapters without any network call',async()=>{
+    const fetchImpl=vi.fn();
+    const result=await probeCapabilities({},{fetchImpl});
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.agent).toMatchObject({available:false,state:'unconfigured',reason:'NOT_CONFIGURED',latencyMs:null});
+  });
+
+  it('derives /health from the invoke URL and forwards only deployment authorization',async()=>{
+    const fetchImpl=vi.fn(async()=>new Response('{}',{status:200}));
+    await probeCapabilities(env,{fetchImpl});
+    const calls=Object.fromEntries(fetchImpl.mock.calls.map(([url,options])=>[url,options]));
+    expect(Object.keys(calls).sort()).toEqual(['https://agent.test/health','https://compiler.test/health']);
+    expect(calls['https://agent.test/health'].headers.authorization).toBe('Bearer server-secret');
+    expect(calls['https://compiler.test/health'].headers.authorization).toBeUndefined();
+  });
+
+  it('classifies ok, slow, http failures and timeouts',async()=>{
+    let t=0;
+    const now=()=>t;
+    const fetchImpl=vi.fn(async(url)=>{
+      if(url.startsWith('https://agent.test')){t+=2000;return new Response('{}',{status:200});}
+      t+=10;return new Response('no',{status:503});
+    });
+    const result=await probeCapabilities(env,{fetchImpl,now});
+    expect(result.agent.state).toBe('slow');
+    expect(result['asset.compile']).toMatchObject({state:'down',reason:'HTTP_503'});
+
+    const hanging=vi.fn((_url,{signal})=>new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(Object.assign(new Error('x'),{name:'AbortError'})))));
+    const timedOut=await probeCapabilities({AGENT_ADAPTER_URL:env.AGENT_ADAPTER_URL},{fetchImpl:hanging,timeoutMs:5});
+    expect(timedOut.agent).toMatchObject({state:'down',reason:'TIMEOUT'});
+    const refused=await probeCapabilities({AGENT_ADAPTER_URL:env.AGENT_ADAPTER_URL},{fetchImpl:async()=>{throw new Error('ECONNREFUSED secret-host');}});
+    expect(refused.agent).toMatchObject({state:'down',reason:'UNREACHABLE'});
+  });
+
+  it('never leaks adapter URLs or upstream bodies through the health endpoint',async()=>{
+    const res=responseRecorder();
+    await sendCapabilityHealth({method:'GET'},res,env,{fetchImpl:async()=>new Response('SECRET-UPSTREAM-BODY',{status:500})});
+    const body=res.body.toString();
+    expect(body).not.toMatch(/agent\.test|compiler\.test|SECRET|server-secret/);
+    expect(res.headers['cache-control']).toBe('no-store');
+    const post=responseRecorder();
+    await sendCapabilityHealth({method:'POST'},post);
+    expect(post.statusCode).toBe(405);
+  });
+
+  it('turns an adapter that never answers an invoke into a bounded 504',async()=>{
+    const fetchImpl=vi.fn((_url,{signal})=>new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(Object.assign(new Error('x'),{name:'AbortError'})))));
+    const res=responseRecorder();
+    await invokeCapability({method:'POST',headers:{},body:Buffer.from('{}')},res,CAPABILITIES.AGENT,{env,fetchImpl,timeoutMs:5});
+    expect(res.statusCode).toBe(504);
+    expect(JSON.parse(res.body.toString()).code).toBe('ADAPTER_TIMEOUT');
   });
 });

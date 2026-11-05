@@ -1,0 +1,27 @@
+name: Bug report / 问题反馈
+description: Report a reproducible failure in a world or developer workflow.
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Commit and environment / 版本与环境
+      description: Commit hash, operating system, Node version, browser and version.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps and minimal project / 复现步骤与最小项目
+      description: Include a small scene/save if possible. Remove secrets and private assets.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior / 预期与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Error, screenshot or test result / 错误与验证结果

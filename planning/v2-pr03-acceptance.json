@@ -1,0 +1,33 @@
+{
+  "stage": "PR-03",
+  "status": "passed-with-explicit-skips",
+  "checks": [
+    {
+      "command": "npm run check",
+      "passed": 1626,
+      "skipped": 3,
+      "log": ".v2-pr03-check.log"
+    },
+    {
+      "command": "npm run test:mcp",
+      "passed": 10,
+      "skipped": 3,
+      "log": ".v2-pr03-mcp.log"
+    },
+    {
+      "command": "npm run test:browser",
+      "passed": 7,
+      "log": ".v2-pr03-browser.log"
+    }
+  ],
+  "scope": [
+    "One SceneFacade per Runtime via WeakMap",
+    "createSession exposes scene; Starter adapter uses openScene",
+    "Transactional edits, partial batch reports, revision and idempotency",
+    "Bounded job registry, queries, cancellation and verification"
+  ],
+  "remaining": [
+    "Full Studio/MCP write routing converges in PR-07",
+    "Portable save in PR-05; styles in PR-08"
+  ]
+}

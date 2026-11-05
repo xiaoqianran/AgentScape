@@ -55,7 +55,8 @@ export const assetManifests = {
         { shape:'box', halfExtents:[0.75,0.90,0.04], translation:[0,1,-0.32] }
       ]
     },
-    receptacles: [{ id:'interior', localPosition:[0,0.975,-0.01], size:[1.40,1.65,0.46] }],
+    // Interior begins on the physical bottom shelf (0.05 + 0.05), so settled contents remain inside.
+    receptacles: [{ id:'interior', localPosition:[0,0.95,-0.01], size:[1.40,1.70,0.46] }],
     parts: {
       door: {
         node: 'doorHinge', semantic: 'door', actions: ['open', 'close'], targets: { open: -1.35, close: 0 },

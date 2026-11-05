@@ -92,7 +92,7 @@ describe('StudioApp contract',()=>{
     }));
     expect(html).toContain('data-world="runtime_world"');
     expect(html).toContain('data-page="world"');
-    expect(html).toContain('GENERATED · Generated Garden');
+    expect(html).toContain('已生成 · Generated Garden');
     expect(html).toContain('value="runtime:artifact_world_01"');
     expect(html).toMatch(/data-product-nav="worlds"[^>]*aria-pressed="true"/);
     expect(html).toContain('aria-label="World Editor"');

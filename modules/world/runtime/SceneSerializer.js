@@ -1,4 +1,6 @@
 import { uniformScaleValue } from './ObjectTransform.js';
+import { compileRuleGraph } from './behavior/RuleGraph.js';
+import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
 
 export const SCENE_SCHEMA = 'agentscape.scene';
 export const SCENE_VERSION = 1;
@@ -7,12 +9,13 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 const isFiniteVec = (value, length) => Array.isArray(value) && value.length === length && value.every(Number.isFinite);
 
 export class SceneSerializer {
-  serialize(runtime, { name = 'Untitled World' } = {}) {
-    runtime.sceneGraph?.update?.();
+  serialize(runtime, { name = 'Untitled World', includeRelations = true } = {}) {
+    if (includeRelations) runtime.sceneGraph?.update?.();
     const usedAssets = new Set();
     const objects = runtime.store.list().map(([id, record]) => {
       usedAssets.add(record.assetId);
       const object = record.object;
+      const articulation = runtime.physics?.captureArticulationPose?.(id) || [];
       return {
         id,
         assetId: record.assetId,
@@ -21,7 +24,8 @@ export class SceneSerializer {
           quaternion: object.quaternion.toArray(),
           scale: object.scale.toArray()
         },
-        state: clone(record.state || {})
+        state: clone(record.state || {}),
+        ...(articulation.length ? { articulation } : {})
       };
     });
 
@@ -33,6 +37,7 @@ export class SceneSerializer {
     const worldRevision=runtime.currentWorldRevision ? clone(runtime.currentWorldRevision) : null;
     const acceptanceEvidence=runtime.lastAcceptanceBundle ? clone(runtime.lastAcceptanceBundle) : null;
     const cameraState=runtime.rendering?.cameraState?.() || null;
+    const stylePack=runtime.rendering?.serializeStyle?.() || null;
     return {
       schema: SCENE_SCHEMA,
       schemaVersion: SCENE_VERSION,
@@ -41,12 +46,17 @@ export class SceneSerializer {
         savedAt: new Date().toISOString(),
         generator: `AgentScape/${runtime.version || 'unknown'}`,
         environment: runtime.environment?.id || null,
+        ...(stylePack?{stylePack}:{}),
         ...(runtime.environment?.snapshot ? {environmentState:clone(runtime.environment.snapshot())} : {}),
         ...(worldRevision?{worldRevision}:{})
       },
       assets,
       objects,
-      relations: runtime.sceneGraph?.list?.() || [],
+      configuration: {
+        behaviorBundle: runtime.currentBehaviorBundle ? clone(runtime.currentBehaviorBundle) : null,
+        physicsRequirements: runtime.currentPhysicsRequirements ? clone(runtime.currentPhysicsRequirements) : null
+      },
+      ...(includeRelations ? { relations:runtime.sceneGraph?.list?.() || [] } : {}),
       ...(acceptanceEvidence?{verification:{acceptanceEvidence}}:{}),
       ...(cameraState?{camera:cameraState}:{})
     };
@@ -58,12 +68,29 @@ export class SceneSerializer {
     if (scene.schemaVersion !== SCENE_VERSION) throw new Error(`Unsupported scene version: ${scene.schemaVersion}`);
     if (!Array.isArray(scene.objects)) throw new Error('Scene objects must be an array');
     if (!Array.isArray(scene.assets)) throw new Error('Scene assets must be an array');
+    if (scene.camera != null && (!isFiniteVec(scene.camera.position,3) || !isFiniteVec(scene.camera.target,3))) throw new Error('Scene camera requires finite position and target');
     if (scene.relations != null && !Array.isArray(scene.relations)) throw new Error('Scene relations must be an array');
     const worldRevision=scene.metadata?.worldRevision;
     if (worldRevision != null) {
       if (!worldRevision || typeof worldRevision !== 'object' || Array.isArray(worldRevision)) throw new Error('Scene worldRevision must be an object');
       if (!worldRevision.revision?.id) throw new Error('Scene worldRevision requires revision.id');
       if (!worldRevision.provenance?.source) throw new Error('Scene worldRevision requires provenance.source');
+    }
+    const configuration = scene.configuration;
+    if (configuration != null) {
+      if (typeof configuration !== 'object' || Array.isArray(configuration)) throw new Error('Invalid scene configuration');
+      for (const key of ['behaviorBundle', 'physicsRequirements']) {
+        const value = configuration[key];
+        if (value != null && (typeof value !== 'object' || Array.isArray(value))) throw new Error(`Invalid scene ${key}`);
+        if (value?.worldRevisionId && value.worldRevisionId !== worldRevision?.revision?.id) {
+          throw new Error(`Scene ${key} revision mismatch`);
+        }
+      }
+      const graph = configuration.behaviorBundle?.ruleGraph || [];
+      if (!Array.isArray(graph) && (graph.schema !== 'agentscape.rule-graph' || graph.schemaVersion !== 1)) {
+        throw new Error('Invalid scene rule graph');
+      }
+      compileRuleGraph(Array.isArray(graph) ? graph : graph.rules);
     }
     const acceptanceEvidence=scene.verification?.acceptanceEvidence;
     if (acceptanceEvidence != null) {
@@ -76,6 +103,15 @@ export class SceneSerializer {
     const objectIds = new Set();
     for (const object of scene.objects) {
       if (!object.id || !object.assetId) throw new Error('Scene object requires id and assetId');
+      if (object.articulation != null) {
+        if (!Array.isArray(object.articulation) || object.articulation.length > 128) throw new Error('Invalid articulation poses');
+        const names = new Set();
+        for (const part of object.articulation) {
+          if (!part || typeof part.partName !== 'string' || names.has(part.partName) || !isFiniteVec(part.position,3) || !isFiniteVec(part.quaternion,4)
+            || Math.abs(Math.hypot(...part.quaternion)-1) > .001 || (part.motorTarget != null && !Number.isFinite(part.motorTarget))) throw new Error('Invalid articulation pose');
+          names.add(part.partName);
+        }
+      }
       if (objectIds.has(object.id)) throw new Error(`Duplicate scene object id: ${object.id}`);
       objectIds.add(object.id);
     }
@@ -99,6 +135,7 @@ export class SceneSerializer {
 
   async restore(runtime, input) {
     const scene = this.validate(clone(input));
+    runtime.rendering?.validateStyle?.(scene.metadata?.stylePack || null);
     const sceneEnvironment = scene.metadata?.environment;
     const runtimeEnvironment = runtime.environment?.id;
     if (sceneEnvironment && runtimeEnvironment && sceneEnvironment !== runtimeEnvironment) {
@@ -114,12 +151,19 @@ export class SceneSerializer {
 
     // 预检已通过，从这里开始才会破坏当前世界。失败时恢复加载前的场景，而不是留下半个世界。
     const previous = typeof runtime.snapshot === 'function' ? runtime.snapshot() : null;
+    const previousAuthority = captureWorldAuthority(runtime);
+    const previousPhysics = runtime.physics?.captureState?.();
     if (!previous) return this.applyScene(runtime, scene);
     try {
       return await this.applyScene(runtime, scene);
     } catch (error) {
       try {
         await this.applyScene(runtime, previous);
+        if (previousPhysics) {
+          runtime.physics.restoreState(previousPhysics);
+          runtime.sceneGraph?.invalidate?.();
+        }
+        restoreWorldAuthority(runtime, previousAuthority);
       } catch (rollbackError) {
         const failure = new AggregateError([error, rollbackError], 'Scene restore rollback failed', { cause:error });
         failure.code = 'SCENE_RESTORE_ROLLBACK_FAILED';
@@ -161,6 +205,7 @@ export class SceneSerializer {
         const record = runtime.store.get(item.id);
         record.state = clone(item.state || {});
         runtime.restoreObjectState(item.id, record.state);
+        if (item.articulation?.length) runtime.physics.restoreArticulationPose(item.id, item.articulation);
       }
       runtime.interactions?.rebuildHeldOwnership?.();
       runtime.sceneGraph.changed();
@@ -169,9 +214,14 @@ export class SceneSerializer {
     if(scene.metadata?.environmentState) runtime.environment?.restore?.(scene.metadata.environmentState);
     runtime.navigation?.invalidate?.('scene-restored');
     if (scene.camera) runtime.rendering?.applyCameraState?.(scene.camera);
+    await runtime.rendering?.restoreStyle?.(scene.metadata?.stylePack || null);
     runtime.currentWorldRevision=scene.metadata?.worldRevision ? clone(scene.metadata.worldRevision) : null;
     runtime.restoredAcceptanceEvidence=scene.verification?.acceptanceEvidence ? clone(scene.verification.acceptanceEvidence) : null;
     runtime.lastAcceptanceBundle=null;
+    runtime.currentBehaviorBundle=scene.configuration?.behaviorBundle ? clone(scene.configuration.behaviorBundle) : null;
+    runtime.currentPhysicsRequirements=scene.configuration?.physicsRequirements ? clone(scene.configuration.physicsRequirements) : null;
+    runtime.interactionEvidence?.clear?.();
+    runtime.loadRuleGraph?.(runtime.currentBehaviorBundle?.ruleGraph || []);
     runtime.events.emit('scene.restored', { objects: scene.objects.length, worldRevisionId:runtime.currentWorldRevision?.revision?.id || null, hasAcceptanceEvidence:Boolean(runtime.restoredAcceptanceEvidence) });
     return scene;
   }

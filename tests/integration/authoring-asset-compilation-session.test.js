@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSession } from '../../application/createSession.js';
 import { AgentTools } from '../../application/AgentTools.js';
+import { registerCodeSkills } from '../../application/skills/packs/codeSkills.js';
 import { CommandHistory } from '../../modules/world/runtime/CommandHistory.js';
 import { createRapierPhysicsSystem } from '../helpers/createRapierPhysicsSystem.js';
 import { createRecastNavigationSystem } from '../helpers/createRecastNavigationSystem.js';
@@ -60,6 +61,10 @@ async function fixture() {
   });
   cleanup.push(() => promotion.dispose());
   cleanup.push(() => authoring.dispose());
+  // Legacy compilation fixture executes only repository-owned source. Production
+  // createSession keeps this skill hidden and rejects unisolated Agent code.
+  world.skills.skills.delete('runAuthoringCode');
+  registerCodeSkills((name, options, handler) => world.skills.register({ name, ...options, handler }), authoring, { allowTrustedLocal:true });
   const ground = new THREE.Mesh(new THREE.BoxGeometry(30, .1, 30), new THREE.MeshStandardMaterial());
   ground.position.y = -.05;
   world.environment = { id: 'agent-compiled-session', root: ground, colliders: [] };

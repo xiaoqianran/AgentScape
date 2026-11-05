@@ -1,0 +1,117 @@
+{
+  "stage": "V2-PR-09",
+  "status": "local-passed-external-blocked",
+  "recordedAt": "2026-11-05T01:33:56.884Z",
+  "branch": "feat/scene-api-v1",
+  "version": "2.0.0-dev.1",
+  "localEnvironment": {
+    "os": "Windows 11",
+    "node": "v24.18.0",
+    "npm": "12.2.0",
+    "browserRenderer": "Chromium SwiftShader (software)",
+    "ciTargetNode": "22"
+  },
+  "localChecks": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "scope": "architecture, assets, world viability, TypeScript, Vitest and production build"
+    },
+    {
+      "command": "npm run test:mcp",
+      "status": "passed-with-explicit-skips",
+      "passed": 11,
+      "skipped": 3,
+      "skippedReason": "real Docker sandbox integration not enabled"
+    },
+    {
+      "command": "npx playwright test tests/browser/style-pack.spec.js",
+      "status": "passed",
+      "passed": 1,
+      "scope": "realistic, toon, low-poly; stable object identities/canvas; complete export/import"
+    },
+    {
+      "command": "npm run test:browser",
+      "status": "passed",
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0,
+      "scope": "production build, first-world, standard task, editing, persisted and corrupt imports, authoring, task cancellation, style packs"
+    },
+    {
+      "command": "node dev/report-browser-baseline.mjs",
+      "status": "passed",
+      "report": ".tmp-release/browser-baseline.json"
+    },
+    {
+      "command": "npm run sdk:verify",
+      "status": "passed",
+      "report": ".tmp-release/sdk-install.json",
+      "scope": "pack/install to isolated consumer, fresh-process save and restore with physical body and toon style"
+    },
+    {
+      "command": "npm run storybook:build",
+      "status": "passed"
+    },
+    {
+      "command": "npm audit --audit-level=moderate",
+      "status": "passed",
+      "vulnerabilities": 0
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "browserPerformance": {
+    "source": "2026-11-05 full 9/9 local Playwright run",
+    "backend": "software-rendering-only",
+    "startupMs": 559,
+    "frameIntervalMs": {
+      "median": 216.6,
+      "p95": 433.4,
+      "max": 483.4,
+      "samples": 90
+    },
+    "sceneReplacements": 3,
+    "webglContextsLost": 3,
+    "jsHeapUsedAfterGcBytes": [
+      14374128,
+      14709032,
+      14867832
+    ],
+    "styleSwitchMs": {
+      "realistic": 2840,
+      "toon": 2282,
+      "low-poly": 2910
+    },
+    "interpretation": "Measurements are descriptive, not a hardware GPU FPS or VRAM guarantee. Three browser world replacements do not establish long-run leak freedom."
+  },
+  "externalGates": {
+    "independentHumanFirstUse": {
+      "status": "not-performed",
+      "record": "docs/first-use-check.md",
+      "requirement": "Independent non-developer completes real pickup/place/save/reopen and records measured experience"
+    },
+    "hostedCI": {
+      "status": "pending-evidence",
+      "requirement": "GitHub Actions on exact pushed candidate commit; inspect all jobs and retained artifacts"
+    },
+    "privateSecurityReporting": {
+      "status": "verified-enabled",
+      "source": "GitHub API repos/xiaoqianran/AgentScape/private-vulnerability-reporting"
+    },
+    "realDockerSandbox": {
+      "status": "not-tested-on-this-machine",
+      "requirement": "Explicit Linux sandbox integration verification before claiming that coverage"
+    }
+  },
+  "knownLimitations": [
+    "Development SDK not published to npm and no hosted Playground released",
+    "Software renderer baseline only; no validated real GPU/mobile performance",
+    "Build warns about large JS chunks and externalized Node modules; build succeeds",
+    "External models and generation providers are not part of default offline regression"
+  ],
+  "releaseDecision": "BLOCKED: local engineering evidence is complete; no public release approval until independent human first-use and hosted CI evidence are reviewed"
+}

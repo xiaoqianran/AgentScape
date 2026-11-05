@@ -21,6 +21,8 @@ export class InteractionSystem {
     this.articulationRuntime = new ArticulationRuntime({ store, physics, events, assertSupports:(...args)=>this.assertSupports(...args) });
     this.articulationTasks = this.articulationRuntime.tasks;
     this.articulationResults = this.articulationRuntime.results;
+    this.physicalTasks = new Map();
+    this.manipulationEpoch = 0;
     this.settleRuntime = new SettleRuntime({ store, physics, spatial, events, carry:this.carry, articulation:this.articulationRuntime });
     this.settleTasks = this.settleRuntime.tasks;
     this.approach = new InteractionApproach({
@@ -58,6 +60,7 @@ export class InteractionSystem {
         recovery: [...this.recoveryHeld.entries()].map(([actor, value]) => ({ actorId: actor, ...structuredClone(value) }))
       },
       pending: {
+        physical: [...this.physicalTasks.values()].map(task => ({ actorId:task.actorId, targetId:task.targetId, action:task.action, elapsed:task.elapsed, progress:task.progress, error:task.error })),
         settle: [...this.settleTasks.values()].map((task) => ({
           kind: task.kind,
           actorId: task.actorId || null,
@@ -118,6 +121,7 @@ export class InteractionSystem {
   rebuildHeldOwnership() { this.recoveryHeld.clear(); return this.carry.rebuildHeldOwnership(); }
 
   beforeRemove(id,{silent=false}={}) {
+    for (const task of this.physicalTasks.values()) if (task.targetId === id || task.actorId === id) this.finishPhysicalTask(task, 'OBJECT_REMOVED');
     for (const [actorId,recovery] of [...this.recoveryHeld]) if (actorId===id || recovery.blockerId===id || recovery.targetId===id) this.recoveryHeld.delete(actorId);
     for (const key of [...this.articulationResults.keys()]) if (key.startsWith(`${id}:`)) this.articulationResults.delete(key);
     for (const task of [...this.articulationTasks.values()]) if (task.id === id) {
@@ -136,6 +140,8 @@ export class InteractionSystem {
   }
 
   cancelPending(reason = 'RUNTIME_DISPOSED') {
+    this.manipulationEpoch++;
+    for (const task of this.physicalTasks.values()) this.finishPhysicalTask(task, reason);
     for (const task of [...this.settleTasks.values()]) {
       this.finishPlacementSettle(task,task.kind==='recovery-cleanup'
         ? this.recoveryCleanupSettleResult(task,null,{settled:false,reason})
@@ -144,6 +150,7 @@ export class InteractionSystem {
           : {status:'place-unverified',reason,supportVerified:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
     }
     for (const task of [...this.articulationTasks.values()]) {
+      if (task.physicalOperation) this.physics.holdArticulationCurrent(task.id, task.partName);
       this.finishArticulationTask(task,{status:'action-unverified',reason,targetReached:false,settled:false,elapsed:Number(task.elapsed.toFixed(3))});
     }
   }
@@ -530,6 +537,170 @@ export class InteractionSystem {
 
   carryStatus(...args) { return this.carry.carryStatus(...args); }
 
+  manipulationCapability(targetId, action, partName = null) {
+    const no = reason => ({ available:false, reason });
+    if (!['push','drag','rotate','slide','rotateJoint'].includes(action)) return no('ACTION_UNSUPPORTED');
+    if (!this.store.has(targetId)) return no('OBJECT_NOT_FOUND');
+    if (!this.physics.hasCapability('rigid-body') || !this.physics.hasCapability('collision') || !this.physics.hasCapability('scene-query')) return no('PHYSICS_CAPABILITY_UNAVAILABLE');
+    const record = this.store.get(targetId);
+    if (this.isHeld(targetId)) return no('OBJECT_ALREADY_HELD');
+    if (this.physicalTasks.has(targetId) || [...this.articulationTasks.values()].some(task => task.id === targetId)) return no('ACTION_IN_PROGRESS');
+    const jointAction = ['slide','rotateJoint'].includes(action);
+    const body = this.physics.manipulationBody(targetId, jointAction ? partName : undefined);
+    if (!body.registered || !body.colliderCount) return no('TARGET_PHYSICS_UNAVAILABLE');
+    if (body.body !== 'dynamic') return no('TARGET_NOT_DYNAMIC');
+    if (action === 'rotate' && body.lockRotation.every(Boolean)) return no('ROTATION_LOCKED');
+    if (['push','drag'].includes(action) && body.lockTranslation[0] && body.lockTranslation[2]) return no('TRANSLATION_LOCKED');
+    if (jointAction) {
+      const joint = record.manifest.parts?.[partName]?.joint;
+      if (!body.joint || !this.physics.hasCapability('joints')) return no('PHYSICAL_JOINT_UNAVAILABLE');
+      if (joint?.type !== (action === 'slide' ? 'prismatic' : 'revolute')) return no('JOINT_TYPE_MISMATCH');
+    } else if (Object.keys(record.manifest.parts || {}).length) return no('ARTICULATED_TARGET_UNSUPPORTED');
+    return { available:true };
+  }
+
+  /** Contact proxy within the existing Agent reach model; no pose or velocity assignment. */
+  async manipulate(actorId, targetId, action, args = {}) {
+    const blocked = reason => ({ status:'physical-action-blocked', actorId, targetId, action, verified:false, physicsVerified:false, reason });
+    if (!this.store.has(actorId)) return blocked('ACTOR_NOT_FOUND');
+    if (this.store.get(actorId).manifest.type !== 'agent') return blocked('ACTOR_NOT_AGENT');
+    if (this.heldByAgent(actorId)) return blocked('HANDS_FULL');
+    const capability = this.manipulationCapability(targetId, action, args.part);
+    if (!capability.available) return blocked(capability.reason);
+    const epoch = this.manipulationEpoch;
+    const linear = ['push','drag'].includes(action);
+    const direction = linear ? new THREE.Vector3(...args.direction).normalize() : null;
+    const validSide = position => {
+      if (!linear) return true;
+      const center = this.spatial.getBounds(targetId).center;
+      const side = (center[0]-position[0])*direction.x + (center[2]-position[2])*direction.z;
+      return action === 'push' ? side > .05 : side < -.05;
+    };
+    const pose = await this.findInteractionPose(actorId, targetId, { candidateFilter:validSide });
+    if (epoch !== this.manipulationEpoch) return blocked('ACTION_CANCELLED');
+    if (!pose) return blocked('NO_INTERACTION_POSE');
+    const approach = await this.navigateToPose(actorId, pose, {});
+    if (epoch !== this.manipulationEpoch) return blocked('ACTION_CANCELLED');
+    if (approach && approach.status !== 'arrived') return blocked('APPROACH_FAILED');
+    const accessReason = () => {
+      if (!this.store.has(actorId) || !this.store.has(targetId)) return 'OBJECT_REMOVED';
+      if (this.isHeld(targetId)) return 'OBJECT_ALREADY_HELD';
+      if (this.heldByAgent(actorId)) return 'HANDS_FULL';
+      if (!this.physics.getPosition(actorId)) return 'ACTOR_PHYSICS_UNAVAILABLE';
+      const contacts = this.physics.articulationContacts(targetId, args.part || '$root');
+      if (contacts.some(contact => contact.minDistance < -.03)) return 'COLLISION_PENETRATION';
+      const reach = this.interactionStatus(actorId, targetId);
+      return !reach.interactable ? reach.inRange ? 'OCCLUDED' : 'OUT_OF_REACH' : null;
+    };
+    const unavailable = accessReason();
+    if (unavailable) return blocked(unavailable);
+    if (['slide','rotateJoint'].includes(action)) {
+      const state = this.physics.getArticulationState(targetId, args.part);
+      if (!state) return blocked('JOINT_STATE_UNAVAILABLE');
+      const target = args.target ?? state.coordinate + (args.distance ?? args.angle);
+      if (state.limits && (target < state.limits[0] || target > state.limits[1])) return blocked('JOINT_LIMIT_EXCEEDED');
+      // Only real solver joints were admitted above; transform-pose fallback is forbidden.
+      if (!this.physics.setArticulationTarget(targetId, args.part, target)) return blocked('JOINT_MOTOR_UNAVAILABLE');
+      // Old semantic labels must not survive an arbitrary numeric joint command.
+      const record = this.store.get(targetId);
+      if (record.state.parts) delete record.state.parts[args.part];
+      if (record.state.partTargets) delete record.state.partTargets[args.part];
+      const pending = this.waitForArticulationCompletion(targetId, args.part, action, target, { timeout:8 });
+      const task = this.articulationTasks.get(`${targetId}:${args.part}`);
+      if (task) { task.guard = accessReason; task.physicalOperation = true; }
+      const completion = await pending;
+      if (completion.status !== 'action-completed') this.physics.holdArticulationCurrent(targetId, args.part);
+      const verified = completion.status === 'action-completed' && completion.targetReached && completion.settled;
+      return { ...completion, actorId, targetId, action, verified, physicsVerified:verified, evidenceKind:'joint-motor', initialCoordinate:state.coordinate,
+        contactEvidence:this.physics.articulationContacts(targetId,args.part) };
+    }
+    if (linear && !validSide(this.physics.getPosition(actorId))) return blocked('CONTACT_DIRECTION_UNREACHABLE');
+    return new Promise(resolve => {
+      const record = this.store.get(targetId);
+      const task = { actorId, targetId, action, args, direction, accessReason, resolve,
+        initialPosition:new THREE.Vector3(...this.physics.getPosition(targetId)), initialRotation:record.object.quaternion.clone(),
+        axis:action === 'rotate' ? new THREE.Vector3(...args.axis).normalize() : null,
+        mass:this.physics.manipulationBody(targetId).mass || 1, elapsed:0, stable:0, appliedSteps:0, maxEffort:0,
+        samples:[], progress:0, error:linear ? args.distance : Math.abs(args.angle) };
+      const size = this.spatial.getBounds(targetId).size;
+      task.inertia = task.mass*(size[0]**2+size[1]**2+size[2]**2)/18;
+      task.timer = setTimeout(() => this.finishPhysicalTask(task, 'SIMULATION_NOT_ADVANCING'), 12000);
+      task.timer.unref?.();
+      this.physicalTasks.set(targetId, task);
+    });
+  }
+
+  finishPhysicalTask(task, reason = null) {
+    if (this.physicalTasks.get(task.targetId) !== task) return;
+    clearTimeout(task.timer); this.physicalTasks.delete(task.targetId);
+    const verified = !reason && task.appliedSteps > 0;
+    const contactEvidence = this.physics.articulationContacts(task.targetId, '$root');
+    const report = { status:verified ? 'physical-action-completed' : 'physical-action-unverified', reason,
+      actorId:task.actorId, targetId:task.targetId, action:task.action, verified, physicsVerified:verified,
+      targetReached:verified, settled:verified, evidenceKind:task.action === 'rotate' ? 'rigid-body-torque' : 'rigid-body-force',
+      initialPosition:task.initialPosition.toArray(), finalPosition:this.physics.getPosition(task.targetId),
+      progress:task.progress, error:task.error, elapsed:task.elapsed, appliedSteps:task.appliedSteps,
+      maxEffort:task.maxEffort, contactPoint:task.contactPoint || null, contactEvidence };
+    report.initialRotation = task.initialRotation.toArray();
+    report.finalRotation = this.store.has(task.targetId) ? this.store.get(task.targetId).object.quaternion.toArray() : null;
+    report.graspVerified = false;
+    this.notifyObjectTransform(task.targetId, 'interaction.physical');
+    this.events.emit('interaction', report); task.resolve(report);
+  }
+
+  updatePhysicalTasks(dt) {
+    for (const task of this.physicalTasks.values()) {
+      task.elapsed += dt;
+      const reason = task.accessReason();
+      if (reason) { this.finishPhysicalTask(task, reason); continue; }
+      const position = new THREE.Vector3(...this.physics.getPosition(task.targetId));
+      const motion = this.physics.getMotion(task.targetId);
+      const rotate = task.action === 'rotate';
+      let effort, applied, speed, deviated;
+      if (rotate) {
+        const rotation = this.store.get(task.targetId).object.quaternion.clone().multiply(task.initialRotation.clone().invert()).normalize();
+        task.progress = 2*Math.atan2(rotation.x*task.axis.x + rotation.y*task.axis.y + rotation.z*task.axis.z, rotation.w);
+        task.progress = Math.atan2(Math.sin(task.progress), Math.cos(task.progress));
+        task.error = Math.atan2(Math.sin(task.args.angle-task.progress), Math.cos(task.args.angle-task.progress));
+        const velocity = new THREE.Vector3(...motion.angularVelocity);
+        speed = velocity.length();
+        const desired = Math.abs(task.error) < .05 ? 0 : THREE.MathUtils.clamp(task.error*2, -.6, .6);
+        effort = THREE.MathUtils.clamp(task.inertia*(desired-velocity.dot(task.axis))*8, -task.args.maxTorque, task.args.maxTorque);
+        const expected = new THREE.Quaternion().setFromAxisAngle(task.axis, task.progress).multiply(task.initialRotation);
+        deviated = position.distanceTo(task.initialPosition) > .15 || expected.angleTo(this.store.get(task.targetId).object.quaternion) > .15;
+        applied = () => this.physics.applyTorque(task.targetId, task.axis.clone().multiplyScalar(effort).toArray());
+      } else {
+        const delta = position.clone().sub(task.initialPosition);
+        task.progress = delta.dot(task.direction); task.error = task.args.distance-task.progress;
+        const velocity = new THREE.Vector3(...motion.linearVelocity);
+        speed = velocity.length();
+        const desired = Math.abs(task.error) < .04 ? 0 : THREE.MathUtils.clamp(task.error*2, -.45, .45);
+        const friction = desired === 0 ? 0 : 9.81*.8*Math.sign(desired);
+        effort = THREE.MathUtils.clamp(task.mass*(10*(desired-velocity.dot(task.direction))+friction), -task.args.maxForce, task.args.maxForce);
+        deviated = delta.clone().addScaledVector(task.direction, -task.progress).length() > .15;
+        const sign = task.action === 'push' ? -1 : 1;
+        const contacts = this.physics.manipulationBody(task.targetId, undefined, {contacts:true}).contactCandidates.map(candidate => {
+          const origin = new THREE.Vector3(...candidate.center).addScaledVector(task.direction,sign*(candidate.radius+.05));
+          return this.physics.raycast(origin.toArray(),candidate.center,{excludeId:task.actorId});
+        }).filter(hit => hit?.id === task.targetId);
+        if (!contacts.length) { this.finishPhysicalTask(task,'CONTACT_POINT_UNAVAILABLE'); continue; }
+        task.contactPoint = contacts[0].point;
+        applied = () => this.physics.applyForce(task.targetId, task.direction.clone().multiplyScalar(effort).toArray(), { point:task.contactPoint });
+      }
+      const reached = Math.abs(task.error) <= .05 && speed < .08;
+      task.stable = reached ? task.stable+dt : 0;
+      if (deviated) { this.finishPhysicalTask(task, 'MOTION_CONSTRAINT_VIOLATED'); continue; }
+      if (this.physics.articulationContacts(task.targetId, '$root').some(contact => contact.minDistance < -.03)) { this.finishPhysicalTask(task, 'COLLISION_PENETRATION'); continue; }
+      if (task.stable >= .25) { this.finishPhysicalTask(task); continue; }
+      task.samples.push({ time:task.elapsed, progress:task.progress });
+      while (task.samples.length > 2 && task.samples[1].time < task.elapsed-1.5) task.samples.shift();
+      if (!reached && task.elapsed >= 1.6 && Math.abs(task.progress-task.samples[0].progress) < .005) { this.finishPhysicalTask(task, 'STALL'); continue; }
+      if (task.elapsed >= 8) { this.finishPhysicalTask(task, 'TIMEOUT'); continue; }
+      if (!applied()) { this.finishPhysicalTask(task, 'FORCE_APPLICATION_FAILED'); continue; }
+      task.appliedSteps++; task.maxEffort = Math.max(task.maxEffort, Math.abs(effort));
+    }
+  }
+
   findPartForAction(...args) { return this.articulationRuntime.findPartForAction(...args); }
 
   setArticulationAction(...args) { return this.articulationRuntime.execute(...args); }
@@ -538,5 +709,6 @@ export class InteractionSystem {
     this.updatePlacementSettles(dt);
     this.updateArticulationTasks(dt);
     this.carry.update();
+    this.updatePhysicalTasks(dt);
   }
 }

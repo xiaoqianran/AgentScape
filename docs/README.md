@@ -1,5 +1,7 @@
 # AgentScape 文档体系
 
+第一次使用请先看[可运行 Starter](../apps/starter/README.md)；参与开发请看[贡献指南](../CONTRIBUTING.md)。下面的分层导航面向需要深入内部实现的开发者。
+
 AgentScape 文档按“当前真相”与“历史背景”分层。阅读和开发时不要把所有 Markdown 视为同等权威。
 
 ## 权威优先级
@@ -99,6 +101,8 @@ Capability 文档可以引用多个 Module Contract，但不能重新定义底�
 
 执行计划、backlog、未来事项属于仓库根目录 [`../planning/`](../planning/)，不属于 Current Docs。
 
+本轮产品闭环的可复现基线、测试入口与验收边界见 [产品验收交接](product-acceptance.md)。任务状态仍以各所有者的 `tasks.jsonl` 为准。
+
 历史 `execution-backlog.md` 已移动到 `planning/archive/`。
 
 ## 推荐阅读路径
@@ -126,6 +130,8 @@ README
 ```
 
 ## 文档维护规则
+
+待实施公共契约草案：[`Scene API / Asset Package / StylePack v1`](../planning/public-contracts-v1.md)。该提案不代表当前实现，不替代 L1–L3 现行契约。
 
 1. 新接口首先更新 Module Contract。
 2. 跨模块行为再更新 Capability Contract。

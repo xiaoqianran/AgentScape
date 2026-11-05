@@ -165,7 +165,9 @@ export class WorldQueries {
       if (Number.isFinite(distance) && distance > limitRadius) continue;
       const actionList = (entry.actions || []).map((action) => ({
         action: action.action,
-        available: action.available !== false,
+        execution: action.execution,
+        parameters: action.parameters,
+        available: action.available ?? null,
         reason: action.reason || null,
         distance: Number.isFinite(action.distance) ? round3(action.distance) : null
       }));
@@ -173,10 +175,12 @@ export class WorldQueries {
         id: entry.id,
         label: entry.label,
         kind: entry.kind,
+        source: entry.source,
         distance: Number.isFinite(distance) ? round3(distance) : null,
         position: vec3Round(entry.position),
         actions: actionList,
-        available: actionList.some((action) => action.available),
+        available: actionList.some((action) => action.available === true && !['query','editor'].includes(action.execution)) ? true
+          : actionList.some((action) => action.available === null && !['query','editor'].includes(action.execution)) ? null : false,
         evidenceKind: entry.evidenceKind || null,
         physicsVerified: entry.physicsVerified === true
       });

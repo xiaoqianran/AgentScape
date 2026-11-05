@@ -215,7 +215,7 @@ export class PromptHybridWorldOrchestrator {
         if(previousEnvironment && runtime.environment!==previousEnvironment) {
           await runtime.replaceEnvironment(previousEnvironment,{disposePrevious:false,reason:'prompt-hybrid-world-rollback'});
         }
-        await runtime.restore(beforeScene);
+        await runtime.restoreSnapshot(beforeScene);
         restoreWorldAuthority(runtime,authorityBefore);
       };
       try {

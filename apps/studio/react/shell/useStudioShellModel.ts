@@ -42,6 +42,15 @@ export function useStudioShellModel({
     return ()=>document.removeEventListener('keydown',onKeyDown);
   },[activePage,cinematic,closeContext,commitLayoutChange,contextOpen,setCinematic]);
 
+  useEffect(()=>{
+    const media=globalThis.matchMedia?.('(max-width: 820px)');
+    if (!media) return;
+    const collapseOnNarrowScreen=()=>{ if(media.matches) commitLayoutChange(()=>setSceneCollapsed(true)); };
+    const initialFrame=requestAnimationFrame(collapseOnNarrowScreen);
+    media.addEventListener('change',collapseOnNarrowScreen);
+    return ()=>{cancelAnimationFrame(initialFrame);media.removeEventListener('change',collapseOnNarrowScreen);};
+  },[commitLayoutChange,setSceneCollapsed]);
+
   const shellClass = [
     'shell',
     'spatial-editor',

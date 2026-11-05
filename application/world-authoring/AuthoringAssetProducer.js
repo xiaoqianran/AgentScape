@@ -2,12 +2,12 @@ import { sha256ArtifactHash } from '../../modules/artifact/IncrementalSha256.js'
 import { exportPromotionGLB } from './AuthoringPromotionSource.js';
 
 export function createAuthoringAssetProducer({ assets, artifacts, exportGLB = exportPromotionGLB }) {
-  return async (source, { usage }) => {
+  return async (source, { usage, definition = null, assetId:requestedAssetId = null }) => {
     const data = await exportGLB(source);
     const hash = sha256ArtifactHash([data]);
     const suffix = hash.slice(7);
     const artifactId = `authored_${suffix}`;
-    const assetId = `authored_${suffix}_${usage}`;
+    const assetId = requestedAssetId || `authored_${suffix}_${usage}`;
     const cacheKey = `cache_${artifactId}`;
     const now = new Date().toISOString();
     if (!artifacts.registry.get(artifactId)) {
@@ -37,6 +37,6 @@ export function createAuthoringAssetProducer({ assets, artifacts, exportGLB = ex
       hash, bytes:data.byteLength, mime:'model/gltf-binary', verifiedAt:now, method:'authoring-sha256-v1'
     });
     await artifacts.persistArtifact(artifactId, cacheKey);
-    return assets.produceAsset({ artifactId, assetId, label:'Authored object', authoringIntent:{ usage } });
+    return assets.produceAsset({ artifactId, assetId, label:definition?.label || 'Authored object', authoringIntent:{ usage }, ...(definition ? {definition} : {}) });
   };
 }

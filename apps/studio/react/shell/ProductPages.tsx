@@ -6,6 +6,7 @@ import { RunsPanelView } from '../runs/RunsPanelView';
 import { ResourceLibraryView } from '../resources/ResourceLibraryView';
 import { WorldsPage } from '../worlds/WorldsPage';
 import type { ProductPage } from '../state/studioStore';
+import { useStudioStore } from '../state/studioStore';
 
 type EnvironmentDefinition = {
   id:string;
@@ -13,8 +14,10 @@ type EnvironmentDefinition = {
   number?:string;
 };
 
-function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:RefObject<HTMLInputElement|null>; draft:any }) {
+export function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:RefObject<HTMLInputElement|null>; draft:any }) {
   const [value,setValue] = useState('');
+  const [bindSelection,setBindSelection] = useState(true);
+  const selection=useStudioStore(state=>state.editor.selection);
   const state:any = useSyncExternalStore(taskPanel.subscribe,taskPanel.snapshot,taskPanel.snapshot);
   useEffect(()=>{
     if (!draft) return;
@@ -26,10 +29,12 @@ function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:Re
     const prompt = value.trim();
     if (!prompt || state.busy || !state.available) return;
     setValue('');
-    void taskPanel.submit(prompt);
+    const reference=bindSelection && selection?.source==='runtime' ? `\n对象引用（只针对这个真实对象）：${JSON.stringify({id:selection.id})}` : '';
+    void taskPanel.submit(prompt+reference);
   };
   return (
     <form id="command" className="command-bar product-command-bar" autoComplete="off" onSubmit={submit}>
+      {selection?.source==='runtime' ? <label className="task-object-reference"><input type="checkbox" checked={bindSelection} disabled={state.busy} onChange={event=>setBindSelection(event.target.checked)} />针对对象 <code>{selection.id}</code></label> : null}
       <div className="command-field">
         <span className="command-prefix" aria-hidden="true">›</span>
         <input
@@ -39,11 +44,11 @@ function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inputRef:Re
           disabled={!state.available}
           readOnly={state.busy}
           onChange={(event)=>setValue(event.target.value)}
-          placeholder="描述你希望这个世界发生什么…"
+          placeholder={state.available ? "例如：拿起杯子，把它放到桌子上" : "请先在设置中连接智能体服务"}
           aria-label="智能体任务"
         />
       </div>
-      <button type="submit" disabled={state.busy || !state.available}><span>{state.busy ? '执行中…' : '执行任务'}</span></button>
+      <button id="send" type="submit" disabled={!value.trim() || state.busy || !state.available}><span>{state.busy ? '执行中…' : '执行任务'}</span></button>
     </form>
   );
 }
@@ -58,6 +63,7 @@ export function ProductPages({
   environments,
   presentation,
   openBuiltinWorld,
+  navigate,
   agentView,
   openAgentView,
   commandInputRef
@@ -67,6 +73,7 @@ export function ProductPages({
   environments:EnvironmentDefinition[];
   presentation:any;
   openBuiltinWorld:(id:string)=>Promise<unknown>;
+  navigate:(page:ProductPage)=>void;
   agentView:'tasks'|'runs';
   openAgentView:(view:'tasks'|'runs')=>void;
   commandInputRef:RefObject<HTMLInputElement|null>;
@@ -85,6 +92,9 @@ export function ProductPages({
           authoring={bridgeState.authoring}
           openBuiltinWorld={openBuiltinWorld}
           openGeneratedWorld={content?.resourceLibrary?.openGeneratedWorld}
+          enterCurrentWorld={()=>navigate('world')}
+          enterAuthoringEditor={()=>navigate('world')}
+          openBuild={()=>navigate('build')}
         />
       ) : null}
       {activePage === 'build' ? (
@@ -99,14 +109,14 @@ export function ProductPages({
       ) : null}
       {activePage === 'assets' ? (
         <section className="product-page product-assets-page" data-product-page="assets">
-          {content ? <div className="product-feature-frame product-assets-surface"><ResourceLibraryView {...content.resourceLibrary} /></div> : <LoadingPage label="Assets" />}
+          {content ? <div className="product-feature-frame product-assets-surface"><ResourceLibraryView {...content.resourceLibrary} navigate={navigate} /></div> : <LoadingPage label="Assets" />}
         </section>
       ) : null}
       {activePage === 'agent' ? (
         <section className="product-page product-agent-page" data-product-page="agent">
           <nav className="product-subnav" aria-label="Agent sections">
-            <button type="button" aria-pressed={agentView === 'tasks'} onClick={()=>openAgentView('tasks')}>Tasks</button>
-            <button type="button" aria-pressed={agentView === 'runs'} onClick={()=>openAgentView('runs')}>Runs</button>
+            <button type="button" aria-pressed={agentView === 'tasks'} onClick={()=>openAgentView('tasks')}>执行任务</button>
+            <button type="button" aria-pressed={agentView === 'runs'} onClick={()=>openAgentView('runs')}>运行记录</button>
           </nav>
           <div className="product-feature-frame product-agent-surface">
             {agent ? (

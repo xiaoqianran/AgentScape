@@ -42,17 +42,17 @@ export function ObjectInspectorView({ projection, commands, log }: InspectorProp
   return (
     <div data-inspector-source={model.source || 'none'}>
       <header className="screen-heading product-heading product-heading--utility">
-        <div className="eyebrow">INSPECT</div>
+        <div className="eyebrow">属性检查</div>
         <h1 id="inspect-heading">{model.kind === 'missing' ? model.id : '请选择对象'}</h1>
         <p id="inspect-subheading">
           {model.kind === 'missing'
             ? '当前选择已不再存在。'
-            : '选择 Runtime Entity 或 Authoring Node，查看对应域的属性与操作。'}
+            : '在左侧对象列表或画布中点击一个物体。'}
         </p>
       </header>
       <div id="empty-selection" className="empty-state">
         <strong>{model.kind === 'missing' ? '对象不可用' : '尚未选择对象'}</strong>
-        <span>Inspector 不再猜测对象来源；不同 domain 使用独立的属性与命令路径。</span>
+        <span>选中后可调整位置、旋转与尺寸，并查看可用的交互操作。</span>
       </div>
     </div>
   );

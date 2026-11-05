@@ -1,0 +1,10 @@
+{
+  "schema": "agentscape.starter-project",
+  "schemaVersion": 1,
+  "name": "My first interactive world",
+  "objects": [
+    { "id": "helper", "asset": "agent", "position": [0, 0, 7] },
+    { "id": "mug", "asset": "cup", "position": [0, 0, 3] },
+    { "id": "desk", "asset": "table", "position": [4, 0, 3] }
+  ]
+}

@@ -27,6 +27,7 @@ import { WorldObservation } from './WorldObservation.js';
 import { WorldQueries } from './WorldQueries.js';
 import { WorldCommands } from './WorldCommands.js';
 import { WorldRecovery } from './WorldRecovery.js';
+import { RUNTIME_VERSION } from '../../../foundation/version.js';
 installThreeBvhRuntime();
 
 const mutationResultCommitted=(result)=>!(
@@ -34,6 +35,35 @@ const mutationResultCommitted=(result)=>!(
   result?.rolledBack===true ||
   result?.recompile?.committed===false
 );
+
+const sameSnapshot = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+
+function beginWorldWrite(runtime, label, ruleCascadeDepth = 0) {
+  if (runtime.mutationOwner || runtime.history?.suspended || runtime.history?.pending) {
+    const error = new Error(`World mutation already in progress: ${runtime.mutationOwner || 'history'}`);
+    error.code = 'WORLD_MUTATION_BUSY';
+    throw error;
+  }
+  runtime.mutationOwner = label;
+  runtime.ruleRuntime?.beginTransaction(ruleCascadeDepth);
+}
+
+function endWorldWrite(runtime, committed) {
+  runtime.mutationOwner = null;
+  runtime.ruleRuntime?.endTransaction(committed);
+}
+
+async function rollbackMutation(runtime, before, authority, physics) {
+  // A failed validation must not destroy an unchanged simulation.
+  let changed = true;
+  try { changed = !sameSnapshot(runtime.snapshot(), before); } catch { /* Restore an unreadable world. */ }
+  if (changed) await runtime.restoreSnapshot(before);
+  if (physics && (changed || !sameSnapshot(runtime.physics.captureState(), physics))) {
+    runtime.physics.restoreState(physics);
+    runtime.sceneGraph?.invalidate();
+  }
+  if (!sameSnapshot(captureWorldAuthority(runtime), authority)) restoreWorldAuthority(runtime, authority);
+}
 
 export class WorldRuntime {
   constructor({ environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend() } = {}) {
@@ -46,8 +76,9 @@ export class WorldRuntime {
     }
     if (typeof physicsFactory !== 'function') throw new TypeError('WorldRuntime physicsFactory must be a function');
     if (typeof navigationBackendFactory !== 'function') throw new TypeError('WorldRuntime navigationBackendFactory must be a function');
-    this.version = '1.34.2';
+    this.version = RUNTIME_VERSION;
     this.ready = false;
+    this.restoring = false;
     this.affordances = new WorldAffordances(this);
     this.environmentFactory = environmentFactory; this.events = new EventBus(); this.mutationOwner = null;
     this.policy = new PolicyEngine(); this.trace = new TraceRecorder({ events: this.events });
@@ -93,7 +124,11 @@ export class WorldRuntime {
     }
     this.spatial = new SpatialSystem({ store: this.store });
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
-    this.history = new CommandHistory({ apply: (scene) => this.restore(scene), events: this.events });
+    this.history = new CommandHistory({
+      apply: (scene) => this.restoreSnapshot(scene),
+      runExclusive: (operation) => this.exclusiveMutation('history:restore', operation),
+      events: this.events
+    });
     this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);
     await this.addEnvironment();
     this.createEnvironmentSystems();
@@ -228,8 +263,10 @@ export class WorldRuntime {
       this.scene.add(object);
       this.store.add(id, { id, assetId, object, manifest, state: {}, physicsScale:uniformScale });
       stored = true;
-      this.physics.addObject(id, physicsManifest, object);
-      attached = true;
+      if (manifest.capabilityLevel !== 'visual') {
+        this.physics.addObject(id, physicsManifest, object);
+        attached = true;
+      }
       clearInteractionEvidenceForTarget(this,id);
       if (initialState && Object.keys(initialState).length) this.restoreObjectState(id, initialState);
       this.invalidateNavigationForObject(id, 'object.spawned');
@@ -270,7 +307,7 @@ export class WorldRuntime {
       nextQuaternion=new THREE.Quaternion().setFromEuler(euler).toArray();
     }
     const nextScale=scale==null?previous.scale:uniformScaleValue(scale);
-    const scaleChanged=!scalesEqual(nextScale,previous.physicsScale);
+    const scaleChanged=record.manifest.capabilityLevel !== 'visual' && !scalesEqual(nextScale,previous.physicsScale);
     if (scaleChanged && record.state?.heldBy) {
       const error=new Error(`Cannot scale held object: ${id}`); error.code='OBJECT_SCALE_HELD_UNSUPPORTED'; throw error;
     }
@@ -300,6 +337,7 @@ export class WorldRuntime {
       throw error;
     }
     this.invalidateNavigationForObject(id,'object.transformed');
+    this.sceneGraph?.invalidate?.();
     this.events.emit('object.transformed',{
       id,source,position:[...nextPosition],quaternion:[...nextQuaternion],scale:nextScale,physicsRebuilt:scaleChanged
     });
@@ -307,38 +345,28 @@ export class WorldRuntime {
   }
 
   snapshot() {
-    const scene = this.serialize({ name: 'History Snapshot' });
+    const scene = this.serialize({ name: 'History Snapshot', includeRelations: false });
     delete scene.metadata.savedAt;
     return scene;
   }
 
   async exclusiveMutation(label, operation) {
-    if (this.mutationOwner) {
-      const error = new Error(`World mutation already in progress: ${this.mutationOwner}`);
-      error.code = 'WORLD_MUTATION_BUSY';
-      throw error;
-    }
-    this.mutationOwner=label;
-    try { return await operation(); }
-    finally { this.mutationOwner=null; }
+    beginWorldWrite(this, label);
+    let committed = false;
+    try {
+      const result = await operation();
+      committed = mutationResultCommitted(result);
+      return result;
+    } finally { endWorldWrite(this, committed); }
   }
 
   async mutate(label, operation, meta = {}) {
-    if (this.mutationOwner) {
-      const error = new Error(`World mutation already in progress: ${this.mutationOwner}`);
-      error.code = 'WORLD_MUTATION_BUSY';
-      throw error;
-    }
-    // 历史恢复期间不得再开新的历史事务；需要「不记历史的互斥修改」请用 exclusiveMutation。
-    if (this.history?.suspended) {
-      const error = new Error('World history is suspended during restore');
-      error.code = 'WORLD_MUTATION_BUSY';
-      throw error;
-    }
-    this.mutationOwner = label;
+    beginWorldWrite(this, label, meta.ruleCascadeDepth);
+    let committed = false;
     try {
-      const authorityBefore=captureWorldAuthority(this);
+      const authorityBefore = captureWorldAuthority(this);
       const before = this.snapshot();
+      const physicsBefore = this.physics?.captureState?.();
       if (!this.history.begin(label, before)) {
         const error = new Error('World history transaction unavailable');
         error.code = 'WORLD_MUTATION_BUSY';
@@ -348,52 +376,56 @@ export class WorldRuntime {
         let result;
         await this.sceneGraph.batch(async () => {
           result = await operation();
-          if(mutationResultCommitted(result)) this.sceneGraph.changed();
+          if (mutationResultCommitted(result)) this.sceneGraph.changed();
         });
-        if(!mutationResultCommitted(result)){
-          restoreWorldAuthority(this,authorityBefore);
+        if (!mutationResultCommitted(result)) {
           this.history.cancel();
+          await rollbackMutation(this, before, authorityBefore, physicsBefore);
           return result;
         }
         this.history.commit(this.snapshot(), meta);
+        committed = true;
         return result;
       } catch (error) {
         this.history.cancel();
         try {
-          await this.restore(before);
-          restoreWorldAuthority(this,authorityBefore);
+          await rollbackMutation(this, before, authorityBefore, physicsBefore);
         } catch (rollbackError) {
-          const failure = new AggregateError(
-            [error, rollbackError],
-            `World mutation rollback failed: ${label}`,
-            { cause:error }
-          );
+          const failure = new AggregateError([error, rollbackError],
+            `World mutation rollback failed: ${label}`, { cause:error });
           failure.code = 'WORLD_MUTATION_ROLLBACK_FAILED';
           failure.rollbackError = rollbackError;
           throw failure;
         }
         throw error;
       }
-    } finally {
-      this.mutationOwner = null;
-    }
+    } finally { endWorldWrite(this, committed); }
   }
 
   beginMutation(label) {
-    if (this.history?.suspended || this.mutationOwner) return false;
-    if (!this.history.begin(label, this.snapshot())) return false;
-    this.mutationOwner = 'editor';
-    return true;
+    if (this.history?.suspended || this.history?.pending || this.mutationOwner) return false;
+    beginWorldWrite(this, 'editor');
+    try {
+      if (this.history.begin(label, this.snapshot())) return true;
+      endWorldWrite(this, false);
+      return false;
+    } catch (error) {
+      endWorldWrite(this, false);
+      throw error;
+    }
   }
 
   commitMutation(meta = {}) {
     if (this.history?.suspended || (this.mutationOwner && this.mutationOwner !== 'editor')) return false;
+    let committed = false;
     try {
       this.sceneGraph?.changed();
       if (meta.id) this.invalidateNavigationForObject(meta.id, 'editor.transform');
-      return this.history.commit(this.snapshot(), meta);
+      const recorded = this.history.commit(this.snapshot(), meta);
+      committed = true;
+      return recorded;
     } finally {
-      if (this.mutationOwner === 'editor') this.mutationOwner = null;
+      if (this.mutationOwner === 'editor') endWorldWrite(this, committed);
     }
   }
 
@@ -407,7 +439,29 @@ export class WorldRuntime {
   }
 
   serialize(options) { return this.serializer.serialize(this, options); }
-  async restore(scene) { return this.serializer.restore(this, scene); }
+  async restore(scene) {
+    return this.exclusiveMutation('scene:restore', () => this.restoreSnapshot(scene));
+  }
+
+  // Trusted rollback/history primitive. External imports must use restore().
+  async restoreSnapshot(scene) {
+    if (!this.mutationOwner) return this.restore(scene);
+    if (this.restoring) {
+      const error = new Error('World restore already in progress');
+      error.code = 'WORLD_MUTATION_BUSY';
+      throw error;
+    }
+    const wasRunning = this.simulation?.running;
+    this.restoring = true;
+    this.simulation?.pause();
+    this.ruleRuntime?.suspendEvents();
+    try { return await this.serializer.restore(this, scene); }
+    finally {
+      this.restoring = false;
+      this.ruleRuntime?.resumeEvents();
+      if (wasRunning) this.simulation.play();
+    }
+  }
 
   loadRuleGraph(graph) { return this.ruleRuntime.load(graph); }
 
@@ -418,6 +472,9 @@ export class WorldRuntime {
     if(!key || key.includes('.') || key.startsWith('__')) { const error=new Error('Invalid state key'); error.code='STATE_KEY_INVALID'; throw error; }
     if(value!==null && !['string','number','boolean'].includes(typeof value)) { const error=new TypeError('State value must be a JSON scalar'); error.code='STATE_VALUE_INVALID'; throw error; }
     record.state ||= {};
+    if (Object.is(record.state[key], value)) {
+      return {status:'state-transition-applied',targetId:id,stateKey:key,value,changed:false};
+    }
     record.state[key]=value;
     this.sceneGraph?.changed();
     this.events.emit('world.state-transition',{id,stateKey:key,value,meta});
@@ -439,6 +496,7 @@ export class WorldRuntime {
 
   remove(id,{silent=false}={}) {
     const record = this.store.get(id);
+    this.events.emit('object.removing', { id });
     this.locomotion?.cancel(id, 'OBJECT_REMOVED');
     this.interactions?.beforeRemove(id,{silent});
     this.invalidateNavigationForObject(id, 'object.removed');
@@ -467,6 +525,7 @@ export class WorldRuntime {
   }
 
   stepSimulation(dt) {
+    if (this.restoring) return false;
     this.environment?.step?.(dt,{physics:this.physics,navigation:this.navigation});
     this.affordances?.update(dt);
     this.locomotion?.update(dt);
@@ -475,6 +534,8 @@ export class WorldRuntime {
   }
   dispose() {
     this.ready = false;
+    this.events?.emit?.('world.disposing');
+    this.ruleRuntime?.stop();
     this.affordances?.cancel('RUNTIME_DISPOSED');
     this.interactions?.cancelPending('RUNTIME_DISPOSED');
     for (const [id, record] of this.store.list()) {

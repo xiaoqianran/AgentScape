@@ -5,6 +5,7 @@ import { StudioBuildController } from '../build/StudioBuildController.js';
 import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
 import { EditorCommandQueue } from '../editor/EditorCommandQueue.js';
 import { InspectorProjection } from '../inspect/InspectorProjection.js';
+import { createSceneFacade } from '../../../application/scene/SceneFacade.js';
 
 export function createStudioContent({
   ui,
@@ -97,6 +98,11 @@ export function createStudioContent({
       environmentDefinition,
       resources,
       placement,
+      setStyle: async reference => {
+        try { return await createSceneFacade(world).setStyle(reference); }
+        catch(error) { log(`风格错误：${error.code || error.message} ${error.cause?.message || ''}`,'error'); throw error; }
+      },
+      getStyle: () => createSceneFacade(world).observe().style?.id || null,
       openLibrary:()=>ui.setView('resources'),
       openCreate:()=>ui.setView('create'),
       openInspect:()=>ui.setView('inspect')

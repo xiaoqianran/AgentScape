@@ -41,7 +41,9 @@ export class CarryRuntime {
 
   carryStandOff(actorId, heldId, anchor = this.holdAnchor(actorId)) {
     const colliders = this.store.get(heldId).manifest.physics?.colliders || [];
-    const radius = Math.max(0, ...colliders.map((collider) => Number(collider.radius) || 0));
+    const radius = Math.max(0, ...colliders.map((collider) =>
+      (collider.shape === 'box' ? Math.hypot(collider.halfExtents[0],collider.halfExtents[2]) : Number(collider.radius) || 0)
+      + Math.hypot(collider.translation?.[0] || 0,collider.translation?.[2] || 0)));
     return Math.hypot(anchor.translation[0], anchor.translation[2]) + radius;
   }
 
@@ -89,7 +91,7 @@ export class CarryRuntime {
     if (target.manifest.physics?.body !== 'dynamic') throw Errors.carryUnavailable(actorId, targetId, 'TARGET_NOT_DYNAMIC');
     if (Object.keys(target.manifest.parts || {}).length) throw Errors.carryUnavailable(actorId, targetId, 'ARTICULATED_TARGET_UNSUPPORTED');
     const colliders = target.manifest.physics?.colliders || [];
-    if (!colliders.length || colliders.some((collider) => !['cylinder','capsule'].includes(collider.shape))) {
+    if (!colliders.length || colliders.some((collider) => !['box','cylinder','capsule'].includes(collider.shape))) {
       throw Errors.carryUnavailable(actorId, targetId, 'CARRY_COLLIDER_UNSUPPORTED');
     }
     const anchorRotation = target.id && (this.store.get(actorId).manifest.embodiment?.holdAnchor?.rotation || [0,0,0,1]);

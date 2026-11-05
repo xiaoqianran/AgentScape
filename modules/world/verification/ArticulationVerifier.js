@@ -53,10 +53,10 @@ export class ArticulationVerifier {
     this.stallTolerance = stallTolerance;
   }
 
-  async verify(assetId) {
+  async verify(assetId,{requireRegistration=false}={}) {
     const manifest = this.assetRegistry.getManifest(assetId);
     const parts = Object.entries(manifest.parts || {}).filter(([, part]) => part.joint && part.physics && Object.keys(part.targets || {}).length);
-    if (!parts.length) return { ok: true, assetId, tested: 0, parts: [], note: 'no executable articulation' };
+    if (!parts.length && !requireRegistration) return { ok: true, assetId, tested: 0, parts: [], note: 'no executable articulation' };
 
     const { object } = await this.assetLoader.instantiate(assetId);
     const physics = this.physicsFactory();
@@ -69,7 +69,7 @@ export class ArticulationVerifier {
       physics.addObject(instanceId, manifest, object);
       const reports = [];
       for (const [partName, part] of parts) reports.push(this.verifyPart({ physics, store, object, instanceId, partName, part }));
-      return { ok: reports.every((report) => report.ok), assetId, tested: reports.length, parts: reports };
+      return { ok: reports.every((report) => report.ok), assetId, tested: reports.length, parts: reports, physicsRegistered:Boolean(physics.getPosition(instanceId)) };
     } finally {
       physics.dispose();
       disposeObject3D(object);

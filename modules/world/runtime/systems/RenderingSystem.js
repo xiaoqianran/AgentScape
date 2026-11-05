@@ -6,8 +6,17 @@ import { RendererProbe } from '../../../rendering/RendererProbe.js';
 import { WebGpuPostFxPipeline } from '../../../rendering/WebGpuPostFxPipeline.js';
 import { loadGaussianSplatVisual } from '../../../rendering/loadGaussianSplatVisual.js';
 import { applyGeneratedWorldObjectTransform } from '../../generated/GeneratedWorldCoordinates.js';
+import { resolveStylePack } from '../../../rendering/style/StylePack.js';
 
 export class RenderingSystem {
+  attachStyleSystem(styles) { this.styleSystem = styles; }
+  serializeStyle() { return this.styleSystem?.export() || null; }
+  validateStyle(input) { return input == null ? null : resolveStylePack(input); }
+  async restoreStyle(input) {
+    if (!this.styleSystem) { if (input) throw new Error('STYLE_UNAVAILABLE'); return; }
+    if (input) return this.styleSystem.set(input);
+    this.styleSystem.clear();
+  }
   constructor({
     container,
     scene,
@@ -335,6 +344,7 @@ export class RenderingSystem {
   render(timestamp = performance.now()) {
     const started=performance.now();
     const entries = [...this.authoringScenes.entries()];
+    const overlays = entries.filter(([scene, mode]) => mode === 'overlay' && scene.children.length > 0);
     const replacement = entries.findLast?.(([, mode]) => mode === 'replace')
       || [...entries].reverse().find(([, mode]) => mode === 'replace');
     if (replacement) {
@@ -348,7 +358,7 @@ export class RenderingSystem {
           this.renderer.autoClear = stageAutoClear;
         }
       }
-    } else if (this.postFx?.enabled) {
+    } else if (this.postFx?.enabled && overlays.length === 0) {
       try {
         this.postFx.render();
       } catch (error) {
@@ -358,12 +368,16 @@ export class RenderingSystem {
     } else {
       this.renderer.render(this.scene, this.camera);
     }
-    if (!replacement && entries.length > 0) {
+    // RenderPipeline presents its own target to the canvas. A subsequent direct
+    // render uses a different intermediate target and overwrites that output,
+    // even with autoClear=false. Empty authoring scenes must not render at all;
+    // populated overlays share the world's direct render path and depth buffer.
+    if (!replacement && overlays.length > 0) {
       const autoClear = this.renderer.autoClear;
       this.renderer.autoClear = false;
       try {
-        for (const [scene, mode] of entries) {
-          if (mode === 'overlay') this.renderer.render(scene, this.camera);
+        for (const [scene] of overlays) {
+          this.renderer.render(scene, this.camera);
         }
       } finally {
         this.renderer.autoClear = autoClear;
@@ -406,6 +420,8 @@ export class RenderingSystem {
   }
 
   dispose() {
+    this.styleSystem?.dispose();
+    this.styleSystem = null;
     this.resizeObserver?.disconnect?.();
     this.resizeObserver = null;
     this.environmentVersion += 1;
@@ -421,7 +437,13 @@ export class RenderingSystem {
     }
     this.probe?.dispose?.();
     this.probe = null;
-    this.renderer?.dispose?.();
+    // A removed canvas can retain its WebGL context and driver allocations.
+    // Release the owned context after Three's asynchronous backend cleanup.
+    const context = this.renderer?.backend?.isWebGLBackend ? this.renderer.backend.gl : null;
+    const disposal = this.renderer?.dispose?.();
+    this.disposal = Promise.resolve(disposal).then(() => {
+      context?.getExtension?.('WEBGL_lose_context')?.loseContext();
+    }).catch(error => this.onError?.(error));
     this.renderer?.domElement?.remove?.();
     this.renderer = null;
     this.camera = null;

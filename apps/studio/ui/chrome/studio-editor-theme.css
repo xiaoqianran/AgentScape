@@ -1,319 +1,71 @@
-/*
- * AgentScape Studio visual system.
- * Typography and control treatment only; spatial composition lives in
- * studio-spatial.css and feature behavior remains feature-owned.
- */
+/* Shared typography only. Feature controls stay in their owning stylesheets. */
 
 .shell.spatial-editor {
-  font-size: 12px;
+  font-size: 13px;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
-.spatial-editor .brand-lockup strong {
-  font-size: 13px;
-  font-weight: 640;
-  letter-spacing: -.015em;
-}
-
-.spatial-editor .brand-lockup > span,
-.spatial-editor .world-select,
-.spatial-editor .header-button,
-.spatial-editor .runtime-status {
-  font-size: 11.5px;
-}
-
-.spatial-editor .brand-actions button,
-.spatial-editor .brand-actions select {
-  font-weight: 520;
-}
-
-.spatial-editor .editor-toolbar button,
-.spatial-editor .toolbar-more summary {
-  font-size: 11.5px;
-  font-weight: 540;
-}
-
-.spatial-editor .toolbar-menu button,
-.spatial-editor .toolbar-menu select {
-  min-height: 31px;
-  border-radius: 6px;
-  font-size: 11.5px;
-}
-
-.spatial-editor .toolbar-menu button:hover {
-  background: var(--studio-surface-hover);
-}
-
-.spatial-editor .toolbar-menu-label,
-.spatial-editor .toolbar-menu-status {
-  color: var(--studio-text-3);
-  font-size: 10px;
-  line-height: 1.45;
-}
-
-/* Scene hierarchy ---------------------------------------------------------- */
-
-.spatial-editor .scene-panel-heading strong {
-  font-size: 13px;
-  font-weight: 620;
-  letter-spacing: -.01em;
-}
-
-.spatial-editor .scene-count,
-.spatial-editor .scene-section-heading,
-.spatial-editor .scene-section-heading small {
-  font-size: 10px;
-  line-height: 1.2;
-}
-
-.spatial-editor .scene-panel-tabs button {
-  font-size: 11.5px;
-  font-weight: 560;
-}
-
-.spatial-editor .scene-search input {
-  padding-inline: 9px;
-  font-size: 11.5px;
-}
-
-.spatial-editor .scene-world-card strong {
-  font-size: 11.5px;
-  line-height: 1.3;
-}
-
-.spatial-editor .scene-world-card small {
-  color: var(--studio-text-3);
-  font-size: 9.5px;
-  line-height: 1.3;
-}
-
-.spatial-editor .scene-object-row,
-.spatial-editor .scene-asset-row {
-  padding-block: 3px;
-  font-size: 11.5px;
-}
-
-.spatial-editor .scene-object-copy strong,
-.spatial-editor .scene-asset-copy strong {
-  color: var(--studio-text-2);
-  font-size: 11.5px;
-  font-weight: 560;
-}
-
-.spatial-editor .scene-object-copy small,
-.spatial-editor .scene-asset-copy small {
-  color: var(--studio-text-3);
-  font-size: 9.5px;
-  line-height: 1.25;
-}
-
-.spatial-editor .scene-panel-footer button {
-  font-size: 11px;
-  font-weight: 560;
-}
-
-/* Context surfaces --------------------------------------------------------- */
-
-.spatial-editor .panel {
-  color: var(--studio-text-2);
-  background: var(--studio-surface-1);
-  font-size: 12px;
-}
-
-.spatial-editor .panel :where(p, li, dt, dd, span) {
-  font-size: 11.5px;
-  line-height: 1.48;
-}
-
-.spatial-editor .panel :where(button, input, select, textarea, label) {
-  font-size: 11.5px;
-  line-height: 1.3;
-}
-
-.spatial-editor .panel :where(small, code, kbd, em) {
-  font-size: 10px;
-  line-height: 1.35;
-}
-
-.spatial-editor .panel h1,
-.spatial-editor .screen-heading h1 {
-  margin-block: 0;
+.screen-heading h1 {
+  margin: 0;
   color: var(--studio-text);
-  font-size: 18px;
-  line-height: 1.18;
-  font-weight: 640;
-  letter-spacing: -.024em;
-}
-
-.spatial-editor .panel h2 {
-  color: var(--studio-text);
-  font-size: 14px;
-  line-height: 1.25;
-  font-weight: 620;
-}
-
-.spatial-editor .panel h3 {
-  color: var(--studio-text-2);
-  font-size: 12px;
+  font-size: 25px;
   line-height: 1.3;
   font-weight: 600;
+  letter-spacing: -.03em;
 }
 
-.spatial-editor .screen-heading .eyebrow {
-  margin-bottom: 6px;
+.screen-heading .eyebrow {
+  margin: 0 0 9px;
   color: var(--studio-text-3);
-  font-size: 9.5px;
-  line-height: 1;
-  letter-spacing: .09em;
+  font: 600 10px/1.3 var(--studio-font-ui);
+  letter-spacing: .14em;
 }
 
-.spatial-editor .screen-heading p {
-  margin-top: 7px;
+.screen-heading p {
+  margin: 8px 0 0;
   color: var(--studio-text-3);
-  font-size: 11.5px;
-  line-height: 1.48;
+  font-size: 13px;
+  line-height: 1.65;
 }
 
-.spatial-editor .panel :where(input, select, textarea) {
-  border-color: var(--studio-border);
-  border-radius: 6px;
-  color: var(--studio-text-2);
-  background: #121417;
-  box-shadow: none;
-}
-
-.spatial-editor .panel :where(input, select, textarea):hover {
-  border-color: var(--studio-border-strong);
-}
-
-.spatial-editor .panel :where(input, select, textarea):focus {
-  border-color: var(--studio-border-focus);
-  outline: 0;
-  box-shadow: 0 0 0 2px rgba(133,160,255,.075);
-}
-
-.spatial-editor .panel :where(button) {
-  border-radius: 6px;
-}
-
-.spatial-editor .panel :where(button):focus-visible {
-  outline-color: var(--studio-border-focus);
-}
-
-.spatial-editor .product-flow {
-  font-size: 9px;
-}
-
-
-/* Agent prompt ------------------------------------------------------------- */
-
-.spatial-editor .command-bar {
-  min-height: 46px;
+.product-flow {
+  display: flex;
   gap: 7px;
-}
-
-.spatial-editor .command-field {
-  min-height: 44px;
-  border: 1px solid var(--studio-border-strong);
-  border-radius: 9px;
-  background: rgba(20,22,25,.96);
-  box-shadow: var(--studio-shadow-float);
-}
-
-.spatial-editor .command-field:focus-within {
-  border-color: rgba(133,160,255,.48);
-  box-shadow: var(--studio-shadow-float), 0 0 0 2px rgba(133,160,255,.07);
-}
-
-.spatial-editor .command-prefix {
+  align-items: center;
+  margin-top: 12px;
   color: var(--studio-text-3);
+  font-size: 11px;
 }
 
-.spatial-editor .command-field input {
-  color: var(--studio-text);
+.product-flow i {
+  font-style: normal;
+  opacity: .55;
+}
+
+.panel .screen-heading h1 {
+  font-size: 19px;
+}
+
+.panel .screen-heading p {
   font-size: 12px;
-  line-height: 1.4;
 }
 
-.spatial-editor .command-field input::placeholder {
-  color: rgba(255,255,255,.30);
+button,a,summary,input,select,textarea {
+  transition: background-color 140ms ease,border-color 140ms ease,color 140ms ease;
 }
 
-.spatial-editor .command-bar > button {
-  min-height: 44px;
-  padding-inline: 13px;
-  border: 1px solid rgba(133,160,255,.35);
-  border-radius: 9px;
-  color: #eef2ff;
-  background: #5f7fe8;
-  font-size: 11.5px;
-  font-weight: 650;
-  box-shadow: none;
+a:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 3px;
 }
 
-.spatial-editor .command-bar > button:hover:not(:disabled) {
-  border-color: rgba(154,177,255,.54);
-  background: #6f8dee;
+input::placeholder,textarea::placeholder {
+  color: var(--studio-text-3);
+  opacity: .8;
 }
 
-/* Artifact tray ------------------------------------------------------------ */
-
-.spatial-editor .artifact-tray {
-  border: 1px solid var(--studio-border-strong);
-  border-radius: 9px;
-  background: rgba(23,24,27,.99);
-  box-shadow: var(--studio-shadow-float);
-  backdrop-filter: none;
-}
-
-.spatial-editor .artifact-tray-header {
-  min-height: 35px;
-  padding-inline: 10px 7px;
-  border-bottom-color: var(--studio-border);
-}
-
-.spatial-editor .artifact-tray-title {
-  color: var(--studio-text-2);
-  font-size: 10.5px;
-  letter-spacing: .045em;
-}
-
-.spatial-editor .artifact-tray-title small,
-.spatial-editor .artifact-tray-actions button,
-.spatial-editor .artifact-tray-continue,
-.spatial-editor .artifact-tray-save {
-  font-size: 10px;
-}
-
-.spatial-editor .artifact-tray-item {
-  width: 214px;
-  min-width: 214px;
-  min-height: 100px;
-  border-color: var(--studio-border);
-  border-radius: 7px;
-  background: rgba(255,255,255,.02);
-}
-
-.spatial-editor .artifact-tray-item:hover {
-  border-color: var(--studio-border-strong);
-  background: rgba(255,255,255,.035);
-}
-
-.spatial-editor .artifact-tray-item.active {
-  border-color: rgba(133,160,255,.28);
-  background: var(--studio-accent-soft);
-}
-
-
-@media (max-width: 860px) {
-  .spatial-editor .panel h1,
-  .spatial-editor .screen-heading h1 {
-    font-size: 17px;
-  }
-
-  .spatial-editor .command-field,
-  .spatial-editor .command-bar > button {
-    min-height: 42px;
+@media (pointer:coarse) {
+  .product-navigation button,.product-navigation a,.worlds-filters button,.world-card-open {
+    min-height: 44px;
   }
 }

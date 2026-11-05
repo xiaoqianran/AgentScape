@@ -99,7 +99,7 @@ describe('Object transform contract',()=>{
     runtime.sceneGraph={
       batch:async(operation)=>operation(),changed:vi.fn(),update:vi.fn(),list:vi.fn(()=>[]),removeObject:vi.fn()
     };
-    runtime.history=new CommandHistory({apply:(scene)=>runtime.restore(scene),events:runtime.events});
+    runtime.history=new CommandHistory({apply:(scene)=>runtime.restoreSnapshot(scene),runExclusive:operation=>runtime.exclusiveMutation('history:restore',operation),events:runtime.events});
     runtime.skills=registerCoreSkills(new SkillRegistry({policy:runtime.policy,trace:runtime.trace,runtime}),runtime);
     const tools=new AgentTools(runtime,{actor:'human'});
     await runtime.spawn('cup',{id:'cup_01',position:[0,1,0]});

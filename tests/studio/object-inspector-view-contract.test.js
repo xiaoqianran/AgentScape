@@ -47,7 +47,7 @@ describe('ObjectInspectorView contract', () => {
     }));
 
     expect(html).toContain('data-inspector-source="runtime"');
-    expect(html).toContain('RUNTIME ENTITY');
+    expect(html).toContain('可交互对象');
     expect(html).toContain('cup_01');
     expect(html).toContain('附近 1 个对象');
     expect(relations).not.toHaveBeenCalled();
@@ -79,8 +79,8 @@ describe('ObjectInspectorView contract', () => {
     }));
 
     expect(html).toContain('data-inspector-source="authoring"');
-    expect(html).toContain('AUTHORING NODE');
-    expect(html).toContain('尚未成为 Runtime Entity');
+    expect(html).toContain('创作对象');
+    expect(html).toContain('尚未加入可交互世界');
     expect(html).toContain('AuthoringDocument');
   });
 });

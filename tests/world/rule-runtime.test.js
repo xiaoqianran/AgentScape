@@ -12,7 +12,7 @@ describe('RuleRuntime',()=>{
     const rt=runtime(); const engine=new RuleRuntime(rt); engine.load([{id:'on',event:'switch.clicked',effect:{kind:'set-state',targetId:'light_01',stateKey:'enabled',value:true}}]); engine.start();
     rt.events.emit('switch.clicked',{id:'switch_01'});
     await engine.queue;
-    expect(rt.applyStateTransition).toHaveBeenCalledWith('light_01','enabled',true,{source:'rule-graph',event:'switch.clicked'});
+    expect(rt.applyStateTransition).toHaveBeenCalledWith('light_01','enabled',true,{source:'rule-graph',event:'switch.clicked',ruleCascadeDepth:1});
   });
   it('evaluates conditions against current runtime state and skips non-matching rules',async()=>{
     const rt=runtime(); const engine=new RuleRuntime(rt); engine.load([{id:'guarded',event:'switch.clicked',condition:{kind:'equals',targetId:'switch_01',stateKey:'enabled',value:true},effect:{kind:'set-state',targetId:'light_01',stateKey:'enabled',value:true}}]); engine.start();

@@ -26,8 +26,8 @@
   min-height: 30px;
   padding: 4px 6px;
   border: 1px solid var(--studio-border-strong);
-  border-radius: 5px;
-  background: var(--studio-surface-2, #23252a);
+  border-radius: var(--ds-radius-sm);
+  background: var(--studio-surface-2, var(--ds-surface-3));
   color: inherit;
 }
 

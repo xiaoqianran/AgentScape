@@ -9,17 +9,27 @@ const manifest={
   physics:{body:'dynamic',mass:.3,colliders:[{shape:'cylinder',halfHeight:.16,radius:.15,translation:[0,.16,0]}]}
 };
 
-async function setup(){
+async function setup(asset=manifest){
   const physics=createRapierPhysicsSystem(); await physics.init();
   const store=new ObjectStore();
   const object=new THREE.Group(); object.position.set(0,0,1); object.updateMatrixWorld(true);
-  store.add('cup',{id:'cup',assetId:'cup-test',object,manifest,state:{}});
-  physics.addObject('cup',manifest,object);
+  store.add('cup',{id:'cup',assetId:'cup-test',object,manifest:asset,state:{}});
+  physics.addObject('cup',asset,object);
   physics.step(1/60,store);
   return {physics,store,object};
 }
 
 describe('PhysicsSystem carry primitives',()=>{
+  it('blocks a carried box at a wall and checks the orientation of an offset box collider',async()=>{
+    const box={...manifest,physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.4,.15,.1],translation:[0,.2,0],rotation:[0,Math.SQRT1_2,0,Math.SQRT1_2]}]}};
+    const {physics}=await setup(box);
+    try {
+      physics.addEnvironment([{shape:'box',halfExtents:[1,1,.05],translation:[0,1,0]}]);
+      expect(physics.checkBodyMotion('cup',[0,0,-1],[0,0,0,1])).toMatchObject({clear:false,code:'CARRY_SWEEP_BLOCKED'});
+      expect(physics.checkBodyPose('cup',[0,0,.3],[0,0,0,1])).toMatchObject({clear:false,code:'CARRY_TARGET_BLOCKED'});
+      expect(physics.checkBodyPose('cup',[0,0,1],[0,0,0,1])).toEqual({clear:true});
+    } finally { physics.dispose(); }
+  });
   it('shape-casts a carried body and reports a physical wall before the target pose',async()=>{
     const {physics}=await setup();
     physics.addEnvironment([{shape:'box',halfExtents:[1,1,.08],translation:[0,1,0]}]);

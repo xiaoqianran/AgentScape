@@ -114,14 +114,15 @@ describe("Physics Studio workbench invocation", () => {
     } finally { ctx.dispose(); }
   });
 
-  it("keeps unsupported capability calls observable instead of fabricating success", async () => {
+  it("checks supported box poses and keeps missing-body failures observable", async () => {
     const backend = await createPhysicsBackend("rapier");
     const ctx = await new PhysicsScenarioContext({ scene:new THREE.Scene(), backend }).init();
     try {
       ctx.addBox({ id:"box", position:[0, 2, 0], halfExtents:[0.5, 0.5, 0.5] });
       const pose = await invoke(ctx, "physics.checkBodyPose", { id:"box", targetPosition:[0, 2, 0] });
-      expect(pose.result.clear).toBe(false);
-      expect(String(pose.result.code || "")).toContain("CARRY_");
+      expect(pose.result.clear).toBe(true);
+      const missing = await invoke(ctx, "physics.checkBodyPose", { id:"missing", targetPosition:[0, 2, 0] });
+      expect(missing.result).toMatchObject({clear:false,code:'CARRY_BODY_UNSUPPORTED'});
     } finally { ctx.dispose(); }
   });
 });

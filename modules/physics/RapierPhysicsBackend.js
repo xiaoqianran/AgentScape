@@ -261,7 +261,8 @@ export class RapierPhysicsBackend extends PhysicsBackend {
   createJoint(world,part,parentBody,childBody) { return createJoint(world,part,parentBody,childBody); }
   setJointTarget(joint,target,{stiffness=40,damping=8}={}) {
     if(!joint || joint.type?.()===RAPIER.JointType.Fixed) return false;
-    joint.configureMotorPosition(target,stiffness,damping);
+    // A null target restores the unmotorized joint used before the first action.
+    joint.configureMotorPosition(target ?? 0,target == null ? 0 : stiffness,target == null ? 0 : damping);
     return true;
   }
 

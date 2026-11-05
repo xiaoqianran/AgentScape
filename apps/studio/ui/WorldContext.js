@@ -51,7 +51,7 @@ export function mountWorldContext({ world, editor, tools, ui }) {
     }
     button('检查详情', () => ui.setView('inspect'));
     button('让 Agent 操作', () => {
-      ui.setView('task');
+      ui.setView('world-task');
       ui.prefillAgentCommand?.(`请操作对象 ${selected}：`);
     });
     button('取消选择', () => editor.select(null));

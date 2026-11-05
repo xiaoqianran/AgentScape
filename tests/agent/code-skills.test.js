@@ -21,9 +21,22 @@ function createAuthoringFixture() {
   const world = { events:{ emit:vi.fn() }, rendering:createFakeRendering() };
   const authoring = createWorldAuthoringContext(world);
   const registry = new SkillRegistry({});
-  registerCodeSkills((name, options, handler)=>registry.register({ name, ...options, handler }), authoring);
+  registerCodeSkills((name, options, handler)=>registry.register({ name, ...options, handler }), authoring, { allowTrustedLocal:true });
   return { authoring, registry, world };
 }
+
+it('does not expose or execute trusted browser code through the default Agent entry', async () => {
+  const world = { events:{ emit:vi.fn() }, rendering:createFakeRendering() };
+  const authoring = createWorldAuthoringContext(world), registry = new SkillRegistry({});
+  const run = vi.spyOn(authoring, 'run');
+  registerCodeSkills((name, options, handler) => registry.register({ name, ...options, handler }), authoring);
+  try {
+    expect(registry.definitions().some(skill => skill.name === 'runAuthoringCode')).toBe(false);
+    const response = await registry.invoke('runAuthoringCode', { code: 'scene.clear();' });
+    expect(response.result).toMatchObject({ status:'authoring-code-rejected', reason:'ISOLATED_EXECUTOR_REQUIRED' });
+    expect(run).not.toHaveBeenCalled();
+  } finally { authoring.dispose(); }
+});
 
 const BOX_CODE = `
 const box = new THREE.Mesh(

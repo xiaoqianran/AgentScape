@@ -1,5 +1,11 @@
 # 内置测试 Agent：OpenAI-Compatible Local Gateway
 
+## 当前取消接口
+
+`ToolCallingAgent.run(text, { signal } = {})` 接受 AbortSignal。取消在模型与工具调用边界检查；正在执行的世界工具完成当前安全边界后才确认退出。结果为 `taskStatus: 'cancelled'`、`termination: 'user-cancelled'`，仍返回执行账本、最后变更和未解决变更；不回滚已完成动作，不释放持有物。重新调用 run 会重新观察世界，不能恢复旧计划。没有配置 gateway 仍按原契约报不可用。
+
+`HttpLLMGateway.complete(request, { signal })` 将取消作为请求选项传入 `JsonGateway.post`，不放入模型 JSON。自带 capability adapter 与 OpenAI gateway 在浏览器断连时中止上游请求；取消不得触发模型 fallback 或重试。第三方远端任务是否实际撤销需其自身确认，不由 HTTP 断连推断。产品侧状态与验证边界见 [任务控制契约](../capabilities/task-control.md)，自动回归见 `tests/agent/task-cancellation.test.js`。
+
 AgentScape 1.15.1 增加一个**只用于本地/VPS测试**的 OpenAI-compatible Agent Gateway。
 
 目标不是把模型 API Key 放进前端，而是让真实 ToolCallingAgent 可以安全地测试外部模型：

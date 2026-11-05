@@ -91,8 +91,8 @@ async function runtimeFixture() {
   };
 }
 
-describe('Browser Agent → Python modal-gen-client → WorldRuntime E2E', () => {
-  it('generates cup.glb through the live Connector process, then spawns, places, and renders it', async () => {
+describe('固定 GLB → Python Connector → WorldRuntime 协议集成', () => {
+  it('经真实 Connector 导入固定杯子产物并验证准入、放置和可见几何', async () => {
     const { runtime, generation, tools, connector, httpCalls, dispose } = await runtimeFixture();
     try {
       const pending = await generation.initialize({ pair: true });
@@ -138,7 +138,7 @@ describe('Browser Agent → Python modal-gen-client → WorldRuntime E2E', () =>
         camera.projectionMatrix, camera.matrixWorldInverse
       );
       const frustum = new THREE.Frustum().setFromProjectionMatrix(viewProjection);
-      expect(support).toMatchObject({ on: true, aboveSurface: true });
+      expect(support).toMatchObject({ supported: true, aboveSurface: true });
       expect(cup.object.parent).toBe(runtime.scene);
       expect(cup.object.visible).toBe(true);
       expect(cup.object.getObjectsByProperty('isMesh', true)).toHaveLength(3);

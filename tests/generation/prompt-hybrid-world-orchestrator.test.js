@@ -27,7 +27,7 @@ function runtimeFixture(previousEnvironment){
     loadRuleGraph:vi.fn(),
     exclusiveMutation:vi.fn(async(_label,fn)=>fn()),
     snapshot:vi.fn(()=>({scene:'before-snapshot'})),
-    restore:vi.fn(async()=>{}),
+    restoreSnapshot:vi.fn(async()=>{}),
     clearObjects:vi.fn(async()=>{}),
     replaceEnvironment:vi.fn(async(environment)=>{ runtime.environment=environment; }),
     queries:{listObjects:()=>[]}
@@ -67,7 +67,7 @@ describe('PromptHybridWorldOrchestrator rollback',()=>{
       [nextEnvironment,expect.objectContaining({reason:'prompt-hybrid-world',disposePrevious:false})],
       [previousEnvironment,expect.objectContaining({reason:'prompt-hybrid-world-rollback',disposePrevious:false})]
     ]);
-    expect(runtime.restore).toHaveBeenCalledWith(snapshotBefore);
+    expect(runtime.restoreSnapshot).toHaveBeenCalledWith(snapshotBefore);
     expect(runtime.currentWorldRevision).toEqual({revision:{id:'rev_old'},provenance:{source:'curated-pack'}});
     expect(runtime.currentBehaviorBundle).toEqual({ruleGraph:[{id:'rule_old',kind:'keep'}]});
     expect(runtime.currentPhysicsRequirements).toEqual({requirements:['gravity']});
@@ -86,7 +86,7 @@ describe('PromptHybridWorldOrchestrator rollback',()=>{
     const nextEnvironment={id:'generated-garden',semantics:null,layout:null,generated:{},dispose:vi.fn()};
     const builderError=new Error('builder exploded');
     const rollbackError=new Error('restore failed');
-    runtime.restore=vi.fn(async()=>{ throw rollbackError; });
+    runtime.restoreSnapshot=vi.fn(async()=>{ throw rollbackError; });
     const worldBuilder={run:vi.fn(async()=>{ throw builderError; })};
     const orchestrator=new PromptHybridWorldOrchestrator(runtime,{
       worldBuilder,

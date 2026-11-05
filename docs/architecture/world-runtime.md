@@ -561,3 +561,36 @@ Extract by Pressure
 ```
 
 这套依赖关系是当前 World Runtime 的 architecture freeze baseline。
+
+
+## 14. Mutation、恢复与规则提交契约
+
+所有外部场景恢复使用 `WorldRuntime.restore()`。它与 `mutate()`、
+`exclusiveMutation()`、编辑拖动和 History undo/redo 共用写入互斥；冲突返回
+`WORLD_MUTATION_BUSY`，不偷偷取消正在执行的动作。History 在取得同一边界后
+应用快照并移动历史栈。Studio 在检查冲突之前不取消编辑选中，避免拖动失去提交入口。
+`restoreSnapshot()` 仅供受信任的 History / compiler / batch 内部回滚使用，
+不能替代外部恢复接口，也不是对任意同进程 JavaScript 的安全隔离。
+
+场景配置保存 `behaviorBundle` 和 `physicsRequirements`，与世界版本和实例一起恢复。
+旧存档缺少配置时清除旧世界的规则，而非继承它们。恢复的验收证据仍是历史证据，
+不升级为当前成功证明；重新计算的几何关系也不等同于已验证的物理后置条件。
+内部 History 快照不保存派生 `relations`，常规导出仍可包含它们。
+变换成功立即 invalidate SceneGraph；查询需要时重建，不能等到拖动或事务结束。
+
+RuleRuntime 对匹配事件进行提交后调度：事务成功才释放其事件，失败则丢弃；
+此前已提交但尚未执行的事件等待写入边界空闲。替换规则使旧 generation 的待处理事件失效。
+恢复期间不把重建对象的事件当成新行为。规则效果是提交后的独立 mutation，
+不假装属于原操作的原子历史条目。重复赋同值不再发出状态变化事件，级联深度随效果传播；
+`rule.error` 仅用于诊断，不作为规则触发源。
+
+失败回滚先检查是否真的需要恢复场景；没有变化的失败不重建 Physics World。
+需要恢复时使用临时、后端中立的对象刚体检查点，保存根/部件位姿、动态速度、睡眠状态、
+持有模式、kinematic target 和关节 motor target。它不进入长期历史，也不宣称恢复
+solver contact caches、正在执行的异步任务或完整物理时间线；场景 History 撤销仍是编辑恢复，
+不是精确仿真回放。Rapier 与 Jolt 都验证该检查点契约，包括尚未启用的关节马达。
+仅在破坏性恢复期间暂停固定步更新并阻止时钟前进；普通异步具身动作继续推进物理。
+
+回归入口：`tests/world/world-state-consistency.test.js`、
+`tests/world/physics-checkpoint.test.js`、`tests/world/simulation-session.test.js`、
+`tests/studio/scene-history-controls.test.js`。完整验证使用 `npm run check`。

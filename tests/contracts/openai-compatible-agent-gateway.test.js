@@ -22,6 +22,17 @@ async function listen(options) {
 }
 
 describe('OpenAI-compatible local test gateway', () => {
+  it('forwards abort to upstream and never falls back after user cancellation', async () => {
+    const controller=new AbortController();
+    const fetchImpl=vi.fn(async(_url,options)=>{
+      expect(options.signal).toBe(controller.signal);
+      controller.abort();
+      throw new DOMException('cancelled','AbortError');
+    });
+    const complete=createAgentGateway({baseUrl:'https://upstream.test/v1',apiKey:'secret',models:['one','two'],fetchImpl});
+    await expect(complete({messages:[]},{signal:controller.signal})).rejects.toMatchObject({name:'AbortError'});
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
   it('detects the CLI entry point across Windows and file URL path formats', () => {
     const entry = 'D:\\repo\\apps\\server\\openai-compatible-agent-gateway.mjs';
     expect(isDirectEntry('file:///D:/repo/apps/server/openai-compatible-agent-gateway.mjs', entry)).toBe(true);

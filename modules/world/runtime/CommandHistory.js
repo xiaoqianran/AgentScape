@@ -1,6 +1,7 @@
 export class CommandHistory {
-  constructor({ apply, limit = 100, events = null } = {}) {
+  constructor({ apply, runExclusive = (operation) => operation(), limit = 100, events = null } = {}) {
     this.apply = apply;
+    this.runExclusive = runExclusive;
     this.limit = limit;
     this.events = events;
     this.undoStack = [];
@@ -41,6 +42,15 @@ export class CommandHistory {
   // applying 同时阻止重入，避免 UI 连点让两次恢复交错执行。
   async step(direction) {
     if (this.applying) return false;
+    if (this.pending) {
+      const error = new Error('Cannot restore history during an unfinished mutation');
+      error.code = 'WORLD_MUTATION_BUSY';
+      throw error;
+    }
+    return this.runExclusive(() => this.applyStep(direction));
+  }
+
+  async applyStep(direction) {
     const undoing = direction === 'undo';
     const from = undoing ? this.undoStack : this.redoStack;
     const to = undoing ? this.redoStack : this.undoStack;

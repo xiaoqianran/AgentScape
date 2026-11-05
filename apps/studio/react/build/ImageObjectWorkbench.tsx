@@ -1,3 +1,4 @@
+import { StudioIcon } from '../shared/StudioIcon';
 import { useEffect, useRef, useState } from 'react';
 import { LocalImageEditor, type LocalImageEditorHandle } from './LocalImageEditor';
 import { findForegroundRegions, ImageObjectDraftWorkspace, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS, validateImageFile } from '../../build/ImageObjectDrafts.js';
@@ -206,7 +207,7 @@ export function ImageObjectWorkbench({controller, paired, disabled, visible, onC
 
   return <section ref={intake} className="image-object-workbench" hidden={!visible} aria-label="图片资产工作台">
     <div className="image-intake-drop" onDragOver={(event)=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();}} onDrop={(event)=>{event.preventDefault();event.stopPropagation();void ingest(Array.from(event.dataTransfer.files));}}>
-      <strong>把图片变成场景里的物体</strong>
+      <span className="image-intake-icon"><StudioIcon name="image" size={28} /></span><strong>从一张参考图开始</strong>
       <p>拖入图片，或在此页面粘贴截图。支持一次选择多张 PNG / JPEG / WebP。</p>
       <label className="build-local-image-file">选择图片<input id="build-local-image-file" type="file" multiple accept="image/png,image/jpeg,image/webp" disabled={unavailable} onChange={(event)=>{const files=Array.from(event.target.files||[]);event.currentTarget.value='';void ingest(files);}} /></label>
       <small>原图和草稿保存在此浏览器；开始生成时才上传所选物体。</small>

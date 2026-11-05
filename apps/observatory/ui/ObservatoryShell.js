@@ -3,6 +3,7 @@ import { renderObservatoryLayout } from './ObservatoryLayout.js';
 import { configureInspectorPanel, renderInspectorPanel } from './inspector/InspectorPanel.js';
 import { normalizeDiagnostics } from '../core/DiagnosticsContract.js';
 import { mountDebugLayerGroups } from './debugging/DebugLayerGroups.js';
+import { mountServiceHealthPanel } from './ServiceHealthPanel.js';
 
 export class ObservatoryShell {
   constructor(root) {
@@ -19,6 +20,7 @@ export class ObservatoryShell {
 
     // Keep every existing layer input / listener intact; regroup only the presentation.
     this.debugLayerGroups = mountDebugLayerGroups(this.root.querySelector('.obs-debug-controls'));
+    this.serviceHealth = mountServiceHealthPanel(this.root);
     this.debugLayerDefaults = new Set();
     this.toolWorkbench = new ToolWorkbenchController(this);
 

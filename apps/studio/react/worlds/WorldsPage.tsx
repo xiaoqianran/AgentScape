@@ -1,181 +1,101 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { StudioIcon } from '../shared/StudioIcon';
+import { worldPresentation } from './WorldPresentation';
 import './WorldsPage.css';
 
-type WorldDefinition = {
-  id:string;
-  title:string;
-  number?:string;
-  headline?:string;
-  description?:string;
-  facts?:string[];
-  worldFirst?:boolean;
-};
-
-type WorldResource = {
-  id:string;
-  label?:string;
-  source?:string;
-  current?:boolean;
-  integrity?:string;
-  provider?:string;
-  jobId?:string;
-};
-
+type WorldDefinition = { id:string; title:string; number?:string; headline?:string; description?:string; facts?:string[]; worldFirst?:boolean };
+type WorldResource = { id:string; label?:string; source?:string; current?:boolean; integrity?:string; provider?:string; jobId?:string };
 type Props = {
   environments:WorldDefinition[];
   presentation:any;
-  resources?:{
-    snapshot:()=>Record<string,WorldResource[]>;
-    onChange:(listener:()=>void)=>(()=>void)|undefined;
-  }|null;
-  authoring?:{
-    subscribe:(listener:()=>void)=>()=>void;
-    snapshot:()=>any;
-    refresh?:()=>Promise<unknown>;
-    open:(id:string)=>Promise<unknown>;
-    createNew:()=>Promise<unknown>;
-  }|null;
+  resources?:{ snapshot:()=>Record<string,WorldResource[]>; onChange:(listener:()=>void)=>(()=>void)|undefined }|null;
+  authoring?:{ subscribe:(listener:()=>void)=>()=>void; snapshot:()=>any; refresh?:()=>Promise<unknown>; open:(id:string)=>Promise<unknown>; createNew:()=>Promise<unknown> }|null;
   openBuiltinWorld:(id:string)=>Promise<unknown>;
   openGeneratedWorld?:(id:string)=>Promise<unknown>;
   enterAuthoringEditor?:(id:string|null)=>void;
+  enterCurrentWorld?:()=>void;
+  openBuild?:()=>void;
 };
-
 const EMPTY_AUTHORING = Object.freeze({ worlds:[], status:null });
 const emptySubscribe = () => () => {};
 const emptySnapshot = () => EMPTY_AUTHORING;
+type Collection = 'builtin'|'drafts'|'generated';
 
-export function WorldsPage({
-  environments,
-  presentation,
-  resources = null,
-  authoring = null,
-  openBuiltinWorld,
-  openGeneratedWorld,
-  enterAuthoringEditor = () => {}
-}:Props) {
+export function WorldsPage({ environments, presentation, resources=null, authoring=null, openBuiltinWorld, openGeneratedWorld, enterAuthoringEditor=()=>{}, enterCurrentWorld, openBuild }:Props) {
   const [resourceRevision,setResourceRevision] = useState(0);
+  const [collection,setCollection] = useState<Collection>('builtin');
+  const [query,setQuery] = useState('');
   const [busyKey,setBusyKey] = useState<string|null>(null);
-  useEffect(()=>resources?.onChange?.(()=>setResourceRevision((value)=>value+1)),[resources]);
+  const [error,setError] = useState('');
+  const busy = useRef(false);
+  useEffect(()=>resources?.onChange?.(()=>setResourceRevision(value=>value+1)),[resources]);
   const resourceSnapshot = useMemo(()=>resources?.snapshot?.() || { worlds:[] },[resources,resourceRevision]);
-  const generatedWorlds = (resourceSnapshot.worlds || []).filter((item)=>item.source === 'generated');
+  const generatedWorlds = (resourceSnapshot.worlds || []).filter(item=>item.source==='generated');
+  const authoringState:any = useSyncExternalStore(authoring?.subscribe || emptySubscribe,authoring?.snapshot || emptySnapshot,authoring?.snapshot || emptySnapshot);
+  const drafts:any[] = authoringState.worlds || [];
+  const current = worldPresentation(presentation || { id:'', title:'当前世界' });
+  const needle=query.trim().toLocaleLowerCase();
+  const matches=(...values:unknown[])=>!needle || values.some(value=>String(value || '').toLocaleLowerCase().includes(needle));
+  const visibleBuiltins=environments.filter(world=>matches(worldPresentation(world).title,worldPresentation(world).description,world.id));
+  const visibleDrafts=drafts.filter(world=>matches(world.name,world.id));
+  const visibleGenerated=generatedWorlds.filter(world=>matches(world.label,world.id));
+  const counts={builtin:environments.length,drafts:drafts.length,generated:generatedWorlds.length};
+  const visibleCount=collection==='builtin'?visibleBuiltins.length:collection==='drafts'?visibleDrafts.length:visibleGenerated.length;
 
-  const authoringState:any = useSyncExternalStore(
-    authoring?.subscribe || emptySubscribe,
-    authoring?.snapshot || emptySnapshot,
-    authoring?.snapshot || emptySnapshot
-  );
-
-  const currentSource = String(presentation?.persistenceSource || '');
-  const run = async (key:string,operation:()=>Promise<unknown>) => {
-    setBusyKey(key);
+  const run=async(key:string,operation:()=>Promise<unknown>)=>{
+    if(busy.current) return;
+    busy.current=true;setBusyKey(key);setError('');
     try { return await operation(); }
-    finally { setBusyKey(null); }
+    catch(cause) { setError(cause instanceof Error ? cause.message : '打开失败，请重试。'); return null; }
+    finally { busy.current=false;setBusyKey(null); }
+  };
+  const create=async()=>{
+    if(!authoring) return;
+    const result=await run('new',()=>authoring.createNew());
+    if(result) enterAuthoringEditor(null);
+    else if(authoring.snapshot()?.fileError) setError(authoring.snapshot().fileError);
+  };
+  const openDraft=async(id:string)=>{
+    if(!authoring) return;
+    const result=await run('draft:'+id,()=>authoring.open(id));
+    if(result) enterAuthoringEditor(id);
+    else if(authoring.snapshot()?.fileError) setError(authoring.snapshot().fileError);
   };
 
-  const openAuthoring = async (id:string) => {
-    if (!authoring) return;
-    const result = await run('authoring:'+id,()=>authoring.open(id));
-    if (result) enterAuthoringEditor(id);
-  };
-
-  const createAuthoring = async () => {
-    if (!authoring) return;
-    const result = await run('authoring:new',()=>authoring.createNew());
-    if (result) enterAuthoringEditor(null);
-  };
-
-  return (
-    <section className="worlds-page" data-product-page="worlds" aria-label="Worlds">
-      <header className="worlds-heading">
-        <div>
-          <div className="eyebrow">WORLDS</div>
-          <h1>Worlds</h1>
-          <p>选择运行世界、生成世界，或从真正空白的 Three.js Scene 开始创作。AgentScape 运行时规则保持在创作层之外。</p>
-        </div>
-        {authoring ? <button type="button" className="worlds-primary-action" disabled={busyKey === 'authoring:new'} onClick={()=>void createAuthoring()}>＋ New World</button> : null}
-      </header>
-
-      <section className="worlds-section" aria-labelledby="builtin-worlds-title">
-        <div className="worlds-section-heading">
-          <div>
-            <span>BUILT-IN</span>
-            <h2 id="builtin-worlds-title">Runtime Worlds</h2>
-          </div>
-          <small>{environments.length} worlds</small>
-        </div>
-        <div className="worlds-grid">
-          {environments.map((world)=>{
-            const current = !presentation?.generated && presentation?.id === world.id;
-            return (
-              <article key={world.id} className={'world-card' + (current ? ' is-current' : '')} data-world-card={world.id}>
-                <div className="world-card-topline">
-                  <span>{world.number || 'WORLD'}</span>
-                  <em>{current ? 'CURRENT' : world.worldFirst ? 'WORLD FIRST' : 'RUNTIME'}</em>
-                </div>
-                <div className="world-card-body">
-                  <h3>{world.title}</h3>
-                  <p>{world.description || world.headline || ''}</p>
-                  <div className="world-card-facts">{(world.facts || []).slice(0,3).map((fact)=><span key={fact}>{fact}</span>)}</div>
-                </div>
-                <button
-                  type="button"
-                  className="world-card-open"
-                  disabled={busyKey === 'builtin:'+world.id}
-                  onClick={()=>void run('builtin:'+world.id,()=>openBuiltinWorld(world.id))}
-                >{current ? 'Open current world' : 'Open in World Editor'} <span>→</span></button>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="worlds-section" aria-labelledby="generated-worlds-title">
-        <div className="worlds-section-heading">
-          <div>
-            <span>GENERATED</span>
-            <h2 id="generated-worlds-title">Generated Worlds</h2>
-          </div>
-          <small>{generatedWorlds.length} artifacts</small>
-        </div>
-        {generatedWorlds.length ? (
-          <div className="worlds-list">
-            {generatedWorlds.map((world)=>{
-              const current = presentation?.generated && currentSource === 'artifact:'+world.id;
-              return (
-                <article key={world.id} className={'world-list-row' + (current ? ' is-current' : '')}>
-                  <div><strong>{world.label || world.id}</strong><code>{world.id}</code></div>
-                  <div className="world-list-meta"><span>{current ? 'CURRENT' : world.integrity || 'declared'}</span><span>{world.provider || 'generated'}</span></div>
-                  <button type="button" disabled={!openGeneratedWorld || busyKey === 'generated:'+world.id} onClick={()=>openGeneratedWorld && void run('generated:'+world.id,()=>openGeneratedWorld(world.id))}>Open →</button>
-                </article>
-              );
-            })}
-          </div>
-        ) : <div className="worlds-empty">生成的 World Manifest Artifact 会出现在这里。</div>}
-      </section>
-
-      <section className="worlds-section" aria-labelledby="authoring-worlds-title">
-        <div className="worlds-section-heading">
-          <div>
-            <span>AUTHORING</span>
-            <h2 id="authoring-worlds-title">Draft Worlds</h2>
-          </div>
-          <small>{authoringState.worlds?.length || 0} drafts</small>
-        </div>
-        {authoringState.worlds?.length ? (
-          <div className="worlds-list">
-            {authoringState.worlds.map((world:any)=>{
-              const current = authoringState.status?.id === world.id;
-              return (
-                <article key={world.id} className={'world-list-row' + (current ? ' is-current' : '')}>
-                  <div><strong>{world.name || world.id}</strong><code>{world.id}</code></div>
-                  <div className="world-list-meta"><span>{current ? 'OPEN' : 'DRAFT'}</span>{current && authoringState.status?.dirty ? <span>UNSAVED</span> : null}</div>
-                  <button type="button" disabled={!authoring || busyKey === 'authoring:'+world.id} onClick={()=>void openAuthoring(world.id)}>Edit →</button>
-                </article>
-              );
-            })}
-          </div>
-        ) : <div className="worlds-empty">还没有创作草稿。New World 会打开一个独立、空白的 THREE.Scene。</div>}
-      </section>
+  return <section className="worlds-page" data-product-page="worlds" aria-label="世界工作台">
+    <header className="worlds-heading">
+      <div><div className="eyebrow">YOUR WORKSPACE</div><h1>世界工作台</h1><p>选择一个场景，编辑空间，再让智能体行动。</p></div>
+      <button type="button" className="worlds-primary-action" disabled={!authoring || !!busyKey} onClick={()=>void create()}><StudioIcon name="plus" />{busyKey==='new'?'正在创建…':'新建草稿'}</button>
+    </header>
+    <section className="worlds-current" aria-label="当前工作区">
+      <div className="worlds-current-copy"><span className="worlds-current-label"><i />继续当前世界</span><h2>{current.title}</h2><p>{current.description || '回到画布，继续编辑你的场景。'}</p>
+        <button className="worlds-current-action" type="button" disabled={!!busyKey} onClick={()=>enterCurrentWorld ? enterCurrentWorld() : void run('current',()=>openBuiltinWorld(presentation.id))}>进入编辑器<StudioIcon name="arrow" /></button>
+        <small>场景编辑 · 物理交互 · 智能体任务</small>
+      </div>
+      <div className="worlds-current-preview">{current.preview ? <img src={current.preview} alt={current.title+'的场景预览'} fetchPriority="high" /> : <StudioIcon name="worlds" size={80} />}<span>场景预览</span></div>
     </section>
-  );
+    <div className="worlds-browser-heading"><div><h2>选择你的起点</h2><p>从现成场景开始，或继续自己的创作。</p></div></div>
+    <div className="worlds-controls">
+      <div className="worlds-filters" role="group" aria-label="世界分类">
+        {([['builtin','示例场景'],['drafts','我的草稿'],['generated','已生成']] as const).map(([key,label])=><button key={key} type="button" aria-pressed={collection===key} onClick={()=>{setCollection(key);setQuery('');setError('');}}>{label}<span>{counts[key]}</span></button>)}
+      </div>
+      <label className="worlds-search"><StudioIcon name="search" size={16} /><input type="search" aria-label="搜索世界" placeholder="搜索名称或场景…" value={query} onChange={e=>setQuery(e.target.value)} /></label>
+    </div>
+    {error ? <div className="worlds-error" role="alert"><span>操作未完成：{error}</span><button type="button" aria-label="关闭错误提示" onClick={()=>setError('')}><StudioIcon name="close" /></button></div> : null}
+    <div className="worlds-results" aria-busy={!!busyKey}>
+      {collection==='builtin' ? <div className="worlds-grid">{visibleBuiltins.map(world=>{
+        const view=worldPresentation(world);const isCurrent=!presentation?.generated && presentation?.id===world.id;
+        return <article key={world.id} className={'world-card'+(isCurrent?' is-current':'')} data-world-card={world.id}>
+          <button className="world-card-preview" type="button" aria-label={'打开'+view.title} disabled={!!busyKey} onClick={()=>void run(world.id,()=>openBuiltinWorld(world.id))}>{view.preview ? <img src={view.preview} alt="" loading="lazy" /> : <StudioIcon name="worlds" size={48} />}<span>{view.category}</span>{isCurrent?<em>当前世界</em>:null}</button>
+          <div className="world-card-body"><h3>{view.title}</h3><p>{view.description}</p></div>
+          <button className="world-card-open" type="button" disabled={!!busyKey} onClick={()=>void run(world.id,()=>openBuiltinWorld(world.id))}><span>{busyKey===world.id?'正在打开…':isCurrent?'回到当前世界':'打开场景'}</span><StudioIcon name="arrow" size={17} /></button>
+        </article>;
+      })}</div> : <div className="worlds-list">{(collection==='drafts'?visibleDrafts:visibleGenerated).map((world:any)=>{
+        const draft=collection==='drafts';const key=(draft?'draft:':'generated:')+world.id;
+        return <article className="world-list-row" key={world.id}><div className="world-list-icon"><StudioIcon name={draft?'folder':'worlds'} size={24} /></div><div className="world-list-copy"><strong>{world.name || world.label || world.id}</strong><small>{draft?'本机草稿':world.provider || '生成的世界'}{draft && authoringState.status?.id===world.id && authoringState.status?.dirty?' · 有未保存修改':''}</small><code title={world.id}>{world.id}</code></div><button type="button" disabled={!!busyKey || (!draft && !openGeneratedWorld)} onClick={()=>draft ? void openDraft(world.id) : openGeneratedWorld && void run(key,()=>openGeneratedWorld(world.id))}>{busyKey===key?'正在打开…':'打开'}<StudioIcon name="arrow" size={16} /></button></article>;
+      })}</div>}
+      {!visibleCount ? <div className="worlds-empty"><StudioIcon name={query?'search':collection==='drafts'?'folder':'worlds'} size={32} /><h3>{query?'没有找到匹配的世界':collection==='drafts'?'给新想法一个空白场景':'还没有生成的世界'}</h3><p>{query?'换一个关键词，或清除搜索。':collection==='drafts'?'新建草稿后，可以从资源库添加物体并保存到本机。':'前往生成工作台，描述你想要的环境。生成结果会保存在这里。'}</p>{query ? <button type="button" onClick={()=>setQuery('')}>清除搜索</button> : collection==='drafts' ? <button type="button" disabled={!authoring || !!busyKey} onClick={()=>void create()}>新建草稿</button> : openBuild ? <button type="button" onClick={openBuild}>前往生成工作台<StudioIcon name="arrow" size={16} /></button> : null}</div> : null}
+    </div>
+    <footer className="worlds-footer"><span>{visibleCount} 个{collection==='builtin'?'示例场景':collection==='drafts'?'草稿':'生成世界'}</span><span>草稿与资源保存在当前浏览器</span></footer>
+  </section>;
 }

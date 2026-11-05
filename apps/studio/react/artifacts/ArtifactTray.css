@@ -11,9 +11,9 @@
 .artifact-tray {
   min-width:0;
   overflow:hidden;
-  border:1px solid rgba(210,188,255,.24);
+  border:1px solid rgba(185,162,232,.24);
   border-radius:var(--radius-md);
-  background:rgba(28,27,29,.86);
+  background:rgba(0,0,0,.86);
   box-shadow:var(--shadow-floating);
   backdrop-filter:blur(18px) saturate(112%);
   pointer-events:auto;
@@ -37,7 +37,7 @@
   align-items:center;
   gap:7px;
   color:var(--text-secondary);
-  font:650 7.5px/1 var(--font-mono);
+  font:650 11px/1 var(--font-mono);
   letter-spacing:.09em;
 }
 
@@ -48,7 +48,7 @@
   color:var(--text-muted);
   background:rgba(255,255,255,.055);
   text-align:center;
-  font-size:7px;
+  font-size:11px;
   letter-spacing:0;
 }
 
@@ -62,7 +62,7 @@
   color:var(--text-muted);
   background:transparent;
   cursor:pointer;
-  font:600 8px/1 var(--font-mono);
+  font:600 11px/1 var(--font-mono);
 }
 .artifact-tray-actions button:hover { color:var(--text); background:rgba(255,255,255,.055); }
 
@@ -76,7 +76,7 @@
   overflow-y:hidden;
   padding:7px;
   scrollbar-width:thin;
-  scrollbar-color:#464249 transparent;
+  scrollbar-color:var(--ds-border-strong) transparent;
 }
 
 .artifact-tray-empty {
@@ -88,8 +88,8 @@
   padding:0 5px;
   color:var(--text-muted);
 }
-.artifact-tray-empty strong { color:var(--text-secondary); font-size:9px; font-weight:620; }
-.artifact-tray-empty span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:8.5px; }
+.artifact-tray-empty strong { color:var(--text-secondary); font-size:11px; font-weight:620; }
+.artifact-tray-empty span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
 
 .artifact-tray-item {
   width:196px;
@@ -101,11 +101,11 @@
   border:1px solid var(--line);
   border-radius:var(--radius-sm);
   color:var(--text-secondary);
-  background:rgba(14,14,16,.56);
+  background:rgba(0,0,0,.56);
   text-align:left;
 }
-.artifact-tray-item:hover { border-color:rgba(210,188,255,.32); background:rgba(81,54,120,.16); }
-.artifact-tray-item.active { border-color:rgba(210,188,255,.54); background:rgba(81,54,120,.26); }
+.artifact-tray-item:hover { border-color:rgba(185,162,232,.32); background:rgba(185,162,232,.16); }
+.artifact-tray-item.active { border-color:rgba(185,162,232,.54); background:rgba(185,162,232,.26); }
 
 .artifact-tray-select {
   min-width:0;
@@ -126,12 +126,12 @@
   border:0;
   border-top:1px solid var(--line);
   color:var(--accent);
-  background:rgba(125,89,184,.08);
+  background:rgba(185,162,232,.08);
   cursor:pointer;
-  font:650 7.5px/1 var(--font-ui);
+  font:650 11px/1 var(--font-ui);
   letter-spacing:.01em;
 }
-.artifact-tray-continue:hover:not(:disabled) { background:rgba(125,89,184,.18); color:var(--text); }
+.artifact-tray-continue:hover:not(:disabled) { background:rgba(185,162,232,.18); color:var(--text); }
 .artifact-tray-continue:disabled { opacity:.48; cursor:default; }
 .artifact-tray-save {
   height:24px;
@@ -140,7 +140,7 @@
   color:var(--text-secondary);
   background:rgba(255,255,255,.025);
   cursor:pointer;
-  font:600 7.5px/1 var(--font-ui);
+  font:600 11px/1 var(--font-ui);
 }
 .artifact-tray-save:hover:not(:disabled) { color:var(--text); background:rgba(255,255,255,.06); }
 .artifact-tray-save:disabled { color:var(--success); opacity:.7; cursor:default; }
@@ -154,19 +154,19 @@
   border:1px solid var(--line);
   border-radius:4px;
   color:var(--accent);
-  background:#0e0e10;
-  font:700 8px/1 var(--font-mono);
+  background:var(--ds-surface-1);
+  font:700 11px/1 var(--font-mono);
 }
 .artifact-tray-thumb img { width:100%; height:100%; display:block; object-fit:cover; }
 
 .artifact-tray-copy { min-width:0; display:grid; gap:2px; font-style:normal; }
-.artifact-tray-copy small { color:var(--success); font:650 8px/1 var(--font-mono); letter-spacing:.06em; }
+.artifact-tray-copy small { color:var(--success); font:650 11px/1 var(--font-mono); letter-spacing:.06em; }
 .artifact-tray-copy strong,
 .artifact-tray-copy code,
 .artifact-tray-copy em { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.artifact-tray-copy strong { color:var(--text); font-size:9px; font-weight:620; }
-.artifact-tray-copy code { color:var(--text-muted); font:500 8.5px/1.2 var(--font-mono); }
-.artifact-tray-copy em { color:#77727e; font:500 8px/1.2 var(--font-mono); font-style:normal; }
+.artifact-tray-copy strong { color:var(--text); font-size:11px; font-weight:620; }
+.artifact-tray-copy code { color:var(--text-muted); font:500 11px/1.2 var(--font-mono); }
+.artifact-tray-copy em { color:var(--ds-text-3); font:500 11px/1.2 var(--font-mono); font-style:normal; }
 
 .shell.cinematic .artifact-tray-host { display:none; }
 

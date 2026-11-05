@@ -14,7 +14,7 @@ function runtime() {
     policy: new PolicyEngine(),
     trace: new TraceRecorder(),
     snapshot: vi.fn(() => ({ value })),
-    restore: vi.fn(async (scene) => { value = scene.value; }),
+    restoreSnapshot: vi.fn(async (scene) => { value = scene.value; }),
     mutate: vi.fn(async (_label, fn) => fn()),
     clearObjects:vi.fn(async()=>{}),loadRuleGraph:vi.fn(),
     assetCatalog: { list:()=>[], search:()=>[], summary:(x)=>x },
@@ -80,7 +80,7 @@ describe('core skills', () => {
     expect(result.success).toBe(true);
     expect(result.result.committed).toBe(false);
     expect(result.result.rolledBack).toBe(true);
-    expect(r.restore).toHaveBeenCalled();
+    expect(r.restoreSnapshot).toHaveBeenCalled();
     expect(r.getValue()).toBe(0);
   });
 
@@ -166,11 +166,11 @@ describe('core skills', () => {
     expect(provisional).toMatchObject({success:true,result:{status:'world-provisional',admission:{status:'provisional'}}});
     expect(registry.executionPolicy('runWorldPipeline',provisional.result).outcome).toMatchObject({state:'unverified',verified:false,status:'world-provisional',reason:'WORLD_PROVISIONAL'});
 
-    r.restore.mockClear();
+    r.restoreSnapshot.mockClear();
     r.pipeline.run=vi.fn(async()=>({state:{reports:{worldAdmission:{status:'rejected',reasons:['ASSET_UNRESOLVED']}}},timeline:[]}));
     const rejected=await registry.invoke('runWorldPipeline',{plan:{}},{profile:'builder',actor:'test'});
     expect(rejected).toMatchObject({success:true,result:{status:'world-rejected',reason:'ASSET_UNRESOLVED',rolledBack:true,admission:{status:'rejected'}}});
-    expect(r.restore).toHaveBeenCalledOnce();
+    expect(r.restoreSnapshot).toHaveBeenCalledOnce();
     expect(registry.executionPolicy('runWorldPipeline',rejected.result).outcome).toMatchObject({state:'failed',verified:false,reason:'ASSET_UNRESOLVED'});
   });
 
@@ -208,7 +208,7 @@ describe('core skills', () => {
       schema:'agentscape.world-ir',revision:{id:'rev-1:retry-2',parentId:'rev-1'},
       entities:[{id:'machine_01',asset:{assetId:'generated_machine_01',query:'rare machine',generate:true}}]
     });
-    expect(r.restore).toHaveBeenCalledOnce();
+    expect(r.restoreSnapshot).toHaveBeenCalledOnce();
     expect(registry.executionPolicy('runWorldPipeline',result.result).outcome).toMatchObject({state:'verified',verified:true,status:'world-ready'});
   });
 
@@ -242,7 +242,7 @@ describe('core skills', () => {
       status:'world-rejected',rolledBack:true,retry:{status:'exhausted',attempt:2,budget:2,retriable:false},attempts:[{attempt:1},{attempt:2}]
     }});
     expect(r.pipeline.run).toHaveBeenCalledTimes(2);
-    expect(r.restore).toHaveBeenCalledTimes(2);
+    expect(r.restoreSnapshot).toHaveBeenCalledTimes(2);
     expect(registry.executionPolicy('runWorldPipeline',result.result).outcome).toMatchObject({state:'failed',verified:false});
   });
 
@@ -330,7 +330,7 @@ describe('core skills', () => {
     ]},{profile:'builder',actor:'test'});
     expect(result).toMatchObject({success:true,result:{committed:false,rolledBack:false,reason:'UNBATCHABLE_SKILL',skill:'approachAndInteract',results:[]}});
     expect(r.spawn).not.toHaveBeenCalled();
-    expect(r.restore).not.toHaveBeenCalled();
+    expect(r.restoreSnapshot).not.toHaveBeenCalled();
   });
 
   it('rolls back a batch when a nested skill returns a structured semantic failure without throwing', async () => {
@@ -343,7 +343,7 @@ describe('core skills', () => {
     ]},{profile:'builder',actor:'test'});
     expect(result).toMatchObject({success:true,result:{committed:false,rolledBack:true,reason:'SEMANTIC_STEP_NOT_VERIFIED'}});
     expect(result.result.results.at(-1)).toMatchObject({name:'place',success:true,outcome:{state:'failed',verified:false,reason:'SUPPORT_NOT_REACHED'}});
-    expect(r.restore).toHaveBeenCalledOnce();
+    expect(r.restoreSnapshot).toHaveBeenCalledOnce();
     expect(r.getValue()).toBe(0);
   });
 
@@ -588,7 +588,7 @@ it('replaces the current world before candidate execution and restores committed
   r.interactionEvidence=new Map(oldAuthority.interactionEvidence);
   r.loadRuleGraph=vi.fn((graph)=>order.push(graph.length?'load-rules':'pause-rules'));
   r.clearObjects=vi.fn(async()=>{order.push('clear-world');r.interactionEvidence.clear();});
-  r.restore=vi.fn(async()=>{order.push('restore-scene');});
+  r.restoreSnapshot=vi.fn(async()=>{order.push('restore-scene');});
   r.pipeline.run=vi.fn(async()=>{
     order.push('candidate-pipeline');
     expect(r.interactionEvidence.size).toBe(0);

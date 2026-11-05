@@ -1,0 +1,42 @@
+{
+  "name": "@agentscape/sdk",
+  "version": "2.0.0-dev.1",
+  "type": "module",
+  "description": "AgentScape Scene API development SDK",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "agentscape": "./cli.mjs"
+  },
+  "files": [
+    "dist",
+    "cli.mjs",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "node ../../dev/build-sdk.mjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.20.0",
+    "@gltf-transform/core": "^4.4.2",
+    "@gltf-transform/extensions": "^4.4.2",
+    "@gltf-transform/functions": "^4.4.2",
+    "@recast-navigation/core": "^0.43.1",
+    "@recast-navigation/generators": "^0.43.1",
+    "three": "0.186.0",
+    "three-gsmesh": "^0.0.3",
+    "three-mesh-bvh": "^0.9.1",
+    "zod": "4.6.7"
+  }
+}

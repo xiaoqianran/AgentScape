@@ -62,9 +62,9 @@ export function AuthoringNodeInspector({
   return (
     <div data-inspector-source="authoring">
       <header className="screen-heading product-heading product-heading--utility">
-        <div className="eyebrow">AUTHORING NODE</div>
+        <div className="eyebrow">创作对象</div>
         <h1 id="inspect-heading">{model.title}</h1>
-        <p id="inspect-subheading">{model.subtitle} · 尚未成为 Runtime Entity</p>
+        <p id="inspect-subheading">草稿中的对象 · 尚未加入可交互世界</p>
       </header>
 
       <div id="selection" className="selection">
@@ -94,14 +94,14 @@ export function AuthoringNodeInspector({
         </section>
 
         <section className="inspect-section">
-          <h3>Authoring Transform</h3>
+          <h3>位置与尺寸</h3>
           <div className="transform-scale-editor">
             <label>位置 XYZ</label>
-            <div className="inline-input">
+            <div className="inspect-vector-input">
               {position.map((value,index)=>(
                 <input
                   key={index}
-                  aria-label={'Authoring position ' + ['X','Y','Z'][index]}
+                  aria-label={'位置 ' + ['X','Y','Z'][index]}
                   type="number"
                   step="0.05"
                   value={value}
@@ -127,12 +127,12 @@ export function AuthoringNodeInspector({
                 {busy === 'transform' ? '应用中…' : '应用'}
               </button>
             </div>
-            <small>修改通过 EditorCommandQueue → AuthoringDocument.patch，并进入 Authoring revision history。</small>
+            <small>修改保存在当前草稿中，可通过草稿历史撤销。</small>
           </div>
         </section>
 
         <details className="disclosure">
-          <summary>Authoring 详情</summary>
+          <summary>技术详情</summary>
           <dl className="properties detail-properties">
             <div><dt>来源</dt><dd>AuthoringDocument</dd></div>
             <div><dt>模型引用</dt><dd>{model.modelRef ? 'ModelRef' : '无'}</dd></div>

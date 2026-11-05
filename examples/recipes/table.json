@@ -1,0 +1,27 @@
+{
+  "schema": "agentscape.asset-recipe",
+  "schemaVersion": 1,
+  "id": "example/table",
+  "parts": [
+    { "id": "top", "geometry": { "type": "box", "size": [2, 0.1, 1] }, "position": [0, 1, 0], "material": { "color": "#9B6B43" } },
+    { "id": "leg1", "geometry": { "type": "box", "size": [0.1, 0.95, 0.1] }, "position": [-0.9, 0.475, -0.4] },
+    { "id": "leg2", "geometry": { "type": "box", "size": [0.1, 0.95, 0.1] }, "position": [0.9, 0.475, -0.4] },
+    { "id": "leg3", "geometry": { "type": "box", "size": [0.1, 0.95, 0.1] }, "position": [-0.9, 0.475, 0.4] },
+    { "id": "leg4", "geometry": { "type": "box", "size": [0.1, 0.95, 0.1] }, "position": [0.9, 0.475, 0.4] }
+  ],
+  "capabilities": {
+    "level": "interactive",
+    "actions": ["move", "place"],
+    "physics": {
+      "body": "fixed", "mass": 10,
+      "colliders": [
+        { "shape": "box", "halfExtents": [1, 0.05, 0.5], "translation": [0, 1, 0] },
+        { "shape": "box", "halfExtents": [0.05, 0.475, 0.05], "translation": [-0.9, 0.475, -0.4] },
+        { "shape": "box", "halfExtents": [0.05, 0.475, 0.05], "translation": [0.9, 0.475, -0.4] },
+        { "shape": "box", "halfExtents": [0.05, 0.475, 0.05], "translation": [-0.9, 0.475, 0.4] },
+        { "shape": "box", "halfExtents": [0.05, 0.475, 0.05], "translation": [0.9, 0.475, 0.4] }
+      ]
+    },
+    "surfaces": [{ "id": "top", "localPosition": [0, 1.05, 0], "size": [2, 1] }]
+  }
+}

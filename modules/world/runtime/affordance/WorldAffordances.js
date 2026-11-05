@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { inspectObjectAffordances } from './ObjectAffordances.js';
 
 const clone=value=>structuredClone(value);
 const failure=(id,reason,extra={})=>({status:'world-action-blocked',targetId:id,verified:false,reason,...extra});
@@ -30,16 +31,19 @@ export class WorldAffordances {
   }
   inspect(id,{actorId=null}={}) {
     const entry=this.get(id);
-    if(!entry) return null;
+    if(!entry) return inspectObjectAffordances(this.runtime,id,actorId);
     const access=actorId?this.access(entry,actorId):{available:null,reason:'ACTOR_REQUIRED_FOR_REACH_CHECK'};
     const state=entry.kind==='text' && actorId && !access.available ? {text:null,reason:access.reason} : clone(entry.read());
-    return {id:entry.id,label:entry.label,kind:entry.kind,position:this.position(entry),state,
-      actions:entry.actions.map(action=>{const reason=entry.precondition?.(action);return {action,...access,...(reason?{available:false,reason}:{})};}),evidenceKind:entry.evidenceKind,
+    return {schema:'agentscape.object-affordances',schemaVersion:1,source:'environment',id:entry.id,label:entry.label,kind:entry.kind,position:this.position(entry),state,
+      actions:entry.actions.map(action=>{const reason=entry.precondition?.(action);return {action,parameters:clone(entry.parameters?.[action] || {}),execution:'world-action',...access,...(reason?{available:false,reason}:{}),...(this.pending.has(id)?{available:false,reason:'ACTION_IN_PROGRESS'}:{}),...(this.runtime.simulation?.running===false && entry.evidenceKind==='animated-transform'?{available:false,reason:'SIMULATION_PAUSED'}:{})};}),evidenceKind:entry.evidenceKind,
       physicsVerified:false,pending:this.pending.has(id)};
   }
   list({query='',actorId=null,limit=40}={}) {
     const term=String(query).toLocaleLowerCase();
-    const matches=this.contracts().filter(entry=>`${entry.id} ${entry.label} ${entry.kind}`.toLocaleLowerCase().includes(term));
+    const entries=[...this.contracts()];
+    const ids=new Set(entries.map(entry=>entry.id));
+    for(const [id,record] of this.runtime.store?.list?.() || []) if(!ids.has(id)) entries.push({id,label:record.manifest.label || record.manifest.id,kind:record.manifest.type});
+    const matches=entries.filter(entry=>`${entry.id} ${entry.label} ${entry.kind}`.toLocaleLowerCase().includes(term));
     return {schema:'agentscape.affordances.v1',total:matches.length,entities:matches.slice(0,Math.min(100,Math.max(1,limit))).map(entry=>this.inspect(entry.id,{actorId}))};
   }
   execute({targetId,action,args={},actorId=null},{editor=false}={}) {

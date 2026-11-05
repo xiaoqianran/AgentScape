@@ -1,0 +1,38 @@
+{
+  "stage": "PR-06",
+  "status": "passed-with-explicit-skips",
+  "checks": [
+    {
+      "command": "npm run check",
+      "passed": 1632,
+      "skipped": 3,
+      "log": ".v2-pr06-check-final.log"
+    },
+    {
+      "command": "npm run test:mcp",
+      "passed": 10,
+      "skipped": 3,
+      "log": ".v2-pr06-mcp-final.log"
+    },
+    {
+      "command": "npm run test:browser",
+      "passed": 7,
+      "log": ".v2-pr06-browser-final.log"
+    },
+    {
+      "command": "tsc -p sdk/typescript/tsconfig.json",
+      "exitCode": 0
+    }
+  ],
+  "scope": [
+    "Bundled SDK runs without repository sources",
+    "Public type declarations and dedicated TypeScript check",
+    "Safe CLI Starter scaffolding",
+    "Starter uses AgentScape.open and portable project save/restore",
+    "Inline Recipe and GLB inputs resolve through shared AssetModule; Node compiled bytes parsed directly"
+  ],
+  "limitations": [
+    "Development tarball only; npm publication not performed",
+    "Headless textures require an appropriate platform loader"
+  ]
+}

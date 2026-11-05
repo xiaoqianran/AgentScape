@@ -1,3 +1,4 @@
+import { assetDisplayName } from '../shared/ResourcePresentation';
 import { useEffect, useState } from 'react';
 import type { EditorCommandsLike, InspectorRelation, RuntimeInspectorModel } from './InspectorTypes';
 
@@ -27,6 +28,7 @@ export function RuntimeEntityInspector({
 }) {
   const [scaleInput,setScaleInput]=useState(String(model.transform.scale));
   const [busy,setBusy]=useState<string|null>(null);
+  const [errorMessage,setErrorMessage]=useState('');
 
   useEffect(()=>{
     setScaleInput(String(model.transform.scale));
@@ -34,11 +36,11 @@ export function RuntimeEntityInspector({
 
   const runAction=async(action:string)=>{
     if (busy) return;
-    setBusy('action:' + action);
+    setBusy('action:' + action);setErrorMessage('');
     try {
       await commands.runtimeAction(action === 'drop' ? 'drop' : action,model.id);
     } catch(error) {
-      log('错误：' + (error instanceof Error ? error.message : String(error)),'error');
+      const message=error instanceof Error ? error.message : String(error);setErrorMessage(message);log('错误：'+message,'error');
     } finally {
       setBusy(null);
     }
@@ -48,14 +50,14 @@ export function RuntimeEntityInspector({
     if (busy) return;
     const value=Number(scaleInput);
     if (!Number.isFinite(value) || value < 0.05 || value > 20) {
-      log('缩放范围必须是 0.05–20。','error');
+      setErrorMessage('缩放范围必须是 0.05–20。');log('缩放范围必须是 0.05–20。','error');
       return;
     }
-    setBusy('scale');
+    setBusy('scale');setErrorMessage('');
     try {
       await commands.scaleRuntime(model.id,value);
     } catch(error) {
-      log('缩放失败：' + (error instanceof Error ? error.message : String(error)),'error');
+      const message=error instanceof Error ? error.message : String(error);setErrorMessage(message);log('缩放失败：'+message,'error');
     } finally {
       setBusy(null);
     }
@@ -66,18 +68,13 @@ export function RuntimeEntityInspector({
   return (
     <div data-inspector-source="runtime">
       <header className="screen-heading product-heading product-heading--utility">
-        <div className="eyebrow">RUNTIME ENTITY</div>
-        <h1 id="inspect-heading">{model.title}</h1>
-        <p id="inspect-subheading">{model.subtitle}</p>
+        <div className="eyebrow">可交互对象</div>
+        <h1 id="inspect-heading">{assetDisplayName(model.asset,model.title)}</h1>
+        <p id="inspect-subheading">{model.id}</p>
       </header>
 
       <div id="selection" className="selection">
-        <div className="object-title">
-          <div>
-            <h2 id="object-id">{model.id}</h2>
-            <span id="object-type">{model.type}</span>
-          </div>
-        </div>
+        {errorMessage ? <div className="inspect-error" role="alert">{errorMessage}</div> : null}
 
         <section className="inspect-section">
           <h3>变换</h3>
@@ -104,27 +101,28 @@ export function RuntimeEntityInspector({
                 {busy === 'scale' ? '应用中…' : '应用'}
               </button>
             </div>
-            <small>正式 Runtime Entity；修改通过 EditorCommandQueue → AgentTools。</small>
+            <small>位置与旋转可在画布中拖动调整；缩放会同步物理尺寸。</small>
           </div>
         </section>
 
         <section className="inspect-section">
-          <h3>关系</h3>
+          <h3>空间关系</h3>
           <div id="relation-info" className="relation-info">
             {relations.length ? relations.map((relation,index)=>(
               <div key={relation.predicate + ':' + relation.object + ':' + index}>
                 <strong>{RELATION_LABELS[relation.predicate] ?? relation.predicate}</strong>
                 <span>{relation.object}</span>
               </div>
-            )) : <span className="muted-copy">暂无语义关系。</span>}
+            )) : <span className="muted-copy">附近暂未检测到空间关系。</span>}
           </div>
+          <p className="inspect-evidence-note">关系来自当前几何位置，不代表动作已经验证成功。</p>
           <div id="spatial-info" className="spatial-info">
             尺寸 {model.spatial.size.join(' × ')} · 附近 {model.spatial.nearbyCount} 个对象
           </div>
         </section>
 
         <section className="inspect-section">
-          <h3>操作</h3>
+          <h3>可用操作</h3>
           <div id="actions" className="action-list">
             {actions.length ? actions.map(action=>(
               <button key={action} type="button" disabled={Boolean(busy)} onClick={()=>void runAction(action)}>

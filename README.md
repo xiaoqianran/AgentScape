@@ -1,326 +1,85 @@
 # AgentScape
 
-当前源码布局采用 `apps / application / modules / foundation`。模块任务就近保存在各自的 `tasks.jsonl`，运行 `npm run planning:list` 聚合查看；目录与已知迁移限制见 [Repository Layout](docs/repository-layout.md)。
+**Build interactive 3D worlds that people and AI agents can operate.**
 
-> **把生成式 3D 资产变成可被 LLM 安全操作、可验证的浏览器 3D 世界。**
+Three.js rendering, Rapier physics and Recast navigation share one world state. Characters can walk to objects, pick them up and place them on surfaces. The runtime reports what actually happened, separately from what was requested.
 
-AgentScape 是一个运行在浏览器中的 **Agent-ready 3D Runtime**。它把 Three.js、Rapier、Recast/Detour、资产 Manifest、空间语义、Skill Registry、验证/修复和 Tool-calling Agent 放在同一条 Runtime 边界后面，让人类编辑器与 AI Agent 操作同一个真实世界状态。
+[简体中文](README.zh-CN.md) · [First world](apps/starter/README.md) · [MCP for AI agents](apps/mcp-server/README.md) · [Contribute](CONTRIBUTING.md)
 
-AgentScape **不重造 3D 基础模型或大型仿真平台**。EmbodiedGen、Hunyuan3D、TRELLIS、VLM、CoACD 等能力可以作为上游 Provider；AgentScape 负责把它们的输出编译、准入、放置、验证，并变成真正可执行的 Agent World。
+![Starter after a verified pickup/place and a fresh-page restore](docs/evidence/starter-first-world.png)
 
-## 当前仓库形态
+## Run your first world
 
-AgentScape 已经从早期的多仓库拼装架构收敛为两个产品代码边界：
+Use Node.js 22.12+ (Node 22 is used in CI), npm and a browser with WebGL2 support.
 
-```text
-┌─────────────────────────────────────┐
-│             AgentScape              │
-│ Agent / LLM / VLM / Skills         │
-│ Human UI / Runs / Tasks            │
-│ Job / Artifact / Asset / World     │
-│ Runtime / Physics / Verification   │
-└──────────────────┬──────────────────┘
-                   │ Capability / Job / Artifact
-                   ▼
-┌─────────────────────────────────────┐
-│           modal-provider            │
-│ modal-gen-client                    │
-│ modal-2D-client / modal-2D          │
-│ modal-3D-client / modal-3D          │
-│ modal-EmbodiedGen                   │
-└─────────────────────────────────────┘
+```sh
+git clone https://github.com/xiaoqianran/AgentScape.git
+cd AgentScape
+npm ci
+npm run starter
 ```
 
-旧的 `AgentScape-agent`、`modal-inference-hub`、各独立 `modal-*` Provider 仓、`kaggle-inference-hub`、`modal-build`、`modal-lab` 与 AgentScape-owned `EmbodiedGen` checkout 都不再是当前仓库边界。Provider 内部仍可按 package/deployment unit 独立测试和部署，但统一归 `modal-provider` monorepo 管理。
+Open the `/starter/` URL printed by Vite, normally `http://127.0.0.1:5173/starter/`.
 
-详见 [`docs/multi-repository-architecture.md`](docs/architecture/multi-repository.md) 与 [`docs/provider-integration-plan.md`](docs/archive/history/provider-integration-plan.md)。
+1. Click **Pick up the cup**, then **Place on the table**. Wait for each verified result.
+2. Add a chair and move it.
+3. Download the world, reload the page, and open the saved JSON file.
 
-## 一眼看懂
+The starter uses bundled assets: **no model API key, generation service or Docker required**. Package installation needs internet access. This is a local demo; a hosted Playground is not published by this change.
 
-```text
-Prompt / GLB / EmbodiedGen / External Generator
-                       │
-                       ▼
-               Agent / Asset Gateway
-                       │
-             ┌─────────┴─────────┐
-             ▼                   ▼
-        WorldSpec            Asset Manifest
-             │                   │
-             └─────────┬─────────┘
-                       ▼
-              Agent-Ready Compiler
-                       │
-             ready / provisional / rejected
-                       │
-                       ▼
-             Deterministic World Composer
-                       │
-        Manifest footprint + Rapier preflight
-                       │
-                       ▼
-          Three.js + Rapier + Recast Runtime
-                       │
-        ┌──────────────┼──────────────┐
-        ▼              ▼              ▼
-     Spatial        SceneGraph     SkillRegistry
-        │              │              │
-        └──────────────┼──────────────┘
-                       ▼
-                  Tool-calling Agent
-                       │
-                       ▼
-            verified / unverified / failed
+## Make it yours
+
+Edit [`apps/starter/scene.json`](apps/starter/scene.json) and reload. Your scene is a real, version-controlled file. The starter currently accepts `agent`, `cup`, `table` and `chair` assets.
+
+```json
+{ "id": "reading-chair", "asset": "chair", "position": [-4, 0, 3] }
 ```
 
-## 现在已经能做什么
+The development SDK shares the Scene service with Studio and MCP. It is not published to npm; [build a local tarball](sdk/typescript/README.md).
 
-| 能力 | 当前状态 |
+```js
+import { AgentScape } from '@agentscape/sdk';
+const world = await AgentScape.open({ canvas: '#app' });
+await world.addModel({ id: 'seat', asset: 'builtin://chair', position: [-4, 0, 3] });
+await world.setStyle('builtin://toon');
+const saved = await world.save();
+```
+
+Interactions return jobs. Browser rendering advances automatically; headless hosts step simulation. See [v1 contracts](planning/public-contracts-v1.md).
+
+## Choose an entry point
+
+| You want to… | Start here |
 | --- | --- |
-| 浏览器 3D Runtime | Three.js + Rapier，共享对象生命周期、事务与回滚 |
-| Navigation | Recast/Detour NavMesh + Rapier 动态障碍 + Kinematic Character Controller |
-| Embodied Interaction | `navigateTo`、`approachAndInteract`、`approachAndPickup`、`approachAndPlace` |
-| Articulation | revolute / prismatic joint、live completion、STALL/TIMEOUT、Motion Sweep 验证 |
-| Recovery | blocker attribution、pickup/articulated recovery、cleanup、original post-condition retry |
-| Counterfactual Safety | Physics-first shape-pair、convergence、third-object / Environment hard veto |
-| Generated Assets | `GenerationRuntime` + Connector Job/Artifact + Compiler/Asset admission |
-| Generated Worlds | Runtime-issued WorldIR + deterministic layout + Physics preflight + bounded missing-asset generation retry |
-| World Admission | asset/layout/relation/validation → `ready / provisional / rejected` |
-| Agent Safety | Policy、Trace、mutation barrier、fresh replan、unresolved ledger、deterministic verification |
-| Persistence | Scene serialization、Autosave、Undo/Redo、world-specific save |
-| Asset Compiler | GLB inspection、Part/Joint、collider、resource budget、quality gate |
-| Observatory | Developer Runtime Lab：Physics / Spatial / Navigation / Interaction / Agent / Generation 单步与 replay；Generation Lab 可走真实 Artifact/Compiler/Admission，并验证生成资产的 spawn / pickup / carry / place |
+| Learn with a small physical scene | `/starter/` and the [starter guide](apps/starter/README.md) |
+| Use the editor | `/` with `npm run dev` |
+| Connect an external AI agent | [MCP setup](apps/mcp-server/README.md) |
+| Build procedural assets in isolation | [Programmatic assets](apps/mcp-server/PROGRAMMATIC-ASSETS.md) |
+| Diagnose physics/navigation | `/observatory/` |
+| Understand engine boundaries | [Architecture](docs/architecture.md) and [repository layout](docs/repository-layout.md) |
 
-版本演进细节不再塞在 README；完整历史见 [`docs/evolution.md`](docs/archive/history/evolution.md)，当前真实状态见 [`docs/status-and-roadmap.md`](docs/archive/history/status-and-roadmap.md)。
+The existing MCP supports isolated worlds, actions, verification, procedural asset builds and trusted save/restore. Remote code builds require a configured Docker sandbox; they do not silently fall back to the server process. MCP sessions do not currently control the Studio's open world.
 
-## Generation → Asset → World
+## Development scope
 
-AgentScape 不再拥有 direct Provider generation path。远程生成能力由 Connector capability snapshot 动态发现：
+Implemented: Scene Project v1, bounded Asset Recipes, self-contained GLB Visual import, portable project bundles and three declarative StylePacks. Starter, Studio, SDK and MCP share business rules. MCP retains 24 original tools plus 9 Scene tools; sessions remain isolated from Studio.
 
-```text
-GenerationRuntime
-      │
-      ▼
-Connector capability / Job / Artifact
-      │
-      ▼
-Artifact integrity + publication
-      │
-      ▼
-Asset Compiler / admission
-      │
-      ▼
-ready / provisional / rejected
-      │
-      ▼
-WorldIR canonical pipeline
+Public projects currently support monument-hall and up to 32 entities. JSON is the only normative format. Generic archive/directory import, arbitrary shaders and YAML are outside v1. Other Studio environments retain explicitly labelled legacy snapshots. Asset admission, edits and physically verified actions remain distinct; restored actions must be verified again.
+
+See [release gates](docs/v2-release.md) for external acceptance still required before publication.
+
+## Develop and contribute
+
+Examples, documentation, reproduction projects and accessibility improvements are useful contributions alongside engine code. Start with [CONTRIBUTING.md](CONTRIBUTING.md); discuss public API changes before expanding the core.
+
+```sh
+npm run test:starter       # Real physics and fresh-runtime restore
+npm run test:browser:starter # Production build + browser interaction/download/restore
+npm run check              # Architecture, assets, viability, types, tests and build
 ```
 
-`ProviderRegistry` 默认不硬编码任何远程 Provider。`EmbodiedGenAdapter` 等 adapter 只属于 Asset compatibility/import implementation，不代表 AgentScape 的 Provider topology。详见 [`docs/generation-runtime.md`](docs/modules/generation-runtime.md) 与 [`docs/generated-world-admission.md`](docs/capabilities/generated-world-admission.md)。
+Browser tests require `npx playwright install chromium` first. See the contribution guide for platform setup and optional Docker tests. The existing Python SDK targets generation connectors, not a general world-control API.
 
-## Generated World 主链
+## License
 
-自然语言生成世界时，LLM 只负责表达受约束的意图；几何真值仍由 Runtime 决定：
-
-```text
-User Prompt
-   │
-   ▼
-ToolCallingAgent
-   │
-   ├── search / reuse first
-   ▼
-Strong WorldSpec
-   │
-   │  没有精确坐标要求 → 不写 position
-   ▼
-WorldComposer
-   │
-   ├── Manifest root collider footprint
-   ├── Environment layout bounds
-   ├── same-batch overlap reservation
-   └── Rapier checkManifestPose
-   ▼
-instantiate
-   │
-   ├── ON   → existing placement runtime
-   └── NEAR → collider-derived spacing + Physics preflight
-   ▼
-WorldValidator / RepairEngine
-   ▼
-world-ready / world-provisional / world-rejected
-```
-
-WorldSpec 的未知字段会由 Runtime 自己 deterministic reject；不会依赖模型是否严格遵守 JSON Schema。 Search miss 且 Generator 已配置时，`runWorldPipeline` 还可在同一 mutation 内执行一次固定预算的内部 regeneration retry；详见 [`docs/bounded-world-regeneration.md`](docs/capabilities/bounded-world-regeneration.md)。
-
-## 核心设计原则
-
-### Runtime 是事实源
-
-编辑器与 Agent 不维护第二份场景模型。ObjectStore、Rapier、Manifest、SceneGraph、SkillRegistry、PolicyEngine 与 TraceRecorder 各自拥有明确职责。
-
-### 确定性验证优先于模型判断
-
-Bounds、碰撞、支撑、关节完成、路径、资源预算等能由 Runtime 验证的事实，不交给 LLM 猜。
-
-### Proposal 不等于 Success
-
-Generated asset、Recovery Hint、Part Proposal、Counterfactual recommendation 都可能只是 `provisional`。只有原始 post-condition 被 Runtime 验证，任务才算完成。
-
-### 生成与运行时解耦
-
-重型生成、VLM、CoACD 等通过 Provider/Gateway 接入。浏览器 Runtime 只消费标准化数据，并保留明确 fallback 与 provenance。
-
-### 失败必须可追踪、可终止
-
-Mutation 后 fresh replan；失败进入 unresolved ledger；Recovery 不能清除原始失败；重复诊断和重复恢复有 deterministic budget/gate。
-
-## 快速开始
-
-需要 Node.js 20+。
-
-```bash
-npm install
-npm run dev
-```
-
-生产级检查：
-
-```bash
-npm run check
-```
-
-单独检查内置 GLB 与 Manifest 节点一致性：
-
-```bash
-npm run assets:validate
-```
-
-## 常用开发入口
-
-```text
-modules/world/runtime/WorldRuntime.js              Runtime composition root
-modules/world/compiler/createWorldPipeline.js      Generated-world canonical pipeline
-modules/world/spec/WorldSpec.js                WorldSpec schema + deterministic normalization
-modules/world/compiler/WorldComposer.js            Deterministic placement / relation geometry
-application/generation/GenerationRuntime.js Connector / Job / Artifact / Asset production composition
-apps/observatory/main.js                         Developer Runtime Observatory entry
-modules/asset/registry/AssetCatalog.js                  Reusable Asset read/search facade
-modules/world/runtime/systems/PhysicsSystem.js     Rapier truth + hypothetical shape queries
-application/skills/registerCoreSkills.js         Domain skill-pack composition entry
-modules/agent/ToolCallingAgent.js            Plan → act → observe orchestration
-```
-
-## Asset Compiler
-
-Agent-Ready Asset Compiler 的目标不是“让 GLB 能显示”，而是把资产变成 Runtime 能安全消费的 Agent Asset：
-
-```text
-Inspect
-  ↓
-Geometry / hierarchy
-  ↓
-Semantic / Part evidence
-  ↓
-Articulation candidates
-  ↓
-Joint frame
-  ↓
-Root / Part colliders
-  ↓
-Resource budget / optimization
-  ↓
-Quality gate
-  ↓
-ready / provisional / rejected
-```
-
-浏览器保留保守 fallback；可选重型 Compiler 服务负责 trimesh / CoACD 等 enrichment。详见 [`docs/asset-compiler.md`](docs/modules/asset-compiler.md) 与 [`services/asset-compiler/README.md`](services/asset-compiler/README.md)。
-
-## Curated Worlds
-
-当前三个 World Pack 共享同一套 Runtime：
-
-| World | 尺度 | 重点 |
-| --- | ---: | --- |
-| Monument Hall | 32 × 24m | 室内秩序、柱廊、中央 Monument |
-| Ruined Courtyard | 36 × 30m | 室外残构、台阶与高低差 |
-| Grand Urban Block | 96 × 72m | 城市街区尺度、Instancing、Recast benchmark |
-
-三个世界的建筑体块都进入 Three.js / Rapier / Recast，并提供 deterministic composer layout bounds。页面 World selector 使用独立 autosave，World Pack 通过 dynamic import 只加载当前内容。
-
-详见 [`docs/worlds.md`](docs/capabilities/worlds.md) 与 [`docs/asset-sourcing.md`](docs/capabilities/asset-sourcing.md)。
-
-## 外部 Gateway 与凭据
-
-GitHub Pages 是静态前端，模型密钥和重型服务凭据不应提交到浏览器代码或仓库。
-
-- LLM Gateway：[`docs/llm-gateway.md`](docs/modules/llm-gateway.md)
-- 本地测试 Agent：[`docs/test-agent.md`](docs/modules/test-agent.md)
-- Generation Runtime：[`docs/generation-runtime.md`](docs/modules/generation-runtime.md)
-- Heavy Asset Compiler：[`services/asset-compiler/README.md`](services/asset-compiler/README.md)
-
-`.env.local` 只用于本地测试，并应保持 Git ignore 与最小文件权限。
-
-## GLB / Blender 约定
-
-对于有关节资产，可动部件应导出为稳定独立节点；旋转节点原点应放在真实转轴；行为、动作 target 与物理由 Manifest 描述，GLB 主要负责视觉与层级。推荐输出 glTF 2.0 Binary (`.glb`)。
-
-更完整约定与 Compiler 行为见 [`docs/asset-compiler.md`](docs/modules/asset-compiler.md)。
-
-## 文档入口
-
-从 [`docs/README.md`](docs/README.md) 开始最方便。推荐顺序：
-
-```text
-mission-and-system-plan
-      ↓
-status-and-roadmap
-      ↓
-architecture
-      ↓
-evolution
-      ↓
-generated-world-admission
-      ↓
-deterministic-world-composer
-      ↓
-verified recovery / counterfactual docs
-```
-
-协议细节、测试方法与研究记录都保留在 `docs/`，README 只维护当前系统的入口视图。
-
-## 架构研究
-
-AgentScape 的架构是在实际阅读与对比成熟项目后收敛，而不是从空白重造，包括 EmbodiedGen、SceneSmith、Gizmo、Limina、Auto-Threejs、ObjaTHOR、CoACD、glTF-Transform 与 Articulate-Anything。
-
-研究记录：[`docs/research/engine-architecture-study.md`](docs/archive/research/engine-architecture-study.md)、[`docs/research/asset-compiler-study.md`](docs/archive/research/asset-compiler-study.md)、[`THIRD_PARTY.md`](THIRD_PARTY.md)。
-
-## 当前边界
-
-AgentScape 不把启发式语义、节点名关节候选、Provider affordance、fallback collider 或 LLM 文本当成 verified world truth。Generated-world orchestration 已经能够规范化、准入、确定性布局、验证，并对“search miss + generator available”执行一次 Runtime-owned bounded regeneration；更复杂的 layout/relation/validation 约束修订、全局空间优化与动态第三体未来运动预测仍在继续推进。
-
-## Repository boundary
-
-AgentScape 不再把 Provider 作为 Git submodule 固定在主仓中。当前产品边界是：
-
-```text
-AgentScape
-   │ provider-neutral Capability / Job / Artifact
-   ▼
-modal-provider
-```
-
-`modal-provider` 内统一维护 `modal-gen-client`、2D/3D Provider 与 Reference Sidecar、以及 `modal-EmbodiedGen` build/runtime integration。它们仍可独立测试和部署，但不是独立系统仓库。
-
-跨进程生成链可直接验证：
-
-```bash
-npm run test:modal-e2e
-```
-
-该测试启动相邻仓库中的真实 Python `modal-gen-client`，覆盖 Agent → 两阶段配对 → 2D → 3D → Artifact → AssetRegistry / AssetLoader → `WorldRuntime.spawn()` → `place()`。测试 Provider 使用确定性本地实现，不调用付费 Modal GPU；需要本机可用 `uv`，并保持 `modal-provider` 与 `AgentScape` 为相邻目录。
-
-该跨仓库测试作为独立 gate 运行，不混入默认 `npm test` / `npm run check`，避免外部 Python 进程启动时间受 Vitest 并行负载干扰。
-
-`npm run architecture:validate` 会验证这一点：`sdk/python` 必须由 AgentScape 自己拥有，并拒绝任何 `providers/*` Git submodule。详见 [`docs/multi-repository-architecture.md`](docs/architecture/multi-repository.md) 与 [`docs/provider-integration-plan.md`](docs/archive/history/provider-integration-plan.md)。
+[MIT](LICENSE). Third-party dependencies and content have their own terms; see [THIRD_PARTY.md](THIRD_PARTY.md). Include provenance and license information when contributing assets or textures.
