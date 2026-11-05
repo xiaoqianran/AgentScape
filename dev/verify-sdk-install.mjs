@@ -46,6 +46,24 @@ try {
 `);
   execFileSync(process.execPath, ['create.mjs'], { cwd: consumer, stdio: 'inherit' });
   const restoration = execFileSync(process.execPath, ['restore.mjs'], { cwd: consumer, encoding: 'utf8' });
+  writeFileSync(join(consumer, 'code.mjs'), `
+import { AgentScape } from '@agentscape/sdk';
+import { startServer } from '@agentscape/sdk/mcp';
+import assert from 'node:assert/strict';
+const world=await AgentScape.open({codeExecution:{mode:'worker-wasm'}});
+let restored;
+try {
+ await world.addModel({id:'code_cube',asset:{kind:'three-code',source:'export function createAsset(THREE) { const g=new THREE.Group(); g.add(new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial())); return g; }'}});
+ const bundle=(await world.save()).value;
+ world.close();
+ restored=await AgentScape.open({bundle});
+ assert.equal(restored.observe().objects[0].id,'code_cube');
+ const server=await startServer({tokens:[{identity:'test',token:'standalone-sdk-test-token-32-characters'}],port:0,root:'.sessions',dataRoot:'.assets'});
+ await server.close();
+ console.log('Installed SDK code Worker, save/restore and MCP entry passed');
+} finally {restored?.close();world.close();}
+`);
+  execFileSync(process.execPath, ['code.mjs'], { cwd: consumer, stdio: 'inherit' });
   const report = { version: packed.version, node: process.version, platform: process.platform,
     sha256: createHash('sha256').update(readFileSync(join(temporary, packed.filename))).digest('hex'),
     files: packed.files.map(file => file.path), installation, restoration: JSON.parse(restoration.trim()) };

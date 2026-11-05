@@ -1,1 +1,1 @@
-export { execute, build } from '../../application/code-execution/AuthoringSandboxEntry.js';
+export { execute, build, serializeAsset } from '../../application/code-execution/AuthoringSandboxEntry.js';

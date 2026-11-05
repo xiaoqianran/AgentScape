@@ -9,7 +9,16 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "browser": "./dist/index.js",
+      "node": "./dist/node.js",
       "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/node.js"
+    },
+    "./mcp": {
+      "import": "./dist/mcp.js"
     }
   },
   "bin": {
@@ -32,11 +41,21 @@
     "@gltf-transform/core": "^4.4.2",
     "@gltf-transform/extensions": "^4.4.2",
     "@gltf-transform/functions": "^4.4.2",
+    "@modelcontextprotocol/node": "2.1.2",
+    "@modelcontextprotocol/server": "2.4.0",
     "@recast-navigation/core": "^0.43.1",
     "@recast-navigation/generators": "^0.43.1",
+    "@sparkjsdev/spark": "~2.1.0",
+    "jolt-physics": "1.1.0",
+    "quickjs-emscripten": "0.32.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "rolldown": "1.2.8",
+    "sharp": "0.35.5",
     "three": "0.186.0",
     "three-gsmesh": "^0.0.3",
     "three-mesh-bvh": "^0.9.1",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "zustand": "^5.0.15"
   }
 }

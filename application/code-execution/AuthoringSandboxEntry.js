@@ -34,6 +34,10 @@ export function build(source) {
  if (!/^\s*export\s+function\s+createAsset\s*\(/m.test(source)) throw new Error('PROCEDURAL_ENTRY_REQUIRED');
  const code=source.replace(/\bexport\s+function\s+createAsset\s*\(/,'function createAsset(');
  const root=new Function('THREE',`"use strict";\n${code}\nreturn createAsset(THREE);`)(THREE);
+ return serializeAsset(root);
+}
+
+export function serializeAsset(root) {
  if (!root?.isObject3D || root.isScene) throw new Error('PROCEDURAL_ROOT_INVALID');
  if (root.position.length()>1e-8 || root.scale.distanceTo(new THREE.Vector3(1,1,1))>1e-8 || Math.abs(root.quaternion.w)<1-1e-8) throw new Error('PROCEDURAL_ROOT_TRANSFORM_UNSUPPORTED');
  const scene=new THREE.Scene();root.userData.authoringId='asset-root';scene.add(root);

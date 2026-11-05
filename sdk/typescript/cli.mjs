@@ -3,8 +3,14 @@ import { mkdir, writeFile, readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const [command, target = 'my-agentscape-world'] = process.argv.slice(2);
-if (command !== 'starter') {
-  console.log('Usage: agentscape starter [new-directory]');
+if (command === 'mcp') {
+  const { startServer } = await import('./dist/mcp.js');
+  const app = await startServer({tokens:JSON.parse(process.env.AGENTSCAPE_MCP_TOKENS || '[]'),
+    codeExecution:{mode:process.env.AGENTSCAPE_CODE_EXECUTION || 'worker-wasm',authorized:process.env.AGENTSCAPE_TRUSTED_CODE==='1',remote:process.env.AGENTSCAPE_PUBLIC_SERVICE==='1'}});
+  console.log(`AgentScape MCP: http://127.0.0.1:${app.port}/mcp`);
+  for(const signal of ['SIGINT','SIGTERM'])process.once(signal,()=>app.close().then(()=>process.exit(0)));
+} else if (command !== 'starter') {
+  console.log('Usage: agentscape starter [new-directory] | mcp');
   process.exitCode = command === '--help' || !command ? 0 : 1;
 } else {
   const directory = resolve(target);

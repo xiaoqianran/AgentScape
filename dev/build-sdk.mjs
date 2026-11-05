@@ -1,5 +1,5 @@
 import { rolldown } from 'rolldown';
-import { readFile, writeFile, mkdir, copyFile, rm, lstat } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, copyFile, rm, lstat, cp } from 'node:fs/promises';
 import { isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,8 +23,25 @@ const bundle = await rolldown({ input: new URL('src/index.ts', source).pathname.
   } });
 await bundle.write({ dir: new URL('dist/', source).pathname.replace(/^\/([A-Za-z]:)/, '$1'), format: 'es', entryFileNames: 'index.js', sourcemap: true });
 await bundle.close();
-sdk.dependencies = Object.fromEntries(Object.entries(pkg.dependencies).filter(([name]) => referenced.has(name)));
+// Keep Node execution and MCP out of the browser entry. Package their source closure
+// so Worker URLs and the audited sandbox bundle are available after npm installation.
+const runtime = new URL('dist/runtime/', source);
+for (const directory of ['application','modules','foundation','apps/mcp-server','public/assets']) {
+  await cp(new URL(directory, root), new URL(directory, runtime), {recursive:true});
+}
+await copyFile(new URL('package-lock.json', root), new URL('package-lock.json', runtime));
+await copyFile(new URL('package.json', root), new URL('package.json', runtime));
+await copyFile(new URL('src/node.mjs', source), new URL('dist/node.js', source));
+await writeFile(new URL('dist/mcp.js', source), "export { startServer } from './runtime/apps/mcp-server/main.mjs';\n");
+const worker = await rolldown({input:fileURLToPath(new URL('application/code-execution/BrowserCodeWorker.js',root))});
+try { await worker.write({file:fileURLToPath(new URL('dist/BrowserCodeWorker.js',source)),format:'es'}); } finally { await worker.close(); }
+sdk.dependencies = {...pkg.dependencies};
+sdk.exports['.'] = {types:'./dist/index.d.ts',browser:'./dist/index.js',node:'./dist/node.js',import:'./dist/index.js'};
+sdk.exports['./node'] = {types:'./dist/node.d.ts',import:'./dist/node.js'};
+sdk.exports['./mcp'] = {types:'./dist/mcp.d.ts',import:'./dist/mcp.js'};
 await writeFile(new URL('package.json', source), JSON.stringify(sdk, null, 2) + '\n');
 await copyFile(new URL('src/index.d.ts', source), new URL('dist/index.d.ts', source));
+await copyFile(new URL('src/node.d.ts', source), new URL('dist/node.d.ts', source));
+await copyFile(new URL('src/mcp.d.ts', source), new URL('dist/mcp.d.ts', source));
 await copyFile(new URL('LICENSE', root), new URL('LICENSE', source));
 console.log('Standalone SDK build complete');

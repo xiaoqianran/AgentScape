@@ -1,6 +1,8 @@
 export type Vec3 = [number, number, number];
 export type Quaternion = [number, number, number, number];
 export type CapabilityLevel = 'visual' | 'physical' | 'interactive';
+export interface CodeExecutionOptions { mode: 'disabled' | 'worker-wasm' | 'trusted-local' | 'os-isolated'; authorized?: boolean; remote?: boolean; wallTimeoutMs?: number; timeoutMs?: number; memoryBytes?: number; configPath?: string }
+export interface ThreeCodeInput { kind:'three-code'; source:string; definition?:Record<string,unknown> }
 export interface Transform { position?: Vec3; quaternion?: Quaternion; scale?: number }
 export interface AssetRecipe { schema: 'agentscape.asset-recipe'; schemaVersion: 1; id: string; parts: unknown[]; capabilities?: { level: CapabilityLevel; physics?: unknown; actions?: string[]; surfaces?: unknown[] } }
 export interface MechanicalComponent {
@@ -22,7 +24,7 @@ export interface CapabilityProposal { schema:'agentscape.capability-proposal';sc
   physics:{body:null;mass:null;friction:null;colliders:unknown[]};
   parts:Array<{id:string;node:string;parent?:string;joint:Record<string,unknown>;physics?:Record<string,unknown>;confidence?:number;executable:false;physicsVerified:false;missing:string[]}>;
   operations:Array<{action:string;part?:string;executable:false;physicsVerified:false;requires:string}>;missing:string[];evidence:Record<string,unknown> }
-export interface ModelInput { id: string; asset: string | AssetRecipe | MechanicalDraft | GLBInput; level?: CapabilityLevel; transform?: Transform; position?: Vec3 }
+export interface ModelInput { id: string; asset: string | AssetRecipe | MechanicalDraft | GLBInput | ThreeCodeInput; level?: CapabilityLevel; transform?: Transform; position?: Vec3 }
 export interface Diagnostic { code: string; message: string; stage: string; retryable: boolean }
 export type AdmissionStatus = 'ready' | 'provisional' | 'rejected';
 export interface AdmissionLayer { status: AdmissionStatus; reasons: string[]; required: boolean }
@@ -60,7 +62,7 @@ export interface SceneHandle {
   prepareAsset(input:Omit<GLBInput,'review'>):Promise<CapabilityProposal>;
   inspect(target: string, options?: { actor?: string }): ObjectAffordances;
   observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; actors: ReturnType<SceneHandle['actors']>; style: Record<string, unknown> | null; affordances: AffordanceListing; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };
-  addModel(input: ModelInput): Promise<SceneResult>;
+  addModel(input: ModelInput, options?:{signal?:AbortSignal}): Promise<SceneResult>;
   setTransform(input: { id: string; transform: Transform }): Promise<SceneResult>;
   remove(input: { id: string }): Promise<SceneResult>;
   replaceAsset(input: { id: string; asset: string; level?: CapabilityLevel }): Promise<SceneResult>;
@@ -74,7 +76,7 @@ export interface SceneHandle {
   setStyle(style: string | Record<string, unknown>, options?: { fallback?: 'reject' | 'declared' }): Promise<SceneResult>;
   frame(timestamp: number): void; step(): unknown; close(): void;
 }
-export declare const AgentScape: { open(options?: { canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean }): Promise<SceneHandle> };
+export declare const AgentScape: { open(options?: { canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean; codeExecution?:CodeExecutionOptions }): Promise<SceneHandle> };
 export declare function parseSceneProject(input: unknown): unknown;
 export declare const recipeSchema: { parse(input: unknown): unknown };
 export declare const assetPackageSchema: { parse(input: unknown): unknown };
