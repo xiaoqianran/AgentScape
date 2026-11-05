@@ -40,7 +40,7 @@ Agent 从浏览器访问入口、等待真正 Runtime ready、完成拿取和放
 
 **P1 — Starter 移动端横向溢出（真实复现）**
 
-在浏览器从桌面宽度调整到 390px 时，`document.documentElement.scrollWidth=1090px`，而 `innerWidth=390px`；`#viewport` 自身宽度已是 390px，但此前的 canvas 仍是 1090px 宽。说明 UI 容器响应式已切换，但 3D canvas 未随 resize 完整适配，移动端会出现严重横向滚动/可能裁切。重现：在 Starter 首次加载后把浏览器窗口缩至 390px；滚动检查横向溢出。需修复 renderer/canvas 的 resize 处理并补充 resize 回归测试。**本轮未更改 renderer，避免单纯通过 `overflow:hidden` 掩盖裁切问题。**
+在浏览器从桌面宽度调整到 390px 时，`document.documentElement.scrollWidth=1090px`，而 `innerWidth=390px`；`#viewport` 自身宽度已是 390px，但此前的 canvas 仍是 1090px 宽。说明 UI 容器响应式已切换，但 3D canvas 未随 resize 完整适配，移动端会出现严重横向滚动/可能裁切。重现：在 Starter 首次加载后把浏览器窗口缩至 390px；滚动检查横向溢出。需修复 renderer/canvas 的 resize 处理并补充 resize 回归测试。**后续修复验证（本轮完成）：** 已在 Starter 的 `#viewport canvas` 添加 `width:100%;height:100%`，避免画布固有尺寸撑开布局；原有 RenderingSystem 的 ResizeObserver 持续根据容器大小更新缓冲区。新增浏览器用例在 320px、390px、1024px 之间切换，校验页面无横向溢出、canvas 宽度与容器一致、WebGL context 未丢失，并覆盖项目恢复后的再次校验；Starter 浏览器 2/2 测试通过。没有使用 `overflow:hidden` 掩盖尺寸问题。
 
 **P2 — Headless 风格效果的认知差异（语义警告）**
 

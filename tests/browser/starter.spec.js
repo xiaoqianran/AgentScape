@@ -29,3 +29,40 @@ test('first world: real interaction, download, reload and restore', async ({ pag
   await expect(page.locator('#count')).toHaveText('4 objects');
   expect(errors).toEqual([]);
 });
+
+test('starter canvas follows narrow and wide viewport after runtime startup and after restore', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.goto('/starter/');
+  await expect(page.getByRole('status')).toContainText('Ready.', { timeout: 60000 });
+  await expect(page.getByRole('navigation', { name: 'Continue with AgentScape' }).getByRole('link', { name: /Open full Studio/ })).toHaveAttribute('href', '/');
+  await expect(page.getByRole('navigation', { name: 'Continue with AgentScape' }).getByRole('link', { name: /Connect an AI agent with MCP/ })).toBeVisible();
+
+  const checkViewport = async width => {
+    await page.setViewportSize({ width, height: 844 });
+    await expect.poll(async () => page.locator('#viewport canvas').evaluate(canvas => {
+      const parentWidth = document.querySelector('#viewport').clientWidth;
+      return {
+        resized: canvas.width === parentWidth && canvas.clientWidth === parentWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        windowWidth: window.innerWidth,
+        webglLost: canvas.getContext('webgl2')?.isContextLost()
+      };
+    }), { timeout: 15000 }).toEqual({ resized: true, documentWidth: width, windowWidth: width, webglLost: false });
+    return await page.locator('#viewport canvas').boundingBox();
+  };
+
+  const narrow = await checkViewport(390);
+  expect(narrow.width).toBe(390);
+  await checkViewport(1024);
+  await checkViewport(320);
+  await checkViewport(390);
+
+  const downloadEvent = page.waitForEvent('download');
+  await page.getByRole('button', { name: '3. Download world' }).click();
+  const savedPath = await (await downloadEvent).path();
+  await page.locator('#file').setInputFiles(savedPath);
+  await expect(page.getByRole('status')).toContainText('Restored 3 objects', { timeout: 60000 });
+  await checkViewport(390);
+  expect(pageErrors).toEqual([]);
+});
