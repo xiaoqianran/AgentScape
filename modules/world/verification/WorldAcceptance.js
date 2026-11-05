@@ -26,8 +26,12 @@ export function compileWorldAcceptance(criteria=[]){
     if(kind==='interaction-verified'){ check.capability=clean(item.capability).toUpperCase(); if(!check.targetId||!check.capability) throw new TypeError(`Acceptance[${index}] interaction-verified requires targetId/capability`); }
     if(kind==='relation-exists'){
       check.subject=clean(item.subject); check.predicate=clean(item.predicate).toUpperCase(); check.object=clean(item.object);
+      if(item.objectAnyOf!=null) {
+        if(check.object || !Array.isArray(item.objectAnyOf) || !item.objectAnyOf.length || item.objectAnyOf.length>32 || item.objectAnyOf.some(value=>!clean(value))) throw new TypeError('Use object or a bounded objectAnyOf');
+        check.objectAnyOf=[...new Set(item.objectAnyOf.map(clean))];delete check.object;
+      }
       if(clean(item.surfaceId)) check.surfaceId=clean(item.surfaceId);
-      if(!check.subject||!check.predicate||!check.object) throw new TypeError(`Acceptance[${index}] relation-exists requires subject/predicate/object`);
+      if(!check.subject||!check.predicate||(!check.object&&!check.objectAnyOf)) throw new TypeError(`Acceptance[${index}] relation-exists requires subject/predicate/object`);
       if(!['ON','NEAR','INSIDE','CONTAINS','SUPPORTS'].includes(check.predicate)) throw new TypeError(`Acceptance[${index}] unsupported relation predicate: ${check.predicate}`);
     }
     if(kind==='object-exists'&&!check.targetId) throw new TypeError(`Acceptance[${index}] object-exists requires targetId`);
@@ -49,7 +53,9 @@ export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undef
       return {id:check.id,kind:check.kind,verified:exists,targetId:check.targetId,...(!exists?{reason:'OBJECT_NOT_FOUND'}:{})};
     }
     if(check.kind==='state-equals'){
-      const value=getRecord(runtime,check.targetId)?.state?.[check.stateKey];
+      const environment=runtime?.affordances?.get?.(check.targetId);
+      if(environment?.kind==='text')return {id:check.id,kind:check.kind,verified:false,reason:'ENVIRONMENT_TEXT_REQUIRES_ACTOR_READ'};
+      const value=(getRecord(runtime,check.targetId)?.state || environment?.read?.())?.[check.stateKey];
       return {id:check.id,kind:check.kind,verified:Object.is(value,check.value),targetId:check.targetId,stateKey:check.stateKey,expected:check.value,actual:value,...(!Object.is(value,check.value)?{reason:'STATE_MISMATCH'}:{})};
     }
     if(check.kind==='interaction-verified'){
@@ -61,8 +67,8 @@ export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undef
       if(!runtime?.sceneGraph?.list) return {id:check.id,kind:check.kind,verified:false,subject:check.subject,predicate:check.predicate,object:check.object,reason:'RELATION_GRAPH_UNAVAILABLE'};
       runtime.sceneGraph.update?.();
       const matches=runtime.sceneGraph.list({subject:check.subject,predicate:check.predicate,object:check.object});
-      const evidence=check.surfaceId ? matches.find((edge)=>edge.meta?.surfaceId===check.surfaceId) : matches[0];
-      return {id:check.id,kind:check.kind,verified:Boolean(evidence),subject:check.subject,predicate:check.predicate,object:check.object,...(check.surfaceId?{surfaceId:check.surfaceId}:{}),...(evidence?{evidence:structuredClone(evidence)}:{reason:'RELATION_NOT_FOUND'})};
+      const evidence=matches.find(edge=>(!check.objectAnyOf || check.objectAnyOf.includes(edge.object)) && (!check.surfaceId || edge.meta?.surfaceId===check.surfaceId));
+      return {id:check.id,kind:check.kind,verified:Boolean(evidence),subject:check.subject,predicate:check.predicate,...(check.objectAnyOf?{objectAnyOf:check.objectAnyOf}:{object:check.object}),...(check.surfaceId?{surfaceId:check.surfaceId}:{}),...(evidence?{evidence:structuredClone(evidence)}:{reason:'RELATION_NOT_FOUND'})};
     }
     if (!Array.isArray(unresolvedMutations)) return {id:check.id,kind:check.kind,verified:false,reason:'EVIDENCE_MISSING'};
     const verified=unresolvedMutations.length===0;

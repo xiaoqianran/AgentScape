@@ -5,7 +5,7 @@ const clone=value=>structuredClone(value);
 const failure=(id,reason,extra={})=>({status:'world-action-blocked',targetId:id,verified:false,reason,...extra});
 
 export class WorldAffordances {
-  constructor(runtime) {this.runtime=runtime;this.pending=new Map();this.sequence=0;this.lastResult=null;}
+  constructor(runtime) {this.runtime=runtime;this.pending=new Map();this.sequence=0;this.lastResult=null;this.epoch=0;}
   contracts() {return this.runtime.environment?.affordances || [];}
   get(id) {return this.contracts().find(entry=>entry.id===id);}
   position(entry) {
@@ -13,12 +13,12 @@ export class WorldAffordances {
     const box=new THREE.Box3().setFromObject(entry.object);
     return box.getCenter(new THREE.Vector3()).toArray();
   }
-  access(entry,actorId) {
+  access(entry,actorId,position=null) {
     const runtime=this.runtime;
     if(!runtime.store?.has(actorId)) return {available:false,reason:'ACTOR_NOT_FOUND'};
     const actor=runtime.store.get(actorId);
     if(actor.manifest?.type!=='agent') return {available:false,reason:'ACTOR_NOT_AGENT'};
-    const feet=runtime.physics?.getPosition(actorId);
+    const feet=position || runtime.physics?.getPosition(actorId);
     if(!feet) return {available:false,reason:'ACTOR_PHYSICS_UNAVAILABLE'};
     const target=this.position(entry);
     const origin=[feet[0],feet[1]+1.2,feet[2]];
@@ -35,7 +35,9 @@ export class WorldAffordances {
     const access=actorId?this.access(entry,actorId):{available:null,reason:'ACTOR_REQUIRED_FOR_REACH_CHECK'};
     const state=entry.kind==='text' && actorId && !access.available ? {text:null,reason:access.reason} : clone(entry.read());
     return {schema:'agentscape.object-affordances',schemaVersion:1,source:'environment',id:entry.id,label:entry.label,kind:entry.kind,position:this.position(entry),state,
-      actions:entry.actions.map(action=>{const reason=entry.precondition?.(action);return {action,parameters:clone(entry.parameters?.[action] || {}),execution:'world-action',...access,...(reason?{available:false,reason}:{}),...(this.pending.has(id)?{available:false,reason:'ACTION_IN_PROGRESS'}:{}),...(this.runtime.simulation?.running===false && entry.evidenceKind==='animated-transform'?{available:false,reason:'SIMULATION_PAUSED'}:{})};}),evidenceKind:entry.evidenceKind,
+      actions:entry.actions.map(action=>{const reason=entry.precondition?.(action);return {action,parameters:clone(entry.parameters?.[action] || {}),execution:'world-action',...access,
+        canApproach:!reason && ['OUT_OF_REACH','OCCLUDED'].includes(access.reason) && Boolean(this.runtime.navigation?.findPath && this.runtime.locomotion?.navigate),
+        ...(reason?{available:false,reason}:{}),...(this.pending.has(id)?{available:false,reason:'ACTION_IN_PROGRESS',canApproach:false}:{}),...(this.runtime.simulation?.running===false && entry.evidenceKind==='animated-transform'?{available:false,reason:'SIMULATION_PAUSED',canApproach:false}:{})};}),evidenceKind:entry.evidenceKind,
       physicsVerified:false,pending:this.pending.has(id)};
   }
   list({query='',actorId=null,limit=40}={}) {
@@ -75,6 +77,42 @@ export class WorldAffordances {
       this.pending.set(targetId,pending);
     });
   }
+  async approachAndExecute(command) {
+    const {targetId,actorId,action,args={}}=command,entry=this.get(targetId),epoch=this.epoch;
+    if(!entry)return failure(targetId,'TARGET_NOT_FOUND');
+    if(!entry.actions.includes(action))return failure(targetId,'ACTION_UNSUPPORTED');
+    if(this.runtime.simulation?.running===false && entry.evidenceKind==='animated-transform')return failure(targetId,'SIMULATION_PAUSED');
+    const invalid=entry.precondition?.(action) || entry.validate?.(action,args);
+    if(invalid)return failure(targetId,invalid);
+    const finish=result=>{
+      const changed=['world-action-completed','world-action-unverified'].includes(result.status);
+      if(changed)this.runtime.navigation?.invalidate?.('environment-contract-changed');
+      return {...result,navigationInvalidated:changed};
+    };
+    const current=this.access(entry,actorId);
+    if(current.available)return finish(await this.execute(command));
+    if(!['OUT_OF_REACH','OCCLUDED'].includes(current.reason))return failure(targetId,current.reason);
+    const runtime=this.runtime,start=runtime.physics.getPosition(actorId),target=this.position(entry);
+    if(!runtime.navigation?.findPath || !runtime.locomotion?.navigate)return failure(targetId,'NAVIGATION_UNAVAILABLE');
+    const poses=[];
+    for(const height of [...new Set([start[1],target[1]-1.2])]) for(const radius of [.7,1.05,1.3]) for(let i=0;i<8;i++) {
+      if(epoch!==this.epoch)return failure(targetId,'ACTION_CANCELLED');
+      const angle=i*Math.PI/4,candidate=[target[0]+Math.cos(angle)*radius,height,target[2]+Math.sin(angle)*radius];
+      const route=await runtime.navigation.findPath(start,candidate);
+      if(!route.reachable || !Array.isArray(route.end?.snapped))continue;
+      const position=route.end.snapped;
+      if(this.access(entry,actorId,position).available)poses.push({position,cost:route.cost ?? Infinity});
+    }
+    if(epoch!==this.epoch)return failure(targetId,'ACTION_CANCELLED');
+    if(this.get(targetId)!==entry)return failure(targetId,'TARGET_CHANGED');
+    poses.sort((a,b)=>a.cost-b.cost);
+    if(!poses.length)return failure(targetId,'NO_APPROACH_POSE',{access:current});
+    const locomotion=await runtime.locomotion.navigate(actorId,poses[0].position);
+    if(epoch!==this.epoch)return failure(targetId,'ACTION_CANCELLED');
+    if(this.get(targetId)!==entry)return failure(targetId,'TARGET_CHANGED');
+    if(locomotion.status!=='arrived')return failure(targetId,'APPROACH_FAILED',{locomotion});
+    return {...finish(await this.execute(command)),approach:poses[0].position,locomotion};
+  }
   finishUnverified(id,reason) {
     const item=this.pending.get(id);if(!item)return;
     clearTimeout(item.timer);this.pending.delete(id);
@@ -88,5 +126,5 @@ export class WorldAffordances {
       else if(item.elapsed>=8)this.finishUnverified(id,'POSTCONDITION_TIMEOUT');
     }
   }
-  cancel(reason='WORLD_REPLACED') {for(const id of [...this.pending.keys()])this.finishUnverified(id,reason);}
+  cancel(reason='WORLD_REPLACED') {this.epoch++;for(const id of [...this.pending.keys()])this.finishUnverified(id,reason);}
 }

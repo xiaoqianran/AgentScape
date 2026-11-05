@@ -50,7 +50,7 @@ export async function createStudioRuntime({
   const runtimeTestTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'runtime-test' });
   for (const adapter of [studioTools, agentTools, runtimeTestTools]) {
     const original = adapter.call.bind(adapter);
-    adapter.call = (name, args) => SCENE_LEGACY_SKILLS.includes(name) ? scene.executeSkill(name, args) : original(name, args);
+    adapter.call = (name, args, internalContext) => SCENE_LEGACY_SKILLS.includes(name) ? scene.executeSkill(name, args) : original(name, args, internalContext);
   }
   if (promotion) {
     const verifier = new AssetAgentVerifier({ world, tools:runtimeTestTools });

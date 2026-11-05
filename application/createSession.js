@@ -58,7 +58,5 @@ export function createSession(container, {
   const scene = createSceneFacade(world);
   world.skills.register({ name:'addSceneModel', description:'通过 Scene API 添加已有 AssetRef 或声明式 Asset Recipe。基础几何用 Recipe JSON，不生成或执行 JavaScript。返回添加、准入和验证三个独立结果。', permissions:['world.write','asset.write'], required:['model'], properties:{model:z.toJSONSchema(sceneAgentModelSchema)}, mutates:true, manualMutation:true, batchable:false,
     handler:({model})=>scene.addModel(sceneAgentModelSchema.parse(model)) });
-  world.skills.register({ name:'verifyScene', description:'使用真实 Runtime 检查显式后置条件；不把添加成功当成动作验证。', permissions:['world.read','physics.read'], required:['criteria'], properties:{criteria:{type:'array',minItems:1,maxItems:32}}, mutates:false,
-    handler:({criteria})=>{ if(!Array.isArray(criteria)||!criteria.length||criteria.length>32) throw new Error('INVALID_CRITERIA'); return scene.verify(criteria).value; } });
   return { world, generation, authoring, promotion, scene };
 }

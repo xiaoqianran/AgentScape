@@ -17,6 +17,11 @@ for (const status of ["generation-pending","generation-cancelling"]) REQUESTED_S
 
 function classifyResult(result) {
   if (result && typeof result === 'object' && !Array.isArray(result)) {
+    if(result.schema==='agentscape.scene-result' && result.operation==='interact') {
+      const verified=result.status==='succeeded' && result.verification?.status==='verified';
+      return {state:verified?'verified':result.status==='cancelled'?'unverified':'failed',verified,status:result.status,
+        reason:verified?null:result.value?.reason || result.diagnostics?.[0]?.code || 'SCENE_INTERACTION_UNVERIFIED'};
+    }
     const toolError = typeof result.error === 'string'
       || (result.error && typeof result.error === 'object' && (result.error.code || result.code));
     if (toolError) return { state:'error', verified:false, reason:result.code || result.error?.code || 'TOOL_ERROR' };

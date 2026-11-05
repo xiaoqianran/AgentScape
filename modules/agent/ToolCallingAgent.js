@@ -44,6 +44,7 @@ export const normalizeModelToolCall = (call) => {
 
 const mutationIdentity = (call, result = null) => {
   const args = call.args || {};
+  if(call.name==='interactScene')return `interactScene:${stableValue(args.interaction || {})}`;
   const keys = ['actorId','id','targetId','supportId','blockerId','blockerPartName','blockerAction','action','assetId','instanceId','end'];
   const scope = Object.fromEntries(keys.filter((key)=>args[key] != null).map((key)=>[key,args[key]]));
   const partName = args.partName ?? result?.partName ?? result?.interaction?.part ?? result?.actionSweep?.partName;
@@ -128,17 +129,18 @@ function annotateResult(result, sequence) {
 }
 
 export class ToolCallingAgent {
-  constructor({ tools, gateway, log = () => {}, maxSteps = 8, maxRecoveryReadRounds = 4 }) {
+  constructor({ tools, gateway, log = () => {}, maxSteps = 8, maxRecoveryReadRounds = 4, maxUnchangedFailures = 2 }) {
     this.tools = tools;
     this.gateway = gateway;
     this.log = log;
     this.maxSteps = maxSteps;
     this.maxRecoveryReadRounds = maxRecoveryReadRounds;
+    this.maxUnchangedFailures = maxUnchangedFailures;
   }
 
   get mode() { return this.gateway?.isConfigured() ? 'llm' : 'unconfigured'; }
 
-  async run(text, { signal } = {}) {
+  async run(text, { signal, actor = this.tools.actor } = {}) {
     this.log(`goal: ${text}`, 'goal');
     const toolDefinitions=this.tools.definitions();
     const messages = [
@@ -161,6 +163,15 @@ export class ToolCallingAgent {
     let pendingWorldRevisionRepair=null;
     let lastMutation = null;
     let recoveryReadRounds = 0;
+    let sceneTaskPlan=null,sceneGoalEvidence=null;
+    const failedSceneAttempts=new Map();
+    const hasSceneObservation=toolDefinitions.some(tool=>tool.name==='observeScene');
+    const refreshSceneGoals=async()=>{
+      if(!sceneTaskPlan)return;
+      sceneGoalEvidence=await this.tools.call('verifyScene',{criteria:sceneTaskPlan.criteria});
+      const satisfied=new Set(sceneGoalEvidence.checks.filter(check=>check.verified).map(check=>check.id));
+      for(const [identity,pending] of unresolvedMutations)if(pending.tool==='interactScene' && satisfied.has(pending.args.goalId))unresolvedMutations.delete(identity);
+    };
     const cancelled = (steps) => ({
       message:'任务已停止；已完成的世界变化已保留。重试将重新观察当前世界。',
       taskStatus:'cancelled', termination:'user-cancelled', steps,
@@ -174,8 +185,11 @@ export class ToolCallingAgent {
       if (signal?.aborted) return cancelled(step);
       const world = await this.tools.call('listObjects');
       if (signal?.aborted) return cancelled(step);
+      const scene=hasSceneObservation ? await this.tools.call('observeScene',actor?{actor}:{}) : null;
+      await refreshSceneGoals();
       const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
-      const task = this.tools.taskObservation?.({ lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved }) || null;
+      const task = this.tools.taskObservation?.({ actor,lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved }) || null;
+      if(task && sceneTaskPlan)task.plan={...structuredClone(sceneTaskPlan),verification:structuredClone(sceneGoalEvidence)};
       if (this.tools.runtime) this.tools.runtime.lastTaskObservation = task ? structuredClone(task) : null;
       let response;
       try { response = await gateway.complete({
@@ -183,6 +197,7 @@ export class ToolCallingAgent {
         tools:toolDefinitions,
         context:{
           world:lastMutation ? { count:world.length, index:world.map(({id,asset})=>({id,asset})) } : world,
+          ...(scene?{scene}:{}),
           ...(task ? { task } : {}),
           ...(unresolved.length ? { recovery:{
             readOnlyRoundsUsed:recoveryReadRounds,
@@ -197,22 +212,28 @@ export class ToolCallingAgent {
       if (signal?.aborted) return cancelled(step + 1);
       response.toolCalls = response.toolCalls.map(normalizeModelToolCall);
       if (!response.toolCalls.length) {
+        await refreshSceneGoals();
+        if(signal?.aborted)return cancelled(step+1);
         const proposedFinal = response.message || '任务完成。';
         const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
         const acceptanceBundle=taskAcceptanceBundle ? structuredClone(taskAcceptanceBundle) : null;
         const acceptanceRequired=acceptanceBundle?.required===true;
         const acceptanceAccepted=!acceptanceRequired || acceptanceBundle?.result?.status==='world-accepted';
         const lastComplete = lastMutation && COMPLETE_OUTCOMES.has(lastMutation.outcome.state);
-        const taskStatus = !lastMutation ? 'no-mutation' : lastComplete && !unresolved.length && acceptanceAccepted ? 'completed' : 'incomplete';
-        const final = acceptanceRequired && !acceptanceAccepted
+        const sceneGoalsAccepted=!sceneTaskPlan || sceneGoalEvidence?.status==='world-accepted';
+        const taskStatus = sceneTaskPlan ? sceneGoalsAccepted && !unresolved.length && acceptanceAccepted ? 'completed' : 'incomplete'
+          : !lastMutation ? 'no-mutation' : lastComplete && !unresolved.length && acceptanceAccepted ? 'completed' : 'incomplete';
+        const final = !sceneGoalsAccepted ? `任务未完成：${sceneGoalEvidence?.failedCount ?? sceneTaskPlan.criteria.length} 个目标尚未通过当前世界验证。`
+          : sceneTaskPlan && unresolved.length ? `任务未完成：仍有 ${unresolved.length} 项操作失败需要处理。`
+          : acceptanceRequired && !acceptanceAccepted
           ? `Task incomplete: world acceptance is ${acceptanceBundle?.result?.status || 'missing'}.`
           : proposedFinal;
         if (taskStatus === 'incomplete') {
-          const detail = !acceptanceAccepted ? `world acceptance → ${acceptanceBundle?.result?.status || 'missing'}` : unresolved.length ? `${unresolved.length} unresolved mutation(s)` : `${lastMutation.tool} → ${lastMutation.outcome.state}`;
+          const detail = !sceneGoalsAccepted ? `${sceneGoalEvidence?.failedCount || 0} unsatisfied goal(s)` : !acceptanceAccepted ? `world acceptance → ${acceptanceBundle?.result?.status || 'missing'}` : unresolved.length ? `${unresolved.length} unresolved mutation(s)` : `${lastMutation?.tool || 'task'} → ${lastMutation?.outcome.state || 'incomplete'}`;
           this.log(`sequence: task incomplete · ${detail}`, 'error');
         }
         this.log(final, 'result');
-        return { message:final, steps:step + 1, taskStatus, lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved, execution:structuredClone(execution), ...(acceptanceBundle?{acceptanceBundle}:{}) };
+        return { message:final, steps:step + 1, taskStatus, lastMutation:lastMutation ? structuredClone(lastMutation) : null, unresolvedMutations:unresolved, execution:structuredClone(execution), ...(sceneTaskPlan?{taskPlan:structuredClone(sceneTaskPlan),goalVerification:structuredClone(sceneGoalEvidence)}:{}),...(acceptanceBundle?{acceptanceBundle}:{}) };
       }
       const worldBuildVerified=lastMutation
         && ['runWorldPipeline','recompileWorldRevision'].includes(lastMutation.tool)
@@ -278,6 +299,26 @@ export class ToolCallingAgent {
         }
 
         const previewPolicy=this.tools.executionPolicy?.(call.name,undefined) || {};
+        let sceneCallFingerprint=null;
+        if(call.name==='planSceneTask' || call.name==='interactScene') {
+          if(call.name==='interactScene')await refreshSceneGoals();
+          const goal=sceneTaskPlan?.criteria.find(check=>check.id===call.args?.goalId);
+          const satisfied=new Set((sceneGoalEvidence?.checks || []).filter(check=>check.verified).map(check=>check.id));
+          const identity=mutationIdentity(call),previous=failedSceneAttempts.get(identity);
+          const fingerprint=scene ? stableValue({objects:scene.objects.map(object=>({id:object.id,state:object.state,transform:{...object.transform,position:object.transform.position.map(value=>Math.round(value*100)/100)}})),environment:scene.affordances.entities.filter(entry=>entry.source==='environment').map(entry=>({id:entry.id,state:entry.state}))}) : null;
+          const reason=call.name==='planSceneTask' ? sceneTaskPlan?'TASK_PLAN_IMMUTABLE':null
+            : !sceneTaskPlan?'TASK_PLAN_REQUIRED':!goal?'TASK_GOAL_UNKNOWN':!actor?'ACTOR_SELECTION_REQUIRED':call.args?.interaction?.actor!==actor?'TASK_ACTOR_MISMATCH'
+            : (sceneTaskPlan.dependencies[goal.id] || []).some(parent=>!satisfied.has(parent))?'TASK_DEPENDENCY_UNSATISFIED'
+            : satisfied.has(goal.id)?'TASK_GOAL_ALREADY_VERIFIED'
+            : previous?.fingerprint===fingerprint && previous.count>=this.maxUnchangedFailures?'UNCHANGED_FAILURE_LIMIT':null;
+          if(reason) {
+            const skipped={status:'not-executed',reason,instruction:'Choose an unsatisfied goal, inspect fresh affordances, and change the route/action or report incomplete. Do not weaken or replace declared goals.'};
+            messages.push({role:'tool',toolCallId:call.id,name:call.name,content:JSON.stringify(skipped)});
+            execution.push({planningStep:step+1,tool:call.name,args:structuredClone(call.args || {}),executed:false,outcome:{state:'skipped',verified:false},reason});
+            barrier={tool:call.name,outcome:{state:'skipped',verified:false},skipReason:reason};continue;
+          }
+          sceneCallFingerprint=fingerprint;
+        }
         if(proposalGateEnabled && call.name==='runWorldPipeline'){
           const revisionId=call.args?.plan?.revision?.id;
           if(!revisionId || !issuedWorldRevisions.has(revisionId)){
@@ -363,7 +404,7 @@ export class ToolCallingAgent {
         let result;
         let invocationFailed=false;
         try {
-          let internalContext=null;
+          let internalContext=call.name==='interactScene'?{signal}:null;
           if(call.name==='proposeWorldIR' && pendingWorldProposalLineage) internalContext={worldProposalLineage:structuredClone(pendingWorldProposalLineage)};
           if(call.name==='proposeWorldRevision' && pendingWorldRevisionRepair) internalContext={worldRevisionRepair:structuredClone(pendingWorldRevisionRepair)};
           if(call.name==='recompileWorldRevision'){
@@ -382,6 +423,15 @@ export class ToolCallingAgent {
           mutates:false, barrier:false, batchable:true, batchAcceptable:true,
           outcome:safeResult?.error ? {state:'error',verified:false,reason:safeResult.code || 'TOOL_ERROR'} : {state:'accepted',verified:null}
         };
+        if(call.name==='planSceneTask' && safeResult.status==='scene-task-plan') {
+          sceneTaskPlan={criteria:structuredClone(safeResult.criteria),dependencies:structuredClone(safeResult.dependencies)};
+          barrier={tool:call.name,outcome:{state:'accepted',verified:null},skipReason:'REPLAN_REQUIRED_AFTER_TASK_PLAN'};
+        }
+        if(call.name==='interactScene') {
+          const identity=mutationIdentity(call),previous=failedSceneAttempts.get(identity);
+          if(policy.outcome.verified)failedSceneAttempts.delete(identity);
+          else failedSceneAttempts.set(identity,{fingerprint:sceneCallFingerprint,count:previous?.fingerprint===sceneCallFingerprint?previous.count+1:1});
+        }
         const proposalRevisionId=call.name==='proposeWorldIR' && safeResult?.status==='world-proposal-ready' ? safeResult.worldIR?.revision?.id : null;
         const boundedRevisionId=call.name==='proposeWorldRevision' && safeResult?.status==='world-revision-proposal-ready' ? safeResult.proposal?.nextRevisionId : null;
         const proposalBarrier=Boolean(proposalRevisionId||boundedRevisionId);
@@ -441,7 +491,7 @@ export class ToolCallingAgent {
           const identity = policy.auxiliary && recoveryOf ? recoveryMutationIdentity(call,recoveryOf) : mutationIdentity(call,safeResult);
           barrier = { tool:call.name, outcome:structuredClone(policy.outcome) };
           lastMutation = { planningStep:step + 1, tool:call.name, identity, args:structuredClone(call.args || {}), outcome:structuredClone(policy.outcome) };
-          if (policy.tracksUnresolved !== false && !invocationFailed) {
+          if (policy.tracksUnresolved !== false && (!invocationFailed || call.name==='interactScene')) {
             // Any retry of the original semantic mutation starts a new evidence epoch.
             appliedAuxiliaryRecoveries.delete(identity);
             if (COMPLETE_OUTCOMES.has(policy.outcome.state)) {
@@ -466,8 +516,13 @@ export class ToolCallingAgent {
       else if (executedTool) recoveryReadRounds += 1;
     }
     if (signal?.aborted) return cancelled(this.maxSteps);
+    await refreshSceneGoals();
+    if(sceneTaskPlan && sceneGoalEvidence?.status==='world-accepted' && !unresolvedMutations.size && (!taskAcceptanceBundle?.required || taskAcceptanceBundle.result?.status==='world-accepted'))return {
+      message:'任务目标已通过当前世界验证。',steps:this.maxSteps,taskStatus:'completed',taskPlan:structuredClone(sceneTaskPlan),goalVerification:structuredClone(sceneGoalEvidence),
+      lastMutation:lastMutation?structuredClone(lastMutation):null,unresolvedMutations:[],execution:structuredClone(execution)
+    };
     const unresolved = [...unresolvedMutations.values()].map((entry)=>structuredClone(entry));
-    if (unresolved.length) {
+    if (unresolved.length || sceneTaskPlan) {
       const message = `Task incomplete: planning limit reached with ${unresolved.length} unresolved world mutation(s).`;
       this.log(`sequence: ${message}`, 'error');
       this.tools.recordSequence?.({
@@ -478,7 +533,7 @@ export class ToolCallingAgent {
       return {
         message, steps:this.maxSteps, taskStatus:'incomplete', termination:'planning-limit',
         lastMutation:lastMutation ? structuredClone(lastMutation) : null,
-        unresolvedMutations:unresolved, execution:structuredClone(execution)
+        unresolvedMutations:unresolved, execution:structuredClone(execution),...(sceneTaskPlan?{taskPlan:structuredClone(sceneTaskPlan),goalVerification:structuredClone(sceneGoalEvidence)}:{})
       };
     }
     throw new Error(`Agent exceeded ${this.maxSteps} planning steps`);

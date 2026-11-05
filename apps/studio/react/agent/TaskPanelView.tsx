@@ -16,6 +16,7 @@ type TaskController = {
   checkStandardTask?:()=>Promise<unknown>;
   prepareStandardTask?:()=>Promise<unknown>;
   runStandardTask?:()=>Promise<unknown>;
+  selectActor?:(actor:string)=>void;
 };
 
 function entryState(entries:any[] = [], runningState = 'running') {
@@ -71,6 +72,10 @@ export function TaskPanelView({ controller }: { controller:TaskController }) {
         {journey?.actions?.length ? <button id="focus-task-target" type="button" onClick={()=>controller.focusCurrentTarget?.()}>聚焦当前目标</button> : null}
       </div>
       <div className="task-scroll">
+        {state.actors?.agents?.length ? <div className="task-controls"><label htmlFor="task-actor">执行 Agent</label>
+          <select id="task-actor" value={state.actors.selected || ''} disabled={state.busy} onChange={event=>controller.selectActor?.(event.target.value)}>
+            <option value="" disabled>请选择 Agent</option>{state.actors.agents.map((agent:{id:string})=><option key={agent.id} value={agent.id}>{agent.id}</option>)}
+          </select></div> : null}
         <section className="standard-task" aria-label="柜内取杯标准任务">
           <h2>把柜内杯子放到桌上</h2>
           <p>纪念大厅、林间工坊和魔女小屋可准备此任务。准备会替换当前场景对象，可撤销；不调用生成服务。</p>

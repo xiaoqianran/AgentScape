@@ -479,7 +479,7 @@ export class WorldCommands {
 
   executeAffordance(args = {}, options = {}) {
     this.assertReady('executeAffordance');
-    return this.runtime.affordances.execute(args, options);
+    return options.approach ? this.runtime.affordances.approachAndExecute(args) : this.runtime.affordances.execute(args, options);
   }
 
   repair(report, options = {}) {

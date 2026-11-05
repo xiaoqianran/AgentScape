@@ -34,7 +34,7 @@ const applySchema = z.object({ requestId: id.optional(), expectedRevision: z.num
 const operationVector = sceneVector3Schema.refine(value => Math.hypot(...value) > 1e-6, 'Direction must be nonzero');
 const affordanceTarget = z.string().regex(/^[A-Za-z][A-Za-z0-9_:-]{0,255}$/);
 const physicalActions = new Set(['push', 'drag', 'rotate', 'slide', 'rotateJoint']);
-const actionSchema = z.discriminatedUnion('action', [
+export const sceneInteractionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('navigate'), actor: id, position: sceneVector3Schema }).strict(),
   z.object({ action: z.literal('pickup'), actor: id, target: affordanceTarget }).strict(),
   z.object({ action: z.literal('place'), actor: id, target: affordanceTarget, surfaceId: id.optional() }).strict(),
@@ -61,7 +61,7 @@ const diagnostic = error => ({ code: error.code || 'INVALID_OPERATION', message:
 /** One application service per existing Runtime. No entity or asset cache. */
 export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', maxObjects = 32 } = {}) {
   if (services.has(world)) return services.get(world);
-  let busy = false, closed = false, revision = 0;
+  let busy = false, closed = false, revision = 0, selectedActor = null;
   const jobs = new Map(), requests = new Map();
   const tools = new AgentTools(world, { profile: 'builder', source: 'scene-api' });
   const styles = new StyleSystem({ scene: world.scene, events: world.events, getRenderer: () => world.rendering?.renderer, getCamera: () => world.rendering?.camera });
@@ -112,10 +112,20 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
   };
   const cancelPending = () => {
     if ([...jobs.values()].some(job => job.status === 'running' && job.cancelled)) {
-      world.interactions.cancelPending('SCENE_CANCELLED'); world.locomotion.cancelAll('SCENE_CANCELLED');
+      world.interactions.cancelPending('SCENE_CANCELLED'); world.locomotion.cancelAll('SCENE_CANCELLED');world.affordances.cancel('SCENE_CANCELLED');
     }
   };
   const handle = {
+    actors() {
+      assertOpen();
+      const agents=world.store.list().filter(([,record])=>record.manifest?.type==='agent').map(([id])=>({id,position:world.physics.getPosition(id)}));
+      return {agents,selected:agents.some(agent=>agent.id===selectedActor)?selectedActor:agents.length===1?agents[0].id:null};
+    },
+    selectActor(actor) {
+      assertIdle();id.parse(actor);
+      if(!handle.actors().agents.some(agent=>agent.id===actor))throw sceneError('ACTOR_NOT_AGENT');
+      selectedActor=actor;world.events.emit('scene.actor.selected',{actor});return handle.actors();
+    },
     inspect(target, options = {}) {
       assertOpen(); z.string().min(1).max(256).parse(target);
       const { actor } = z.object({ actor: id.optional() }).strict().parse(options);
@@ -127,7 +137,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       const { actor } = z.object({ actor: id.optional() }).strict().parse(options);
       assertOpen(); world.sceneGraph.update();
       return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision,
-        style: styles.export(), affordances: world.affordances.list({ actorId: actor, limit: 100 }),
+        style: styles.export(), actors:handle.actors(), affordances: world.affordances.list({ actorId: actor, limit: 100 }),
         objects: world.store.list().map(([key, record]) => ({ ...world.observation.object(key), state: structuredClone(record.state),
           transform: { position: record.object.position.toArray(), quaternion: record.object.quaternion.toArray(), scale: record.object.scale.x },
           physicsRegistered: Boolean(world.physics.getPosition(key)) })), relations: structuredClone(world.sceneGraph.list()) };
@@ -182,7 +192,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     async remove(input) { return single(operations.parse({ ...input, type: 'remove' })); },
     async replaceAsset(input) { return single(operations.parse({ ...input, type: 'replaceAsset' })); },
     interact(input) {
-      const args = actionSchema.parse(input); assertIdle();
+      const args = sceneInteractionSchema.parse(input); assertIdle();
       const contract = 'target' in args ? world.affordances?.get?.(args.target) : null;
       const worldAction = Boolean(contract);
       if (contract && !contract.actions.includes(args.action)) throw sceneError('ACTION_UNSUPPORTED');
@@ -197,7 +207,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       const physical = physicalActions.has(args.action);
       const operation = worldAction ? world.mutate(`scene:world-action:${args.action}`, () => world.commands.executeAffordance({
         targetId: args.target, actorId: args.actor, action: args.action, args: args.args || {}
-      })) : physical ? world.mutate(`scene:${args.action}`, async () => {
+      },{approach:true})) : physical ? world.mutate(`scene:${args.action}`, async () => {
         const value = await world.interactions.manipulate(args.actor, args.target, args.action, args.args);
         recordInteractionEvidence(world, { targetId:args.target, capability:args.action.toUpperCase(), verified:value.verified,
           source:'scene-api', commandId:job.id, result:value });
@@ -251,6 +261,36 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
   async function single(op) { const batch = await handle.apply({ operations: [op] }); if (batch.status === 'failed') throw sceneError(batch.diagnostics[0].code); return batch.value.applied[0]; }
   function getJob(key) { const job = jobs.get(key); if (!job) throw sceneError('JOB_NOT_FOUND'); return job; }
   services.set(world, handle);
+  world.skills?.register({name:'verifyScene',description:'Verify explicit postconditions against the live Runtime, including current relations and environment device states.',permissions:['world.read','physics.read'],required:['criteria'],properties:{criteria:{type:'array',minItems:1,maxItems:32}},
+    handler:({criteria})=>{if(!Array.isArray(criteria)||!criteria.length||criteria.length>32)throw sceneError('INVALID_CRITERIA');return handle.verify(criteria).value;}});
+  // Agent planning uses these same observations, jobs and verifier, with no shadow scene.
+  world.skills?.register({name:'observeScene',description:'Observe all live objects, spatial relations and affordances from the shared Scene API. Use actor for reach checks; canApproach is a planning hint, not current availability.',permissions:['world.read','physics.read'],required:[],properties:{actor:{type:'string'}},
+    handler:({actor},execution)=>handle.observe({actor:actor || execution.context.actor || undefined})});
+  world.skills?.register({name:'interactScene',description:'Execute one discovered Scene interaction and await its verified Job result. For goal-driven tasks declare planSceneTask first and supply goalId. Environment actions automatically approach a reachable unoccluded pose.',permissions:['world.write','physics.read','spatial.read'],required:['interaction'],properties:{interaction:z.toJSONSchema(sceneInteractionSchema),goalId:{type:'string'}},mutates:true,manualMutation:true,batchable:false,
+    handler:async({interaction},execution)=>{
+      if(execution.context.signal?.aborted)throw sceneError('TASK_CANCELLED');
+      const job=handle.interact(interaction),cancel=()=>handle.cancelJob(job.id);
+      execution.context.signal?.addEventListener('abort',cancel,{once:true});
+      if(execution.context.signal?.aborted)cancel();
+      try{return (await handle.waitJob(job.id)).result;}finally{execution.context.signal?.removeEventListener('abort',cancel);}
+    }});
+  world.skills?.register({name:'planSceneTask',description:'Declare immutable verifiable task goals, not an action script. Each criterion is a live relation-exists or state-equals check; objectAnyOf allows equivalent observed supports. Optional dependencies order subgoals. Every action is replanned from fresh Scene observation.',permissions:['world.read'],required:['criteria'],properties:{criteria:{type:'array',minItems:1,maxItems:32,items:{type:'object'}},dependencies:{type:'object'}},
+    handler:({criteria,dependencies={}})=>{
+      if(!Array.isArray(criteria)||!criteria.length||criteria.length>32)throw sceneError('TASK_GOALS_INVALID');
+      const graph=compileWorldAcceptance(criteria),ids=new Set(graph.checks.map(check=>check.id));
+      for(const check of graph.checks) {
+        if(!['relation-exists','state-equals'].includes(check.kind))throw sceneError('TASK_GOAL_KIND_UNSUPPORTED');
+        for(const ref of [check.targetId,check.subject,check.object,...(check.objectAnyOf || [])].filter(Boolean))if(!world.store.has(ref)&&!world.affordances.get(ref))throw sceneError('TASK_GOAL_TARGET_UNKNOWN');
+      }
+      if(!dependencies || typeof dependencies!=='object' || Array.isArray(dependencies))throw sceneError('TASK_DEPENDENCIES_INVALID');
+      const visiting=new Set(),done=new Set();
+      const visit=key=>{if(visiting.has(key))throw sceneError('TASK_DEPENDENCY_CYCLE');if(done.has(key))return;visiting.add(key);
+        const parents=dependencies[key] || [];if(!Array.isArray(parents)||parents.some(parent=>!ids.has(parent)))throw sceneError('TASK_DEPENDENCIES_INVALID');
+        for(const parent of parents)visit(parent);visiting.delete(key);done.add(key);};
+      for(const key of Object.keys(dependencies))if(!ids.has(key))throw sceneError('TASK_DEPENDENCIES_INVALID');
+      for(const key of ids)visit(key);
+      return {status:'scene-task-plan',criteria:graph.checks,dependencies:structuredClone(dependencies)};
+    }});
   return handle;
 }
 

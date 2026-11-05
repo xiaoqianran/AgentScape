@@ -16,12 +16,14 @@ const initialStatus = () => ({
 });
 
 export class TaskPanel {
-  constructor({ setView = () => {}, onRun = () => {}, onOpenSettings = () => {}, demoRunners = {}, runtimeTestRunner = null } = {}) {
+  constructor({ setView = () => {}, onRun = () => {}, onOpenSettings = () => {}, demoRunners = {}, runtimeTestRunner = null,
+    getActors=()=>({agents:[],selected:null}),onSelectActor=()=>{} } = {}) {
     this.setView = setView;
     this.onRun = onRun;
     this.onOpenSettings = onOpenSettings;
     this.demoRunners = demoRunners;
     this.runtimeTestRunner = runtimeTestRunner;
+    this.getActors=getActors;this.onSelectActor=onSelectActor;
     this.agent = null;
     this.gateway = null;
     this.busy = false;
@@ -43,6 +45,7 @@ export class TaskPanel {
   #snapshot() {
     return Object.freeze({
       busy:this.busy,
+      actors:this.getActors(),
       available:this.available,
       activeTaskKey:this.activeTaskKey,
       activityCount:this.activityCount,
@@ -66,6 +69,7 @@ export class TaskPanel {
   };
 
   snapshot = () => this.viewSnapshot;
+  selectActor(actor) {if(this.busy)return;try{this.onSelectActor(actor);this.emit();}catch(error){this.setState('error','无法切换 Agent',error.message);}}
 
   attachAgent({ agent, gateway }) {
     this.agent = agent;

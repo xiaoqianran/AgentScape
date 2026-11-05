@@ -24,7 +24,11 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
     }
   }
   const actions = [];
-  const add = (action, parameters = {}, extra = {}) => actions.push({ action, parameters, ...access, ...extra });
+  const add = (action, parameters = {}, extra = {}) => {
+    const entry={action,parameters,...access,...extra};
+    if(entry.execution==='interaction')entry.canApproach=entry.available===false && ['OUT_OF_REACH','OCCLUDED'].includes(entry.reason) && Boolean(runtime.navigation?.findPath && runtime.locomotion?.navigate);
+    actions.push(entry);
+  };
   // Editor operations are explicitly separate from embodied actions.
   add('inspect', {}, { available: true, reason: null, execution: 'query' });
   add('setTransform', { transform: { type: 'object', required: true } }, {
