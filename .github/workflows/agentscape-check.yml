@@ -24,6 +24,23 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - name: MCP compatibility gate (provider-free)
+        run: npm run test:mcp
+      - name: Dependency security gate
+        run: npm audit --audit-level=moderate
+      - name: Storybook compatibility
+        run: npm run storybook:build
+      - name: Package standalone development SDK
+        run: |
+          npm run sdk:verify
+          mkdir -p .tmp-release
+          npm pack ./sdk/typescript --pack-destination .tmp-release
+      - name: Preserve SDK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: agentscape-development-sdk
+          path: .tmp-release/
+          retention-days: 14
 
   browser:
     name: Studio browser acceptance (fixed protocol)
@@ -38,6 +55,8 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - name: Collect performance baseline
+        run: node dev/report-browser-baseline.mjs
       - name: Preserve browser report and failure evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -46,6 +65,7 @@ jobs:
           path: |
             playwright-report/
             test-results/browser/
+            .tmp-release/browser-baseline.json
           retention-days: 14
 
   python-sdk:

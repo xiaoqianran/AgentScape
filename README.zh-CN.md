@@ -1,5 +1,7 @@
 # AgentScape
 
+> v2 开发实现已包含统一 Scene API、Recipe、完整项目包与三种 StylePack；SDK 尚未发布。最新能力与限制见 [v1 契约](planning/public-contracts-v1.md)和[发布清单](docs/v2-release.md)。
+
 **让人和 AI 能够操作同一个交互式 3D 世界。**
 
 Three.js 渲染、Rapier 物理和 Recast 导航共享真实世界状态。人物能够走近物体、拾取和放置；请求成功与实际行为验证分开报告。
@@ -25,13 +27,13 @@ npm run starter
 
 这个示例使用内置物体，无需模型密钥、生成服务或 Docker。安装依赖仍需要网络。本轮尚未发布公网 Playground。
 
-修改 `apps/starter/scene.json` 后刷新即可改变初始布局。支持 agent、cup、table、chair 四种内置物理资产；`main.js` 展示实验性 Scene API 的完整使用方式，包括浏览器帧循环。
+修改 `apps/starter/scene.json` 后刷新即可改变初始布局。支持 agent、cup、table、chair 四种内置物理资产；`main.js` 展示统一 SDK 的使用方式，包括浏览器帧循环。
 
 ## 当前边界
 
 Starter 是最小学习入口；Studio 编辑器仍在 `/`，诊断台在 `/observatory/`。现有 MCP 的独立世界、程序化资产、真实交互与可信恢复继续保留。远程源码构建需要受限 Docker 环境。
 
-Starter 尚不支持任意 GLB 上传、纯视觉资产、StylePack、YAML、源码构建或分享链接。新的三个公共契约仍是[设计草案](planning/public-contracts-v1.md)，此处实验性 API 不等于完整 v1，也不是已发布的 npm SDK。
+SDK 已支持自包含 GLB Visual、受约束 Recipe、完整项目包和三种 StylePack；Starter 的按钮仍保持最小学习范围，Studio 提供风格切换。项目仅支持 monument-hall、32 个实体；YAML、任意 Shader 插件和通用压缩包上传不属于 v1。SDK 是未发布的开发版。
 
 ## 验证与贡献
 

@@ -35,6 +35,7 @@ export class SceneSerializer {
     const worldRevision=runtime.currentWorldRevision ? clone(runtime.currentWorldRevision) : null;
     const acceptanceEvidence=runtime.lastAcceptanceBundle ? clone(runtime.lastAcceptanceBundle) : null;
     const cameraState=runtime.rendering?.cameraState?.() || null;
+    const stylePack=runtime.rendering?.serializeStyle?.() || null;
     return {
       schema: SCENE_SCHEMA,
       schemaVersion: SCENE_VERSION,
@@ -43,6 +44,7 @@ export class SceneSerializer {
         savedAt: new Date().toISOString(),
         generator: `AgentScape/${runtime.version || 'unknown'}`,
         environment: runtime.environment?.id || null,
+        ...(stylePack?{stylePack}:{}),
         ...(runtime.environment?.snapshot ? {environmentState:clone(runtime.environment.snapshot())} : {}),
         ...(worldRevision?{worldRevision}:{})
       },
@@ -64,6 +66,7 @@ export class SceneSerializer {
     if (scene.schemaVersion !== SCENE_VERSION) throw new Error(`Unsupported scene version: ${scene.schemaVersion}`);
     if (!Array.isArray(scene.objects)) throw new Error('Scene objects must be an array');
     if (!Array.isArray(scene.assets)) throw new Error('Scene assets must be an array');
+    if (scene.camera != null && (!isFiniteVec(scene.camera.position,3) || !isFiniteVec(scene.camera.target,3))) throw new Error('Scene camera requires finite position and target');
     if (scene.relations != null && !Array.isArray(scene.relations)) throw new Error('Scene relations must be an array');
     const worldRevision=scene.metadata?.worldRevision;
     if (worldRevision != null) {
@@ -121,6 +124,7 @@ export class SceneSerializer {
 
   async restore(runtime, input) {
     const scene = this.validate(clone(input));
+    runtime.rendering?.validateStyle?.(scene.metadata?.stylePack || null);
     const sceneEnvironment = scene.metadata?.environment;
     const runtimeEnvironment = runtime.environment?.id;
     if (sceneEnvironment && runtimeEnvironment && sceneEnvironment !== runtimeEnvironment) {
@@ -198,6 +202,7 @@ export class SceneSerializer {
     if(scene.metadata?.environmentState) runtime.environment?.restore?.(scene.metadata.environmentState);
     runtime.navigation?.invalidate?.('scene-restored');
     if (scene.camera) runtime.rendering?.applyCameraState?.(scene.camera);
+    await runtime.rendering?.restoreStyle?.(scene.metadata?.stylePack || null);
     runtime.currentWorldRevision=scene.metadata?.worldRevision ? clone(scene.metadata.worldRevision) : null;
     runtime.restoredAcceptanceEvidence=scene.verification?.acceptanceEvidence ? clone(scene.verification.acceptanceEvidence) : null;
     runtime.lastAcceptanceBundle=null;

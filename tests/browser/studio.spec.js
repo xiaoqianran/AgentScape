@@ -1,4 +1,4 @@
-import { test, expect, enterWorld, verifyRenderedWorld, expectSameCanvas, openFiles } from './fixtures.js';
+import { test, expect, enterWorld, verifyRenderedWorld, expectSameCanvas, openFiles, waitForRuntimeReady } from './fixtures.js';
 
 test('unconfigured first visit explains unavailable agent while the world remains usable', async ({ page }, testInfo) => {
   await page.route('**/api/capabilities', route => route.fulfill({ json: { capabilities: { agent: { available: false }, 'asset.compile': { available: false } } } }));
@@ -54,7 +54,7 @@ test('resource placement and saved runtime scene survive reload; corrupt import 
   await openFiles(page);
   await page.locator('#save-scene').click();
   await page.reload();
-  await expect(page.locator('#runtime-status')).toHaveAttribute('data-state', 'ready');
+  await waitForRuntimeReady(page);
   await openFiles(page);
   await page.locator('#load-scene').click();
   await expect(page.locator(`#scene-object-list [data-object-id="${added}"]`)).toBeVisible();
@@ -78,7 +78,7 @@ test('authoring draft can save, reload and reopen from the user file menu', asyn
   const id = await page.locator('#authoring-world-select').inputValue();
   expect(id).toBeTruthy();
   await page.reload();
-  await expect(page.locator('#runtime-status')).toHaveAttribute('data-state', 'ready');
+  await waitForRuntimeReady(page);
   await openFiles(page);
   await page.locator('#authoring-world-select').selectOption(id);
   await page.locator('#authoring-open').click();

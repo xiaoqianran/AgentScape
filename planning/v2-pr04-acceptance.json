@@ -1,0 +1,39 @@
+{
+  "stage": "PR-04",
+  "status": "passed-with-explicit-skips",
+  "checks": [
+    {
+      "command": "npm run check",
+      "passed": 1630,
+      "skipped": 3,
+      "log": ".v2-pr04-check.log"
+    },
+    {
+      "command": "npm run test:mcp",
+      "passed": 10,
+      "skipped": 3,
+      "log": ".v2-pr04-mcp.log"
+    },
+    {
+      "command": "npm run test:browser",
+      "passed": 7,
+      "log": ".v2-pr04-browser.log"
+    },
+    {
+      "command": "vitest run tests/asset/declarative-inputs.test.js",
+      "passed": 4,
+      "scope": "Final buffer ownership regression"
+    }
+  ],
+  "scope": [
+    "Strict bounded Recipe v1 and Asset Package data schema",
+    "Recipe uses existing AssetCompiler and admission",
+    "Self-contained GLB Visual import, no Docker",
+    "Visual entities have no physics registration; requested Physical rejected",
+    "Content-addressed asset references; no automatic instance upgrade"
+  ],
+  "limitations": [
+    "Advanced source builds retain existing isolated path",
+    "Portable dependency packaging belongs to PR-05"
+  ]
+}

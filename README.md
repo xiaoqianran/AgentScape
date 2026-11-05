@@ -35,20 +35,17 @@ Edit [`apps/starter/scene.json`](apps/starter/scene.json) and reload. Your scene
 { "id": "reading-chair", "asset": "chair", "position": [-4, 0, 3] }
 ```
 
-The browser example uses a small **experimental** application API:
+The development SDK shares the Scene service with Studio and MCP. It is not published to npm; [build a local tarball](sdk/typescript/README.md).
 
 ```js
-import { openStarterScene } from './application/scene/StarterScene.js';
-
-const scene = await openStarterScene({ project, container });
-await scene.add({ id: 'seat', asset: 'chair', position: [-4, 0, 3] });
-const result = await scene.interact({
-  action: 'pickup', actorId: 'helper', targetId: 'mug'
-});
-const snapshot = scene.save();
+import { AgentScape } from '@agentscape/sdk';
+const world = await AgentScape.open({ canvas: '#app' });
+await world.addModel({ id: 'seat', asset: 'builtin://chair', position: [-4, 0, 3] });
+await world.setStyle('builtin://toon');
+const saved = await world.save();
 ```
 
-The host must advance simulation frames while actions run. See the complete [`main.js`](apps/starter/main.js), including scheduling, downloads and restore. This API is in-repository and experimental, not a published npm SDK or the complete Scene API v1.
+Interactions return jobs. Browser rendering advances automatically; headless hosts step simulation. See [v1 contracts](planning/public-contracts-v1.md).
 
 ## Choose an entry point
 
@@ -63,14 +60,13 @@ The host must advance simulation frames while actions run. See the complete [`ma
 
 The existing MCP supports isolated worlds, actions, verification, procedural asset builds and trusted save/restore. Remote code builds require a configured Docker sandbox; they do not silently fall back to the server process. MCP sessions do not currently control the Studio's open world.
 
-## Supported today, planned next
+## Development scope
 
-- **Implemented:** browser rendering, real rigid bodies, character navigation, pickup/place and articulated interactions, scene serialization, isolated MCP worlds and versioned procedural asset persistence.
-- **Starter scope:** four built-in physical assets, JSON project input, add/move, navigate/pickup/place and local snapshot download/restore.
-- **Not yet in the starter:** arbitrary GLB upload, Visual-only imports, YAML projects, asset package upload, StylePacks, source-code builds or URL-based sharing.
-- **Design proposal:** [Scene API + Asset Package + StylePack](planning/public-contracts-v1.md). These contracts are not released features.
+Implemented: Scene Project v1, bounded Asset Recipes, self-contained GLB Visual import, portable project bundles and three declarative StylePacks. Starter, Studio, SDK and MCP share business rules. MCP retains 24 original tools plus 9 Scene tools; sessions remain isolated from Studio.
 
-A requested action, a loaded asset and a verified physical outcome are different facts. The starter displays a verified message only when the existing runtime reports verification. Restoring a snapshot does not reuse old interaction evidence.
+Public projects currently support monument-hall and up to 32 entities. JSON is the only normative format. Generic archive/directory import, arbitrary shaders and YAML are outside v1. Other Studio environments retain explicitly labelled legacy snapshots. Asset admission, edits and physically verified actions remain distinct; restored actions must be verified again.
+
+See [release gates](docs/v2-release.md) for external acceptance still required before publication.
 
 ## Develop and contribute
 

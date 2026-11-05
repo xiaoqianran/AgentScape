@@ -1,0 +1,39 @@
+{
+  "stage": "PR-05",
+  "status": "passed-with-explicit-skips",
+  "checks": [
+    {
+      "command": "npm run check",
+      "passed": 1631,
+      "skipped": 3,
+      "log": ".v2-pr05-check.log"
+    },
+    {
+      "command": "npm run test:mcp",
+      "passed": 10,
+      "skipped": 3,
+      "log": ".v2-pr05-mcp.log"
+    },
+    {
+      "command": "npm run test:browser",
+      "passed": 7,
+      "log": ".v2-pr05-browser.log"
+    },
+    {
+      "command": "vitest run tests/integration/scene-package.test.js",
+      "passed": 1,
+      "scope": "Final physical + visual recovery and project consistency checks"
+    }
+  ],
+  "scope": [
+    "Embedded JSON project transport with runtime snapshot and lock",
+    "Resource bytes/hash preflight; engine/builtin version binding",
+    "Fresh Runtime and store restore; failed import leaves old world intact",
+    "Recompile declarations without executing saved source or trusting old verification"
+  ],
+  "limitations": [
+    "Directory/ZIP transport adapters not yet provided",
+    "Legacy external GLB export requires host-supplied readResource",
+    "Style dependency transport follows PR-08"
+  ]
+}

@@ -6,8 +6,17 @@ import { RendererProbe } from '../../../rendering/RendererProbe.js';
 import { WebGpuPostFxPipeline } from '../../../rendering/WebGpuPostFxPipeline.js';
 import { loadGaussianSplatVisual } from '../../../rendering/loadGaussianSplatVisual.js';
 import { applyGeneratedWorldObjectTransform } from '../../generated/GeneratedWorldCoordinates.js';
+import { resolveStylePack } from '../../../rendering/style/StylePack.js';
 
 export class RenderingSystem {
+  attachStyleSystem(styles) { this.styleSystem = styles; }
+  serializeStyle() { return this.styleSystem?.export() || null; }
+  validateStyle(input) { return input == null ? null : resolveStylePack(input); }
+  async restoreStyle(input) {
+    if (!this.styleSystem) { if (input) throw new Error('STYLE_UNAVAILABLE'); return; }
+    if (input) return this.styleSystem.set(input);
+    this.styleSystem.clear();
+  }
   constructor({
     container,
     scene,
@@ -411,6 +420,8 @@ export class RenderingSystem {
   }
 
   dispose() {
+    this.styleSystem?.dispose();
+    this.styleSystem = null;
     this.resizeObserver?.disconnect?.();
     this.resizeObserver = null;
     this.environmentVersion += 1;
@@ -426,7 +437,13 @@ export class RenderingSystem {
     }
     this.probe?.dispose?.();
     this.probe = null;
-    this.renderer?.dispose?.();
+    // A removed canvas can retain its WebGL context and driver allocations.
+    // Release the owned context after Three's asynchronous backend cleanup.
+    const context = this.renderer?.backend?.isWebGLBackend ? this.renderer.backend.gl : null;
+    const disposal = this.renderer?.dispose?.();
+    this.disposal = Promise.resolve(disposal).then(() => {
+      context?.getExtension?.('WEBGL_lose_context')?.loseContext();
+    }).catch(error => this.onError?.(error));
     this.renderer?.domElement?.remove?.();
     this.renderer = null;
     this.camera = null;

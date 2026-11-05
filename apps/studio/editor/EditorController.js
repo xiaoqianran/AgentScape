@@ -59,7 +59,7 @@ export class EditorController {
       const selectedId=this.selectedId;
       if (!selectedId) return;
       if (value) {
-        this.dragBlocked = !runtime.beginMutation('editor:' + this.transform.getMode());
+        this.dragBlocked = Boolean(runtime.store.get(selectedId).state?.heldBy || runtime.interactions?.isHeld?.(selectedId) || runtime.interactions?.carry?.agentHeld?.has(selectedId)) || !runtime.beginMutation('editor:' + this.transform.getMode());
         if (this.dragBlocked) {
           this.transform.reset();
           this.controls.enabled = true;

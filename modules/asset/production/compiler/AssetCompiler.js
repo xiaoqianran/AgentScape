@@ -22,8 +22,22 @@ import { CompileQualityPass } from './passes/CompileQualityPass.js';
 import { ManifestPass } from './passes/ManifestPass.js';
 import { AuthoringIntentPass } from './passes/AuthoringIntentPass.js';
 import { ExplicitDefinitionPass } from './passes/ExplicitDefinitionPass.js';
+import { assertEmbeddedGLB } from '../../model/AssetInputContracts.js';
 
 export class AssetCompiler {
+  async compileVisual({ bytes, assetId, label = 'Imported model' }) {
+    assertEmbeddedGLB(bytes);
+    let context = { bytes, assetId, authoringIntent: { usage: 'static' }, compilerVersion: this.version };
+    for (const pass of [new GLTFInspectPass({ io: this.io }), new StructurePass(), new GeometryPass(), new OptimizeGLBPass({ io: this.io }), new ResourceBudgetPass()]) context = await pass.run(context);
+    const hard = [...context.geometry.warnings.filter(w => w.severity === 'hard'), ...context.resources.hard];
+    const advisory = [...context.geometry.warnings.filter(w => w.severity !== 'hard'), ...context.resources.advisory];
+    const quality = { status: hard.length ? 'rejected' : advisory.length ? 'provisional' : 'ready', hard, advisory };
+    if (hard.length) throw Object.assign(new Error('Visual asset rejected'), { code: 'ASSET_COMPILE_REJECTED', details: quality });
+    const manifest = { id: assetId, type: 'visual', label, capabilityLevel: 'visual', actions: [], source: { kind: 'compiled', key: assetId }, compiler: { version: this.version, quality, resources: context.resources } };
+    validateAssetManifest(manifest);
+    await this.store.put(assetId, context.optimizedBytes, { manifestId: assetId, quality: quality.status });
+    return { manifest, quality, resources: context.resources };
+  }
   constructor({ store, provider = null, events = null, version = 'dev' } = {}) {
     this.store = store; this.provider = provider; this.events = events; this.version = version;
     this.io = createAssetGLTFIO();

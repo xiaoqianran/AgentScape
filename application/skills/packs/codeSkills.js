@@ -5,8 +5,8 @@ import { diffAuthoringDocuments } from '../../world-authoring/AuthoringDiff.js';
 const MAX_AUTHORING_CODE_LENGTH = 131072;
 const MAX_DIFF_NODE_SUMMARY = 64;
 
-// Fail-closed static guards. The authoring sandbox exposes THREE and the authoring
-// surface only; ambient browser/server capabilities must stay unreachable by name.
+// Supported-syntax guard, not a security sandbox. Isolation is enforced by the
+// execution host; trusted local execution is never exposed to Agents by default.
 const FORBIDDEN_API_PATTERN = new RegExp(
   [
     '\\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|Worker|SharedWorker|importScripts|postMessage',
@@ -64,16 +64,18 @@ export function summarizeAuthoringDiff(diff) {
   };
 }
 
-export function registerCodeSkills(add, authoring) {
+export function registerCodeSkills(add, authoring, { allowTrustedLocal = false } = {}) {
   if (!authoring || typeof authoring.run !== 'function' || typeof authoring.export !== 'function' || typeof authoring.restore !== 'function') {
     throw new TypeError('registerCodeSkills requires a World authoring context');
   }
+  const enabled = authoring.codeIsolation === 'external-executor' || allowTrustedLocal;
   add('runAuthoringCode', {
     ...meta('用纯 Three.js 代码在创作层（draft layer）构建或修改世界内容。沙箱只注入 THREE、scene、clear、onFrame、modelRef。执行前静态拒绝危险 API；执行失败会自动恢复到执行前的创作文档并把错误原样返回，修正代码后可重新提交。代码产出只是草稿：正式世界实体必须再经 prepareAuthoringAsset / promoteAuthoringNode 晋升并验证。',
       ['world.write'], ['code'],
       { code:string, label:string }),
-    mutates:true, manualMutation:true, batchable:false
+    mutates:true, manualMutation:true, batchable:false, agent:enabled
   }, async (a) => {
+    if (!enabled) return { status:'authoring-code-rejected', reason:'ISOLATED_EXECUTOR_REQUIRED', message:'Agent source execution requires an isolated executor. Use Scene commands or Asset Recipe.' };
     const validation = validateAuthoringCode(a.code);
     if (!validation.ok) return { status:'authoring-code-rejected', reason:validation.code, message:validation.message };
     const label = typeof a.label === 'string' && a.label.trim() ? a.label.trim() : 'Authoring code';

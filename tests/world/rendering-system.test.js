@@ -30,6 +30,22 @@ const createHarness = () => {
 };
 
 describe('RenderingSystem', () => {
+  it('releases the owned WebGL context after asynchronous backend cleanup', async () => {
+    const h = createHarness();
+    let finish;
+    h.renderer.dispose.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const loseContext = vi.fn();
+    h.renderer.backend.gl = { getExtension: vi.fn(() => ({ loseContext })) };
+    const rendering = new RenderingSystem({ container:h.container, scene:new THREE.Scene(),
+      rendererFactory:h.rendererFactory, controlsFactory:h.controlsFactory });
+    await rendering.init();
+    rendering.dispose();
+    expect(h.domElement.remove).toHaveBeenCalledOnce();
+    expect(loseContext).not.toHaveBeenCalled();
+    finish();
+    await rendering.disposal;
+    expect(loseContext).toHaveBeenCalledOnce();
+  });
   it('keeps the renderer matched to container layout changes without redundant resizes', async () => {
     const h = createHarness();
     const scene = new THREE.Scene();

@@ -22,7 +22,7 @@ export class SessionManager {
   } catch(e) { host?.close(); throw e; } finally { this.pending--; }
  }
  get(owner,id) { const s=this.sessions.get(id); if(!s || s.owner!==owner || s.closing) throw new Error('SESSION_NOT_FOUND'); s.lastUsed=Date.now(); return s; }
- status(owner,id) { const s=this.get(owner,id); return {worldSessionId:id,environmentId:s.host.world.environment.id,tick:s.host.world.simulation.tick,execution:s.active?'running':'idle',expiresAt:s.lastUsed+this.ttlMs}; }
+ status(owner,id) { const s=this.get(owner,id); return {worldSessionId:id,environmentId:s.host.world.environment.id,tick:s.host.world.simulation.tick,execution:s.active || s.host.world.mutationOwner?'running':'idle',expiresAt:s.lastUsed+this.ttlMs}; }
  async run(owner,id,operation,{requestId,fingerprint,signal}={}) {
   const s=this.get(owner,id);
   if(requestId && s.requests.has(requestId)) {
@@ -36,6 +36,7 @@ export class SessionManager {
   try { return await promise; } finally { signal?.removeEventListener('abort',abort); s.active=null; s.lastUsed=Date.now(); }
  }
  async export(s) {
+  if(s.host.world.mutationOwner) throw new Error('SESSION_BUSY');
   const snapshot=s.host.world.serialize({name:'Remote MCP snapshot'}),json=JSON.stringify(snapshot);
   if(Buffer.byteLength(json)>this.maxExportBytes) throw new Error('EXPORT_LIMIT');
   const name=`snapshot-${randomUUID()}.json`,temporary=path.join(s.directory,`${name}.tmp`),target=path.join(s.directory,name);
@@ -44,6 +45,7 @@ export class SessionManager {
   return {state:'exported',fileName:name,bytes:Buffer.byteLength(json),snapshot,scope:'scene-json-only'};
  }
  async save(owner,s) {
+  if(s.host.world.mutationOwner) throw new Error('SESSION_BUSY');
   if(!this.repository)throw new Error('PERSISTENCE_UNAVAILABLE');
   return this.repository.saveWorld(owner,s.host.world.serialize({name:'Saved MCP world'}));
  }
@@ -72,6 +74,6 @@ export class SessionManager {
   return {state:'exported',fileName,bytes:Buffer.byteLength(json),scope:'authoring-source-and-document-only',draft};
  }
  async close(owner,id) { const s=this.get(owner,id); s.closing=true; s.active?.controller.abort(); try { await s.active?.promise.catch(()=>{}); s.host.close(); } finally { this.sessions.delete(id); } return {worldSessionId:id,state:'closed'}; }
- async reap() { for(const s of this.sessions.values()) if(!s.active && Date.now()-s.lastUsed>=this.ttlMs) await this.close(s.owner,s.id); }
+ async reap() { for(const s of this.sessions.values()) if(s.host.closed || (!s.active && !s.host.world.mutationOwner && Date.now()-s.lastUsed>=this.ttlMs)) await this.close(s.owner,s.id); }
  async dispose() { this.disposed=true; clearInterval(this.timer); await Promise.all([...this.sessions.values()].map(s=>this.close(s.owner,s.id))); }
 }

@@ -16,7 +16,7 @@ it('serves modern per-request discovery and tools without a legacy handshake', a
    expect(response.status,body).toBe(200);
    const result=JSON.parse(body.startsWith('event:')||body.startsWith('data:')?body.split('\n').find(line=>line.startsWith('data:')).slice(5):body);
    expect(result.error).toBeUndefined();
-   if(method==='tools/list') expect(result.result.tools).toHaveLength(24);
+   if(method==='tools/list') expect(result.result.tools).toHaveLength(33);
   }
  } finally { await app.close(); }
 });

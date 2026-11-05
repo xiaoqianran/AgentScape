@@ -39,10 +39,17 @@ export const test = base.extend({
 });
 export { expect };
 
+// Cold WASM + scene initialization under SwiftShader has a separate budget
+// from ordinary UI responses. Record actual latency rather than treating the
+// global 20s assertion timeout as a product performance threshold.
+export async function waitForRuntimeReady(page) {
+  await expect(page.locator('#runtime-status')).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
+}
+
 export async function enterWorld(page) {
   const started = Date.now();
   await page.goto('/');
-  await expect(page.locator('#runtime-status')).toHaveAttribute('data-state', 'ready');
+  await waitForRuntimeReady(page);
   const readyMs = Date.now() - started;
   await page.locator('[data-world-card="monument-hall"] .world-card-open').click();
   await expect(page.locator('.world-editor-workspace')).toHaveAttribute('aria-hidden', 'false');

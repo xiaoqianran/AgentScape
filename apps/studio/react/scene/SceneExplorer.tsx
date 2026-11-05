@@ -55,6 +55,8 @@ type SceneExplorerProps = {
   openLibrary?: () => void;
   openCreate?: () => void;
   openInspect?: () => void;
+  setStyle?: (reference: string) => Promise<{ value?: { status?: string; warnings?: string[] } }>;
+  getStyle?: () => string | null;
 };
 
 const SCENE_REFRESH_EVENTS = [
@@ -64,6 +66,7 @@ const SCENE_REFRESH_EVENTS = [
   'scene.restored',
   'scene.cleared',
   'environment.replaced',
+  'style.changed',
   'authoring.changed'
 ] as const;
 
@@ -76,7 +79,9 @@ export function SceneExplorerView({
   placement,
   openLibrary = () => {},
   openCreate = () => {},
-  openInspect = () => {}
+  openInspect = () => {},
+  setStyle,
+  getStyle
 }: SceneExplorerProps) {
   const selection = useStudioStore((state) => state.editor.selection);
   const editorRevision = useStudioStore((state) => state.editor.revision);
@@ -86,6 +91,13 @@ export function SceneExplorerView({
   const [resourceRevision, setResourceRevision] = useState(0);
   const [tab, setTab] = useState<'objects' | 'assets'>('objects');
   const [query, setQuery] = useState('');
+  const [style, updateStyle] = useState('');
+  const [styleBusy, updateStyleBusy] = useState(false);
+  const [styleMessage, updateStyleMessage] = useState('');
+  useEffect(() => {
+    const current = getStyle?.();
+    updateStyle(current?.startsWith('builtin/') ? `builtin://${current.slice(8)}` : current || '');
+  }, [revision, getStyle]);
 
   useLayoutEffect(() => {
     const unsubscribers: Array<() => void> = [];
@@ -204,6 +216,26 @@ export function SceneExplorerView({
                 <small>当前场景环境</small>
               </div>
             </div>
+            {setStyle ? <label className="scene-style-control">视觉风格
+              <select aria-label="视觉风格" value={style} disabled={styleBusy} onChange={async event => {
+                const requested = event.target.value;
+                if (!requested) return;
+                updateStyleBusy(true); updateStyleMessage('正在准备风格…');
+                try {
+                  const result = await setStyle(requested);
+                  updateStyle(requested);
+                  updateStyleMessage(result.value?.status === 'deferred' ? '风格已保存，等待渲染' : result.value?.warnings?.length ? '风格已应用，部分材质保持原样' : '风格已应用');
+                } catch { updateStyleMessage('风格切换失败，已保留原风格'); }
+                finally { updateStyleBusy(false); }
+              }}>
+                <option value="" disabled>原始材质</option>
+                {style && !style.startsWith('builtin://') ? <option value={style}>自定义风格</option> : null}
+                <option value="builtin://realistic">Realistic</option>
+                <option value="builtin://toon">Toon</option>
+                <option value="builtin://low-poly">Low Poly</option>
+              </select>
+              {styleMessage ? <span role="status">{styleMessage}</span> : null}
+            </label> : null}
             <label className="scene-search">
               <span className="sr-only">搜索场景对象</span>
               <input

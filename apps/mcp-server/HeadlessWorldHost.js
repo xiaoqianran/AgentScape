@@ -73,7 +73,7 @@ export class HeadlessWorldHost {
    } finally { signal?.removeEventListener('abort',cancel); }
   }
   let done=false,result,error;
-  const pending=this.tools.call(skill,args).then(v=>{done=true;result=v;},e=>{done=true;error=e;});
+  const pending=this.scene.executeSkill(skill,args).then(v=>{done=true;result=v;},e=>{done=true;error=e;});
   const start=performance.now();
   let steps=0;
   let termination=null,cleanupSteps=0;
@@ -100,14 +100,31 @@ export class HeadlessWorldHost {
   return {state:outcome.state,result,steps,tick:this.world.simulation.tick};
  }
  observe(offset=0,limit=25) {
-  const ids=this.world.store.list().map(([id])=>id),page=ids.slice(offset,offset+limit);
+  const ids=this.scene.observe().objects.map(object=>object.id),page=ids.slice(offset,offset+limit);
   return {environmentId:this.world.environment.id,tick:this.world.simulation.tick,objects:page.map(id=>this.world.queries.getObjectInfo(id)),agent:this.world.observation.actor('agent_01'),relations:this.world.observation.relations(page,{limit:100}),total:ids.length,nextOffset:offset+limit<ids.length?offset+limit:null};
  }
  inspect(id) { if(!this.world.queries.hasObject(id)) throw new Error('OBJECT_NOT_FOUND'); return {object:this.world.queries.getObjectInfo(id),articulation:this.world.observation.articulation(id),relations:this.world.observation.relations([id],{limit:100})}; }
  async verify(checks=criteria) {
-  const evidence=await this.tools.call('evaluateWorldAcceptance',{criteria:checks});
+  const evidence=await this.scene.executeSkill('evaluateWorldAcceptance',{criteria:checks});
   const carry=this.world.queries.carryStatus('agent_01');
   return {state:evidence.status==='world-accepted' && (checks!==criteria || carry.status==='empty')?'verified':'unverified',evidence,carry};
  }
  close() { if(!this.closed) {this.closed=true; this.executor?.close(); this.session?.promotion?.dispose(); this.session?.authoring?.dispose(); this.world.dispose();} }
+ get scene() { if(this.closed) throw new Error('HOST_CLOSED'); return this.session.scene; }
+ startSceneInteraction(input) {
+  const job=this.scene.interact(input);
+  this.pumpSceneJob(job.id).catch(()=>this.close());
+  return job;
+ }
+ async pumpSceneJob(id) {
+  const start=performance.now(); let steps=0,cleanup=0;
+  while(!this.closed && this.scene.getJob(id).status==='running') {
+   if(steps>=this.maxSteps || performance.now()-start>this.timeoutMs) {
+    this.scene.cancelJob(id);
+    if(++cleanup>240) { this.close(); return; }
+   }
+   this.scene.step(); steps++;
+   if(steps%12===0) await yieldLoop(); else await Promise.resolve();
+  }
+ }
 }

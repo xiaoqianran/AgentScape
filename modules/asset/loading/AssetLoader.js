@@ -61,6 +61,11 @@ export class AssetLoader {
       if (source.fallbackUrl) return this.loadGLB(source.fallbackUrl);
       throw new Error(`Compiled asset binary missing: ${source.key}`);
     }
+    if (this.gltfLoader.loadBytes) {
+      const object = await this.gltfLoader.loadBytes(stored.bytes);
+      object.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
+      return object;
+    }
     const blob = new Blob([stored.bytes], { type:'model/gltf-binary' });
     const url = URL.createObjectURL(blob);
     try {

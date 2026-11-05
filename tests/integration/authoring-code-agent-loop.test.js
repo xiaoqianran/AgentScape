@@ -49,7 +49,8 @@ async function fixture() {
   const add = (name, options, handler) => skills.register({ name, ...options, handler });
   registerSceneSkills(add, world);
   registerAuthoringSkills(add, promotion);
-  registerCodeSkills(add, authoring);
+  // This fixture executes repository-owned code, never third-party input.
+  registerCodeSkills(add, authoring, { allowTrustedLocal:true });
   world.skills = skills;
   const tools = new AgentTools(world, { actor:'agent' });
   return { world, authoring, promotion, tools };

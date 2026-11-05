@@ -1,6 +1,6 @@
 {
   "name": "agentscape",
-  "version": "1.34.2",
+  "version": "2.0.0-dev.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -35,11 +35,12 @@
     "test:modal-e2e": "vitest run tests/e2e/generated-cup-runtime-e2e.test.js",
     "test:studio": "vitest run tests/studio",
     "test:observatory": "vitest run tests/observatory",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p sdk/typescript/tsconfig.json",
     "test:artifact": "vitest run tests/artifact",
     "test:browser": "playwright test",
     "mcp:serve": "node apps/mcp-server/main.mjs",
-    "test:mcp": "vitest run tests/mcp"
+    "test:mcp": "vitest run tests/mcp",
+    "sdk:verify": "node dev/verify-sdk-install.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
@@ -56,7 +57,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "rolldown": "1.2.8",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "three": "0.186.0",
     "three-gsmesh": "^0.0.3",
     "three-mesh-bvh": "^0.9.1",
@@ -66,15 +67,19 @@
   "devDependencies": {
     "@modelcontextprotocol/client": "2.4.0",
     "@playwright/test": "^1.63.0",
-    "@storybook/addon-a11y": "^10.6.0",
-    "@storybook/addon-mcp": "^10.6.0",
-    "@storybook/react-vite": "^10.6.0",
+    "@storybook/addon-a11y": "10.6.5",
+    "@storybook/addon-mcp": "10.6.5",
+    "@storybook/react-vite": "10.6.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
-    "storybook": "^10.6.0",
+    "storybook": "10.6.5",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2",
-    "vitest": "^5.0.0"
+    "vite": "8.3.5",
+    "vitest": "5.0.3"
+  },
+  "overrides": {
+    "glob": "14.0.3",
+    "minimatch": "11.0.4"
   }
 }

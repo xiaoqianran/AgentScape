@@ -9,6 +9,7 @@ import { StudioWorldSurface } from '../ui/StudioWorldSurface.js';
 import { EditorController } from '../editor/EditorController.js';
 import { CAPABILITY_API, LOCAL_ADAPTER_HOST } from '../config/capabilityEntry.js';
 import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
+import { SCENE_LEGACY_SKILLS } from '../../../application/scene/SceneFacade.js';
 
 export async function createStudioRuntime({
   ui,
@@ -17,7 +18,7 @@ export async function createStudioRuntime({
   capabilityStatus
 }) {
   const environmentMaterializer = new StudioEnvironmentMaterializer({ parent:ui.shell });
-  const { world, generation, authoring, promotion } = createSession(ui.viewport, {
+  const { world, generation, authoring, promotion, scene } = createSession(ui.viewport, {
     environmentFactory: options => environmentMaterializer.materialize(environmentDefinition, options),
     rendererMode: params.get('renderer') || 'auto',
     rendererTiming: params.get('gpuTiming') === '1',
@@ -47,6 +48,10 @@ export async function createStudioRuntime({
   if (authoringWorlds) authoringWorlds.tools = studioTools;
   const agentTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'agent' });
   const runtimeTestTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'runtime-test' });
+  for (const adapter of [studioTools, agentTools, runtimeTestTools]) {
+    const original = adapter.call.bind(adapter);
+    adapter.call = (name, args) => SCENE_LEGACY_SKILLS.includes(name) ? scene.executeSkill(name, args) : original(name, args);
+  }
   if (promotion) {
     const verifier = new AssetAgentVerifier({ world, tools:runtimeTestTools });
     promotion.verifyBehavior = async entry => {

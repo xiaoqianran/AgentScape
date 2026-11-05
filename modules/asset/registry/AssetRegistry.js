@@ -35,6 +35,7 @@ export class AssetRegistry {
   }
 
   has(assetId) { return this.manifests.has(assetId); }
+  removeManifest(assetId) { return this.manifests.delete(assetId); }
 
   getManifest(assetId) {
     const manifest = this.manifests.get(assetId);

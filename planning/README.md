@@ -1,5 +1,15 @@
 # Planning
 
+## v2.0 执行基线
+
+本轮 v2 决策优先于旧草案：JSON 是唯一规范格式；以 `AgentScape.open()` / SceneHandle 为公共目标，保留现有 Runtime 和四层目录。Scene Project、Asset Package、StylePack 分别版本化；Recipe 有界且声明式。目标能力尚不能当作已发布接口。
+
+按 `V2-PR-01` 至 `V2-PR-09` 的任务依赖顺序验收。实际本机基线见 `planning/v2-baseline.json`。历史 READY 任务不是 v2 执行授权，原 ID 和状态保留；涉及多后端扩展、任意代码插件或 YAML 的历史提案不进入 v2 范围。`APP-SCENE-API-001` 保留为旧提案记录，其后续实施由 v2 依赖链管理，不重复执行。
+
+每项最低门槛为 architecture:validate、check、test:mcp、test:browser。check 与 browser 都会写 dist，必须串行执行。真实 Provider 与 Docker 集成证据单列，不把默认跳过当作通过。PR-02 在 PR-01 基线验收后才修改场景契约实现。
+
+当前实现与限制见 [v1 契约](public-contracts-v1.md)。本机验收见 v2-baseline.json 和 v2-pr02～08-acceptance.json；发布准备与外部验收边界见 [发布清单](../docs/v2-release.md)。任务状态仍以 tasks.jsonl 为准。
+
 每条任务只有一份权威记录，放在其主要所有者的 tasks.jsonl。planning/tasks.jsonl 只保留跨模块、仓库和集成任务，不是模块任务的副本。
 
 ## 文件发现

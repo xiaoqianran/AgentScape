@@ -22,6 +22,7 @@ export class ManifestPass {
       ...(context.definition ? Object.fromEntries(['requiredNodes','surfaces','receptacles','interactionContract'].filter(key=>context.definition[key]!=null).map(key=>[key,structuredClone(context.definition[key])])) : {}),
       ...(parts ? { parts } : {}),
       physics: {
+        ...(context.definition?.physics ? structuredClone(context.definition.physics) : {}),
         body: physics.body || (actions.has('pickup') ? 'dynamic' : 'fixed'),
         mass: Number(physics.mass ?? (actions.has('pickup') ? 0.5 : 1)),
         friction: Number(physics.friction ?? 0.5),

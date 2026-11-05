@@ -20,7 +20,11 @@ describe('Remote MCP real HTTP and physics',()=>{
    expect((await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:'x'.repeat(65537)})).status).toBe(413);
    await client.connect(new StreamableHTTPClientTransport(url,{requestInit:{headers:{Authorization:`Bearer ${token}`}}}));
    await bob.connect(new StreamableHTTPClientTransport(url,{requestInit:{headers:{Authorization:`Bearer ${other}`}}}));
-   expect((await client.listTools()).tools).toHaveLength(24);
+   const discovered = (await client.listTools()).tools;
+   expect(discovered).toHaveLength(33);
+   expect(discovered.filter(tool => !tool.name.startsWith('scene_'))).toHaveLength(24);
+   expect(discovered.map(tool=>tool.name)).toEqual(expect.arrayContaining(['session_create','action_execute','world_observe','world_save','world_restore','scene_apply','scene_interact','scene_job']));
+   expect(new Set(discovered.map(tool=>tool.name)).size).toBe(33);
    const a=await call(client,'session_create'),b=await call(bob,'session_create');
    const args={worldSessionId:a.worldSessionId};
    expect(a.worldSessionId).toBeTruthy();

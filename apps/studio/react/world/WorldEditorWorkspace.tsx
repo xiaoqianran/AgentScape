@@ -58,6 +58,7 @@ function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authorin
           <button id="load-scene" type="button" onClick={()=>void controls.loadScene()}>加载本机存档</button>
           <button id="export-scene" type="button" onClick={()=>controls.exportScene()}>导出 JSON</button>
           <button id="import-scene" type="button" onClick={()=>importRef.current?.click()}>导入 JSON</button>
+          {state.fileStatus ? <span id="scene-file-status" className="toolbar-menu-status" role="status">{state.fileStatus}</span> : null}
           <button id="reset-world" className="danger" type="button" disabled={state.resetBusy} onClick={()=>void controls.resetWorld()}>
             {state.resetBusy ? '正在重置…' : state.resetWorldArmed ? '确认重置' : '重置世界'}
           </button>

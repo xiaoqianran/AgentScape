@@ -1,0 +1,98 @@
+{
+  "schema": "agentscape.development-baseline",
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-04T16:46:58.324Z",
+  "stage": "PR-01",
+  "status": "passed-with-explicit-skips",
+  "branch": "feat/scene-api-v1",
+  "commit": "0ade154c66994b6e320a55833ba9c1f3f3287f82",
+  "environment": {
+    "platform": "win32",
+    "node": "v24.18.0",
+    "npm": "12.2.0",
+    "ciNode": 22
+  },
+  "preexistingUntracked": [
+    {
+      "path": "application/scene/SceneFacade.js",
+      "sha256": "aa45ed2fdef5d2329e91e1758fe57139681b46b6e4a824fafd1e4210f3a34215",
+      "disposition": "preserved; implementation not accepted as v1"
+    },
+    {
+      "path": "application/scene/SceneProject.js",
+      "sha256": "7b568faaac8945a384c12ae79ad59eb2671885f7b2800d99f77828c3997d35de",
+      "disposition": "preserved; implementation not accepted as v1"
+    }
+  ],
+  "initialTasks": {
+    "total": 1172,
+    "statuses": {
+      "DONE": 250,
+      "READY": 878,
+      "DEFERRED": 1,
+      "DISCOVERY": 29,
+      "BLOCKED": 14
+    },
+    "inProgress": 0
+  },
+  "checks": [
+    {
+      "command": "npm run check",
+      "exitCode": 0,
+      "passed": 1597,
+      "skipped": 3,
+      "filesPassed": 317,
+      "filesSkipped": 1,
+      "log": ".v2-baseline-check.log"
+    },
+    {
+      "command": "npm run test:mcp",
+      "exitCode": 0,
+      "passed": 10,
+      "skipped": 3,
+      "log": ".v2-baseline-mcp.log"
+    },
+    {
+      "command": "npm run architecture:validate",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test:browser",
+      "attempt": 1,
+      "exitCode": 1,
+      "reason": "Concurrent check build and Playwright build accessed dist; retry serialized after check completed",
+      "log": ".v2-baseline-browser.log"
+    },
+    {
+      "command": "npm run test:browser",
+      "attempt": 2,
+      "status": "passed",
+      "log": ".v2-baseline-browser-retry.log",
+      "exitCode": 0,
+      "passed": 7
+    }
+  ],
+  "limitations": [
+    "Working tree baseline, not an isolated clean checkout",
+    "Other machine/PC2 work is not observable from this checkout",
+    "Docker integration requires AGENTSCAPE_SANDBOX_INTEGRATION=1; three tests skipped",
+    "Real generation provider E2E excluded from ordinary suite",
+    "CI workflow change not yet executed on hosted CI",
+    "Large output chunks and browser externalization warnings remain"
+  ],
+  "decisionOverrides": [
+    {
+      "source": "planning/public-contracts-v1.md",
+      "rule": "JSON only; YAML examples are historical, not normative"
+    },
+    {
+      "source": "application/tasks.jsonl#APP-SCENE-API-001",
+      "rule": "Historical deferred proposal retained; v2 implementation tracked by V2-PR dependencies"
+    }
+  ],
+  "gates": [
+    "Do not implement PR-02 until PR-01 browser baseline passes",
+    "Do not run check and browser builds concurrently",
+    "No release or v2 completion claim from ordinary baseline tests"
+  ]
+}

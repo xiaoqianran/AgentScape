@@ -17,7 +17,7 @@ Use `npm run dev` for Studio and `/observatory/` for diagnostics. The starter re
 
 For your first contribution, consider clarifying a confusing starter instruction, adding a reproducible scene fixture, improving keyboard/mobile usability, or documenting an observed compatibility issue. Describe the expected result and how you tested it.
 
-For changes to public APIs, package formats or runtime ownership, open a GitHub issue with the user problem, a minimal example and the compatibility impact before building a new abstraction. The [three public contracts](planning/public-contracts-v1.md) are still a draft. Do not label proposed features as available.
+For changes to public APIs, package formats or runtime ownership, open a GitHub issue with the user problem, a minimal example and the compatibility impact before building a new abstraction. The [three public contracts](planning/public-contracts-v1.md) are implemented in the development build and require compatibility review. Do not label proposed features as available.
 
 ## Send a pull request
 

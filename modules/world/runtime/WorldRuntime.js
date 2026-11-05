@@ -27,6 +27,7 @@ import { WorldObservation } from './WorldObservation.js';
 import { WorldQueries } from './WorldQueries.js';
 import { WorldCommands } from './WorldCommands.js';
 import { WorldRecovery } from './WorldRecovery.js';
+import { RUNTIME_VERSION } from '../../../foundation/version.js';
 installThreeBvhRuntime();
 
 const mutationResultCommitted=(result)=>!(
@@ -75,7 +76,7 @@ export class WorldRuntime {
     }
     if (typeof physicsFactory !== 'function') throw new TypeError('WorldRuntime physicsFactory must be a function');
     if (typeof navigationBackendFactory !== 'function') throw new TypeError('WorldRuntime navigationBackendFactory must be a function');
-    this.version = '1.34.2';
+    this.version = RUNTIME_VERSION;
     this.ready = false;
     this.restoring = false;
     this.affordances = new WorldAffordances(this);
@@ -262,8 +263,10 @@ export class WorldRuntime {
       this.scene.add(object);
       this.store.add(id, { id, assetId, object, manifest, state: {}, physicsScale:uniformScale });
       stored = true;
-      this.physics.addObject(id, physicsManifest, object);
-      attached = true;
+      if (manifest.capabilityLevel !== 'visual') {
+        this.physics.addObject(id, physicsManifest, object);
+        attached = true;
+      }
       clearInteractionEvidenceForTarget(this,id);
       if (initialState && Object.keys(initialState).length) this.restoreObjectState(id, initialState);
       this.invalidateNavigationForObject(id, 'object.spawned');
@@ -304,7 +307,7 @@ export class WorldRuntime {
       nextQuaternion=new THREE.Quaternion().setFromEuler(euler).toArray();
     }
     const nextScale=scale==null?previous.scale:uniformScaleValue(scale);
-    const scaleChanged=!scalesEqual(nextScale,previous.physicsScale);
+    const scaleChanged=record.manifest.capabilityLevel !== 'visual' && !scalesEqual(nextScale,previous.physicsScale);
     if (scaleChanged && record.state?.heldBy) {
       const error=new Error(`Cannot scale held object: ${id}`); error.code='OBJECT_SCALE_HELD_UNSUPPORTED'; throw error;
     }
@@ -493,6 +496,7 @@ export class WorldRuntime {
 
   remove(id,{silent=false}={}) {
     const record = this.store.get(id);
+    this.events.emit('object.removing', { id });
     this.locomotion?.cancel(id, 'OBJECT_REMOVED');
     this.interactions?.beforeRemove(id,{silent});
     this.invalidateNavigationForObject(id, 'object.removed');
@@ -530,6 +534,7 @@ export class WorldRuntime {
   }
   dispose() {
     this.ready = false;
+    this.events?.emit?.('world.disposing');
     this.ruleRuntime?.stop();
     this.affordances?.cancel('RUNTIME_DISPOSED');
     this.interactions?.cancelPending('RUNTIME_DISPOSED');

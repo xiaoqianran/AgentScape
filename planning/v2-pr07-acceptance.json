@@ -1,0 +1,35 @@
+{
+  "stage": "PR-07",
+  "status": "passed-with-explicit-skips",
+  "checks": [
+    {
+      "command": "npm run check",
+      "passed": 1633,
+      "skipped": 3,
+      "log": ".v2-pr07-check-final.log"
+    },
+    {
+      "command": "npm run test:mcp",
+      "passed": 11,
+      "skipped": 3,
+      "log": ".v2-pr07-mcp-final.log"
+    },
+    {
+      "command": "npm run test:browser",
+      "passed": 7,
+      "log": ".v2-pr07-browser.log"
+    }
+  ],
+  "scope": [
+    "Original 24 tools retained; 8 Scene tools added",
+    "MCP and Studio audited world actions use shared Scene service",
+    "Async physical job polling and cancellation",
+    "Owner-bound published references and complete project export",
+    "MCP export reopens in fresh common Runtime",
+    "Shared held-object edit protection and Visual replacement behavior"
+  ],
+  "limitations": [
+    "Real Docker tests remain opt-in",
+    "Advanced authoring drafts retain separate compatibility workflow"
+  ]
+}

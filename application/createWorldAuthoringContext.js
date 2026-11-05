@@ -318,6 +318,7 @@ export function createWorldAuthoringContext(
   });
 
   return {
+    codeIsolation: executeCode ? 'external-executor' : 'trusted-local',
     THREE:executionHost.THREE,
     scene: root,
     clear,

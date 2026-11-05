@@ -1,4 +1,5 @@
 import { bootstrapWorld } from '../../../modules/agent/bootstrapWorld.js';
+import { createSceneFacade } from '../../../application/scene/SceneFacade.js';
 
 export function bindSceneControls({
   world,
@@ -24,9 +25,10 @@ export function bindSceneControls({
   let resetWorldTimer=null;
   let resetBusy=false;
   let mode='translate';
+  let fileStatus='';
   let history=world.history.status();
 
-  const snapshot=()=>Object.freeze({ mode, history, resetWorldArmed, resetBusy });
+  const snapshot=()=>Object.freeze({ mode, history, resetWorldArmed, resetBusy, fileStatus });
   let viewSnapshot=snapshot();
   const emit=()=>{
     viewSnapshot=snapshot();
@@ -117,24 +119,32 @@ export function bindSceneControls({
     }
   };
 
-  const exportScene=()=>{
-    const scene=world.serialize({ name:'AgentScape World' });
-    downloadJson(`agentscape-${currentEnvironmentDefinition().id}.json`,scene);
-    log(`场景已导出 · schema v${scene.schemaVersion}`,'result');
-    return scene;
+  const exportScene=async()=>{
+    try {
+      const portable = world.environment?.id === 'monument-hall';
+      const scene = portable ? (await createSceneFacade(world).save({readResource:(_url,id)=>world.assetModule.readAssetBytes(id)})).value : world.serialize({name:'AgentScape World'});
+      downloadJson(`agentscape-${currentEnvironmentDefinition().id}.json`,scene);
+      log(portable ? `完整项目已导出 · schema v${scene.schemaVersion}` : '当前环境已导出运行快照（不包含资源包）','result');
+      return scene;
+    } catch(error) { log(`导出错误：${error.message}`,'error'); return null; }
   };
 
   const importScene=async(file)=>{
     if (!file) return null;
     try {
+      fileStatus='正在预检项目…'; emit();
+      if(file.size>96*1024*1024) throw new Error('PROJECT_LIMIT');
       const scene=JSON.parse(await file.text());
       assertWorldIdle();
       editor.select(null);
-      await world.restore(scene);
-      sceneStore.save(scene);
-      log(`场景已导入 · ${scene.objects.length} 个对象`,'result');
+      if(scene.schema==='agentscape.project-bundle') await createSceneFacade(world).importProject(scene);
+      else await world.restore(scene);
+      sceneStore.save(world.serialize({name:'AgentScape World'}));
+      fileStatus='项目已导入'; emit();
+      log(`场景已导入 · ${world.store?.list?.().length ?? scene.objects?.length ?? 0} 个对象`,'result');
       return scene;
     } catch (error) {
+      fileStatus='项目导入失败，原项目已保留'; emit();
       log(`导入错误：${error.message}`,'error');
       return null;
     }

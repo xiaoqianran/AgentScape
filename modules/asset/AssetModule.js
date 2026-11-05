@@ -8,6 +8,7 @@ import { AssetManifestStore } from './persistence/AssetManifestStore.js';
 import { LocalAssetLibrary } from './persistence/LocalAssetLibrary.js';
 import { LocalAssetLibraryStore } from './persistence/LocalAssetLibraryStore.js';
 import { assetAdmission } from './model/admission.js';
+import { recipeSchema, canonicalAssetJson, assetDigest, assertEmbeddedGLB } from './model/AssetInputContracts.js';
 
 export async function verifyAndUpdateAssetArticulation(assets,assetId,options) {
  const report=await assets.verifyArticulation(assetId,options);
@@ -26,13 +27,14 @@ export async function verifyAndUpdateAssetArticulation(assets,assetId,options) {
 
 export function createAssetModule({
   manifests,
+  volatile = false,
   compiledStore = null,
   manifestStore = undefined,
   libraryStore = undefined,
   gltfLoader = undefined,
   now = () => Date.now()
 } = {}) {
-  const store = compiledStore || new CompiledAssetStore();
+  const store = compiledStore || new CompiledAssetStore({ indexedDBImpl: volatile ? null : globalThis.indexedDB });
   const durableManifests = manifestStore === undefined
     ? (globalThis.indexedDB ? new AssetManifestStore() : null)
     : manifestStore;
@@ -78,6 +80,93 @@ export function createAssetModule({
   };
 
   const module = {
+    async readAssetBytes(id) {
+      const manifest = registry.getManifest(id);
+      if (manifest.source.kind === 'compiled') {
+        const entry = await store.get(manifest.source.key);
+        if (!entry?.bytes) throw new Error('RESOURCE_UNAVAILABLE');
+        return entry.bytes.slice();
+      }
+      if (manifest.source.kind !== 'glb') throw new Error('RESOURCE_UNAVAILABLE');
+      const { AssetCompiler } = await import('./production/compiler/AssetCompiler.js');
+      return new AssetCompiler({ store }).fetchBytes(manifest.source.url);
+    },
+    async installPreparedAssets(entries, operation) {
+      const added = [];
+      try {
+        const durableIds = new Set((await durableManifests?.list?.() || []).map(manifest => manifest.id));
+        for (const entry of entries) if (!registry.has(entry.manifest.id) && durableIds.has(entry.manifest.id)) throw new Error('ASSET_ID_CONFLICT');
+        // Check every identity before touching durable storage.
+        for (const entry of entries) if (registry.has(entry.manifest.id)) {
+          const existing = registry.getManifest(entry.manifest.id);
+          const definition = Object.fromEntries(Object.keys(entry.expectedDefinition).map(key => [key, existing[key]]));
+          if (canonicalAssetJson(definition) !== canonicalAssetJson(entry.expectedDefinition) || await assetDigest(await module.readAssetBytes(existing.id)) !== entry.expectedSourceHash) throw new Error('ASSET_ID_CONFLICT');
+        }
+        for (const entry of entries) {
+          if (registry.has(entry.manifest.id)) continue;
+          const key = entry.manifest.source.key, previous = await store.get(key);
+          if (previous && await assetDigest(previous.bytes) !== await assetDigest(entry.bytes)) throw new Error('ASSET_ID_CONFLICT');
+          added.push({ id: entry.manifest.id, key, bytesAdded: !previous });
+          await store.put(key, entry.bytes, { manifestId: entry.manifest.id });
+          await module.registerManifest(entry.manifest);
+        }
+        return await operation();
+      } catch (error) {
+        const failures = [];
+        for (const entry of added.reverse()) try {
+          registry.removeManifest(entry.id);
+          await durableManifests?.delete?.(entry.id);
+          if (entry.bytesAdded) await store.delete(entry.key);
+        } catch (failure) { failures.push(failure); }
+        if (failures.length) throw Object.assign(new AggregateError([error, ...failures], 'Project resource rollback failed'), { code: 'PROJECT_ROLLBACK_FAILED' });
+        throw error;
+      }
+    },
+    async importPackageAsset({ id, bytes, definition }) {
+      assertEmbeddedGLB(bytes);
+      const { AssetCompiler } = await import('./production/compiler/AssetCompiler.js');
+      const compiler = new AssetCompiler({ store, version: 'v2-input-1' });
+      const output = definition.capabilityLevel === 'visual'
+        ? await compiler.compileVisual({ bytes, assetId: id, label: definition.label })
+        : await compiler.compile({ bytes, assetId: id, sourceName: 'package.glb', definition, authoringIntent: { usage: 'interactive' } });
+      output.manifest.capabilityLevel = definition.capabilityLevel;
+      await module.registerManifest(output.manifest);
+      return { manifest: output.manifest, admission: assetAdmission(output.manifest) };
+    },
+    async importGLB({ bytes, level = 'visual', label = 'Imported model' }) {
+      if (level !== 'visual') throw Object.assign(new Error('GLB physical import requires an explicit compiled definition'), { code: 'CAPABILITY_UNAVAILABLE' });
+      if (!(bytes instanceof Uint8Array) || bytes.byteLength > 32 * 1024 * 1024) throw Object.assign(new Error('Invalid GLB input'), { code: 'ASSET_INPUT_INVALID' });
+      // Own the input before asynchronous hashing; callers may reuse their buffer.
+      bytes = bytes.slice();
+      assertEmbeddedGLB(bytes);
+      const hash = await assetDigest(bytes), assetId = `asset_${hash}`;
+      if (registry.has(assetId)) return { asset: `asset://sha256/${hash}`, manifest: registry.getManifest(assetId), admission: assetAdmission(registry.getManifest(assetId)) };
+      const { AssetCompiler } = await import('./production/compiler/AssetCompiler.js');
+      const output = await new AssetCompiler({ store, version: 'v2-input-1' }).compileVisual({ bytes, assetId, label });
+      output.manifest.contentHash = hash;
+      await module.registerManifest(output.manifest);
+      return { asset: `asset://sha256/${hash}`, manifest: output.manifest, admission: assetAdmission(output.manifest) };
+    },
+    async importRecipe(input) {
+      const recipe = recipeSchema.parse(input);
+      const hash = await assetDigest(new TextEncoder().encode(canonicalAssetJson({ recipe, compiler: 'v2-input-1' }))), assetId = `asset_${hash}`;
+      if (registry.has(assetId)) return { asset: `asset://sha256/${hash}`, manifest: registry.getManifest(assetId), admission: assetAdmission(registry.getManifest(assetId)) };
+      const { compileRecipeGeometry } = await import('./production/AssetRecipe.js');
+      const { AssetCompiler } = await import('./production/compiler/AssetCompiler.js');
+      const { bytes } = await compileRecipeGeometry(recipe);
+      const compiler = new AssetCompiler({ store, version: 'v2-input-1' });
+      const output = recipe.capabilities.level === 'visual' ? await compiler.compileVisual({ bytes, assetId, label: recipe.id })
+        : await compiler.compile({ bytes, assetId, sourceName: 'recipe.glb', label: recipe.id,
+          authoringIntent: { usage: recipe.capabilities.physics.body === 'dynamic' ? 'movable' : 'static' },
+          definition: { type: 'prop', label: recipe.id, actions: recipe.capabilities.actions, physics: recipe.capabilities.physics, surfaces: recipe.capabilities.surfaces } });
+      output.manifest.capabilityLevel = recipe.capabilities.level;
+      output.manifest.contentHash = hash;
+      output.manifest.provenance = { ...output.manifest.provenance, recipe };
+      const admission = assetAdmission(output.manifest);
+      if (admission.status === 'rejected') throw Object.assign(new Error('Recipe rejected'), { code: 'ASSET_REJECTED' });
+      await module.registerManifest(output.manifest);
+      return { asset: `asset://sha256/${hash}`, manifest: output.manifest, admission };
+    },
     registry,
     loader,
     catalog,
