@@ -25,6 +25,18 @@ export const ENVIRONMENTS = Object.freeze([
     coffeeCorner:{table:[0,0,-2]}
   }),
   Object.freeze({
+    id:'industrial-cabinet-lab',number:'世界 00D',title:'工业储物柜实验室',
+    headline:'操作真正带铰链和滑轨的复杂机械资产。',
+    description:'Three.js 程序化建模的钢制柜体，包含两扇独立柜门和两个抽屉。每个部件都由真实物理关节驱动。',
+    facts:['双旋转铰链','双滑动关节','Agent 交互验证'],worldFirst:true,
+    load:()=>import('./blankWorld.js').then(module=>()=>module.createBlankWorld({id:'industrial-cabinet-lab'})),
+    bootstrap:{
+      agent:[-2,0,1.5],table:[2.8,0,-2.1],cup:[2.8,1.1,-2.1],
+      assets:[{assetId:'industrial_cabinet',position:[0,0,-2.5],instanceId:'industrial_cabinet_01'}]
+    },
+    coffeeCorner:{table:[2.8,0,-2.1]}
+  }),
+  Object.freeze({
     id:'magic-cabin',number:'世界 05',title:'魔女小屋 · 原版迁移',headline:'走进原来的二层小屋。',
     description:'原版线稿小屋：旋转楼梯、两层生活空间、门窗、书籍、魔法陈设与原地编辑。',
     facts:['原版双层房屋','丰富物件交互','世界优先'],worldFirst:true,cabin:true,

@@ -66,6 +66,78 @@ export const assetManifests = {
       }
     }
   },
+  industrial_cabinet: {
+    id:'industrial_cabinet',type:'cabinet',label:'Industrial Storage Cabinet',
+    tags:['cabinet','industrial','storage','drawers','hinged doors','储物柜','工业'],
+    aliases:['workshop cabinet','metal locker'],
+    source:{kind:'builtin'},
+    requiredNodes:['Body','LeftDoorHinge','RightDoorHinge','UpperDrawerSlide','LowerDrawerSlide'],
+    actions:['open','close'],
+    // Hollow fixed carcass. Moving parts have their own collision bodies and joints.
+    physics:{
+      body:'fixed',
+      colliders:[
+        {shape:'box',halfExtents:[0.04,0.94,0.365],translation:[-0.88,1.12,0]},
+        {shape:'box',halfExtents:[0.04,0.94,0.365],translation:[0.88,1.12,0]},
+        {shape:'box',halfExtents:[0.88,0.94,0.028],translation:[0,1.12,-0.35]},
+        {shape:'box',halfExtents:[0.92,0.04,0.365],translation:[0,2.09,0]},
+        {shape:'box',halfExtents:[0.92,0.04,0.365],translation:[0,0.18,0]},
+        {shape:'box',halfExtents:[0.86,0.04,0.34],translation:[0,1.12,0]},
+        {shape:'box',halfExtents:[0.86,0.0225,0.33],translation:[0,1.61,-0.01]},
+        ...[-0.74,0.74].flatMap(x=>[-0.25,0.25].map(z=>({shape:'box',halfExtents:[0.08,0.065,0.08],translation:[x,0.065,z]})))
+      ]
+    },
+    parts:{
+      left_door:{
+        node:'LeftDoorHinge',semantic:'door',actions:['open','close'],
+        targets:{open:-1.30,close:0},
+        physics:{body:'dynamic',mass:5,friction:0.6,
+          colliders:[{shape:'box',halfExtents:[0.387,0.43,0.028],translation:[0.395,0,0]}]},
+        joint:{type:'revolute',axis:[0,1,0],limits:[-1.35,0],
+          parentAnchor:[-0.81,1.59,0.393],childAnchor:[0,0,0],
+          motor:{stiffness:85,damping:13}}
+      },
+      right_door:{
+        node:'RightDoorHinge',semantic:'door',actions:['open','close'],
+        targets:{open:1.30,close:0},
+        physics:{body:'dynamic',mass:5,friction:0.6,
+          colliders:[{shape:'box',halfExtents:[0.387,0.43,0.028],translation:[-0.395,0,0]}]},
+        joint:{type:'revolute',axis:[0,1,0],limits:[0,1.35],
+          parentAnchor:[0.81,1.59,0.393],childAnchor:[0,0,0],
+          motor:{stiffness:85,damping:13}}
+      },
+      upper_drawer:{
+        node:'UpperDrawerSlide',semantic:'drawer',actions:['open','close'],
+        targets:{open:0.45,close:0},
+        physics:{body:'dynamic',mass:4,friction:0.55,
+          colliders:[
+            {shape:'box',halfExtents:[0.775,0.16,0.027],translation:[0,0,0.393]},
+            {shape:'box',halfExtents:[0.725,0.0175,0.31],translation:[0,-0.137,0.065]},
+            {shape:'box',halfExtents:[0.725,0.125,0.0175],translation:[0,0,-0.245]},
+            {shape:'box',halfExtents:[0.018,0.125,0.305],translation:[-0.716,0,0.065]},
+            {shape:'box',halfExtents:[0.018,0.125,0.305],translation:[0.716,0,0.065]}
+          ]},
+        joint:{type:'prismatic',axis:[0,0,1],limits:[0,0.48],
+          parentAnchor:[0,0.81,0],childAnchor:[0,0,0],
+          motor:{stiffness:85,damping:13}}
+      },
+      lower_drawer:{
+        node:'LowerDrawerSlide',semantic:'drawer',actions:['open','close'],
+        targets:{open:0.45,close:0},
+        physics:{body:'dynamic',mass:4,friction:0.55,
+          colliders:[
+            {shape:'box',halfExtents:[0.775,0.16,0.027],translation:[0,0,0.393]},
+            {shape:'box',halfExtents:[0.725,0.0175,0.31],translation:[0,-0.137,0.065]},
+            {shape:'box',halfExtents:[0.725,0.125,0.0175],translation:[0,0,-0.245]},
+            {shape:'box',halfExtents:[0.018,0.125,0.305],translation:[-0.716,0,0.065]},
+            {shape:'box',halfExtents:[0.018,0.125,0.305],translation:[0.716,0,0.065]}
+          ]},
+        joint:{type:'prismatic',axis:[0,0,1],limits:[0,0.48],
+          parentAnchor:[0,0.41,0],childAnchor:[0,0,0],
+          motor:{stiffness:85,damping:13}}
+      }
+    }
+  },
   cabinet: {
     id: 'cabinet', type: 'cabinet', label: 'Cabinet', tags: ['cabinet', 'storage', 'furniture', '柜子'], aliases: ['cupboard'], source: { kind: 'glb', url: 'assets/cabinet.glb' },
     requiredNodes: ['Body', 'doorHinge', 'Door'],
