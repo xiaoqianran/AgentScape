@@ -30,6 +30,13 @@ export function createHeadlessGLTFLoader() {
   }
  }));
  return {
+  async loadBytes(bytes) {
+   const buffer=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
+   const gltf=await loader.parseAsync(buffer,'');
+   if(!gltf.scene)throw new Error('ASSET_SCENE_MISSING');
+   gltf.scene.animations=[...(gltf.animations || [])];
+   return gltf.scene;
+  },
   async loadScene(url) {
    const gltf=await loader.loadAsync(url);
    if(!gltf.scene) throw new Error('ASSET_SCENE_MISSING');

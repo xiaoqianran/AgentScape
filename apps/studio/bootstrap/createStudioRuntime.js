@@ -10,6 +10,7 @@ import { EditorController } from '../editor/EditorController.js';
 import { CAPABILITY_API, LOCAL_ADAPTER_HOST } from '../config/capabilityEntry.js';
 import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
 import { SCENE_LEGACY_SKILLS } from '../../../application/scene/SceneFacade.js';
+import { StudioLiveBridgeClient } from '../bridge/StudioLiveBridgeClient.js';
 
 export async function createStudioRuntime({
   ui,
@@ -31,6 +32,10 @@ export async function createStudioRuntime({
 
   world.generationState = await generation.initialize({ pair:false });
   await world.init();
+  const selectedPort = Number(params.get('mcpPort'));
+  const bridgePort = import.meta.env.DEV && Number.isInteger(selectedPort) && selectedPort>=1 && selectedPort<=65535 ? selectedPort : 39015;
+  const liveBridge = new StudioLiveBridgeClient({world,scene,serverUrl:'http://127.0.0.1:'+bridgePort});
+  ui.attachLiveBridge?.(liveBridge);
 
   const resolveAuthoringModel = authoring ? createAuthoringModelResolver({
     assetLoader:world.assetModule.loader,
@@ -100,6 +105,7 @@ export async function createStudioRuntime({
     editor,
     dispose() {
       stopInteractionMode?.();
+      liveBridge.dispose();
       worldSurface.dispose();
       runtimeDriver.dispose();
       promotion?.dispose();

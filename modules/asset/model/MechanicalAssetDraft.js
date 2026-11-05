@@ -15,7 +15,12 @@ const component = z.object({
   size:z.tuple([positive,positive,positive]),
   color:z.string().regex(/^#[a-fA-F0-9]{6}$/),
   collision:z.boolean().default(true)
-}).strict();
+}).strict().superRefine((node,ctx)=>{
+  if(node.shape==='sphere' && (node.size[0]!==node.size[1] || node.size[0]!==node.size[2]))
+    ctx.addIssue({code:'custom',message:'Sphere dimensions must match on X, Y and Z'});
+  if(node.shape==='cylinder' && node.size[0]!==node.size[2])
+    ctx.addIssue({code:'custom',message:'Cylinder diameter must match on X and Z'});
+});
 const motion = z.object({
   id:componentId,
   node:componentId,
@@ -61,7 +66,9 @@ export const mechanicalDraftSchema = z.object({
 
 const collider = node => ({
   shape:'box',
-  halfExtents:node.size.map(size=>size/2),
+  halfExtents: node.shape==='sphere' ? [node.size[0]/2,node.size[0]/2,node.size[0]/2]
+    : node.shape==='cylinder' ? [node.size[0]/2,node.size[1]/2,node.size[0]/2]
+    : node.size.map(size=>size/2),
   translation:[...node.position]
 });
 

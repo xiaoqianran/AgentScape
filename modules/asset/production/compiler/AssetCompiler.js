@@ -25,7 +25,7 @@ import { ExplicitDefinitionPass } from './passes/ExplicitDefinitionPass.js';
 import { assertEmbeddedGLB, interactionReviewSchema, assetDigest, canonicalAssetJson } from '../../model/AssetInputContracts.js';
 
 export class AssetCompiler {
-  async compileVisual({ bytes, assetId, label = 'Imported model' }) {
+  async compileVisual({ bytes, assetId, label = 'Imported model', persist = true }) {
     assertEmbeddedGLB(bytes);
     let context = { bytes, assetId, authoringIntent: { usage: 'static' }, compilerVersion: this.version };
     for (const pass of [new GLTFInspectPass({ io: this.io }), new StructurePass(), new GeometryPass(), new OptimizeGLBPass({ io: this.io }), new ResourceBudgetPass()]) context = await pass.run(context);
@@ -35,8 +35,8 @@ export class AssetCompiler {
     if (hard.length) throw Object.assign(new Error('Visual asset rejected'), { code: 'ASSET_COMPILE_REJECTED', details: quality });
     const manifest = { id: assetId, type: 'visual', label, capabilityLevel: 'visual', actions: [], source: { kind: 'compiled', key: assetId }, compiler: { version: this.version, quality, resources: context.resources } };
     validateAssetManifest(manifest);
-    await this.store.put(assetId, context.optimizedBytes, { manifestId: assetId, quality: quality.status });
-    return { manifest, quality, resources: context.resources };
+    if (persist) await this.store.put(assetId, context.optimizedBytes, { manifestId: assetId, quality: quality.status });
+    return { manifest, quality, resources: context.resources, optimizedBytes: context.optimizedBytes };
   }
   constructor({ store, provider = null, events = null, version = 'dev' } = {}) {
     this.store = store; this.provider = provider; this.events = events; this.version = version;
@@ -140,6 +140,7 @@ export class AssetCompiler {
     if(persist) await this.store.put(storageKey, context.optimizedBytes, { sourceName: name, manifestId: context.manifest.id, quality: context.quality.status });
     return {
       manifest: context.manifest,
+      optimizedBytes: context.optimizedBytes,
       inspection: context.inspection,
       structure: context.structure,
       normalization: context.normalization,

@@ -1,4 +1,5 @@
 import { SelectionActionDock } from './SelectionActionDock';
+import { StudioMcpConnection } from './StudioMcpConnection';
 import { StudioIcon } from '../shared/StudioIcon';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
@@ -161,6 +162,7 @@ export function WorldEditorWorkspace({
       <div className="artifact-tray-host world-artifact-tray">{content ? <ArtifactTrayView {...content.artifactTray} /> : null}</div>
 
       <nav className="utility-rail" aria-label="World Editor utilities">
+        {bridgeState.liveBridge ? <StudioMcpConnection controller={bridgeState.liveBridge} /> : null}
         <button id="open-world-task" type="button" aria-pressed={contextOpen && contextView==='task'} onClick={()=>commitLayoutChange(()=>openView('world-task'))}>任务</button>
         {WORLD_EDITOR_UTILITIES.map(({ view,label })=>{
           const selected = contextOpen && view === 'inspect';

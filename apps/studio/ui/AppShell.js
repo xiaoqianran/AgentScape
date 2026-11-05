@@ -92,6 +92,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     attachContent:(content)=>bridge.attachContent(content),
     attachSceneControls:(controls)=>bridge.attachSceneControls(controls),
     attachAuthoring:(authoring)=>bridge.attachAuthoring(authoring),
+    attachLiveBridge:(liveBridge)=>bridge.attachLiveBridge(liveBridge),
     setDeveloperOpenHandler:(handler)=>bridge.setDeveloperOpenHandler(handler),
     prefillAgentCommand:(value)=>bridge.prefillAgentCommand(value),
     destroyChrome() {

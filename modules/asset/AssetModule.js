@@ -137,23 +137,42 @@ export function createAssetModule({
     },
     async importPackageAsset({ id, bytes, definition }) {
       assertEmbeddedGLB(bytes);
+      if (registry.has(id)) throw Object.assign(new Error('Asset id already exists'), {code:'ASSET_ID_CONFLICT'});
       const { AssetCompiler } = await import('./production/compiler/AssetCompiler.js');
       const compiler = new AssetCompiler({ store, version: 'v2-input-1' });
+      // Prepare bytes without publishing them. Failed physical checks must leave no binary.
       const output = definition.capabilityLevel === 'visual'
-        ? await compiler.compileVisual({ bytes, assetId: id, label: definition.label })
-        : await compiler.compile({ bytes, assetId: id, sourceName: 'package.glb', definition, authoringIntent: { usage: 'interactive' } });
+        ? await compiler.compileVisual({ bytes, assetId:id, label:definition.label, persist:false })
+        : await compiler.compile({ bytes, assetId:id, sourceName:'package.glb', definition,
+          authoringIntent:{usage:'interactive'}, persist:false });
       output.manifest.capabilityLevel = definition.capabilityLevel;
-      if(Object.values(output.manifest.parts || {}).some(part=>part.joint && part.joint.type!=='fixed')) {
-        if(!articulationVerifier) throw Object.assign(new Error('Runtime verification unavailable'),{code:'RUNTIME_VERIFICATION_UNAVAILABLE'});
+      if (Object.values(output.manifest.parts || {}).some(part=>part.joint && part.joint.type!=='fixed')) {
+        if (!articulationVerifier) throw Object.assign(new Error('Runtime verification unavailable'), {code:'RUNTIME_VERIFICATION_UNAVAILABLE'});
         const report=await articulationVerifier.verify(id,{manifest:output.manifest,requireRegistration:true,requireSettled:true,
-          instantiate:async()=>({object:await loader.loadCompiled(output.manifest.source)})});
-        if(!report.ok) throw Object.assign(new Error('Package articulation failed validation'),{code:'ASSET_PHYSICS_VERIFICATION_FAILED',details:report});
+          instantiate:async()=>({object:await loader.gltfLoader.loadBytes(output.optimizedBytes)})});
+        if (!report.ok) throw Object.assign(new Error('Package articulation failed validation'),
+          {code:'ASSET_PHYSICS_VERIFICATION_FAILED',details:report});
         output.manifest.verification={articulation:report};
         output.manifest.compiler.quality.advisory=output.manifest.compiler.quality.advisory.filter(item=>item.code!=='ARTICULATION_UNVERIFIED');
         output.manifest.compiler.quality.status=output.manifest.compiler.quality.advisory.length?'provisional':'ready';
       }
-      await module.registerManifest(output.manifest);
-      return { manifest: output.manifest, admission: assetAdmission(output.manifest) };
+      const previous=await store.get(id);
+      if (previous) throw Object.assign(new Error('Compiled asset id already exists'), {code:'ASSET_ID_CONFLICT'});
+      try {
+        await store.put(id,output.optimizedBytes,{manifestId:id,quality:output.manifest.compiler.quality.status});
+        await module.registerManifest(output.manifest);
+      } catch (error) {
+        registry.removeManifest(id);
+        try {
+          await durableManifests?.delete?.(id);
+          await store.delete(id);
+        } catch (rollbackError) {
+          throw Object.assign(new AggregateError([error,rollbackError],'Package publish rollback failed'),
+            {code:'ASSET_PUBLISH_ROLLBACK_FAILED'});
+        }
+        throw error;
+      }
+      return {manifest:output.manifest,admission:assetAdmission(output.manifest)};
     },
     async prepareInteraction({bytes,urdfBytes,name='import.glb'}) {
       if(!(bytes instanceof Uint8Array) || bytes.byteLength>32*1024*1024) throw Object.assign(new Error('Invalid GLB input'),{code:'ASSET_INPUT_INVALID'});

@@ -1,0 +1,145 @@
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+
+const issue = (code) => Object.assign(new Error(code), {code});
+const secret = () => randomBytes(32).toString('hex');
+const equal = (left, right) => typeof left === 'string' && typeof right === 'string'
+  && left.length === right.length && timingSafeEqual(Buffer.from(left),Buffer.from(right));
+
+/**
+ * Ephemeral transport, not a second WorldRuntime.
+ * Studio owns the only Runtime; MCP supplies authenticated and bounded commands.
+ * Browser pairing requires a human-delivered one-time capability (not the MCP Bearer token).
+ */
+export class StudioLiveBridge {
+  constructor({now=()=>Date.now(),pairTtlMs=120000,heartbeatMs=30000,rpcTimeoutMs=30000}={}) {
+    this.now=now;
+    this.pairTtlMs=pairTtlMs;
+    this.heartbeatMs=heartbeatMs;
+    this.rpcTimeoutMs=rpcTimeoutMs;
+    this.sessions=new Map();
+  }
+
+  pair(owner) {
+    if(!owner)throw issue('OWNER_REQUIRED');
+    for(const [id,entry] of this.sessions)if(!entry.connected&&this.now()>entry.expiresAt)this.disconnect(id,'PAIR_CODE_EXPIRED');
+    if([...this.sessions.values()].filter(entry=>entry.owner===owner).length>=4)throw issue('STUDIO_SESSION_LIMIT');
+    if(this.sessions.size>=32)throw issue('STUDIO_SESSION_LIMIT');
+    const worldSessionId=randomUUID(),pairCode=secret();
+    this.sessions.set(worldSessionId,{owner,pairCode,expiresAt:this.now()+this.pairTtlMs,
+      token:null,connected:false,lastSeen:0,pending:new Map(),requests:new Map(),queue:[],pollWaiter:null});
+    return {worldSessionId,pairCode,expiresInSeconds:Math.ceil(this.pairTtlMs/1000),status:'awaiting-studio'};
+  }
+
+  isStudioSession(id) {return this.sessions.has(id);}
+  ownerSession(owner,id) {
+    const s=this.sessions.get(id);
+    if(!s||s.owner!==owner)throw issue('SESSION_NOT_FOUND');
+    return s;
+  }
+  status(owner,id) {
+    const s=this.ownerSession(owner,id);
+    if(s.connected&&this.now()-s.lastSeen>this.heartbeatMs)this.disconnect(id,'STUDIO_DISCONNECTED');
+    return {worldSessionId:id,status:s.connected?'connected':s.pairCode&&this.now()<s.expiresAt?'awaiting-studio':'disconnected',
+      connected:s.connected,lastSeen:s.lastSeen||null};
+  }
+  connect(pairCode) {
+    const candidate=[...this.sessions.entries()].find(([,s])=>s.pairCode&&equal(s.pairCode,pairCode));
+    if(!candidate)throw issue('PAIR_CODE_INVALID');
+    const [id,s]=candidate;
+    if(this.now()>s.expiresAt) {this.disconnect(id,'PAIR_CODE_EXPIRED');throw issue('PAIR_CODE_EXPIRED');}
+    s.pairCode=null;
+    s.token=secret();
+    s.connected=true;
+    s.lastSeen=this.now();
+    return {worldSessionId:id,studioToken:s.token,status:'connected'};
+  }
+  authorized(id,token) {
+    const s=this.sessions.get(id);
+    if(!s||!s.connected||!equal(s.token,token))throw issue('STUDIO_AUTH_FAILED');
+    if(this.now()-s.lastSeen>this.heartbeatMs) {this.disconnect(id,'STUDIO_DISCONNECTED');throw issue('STUDIO_DISCONNECTED');}
+    return s;
+  }
+  async poll(id,token) {
+    const s=this.authorized(id,token);
+    s.lastSeen=this.now();
+    if(s.queue.length)return {request:s.queue.shift()};
+    // Poll has its own short deadline to allow rapid disconnect and heartbeat.
+    if(s.pollWaiter)throw issue('STUDIO_POLL_CONFLICT');
+    return new Promise(resolve=>{
+      const timer=setTimeout(()=>{
+        if(s.pollWaiter?.resolve===resolve)s.pollWaiter=null;
+        resolve({request:null});
+      },8000);
+      timer.unref?.();
+      s.pollWaiter={resolve,timer};
+    });
+  }
+  reply(id,token,{requestId,result,error}) {
+    const s=this.authorized(id,token);
+    s.lastSeen=this.now();
+    const pending=s.pending.get(requestId);
+    if(!pending)throw issue('STUDIO_REQUEST_NOT_FOUND');
+    s.pending.delete(requestId);
+    clearTimeout(pending.timer);
+    if(error)pending.reject(issue(typeof error.code==='string'&&/^[A-Z_]+$/.test(error.code)?error.code:'STUDIO_OPERATION_FAILED'));
+    else pending.resolve(result);
+    return {status:'accepted'};
+  }
+  async call(owner,id,method,args,{signal,requestId}={}) {
+    const s=this.ownerSession(owner,id);
+    if(!s.connected||this.now()-s.lastSeen>this.heartbeatMs){
+      this.disconnect(id,'STUDIO_DISCONNECTED');
+      throw issue('STUDIO_DISCONNECTED');
+    }
+    if(requestId && s.requests.has(requestId)){
+      const previous=s.requests.get(requestId);
+      if(previous.fingerprint!==JSON.stringify([method,args]))throw issue('IDEMPOTENCY_CONFLICT');
+      return previous.promise;
+    }
+    if(requestId && s.requests.size>=256)throw issue('REQUEST_BUDGET_EXHAUSTED');
+    if(s.pending.size>=1)throw issue('STUDIO_BUSY');
+    if(signal?.aborted)throw issue('ACTION_CANCELLED');
+    const transportId=randomUUID();
+    const promise=new Promise((resolve,reject)=>{
+      const cancel=()=>{const item=s.pending.get(transportId);if(!item)return;clearTimeout(item.timer);s.pending.delete(transportId);s.queue=s.queue.filter(item=>item.requestId!==transportId);item.reject(issue('ACTION_CANCELLED'));};
+      const timer=setTimeout(()=>{
+        s.pending.delete(transportId);
+        s.queue=s.queue.filter(item=>item.requestId!==transportId);
+        signal?.removeEventListener('abort',cancel);
+        reject(issue('STUDIO_TIMEOUT'));
+      },this.rpcTimeoutMs);
+      timer.unref?.();
+      const pending={
+        timer,
+        resolve:value=>{signal?.removeEventListener('abort',cancel);resolve(value);},
+        reject:error=>{signal?.removeEventListener('abort',cancel);reject(error);}
+      };
+      s.pending.set(transportId,pending);
+      signal?.addEventListener('abort',cancel,{once:true});
+      const request={requestId:transportId,method,args};
+      if(s.pollWaiter){
+        clearTimeout(s.pollWaiter.timer);
+        const waiter=s.pollWaiter;s.pollWaiter=null;
+        waiter.resolve({request});
+      }else s.queue.push(request);
+    });
+    if(requestId){
+      s.requests.set(requestId,{fingerprint:JSON.stringify([method,args]),promise});
+    }
+    return promise;
+  }
+  disconnect(id,reason='STUDIO_DISCONNECTED') {
+    const s=this.sessions.get(id);
+    if(!s)return false;
+    this.sessions.delete(id);
+    s.connected=false;
+    if(s.pollWaiter){
+      clearTimeout(s.pollWaiter.timer);s.pollWaiter.resolve({request:null});s.pollWaiter=null;
+    }
+    for(const pending of s.pending.values()){clearTimeout(pending.timer);pending.reject(issue(reason));}
+    s.pending.clear();s.queue.length=0;
+    return true;
+  }
+  close(owner,id) {this.ownerSession(owner,id);this.disconnect(id);return {worldSessionId:id,status:'disconnected'};}
+  dispose(){for(const id of [...this.sessions.keys()])this.disconnect(id);}
+}

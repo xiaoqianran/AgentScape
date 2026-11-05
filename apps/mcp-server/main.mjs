@@ -4,6 +4,8 @@ import path from 'node:path';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import { toWebRequest } from '@modelcontextprotocol/node';
 import { SessionManager } from './SessionManager.js';
+import { StudioLiveBridge } from './StudioLiveBridge.js';
+import { handleStudioBridgeHttp } from './StudioBridgeHttp.js';
 import { registerTools } from './registerTools.js';
 import { createSecurity } from './security.js';
 import { FileAssetRepository } from './FileAssetRepository.js';
@@ -12,23 +14,25 @@ import { ProgrammaticAssets } from './ProgrammaticAssets.js';
 import { ProgrammaticAssetBuilder } from '../../application/programmatic-assets/ProgrammaticAssetBuilder.js';
 import { createHeadlessGLTFLoader } from './HeadlessGLTFLoader.js';
 import { installHeadlessAssetIO } from './HeadlessAssetIO.js';
-export async function startServer({tokens,port=39015,root=path.resolve('.mcp-sessions'),dataRoot='D:/AgentScapeData/mcp-assets',security={},managerOptions={},buildRunner=null}={}) {
+export async function startServer({tokens,port=39015,root=path.resolve('.mcp-sessions'),dataRoot='D:/AgentScapeData/mcp-assets',security={},managerOptions={},buildRunner=null,studioOrigins}={}) {
  installHeadlessAssetIO();
  const repository=new FileAssetRepository(dataRoot);
  const runner=buildRunner || new DockerBuildRunner({configPath:path.join(dataRoot,'sandbox.json')});
  const assets=new ProgrammaticAssets({repository,runner,builder:new ProgrammaticAssetBuilder({runner,gltfLoader:createHeadlessGLTFLoader()})});
  const authorize=createSecurity(tokens,security); const manager=new SessionManager({root,repository,hostOptions:{sandboxConfig:path.join(dataRoot,'sandbox.json')},...managerOptions});
+ const studioBridge=new StudioLiveBridge();
  const connections=new Set();
  const http=createServer(async(req,res)=>{
   let server;
   try {
+   if(await handleStudioBridgeHttp(req,res,studioBridge,{...(studioOrigins?{origins:studioOrigins}:{})}))return;
    if(req.url!=='/mcp') {res.writeHead(404).end();return;}
    const {owner,body}=await authorize(req);
    if(req.method!=='POST') {res.writeHead(405).end();return;}
    // The unified SDK handler supports modern per-request envelopes and legacy initialization.
    const handler=createMcpHandler(()=>{
     server=new McpServer({name:'AgentScape Remote MCP',version:'0.3.0'});
-    registerTools(server,manager,owner,assets);
+    registerTools(server,manager,owner,assets,studioBridge);
     connections.add(server);
     return server;
    });
@@ -41,7 +45,7 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
  http.requestTimeout=35000; http.headersTimeout=10000;
  try {await new Promise((resolve,reject)=>{http.once('error',reject);http.listen(port,'127.0.0.1',resolve);});}
  catch(e){await manager.dispose();throw e;}
- return {http,manager,assets,port:http.address().port,async close(){await assets.close();await manager.dispose();await Promise.all([...connections].map(s=>s.close()));await new Promise(r=>http.close(r));}};
+ return {http,manager,assets,studioBridge,port:http.address().port,async close(){studioBridge.dispose();await assets.close();await manager.dispose();await Promise.all([...connections].map(s=>s.close()));await new Promise(r=>http.close(r));}};
 }
 if(process.argv[1] && import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href) {
  // Deliberately do not load dotenv or the Studio configuration.

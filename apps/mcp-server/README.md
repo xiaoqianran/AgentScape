@@ -1,6 +1,6 @@
 # AgentScape Remote MCP v0.3
 
-新增容器隔离的程序化资产构建/发布、不可变版本与文件存储、可信世界保存恢复。原 24 个工具继续兼容；另有 9 个 Scene 工具，使用同一个 `agentscape-world` 连接。契约、示例、隔离设施和保存边界见 [PROGRAMMATIC-ASSETS.md](./PROGRAMMATIC-ASSETS.md)。
+新增容器隔离的程序化资产构建/发布、不可变版本与文件存储、可信世界保存恢复。原有 33 个工具继续兼容；新增 4 个 Studio Live Bridge 配对/会话工具，使用同一个 `agentscape-world` 连接。契约、示例、隔离设施和保存边界见 [PROGRAMMATIC-ASSETS.md](./PROGRAMMATIC-ASSETS.md)。
 
 Scene 工具为 `scene_observe`、`scene_apply`、`scene_add_model`、`scene_interact`、`scene_job`、`scene_cancel`、`scene_verify`、`scene_save`、`scene_set_style`。它们使用与 SDK/Studio 相同的 Scene 应用服务和 Runtime。`scene_interact` 立即返回 JobRef，由宿主推进模拟，调用方轮询任务并分别检查执行状态与验证证据。Recipe 可以直接作为 scene_add_model 的 model.asset 输入，无需生成 JavaScript。
 
@@ -128,3 +128,5 @@ npm run check
 已知语义限制：资产/布局准入仍可能 provisional；这与真实动作及最终支撑关系 verified 是不同证据。pickup 为 kinematic attachment，不证明夹持力。未提供截图、在线生成、Studio 同步、多用户公网账号、完整作品包迁移。
 
 机械资产 v1：scene_add_model 的 model.asset 可提交 agentscape.mechanical-draft JSON（几何节点、旋转铰链、滑轨），先经过 GLB 编译与隔离物理验证。详见 [机械资产创建工作台](../../docs/capabilities/mechanical-asset-workbench.md)。
+
+Studio Live Bridge：调用 studio_pair_create 取得一次性配对码，然后在本机 Studio 的「MCP 连接」中明确授权；通过返回的 worldSessionId 使用既有 Scene 工具操作浏览器当前世界。切换世界自动撤销连接。完整说明见 [Studio Live Bridge](../../docs/mcp-studio-live-bridge.md)。

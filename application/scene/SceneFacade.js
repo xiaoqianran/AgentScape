@@ -183,9 +183,13 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         const recipe = glb || machine ? null : recipeSchema.parse(source);
         const requested = input.level ?? (machine ? machine.motions.length ? 'interactive' : 'physical' : glb ? glb.review ? 'physical' : 'visual' : recipe.capabilities.level);
         const model = modelSchema.parse({ ...input, asset: 'builtin://pending', level: requested });
+        if (world.store.has(model.id)) throw sceneError('DUPLICATE_ID');
+        if (world.store.list().length >= maxObjects) throw sceneError('OBJECT_LIMIT');
+        const sourceEnvironment = world.environment;
         return exclusive(async () => {
           const resolved = machine ? await world.assetModule.importMechanicalDraft(machine)
             : glb ? await world.assetModule.importGLB({ ...glb, level: requested }) : await world.assetModule.importRecipe(recipe);
+          if(world.environment!==sourceEnvironment)throw sceneError('SCENE_WORLD_CHANGED');
           const asset = machine ? 'asset://sha256/' + resolved.manifest.id.slice('asset_'.length) : resolved.asset;
           return executeEdit({ type: 'add', model: { ...model, asset } });
         });
