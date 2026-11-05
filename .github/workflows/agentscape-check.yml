@@ -40,12 +40,13 @@ jobs:
         with:
           name: agentscape-development-sdk
           path: .tmp-release/
+          include-hidden-files: true
           retention-days: 14
 
   browser:
     name: Studio browser acceptance (fixed protocol)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
