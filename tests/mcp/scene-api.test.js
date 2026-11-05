@@ -6,6 +6,7 @@ import path from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { startServer } from '../../apps/mcp-server/main.mjs';
 import { openScenePackage } from '../../application/scene/ScenePackage.js';
+import { createCabinAffordances } from '../../modules/world/content/magic-cabin/affordances.js';
 
 it('shares Scene edits with legacy observation and returns real asynchronous job evidence', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'agentscape-scene-'));
@@ -21,9 +22,38 @@ it('shares Scene edits with legacy observation and returns real asynchronous job
   try {
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${app.port}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
     const session = await call('session_create'), base = { worldSessionId: session.worldSessionId };
+    const missing = await client.callTool({ name: 'scene_observe', arguments: { ...base, target: 'missing' } });
+    expect(missing.isError).toBe(true);
+    expect(missing.content[0].text).toContain('OBJECT_NOT_FOUND');
+    const far = await call('scene_observe', { ...base, target: 'cup_01', actor: 'agent_01' });
+    expect(far.actions.find(action => action.action === 'pickup')).toMatchObject({ available: false, reason: 'OUT_OF_REACH' });
+    expect((await call('scene_observe', { ...base, target: 'cup_01' })).actions.find(action => action.action === 'pickup').available).toBeNull();
+    // Install a production environment adapter as a fixture; assertions use the HTTP MCP client.
+    const host = app.manager.sessions.get(session.worldSessionId).host;
+    let lampOn = false;
+    host.world.environment.affordances = createCabinAffordances({ hinges: [], texts: [], drawers: [], books: [], switches: [
+      { id: 'test:lamp', label: 'Lamp', position: [0, 1.2, 8.5], get: () => lampOn, set: value => { lampOn = value; } }
+    ] });
+    const lamp = await call('scene_observe', { ...base, target: 'test:lamp', actor: 'agent_01' });
+    expect(lamp).toMatchObject({ source: 'environment', state: { on: false }, physicsVerified: false });
+    expect(lamp.actions[0]).toMatchObject({ execution: 'world-action', available: true });
+    host.world.environment.affordances[0].request('turn_on');
+    expect((await call('scene_observe', { ...base, target: 'test:lamp' })).state.on).toBe(true);
+    host.world.environment.affordances = [];
+    await call('scene_add_model', { ...base, requestId: randomUUID(), model: { id: 'held_test', asset: 'builtin://cup', position: [0, 0, 8] } });
+    host.world.interactions.pickup('held_test');
+    const held = await call('scene_observe', { ...base, target: 'held_test', actor: 'agent_01' });
+    expect(held.actions.find(action => action.action === 'pickup')).toMatchObject({ available: false, reason: 'OBJECT_ALREADY_HELD' });
+    expect(held.actions.find(action => action.action === 'setTransform')).toMatchObject({ available: false, reason: 'OBJECT_HELD' });
+    host.world.interactions.drop('held_test');
+    await call('scene_apply', { ...base, requestId: randomUUID(), operations: [{ type: 'remove', id: 'held_test' }] });
     const added = await call('scene_add_model', { ...base, requestId: randomUUID(), model: { id: 'visual', asset: { schema: 'agentscape.asset-recipe', schemaVersion: 1, id: 'example/visual', parts: [{ id: 'body', geometry: { type: 'box', size: [1, 1, 1] } }] } } });
     expect(added.verification.status).toBe('not-requested');
     expect((await call('scene_observe', base)).objects.find(object => object.id === 'visual').physicsRegistered).toBe(false);
+    const inspection = await call('scene_observe', { ...base, target: 'visual', actor: 'agent_01' });
+    expect(inspection).toMatchObject({ schema: 'agentscape.object-affordances', source: 'asset', physics: { registered: false } });
+    expect(inspection.actions.find(action => action.action === 'setTransform')).toMatchObject({ execution: 'editor', available: true });
+    expect((await call('scene_observe', { ...base, actor: 'agent_01' })).affordances.entities.find(entry => entry.id === 'visual')).toEqual(inspection);
     expect((await call('world_observe', base)).objects).toHaveLength(5);
     await call('scene_apply', { ...base, requestId: randomUUID(), operations: [{ type: 'remove', id: 'visual' }] });
     expect((await call('world_observe', base)).objects).toHaveLength(4);

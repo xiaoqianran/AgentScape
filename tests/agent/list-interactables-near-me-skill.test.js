@@ -173,6 +173,16 @@ it('merges nearby ObjectStore interactables with affordance contracts for near-m
   });
 });
 
+it('preserves unknown capability availability through nearby listing and aggregation', () => {
+  const { runtime } = fixture();
+  runtime.affordances.list.mockReturnValue({ entities: [{ id: 'unknown', position: [0, 1, 1],
+    actions: [{ action: 'open', available: null, reason: 'ACTOR_REQUIRED_FOR_REACH_CHECK', execution: 'interaction' },
+      { action: 'inspect', available: true, execution: 'query' }] }] });
+  const result = runtime.queries.listInteractablesNearMe({ actorId: 'agent_01' });
+  expect(result.affordances[0]).toMatchObject({ available: null, actions: [{ available: null }, { available: true }] });
+  expect(result.summary.inReachAffordanceCount).toBe(0);
+});
+
 it('defaults actorId to the invoking actor and validates the tool contract', async () => {
   const { registry } = fixture();
   const definition = registry.definitions().find((item) => item.name === 'listInteractablesNearMe');

@@ -4,6 +4,12 @@
 
 Scene 工具为 `scene_observe`、`scene_apply`、`scene_add_model`、`scene_interact`、`scene_job`、`scene_cancel`、`scene_verify`、`scene_save`、`scene_set_style`。它们使用与 SDK/Studio 相同的 Scene 应用服务和 Runtime。`scene_interact` 立即返回 JobRef，由宿主推进模拟，调用方轮询任务并分别检查执行状态与验证证据。Recipe 可以直接作为 scene_add_model 的 model.asset 输入，无需生成 JavaScript。
 
+`scene_observe({ worldSessionId, target, actor? })` 等价于 SDK 的 `scene.inspect(target, { actor })`，返回资产或环境契约的统一能力说明。省略 target 时，场景观察的 `affordances` 包含这些对象的能力列表（最多 100 项，total 为总数）。能力在每次查询时读取当前状态，不额外保存对象状态。
+
+每项动作包含 `parameters`、`execution`、`available` 和不可用时的 `reason`。未提供 actor 时，具身动作的 available 为 null，表示未检查可达性；提供后复用当前距离、遮挡及持有能力检查。available 只描述当前检查结果，不能替代执行后的碰撞、放置空间或关节完成验证。
+
+`execution: interaction` 的 pickup/place/open/close 继续调用 `scene_interact`；`world-action` 的环境契约继续使用 Runtime 的 `executeWorldAction` 技能（本阶段尚未接入 MCP 的 scene_interact）；`editor` 使用 `scene_apply`，不代表 Agent 施力。push/drag/rotate 当前明确返回 `EXECUTOR_UNAVAILABLE` 或物理前提失败原因，执行器留待下一阶段实现。关节动作同时提供 partName、joint 和现有验证契约；环境契约继续报告自身的 evidenceKind，不冒充物理验证。
+
 注意：Headless MCP 没有渲染画布。调用 `scene_set_style` 成功后，返回的 `status=deferred`、`rendered=false`、`applied=null` 表示 StylePack 已记录到场景配置，**不表示实际画面已经切换或视觉渲染通过验收**。请在 Studio 或带图形渲染器的 SDK 客户端另行验证视觉效果；不要把无渲染器时的 deferred 状态误报为已应用。
 
 `scene_save` 返回有资源字节和锁定哈希的完整项目包，仍受服务端导出配额限制。旧 world_export 的 JSON-only 语义保留。新版资产引用 `asset://sha256/<版本摘要>` 可以引用同一身份已发布的 pa_ 资产；未发布或其他身份的资产不能借此接入世界。

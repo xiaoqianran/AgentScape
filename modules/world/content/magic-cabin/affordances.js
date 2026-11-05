@@ -22,6 +22,7 @@ export function createCabinAffordances({hinges,switches,texts,drawers,books}) {
   });
   for(const entry of texts) contracts.push({
     ...entry,kind:'text',actions:['read','write'],evidenceKind:'text-state',
+    parameters:{write:{text:{type:'string',required:true,maxLength:100}}},
     read:()=>({text:entry.get()}),request:(_action,args)=>entry.set(args.text),
     verify:(_action,args)=>entry.get()===args.text,capture:()=>({text:entry.get()}),restore:value=>entry.set(value.text),
     validate:(action,args)=>action==='write' && (typeof args.text!=='string' || args.text.length>100) ? 'TEXT_MUST_BE_AT_MOST_100_CHARACTERS' : null

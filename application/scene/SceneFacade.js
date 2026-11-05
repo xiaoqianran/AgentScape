@@ -94,10 +94,18 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     }
   };
   const handle = {
-    observe() {
+    inspect(target, options = {}) {
+      assertOpen(); z.string().min(1).max(256).parse(target);
+      const { actor } = z.object({ actor: id.optional() }).strict().parse(options);
+      const inspection = world.affordances.inspect(target, { actorId: actor });
+      if (!inspection) throw sceneError('OBJECT_NOT_FOUND');
+      return inspection;
+    },
+    observe(options = {}) {
+      const { actor } = z.object({ actor: id.optional() }).strict().parse(options);
       assertOpen(); world.sceneGraph.update();
       return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision,
-        style: styles.export(),
+        style: styles.export(), affordances: world.affordances.list({ actorId: actor, limit: 100 }),
         objects: world.store.list().map(([key, record]) => ({ ...world.observation.object(key), state: structuredClone(record.state),
           transform: { position: record.object.position.toArray(), quaternion: record.object.quaternion.toArray(), scale: record.object.scale.x },
           physicsRegistered: Boolean(world.physics.getPosition(key)) })), relations: structuredClone(world.sceneGraph.list()) };
