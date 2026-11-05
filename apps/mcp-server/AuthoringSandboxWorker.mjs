@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { getQuickJS } from 'quickjs-emscripten';
 
 // No host functions, module loader, filesystem, network or credentials are exposed to QuickJS.
-const { bundle, code, document, timeoutMs, memoryBytes }=workerData;
+const { bundle, code, source, mode='authoring', document, timeoutMs, memoryBytes }=workerData;
 const QuickJS=await getQuickJS();
 const runtime=QuickJS.newRuntime();
 runtime.setMemoryLimit(memoryBytes);
@@ -15,7 +15,8 @@ try {
  if (setup.error) { setup.error.dispose(); throw new Error('AUTHORING_SANDBOX_INIT_FAILED'); }
  setup.value.dispose();
  deadline=Date.now()+timeoutMs;
- const output=context.evalCode(`JSON.stringify(AuthoringSandbox.execute(${JSON.stringify(code)},${JSON.stringify(document)}))`,'agent-authoring.js');
+ const expression=mode==='procedural' ? `AuthoringSandbox.build(${JSON.stringify(source)})` : `AuthoringSandbox.execute(${JSON.stringify(code)},${JSON.stringify(document)})`;
+ const output=context.evalCode(`JSON.stringify(${expression})`,'agent-authoring.js');
  if (output.error) {
   const error=context.dump(output.error); output.error.dispose();
   const message=Date.now()>deadline?'AUTHORING_CODE_TIMEOUT':String(error?.message || 'AUTHORING_CODE_FAILED').slice(0,500);
