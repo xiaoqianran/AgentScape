@@ -114,7 +114,7 @@ export class ArticulationRuntime {
   status(id, partName = null) {
     const record = this.store.get(id);
     const entries = Object.entries(record.manifest.parts || {}).filter(([name,part]) =>
-      (!partName || name === partName) && part.joint && part.physics && Object.keys(part.targets || {}).length
+      (!partName || name === partName) && part.joint && part.physics && part.joint.type !== 'fixed'
     );
     if (!entries.length) throw Errors.actionUnsupported(id, partName ? `status:${partName}` : 'articulation-status');
     const parts = entries.map(([name,part]) => {
@@ -168,6 +168,12 @@ export class ArticulationRuntime {
     const wrap = (jointType, value) => jointType === 'revolute' ? Math.atan2(Math.sin(value), Math.cos(value)) : value;
     for (const task of [...this.tasks.values()]) {
       task.elapsed += dt;
+      const guarded = task.guard?.();
+      if (guarded) {
+        this.physics.holdArticulationCurrent(task.id, task.partName);
+        this.finish(task, { status:'action-unverified', reason:guarded, targetReached:false, settled:false });
+        continue;
+      }
       const state = this.physics.getArticulationState(task.id, task.partName, { target:task.target });
       if (!state || !Number.isFinite(state.coordinate) || !Number.isFinite(state.error)) {
         this.finish(task, { status:'action-unverified', reason:'JOINT_STATE_UNAVAILABLE', targetReached:false, settled:false, elapsed:Number(task.elapsed.toFixed(3)) });

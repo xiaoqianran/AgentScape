@@ -13,6 +13,7 @@ import { registerSceneSkills } from '../skills/packs/sceneSkills.js';
 import { registerSpatialSkills } from '../skills/packs/spatialSkills.js';
 import { registerInteractionSkills } from '../skills/packs/interactionSkills.js';
 import { AgentTools } from '../AgentTools.js';
+import { recordInteractionEvidence } from '../../modules/world/verification/InteractionEvidence.js';
 import { parseSceneProject, sceneObjectIdSchema as id, sceneTransformSchema, sceneVector3Schema } from './SceneProject.js';
 
 export const sceneError = (code, message = code) => Object.assign(new Error(message), { code });
@@ -29,11 +30,27 @@ const operations = z.discriminatedUnion('type', [
   z.object({ type: z.literal('replaceAsset'), id, asset: ref, level }).strict()
 ]);
 const applySchema = z.object({ requestId: id.optional(), expectedRevision: z.number().int().nonnegative().optional(), operations: z.array(operations).min(1).max(32) }).strict();
+const operationVector = sceneVector3Schema.refine(value => Math.hypot(...value) > 1e-6, 'Direction must be nonzero');
+const physicalActions = new Set(['push', 'drag', 'rotate', 'slide', 'rotateJoint']);
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('navigate'), actor: id, position: sceneVector3Schema }).strict(),
   z.object({ action: z.literal('pickup'), actor: id, target: id }).strict(),
   z.object({ action: z.literal('place'), actor: id, target: id, surfaceId: id.optional() }).strict(),
-  z.object({ action: z.enum(['open', 'close']), actor: id, target: id, partName: id.optional() }).strict()
+  z.object({ action: z.enum(['open', 'close']), actor: id, target: id, partName: id.optional() }).strict(),
+  z.object({ action: z.enum(['push', 'drag']), actor: id, target: id, args: z.object({
+    direction: operationVector.refine(value => Math.abs(value[1]) < 1e-6, 'Linear contact operations require a horizontal direction'),
+    distance: z.number().positive().max(5), maxForce: z.number().positive().max(1000).default(100)
+  }).strict() }).strict(),
+  z.object({ action: z.literal('rotate'), actor: id, target: id, args: z.object({
+    axis: operationVector, angle: z.number().finite().min(-Math.PI).max(Math.PI).refine(value => value !== 0),
+    maxTorque: z.number().positive().max(1000).default(100)
+  }).strict() }).strict(),
+  z.object({ action: z.literal('slide'), actor: id, target: id, args: z.object({ part: id,
+    target: z.number().finite().optional(), distance: z.number().finite().optional()
+  }).strict().refine(value => (value.target != null) !== (value.distance != null), 'Use target or distance') }).strict(),
+  z.object({ action: z.literal('rotateJoint'), actor: id, target: id, args: z.object({ part: id,
+    target: z.number().finite().optional(), angle: z.number().finite().min(-Math.PI).max(Math.PI).optional()
+  }).strict().refine(value => (value.target != null) !== (value.angle != null), 'Use target or angle') }).strict()
 ]);
 const diagnostic = error => ({ code: error.code || 'INVALID_OPERATION', message: error.code || 'Operation failed', stage: 'scene', retryable: false });
 
@@ -164,8 +181,15 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         : args.action === 'pickup' ? ['approachAndPickup', { actorId: args.actor, targetId: args.target }]
         : args.action === 'place' ? ['approachAndPlace', { actorId: args.actor, supportId: args.target, surfaceId: args.surfaceId }]
         : ['approachAndInteract', { actorId: args.actor, targetId: args.target, action: args.action, partName: args.partName }];
-      job.promise = tools.call(skill, params).then(value => {
-        const outcome = tools.executionPolicy(skill, value).outcome;
+      const physical = physicalActions.has(args.action);
+      const operation = physical ? world.mutate(`scene:${args.action}`, async () => {
+        const value = await world.interactions.manipulate(args.actor, args.target, args.action, args.args);
+        recordInteractionEvidence(world, { targetId:args.target, capability:args.action.toUpperCase(), verified:value.verified,
+          source:'scene-api', commandId:job.id, result:value });
+        return value;
+      }) : tools.call(skill, params);
+      job.promise = operation.then(value => {
+        const outcome = physical ? { state:value.verified ? 'verified' : 'failed', verified:value.verified === true } : tools.executionPolicy(skill, value).outcome;
         job.status = job.cancelled ? 'cancelled' : outcome.verified ? 'succeeded' : 'failed';
         job.result = result('interact', value, { status: job.status, verification: { status: !job.cancelled && outcome.verified ? 'verified' : 'unverified', evidence: value }, outcome });
       }).catch(error => { job.status = job.cancelled ? 'cancelled' : 'failed'; job.result = result('interact', null, { status: job.status, diagnostics: [diagnostic(error)] }); })

@@ -15,6 +15,7 @@ export class SceneSerializer {
     const objects = runtime.store.list().map(([id, record]) => {
       usedAssets.add(record.assetId);
       const object = record.object;
+      const articulation = runtime.physics?.captureArticulationPose?.(id) || [];
       return {
         id,
         assetId: record.assetId,
@@ -23,7 +24,8 @@ export class SceneSerializer {
           quaternion: object.quaternion.toArray(),
           scale: object.scale.toArray()
         },
-        state: clone(record.state || {})
+        state: clone(record.state || {}),
+        ...(articulation.length ? { articulation } : {})
       };
     });
 
@@ -101,6 +103,15 @@ export class SceneSerializer {
     const objectIds = new Set();
     for (const object of scene.objects) {
       if (!object.id || !object.assetId) throw new Error('Scene object requires id and assetId');
+      if (object.articulation != null) {
+        if (!Array.isArray(object.articulation) || object.articulation.length > 128) throw new Error('Invalid articulation poses');
+        const names = new Set();
+        for (const part of object.articulation) {
+          if (!part || typeof part.partName !== 'string' || names.has(part.partName) || !isFiniteVec(part.position,3) || !isFiniteVec(part.quaternion,4)
+            || Math.abs(Math.hypot(...part.quaternion)-1) > .001 || (part.motorTarget != null && !Number.isFinite(part.motorTarget))) throw new Error('Invalid articulation pose');
+          names.add(part.partName);
+        }
+      }
       if (objectIds.has(object.id)) throw new Error(`Duplicate scene object id: ${object.id}`);
       objectIds.add(object.id);
     }
@@ -194,6 +205,7 @@ export class SceneSerializer {
         const record = runtime.store.get(item.id);
         record.state = clone(item.state || {});
         runtime.restoreObjectState(item.id, record.state);
+        if (item.articulation?.length) runtime.physics.restoreArticulationPose(item.id, item.articulation);
       }
       runtime.interactions?.rebuildHeldOwnership?.();
       runtime.sceneGraph.changed();

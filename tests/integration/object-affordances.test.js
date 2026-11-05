@@ -24,7 +24,7 @@ it('discovers live asset and environment capabilities without storing a second o
     expect(scene.inspect('visual').actions.map(entry => entry.action)).toEqual(['inspect', 'setTransform']);
     expect(action('chair', 'push')).toMatchObject({ available: false, reason: 'TARGET_NOT_DYNAMIC' });
     expect(action('chair', 'setTransform')).toMatchObject({ available: true, execution: 'editor' });
-    expect(action('cup', 'push')).toMatchObject({ available: false, reason: 'EXECUTOR_UNAVAILABLE' });
+    expect(action('cup', 'push')).toMatchObject({ available: null, reason: 'ACTOR_REQUIRED_FOR_REACH_CHECK' });
     expect(action('cup', 'pickup')).toMatchObject({ available: null, reason: 'ACTOR_REQUIRED_FOR_REACH_CHECK' });
     expect(action('cup', 'pickup', { actor: 'absent' })).toMatchObject({ available: false, reason: 'ACTOR_NOT_FOUND' });
     expect(action('cup', 'pickup', { actor: 'chair' })).toMatchObject({ available: false, reason: 'ACTOR_NOT_AGENT' });

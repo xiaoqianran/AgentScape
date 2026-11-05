@@ -47,6 +47,25 @@ it('shares Scene edits with legacy observation and returns real asynchronous job
     expect(held.actions.find(action => action.action === 'setTransform')).toMatchObject({ available: false, reason: 'OBJECT_HELD' });
     host.world.interactions.drop('held_test');
     await call('scene_apply', { ...base, requestId: randomUUID(), operations: [{ type: 'remove', id: 'held_test' }] });
+    await call('scene_add_model', { ...base, requestId: randomUUID(), model: { id:'novel_box', position:[.65,0,9], asset:{
+      schema:'agentscape.asset-recipe',schemaVersion:1,id:'mcp/novel_box',
+      parts:[{id:'box',geometry:{type:'box',size:[.4,.4,.4]},position:[0,.2,0]}],
+      capabilities:{level:'physical',physics:{body:'dynamic',mass:2,friction:.5,colliders:[{shape:'box',halfExtents:[.2,.2,.2],translation:[0,.2,0]}]}}
+    } } });
+    const discovered = await call('scene_observe', { ...base, target:'novel_box', actor:'agent_01' });
+    expect(discovered.actions.find(action=>action.action==='push')).toMatchObject({available:true});
+    const push = await call('scene_interact', { ...base, requestId:randomUUID(), interaction:{
+      actor:'agent_01',target:'novel_box',action:'push',args:{direction:[1,0,0],distance:1}
+    } });
+    let pushed;
+    for(let poll=0;poll<200;poll++) {
+      pushed = await call('scene_job', { ...base, jobId:push.id });
+      if(pushed.status !== 'running') break;
+      await new Promise(resolve=>setTimeout(resolve,5));
+    }
+    expect(pushed,JSON.stringify(pushed)).toMatchObject({status:'succeeded',result:{value:{physicsVerified:true,evidenceKind:'rigid-body-force'},verification:{status:'verified'}}});
+    expect(pushed.result.value.finalPosition[0]-pushed.result.value.initialPosition[0]).toBeCloseTo(1,1);
+    await call('scene_apply', { ...base, requestId:randomUUID(), operations:[{type:'remove',id:'novel_box'}] });
     const added = await call('scene_add_model', { ...base, requestId: randomUUID(), model: { id: 'visual', asset: { schema: 'agentscape.asset-recipe', schemaVersion: 1, id: 'example/visual', parts: [{ id: 'body', geometry: { type: 'box', size: [1, 1, 1] } }] } } });
     expect(added.verification.status).toBe('not-requested');
     expect((await call('scene_observe', base)).objects.find(object => object.id === 'visual').physicsRegistered).toBe(false);

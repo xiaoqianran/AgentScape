@@ -10,7 +10,7 @@ export interface AdmissionLayer { status: AdmissionStatus; reasons: string[]; re
 export interface AssetAdmission { status: AdmissionStatus; reasons: string[]; layers: { provider: AdmissionLayer; compiler: AdmissionLayer; runtime: AdmissionLayer } }
 export interface SceneResult<T = unknown> { schema: 'agentscape.scene-result'; schemaVersion: 1; operation: string; status: 'succeeded' | 'failed' | 'cancelled'; revision: number; id?: string; admission: AssetAdmission | null; verification: { status: 'not-requested' | 'verified' | 'unverified'; evidence: unknown }; diagnostics: Diagnostic[]; value: T }
 export interface JobRef { id: string; status: 'running' | 'succeeded' | 'failed' | 'cancelled' }
-export interface AffordancePhysics { registered: boolean; body: 'fixed' | 'dynamic' | 'kinematic' | null; mass: number | null; friction: number | null; colliderCount: number }
+export interface AffordancePhysics { registered: boolean; body: 'fixed' | 'dynamic' | 'kinematic' | null; currentBody: 'fixed' | 'dynamic' | 'kinematic' | null; mass: number | null; friction: number | null; colliderCount: number }
 export interface AffordanceJoint { type: 'fixed' | 'revolute' | 'prismatic'; axis?: Vec3; limits?: [number, number]; parentAnchor?: Vec3; childAnchor?: Vec3; [key: string]: unknown }
 export interface ArticulationState { id: string; partName: string; jointType: string; coordinate: number; target: number | null; error: number | null; tolerance: number; limits: [number, number] | null; localAxis: Vec3; coordinateReference: 'rest-zero-pose' }
 export interface AffordanceAction {
@@ -28,7 +28,11 @@ export interface ObjectAffordances {
 }
 export interface AffordanceListing { schema: string; total: number; entities: ObjectAffordances[] }
 export type Edit = { type: 'add'; model: Omit<ModelInput, 'asset'> & { asset: string } } | { type: 'setTransform'; id: string; transform: Transform } | { type: 'remove'; id: string } | { type: 'replaceAsset'; id: string; asset: string; level?: CapabilityLevel };
-export type Interaction = { action: 'navigate'; actor: string; position: Vec3 } | { action: 'pickup'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string };
+export type PhysicalInteraction = { action: 'push' | 'drag'; actor: string; target: string; args: { direction: Vec3; distance: number; maxForce?: number } }
+  | { action: 'rotate'; actor: string; target: string; args: { axis: Vec3; angle: number; maxTorque?: number } }
+  | { action: 'slide'; actor: string; target: string; args: { part: string } & ({ target: number; distance?: never } | { distance: number; target?: never }) }
+  | { action: 'rotateJoint'; actor: string; target: string; args: { part: string } & ({ target: number; angle?: never } | { angle: number; target?: never }) };
+export type Interaction = PhysicalInteraction | { action: 'navigate'; actor: string; position: Vec3 } | { action: 'pickup'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string };
 export interface SceneHandle {
   inspect(target: string, options?: { actor?: string }): ObjectAffordances;
   observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; style: Record<string, unknown> | null; affordances: AffordanceListing; objects: Array<{ id: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };

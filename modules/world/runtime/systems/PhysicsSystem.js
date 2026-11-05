@@ -725,6 +725,33 @@ export class PhysicsSystem {
     }));
   }
 
+  captureArticulationPose(id) {
+    const entry = this.entries.get(id);
+    return entry ? [...entry.parts].map(([partName,part]) => ({ partName,
+      position:part.node.position.toArray(), quaternion:part.node.quaternion.toArray(), motorTarget:part.motorTarget ?? null })) : [];
+  }
+
+  // Save/history restoration only. Live manipulation never calls this method.
+  restoreArticulationPose(id, poses) {
+    const entry = this.entries.get(id);
+    if (!entry) throw new Error('ARTICULATION_PHYSICS_UNAVAILABLE');
+    const checkpoint = this.captureState().find(item => item.id === id);
+    for (const pose of poses) {
+      const part = entry.parts.get(pose.partName);
+      if (!part) throw new Error('ARTICULATION_PART_NOT_FOUND');
+      const limits = part.spec.joint.limits;
+      if (pose.motorTarget != null && limits && (pose.motorTarget < limits[0] || pose.motorTarget > limits[1])) throw new Error('JOINT_LIMIT_EXCEEDED');
+      part.node.position.fromArray(pose.position); part.node.quaternion.fromArray(pose.quaternion);
+    }
+    entry.root.updateMatrixWorld(true);
+    for (const pose of poses) {
+      const part = entry.parts.get(pose.partName), value = checkpoint.parts.find(item => item.name === pose.partName);
+      value.position = pose.position; value.rotation = pose.quaternion; value.motorTarget = pose.motorTarget;
+      if (value.pose) value.pose = { position:part.node.getWorldPosition(new THREE.Vector3()).toArray(), rotation:part.node.getWorldQuaternion(new THREE.Quaternion()).toArray() };
+    }
+    this.restoreState([checkpoint]);
+  }
+
   restoreState(state) {
     const restore = (body, node, value) => {
       node.position.fromArray(value.position);
@@ -776,6 +803,28 @@ export class PhysicsSystem {
       source:'transform-state'
     };
     return this.backend.bodyMotion(body);
+  }
+
+  manipulationBody(id, partName = ROOT_PART, { contacts = false } = {}) {
+    const entry = this.entries.get(id);
+    const part = partName === ROOT_PART ? null : entry?.parts.get(partName);
+    const body = part ? part.body : partName === ROOT_PART ? entry?.body : null;
+    const spec = part ? part.spec.physics : entry?.rootSpec;
+    const colliders = body ? this.backend.colliders(body) : [];
+    const contactCandidates = (contacts ? colliders : []).map(collider => {
+      const snapshot = this.backend.colliderSnapshot(collider), shape = snapshot.shape;
+      let vertexRadius = 0;
+      if (shape.vertices) for (let i=0;i<shape.vertices.length;i+=3) vertexRadius = Math.max(vertexRadius,Math.hypot(shape.vertices[i],shape.vertices[i+1],shape.vertices[i+2]));
+      const radius = shape.kind === 'box' ? Math.hypot(...array3(shape.halfExtents))
+        : shape.kind === 'cylinder' ? Math.hypot(shape.radius,shape.halfHeight)
+        : shape.kind === 'capsule' ? shape.radius+shape.halfHeight
+        : shape.vertices ? vertexRadius : null;
+      return { center:array3(snapshot.position), radius };
+    }).filter(candidate => Number.isFinite(candidate.radius) && candidate.radius > 0);
+    return { registered: Boolean(body), body: body ? this.backend.bodyType(body) : null,
+      joint: Boolean(part?.joint), mass: spec?.mass ?? null,
+      colliderCount:colliders.length, contactCandidates,
+      lockTranslation:spec?.lockTranslation || [false,false,false], lockRotation:spec?.lockRotation || [false,false,false] };
   }
 
   setMotion(id,motion={}, { partName = ROOT_PART } = {}) {
@@ -1361,9 +1410,10 @@ export class PhysicsSystem {
     if (!this.backend.hasCapability('collision')) return [];
     const entry=this.entries.get(id);
     const part=entry?.parts.get(partName);
-    if (!entry || !part || !this.world) return [];
+    const body = partName === ROOT_PART ? entry?.body : part?.body;
+    if (!entry || !body || !this.world) return [];
     const contacts=[];
-    for(const [sourceIndex,source] of this.backend.colliders(part.body).entries()) {
+    for(const [sourceIndex,source] of this.backend.colliders(body).entries()) {
       const sourceOwner=this.provenanceOfCollider(source) || {kind:'object',objectId:id,partName,colliderIndex:sourceIndex};
       for(const pair of this.backend.contactPairs(this.world,source)) {
         const target=this.provenanceOfCollider(pair.other);

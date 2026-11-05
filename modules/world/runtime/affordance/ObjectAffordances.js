@@ -8,7 +8,7 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
   if (!runtime.store?.has(id)) return null;
   const record = runtime.store.get(id), manifest = record.manifest;
   const registered = Boolean(runtime.physics?.getPosition(id));
-  const held = record.state?.heldBy || runtime.interactions.isHeld(id) || runtime.interactions.carry?.agentHeld?.has(id);
+  const held = record.state?.heldBy || runtime.interactions?.isHeld?.(id) || runtime.interactions?.carry?.agentHeld?.has(id);
   let access = { available: null, reason: 'ACTOR_REQUIRED_FOR_REACH_CHECK' };
   if (actorId) {
     if (!runtime.store.has(actorId)) access = blocked('ACTOR_NOT_FOUND');
@@ -38,7 +38,7 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
     add('pickup', {}, { execution: 'interaction', ...check });
   }
   if (manifest.surfaces?.length) {
-    const held = actorId && runtime.interactions.heldByAgent(actorId);
+    const held = actorId && runtime.interactions?.heldByAgent?.(actorId);
     add('place', { surfaceId: { type: 'string', enum: manifest.surfaces.map(surface => surface.id), required: false } }, {
       execution: 'interaction', ...(!actorId ? {} : !held ? blocked('NOT_HOLDING_OBJECT') : !runtime.store.get(held).manifest.actions?.includes('place') ? blocked('ACTION_UNSUPPORTED') : {})
     });
@@ -56,24 +56,32 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
   for (const [partName, part] of Object.entries(manifest.parts || {})) {
     if (!['revolute', 'prismatic'].includes(part.joint?.type)) continue;
     const action = part.joint.type === 'prismatic' ? 'slide' : 'rotateJoint';
-    add(action, { partName: { type: 'string', enum: [partName], required: true },
-      target: { type: 'number', required: true, unit: action === 'slide' ? 'meter' : 'radian', limits: structuredClone(part.joint.limits || null) } }, {
-      execution: 'interaction', partName, joint: structuredClone(part.joint), ...blocked('EXECUTOR_UNAVAILABLE')
+    const capability = runtime.interactions?.manipulationCapability?.(id, action, partName) || blocked('EXECUTOR_UNAVAILABLE');
+    const relative = action === 'slide' ? 'distance' : 'angle';
+    add(action, { part: { type: 'string', enum: [partName], required: true },
+      target: { type: 'number', required: false, alternative:relative, unit: action === 'slide' ? 'meter' : 'radian', limits: structuredClone(part.joint.limits || null) },
+      [relative]: {type:'number', required:false, alternative:'target', relative:true, unit:action === 'slide' ? 'meter' : 'radian'} }, {
+      execution: 'interaction', partName, joint: structuredClone(part.joint), state:runtime.physics?.getArticulationState?.(id,partName),
+      ...(!capability.available ? capability : {}), ...(actorId && runtime.interactions?.heldByAgent?.(actorId) ? blocked('HANDS_FULL') : {})
     });
   }
   if (manifest.physics?.colliders?.length) {
-    for (const action of ['push', 'drag', 'rotate']) add(action, {}, {
-      execution: 'interaction', ...blocked(!registered ? 'TARGET_PHYSICS_UNAVAILABLE' : manifest.physics.body !== 'dynamic' ? 'TARGET_NOT_DYNAMIC' : 'EXECUTOR_UNAVAILABLE')
-    });
+    for (const action of ['push', 'drag', 'rotate']) {
+      const capability = runtime.interactions?.manipulationCapability?.(id, action) || blocked('EXECUTOR_UNAVAILABLE');
+      const parameters = action === 'rotate' ? { axis:{type:'array',length:3,nonzero:true,required:true}, angle:{type:'number',minimum:-Math.PI,maximum:Math.PI,unit:'radian',required:true}, maxTorque:{type:'number',minimum:0,exclusiveMinimum:true,maximum:1000,default:100,unit:'newton-meter'} }
+        : { direction:{type:'array',length:3,nonzero:true,horizontal:true,required:true}, distance:{type:'number',minimum:0,exclusiveMinimum:true,maximum:5,unit:'meter',required:true}, maxForce:{type:'number',minimum:0,exclusiveMinimum:true,maximum:1000,default:100,unit:'newton'} };
+      add(action, parameters, { execution:'interaction', ...(!capability.available ? capability : {}),
+        ...(actorId && runtime.interactions?.heldByAgent?.(actorId) ? blocked('HANDS_FULL') : {}) });
+    }
   }
   return {
     schema: 'agentscape.object-affordances', schemaVersion: 1, id,
     label: manifest.label || manifest.id, kind: manifest.type, source: 'asset',
     position: record.object.position.toArray(), state: structuredClone(record.state || {}),
-    physics: { registered, body: manifest.physics?.body || null,
+    physics: { registered, body: manifest.physics?.body || null, currentBody:runtime.physics?.manipulationBody?.(id)?.body ?? null,
       mass: manifest.physics?.mass ?? null, friction: manifest.physics?.friction ?? null,
       colliderCount: manifest.physics?.colliders?.length || 0 },
     actions, evidenceKind: registered ? 'physics-state' : 'visual-state', physicsVerified: false,
-    pending: Boolean(runtime.interactions.articulationTasks && [...runtime.interactions.articulationTasks.values()].some(task => task.id === id))
+    pending: Boolean(runtime.interactions?.physicalTasks?.has(id) || (runtime.interactions?.articulationTasks && [...runtime.interactions.articulationTasks.values()].some(task => task.id === id)))
   };
 }

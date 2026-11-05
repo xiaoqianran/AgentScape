@@ -8,7 +8,21 @@ Scene 工具为 `scene_observe`、`scene_apply`、`scene_add_model`、`scene_int
 
 每项动作包含 `parameters`、`execution`、`available` 和不可用时的 `reason`。未提供 actor 时，具身动作的 available 为 null，表示未检查可达性；提供后复用当前距离、遮挡及持有能力检查。available 只描述当前检查结果，不能替代执行后的碰撞、放置空间或关节完成验证。
 
-`execution: interaction` 的 pickup/place/open/close 继续调用 `scene_interact`；`world-action` 的环境契约继续使用 Runtime 的 `executeWorldAction` 技能（本阶段尚未接入 MCP 的 scene_interact）；`editor` 使用 `scene_apply`，不代表 Agent 施力。push/drag/rotate 当前明确返回 `EXECUTOR_UNAVAILABLE` 或物理前提失败原因，执行器留待下一阶段实现。关节动作同时提供 partName、joint 和现有验证契约；环境契约继续报告自身的 evidenceKind，不冒充物理验证。
+`execution: interaction` 的动作统一调用 `scene_interact`；`world-action` 的环境契约继续使用 Runtime 的 `executeWorldAction` 技能（本阶段尚未接入 MCP 的 scene_interact）；`editor` 使用 `scene_apply`，不代表 Agent 施力。环境契约继续报告自身的 evidenceKind，不冒充物理验证。
+
+通用物理操作不要求 Manifest 声明专用动作：动态刚体可发现 push/drag/rotate，真实滑动/旋转关节可发现 slide/rotateJoint。固定、持有、忙碌或缺少物理解算能力的对象会返回具体阻塞原因。物理元数据的 body 为资产声明，currentBody 为查询时的实际刚体类型。
+
+| action | args | 执行和验证 |
+| --- | --- | --- |
+| push / drag | direction: 非零水平向量；distance: (0, 5] 米；maxForce?: (0, 1000] 牛，默认 100 | 从实际包围盒计算接触代理位置，通过 applyForce 驱动；验证位移、偏移和静止状态 |
+| rotate | axis: 非零世界轴；angle: [-π, π] 弧度且非零；maxTorque?: (0, 1000] 牛米，默认 100 | applyTorque 驱动；验证真实姿态、轴向偏移与角速度 |
+| slide / rotateJoint | part: 部件名；target: 绝对关节坐标，或 distance / angle: 相对变化量（二选一） | 仅驱动真实物理关节，检查限位并复用现有关节稳定、停滞与超时验证 |
+
+例如 `scene_interact({ worldSessionId, requestId, interaction: { actor: "agent_01", target: "new_box", action: "push", args: { direction: [1, 0, 0], distance: 1 } } })` 返回 JobRef，随后使用 scene_job 查询结果。成功必须同时有终态 succeeded 和 verification.status=verified。实际证据区分 rigid-body-force、rigid-body-torque 和 joint-motor。
+
+这些操作使用现有 1.5 米交互半径内的接触代理，推/拖会选择相应方向的可达站位；执行中持续复核距离、遮挡、持有状态和碰撞。它不是手指抓取，graspVerified 不会被标为 true。遇阻、偏移、超时或取消时保留真实的部分运动，报告未验证；不修改物体坐标来完成目标。箱子推动一米、不同质量、墙体阻挡、椅子拖动、轮子扭矩、滑动/旋转关节及取消均有 Runtime 验收，推动一米还覆盖真实 HTTP MCP 客户端。
+
+保存和历史快照从 PhysicsSystem 读取部件的实际姿态及电机目标；恢复时按快照恢复，不另建关节状态缓存。实时物理操作与快照恢复路径分开。
 
 注意：Headless MCP 没有渲染画布。调用 `scene_set_style` 成功后，返回的 `status=deferred`、`rendered=false`、`applied=null` 表示 StylePack 已记录到场景配置，**不表示实际画面已经切换或视觉渲染通过验收**。请在 Studio 或带图形渲染器的 SDK 客户端另行验证视觉效果；不要把无渲染器时的 deferred 状态误报为已应用。
 

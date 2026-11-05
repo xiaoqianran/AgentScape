@@ -47,9 +47,11 @@ export class WorldObservation {
 
   affordances(ids = [], { actorId = null } = {}) {
     const runtimeAffordances = this.runtime.affordances;
-    if (!runtimeAffordances?.contracts || !runtimeAffordances.contracts().length) return null;
+    if (!runtimeAffordances?.list) return null;
+    const listing = runtimeAffordances.list({ actorId, limit:1 });
+    if (!listing.total) return null;
     return {
-      count: runtimeAffordances.contracts().length,
+      count: listing.total,
       lastResult: clone(runtimeAffordances.lastResult || null),
       focus: ids.map((id) => runtimeAffordances.inspect(id, { actorId })).filter(Boolean)
     };
@@ -58,7 +60,7 @@ export class WorldObservation {
   articulation(id) {
     if (!this.hasObject(id)) return null;
     const parts = this.runtime.store.get(id).manifest?.parts || {};
-    const supported = Object.values(parts).some((part) => part?.joint && part?.physics && Object.keys(part.targets || {}).length);
+    const supported = Object.values(parts).some((part) => part?.joint && part?.physics && part.joint.type !== 'fixed');
     if (!supported || !this.runtime.interactions?.articulationStatus) return null;
     try {
       return clone(this.runtime.interactions.articulationStatus(id));

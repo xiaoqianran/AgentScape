@@ -89,6 +89,9 @@ export function toPlainValue(value, depth = 0, seen = new WeakSet()) {
 export const PHYSICS_API_EXCLUDED = Object.freeze({
   captureState:'WorldRuntime-owned transient rollback checkpoint, not a user physics command',
   restoreState:'WorldRuntime-owned restoration requires matching scene lifetime',
+  captureArticulationPose:'SceneSerializer-owned articulation snapshot, not a user physics command',
+  restoreArticulationPose:'SceneSerializer-owned pose restoration requires matching scene lifetime',
+  manipulationBody:'InteractionSystem-owned solver body and collider metadata for capability checks',
   constructor:'Lab host lifecycle',
   init:'Lab host lifecycle (backend + world creation)',
   dispose:'Lab host lifecycle',
