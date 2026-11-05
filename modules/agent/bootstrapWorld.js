@@ -5,5 +5,6 @@ export async function bootstrapWorld(tools, placement = DEFAULT) {
   if (placement.table) await tools.call('spawnAsset', { assetId:'table', position:placement.table, instanceId:'table_01' });
   if (placement.cabinet) await tools.call('spawnAsset', { assetId:'cabinet', position:placement.cabinet, instanceId:'cabinet_01' });
   if (placement.cup) await tools.call('spawnAsset', { assetId:'cup', position:placement.cup, instanceId:'cup_01' });
+  for (const asset of placement.assets || []) await tools.call('spawnAsset', asset);
   for (const model of placement.models || []) await tools.call('addSceneModel', { model });
 }

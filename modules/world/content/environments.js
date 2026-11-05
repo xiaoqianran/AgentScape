@@ -17,6 +17,14 @@ export const ENVIRONMENTS = Object.freeze([
     coffeeCorner:{table:[0,0,-2]}
   }),
   Object.freeze({
+    id:'house-door-world',number:'世界 00C',title:'我的房屋 · 可开关门',headline:'带真实铰链与碰撞的可交互住宅。',
+    description:'使用固定建筑 Asset Recipe 和独立的旋转关节门构建，不占用旧房屋的本地存档。',
+    facts:['可开关门','旋转关节','物理碰撞'],worldFirst:true,
+    load:()=>import('./blankWorld.js').then(module=>()=>module.createBlankWorld({id:'house-door-world'})),
+    bootstrap:{agent:[-2,0,1],table:[0,0,-2],cup:[0,1.08,-2],models:[{id:'house_01',asset:houseRecipe,position:[4,0,-5]}],assets:[{assetId:'house_door',position:[4,0,-2.8],instanceId:'house_door_01'}]},
+    coffeeCorner:{table:[0,0,-2]}
+  }),
+  Object.freeze({
     id:'magic-cabin',number:'世界 05',title:'魔女小屋 · 原版迁移',headline:'走进原来的二层小屋。',
     description:'原版线稿小屋：旋转楼梯、两层生活空间、门窗、书籍、魔法陈设与原地编辑。',
     facts:['原版双层房屋','丰富物件交互','世界优先'],worldFirst:true,cabin:true,

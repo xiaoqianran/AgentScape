@@ -40,6 +40,32 @@ export const assetManifests = {
     },
     surfaces: [{ id: 'top', localPosition: [0, 1.1, 0], size: [2.2, 1.05] }]
   },
+  house_door: {
+    id:'house_door',type:'door',label:'House Door',
+    tags:['door','house','entrance','门'],aliases:['hinged door'],
+    source:{kind:'builtin'},
+    requiredNodes:['doorHinge','Door'],
+    actions:['open','close'],
+    physics:{
+      body:'fixed',
+      colliders:[{shape:'box',halfExtents:[0.015,0.8,0.018],translation:[-0.8,1.6,0]}]
+    },
+    parts:{
+      door:{
+        node:'doorHinge',semantic:'door',
+        actions:['open','close'],targets:{open:1.45,close:0},
+        physics:{
+          body:'dynamic',mass:12,friction:0.65,
+          colliders:[{shape:'box',halfExtents:[0.59,1.01,0.0375],translation:[0.59,1.01,0]}]
+        },
+        joint:{
+          type:'revolute',axis:[0,1,0],limits:[0,1.45],
+          parentAnchor:[-0.6,0.62,0],childAnchor:[0,0,0],
+          motor:{stiffness:80,damping:12}
+        }
+      }
+    }
+  },
   cabinet: {
     id: 'cabinet', type: 'cabinet', label: 'Cabinet', tags: ['cabinet', 'storage', 'furniture', '柜子'], aliases: ['cupboard'], source: { kind: 'glb', url: 'assets/cabinet.glb' },
     requiredNodes: ['Body', 'doorHinge', 'Door'],

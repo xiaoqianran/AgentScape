@@ -1,3 +1,4 @@
+import { createHouseDoor } from './HouseDoor.js';
 import * as THREE from 'three';
 
 const createAgent = async () => {
@@ -87,5 +88,6 @@ export const builtinAssetFactories = Object.freeze({
   agent: createAgent,
   chair: createChair,
   cup: createCup,
-  table: createTable
+  table: createTable,
+  house_door: createHouseDoor
 });
