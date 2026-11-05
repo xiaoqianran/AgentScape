@@ -8,6 +8,23 @@ export type InspectorRelation = {
   object:string;
 };
 
+export type InspectorAffordanceAction = {
+  action:string;
+  execution:'query'|'editor'|'interaction'|'world-action';
+  available:boolean|null;
+  reason?:string|null;
+  partName?:string;
+  parameters:Record<string,{type?:string;enum?:string[];limits?:number[];maxLength?:number;[key:string]:unknown}>;
+};
+
+export type InspectorAffordances = {
+  source:'asset'|'environment';
+  label:string;
+  evidenceKind:string;
+  physicsVerified:boolean;
+  actions:InspectorAffordanceAction[];
+};
+
 export type RuntimeInspectorModel = {
   source:'runtime';
   kind:'entity';
@@ -26,6 +43,8 @@ export type RuntimeInspectorModel = {
     nearbyCount:number;
   };
   actions:string[];
+  actor?:string|null;
+  affordances?:InspectorAffordances|null;
 };
 
 export type AuthoringInspectorModel = {
@@ -46,6 +65,16 @@ export type AuthoringInspectorModel = {
   metadata:unknown;
 };
 
+export type EnvironmentInspectorModel = {
+  source:'environment';
+  kind:'environment';
+  id:string;
+  title:string;
+  subtitle:string;
+  actor?:string|null;
+  affordances?:InspectorAffordances|null;
+};
+
 export type EmptyInspectorModel = {
   source:null|'runtime'|'authoring'|'environment'|string;
   kind:'empty'|'missing'|'environment'|'unsupported'|string;
@@ -54,7 +83,7 @@ export type EmptyInspectorModel = {
   subtitle?:string;
 };
 
-export type InspectorModel = RuntimeInspectorModel | AuthoringInspectorModel | EmptyInspectorModel;
+export type InspectorModel = RuntimeInspectorModel | AuthoringInspectorModel | EnvironmentInspectorModel | EmptyInspectorModel;
 
 export type InspectorProjectionLike = {
   project:(selection:InspectorSelection)=>InspectorModel;
@@ -63,6 +92,7 @@ export type InspectorProjectionLike = {
 
 export type EditorCommandsLike = {
   runtimeAction:(action:string,id:string,args?:Record<string,unknown>)=>Promise<unknown>;
+  executeAffordance?:(input:{actor:string;target:string;action:string;args?:Record<string,unknown>;partName?:string;surfaceId?:string})=>Promise<{verification?:{status:string};value?:{physicsVerified?:boolean;evidenceKind?:string;status?:string;reason?:string}}>;
   scaleRuntime:(id:string,scale:number)=>Promise<unknown>;
   renameAuthoringNode:(id:string,name:string)=>Promise<unknown>;
   transformAuthoringNode:(id:string,transform:{position?:number[];scale?:number[]})=>Promise<unknown>;

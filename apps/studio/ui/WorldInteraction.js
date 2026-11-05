@@ -146,6 +146,10 @@ export function mountWorldInteraction({ world, ui, editor = null, host = null })
         viewport.camera.position.copy(center).add(new THREE.Vector3(2,1.2,-2));
         viewport.controls.update();
         editor?.select?.(null);
+        if (item.contractId && world.affordances?.get?.(item.contractId)) {
+          ui.setSelection?.({source:'environment',id:item.contractId});
+          ui.setView?.('inspect');
+        }
         prompt.hidden=false;prompt.textContent=item.label;
         details.open=false;
       });

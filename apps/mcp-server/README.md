@@ -10,7 +10,7 @@ Scene 工具为 `scene_observe`、`scene_apply`、`scene_add_model`、`scene_int
 
 每项动作包含 `parameters`、`execution`、`available` 和不可用时的 `reason`。未提供 actor 时，具身动作的 available 为 null，表示未检查可达性；提供后复用当前距离、遮挡及持有能力检查。available 只描述当前检查结果，不能替代执行后的碰撞、放置空间或关节完成验证。
 
-`execution: interaction` 的动作统一调用 `scene_interact`；`world-action` 的环境契约继续使用 Runtime 的 `executeWorldAction` 技能（本阶段尚未接入 MCP 的 scene_interact）；`editor` 使用 `scene_apply`，不代表 Agent 施力。环境契约继续报告自身的 evidenceKind，不冒充物理验证。
+`execution: interaction` 的动作统一调用 `scene_interact`；`world-action` 的环境契约现也可通过同一个 `scene_interact` 调用（open/close、turn_on/turn_off、pull_out/return、write），交由 Runtime 的 `WorldCommands.executeAffordance` 执行并核对后置状态。`editor` 使用 `scene_apply`，不代表 Agent 施力。环境契约的 `evidenceKind` 和 `physicsVerified=false` 不得冒充真实物理力学验证。Studio 的同一交互入口与验收边界参见 [统一交互](../../docs/studio-unified-interactions.md)。
 
 通用物理操作不要求 Manifest 声明专用动作：动态刚体可发现 push/drag/rotate，真实滑动/旋转关节可发现 slide/rotateJoint。固定、持有、忙碌或缺少物理解算能力的对象会返回具体阻塞原因。物理元数据的 body 为资产声明，currentBody 为查询时的实际刚体类型。
 
