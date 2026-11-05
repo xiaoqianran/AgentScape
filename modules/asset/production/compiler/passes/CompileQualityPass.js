@@ -35,10 +35,10 @@ export class CompileQualityPass {
     } else if (context.partProposal?.unpromoted?.length) {
       advisory.push({ code:'PART_PROPOSAL_PARTIAL', message:`Part Proposal 中有 ${context.partProposal.unpromoted.length} 个 Part 缺少可执行条件。` });
     }
-    if (context.collision.quality === 'coarse') {
+    if (context.collision.quality === 'coarse' && !context.interactionReview) {
       advisory.push({ code: 'COLLIDER_COARSE', message: '当前仅有 AABB 碰撞代理。' });
     }
-    if (context.partCollision?.final?.generated?.length) {
+    if (context.partCollision?.final?.generated?.length && !context.interactionReview) {
       advisory.push({ code:'PART_COLLIDER_COARSE', message:`${context.partCollision.final.generated.length} 个可执行 Part 当前使用 owned-mesh AABB 碰撞体。` });
     }
     if (context.partCollision?.final?.mass?.status === 'unpartitioned') {
@@ -53,7 +53,7 @@ export class CompileQualityPass {
     if ((context.semantics.confidence ?? 0) < 0.5) {
       advisory.push({ code: 'SEMANTIC_LOW_CONFIDENCE', message: '语义分类置信度较低。' });
     }
-    const executableArticulation = Object.values(context.articulation.parts || {}).some((part) => part.joint && Object.keys(part.targets || {}).length);
+    const executableArticulation = Object.values(context.articulation.parts || {}).some((part) => part.joint && part.joint.type !== 'fixed' && (Object.keys(part.targets || {}).length || context.interactionReview));
     if (context.articulation.candidates.length && !context.articulation.parts) {
       advisory.push({ code: 'ARTICULATION_CANDIDATE_ONLY', message: '发现关节候选，但尚未生成可执行 Part/Joint。' });
     } else if (executableArticulation && !context.verification?.articulation?.ok) {

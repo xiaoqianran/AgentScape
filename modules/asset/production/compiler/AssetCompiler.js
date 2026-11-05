@@ -22,7 +22,7 @@ import { CompileQualityPass } from './passes/CompileQualityPass.js';
 import { ManifestPass } from './passes/ManifestPass.js';
 import { AuthoringIntentPass } from './passes/AuthoringIntentPass.js';
 import { ExplicitDefinitionPass } from './passes/ExplicitDefinitionPass.js';
-import { assertEmbeddedGLB } from '../../model/AssetInputContracts.js';
+import { assertEmbeddedGLB, interactionReviewSchema, assetDigest, canonicalAssetJson } from '../../model/AssetInputContracts.js';
 
 export class AssetCompiler {
   async compileVisual({ bytes, assetId, label = 'Imported model' }) {
@@ -92,7 +92,28 @@ export class AssetCompiler {
     return bytes;
   }
 
-  async compile({ url, bytes, sourceName, assetId, label, partProposal = null, partSegmentation = null, providerEvidence = null, authoringIntent = null, definition = null } = {}) {
+  async proposeInteraction({bytes,sourceName='import.glb',label,partProposal=null,urdfHash=null}={}) {
+    assertEmbeddedGLB(bytes);
+    const output=await this.compile({bytes,sourceName,label,assetId:'interaction_candidate',partProposal,interactionProposal:true,
+      authoringIntent:{usage:'static'},persist:false});
+    const sourceHash=await assetDigest(bytes);
+    const parts=(output.partProposal?.parts || []).map(part=>({ ...part, executable:false, physicsVerified:false,
+      missing:['mass','friction',...['axis','parentAnchor','childAnchor','limits'].filter(field=>part.joint?.[field]==null).map(field=>`joint.${field}`),'review-confirmation','runtime-verification'] }));
+    const proposal={schema:'agentscape.capability-proposal',schemaVersion:1,sourceHash,urdfHash,compilerVersion:this.version,
+      physics:{body:null,mass:null,friction:null,colliders:output.manifest.physics.colliders},parts,
+      operations:[...['push','drag','rotate'].map(action=>({action,executable:false,physicsVerified:false,requires:'reviewed-dynamic-body'})),
+        ...parts.map(part=>({action:part.joint?.type==='prismatic'?'slide':'rotateJoint',part:part.id,executable:false,physicsVerified:false,requires:'reviewed-and-verified-joint'}))],
+      missing:['physics.body','physics.mass','physics.friction','review-confirmation','runtime-verification'],
+      evidence:{geometry:output.geometry.bounds,collisionStrategy:output.collision.strategy,articulationSource:output.partProposal?.source || output.articulation.source,
+        confidenceScope:'name-or-source-metadata-only; not physical verification',
+        semanticConfidence:output.manifest.compiler.semanticConfidence,jointFrame:output.partProposal?.jointFrame || null,
+        issues:output.partProposal?.issues || [],passes:['SemanticHeuristicPass','ArticulationCandidatePass','PartColliderPass','JointFramePass']}};
+    return {...proposal,proposalId:await assetDigest(new TextEncoder().encode(canonicalAssetJson(proposal)))};
+  }
+
+  async compile({ url, bytes, sourceName, assetId, label, partProposal = null, partSegmentation = null, providerEvidence = null, authoringIntent = null, definition = null,
+    interactionProposal=false,interactionReview=null,persist=true } = {}) {
+    if(interactionReview) interactionReview=interactionReviewSchema.parse(interactionReview);
     if (!bytes && !url) throw new Error('AssetCompiler requires url or bytes');
     const inputBytes = bytes instanceof Uint8Array ? bytes : bytes ? new Uint8Array(bytes) : await this.fetchBytes(url);
     if (inputBytes.byteLength > RESOURCE_BUDGET.maxInputBytes) {
@@ -101,7 +122,7 @@ export class AssetCompiler {
       throw error;
     }
     const name = sourceName || (url ? new URL(url, globalThis.location?.href || 'http://localhost').pathname.split('/').pop() : 'asset.glb');
-    let context = { bytes:inputBytes, sourceUrl:url || null, sourceName:name, assetId, label, partProposal, partSegmentation, providerEvidence, authoringIntent, definition, compilerVersion:this.version };
+    let context = { bytes:inputBytes, sourceUrl:url || null, sourceName:name, assetId, label, partProposal, partSegmentation, providerEvidence, authoringIntent, definition, interactionProposal,interactionReview, compilerVersion:this.version };
     for (const pass of this.passes) {
       const started = performance.now();
       this.events?.emit('assetCompiler.pass.started', { pass: pass.constructor.name, sourceName: name });
@@ -116,7 +137,7 @@ export class AssetCompiler {
       throw error;
     }
     const storageKey = context.manifest.source.key;
-    await this.store.put(storageKey, context.optimizedBytes, { sourceName: name, manifestId: context.manifest.id, quality: context.quality.status });
+    if(persist) await this.store.put(storageKey, context.optimizedBytes, { sourceName: name, manifestId: context.manifest.id, quality: context.quality.status });
     return {
       manifest: context.manifest,
       inspection: context.inspection,

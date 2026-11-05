@@ -78,13 +78,13 @@ function compilerLayer(manifest,{generated,hardCodes,advisoryCodes}) {
 }
 
 function executableArticulation(manifest) {
-  return Object.values(manifest?.parts||{}).some((part)=>part?.joint&&Object.keys(part.targets||{}).length>0);
+  return Object.values(manifest?.parts||{}).some((part)=>part?.joint&&part.joint.type!=='fixed'&&(Object.keys(part.targets||{}).length>0 || manifest.source?.kind==='compiled'));
 }
 
 function runtimeLayer(manifest,{advisoryCodes,hardCodes}) {
   const verification=manifest?.verification?.articulation;
   const qualityRuntimeReasons=unique([...hardCodes,...advisoryCodes].filter(isRuntimeReason));
-  const required=Boolean(verification||qualityRuntimeReasons.length||executableArticulation(manifest));
+  const required=Boolean(verification||qualityRuntimeReasons.length||executableArticulation(manifest)||manifest?.provenance?.interactionReview);
   if (!required) return layer('ready',[],false);
   if (verification?.ok===true) return layer('ready',[],true);
   if (verification?.ok===false) {

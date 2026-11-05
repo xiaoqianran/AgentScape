@@ -1,6 +1,7 @@
 // Explicit authored intent is configuration, never evidence of runtime success.
 export class AuthoringIntentPass {
   async run(context) {
+    if (context.interactionReview) return {...context,semantics:{...context.semantics,actions:[]},physics:context.interactionReview.physics};
     const intent = context.authoringIntent;
     if (!intent) return context;
     if (!['static', 'movable', 'interactive'].includes(intent.usage)) throw new TypeError('Invalid authoring usage');

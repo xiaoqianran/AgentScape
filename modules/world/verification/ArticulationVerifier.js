@@ -53,12 +53,12 @@ export class ArticulationVerifier {
     this.stallTolerance = stallTolerance;
   }
 
-  async verify(assetId,{requireRegistration=false}={}) {
-    const manifest = this.assetRegistry.getManifest(assetId);
-    const parts = Object.entries(manifest.parts || {}).filter(([, part]) => part.joint && part.physics && Object.keys(part.targets || {}).length);
+  async verify(assetId,{requireRegistration=false,manifest:override=null,instantiate=null,verifyRigidBody=false,requireSettled=false}={}) {
+    const manifest = override || this.assetRegistry.getManifest(assetId);
+    const parts = Object.entries(manifest.parts || {}).filter(([, part]) => part.joint && part.joint.type!=='fixed' && part.physics && (Object.keys(part.targets || {}).length || part.joint.limits?.length===2));
     if (!parts.length && !requireRegistration) return { ok: true, assetId, tested: 0, parts: [], note: 'no executable articulation' };
 
-    const { object } = await this.assetLoader.instantiate(assetId);
+    const { object } = await (instantiate ? instantiate() : this.assetLoader.instantiate(assetId));
     const physics = this.physicsFactory();
     const store = new ObjectStore();
     const instanceId = `verify_${assetId}`;
@@ -66,17 +66,35 @@ export class ArticulationVerifier {
 
     try {
       await physics.init();
+      if(requireRegistration && (!physics.hasCapability('rigid-body') || !physics.hasCapability('collision'))) return {ok:false,assetId,tested:0,parts:[],physicsRegistered:false,reason:'PHYSICS_CAPABILITY_UNAVAILABLE'};
       physics.addObject(instanceId, manifest, object);
       const reports = [];
-      for (const [partName, part] of parts) reports.push(this.verifyPart({ physics, store, object, instanceId, partName, part }));
-      return { ok: reports.every((report) => report.ok), assetId, tested: reports.length, parts: reports, physicsRegistered:Boolean(physics.getPosition(instanceId)) };
+      for (const [partName, part] of parts) reports.push(this.verifyPart({ physics, store, object, instanceId, partName, part, requireSettled }));
+      let rigidBody=null;
+      if(verifyRigidBody && !parts.length) {
+        const body=physics.manipulationBody(instanceId);
+        let exercised=true,displacement=0;
+        if(body.body==='dynamic') {
+          const bounds=new THREE.Box3().setFromObject(object),center=bounds.getCenter(new THREE.Vector3());
+          physics.addEnvironment([{shape:'box',halfExtents:[10,.1,10],translation:[center.x,bounds.min.y-.1,center.z]}]);
+          const before=physics.getPosition(instanceId);
+          exercised=physics.applyImpulse(instanceId,[Math.min(body.mass || 1,100)*.5,0,0]);
+          for(let step=0;step<15;step++) physics.step(this.dt,store);
+          const after=physics.getPosition(instanceId);
+          displacement=Math.hypot(...after.map((value,index)=>value-before[index]));
+          exercised=exercised && after.every(Number.isFinite) && Math.abs(after[0]-before[0])>1e-5;
+        }
+        rigidBody={ok:body.registered && body.colliderCount>0 && exercised,colliderCount:body.colliderCount,body:body.body,displacement};
+      }
+      return { ok: reports.every((report) => report.ok) && (!rigidBody || rigidBody.ok), assetId, tested: reports.length, parts: reports,
+        ...(rigidBody?{rigidBody}:{}),physicsRegistered:Boolean(physics.getPosition(instanceId)) };
     } finally {
       physics.dispose();
       disposeObject3D(object);
     }
   }
 
-  verifyPart({ physics, store, object, instanceId, partName, part }) {
+  verifyPart({ physics, store, object, instanceId, partName, part, requireSettled=false }) {
     const node = object.getObjectByName(part.node);
     if (!node) {
       return {
@@ -93,11 +111,13 @@ export class ArticulationVerifier {
       inverseRotation:node.quaternion.clone().invert(),
       axis:axisVector(part.joint.axis)
     };
-    const actions = Object.entries(part.targets).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+    const declared=Object.entries(part.targets || {});
+    const probes=declared.length ? declared : [['probe',part.joint.limits.reduce((a,b)=>Math.abs(a)>Math.abs(b)?a:b)],['return',0]];
+    const actions = probes.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
     const referencePenetrations = penetrationMap(physics, instanceId, partName, true);
     const reports = [];
     for (const [action, target] of actions) reports.push(this.verifyAction({
-      physics, store, node, reference, referencePenetrations, instanceId, partName, part, action, target
+      physics, store, node, reference, referencePenetrations, instanceId, partName, part, action, target,requireSettled
     }));
 
     const zeroAction = actions.find(([, target]) => Math.abs(target) <= 1e-8);
@@ -123,7 +143,7 @@ export class ArticulationVerifier {
     };
   }
 
-  verifyAction({ physics, store, node, reference, referencePenetrations, instanceId, partName, part, action, target }) {
+  verifyAction({ physics, store, node, reference, referencePenetrations, instanceId, partName, part, action, target,requireSettled=false }) {
     const tolerance = part.joint.type === 'prismatic' ? this.prismaticTolerance : this.revoluteTolerance;
     const failures = [];
     const limits = part.joint.limits || [];
@@ -190,6 +210,9 @@ export class ArticulationVerifier {
     const stalled = accepted && finite && !alreadyAtTarget && targetError > tolerance && recentMovement < this.stallTolerance;
     if (stalled) failures.push(failure('EXECUTION', 'STALL', { recentMovement, window, targetError }));
     const targetReached = targetError <= tolerance;
+    const motion=physics.getMotion(instanceId,{partName});
+    const settled=targetReached && recentMovement<=tolerance*.25 && motion?.linearSpeed<.08 && motion?.angularSpeed<.08;
+    if(requireSettled && !settled) failures.push(failure('POST_CONDITION','NOT_SETTLED',{recentMovement,linearSpeed:motion?.linearSpeed,angularSpeed:motion?.angularSpeed}));
     if (accepted && finite && !targetReached) failures.push(failure('POST_CONDITION', 'TARGET_NOT_REACHED', { target, coordinate:finalCoordinate, error:targetError, tolerance }));
 
     return {
@@ -209,6 +232,7 @@ export class ArticulationVerifier {
       initialError,
       targetError,
       targetReached,
+      settled,
       progress: Number.isFinite(initialError) && Number.isFinite(targetError) ? initialError - targetError : null,
       stepsRun,
       stalled,

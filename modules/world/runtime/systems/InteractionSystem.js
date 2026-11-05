@@ -6,6 +6,7 @@ import { SettleRuntime } from '../interaction/SettleRuntime.js';
 import { InteractionApproach, DEFAULT_INTERACTION_DISTANCE, INTERACTION_APPROACH_MARGIN } from '../interaction/InteractionApproach.js';
 import { CarryRuntime } from '../interaction/CarryRuntime.js';
 import { RecoveryRuntime } from '../interaction/RecoveryRuntime.js';
+import { assetAdmission } from '../../../asset/model/admission.js';
 
 export { DEFAULT_INTERACTION_DISTANCE };
 export class InteractionSystem {
@@ -162,6 +163,7 @@ export class InteractionSystem {
 
   assertSupports(id, action) {
     const record = this.store.get(id);
+    if (record.manifest.source?.kind==='compiled' && ['open','close'].includes(action) && assetAdmission(record.manifest).layers.runtime.status!=='ready') throw Errors.interactionUnavailable(null,id,'RUNTIME_VERIFICATION_REQUIRED');
     if (!this.supports(record, action)) throw Errors.actionUnsupported(id, action);
     return record;
   }
@@ -543,6 +545,7 @@ export class InteractionSystem {
     if (!this.store.has(targetId)) return no('OBJECT_NOT_FOUND');
     if (!this.physics.hasCapability('rigid-body') || !this.physics.hasCapability('collision') || !this.physics.hasCapability('scene-query')) return no('PHYSICS_CAPABILITY_UNAVAILABLE');
     const record = this.store.get(targetId);
+    if(record.manifest.source?.kind==='compiled' && assetAdmission(record.manifest).layers.runtime.status!=='ready') return no('RUNTIME_VERIFICATION_REQUIRED');
     if (this.isHeld(targetId)) return no('OBJECT_ALREADY_HELD');
     if (this.physicalTasks.has(targetId) || [...this.articulationTasks.values()].some(task => task.id === targetId)) return no('ACTION_IN_PROGRESS');
     const jointAction = ['slide','rotateJoint'].includes(action);
@@ -576,7 +579,8 @@ export class InteractionSystem {
       const side = (center[0]-position[0])*direction.x + (center[2]-position[2])*direction.z;
       return action === 'push' ? side > .05 : side < -.05;
     };
-    const pose = await this.findInteractionPose(actorId, targetId, { candidateFilter:validSide });
+    const jointAim = () => args.part ? this.physics.manipulationBody(targetId,args.part,{contacts:true}).contactCandidates[0]?.center : null;
+    const pose = await this.findInteractionPose(actorId, targetId, { candidateFilter:validSide, aimPoint:jointAim() });
     if (epoch !== this.manipulationEpoch) return blocked('ACTION_CANCELLED');
     if (!pose) return blocked('NO_INTERACTION_POSE');
     const approach = await this.navigateToPose(actorId, pose, {});
@@ -589,7 +593,7 @@ export class InteractionSystem {
       if (!this.physics.getPosition(actorId)) return 'ACTOR_PHYSICS_UNAVAILABLE';
       const contacts = this.physics.articulationContacts(targetId, args.part || '$root');
       if (contacts.some(contact => contact.minDistance < -.03)) return 'COLLISION_PENETRATION';
-      const reach = this.interactionStatus(actorId, targetId);
+      const reach = this.interactionStatus(actorId, targetId, {aimPoint:jointAim()});
       return !reach.interactable ? reach.inRange ? 'OCCLUDED' : 'OUT_OF_REACH' : null;
     };
     const unavailable = accessReason();

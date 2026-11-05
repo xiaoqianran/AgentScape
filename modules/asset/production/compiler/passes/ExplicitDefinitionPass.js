@@ -3,6 +3,10 @@ import { validateAssetManifest } from '../../../model/schema.js';
 // Explicit authored physics replaces the inferred fallback; declaration is not motion evidence.
 export class ExplicitDefinitionPass {
  async run(context) {
+  if(context.interactionReview && !context.definition) {
+   const physics=structuredClone(context.interactionReview.physics);
+   return {...context,physics,collision:physics.colliders ? {strategy:'reviewed-colliders',quality:'declared',colliders:physics.colliders} : context.collision};
+  }
   if(!context.definition)return context;
   const definition=structuredClone(context.definition);
   validateAssetManifest({...definition,id:context.assetId,source:{kind:'compiled',key:context.assetId}});

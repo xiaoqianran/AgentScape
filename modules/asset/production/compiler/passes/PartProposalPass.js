@@ -3,15 +3,15 @@ import { orderParts, ROOT_PART } from '../../../model/parts.js';
 const SUPPORTED_JOINTS = new Set(['revolute', 'prismatic']);
 const finiteVec = (value, length) => Array.isArray(value) && value.length === length && value.every(Number.isFinite);
 
-function executableReason(part) {
+function executableReason(part, reviewed = false) {
   if (!part.joint) return 'missing-joint';
   if (!SUPPORTED_JOINTS.has(part.joint.type)) return 'unsupported-joint';
   if (!finiteVec(part.joint.axis, 3) || Math.hypot(...part.joint.axis) < 1e-6) return 'invalid-axis';
   if (!finiteVec(part.joint.parentAnchor, 3) || !finiteVec(part.joint.childAnchor, 3)) return 'missing-anchor';
   if (!finiteVec(part.joint.limits, 2) || part.joint.limits[0] >= part.joint.limits[1]) return 'invalid-limits';
   if (!part.physics?.colliders?.length) return 'missing-collider';
-  if (!part.actions?.length) return 'missing-actions';
-  if (!part.actions.every((action) => Number.isFinite(part.targets?.[action]))) return 'missing-target';
+  if (!part.actions?.length && !reviewed) return 'missing-actions';
+  if (!(part.actions || []).every((action) => Number.isFinite(part.targets?.[action]))) return 'missing-target';
   return null;
 }
 
@@ -75,7 +75,7 @@ export class PartProposalPass {
     const unpromoted = [];
     if (!issues.length) {
       for (const [id, part] of ordered) {
-        const reason = executableReason(part);
+        const reason = executableReason(part, Boolean(context.interactionReview));
         const parent = part.parent || ROOT_PART;
         if (reason) { unpromoted.push({ part:id, reason }); continue; }
         if (parent !== ROOT_PART && !promoted[parent]) { unpromoted.push({ part:id, reason:'parent-not-executable' }); continue; }

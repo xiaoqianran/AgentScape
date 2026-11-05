@@ -1,4 +1,25 @@
 /*Owned by developer presentation.*/
+.interaction-review-editor {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  resize: vertical;
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-family: monospace;
+  font-size: 11px;
+}
+.interaction-confirmation { display: flex; align-items: center; gap: 8px; }
+.settings-body .interaction-confirmation input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  padding: 0;
+  flex: 0 0 16px;
+}
 
 .settings-section h3 {
   margin: 0 0 9px;
