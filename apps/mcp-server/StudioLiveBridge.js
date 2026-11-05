@@ -17,6 +17,7 @@ export class StudioLiveBridge {
     this.heartbeatMs=heartbeatMs;
     this.rpcTimeoutMs=rpcTimeoutMs;
     this.sessions=new Map();
+    this.autoByInstance=new Map();
   }
 
   pair(owner) {
@@ -30,16 +31,49 @@ export class StudioLiveBridge {
     return {worldSessionId,pairCode,expiresInSeconds:Math.ceil(this.pairTtlMs/1000),status:'awaiting-studio'};
   }
 
+  /**
+   * Loopback auto mode: an approved local Studio origin registers a live tab.
+   * No MCP bearer is exposed to the browser; all Scene tools still require MCP auth.
+   */
+  registerAuto(instanceId,worldId) {
+    if(typeof instanceId!=='string'||!/^[a-f0-9-]{36}$/i.test(instanceId))throw issue('STUDIO_INSTANCE_INVALID');
+    if(typeof worldId!=='string'||worldId.length>128||!worldId.length)throw issue('STUDIO_WORLD_INVALID');
+    for(const [id,session] of this.sessions) {
+      if(session.auto && (!session.connected||this.now()-session.lastSeen>this.heartbeatMs))this.disconnect(id,'STUDIO_DISCONNECTED');
+    }
+    const previous=this.autoByInstance.get(instanceId);
+    if(previous)this.disconnect(previous,'STUDIO_REPLACED');
+    if(this.autoByInstance.size>=8)throw issue('STUDIO_TAB_LIMIT');
+    const worldSessionId=randomUUID(),token=secret();
+    this.sessions.set(worldSessionId,{
+      owner:null,auto:true,instanceId,worldId,pairCode:null,expiresAt:0,
+      token,connected:true,lastSeen:this.now(),pending:new Map(),requests:new Map(),queue:[],pollWaiter:null
+    });
+    this.autoByInstance.set(instanceId,worldSessionId);
+    return {worldSessionId,studioToken:token,status:'connected',mode:'automatic',worldId};
+  }
+
+  currentSession() {
+    const active=[];
+    for(const [id,s] of this.sessions){
+      if(!s.auto)continue;
+      if(!s.connected||this.now()-s.lastSeen>this.heartbeatMs){this.disconnect(id,'STUDIO_DISCONNECTED');continue;}
+      active.push({worldSessionId:id,worldId:s.worldId,status:'connected',connected:true,mode:'automatic'});
+    }
+    if(!active.length)throw issue('STUDIO_NOT_CONNECTED');
+    if(active.length>1)throw issue('STUDIO_MULTIPLE_WORLDS');
+    return active[0];
+  }
   isStudioSession(id) {return this.sessions.has(id);}
   ownerSession(owner,id) {
     const s=this.sessions.get(id);
-    if(!s||s.owner!==owner)throw issue('SESSION_NOT_FOUND');
+    if(!s||(!s.auto && s.owner!==owner))throw issue('SESSION_NOT_FOUND');
     return s;
   }
   status(owner,id) {
     const s=this.ownerSession(owner,id);
     if(s.connected&&this.now()-s.lastSeen>this.heartbeatMs)this.disconnect(id,'STUDIO_DISCONNECTED');
-    return {worldSessionId:id,status:s.connected?'connected':s.pairCode&&this.now()<s.expiresAt?'awaiting-studio':'disconnected',
+    return {worldSessionId:id,mode:s.auto?'automatic':'paired',worldId:s.worldId||null,status:s.connected?'connected':s.pairCode&&this.now()<s.expiresAt?'awaiting-studio':'disconnected',
       connected:s.connected,lastSeen:s.lastSeen||null};
   }
   connect(pairCode) {
@@ -132,6 +166,7 @@ export class StudioLiveBridge {
     const s=this.sessions.get(id);
     if(!s)return false;
     this.sessions.delete(id);
+    if(s.auto && this.autoByInstance.get(s.instanceId)===id)this.autoByInstance.delete(s.instanceId);
     s.connected=false;
     if(s.pollWaiter){
       clearTimeout(s.pollWaiter.timer);s.pollWaiter.resolve({request:null});s.pollWaiter=null;

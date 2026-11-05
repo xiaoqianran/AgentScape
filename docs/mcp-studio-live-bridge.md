@@ -1,5 +1,7 @@
 # Studio Live Bridge：MCP 控制浏览器当前世界
 
+**更新：本机 Studio 已默认自动连接，无须手动配对。** 优先阅读 [Studio MCP 自动连接](./mcp-studio-auto-connect.md)。本文保留手动配对流程，供兼容旧客户端或指定独立会话时参考。
+
 这是一个 **PC2 本地、明确配对、单一 WorldRuntime** 的实验性控制通道。MCP 客户端使用已有的 Scene API，浏览器继续使用原来的 SceneFacade、WorldRuntime、Rapier 和导航系统；服务端不复制第二个运行时，不接受任意脚本或浏览器 DOM 命令。
 
 ## 启动与配对

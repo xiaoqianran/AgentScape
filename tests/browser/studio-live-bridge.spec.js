@@ -26,6 +26,8 @@ test('MCP pairs with visible Studio, edits the same world and disconnects on wor
     await page.goto(`/?page=world&world=monument-hall&mcpPort=${app.port}`);
     await waitForRuntimeReady(page);
     await page.locator('#studio-mcp-toggle').click();
+    await page.locator('#studio-mcp-auto-enabled').uncheck();
+    await page.getByText('高级：使用一次性配对码').click();
     await page.locator('#studio-mcp-pair-code').fill(pair.pairCode);
     await page.locator('#studio-mcp-connect').click();
     await expect(page.locator('.studio-mcp-connection')).toHaveAttribute('data-bridge-state','connected');

@@ -25,3 +25,26 @@
 #studio-mcp-panel code { overflow-wrap:anywhere; font-size:11px; }
 #studio-mcp-panel small { color:var(--studio-text-3); line-height:1.5; }
 #studio-mcp-panel [role="alert"] { color:var(--studio-danger); }
+#studio-mcp-panel .studio-mcp-auto-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--studio-text);
+  cursor: pointer;
+}
+#studio-mcp-panel .studio-mcp-auto-toggle input {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  accent-color: var(--studio-accent);
+}
+#studio-mcp-panel details {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--studio-border);
+  border-radius: 8px;
+}
+#studio-mcp-panel details summary { cursor: pointer; font-weight: 600; }
+#studio-mcp-panel details > label { margin: 10px 0; }

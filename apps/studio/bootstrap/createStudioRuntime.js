@@ -10,7 +10,7 @@ import { EditorController } from '../editor/EditorController.js';
 import { CAPABILITY_API, LOCAL_ADAPTER_HOST } from '../config/capabilityEntry.js';
 import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
 import { SCENE_LEGACY_SKILLS } from '../../../application/scene/SceneFacade.js';
-import { StudioLiveBridgeClient } from '../bridge/StudioLiveBridgeClient.js';
+import { StudioLiveBridgeClient, defaultAutoMcpEnabled } from '../bridge/StudioLiveBridgeClient.js';
 
 export async function createStudioRuntime({
   ui,
@@ -84,6 +84,8 @@ export async function createStudioRuntime({
     onPresentationChange:(identity)=>ui.setWorldPresentation?.(identity),
     onSurfaceError:(error)=>console.error('Studio world surface cleanup failed', error)
   });
+
+  if (defaultAutoMcpEnabled()) liveBridge.setAutoEnabled(true);
 
   const editor = worldSurface.editor;
   editor.setInteractionMode(ui.getInteractionMode?.() || 'explore');

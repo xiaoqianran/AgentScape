@@ -18,14 +18,15 @@ export const actionSchemas={
 };
 export function registerTools(server,manager,owner,assets,studioBridge=null) {
  const session={worldSessionId:z.uuid()};
+ const sceneSession={worldSessionId:z.uuid().optional()};
  const add=(name,description,shape,fn)=>server.registerTool(name,{description,inputSchema:z.object(shape).strict()},async(a,extra)=>{
   try { const result=await fn(a,extra); return {content:[{type:'text',text:JSON.stringify(result)}]}; }
   catch(e) { const code=e instanceof z.ZodError?'INVALID_ARGUMENTS':/^[A-Z_]+$/.test(e.code || '')?e.code:/^[A-Z_]+$/.test(e.message)?e.message:'RUNTIME_ERROR'; return {isError:true,content:[{type:'text',text:JSON.stringify({state:'failed',code})}]}; }
  });
  add('studio_pair_create','Create a short-lived one-time pairing code for an explicitly approved local Studio world. The bearer token is never delivered to the browser.',{},()=>studioBridge.pair(owner));
- add('studio_session_status','Check whether the paired Studio is online; never assume the browser is connected.',{worldSessionId:z.uuid()},a=>studioBridge.status(owner,a.worldSessionId));
- add('session_attach','Resolve an already paired Studio session for Scene API calls.',{worldSessionId:z.uuid()},a=>{
-  const state=studioBridge.status(owner,a.worldSessionId);
+ add('studio_session_status','Check the current local Studio or an explicitly specified Studio session.',sceneSession,a=>a.worldSessionId?studioBridge.status(owner,a.worldSessionId):studioBridge.currentSession());
+ add('session_attach','Attach the automatically connected local Studio or an explicit paired session.',sceneSession,a=>{
+  const state=a.worldSessionId?studioBridge.status(owner,a.worldSessionId):studioBridge.currentSession();
   if(!state.connected)throw new Error('STUDIO_DISCONNECTED');
   return state;
  });
@@ -41,9 +42,10 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
  add('asset_list','List your published asset versions, paginated.',{offset:z.number().int().min(0).max(128).default(0),limit:z.number().int().min(1).max(20).default(20)},async a=>{const all=await assets.repository.list(owner);return {assets:all.slice(a.offset,a.offset+a.limit),total:all.length,nextOffset:a.offset+a.limit<all.length?a.offset+a.limit:null};});
  const run=(a,fn,extra)=>manager.run(owner,a.worldSessionId,fn,{signal:extra?.signal});
  const sceneRun=(a,method,args,fn,extra)=>{
-  if(studioBridge?.isStudioSession(a.worldSessionId))
-   return studioBridge.call(owner,a.worldSessionId,method,args,{signal:extra?.signal,requestId:a.requestId});
-  return manager.run(owner,a.worldSessionId,fn,{signal:extra?.signal,
+  const target=a.worldSessionId || studioBridge.currentSession().worldSessionId;
+  if(studioBridge?.isStudioSession(target))
+   return studioBridge.call(owner,target,method,args,{signal:extra?.signal,requestId:a.requestId});
+  return manager.run(owner,target,fn,{signal:extra?.signal,
     ...(a.requestId?{requestId:a.requestId,fingerprint:JSON.stringify([method,args])}:{})});
  };
  const attachSceneAssets=async(s,references)=>{
@@ -90,15 +92,15 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
  add('world_export','Atomically save and return SceneSerializer JSON; assets are not bundled.',session,(a,e)=>run(a,s=>manager.export(s),e));
  add('world_save','Save an owned world and immutable published asset dependencies for recovery after service restart.',session,(a,e)=>run(a,s=>manager.save(owner,s),e));
  add('world_restore','Create a new private session from your server-issued save ID. Verifies all hashes and restores via SceneSerializer; historical action evidence is not reused.',{saveId:z.uuid(),requestId:z.uuid()},a=>manager.restore(owner,a.saveId,a.requestId));
- add('scene_observe','Observe the scene or inspect a target and its current affordances, constraints and blocked reasons.',{...session,target:z.string().min(1).max(256).optional(),actor:id.optional()},(a,e)=>sceneRun(a,'observe',{target:a.target,actor:a.actor},s=>a.target?s.host.scene.inspect(a.target,{actor:a.actor}):s.host.scene.observe({actor:a.actor}),e));
- add('scene_apply','Apply structured scene edits with revision protection and explicit partial results.',{...session,requestId:z.uuid(),expectedRevision:z.number().int().nonnegative().optional(),operations:z.array(z.record(z.string(),z.unknown())).min(1).max(32)},(a,e)=>sceneRun(a,'apply',{requestId:a.requestId,expectedRevision:a.expectedRevision,operations:a.operations},async s=>{await attachSceneAssets(s,a.operations.map(op=>op.type==='add'?op.model?.asset:op.asset));return s.host.scene.apply({expectedRevision:a.expectedRevision,operations:a.operations});},e));
- add('scene_interact','Start a real action and return a queryable JobRef immediately.',{...session,requestId:z.uuid(),interaction:z.record(z.string(),z.unknown())},(a,e)=>sceneRun(a,'interact',{interaction:a.interaction},s=>s.host.startSceneInteraction(a.interaction),e));
- const job={...session,jobId:z.string().regex(/^job_[a-f0-9-]+$/)};
+ add('scene_observe','Observe the scene or inspect a target and its current affordances, constraints and blocked reasons.',{...sceneSession,target:z.string().min(1).max(256).optional(),actor:id.optional()},(a,e)=>sceneRun(a,'observe',{target:a.target,actor:a.actor},s=>a.target?s.host.scene.inspect(a.target,{actor:a.actor}):s.host.scene.observe({actor:a.actor}),e));
+ add('scene_apply','Apply structured scene edits with revision protection and explicit partial results.',{...sceneSession,requestId:z.uuid(),expectedRevision:z.number().int().nonnegative().optional(),operations:z.array(z.record(z.string(),z.unknown())).min(1).max(32)},(a,e)=>sceneRun(a,'apply',{requestId:a.requestId,expectedRevision:a.expectedRevision,operations:a.operations},async s=>{await attachSceneAssets(s,a.operations.map(op=>op.type==='add'?op.model?.asset:op.asset));return s.host.scene.apply({expectedRevision:a.expectedRevision,operations:a.operations});},e));
+ add('scene_interact','Start a real action and return a queryable JobRef immediately.',{...sceneSession,requestId:z.uuid(),interaction:z.record(z.string(),z.unknown())},(a,e)=>sceneRun(a,'interact',{interaction:a.interaction},s=>s.host.startSceneInteraction(a.interaction),e));
+ const job={...sceneSession,jobId:z.string().regex(/^job_[a-f0-9-]+$/)};
  add('scene_job','Read task completion and physical verification separately.',job,(a,e)=>sceneRun(a,'job',{jobId:a.jobId},s=>s.host.scene.getJob(a.jobId),e));
  add('scene_cancel','Request task cancellation and query until terminal.',job,(a,e)=>sceneRun(a,'cancel',{jobId:a.jobId},s=>s.host.scene.cancelJob(a.jobId),e));
- add('scene_verify','Evaluate explicit postconditions through the common verifier.',{...session,criteria:z.array(check).min(1).max(32)},(a,e)=>sceneRun(a,'verify',{criteria:a.criteria},s=>s.host.scene.verify(a.criteria),e));
- add('scene_add_model','Prepare a GLB/URDF capability proposal with mode=prepare, or add an AssetRef, Recipe, MechanicalDraft or reviewed GLB with mode=add. GLB bytes use bytesBase64; optional URDF uses urdfBase64. Review is configuration, never physics verification.',{...session,requestId:z.uuid(),mode:z.enum(['prepare','add']).default('add'),model:z.record(z.string(),z.unknown())},(a,e)=>sceneRun(a,'addModel',{model:a.model,mode:a.mode},async s=>{const model=decodeModel(a.model);if(a.mode==='prepare')return s.host.scene.prepareAsset(model.asset);await attachSceneAssets(s,[model.asset]);return s.host.scene.addModel(model);},e));
- add('scene_save','Export a complete portable project with bounded embedded dependencies.',session,(a,e)=>sceneRun(a,'save',{},async s=>{
+ add('scene_verify','Evaluate explicit postconditions through the common verifier.',{...sceneSession,criteria:z.array(check).min(1).max(32)},(a,e)=>sceneRun(a,'verify',{criteria:a.criteria},s=>s.host.scene.verify(a.criteria),e));
+ add('scene_add_model','Prepare a GLB/URDF capability proposal with mode=prepare, or add an AssetRef, Recipe, MechanicalDraft or reviewed GLB with mode=add. GLB bytes use bytesBase64; optional URDF uses urdfBase64. Review is configuration, never physics verification.',{...sceneSession,requestId:z.uuid(),mode:z.enum(['prepare','add']).default('add'),model:z.record(z.string(),z.unknown())},(a,e)=>sceneRun(a,'addModel',{model:a.model,mode:a.mode},async s=>{const model=decodeModel(a.model);if(a.mode==='prepare')return s.host.scene.prepareAsset(model.asset);await attachSceneAssets(s,[model.asset]);return s.host.scene.addModel(model);},e));
+ add('scene_save','Export a complete portable project with bounded embedded dependencies.',sceneSession,(a,e)=>sceneRun(a,'save',{},async s=>{
   const result=await s.host.scene.save({readResource:async url=>{
    const prefix='data:model/gltf-binary;base64,';
    if(!url?.startsWith(prefix)) throw new Error('RESOURCE_UNAVAILABLE');
@@ -107,5 +109,5 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
   if(Buffer.byteLength(JSON.stringify(result))>manager.maxExportBytes) throw new Error('EXPORT_LIMIT');
   return result;
  },e));
- add('scene_set_style','Select a declarative StylePack. Headless worlds report deferred rendering.',{...session,style:z.union([z.string().max(128),z.record(z.string(),z.unknown())]),fallback:z.enum(['reject','declared']).default('reject')},(a,e)=>sceneRun(a,'setStyle',{style:a.style,fallback:a.fallback},s=>s.host.scene.setStyle(a.style,{fallback:a.fallback}),e));
+ add('scene_set_style','Select a declarative StylePack. Headless worlds report deferred rendering.',{...sceneSession,style:z.union([z.string().max(128),z.record(z.string(),z.unknown())]),fallback:z.enum(['reject','declared']).default('reject')},(a,e)=>sceneRun(a,'setStyle',{style:a.style,fallback:a.fallback},s=>s.host.scene.setStyle(a.style,{fallback:a.fallback}),e));
 }
