@@ -12,7 +12,8 @@ it('registers visual and physical code assets, rejects broken code, saves and re
   installHeadlessAssetIO();
   const loader=createHeadlessGLTFLoader();
   const assets=()=>createAssetModule({volatile:true,manifestStore:null,libraryStore:null,gltfLoader:loader});
-  const scene=await openScene({project:{schema:'agentscape.scene-project',schemaVersion:1,name:'Code world',environment:{type:'builtin',id:'monument-hall'},objects:[]},assetModule:assets(),codeExecutor:createCodeExecutor(),codeGLTFLoader:loader});
+  const assetModule=assets();
+  const scene=await openScene({project:{schema:'agentscape.scene-project',schemaVersion:1,name:'Code world',environment:{type:'builtin',id:'monument-hall'},objects:[]},assetModule,codeExecutor:createCodeExecutor(),codeGLTFLoader:loader});
   let restored;
   try {
     await scene.addModel({id:'visual',asset:{kind:'three-code',source:box.source}});
@@ -22,9 +23,19 @@ it('registers visual and physical code assets, rejects broken code, saves and re
     expect(built.buildValidation.runtime.physicsRegistered).toBe(true);
     expect(built.buildValidation.runtime.ok).toBe(true);
     await expect(scene.addModel({id:'bad',asset:{kind:'three-code',source:'invalid code'}})).rejects.toThrow();
+    const assetCount=assetModule.registry.size;
+    await expect(scene.addModel({id:'rejected',level:'interactive',asset:{kind:'three-code',source:box.source.replace('0xff8844','0x4488ff')}})).rejects.toThrow('CAPABILITY_UNAVAILABLE');
+    expect(assetModule.registry.size).toBe(assetCount);
     expect(scene.observe().objects).toHaveLength(3);
     const saved=(await scene.save()).value;
     expect(saved.assets).toHaveLength(3);
+    const transported=saved.assets.find(a=>a.definition.type==='building');
+    const transportScene=await openScene({project:{schema:'agentscape.scene-project',schemaVersion:1,name:'Transport',environment:{type:'builtin',id:'monument-hall'},objects:[]},assetModule:assets(),codeGLTFLoader:loader});
+    try {
+      const asset={kind:'compiled-code',id:transported.id,bytes:new Uint8Array(Buffer.from(transported.bytes,'base64')),definition:transported.definition};
+      expect((await transportScene.addModel({id:'transported',asset})).status).toBe('succeeded');
+      expect((await transportScene.addModel({id:'second',asset,position:[7,0,0]})).status).toBe('succeeded');
+    } finally {transportScene.close();}
     scene.close();
     restored=await openScenePackage(saved,{assetModule:assets()});
     expect(restored.observe().objects).toHaveLength(3);

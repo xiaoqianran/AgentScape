@@ -1,15 +1,16 @@
 import { it,expect } from 'vitest';
 import { randomBytes,randomUUID } from 'node:crypto';
-import { mkdtemp,cp,rm,mkdir } from 'node:fs/promises';
+import { mkdtemp,rm,mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Client,StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { startServer } from '../../apps/mcp-server/main.mjs';
-import { box,table,fridge } from '../../apps/mcp-server/examples/procedural-assets.js';
+import { house } from '../../apps/mcp-server/examples/code-house.js';
+import { box,table } from '../../apps/mcp-server/examples/procedural-assets.js';
 
-it.runIf(process.env.AGENTSCAPE_SANDBOX_INTEGRATION==='1')('builds box/table/fridge, executes physical tasks, restarts the service and restores immutable world dependencies',async()=>{
+it('builds box/table/house without Docker, executes physical tasks, restarts the service and restores immutable world dependencies',async()=>{
  const directory=await mkdtemp(path.join(tmpdir(),'procedural-world-'));
- const dataRoot=path.join(directory,'assets');await mkdir(dataRoot);await cp('D:/AgentScapeData/mcp-assets/sandbox.json',path.join(dataRoot,'sandbox.json'));
+ const dataRoot=path.join(directory,'assets');await mkdir(dataRoot);
  const tokens=[{identity:'alice',token:randomBytes(32).toString('hex')},{identity:'bob',token:randomBytes(32).toString('hex')}];
  let app,client;
  const connect=async()=>{
@@ -21,7 +22,7 @@ it.runIf(process.env.AGENTSCAPE_SANDBOX_INTEGRATION==='1')('builds box/table/fri
  try {
   await connect();
   const published=[];
-  for(const example of [box,table,fridge]){
+  for(const example of [box,table,house]){
    const job=await call('asset_build_submit',{contract:'agentscape.procedural-asset.v1',...example,requestId:randomUUID()});
    await app.assets.running.get(job.buildId)?.promise;
    const status=await call('asset_build_status',{buildId:job.buildId});
@@ -30,8 +31,8 @@ it.runIf(process.env.AGENTSCAPE_SANDBOX_INTEGRATION==='1')('builds box/table/fri
   }
   const created=await call('session_create');let base={worldSessionId:created.worldSessionId};
   const action=async(skill,args)=>call('action_execute',{...base,skill,args,requestId:randomUUID()});
-  for(const [index,id,position] of [[0,'my_box',[0,0,5]],[1,'my_table',[2,0,3]],[2,'my_fridge',[-5.2,0,-1]]]){
-   const r=await action('spawnAsset',{assetId:published[index].assetId,position,instanceId:id});expect(r.result,JSON.stringify(r)).toBe(id);
+  for(const [index,id,position] of [[0,'my_box',[0,0,5]],[1,'my_table',[2,0,3]],[2,'my_fridge',[0,0,-5]]]){
+   const r=await call('scene_add_model',{...base,requestId:randomUUID(),model:{id,asset:`asset://sha256/${published[index].version}`,position}});expect(r.status,JSON.stringify(r)).toBe('succeeded');
   }
   expect((await action('approachAndPickup',{actorId:'agent_01',targetId:'my_box'})).state).toBe('verified');
   expect((await action('approachAndPlace',{actorId:'agent_01',supportId:'my_table',surfaceId:'top'})).state).toBe('verified');
@@ -52,6 +53,9 @@ it.runIf(process.env.AGENTSCAPE_SANDBOX_INTEGRATION==='1')('builds box/table/fri
   expect(upgraded.assetId).not.toBe(published[0].assetId);
   expect(app.manager.get('alice',base.worldSessionId).host.world.store.get('my_box').assetId).toBe(published[0].assetId);
   const runtime=app.manager.get('alice',base.worldSessionId).host.world;
+  const {meshes:staticMeshes}=runtime.navigation.collectStaticMeshes();
+  expect(staticMeshes.some(mesh=>mesh.name==='panel_0')).toBe(true);
+  expect(staticMeshes.some(mesh=>mesh.name==='Door')).toBe(false);
   const ensure=runtime.navigation.ensureCurrent;
   runtime.navigation.ensureCurrent=async()=>({success:false});
   try{
@@ -69,7 +73,7 @@ it.runIf(process.env.AGENTSCAPE_SANDBOX_INTEGRATION==='1')('builds box/table/fri
   expect((await call('world_verify',{...base,criteria})).state).toBe('unverified');
   expect((await action('approachAndInteract',{actorId:'agent_01',targetId:'my_fridge',action:'open'})).state).toBe('verified');
   expect((await call('world_verify',{...base,criteria})).state).toBe('verified');
-  const inspected=await call('asset_inspect',{assetId:published[2].assetId,includeSource:true});expect(inspected.source).toBe(fridge.source);
+  const inspected=await call('asset_inspect',{assetId:published[2].assetId,includeSource:true});expect(inspected.source).toBe(house.source);
   await expect(app.manager.restore('bob',saved.saveId,randomUUID())).rejects.toThrow();
   await expect(app.assets.inspect('bob',published[0].assetId,true)).rejects.toThrow();
   await call('session_close',base);

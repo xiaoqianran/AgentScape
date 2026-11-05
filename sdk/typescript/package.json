@@ -14,10 +14,11 @@
       "import": "./dist/index.js"
     },
     "./node": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
     },
     "./mcp": {
+      "types": "./dist/mcp.d.ts",
       "import": "./dist/mcp.js"
     }
   },

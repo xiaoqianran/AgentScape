@@ -80,6 +80,7 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         input: {
+          codeExample: new URL('./examples/three-code/index.html', import.meta.url).pathname,
           starter: new URL("./apps/starter/index.html", import.meta.url).pathname,
           studio: new URL("./index.html", import.meta.url).pathname,
           observatory: new URL("./apps/observatory/index.html", import.meta.url).pathname,

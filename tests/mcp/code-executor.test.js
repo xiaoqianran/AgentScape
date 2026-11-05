@@ -30,3 +30,10 @@ it('fails closed for unauthorized, disabled and public non-isolated execution', 
   expect(() => createCodeExecutor({ remote: true })).toThrow('OS_ISOLATION_REQUIRED');
   await expect(createCodeExecutor({ mode: 'disabled' }).run({ mode: 'procedural', source })).rejects.toThrow('CODE_EXECUTION_DISABLED');
 });
+it('trusted-local accepts an asynchronous ESM factory in its dedicated Worker', async () => {
+  const runner=createCodeExecutor({mode:'trusted-local',authorized:true});
+  try {
+    const result=await runner.run({mode:'procedural',source:source.replace('export function','export async function')});
+    expect(result.document).toBeTruthy();
+  } finally {runner.close();}
+});
