@@ -24,6 +24,8 @@ export class DeveloperSettings {
     this.assetQuery = q('#asset-query');
     this.assetResults = q('#asset-results');
     this.lastValidation = null;
+    this.interactionSource = null;
+    this.interactionVersion = 0;
   }
 
   init() {
@@ -47,6 +49,13 @@ export class DeveloperSettings {
       await this.compileAndRegister({ bytes: new Uint8Array(await file.arrayBuffer()), sourceName: file.name });
     });
     this.dialog.querySelector('#asset-search-button').addEventListener('click', () => this.searchAssets());
+    this.dialog.querySelector('#prepare-interaction-button')?.addEventListener('click', () => this.prepareInteraction());
+    this.dialog.querySelector('#register-interaction-button')?.addEventListener('click', () => this.registerInteraction());
+    for(const selector of ['#compiler-file','#interaction-urdf']) this.dialog.querySelector(selector)?.addEventListener('change',()=>{
+      this.interactionVersion++;this.interactionSource=null;
+      const review=this.dialog.querySelector('#interaction-review');if(review)review.hidden=true;
+      const report=this.dialog.querySelector('#interaction-proposal');if(report)report.textContent='文件已变化，请重新分析候选。';
+    });
     this.assetQuery.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') { event.preventDefault(); this.searchAssets(); }
     });
@@ -152,6 +161,53 @@ export class DeveloperSettings {
       this.compilerReport.textContent = `编译失败：${error.message}`;
       this.log(`编译错误：${error.message}`, 'error');
     }
+  }
+
+  async prepareInteraction() {
+    const report=this.dialog.querySelector('#interaction-proposal'),button=this.dialog.querySelector('#prepare-interaction-button');
+    const panel=this.dialog.querySelector('#interaction-review');
+    const version=++this.interactionVersion;
+    this.interactionSource=null;panel.hidden=true;button.disabled=true;
+    try {
+      const file=this.dialog.querySelector('#compiler-file').files?.[0],urdf=this.dialog.querySelector('#interaction-urdf').files?.[0];
+      if(!file)throw new Error('请先选择 GLB 文件。');
+      if(file.size>32*1024*1024 || (urdf && urdf.size>1024*1024))throw new Error('GLB 上限 32 MiB，URDF 上限 1 MiB。');
+      report.textContent='正在分析几何和机械结构候选…';
+      const source={bytes:new Uint8Array(await file.arrayBuffer()),name:file.name,...(urdf?{urdfBytes:new Uint8Array(await urdf.arrayBuffer())}:{})};
+      const proposal=await this.world.assetModule.prepareInteraction(source);
+      if(version!==this.interactionVersion)return;
+      this.interactionSource=source;
+      const review={proposalId:proposal.proposalId,confirmed:true,physics:{body:proposal.parts.length?'fixed':'dynamic',mass:null,friction:null},
+        parts:proposal.parts.map(part=>({id:part.id,node:part.node,parent:part.parent || '$root',physics:{body:'dynamic',mass:null,friction:null},joint:{
+          type:part.joint.type,axis:part.joint.axis || null,parentAnchor:part.joint.parentAnchor || null,childAnchor:part.joint.childAnchor || null,limits:part.joint.limits || null
+        }}))};
+      this.dialog.querySelector('#interaction-review-json').value=JSON.stringify(review,null,2);
+      this.dialog.querySelector('#interaction-review-confirmed').checked=false;
+      report.textContent=`候选 ${proposal.parts.length} 个部件；操作：${proposal.operations.map(operation=>operation.action).join('、')}。均未验证、不可执行。\n`+
+        proposal.parts.map(part=>`${part.node} · ${part.joint.type} · 置信度 ${part.confidence ?? '未知'} · 缺失 ${part.missing.join('、')}`).join('\n')+
+        `\n碰撞代理（请检查）：${JSON.stringify(proposal.physics.colliders)}\n证据：${JSON.stringify(proposal.evidence)}`;
+      panel.hidden=false;
+    } catch(error) {if(version===this.interactionVersion)report.textContent=`分析失败：${error.message}`;}
+    finally {button.disabled=false;}
+  }
+
+  async registerInteraction() {
+    const report=this.dialog.querySelector('#interaction-proposal'),button=this.dialog.querySelector('#register-interaction-button');
+    const version=this.interactionVersion;
+    button.disabled=true;
+    try {
+      if(!this.interactionSource)throw new Error('请重新分析 GLB 候选。');
+      if(!this.dialog.querySelector('#interaction-review-confirmed').checked)throw new Error('请先检查并确认物理参数。');
+      const review=JSON.parse(this.dialog.querySelector('#interaction-review-json').value);
+      report.textContent='正在编译审核参数并进行隔离物理验证…';
+      const imported=await this.world.assetModule.importGLB({...this.interactionSource,review,level:'physical'});
+      if(version!==this.interactionVersion)return;
+      const verification=imported.manifest.verification.articulation;
+      report.textContent=`已注册 ${imported.manifest.label}；物理验证通过，关节 ${verification.tested} 个；整体准入 ${imported.admission.status}。`;
+      this.renderAssetResults(this.world.assetModule.catalog.list().slice(-8));
+      this.log(`审核资产已注册：${imported.manifest.id}`,'result');
+    } catch(error) {if(version===this.interactionVersion)report.textContent=`注册失败：${error.code || error.message}；未启用此候选。`;}
+    finally {button.disabled=false;}
   }
 
   searchAssets() {

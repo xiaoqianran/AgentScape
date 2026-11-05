@@ -1,4 +1,5 @@
 import { compileInteractionContract } from '../interaction/InteractionContract.js';
+import { assetAdmission } from '../../../asset/model/admission.js';
 
 const blocked = reason => ({ available: false, reason });
 const reasonOf = error => error.details?.reason || error.code || 'CAPABILITY_CHECK_FAILED';
@@ -50,6 +51,7 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
       execution: 'interaction', partName, contract,
       joint: structuredClone(manifest.parts[partName].joint), state: live,
       ...(!['open', 'close'].includes(contract.action) ? blocked('EXECUTOR_UNAVAILABLE') : !live ? blocked('ARTICULATION_PHYSICS_UNAVAILABLE') : {}),
+      ...(manifest.source?.kind==='compiled' && assetAdmission(manifest).layers.runtime.status!=='ready' ? blocked('RUNTIME_VERIFICATION_REQUIRED') : {}),
       ...(runtime.interactions.articulationTasks?.has(`${id}:${partName}`) ? blocked('ACTION_IN_PROGRESS') : {})
     });
   }
@@ -57,12 +59,19 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
     if (!['revolute', 'prismatic'].includes(part.joint?.type)) continue;
     const action = part.joint.type === 'prismatic' ? 'slide' : 'rotateJoint';
     const capability = runtime.interactions?.manipulationCapability?.(id, action, partName) || blocked('EXECUTOR_UNAVAILABLE');
+    let partAccess={};
+    if(actorId && runtime.store.has(actorId) && runtime.store.get(actorId).manifest.type==='agent') {
+      try {
+        const aimPoint=runtime.physics.manipulationBody(id,partName,{contacts:true}).contactCandidates[0]?.center;
+        if(aimPoint) {const reach=runtime.interactions.interactionStatus(actorId,id,{aimPoint});partAccess={available:reach.interactable,reason:reach.interactable?null:reach.inRange?'OCCLUDED':'OUT_OF_REACH',distance:reach.distance};}
+      } catch { /* Keep the root access diagnostic if a part cannot be queried. */ }
+    }
     const relative = action === 'slide' ? 'distance' : 'angle';
     add(action, { part: { type: 'string', enum: [partName], required: true },
       target: { type: 'number', required: false, alternative:relative, unit: action === 'slide' ? 'meter' : 'radian', limits: structuredClone(part.joint.limits || null) },
       [relative]: {type:'number', required:false, alternative:'target', relative:true, unit:action === 'slide' ? 'meter' : 'radian'} }, {
       execution: 'interaction', partName, joint: structuredClone(part.joint), state:runtime.physics?.getArticulationState?.(id,partName),
-      ...(!capability.available ? capability : {}), ...(actorId && runtime.interactions?.heldByAgent?.(actorId) ? blocked('HANDS_FULL') : {})
+      ...partAccess,...(!capability.available ? capability : {}), ...(actorId && runtime.interactions?.heldByAgent?.(actorId) ? blocked('HANDS_FULL') : {})
     });
   }
   if (manifest.physics?.colliders?.length) {

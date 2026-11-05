@@ -48,6 +48,7 @@ export class ManifestPass {
         resources: context.resources
       },
       provenance: {
+        ...(context.interactionReview ? {interactionReview:structuredClone(context.interactionReview)} : {}),
         ...(context.authoringIntent ? { authoringIntent:structuredClone(context.authoringIntent) } : {}),
         sourceUrl: context.sourceUrl || null,
         compiler:'AgentScape',

@@ -52,6 +52,17 @@ export function DeveloperSettingsView() {
             <div className="settings-body">
               <div className="inline-input"><input id="compiler-url" type="url" placeholder="https://…/model.glb" /><button id="compile-url-button" type="button">编译 URL</button></div>
               <div className="inline-input"><input id="compiler-file" type="file" accept=".glb,model/gltf-binary" /><button id="compile-file-button" type="button">编译文件</button></div>
+              <label className="settings-help" htmlFor="interaction-urdf">可选 URDF 结构（需与 GLB 节点对齐）</label>
+              <input id="interaction-urdf" type="file" accept=".urdf,application/xml,text/xml" />
+              <div className="button-row"><button id="prepare-interaction-button" type="button">分析可交互能力</button></div>
+              <div id="interaction-proposal" className="technical-report" aria-live="polite">选择 GLB，先生成候选，再确认物理参数。</div>
+              <div id="interaction-review" hidden>
+                <label htmlFor="interaction-review-json">审核物理参数与部件（JSON）</label>
+                <p className="settings-help">填写质量、摩擦及缺失的关节轴、锚点和限位。碰撞体可修改为 box，或省略以采用生成的碰撞代理。候选名称和置信度不证明物体可操作。</p>
+                <textarea id="interaction-review-json" className="interaction-review-editor" rows={14} spellCheck={false} />
+                <label className="settings-help interaction-confirmation"><input id="interaction-review-confirmed" type="checkbox" /> 我已检查碰撞代理和上述物理参数</label>
+                <div className="button-row"><button id="register-interaction-button" type="button">验证并注册到资产库</button></div>
+              </div>
               <p className="settings-help">远程编译服务未配置时，编译器自动跳过远程增强并保留本地检查路径。</p>
               <div id="compiler-report" className="technical-report">尚未编译资产。</div>
             </div>

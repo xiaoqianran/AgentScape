@@ -40,6 +40,12 @@ export function registerTools(server,manager,owner,assets) {
    }
   }
  };
+ const decodeModel=model=>{
+  if(model?.asset?.kind!=='glb') return model;
+  const source=z.object({kind:z.literal('glb'),name:z.string().min(1).max(128).optional(),bytesBase64:z.string().min(1).max(45*1024*1024),urdfBase64:z.string().min(1).max(2*1024*1024).optional(),review:z.record(z.string(),z.unknown()).optional()}).strict().parse(model.asset);
+  const decode=text=>{const bytes=Buffer.from(text,'base64');if(bytes.toString('base64')!==text) throw new Error('INVALID_RESOURCE_ENCODING');return new Uint8Array(bytes);};
+  return {...model,asset:{kind:'glb',bytes:decode(source.bytesBase64),...(source.name?{name:source.name}:{}),...(source.urdfBase64?{urdfBytes:decode(source.urdfBase64)}:{}),...(source.review?{review:source.review}:{})}};
+ };
  const authoringAction=(a,skill,args,e)=>manager.run(owner,a.worldSessionId,(s,signal)=>s.host.execute(skill,args,signal),{requestId:a.requestId,fingerprint:JSON.stringify([skill,args]),signal:e.signal});
  add('authoring_execute','Build static Three.js draft in a bounded isolated WASM runtime. Supports THREE, scene, clear; no network, imports, runtime callbacks or model references. Nothing enters physics until explicitly promoted.',{...session,code:z.string().min(1).max(32768),label:z.string().max(100).default('AI 创作'),requestId:z.uuid()},(a,e)=>authoringAction(a,'runAuthoringCode',{code:a.code,label:a.label},e));
  add('authoring_observe','List draft node IDs, prepared assets, world entities and admission/verification states.',session,(a,e)=>run(a,s=>s.host.tools.call('listAuthoringNodes',{}),e));
@@ -76,7 +82,7 @@ export function registerTools(server,manager,owner,assets) {
  add('scene_job','Read task completion and physical verification separately.',job,(a,e)=>run(a,s=>s.host.scene.getJob(a.jobId),e));
  add('scene_cancel','Request task cancellation and query until terminal.',job,(a,e)=>run(a,s=>s.host.scene.cancelJob(a.jobId),e));
  add('scene_verify','Evaluate explicit postconditions through the common verifier.',{...session,criteria:z.array(check).min(1).max(32)},(a,e)=>run(a,s=>s.host.scene.verify(a.criteria),e));
- add('scene_add_model','Add an existing AssetRef or a bounded declarative Recipe through Scene API.',{...session,requestId:z.uuid(),model:z.record(z.string(),z.unknown())},(a,e)=>manager.run(owner,a.worldSessionId,async s=>{await attachSceneAssets(s,[a.model.asset]);return s.host.scene.addModel(a.model);},{requestId:a.requestId,fingerprint:JSON.stringify(['scene_add_model',a.model]),signal:e.signal}));
+ add('scene_add_model','Prepare a GLB/URDF capability proposal with mode=prepare, or add an AssetRef, Recipe or reviewed GLB with mode=add. GLB bytes use bytesBase64; optional URDF uses urdfBase64. Review is configuration, never physics verification.',{...session,requestId:z.uuid(),mode:z.enum(['prepare','add']).default('add'),model:z.record(z.string(),z.unknown())},(a,e)=>manager.run(owner,a.worldSessionId,async s=>{const model=decodeModel(a.model);if(a.mode==='prepare')return s.host.scene.prepareAsset(model.asset);await attachSceneAssets(s,[model.asset]);return s.host.scene.addModel(model);},{requestId:a.requestId,fingerprint:JSON.stringify(['scene_add_model',a.mode,a.model]),signal:e.signal}));
  add('scene_save','Export a complete portable project with bounded embedded dependencies.',session,(a,e)=>run(a,async s=>{
   const result=await s.host.scene.save({readResource:async url=>{
    const prefix='data:model/gltf-binary;base64,';

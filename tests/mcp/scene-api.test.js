@@ -7,6 +7,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { startServer } from '../../apps/mcp-server/main.mjs';
 import { openScenePackage } from '../../application/scene/ScenePackage.js';
 import { createCabinAffordances } from '../../modules/world/content/magic-cabin/affordances.js';
+import {compileRecipeGeometry} from '../../modules/asset/production/AssetRecipe.js';
 
 it('shares Scene edits with legacy observation and returns real asynchronous job evidence', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'agentscape-scene-'));
@@ -47,10 +48,16 @@ it('shares Scene edits with legacy observation and returns real asynchronous job
     expect(held.actions.find(action => action.action === 'setTransform')).toMatchObject({ available: false, reason: 'OBJECT_HELD' });
     host.world.interactions.drop('held_test');
     await call('scene_apply', { ...base, requestId: randomUUID(), operations: [{ type: 'remove', id: 'held_test' }] });
-    await call('scene_add_model', { ...base, requestId: randomUUID(), model: { id:'novel_box', position:[.65,0,9], asset:{
+    const binary=await compileRecipeGeometry({
       schema:'agentscape.asset-recipe',schemaVersion:1,id:'mcp/novel_box',
       parts:[{id:'box',geometry:{type:'box',size:[.4,.4,.4]},position:[0,.2,0]}],
-      capabilities:{level:'physical',physics:{body:'dynamic',mass:2,friction:.5,colliders:[{shape:'box',halfExtents:[.2,.2,.2],translation:[0,.2,0]}]}}
+    });
+    const source={kind:'glb',name:'external_box.glb',bytesBase64:Buffer.from(binary.bytes).toString('base64')};
+    const proposal=await call('scene_add_model',{...base,requestId:randomUUID(),mode:'prepare',model:{asset:source}});
+    expect(proposal.operations.every(action=>!action.executable && !action.physicsVerified)).toBe(true);
+    expect((await call('world_observe',base)).objects).toHaveLength(4);
+    await call('scene_add_model', { ...base, requestId: randomUUID(), model: { id:'novel_box', position:[.65,0,9], asset:{...source,
+      review:{proposalId:proposal.proposalId,confirmed:true,physics:{body:'dynamic',mass:2,friction:.5},parts:[]}
     } } });
     const discovered = await call('scene_observe', { ...base, target:'novel_box', actor:'agent_01' });
     expect(discovered.actions.find(action=>action.action==='push')).toMatchObject({available:true});

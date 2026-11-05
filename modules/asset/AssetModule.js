@@ -8,7 +8,7 @@ import { AssetManifestStore } from './persistence/AssetManifestStore.js';
 import { LocalAssetLibrary } from './persistence/LocalAssetLibrary.js';
 import { LocalAssetLibraryStore } from './persistence/LocalAssetLibraryStore.js';
 import { assetAdmission } from './model/admission.js';
-import { recipeSchema, canonicalAssetJson, assetDigest, assertEmbeddedGLB } from './model/AssetInputContracts.js';
+import { recipeSchema, canonicalAssetJson, assetDigest, assertEmbeddedGLB, interactionReviewSchema } from './model/AssetInputContracts.js';
 
 export async function verifyAndUpdateAssetArticulation(assets,assetId,options) {
  const report=await assets.verifyArticulation(assetId,options);
@@ -130,10 +130,61 @@ export function createAssetModule({
         ? await compiler.compileVisual({ bytes, assetId: id, label: definition.label })
         : await compiler.compile({ bytes, assetId: id, sourceName: 'package.glb', definition, authoringIntent: { usage: 'interactive' } });
       output.manifest.capabilityLevel = definition.capabilityLevel;
+      if(Object.values(output.manifest.parts || {}).some(part=>part.joint && part.joint.type!=='fixed')) {
+        if(!articulationVerifier) throw Object.assign(new Error('Runtime verification unavailable'),{code:'RUNTIME_VERIFICATION_UNAVAILABLE'});
+        const report=await articulationVerifier.verify(id,{manifest:output.manifest,requireRegistration:true,requireSettled:true,
+          instantiate:async()=>({object:await loader.loadCompiled(output.manifest.source)})});
+        if(!report.ok) throw Object.assign(new Error('Package articulation failed validation'),{code:'ASSET_PHYSICS_VERIFICATION_FAILED',details:report});
+        output.manifest.verification={articulation:report};
+        output.manifest.compiler.quality.advisory=output.manifest.compiler.quality.advisory.filter(item=>item.code!=='ARTICULATION_UNVERIFIED');
+        output.manifest.compiler.quality.status=output.manifest.compiler.quality.advisory.length?'provisional':'ready';
+      }
       await module.registerManifest(output.manifest);
       return { manifest: output.manifest, admission: assetAdmission(output.manifest) };
     },
-    async importGLB({ bytes, level = 'visual', label = 'Imported model' }) {
+    async prepareInteraction({bytes,urdfBytes,name='import.glb'}) {
+      if(!(bytes instanceof Uint8Array) || bytes.byteLength>32*1024*1024) throw Object.assign(new Error('Invalid GLB input'),{code:'ASSET_INPUT_INVALID'});
+      bytes=bytes.slice();assertEmbeddedGLB(bytes);
+      let partProposal=null,urdfHash=null;
+      if(urdfBytes) {
+        if(!(urdfBytes instanceof Uint8Array) || !urdfBytes.length || urdfBytes.length>1024*1024) throw Object.assign(new Error('Invalid URDF input'),{code:'ASSET_INPUT_INVALID'});
+        urdfBytes=urdfBytes.slice();urdfHash=await assetDigest(urdfBytes);
+        if(!configuredCompilerProvider?.runUrdfProposal || configuredCompilerProvider.isConfigured?.()===false) throw Object.assign(new Error('URDF requires the configured compiler provider'),{code:'URDF_PROVIDER_UNAVAILABLE'});
+        const response=await configuredCompilerProvider.runUrdfProposal(urdfBytes);
+        partProposal=response.partProposal;
+        if(partProposal?.version!==1 || !Array.isArray(partProposal.parts) || partProposal.parts.length>32) throw Object.assign(new Error('Invalid URDF proposal'),{code:'CAPABILITY_PROPOSAL_INVALID'});
+      }
+      const {AssetCompiler}=await import('./production/compiler/AssetCompiler.js');
+      return new AssetCompiler({store,version:'interaction-v1'}).proposeInteraction({bytes,sourceName:name,partProposal,urdfHash});
+    },
+    async importReviewedGLB({bytes,urdfBytes,name='import.glb',review,level='physical'}) {
+      review=interactionReviewSchema.parse(review);
+      bytes=bytes.slice();urdfBytes=urdfBytes?.slice();
+      const proposal=await module.prepareInteraction({bytes,urdfBytes,name});
+      if(review.proposalId!==proposal.proposalId) throw Object.assign(new Error('Review does not match the imported source'),{code:'PROPOSAL_MISMATCH'});
+      const hash=await assetDigest(new TextEncoder().encode(canonicalAssetJson({source:proposal.sourceHash,review,compiler:'interaction-v1'}))),assetId=`asset_${hash}`;
+      if(registry.has(assetId)) return {asset:`asset://sha256/${hash}`,manifest:registry.getManifest(assetId),admission:assetAdmission(registry.getManifest(assetId))};
+      if(!articulationVerifier) throw Object.assign(new Error('Runtime verification unavailable'),{code:'RUNTIME_VERIFICATION_UNAVAILABLE'});
+      const {AssetCompiler}=await import('./production/compiler/AssetCompiler.js');
+      const output=await new AssetCompiler({store,version:'interaction-v1'}).compile({bytes,assetId,sourceName:name,
+        authoringIntent:{usage:'interactive'},interactionReview:review,
+        partProposal:review.parts.length ? {version:1,source:'reviewed-capability-proposal',parts:review.parts.map(part=>({...part,actions:[],targets:{}}))} : null});
+      try {
+        if(Object.keys(output.manifest.parts || {}).length!==review.parts.length) throw Object.assign(new Error('Part review did not compile'),{code:'CAPABILITY_REVIEW_INVALID'});
+        const report=await articulationVerifier.verify(assetId,{manifest:output.manifest,requireRegistration:true,verifyRigidBody:true,requireSettled:true,
+          instantiate:async()=>({object:await loader.loadCompiled(output.manifest.source)})});
+        if(!report.ok || !report.physicsRegistered || report.tested!==review.parts.length || report.parts.some(part=>!part.actions?.some(action=>action.moved))) throw Object.assign(new Error('Imported physics failed validation'),{code:'ASSET_PHYSICS_VERIFICATION_FAILED',details:report});
+        output.manifest.verification={articulation:report};
+        output.manifest.capabilityLevel=level;output.manifest.contentHash=hash;
+        output.manifest.compiler.quality.advisory=output.manifest.compiler.quality.advisory.filter(item=>item.code!=='ARTICULATION_UNVERIFIED');
+        output.manifest.compiler.quality.status=output.manifest.compiler.quality.advisory.length?'provisional':'ready';
+        output.manifest.provenance.interactionSource={sourceHash:proposal.sourceHash,urdfHash:proposal.urdfHash,proposalId:proposal.proposalId};
+        await module.registerManifest(output.manifest);
+        return {asset:`asset://sha256/${hash}`,manifest:output.manifest,admission:assetAdmission(output.manifest)};
+      } catch(error) { await store.delete?.(assetId);throw error; }
+    },
+    async importGLB({ bytes, level = 'visual', label = 'Imported model', review = null, urdfBytes, name }) {
+      if(review) return module.importReviewedGLB({bytes,level,review,urdfBytes,name});
       if (level !== 'visual') throw Object.assign(new Error('GLB physical import requires an explicit compiled definition'), { code: 'CAPABILITY_UNAVAILABLE' });
       if (!(bytes instanceof Uint8Array) || bytes.byteLength > 32 * 1024 * 1024) throw Object.assign(new Error('Invalid GLB input'), { code: 'ASSET_INPUT_INVALID' });
       // Own the input before asynchronous hashing; callers may reuse their buffer.

@@ -5,6 +5,7 @@ import { assetManifests } from '../../modules/asset/registry/manifests/index.js'
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { stylePackSchema } from '../../modules/rendering/style/StylePack.js';
 import { RUNTIME_VERSION } from '../../foundation/version.js';
+import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const descriptor = z.object({ id: z.string().min(1).max(100), sha256: hash, bytes: z.string().max(45 * 1024 * 1024), definition: z.record(z.string(), z.unknown()) }).strict();
@@ -82,6 +83,7 @@ export async function openScenePackage(input, { container = null, assetModule = 
     assertEmbeddedGLB(bytes); prepared.push({ ...item, bytes });
   }
   const assets = assetModule || createAssetModule({ volatile: true, manifests: Object.fromEntries(Object.entries(assetManifests).filter(([id]) => !ids.has(id))), manifestStore: null, libraryStore: null });
+  assets.configureVerification({articulationVerifier:new ArticulationVerifier({assetRegistry:assets.registry,assetLoader:assets.loader})});
   for (const item of prepared) {
     await assets.importPackageAsset(item);
   }

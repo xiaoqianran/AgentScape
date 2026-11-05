@@ -3,7 +3,15 @@ export type Quaternion = [number, number, number, number];
 export type CapabilityLevel = 'visual' | 'physical' | 'interactive';
 export interface Transform { position?: Vec3; quaternion?: Quaternion; scale?: number }
 export interface AssetRecipe { schema: 'agentscape.asset-recipe'; schemaVersion: 1; id: string; parts: unknown[]; capabilities?: { level: CapabilityLevel; physics?: unknown; actions?: string[]; surfaces?: unknown[] } }
-export interface ModelInput { id: string; asset: string | AssetRecipe | { kind: 'glb'; bytes: Uint8Array }; level?: CapabilityLevel; transform?: Transform; position?: Vec3 }
+export interface ReviewPhysics { body: 'fixed' | 'dynamic'; mass: number; friction: number; colliders?: Array<{shape:'box';halfExtents:Vec3;translation?:Vec3}> }
+export interface InteractionReview { proposalId:string; confirmed:true; physics:ReviewPhysics; parts?: Array<{id:string;node:string;parent?:string;physics:ReviewPhysics;
+  joint:{type:'prismatic'|'revolute';axis:Vec3;parentAnchor:Vec3;childAnchor:Vec3;limits:[number,number];motor?:{stiffness:number;damping:number}}}> }
+export interface GLBInput { kind:'glb';bytes:Uint8Array;name?:string;urdfBytes?:Uint8Array;review?:InteractionReview }
+export interface CapabilityProposal { schema:'agentscape.capability-proposal';schemaVersion:1;proposalId:string;sourceHash:string;urdfHash:string|null;compilerVersion:string;
+  physics:{body:null;mass:null;friction:null;colliders:unknown[]};
+  parts:Array<{id:string;node:string;parent?:string;joint:Record<string,unknown>;physics?:Record<string,unknown>;confidence?:number;executable:false;physicsVerified:false;missing:string[]}>;
+  operations:Array<{action:string;part?:string;executable:false;physicsVerified:false;requires:string}>;missing:string[];evidence:Record<string,unknown> }
+export interface ModelInput { id: string; asset: string | AssetRecipe | GLBInput; level?: CapabilityLevel; transform?: Transform; position?: Vec3 }
 export interface Diagnostic { code: string; message: string; stage: string; retryable: boolean }
 export type AdmissionStatus = 'ready' | 'provisional' | 'rejected';
 export interface AdmissionLayer { status: AdmissionStatus; reasons: string[]; required: boolean }
@@ -34,6 +42,7 @@ export type PhysicalInteraction = { action: 'push' | 'drag'; actor: string; targ
   | { action: 'rotateJoint'; actor: string; target: string; args: { part: string } & ({ target: number; angle?: never } | { angle: number; target?: never }) };
 export type Interaction = PhysicalInteraction | { action: 'navigate'; actor: string; position: Vec3 } | { action: 'pickup'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string };
 export interface SceneHandle {
+  prepareAsset(input:Omit<GLBInput,'review'>):Promise<CapabilityProposal>;
   inspect(target: string, options?: { actor?: string }): ObjectAffordances;
   observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; style: Record<string, unknown> | null; affordances: AffordanceListing; objects: Array<{ id: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };
   addModel(input: ModelInput): Promise<SceneResult>;

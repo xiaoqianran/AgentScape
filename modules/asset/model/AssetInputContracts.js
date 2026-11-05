@@ -8,6 +8,19 @@ const id = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
 export const packagePath = z.string().max(240).refine(value => value.startsWith('./') && value.slice(2).split('/').every(p => /^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(p) && !p.endsWith('.') && !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p)));
 const boxCollider = z.object({ shape: z.literal('box'), halfExtents: sizes, translation: vector.default(() => [0, 0, 0]) }).strict();
 const physics = z.object({ body: z.enum(['fixed', 'dynamic']), mass: size.default(1), friction: z.number().min(0).max(2).default(0.5), colliders: z.array(boxCollider).min(1).max(64) }).strict();
+const reviewedPhysics = z.object({ body:z.enum(['fixed','dynamic']), mass:size, friction:z.number().min(0).max(2),
+  colliders:z.array(boxCollider).max(64).optional() }).strict();
+export const interactionReviewSchema = z.object({
+  proposalId:z.string().regex(/^[a-f0-9]{64}$/), confirmed:z.literal(true), physics:reviewedPhysics,
+  parts:z.array(z.object({ id, node:z.string().min(1).max(128), parent:z.string().min(1).max(64).default('$root'),
+    physics:reviewedPhysics.refine(value=>value.body==='dynamic','Moving parts require dynamic bodies'),
+    joint:z.object({ type:z.enum(['prismatic','revolute']), axis:vector.refine(value=>Math.hypot(...value)>1e-6),
+      parentAnchor:vector, childAnchor:vector, limits:z.tuple([number,number]).refine(([a,b])=>a<b && a<=0 && b>=0,'Limits must contain the GLB rest-zero pose'),
+      motor:z.object({stiffness:z.number().positive().max(1000),damping:z.number().positive().max(100)}).strict().default(()=>({stiffness:80,damping:12}))
+    }).strict()
+  }).strict()).max(32).default([])
+}).strict().refine(value=>new Set(value.parts.map(part=>part.id)).size===value.parts.length && new Set(value.parts.map(part=>part.node)).size===value.parts.length,'Duplicate part id or node');
+export const glbInputSchema = z.object({kind:z.literal('glb'),bytes:z.instanceof(Uint8Array),name:z.string().min(1).max(128).optional(),urdfBytes:z.instanceof(Uint8Array).optional(),review:interactionReviewSchema.optional()}).strict();
 export const recipeSchema = z.object({
   schema: z.literal('agentscape.asset-recipe'), schemaVersion: z.literal(1),
   id: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]*(\/[A-Za-z][A-Za-z0-9_-]*)?$/).max(100),

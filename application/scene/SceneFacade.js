@@ -5,7 +5,8 @@ import { createMonumentHall } from '../../modules/world/content/monumentHall.js'
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { assetAdmission } from '../../modules/asset/model/admission.js';
-import { recipeSchema } from '../../modules/asset/model/AssetInputContracts.js';
+import { recipeSchema, glbInputSchema } from '../../modules/asset/model/AssetInputContracts.js';
+import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 import { StyleSystem } from '../../modules/rendering/style/StyleSystem.js';
 import { compileWorldAcceptance, evaluateWorldAcceptance } from '../../modules/world/verification/WorldAcceptance.js';
 import { SkillRegistry } from '../skills/SkillRegistry.js';
@@ -77,8 +78,9 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     }
     if (!world.assetModule.hasAsset(key)) throw sceneError('ASSET_UNAVAILABLE');
     const manifest = world.assetModule.getManifest(key);
-    if (requested !== 'visual' && !manifest.physics?.colliders?.length) throw sceneError('CAPABILITY_UNAVAILABLE');
-    if (requested === 'interactive' && !manifest.actions?.length) throw sceneError('CAPABILITY_UNAVAILABLE');
+    const physicalParts=Object.values(manifest.parts || {}).some(part=>part.physics?.colliders?.length && part.joint);
+    if (requested !== 'visual' && !manifest.physics?.colliders?.length && !physicalParts) throw sceneError('CAPABILITY_UNAVAILABLE');
+    if (requested === 'interactive' && !manifest.actions?.length && !physicalParts && manifest.physics?.body!=='dynamic') throw sceneError('CAPABILITY_UNAVAILABLE');
     if (assetAdmission(manifest).status === 'rejected') throw sceneError('ASSET_REJECTED');
     return key;
   };
@@ -154,16 +156,20 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       if (!SCENE_LEGACY_SKILLS.includes(name)) throw sceneError('SKILL_FORBIDDEN');
       return exclusive(() => tools.call(name, args));
     },
+    async prepareAsset(input) {
+      const source=glbInputSchema.omit({review:true}).parse(input);
+      return exclusive(()=>world.assetModule.prepareInteraction(source));
+    },
     async addModel(input) {
       assertIdle();
       if (typeof input?.asset !== 'string') {
         const source = input?.asset;
-        const glb = source?.kind === 'glb' ? z.object({ kind: z.literal('glb'), bytes: z.instanceof(Uint8Array) }).strict().parse(source) : null;
+        const glb = source?.kind === 'glb' ? glbInputSchema.parse(source) : null;
         const recipe = glb ? null : recipeSchema.parse(source);
-        const requested = input.level ?? (glb ? 'visual' : recipe.capabilities.level);
+        const requested = input.level ?? (glb ? glb.review ? 'physical' : 'visual' : recipe.capabilities.level);
         const model = modelSchema.parse({ ...input, asset: 'builtin://pending', level: requested });
         return exclusive(async () => {
-          const resolved = glb ? await world.assetModule.importGLB({ bytes: glb.bytes, level: requested }) : await world.assetModule.importRecipe(recipe);
+          const resolved = glb ? await world.assetModule.importGLB({ ...glb, level: requested }) : await world.assetModule.importRecipe(recipe);
           return executeEdit({ type: 'add', model: { ...model, asset: resolved.asset } });
         });
       }
@@ -242,6 +248,7 @@ export async function openScene({ project, container = null, assetModule = null 
   const definition = parseSceneProject(project);
   const assets = assetModule || createAssetModule({ volatile: true, manifests: Object.fromEntries(['agent', 'cup', 'table', 'chair'].map(key => [key, structuredClone(assetManifests[key])])), manifestStore: null, libraryStore: null });
   const world = new WorldRuntime({ assetModule: assets, environmentFactory: () => createMonumentHall({ loadAssets: false }) });
+  assets.configureVerification({articulationVerifier:new ArticulationVerifier({assetRegistry:assets.registry,assetLoader:assets.loader})});
   if (container) world.attachRendering(new RenderingSystem({ container, scene: world.scene, events: world.events, rendererMode: 'webgl' }));
   world.skills = new SkillRegistry({ policy: world.policy, trace: world.trace, runtime: world });
   const add = (name, options, handler) => world.skills.register({ name, ...options, handler });
