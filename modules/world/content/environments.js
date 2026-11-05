@@ -1,5 +1,13 @@
 export const ENVIRONMENTS = Object.freeze([
   Object.freeze({
+    id:'blank-world',number:'世界 00',title:'空白实验世界',headline:'从一块空地开始搭建世界。',
+    description:'没有现成建筑的独立物理场景，使用通用资产接口放置桌子、杯子和智能体。',
+    facts:['空白场景','真实地面碰撞','可移动智能体'],worldFirst:true,
+    load:()=>import('./blankWorld.js').then(module=>module.createBlankWorld),
+    bootstrap:{agent:[-2,0,1],table:[0,0,-2],cup:[0,1.08,-2]},
+    coffeeCorner:{table:[0,0,-2]}
+  }),
+  Object.freeze({
     id:'magic-cabin',number:'世界 05',title:'魔女小屋 · 原版迁移',headline:'走进原来的二层小屋。',
     description:'原版线稿小屋：旋转楼梯、两层生活空间、门窗、书籍、魔法陈设与原地编辑。',
     facts:['原版双层房屋','丰富物件交互','世界优先'],worldFirst:true,cabin:true,
