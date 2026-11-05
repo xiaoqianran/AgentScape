@@ -13,6 +13,11 @@
       "source": "/observatory",
       "destination": "/observatory/",
       "permanent": true
+    },
+    {
+      "source": "/starter",
+      "destination": "/starter/",
+      "permanent": true
     }
   ]
 }

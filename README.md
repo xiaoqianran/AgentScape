@@ -4,7 +4,7 @@
 
 Three.js rendering, Rapier physics and Recast navigation share one world state. Characters can walk to objects, pick them up and place them on surfaces. The runtime reports what actually happened, separately from what was requested.
 
-[简体中文](README.zh-CN.md) · [First world](apps/starter/README.md) · [MCP for AI agents](apps/mcp-server/README.md) · [Contribute](CONTRIBUTING.md)
+[Live Studio](https://agentscape-virid.vercel.app/) · [Live Starter](https://agentscape-virid.vercel.app/starter/) · [简体中文](README.zh-CN.md) · [First world](apps/starter/README.md) · [MCP for AI agents](apps/mcp-server/README.md) · [Contribute](CONTRIBUTING.md)
 
 ![Starter after a verified pickup/place and a fresh-page restore](docs/evidence/starter-first-world.png)
 
@@ -25,7 +25,7 @@ Open the `/starter/` URL printed by Vite, normally `http://127.0.0.1:5173/starte
 2. Add a chair and move it.
 3. Download the world, reload the page, and open the saved JSON file.
 
-The starter uses bundled assets: **no model API key, generation service or Docker required**. Package installation needs internet access. This is a local demo; a hosted Playground is not published by this change.
+The starter uses bundled assets: **no model API key, generation service or Docker required**. Package installation needs internet access. A public static preview is available on Vercel: [Studio](https://agentscape-virid.vercel.app/), [Starter](https://agentscape-virid.vercel.app/starter/), [Home](https://agentscape-virid.vercel.app/home/) and [Observatory](https://agentscape-virid.vercel.app/observatory/). The preview does not expose the private MCP server or optional local generation services.
 
 ## Make it yours
 

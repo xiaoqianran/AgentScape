@@ -2,24 +2,35 @@ name: Production Smoke Check
 
 on:
   workflow_dispatch:
+  deployment_status:
 
 permissions:
   contents: read
 
 jobs:
   vercel-production:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
-      - name: Verify public Vercel production
+      - name: Verify all public Vercel entry points
         env:
-          URL: https://agentscape-virid.vercel.app/
+          URL: https://agentscape-virid.vercel.app
         run: |
           set -euo pipefail
-          html="$(mktemp)"
-          curl --fail --location --silent --show-error             --retry 6 --retry-delay 2 --retry-all-errors             --connect-timeout 10 --max-time 30             "$URL" -o "$html"
-          grep -q '<title>AgentScape</title>' "$html"
-          asset="$(grep -oE '(src|href)="/assets/[^"]+"' "$html" | head -1 | cut -d'"' -f2)"
-          test -n "$asset"
-          curl --fail --location --silent --show-error             --retry 4 --retry-delay 2 --retry-all-errors             --connect-timeout 10 --max-time 30             "${URL%/}${asset}" -o /dev/null
+          for entry in "/|AgentScape" "/home/|AgentScape Home" "/starter/|AgentScape · First world" "/observatory/|AgentScape Observatory"; do
+            path="${entry%%|*}"
+            title="${entry#*|}"
+            html="$(mktemp)"
+            curl --fail --location --silent --show-error --retry 6 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 30 "${URL}${path}" -o "$html"
+            grep -Fq "<title>${title}</title>" "$html"
+            asset="$(grep -oE 'src="/assets/[^"]+\.js"' "$html" | head -1 | cut -d'"' -f2)"
+            test -n "$asset"
+            curl --fail --location --silent --show-error --retry 4 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 30 "${URL}${asset}" -o /dev/null
+            echo "Verified ${path} and ${asset}"
+            rm -f "$html"
+          done
           echo "Vercel production smoke passed: $URL"
