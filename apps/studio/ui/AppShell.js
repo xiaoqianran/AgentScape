@@ -68,6 +68,7 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     shell,
     panel,
     viewport,
+    isWorldVisible:()=>useStudioStore.getState().product.activePage === 'world',
     developerDialog:app.querySelector('#developer-dialog'),
     setView,
     setPage,

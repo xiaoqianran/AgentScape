@@ -17,6 +17,29 @@ export function mountWorldContext({ world, editor, tools, ui }) {
   const scene=createSceneFacade(world);
   let busy = false;
   let selected = null;
+  let frame = null;
+  let viewportWidth = ui.viewport.clientWidth;
+  let viewportHeight = ui.viewport.clientHeight;
+  let cardWidth = 270;
+  let cardHeight = 0;
+  const measureViewport = () => {
+    viewportWidth = ui.viewport.clientWidth;
+    viewportHeight = ui.viewport.clientHeight;
+  };
+  const measureCard = () => {
+    if (card.hidden) return;
+    cardWidth = card.offsetWidth;
+    cardHeight = card.offsetHeight;
+  };
+  const sizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.target === ui.viewport) measureViewport();
+      if (entry.target === card) measureCard();
+    }
+  }) : null;
+  sizeObserver?.observe(ui.viewport);
+  sizeObserver?.observe(card);
+  if (!sizeObserver) window.addEventListener('resize', measureViewport);
   const button = (label, run) => {
     const element = document.createElement('button');
     element.type = 'button';
@@ -27,10 +50,15 @@ export function mountWorldContext({ world, editor, tools, ui }) {
   };
   const render = () => {
     selected = editor.selectedId;
-    card.hidden = !selected || !world.queries.hasObject(selected);
+    const hasSelection = Boolean(selected && world.queries.hasObject(selected));
+    if (card.hidden !== !hasSelection) card.hidden = !hasSelection;
     actions.replaceChildren();
     status.textContent = '';
-    if (card.hidden) return;
+    if (!hasSelection) {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+      return;
+    }
     const actor=scene.actors().selected;
     const affordances=scene.inspect(selected,actor?{actor}:{});
     title.textContent = selected;
@@ -67,26 +95,42 @@ export function mountWorldContext({ world, editor, tools, ui }) {
       ui.prefillAgentCommand?.(`请操作对象 ${selected}：`);
     });
     button('取消选择', () => editor.select(null));
+    measureCard();
+    if (frame === null) frame = requestAnimationFrame(update);
   };
   const off = world.events.on('editor.selection', render);
   const offActor=world.events.on('scene.actor.selected',render);
   const point = new THREE.Vector3();
   const viewport = world.rendering.viewport();
-  let frame;
   const update = () => {
+    frame = null;
     if (selected && world.queries.hasObject(selected)) {
       const bounds = world.queries.getBounds(selected);
       point.fromArray(bounds.center);
       point.y = bounds.max[1] + 0.25;
       point.project(viewport.camera);
-      card.hidden = point.z < -1 || point.z > 1 || Math.abs(point.x) > 1.1 || Math.abs(point.y) > 1.1;
-      const width = ui.viewport.clientWidth;
-      const height = ui.viewport.clientHeight;
-      card.style.left = `${Math.max(12, Math.min(width-card.offsetWidth-12,(point.x+1)*width/2))}px`;
-      card.style.top = `${Math.max(60,Math.min(height-card.offsetHeight-80,(1-point.y)*height/2))}px`;
-    } else card.hidden = true;
-    frame = requestAnimationFrame(update);
+      // Hysteresis prevents flickering at the edge of the viewport.
+      const limit = card.hidden ? 1.02 : 1.12;
+      const visible = point.z >= -1 && point.z <= 1 && Math.abs(point.x) <= limit && Math.abs(point.y) <= limit;
+      if (card.hidden !== !visible) {
+        card.hidden = !visible;
+        if (visible) measureCard();
+      }
+      if (visible) {
+        const x = Math.round(Math.max(12, Math.min(viewportWidth-cardWidth-12,(point.x+1)*viewportWidth/2)));
+        const y = Math.round(Math.max(60,Math.min(viewportHeight-cardHeight-80,(1-point.y)*viewportHeight/2)));
+        const transform = 'translate3d(' + x + 'px, ' + y + 'px, 0)';
+        if (card.style.transform !== transform) card.style.transform = transform;
+      }
+      frame = requestAnimationFrame(update);
+    } else if (!card.hidden) card.hidden = true;
   };
-  update();
-  return { dispose() { cancelAnimationFrame(frame); if (typeof off === 'function') off();offActor?.();card.remove(); } };
+  return { dispose() {
+    if (frame !== null) cancelAnimationFrame(frame);
+    sizeObserver?.disconnect();
+    if (!sizeObserver) window.removeEventListener('resize', measureViewport);
+    if (typeof off === 'function') off();
+    offActor?.();
+    card.remove();
+  } };
 }

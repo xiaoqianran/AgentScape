@@ -82,7 +82,8 @@ export async function createStudioRuntime({
   const editor = worldSurface.editor;
   const runtimeDriver = new RuntimeDriver(world, {
     authoring,
-    syncInput:(frameTime)=>worldSurface.syncInput(frameTime)
+    syncInput:(frameTime)=>worldSurface.syncInput(frameTime),
+    shouldRender:()=>ui.isWorldVisible?.() ?? true
   }).start();
 
   return {

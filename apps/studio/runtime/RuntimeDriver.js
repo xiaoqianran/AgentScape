@@ -5,13 +5,15 @@ export class RuntimeDriver {
     now = () => performance.now(),
     windowTarget = globalThis.window,
     syncInput = null,
-    authoring = null
+    authoring = null,
+    shouldRender = () => true
   } = {}) {
     if (!world?.simulation) throw new TypeError('RuntimeDriver requires world.simulation');
     if (!world?.rendering) throw new TypeError('RuntimeDriver requires world.rendering');
     if (typeof requestFrame !== 'function') throw new TypeError('RuntimeDriver requires requestAnimationFrame');
     if (typeof cancelFrame !== 'function') throw new TypeError('RuntimeDriver requires cancelAnimationFrame');
     if (syncInput !== null && typeof syncInput !== 'function') throw new TypeError('RuntimeDriver syncInput must be a function');
+    if (typeof shouldRender !== 'function') throw new TypeError('RuntimeDriver shouldRender must be a function');
     if (authoring !== null && typeof authoring?.update !== 'function') throw new TypeError('RuntimeDriver authoring must expose update(delta, elapsed)');
     this.world = world;
     this.authoring = authoring;
@@ -20,6 +22,7 @@ export class RuntimeDriver {
     this.now = now;
     this.windowTarget = windowTarget;
     this.syncInput = syncInput;
+    this.shouldRender = shouldRender;
     this.frameId = null;
     this.running = false;
     this.frameStartTime = null;
@@ -53,8 +56,10 @@ export class RuntimeDriver {
     this.syncInput?.(frameTime);
     this.world.simulation.pump(frameTime);
     this.authoring?.update(delta, elapsed);
-    this.world.rendering.update?.();
-    this.world.rendering.render?.(frameTime);
+    if (this.shouldRender()) {
+      this.world.rendering.update?.();
+      this.world.rendering.render?.(frameTime);
+    }
     if (this.running) this.frameId = this.requestFrame(this.frame);
   };
 

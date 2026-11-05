@@ -80,6 +80,31 @@ describe('RuntimeDriver', () => {
     driver.stop();
   });
 
+  it('keeps simulation running while other product pages hide the 3D canvas', () => {
+    const world=createWorld();
+    const callbacks=[];
+    let visible=false;
+    const driver=new RuntimeDriver(world,{
+      requestFrame:(callback)=>{ callbacks.push(callback); return callbacks.length; },
+      cancelFrame:vi.fn(),
+      windowTarget:null,
+      shouldRender:()=>visible
+    }).start();
+
+    callbacks[0](1000);
+    expect(world.simulation.pump).toHaveBeenCalledWith(1000);
+    expect(world.rendering.update).not.toHaveBeenCalled();
+    expect(world.rendering.render).not.toHaveBeenCalled();
+
+    visible=true;
+    callbacks[1](1016);
+    expect(world.simulation.pump).toHaveBeenCalledWith(1016);
+    expect(world.rendering.update).toHaveBeenCalledOnce();
+    expect(world.rendering.render).toHaveBeenCalledWith(1016);
+
+    driver.stop();
+  });
+
   it('stops the browser loop when the renderer reports device loss', () => {
     const world=createWorld();
     const requestFrame=vi.fn(()=>17);
