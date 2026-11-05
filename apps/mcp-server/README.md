@@ -126,3 +126,5 @@ npm run check
 测试覆盖未鉴权、Origin、请求体限制、频率限制、端口冲突、跨身份隔离、未知 Session、非法参数、白名单、幂等冲突、互斥、取消、超时、异常解锁、TTL、关闭释放、导出预算、原子发布和残留文件不恢复。真实任务使用 Rapier、Recast、柜体 GLB；没有在线模型调用。
 
 已知语义限制：资产/布局准入仍可能 provisional；这与真实动作及最终支撑关系 verified 是不同证据。pickup 为 kinematic attachment，不证明夹持力。未提供截图、在线生成、Studio 同步、多用户公网账号、完整作品包迁移。
+
+机械资产 v1：scene_add_model 的 model.asset 可提交 agentscape.mechanical-draft JSON（几何节点、旋转铰链、滑轨），先经过 GLB 编译与隔离物理验证。详见 [机械资产创建工作台](../../docs/capabilities/mechanical-asset-workbench.md)。

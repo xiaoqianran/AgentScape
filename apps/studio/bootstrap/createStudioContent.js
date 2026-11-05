@@ -1,4 +1,5 @@
 import { AssetPlacementController } from '../editor/AssetPlacementController.js';
+import { MechanicalAssetController } from '../assets/MechanicalAssetController.js';
 import { StudioResources } from '../resources/StudioResources.js';
 import { BuildSession } from '../build/BuildSession.js';
 import { StudioBuildController } from '../build/StudioBuildController.js';
@@ -52,6 +53,10 @@ export function createStudioContent({
     events:world.events,
     getEnvironment:()=>world.environment,
     environments
+  });
+
+  const mechanicalCreator = new MechanicalAssetController({
+    assets:world.assetModule,resources,placement,log
   });
 
   const buildController = new StudioBuildController({
@@ -118,6 +123,7 @@ export function createStudioContent({
     },
     resourceLibrary:{
       resources,
+      creator:mechanicalCreator,
       placement,
       log,
       openEnvironment:openBuiltinWorld,

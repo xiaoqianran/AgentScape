@@ -1,0 +1,205 @@
+.mechanical-workbench {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 20px;
+  color: var(--studio-text);
+}
+
+.mechanical-workbench-header,
+.mechanical-panel-heading,
+.mechanical-publish-actions,
+.mechanical-header-actions,
+.mechanical-add-actions,
+.mechanical-model-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mechanical-workbench h2,
+.mechanical-workbench h3 {
+  margin: 0;
+  color: var(--studio-text);
+}
+
+.mechanical-workbench h2 { font-size: 20px; }
+.mechanical-workbench h3 { font-size: 14px; }
+
+.mechanical-workbench p {
+  margin: 8px 0 0;
+  color: var(--studio-text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.mechanical-workbench button {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 7px;
+  color: var(--studio-text-2);
+  background: var(--studio-surface-3);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.mechanical-workbench button:hover:not(:disabled) {
+  border-color: var(--studio-accent);
+  color: var(--studio-text);
+}
+
+.mechanical-workbench button:disabled { opacity: .5; cursor: not-allowed; }
+
+.mechanical-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.mechanical-model-panel,
+.mechanical-edit-panel,
+.mechanical-publish,
+.mechanical-json-editor {
+  min-width: 0;
+  border: 1px solid var(--studio-border);
+  border-radius: 11px;
+  background: var(--studio-surface-2);
+  overflow: hidden;
+}
+
+.mechanical-model-panel { position: sticky; top: 12px; }
+.mechanical-preview-shell { position: relative; width: 100%; height: 390px; background: #18232e; }
+.mechanical-preview-shell canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.mechanical-preview-shell > span,
+.mechanical-preview-shell > p {
+  position: absolute;
+  bottom: 12px;
+  left: 15px;
+  right: 15px;
+  color: #d9e0e8;
+  font-size: 11px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.mechanical-model-summary {
+  justify-content: flex-start;
+  padding: 12px 16px;
+  color: var(--studio-text-3);
+  font-size: 11px;
+  border-top: 1px solid var(--studio-border);
+}
+
+.mechanical-edit-panel { padding: 16px; }
+.mechanical-edit-panel fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 14px;
+}
+.mechanical-edit-panel label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--studio-text-3);
+  font-size: 11px;
+}
+.mechanical-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(118px,1fr));
+  gap: 10px;
+}
+.mechanical-edit-panel input:not([type="checkbox"]),
+.mechanical-edit-panel select,
+.mechanical-json-editor textarea {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 6px;
+  color: var(--studio-text);
+  background: var(--studio-bg);
+  font-size: 12px;
+}
+.mechanical-edit-panel input[type="color"] { padding: 2px; }
+.mechanical-component-list {
+  display: grid;
+  max-height: 225px;
+  overflow-y: auto;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--studio-border);
+  border-radius: 7px;
+}
+.mechanical-component-list button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+}
+.mechanical-component-list button span { overflow: hidden; text-overflow: ellipsis; }
+.mechanical-component-list button small { color: var(--studio-text-3); white-space: nowrap; font-size: 10px; }
+.mechanical-component-list button.is-selected {
+  border-color: var(--studio-border-strong);
+  background: var(--studio-surface-3);
+  color: var(--studio-text);
+}
+.mechanical-add-actions { justify-content: flex-start; }
+.mechanical-add-actions button { flex: 1 1 auto; }
+.mechanical-selected-fields,
+.mechanical-motion-fields {
+  display: grid;
+  gap: 13px;
+  padding-top: 15px;
+  border-top: 1px solid var(--studio-border);
+}
+.mechanical-vector > span { display: block; color: var(--studio-text-3); font-size: 11px; margin-bottom: 6px; }
+.mechanical-vector > div { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.mechanical-vector label { display: flex; flex-direction: column; gap: 4px; }
+.mechanical-inline-check { display: flex !important; align-items: center; gap: 9px; align-self: end; }
+.mechanical-delete { color: var(--studio-danger) !important; }
+
+.mechanical-publish { padding: 18px; display: grid; gap: 14px; }
+.mechanical-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.6;
+  font-size: 12px;
+  color: var(--studio-text-2);
+}
+.mechanical-confirm input { margin-top: 3px; }
+.mechanical-publish-actions { justify-content: flex-start; }
+.mechanical-publish-actions button:first-child { background: var(--studio-accent); color: #152027; font-weight: 700; }
+.mechanical-workbench .mechanical-validation-error,
+.mechanical-workbench .mechanical-notice-error { color: var(--studio-danger); }
+.mechanical-workbench .mechanical-validation-ok,
+.mechanical-workbench .mechanical-notice-ok { color: var(--studio-success); }
+.mechanical-result-id { overflow-wrap: anywhere; }
+.mechanical-result-id code { font-size: 11px; }
+.mechanical-json-editor { padding: 16px; }
+.mechanical-json-editor summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.mechanical-json-editor textarea { display: block; resize: vertical; margin: 14px 0; font-family: var(--studio-font-mono); }
+.mechanical-json-editor > div { display: flex; gap: 10px; flex-wrap: wrap; }
+
+@media (max-width: 1100px) {
+  .mechanical-workbench-grid { grid-template-columns: 1fr; }
+  .mechanical-model-panel { position: static; }
+  .mechanical-preview-shell { height: 330px; }
+}
+@media (max-width: 620px) {
+  .mechanical-workbench-header { align-items: flex-start; }
+  .mechanical-preview-shell { height: 275px; }
+}

@@ -8,6 +8,7 @@ import { AssetManifestStore } from './persistence/AssetManifestStore.js';
 import { LocalAssetLibrary } from './persistence/LocalAssetLibrary.js';
 import { LocalAssetLibraryStore } from './persistence/LocalAssetLibraryStore.js';
 import { assetAdmission } from './model/admission.js';
+import { mechanicalDraftSchema, mechanicalDraftToAssetRecipe, mechanicalDraftToManifest } from './model/MechanicalAssetDraft.js';
 import { recipeSchema, canonicalAssetJson, assetDigest, assertEmbeddedGLB, interactionReviewSchema } from './model/AssetInputContracts.js';
 
 export async function verifyAndUpdateAssetArticulation(assets,assetId,options) {
@@ -121,6 +122,18 @@ export function createAssetModule({
         if (failures.length) throw Object.assign(new AggregateError([error, ...failures], 'Project resource rollback failed'), { code: 'PROJECT_ROLLBACK_FAILED' });
         throw error;
       }
+    },
+    async importMechanicalDraft(input) {
+      const draft=mechanicalDraftSchema.parse(input);
+      const hash=await assetDigest(new TextEncoder().encode(canonicalAssetJson({draft,compiler:'mechanical-draft-v1'})));
+      const id='asset_'+hash;
+      if(registry.has(id)) {
+        const manifest=registry.getManifest(id);
+        return {manifest,admission:assetAdmission(manifest)};
+      }
+      const { compileRecipeGeometry } = await import('./production/AssetRecipe.js');
+      const {bytes}=await compileRecipeGeometry(mechanicalDraftToAssetRecipe(draft));
+      return module.importPackageAsset({id,bytes,definition:mechanicalDraftToManifest(draft)});
     },
     async importPackageAsset({ id, bytes, definition }) {
       assertEmbeddedGLB(bytes);

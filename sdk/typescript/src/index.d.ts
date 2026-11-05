@@ -3,6 +3,17 @@ export type Quaternion = [number, number, number, number];
 export type CapabilityLevel = 'visual' | 'physical' | 'interactive';
 export interface Transform { position?: Vec3; quaternion?: Quaternion; scale?: number }
 export interface AssetRecipe { schema: 'agentscape.asset-recipe'; schemaVersion: 1; id: string; parts: unknown[]; capabilities?: { level: CapabilityLevel; physics?: unknown; actions?: string[]; surfaces?: unknown[] } }
+export interface MechanicalComponent {
+  id:string;parent:string|null;shape:'group'|'box'|'sphere'|'cylinder';position:Vec3;size:Vec3;color:string;collision:boolean;
+}
+export interface MechanicalMotion {
+  id:string;node:string;type:'revolute'|'prismatic';axis:Vec3;limits:[number,number];open:number;
+  mass:number;friction:number;stiffness:number;damping:number;
+}
+export interface MechanicalDraft {
+  schema:'agentscape.mechanical-draft';schemaVersion:1;name:string;type:string;
+  components:MechanicalComponent[];motions:MechanicalMotion[];
+}
 export interface ReviewPhysics { body: 'fixed' | 'dynamic'; mass: number; friction: number; colliders?: Array<{shape:'box';halfExtents:Vec3;translation?:Vec3}> }
 export interface InteractionReview { proposalId:string; confirmed:true; physics:ReviewPhysics; parts?: Array<{id:string;node:string;parent?:string;physics:ReviewPhysics;
   joint:{type:'prismatic'|'revolute';axis:Vec3;parentAnchor:Vec3;childAnchor:Vec3;limits:[number,number];motor?:{stiffness:number;damping:number}}}> }
@@ -11,7 +22,7 @@ export interface CapabilityProposal { schema:'agentscape.capability-proposal';sc
   physics:{body:null;mass:null;friction:null;colliders:unknown[]};
   parts:Array<{id:string;node:string;parent?:string;joint:Record<string,unknown>;physics?:Record<string,unknown>;confidence?:number;executable:false;physicsVerified:false;missing:string[]}>;
   operations:Array<{action:string;part?:string;executable:false;physicsVerified:false;requires:string}>;missing:string[];evidence:Record<string,unknown> }
-export interface ModelInput { id: string; asset: string | AssetRecipe | GLBInput; level?: CapabilityLevel; transform?: Transform; position?: Vec3 }
+export interface ModelInput { id: string; asset: string | AssetRecipe | MechanicalDraft | GLBInput; level?: CapabilityLevel; transform?: Transform; position?: Vec3 }
 export interface Diagnostic { code: string; message: string; stage: string; retryable: boolean }
 export type AdmissionStatus = 'ready' | 'provisional' | 'rejected';
 export interface AdmissionLayer { status: AdmissionStatus; reasons: string[]; required: boolean }

@@ -1,0 +1,375 @@
+{
+  "schema": "agentscape.mechanical-draft",
+  "schemaVersion": 1,
+  "name": "自定义工业储物柜",
+  "type": "cabinet",
+  "components": [
+    {
+      "id": "LeftWall",
+      "shape": "box",
+      "position": [
+        -0.88,
+        1.12,
+        0
+      ],
+      "size": [
+        0.08,
+        1.88,
+        0.73
+      ],
+      "color": "#344451",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "RightWall",
+      "shape": "box",
+      "position": [
+        0.88,
+        1.12,
+        0
+      ],
+      "size": [
+        0.08,
+        1.88,
+        0.73
+      ],
+      "color": "#344451",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "Roof",
+      "shape": "box",
+      "position": [
+        0,
+        2.09,
+        0
+      ],
+      "size": [
+        1.84,
+        0.08,
+        0.73
+      ],
+      "color": "#344451",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "Base",
+      "shape": "box",
+      "position": [
+        0,
+        0.18,
+        0
+      ],
+      "size": [
+        1.84,
+        0.08,
+        0.73
+      ],
+      "color": "#344451",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "RearWall",
+      "shape": "box",
+      "position": [
+        0,
+        1.12,
+        -0.35
+      ],
+      "size": [
+        1.76,
+        1.88,
+        0.056
+      ],
+      "color": "#1a2833",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "Divider",
+      "shape": "box",
+      "position": [
+        0,
+        1.12,
+        0
+      ],
+      "size": [
+        1.72,
+        0.08,
+        0.68
+      ],
+      "color": "#1a2833",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "UpperShelf",
+      "shape": "box",
+      "position": [
+        0,
+        1.61,
+        -0.01
+      ],
+      "size": [
+        1.72,
+        0.045,
+        0.66
+      ],
+      "color": "#344451",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "LeftDoorHinge",
+      "shape": "group",
+      "position": [
+        -0.81,
+        1.59,
+        0.393
+      ],
+      "size": [
+        1,
+        1,
+        1
+      ],
+      "color": "#526e82",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "LeftDoor",
+      "shape": "box",
+      "position": [
+        0.395,
+        0,
+        0
+      ],
+      "size": [
+        0.774,
+        0.86,
+        0.056
+      ],
+      "color": "#526e82",
+      "parent": "LeftDoorHinge",
+      "collision": true
+    },
+    {
+      "id": "RightDoorHinge",
+      "shape": "group",
+      "position": [
+        0.81,
+        1.59,
+        0.393
+      ],
+      "size": [
+        1,
+        1,
+        1
+      ],
+      "color": "#526e82",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "RightDoor",
+      "shape": "box",
+      "position": [
+        -0.395,
+        0,
+        0
+      ],
+      "size": [
+        0.774,
+        0.86,
+        0.056
+      ],
+      "color": "#526e82",
+      "parent": "RightDoorHinge",
+      "collision": true
+    },
+    {
+      "id": "UpperDrawerSlide",
+      "shape": "group",
+      "position": [
+        0,
+        0.81,
+        0
+      ],
+      "size": [
+        1,
+        1,
+        1
+      ],
+      "color": "#667d8c",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "UpperDrawer",
+      "shape": "box",
+      "position": [
+        0,
+        0,
+        0.09
+      ],
+      "size": [
+        1.5,
+        0.29,
+        0.58
+      ],
+      "color": "#667d8c",
+      "parent": "UpperDrawerSlide",
+      "collision": true
+    },
+    {
+      "id": "UpperPull",
+      "shape": "box",
+      "position": [
+        0,
+        0,
+        0.49
+      ],
+      "size": [
+        0.32,
+        0.04,
+        0.04
+      ],
+      "color": "#b5c2ca",
+      "parent": "UpperDrawerSlide",
+      "collision": false
+    },
+    {
+      "id": "LowerDrawerSlide",
+      "shape": "group",
+      "position": [
+        0,
+        0.41,
+        0
+      ],
+      "size": [
+        1,
+        1,
+        1
+      ],
+      "color": "#667d8c",
+      "parent": null,
+      "collision": true
+    },
+    {
+      "id": "LowerDrawer",
+      "shape": "box",
+      "position": [
+        0,
+        0,
+        0.09
+      ],
+      "size": [
+        1.5,
+        0.29,
+        0.58
+      ],
+      "color": "#667d8c",
+      "parent": "LowerDrawerSlide",
+      "collision": true
+    },
+    {
+      "id": "LowerPull",
+      "shape": "box",
+      "position": [
+        0,
+        0,
+        0.49
+      ],
+      "size": [
+        0.32,
+        0.04,
+        0.04
+      ],
+      "color": "#b5c2ca",
+      "parent": "LowerDrawerSlide",
+      "collision": false
+    }
+  ],
+  "motions": [
+    {
+      "id": "left_door",
+      "node": "LeftDoorHinge",
+      "type": "revolute",
+      "axis": [
+        0,
+        1,
+        0
+      ],
+      "limits": [
+        -1.35,
+        0
+      ],
+      "open": -1.3,
+      "mass": 5,
+      "friction": 0.6,
+      "stiffness": 85,
+      "damping": 13
+    },
+    {
+      "id": "right_door",
+      "node": "RightDoorHinge",
+      "type": "revolute",
+      "axis": [
+        0,
+        1,
+        0
+      ],
+      "limits": [
+        0,
+        1.35
+      ],
+      "open": 1.3,
+      "mass": 5,
+      "friction": 0.6,
+      "stiffness": 85,
+      "damping": 13
+    },
+    {
+      "id": "upper_drawer",
+      "node": "UpperDrawerSlide",
+      "type": "prismatic",
+      "axis": [
+        0,
+        0,
+        1
+      ],
+      "limits": [
+        0,
+        0.48
+      ],
+      "open": 0.45,
+      "mass": 4,
+      "friction": 0.6,
+      "stiffness": 85,
+      "damping": 13
+    },
+    {
+      "id": "lower_drawer",
+      "node": "LowerDrawerSlide",
+      "type": "prismatic",
+      "axis": [
+        0,
+        0,
+        1
+      ],
+      "limits": [
+        0,
+        0.48
+      ],
+      "open": 0.45,
+      "mass": 4,
+      "friction": 0.6,
+      "stiffness": 85,
+      "damping": 13
+    }
+  ]
+}

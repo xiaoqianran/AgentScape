@@ -1,4 +1,5 @@
 import { StudioIcon } from '../shared/StudioIcon';
+import { MechanicalAssetWorkbench, type MechanicalCreator } from './MechanicalAssetWorkbench';
 import { assetDisplayName, assetPreview, assetActions } from '../shared/ResourcePresentation';
 import { useEffect, useMemo, useState, type DragEvent } from 'react';
 import { ASSET_DRAG_MIME } from '../../editor/AssetPlacementController.js';
@@ -28,6 +29,7 @@ type Props = {
     localArtifact:(id:string)=>{data?:Uint8Array|ArrayBuffer|null}|null;
     onChange:(listener:()=>void)=>(()=>void)|undefined;
   };
+  creator?:MechanicalCreator;
   placement:{
     beginDrag:(assetId:string)=>boolean;
     cancelDrag:()=>void;
@@ -66,12 +68,13 @@ function ImagePreview({ resources, image }: { resources:Props['resources']; imag
 export function ResourceLibraryView({
   resources,
   placement,
+  creator,
   openEnvironment,
   openGeneratedWorld,
   navigate,
   log = () => {}
 }:Props) {
-  const [kind,setKind] = useState<'assets'|'images'|'worlds'>('assets');
+  const [kind,setKind] = useState<'assets'|'images'|'worlds'|'create'>('assets');
   const [query,setQuery] = useState('');
   const [revision,setRevision] = useState(0);
   const [busyId,setBusyId] = useState<string|null>(null);
@@ -79,7 +82,7 @@ export function ResourceLibraryView({
 
   useEffect(()=>resources.onChange(()=>setRevision((value)=>value+1)),[resources]);
   const snapshot = useMemo(()=>resources.snapshot(),[resources,revision]);
-  const visible = (snapshot[kind] || []).filter((item)=>matches(item,query.trim().toLowerCase()));
+  const visible = (kind==='create' ? [] : snapshot[kind] || []).filter((item)=>matches(item,query.trim().toLowerCase()));
   const placeholder = kind === 'assets' ? '搜索名称、类型或能力…' : kind === 'images' ? '搜索图片…' : '搜索世界…';
 
   const run = async (id:string,operation:()=>Promise<unknown>,errorPrefix:string) => {
@@ -117,16 +120,16 @@ export function ResourceLibraryView({
       </header>
       <div className="resource-controls">
         <div className="resource-kind-tabs" role="group" aria-label="资源类型">
-          {(['assets','images','worlds'] as const).map((value)=>(
+          {(['assets','images','worlds',...(creator?['create'] as const:[])] as const).map((value)=>(
             <button key={value} type="button" data-resource-kind={value} className={kind === value ? 'active' : ''} aria-pressed={kind === value} onClick={()=>{setKind(value);setQuery('');}}>
-              {value === 'assets' ? '3D 物体' : value === 'images' ? '图片' : '世界'}<span>{snapshot[value]?.length || 0}</span>
+              {value === 'assets' ? '3D 物体' : value === 'images' ? '图片' : value==='worlds' ? '世界' : '创建机械资产'}{value!=='create'?<span>{snapshot[value]?.length || 0}</span>:null}
             </button>
           ))}
         </div>
-        <input id="resource-search" className="resource-search" type="search" placeholder={placeholder} aria-label="搜索资源" value={query} onChange={(event)=>setQuery(event.target.value)} />
+        {kind!=='create'?<input id="resource-search" className="resource-search" type="search" placeholder={placeholder} aria-label="搜索资源" value={query} onChange={(event)=>setQuery(event.target.value)} />:null}
       </div>
       {feedback ? <div className="resource-feedback" role={feedback.error?'alert':'status'} data-error={feedback.error}><span>{feedback.text}</span>{!feedback.error && navigate?<button type="button" onClick={()=>navigate?.('world')}>查看场景 <StudioIcon name="arrow" size={15} /></button>:null}</div> : null}
-      <div id="resource-list" className="resource-list" data-kind={kind} aria-busy={!!busyId}>
+      {kind==='create' && creator ? <MechanicalAssetWorkbench creator={creator} navigate={navigate} /> : <div id="resource-list" className="resource-list" data-kind={kind} aria-busy={!!busyId}>
         {!visible.length ? (
           <div className="resource-empty">
             <StudioIcon name={query?'search':kind==='images'?'image':'cube'} size={32} />
@@ -171,7 +174,7 @@ export function ResourceLibraryView({
             {item.source === 'generated' && !openGeneratedWorld ? <div className="resource-card-note">World Artifact 已保存，但当前工作区不支持替换环境。</div> : null}
           </article>;
         })}
-      </div>
+      </div>}
     </section>
   );
 }

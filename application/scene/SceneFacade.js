@@ -6,6 +6,7 @@ import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { assetAdmission } from '../../modules/asset/model/admission.js';
 import { recipeSchema, glbInputSchema } from '../../modules/asset/model/AssetInputContracts.js';
+import { mechanicalDraftSchema } from '../../modules/asset/model/MechanicalAssetDraft.js';
 import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 import { StyleSystem } from '../../modules/rendering/style/StyleSystem.js';
 import { compileWorldAcceptance, evaluateWorldAcceptance } from '../../modules/world/verification/WorldAcceptance.js';
@@ -23,7 +24,7 @@ export const SCENE_LEGACY_SKILLS = Object.freeze(['spawnAsset', 'moveObject', 'r
 const ref = z.string().regex(/^(builtin:\/\/[a-zA-Z][a-zA-Z0-9_-]{0,63}|asset:\/\/sha256\/[a-f0-9]{64})$/);
 const level = z.enum(['visual', 'physical', 'interactive']).default('physical');
 const modelSchema = z.object({ id, asset: ref, level, transform: sceneTransformSchema.optional(), position: sceneVector3Schema.optional() }).strict().refine(v => !v.transform || !v.position, 'Use transform or position');
-export const sceneAgentModelSchema = z.object({ id, asset: z.union([ref, recipeSchema]), level: z.enum(['visual', 'physical', 'interactive']).optional(), transform: sceneTransformSchema.optional(), position: sceneVector3Schema.optional() }).strict().refine(v => !v.transform || !v.position, 'Use transform or position');
+export const sceneAgentModelSchema = z.object({ id, asset: z.union([ref, recipeSchema, mechanicalDraftSchema]), level: z.enum(['visual', 'physical', 'interactive']).optional(), transform: sceneTransformSchema.optional(), position: sceneVector3Schema.optional() }).strict().refine(v => !v.transform || !v.position, 'Use transform or position');
 const operations = z.discriminatedUnion('type', [
   z.object({ type: z.literal('add'), model: modelSchema }).strict(),
   z.object({ type: z.literal('setTransform'), id, transform: sceneTransformSchema }).strict(),
@@ -178,12 +179,15 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       if (typeof input?.asset !== 'string') {
         const source = input?.asset;
         const glb = source?.kind === 'glb' ? glbInputSchema.parse(source) : null;
-        const recipe = glb ? null : recipeSchema.parse(source);
-        const requested = input.level ?? (glb ? glb.review ? 'physical' : 'visual' : recipe.capabilities.level);
+        const machine = source?.schema === 'agentscape.mechanical-draft' ? mechanicalDraftSchema.parse(source) : null;
+        const recipe = glb || machine ? null : recipeSchema.parse(source);
+        const requested = input.level ?? (machine ? machine.motions.length ? 'interactive' : 'physical' : glb ? glb.review ? 'physical' : 'visual' : recipe.capabilities.level);
         const model = modelSchema.parse({ ...input, asset: 'builtin://pending', level: requested });
         return exclusive(async () => {
-          const resolved = glb ? await world.assetModule.importGLB({ ...glb, level: requested }) : await world.assetModule.importRecipe(recipe);
-          return executeEdit({ type: 'add', model: { ...model, asset: resolved.asset } });
+          const resolved = machine ? await world.assetModule.importMechanicalDraft(machine)
+            : glb ? await world.assetModule.importGLB({ ...glb, level: requested }) : await world.assetModule.importRecipe(recipe);
+          const asset = machine ? 'asset://sha256/' + resolved.manifest.id.slice('asset_'.length) : resolved.asset;
+          return executeEdit({ type: 'add', model: { ...model, asset } });
         });
       }
       return single({ type: 'add', model: modelSchema.parse(input) });
