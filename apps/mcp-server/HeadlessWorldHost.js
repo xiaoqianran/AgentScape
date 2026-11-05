@@ -6,7 +6,7 @@ import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { createMonumentHall } from '../../modules/world/content/monumentHall.js';
 import { WorldBuilder } from '../../modules/world/build/WorldBuilder.js';
-import { DockerBuildRunner } from './DockerBuildRunner.js';
+import { createCodeExecutor } from './CodeExecutor.js';
 import { installHeadlessAssetIO } from './HeadlessAssetIO.js';
 import { createHeadlessGLTFLoader } from './HeadlessGLTFLoader.js';
 export const authoringSkills = ['runAuthoringCode','listAuthoringNodes','prepareAuthoringAsset','promoteAuthoringNode','updateAuthoringEntity','verifyAuthoringEntity'];
@@ -27,7 +27,7 @@ export class HeadlessWorldHost {
   manifests.cabinet.source={kind:'glb',url:`data:model/gltf-binary;base64,${bytes.toString('base64')}`};
   // Start with trusted template assets; later assets are compiled within this session.
   const local=Object.fromEntries(['agent','cabinet','cup','table'].map(id=>[id,manifests[id]]));
-  const executor=options.executorFactory ? options.executorFactory() : new DockerBuildRunner({configPath:options.sandboxConfig || 'D:/AgentScapeData/mcp-assets/sandbox.json'});
+  const executor=options.executorFactory ? options.executorFactory() : createCodeExecutor({...options.codeExecution,configPath:options.sandboxConfig || 'D:/AgentScapeData/mcp-assets/sandbox.json'});
   const session=createSession(null,{authoringOptions:{executeCode:request=>executor.execute(request)},assetModule:createAssetModule({manifests:local,compiledStore:options.repository?.compiledStore(options.owner),manifestStore:null,libraryStore:null,gltfLoader:createHeadlessGLTFLoader()}),environmentFactory:o=>createMonumentHall({...o,loadAssets:false})});
   const {world}=session;
   const host=new HeadlessWorldHost(world,{...options,session,executor});

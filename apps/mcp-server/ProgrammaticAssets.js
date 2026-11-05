@@ -5,11 +5,11 @@ import { assetVersion, hash } from './FileAssetRepository.js';
 export class ProgrammaticAssets {
  constructor({repository,builder,runner}) {Object.assign(this,{repository,builder,runner});this.running=new Map();this.locks=new Map();this.closed=false;}
  async exclusive(owner,fn) {const previous=this.locks.get(owner)||Promise.resolve();const next=previous.catch(()=>{}).then(fn);this.locks.set(owner,next);try{return await next;}finally{if(this.locks.get(owner)===next)this.locks.delete(owner);}}
- summary(job) {return {buildId:job.buildId,status:job.status,assetId:job.assetId,admission:job.admission,error:job.error,...(job.diagnostics?{diagnostics:job.diagnostics}:{})};}
+ summary(job) {return {buildId:job.buildId,status:job.status,assetId:job.assetId,execution:job.execution || {status:job.status==='running'?'running':'unknown'},admission:job.admission,verification:job.verification || {status:'not-requested'},error:job.error,...(job.diagnostics?{diagnostics:job.diagnostics}:{})};}
  async submit(owner,{source,definition,requestId,forceRebuild=false}) {
   if(this.closed)throw new Error('ASSET_SERVICE_CLOSED');
   if(typeof source!=='string'||!source.trim()||Buffer.byteLength(source)>32768)throw new Error('BUILD_SOURCE_LIMIT');
-  definition=parseDefinition(definition);
+  definition=definition == null ? null : parseDefinition(definition);
   const environment=await this.runner.environment();
   const version=assetVersion(source,definition,environment),assetId=`pa_${version}`;
   return this.exclusive(owner,async()=>{
@@ -23,7 +23,7 @@ export class ProgrammaticAssets {
    if(this.running.size>=4||[...this.running.values()].filter(j=>j.owner===owner).length>=2)throw new Error('BUILD_LIMIT');
    if((await this.repository.ids(owner,'builds')).length>=1024)throw new Error('BUILD_STORAGE_QUOTA');
    const job={buildId:randomUUID(),owner:hash(owner),status:'running',assetId};
-   if(!forceRebuild){try{const existing=await this.repository.get(owner,assetId);job.status='succeeded';job.admission=existing.build.admission;}catch(e){if(e.code!=='ENOENT')throw e;}}
+   if(!forceRebuild){try{const existing=await this.repository.get(owner,assetId);job.status='succeeded';job.admission=existing.build.admission;job.execution={status:'succeeded'};job.verification=existing.build.validation?.runtime;}catch(e){if(e.code!=='ENOENT')throw e;}}
    const jobFile=this.repository.target(owner,'builds',job.buildId);
    await this.repository.atomic(jobFile,job);await this.repository.atomic(requestFile,{fingerprint,buildId:job.buildId});
    if(job.status==='running'){
@@ -34,8 +34,8 @@ export class ProgrammaticAssets {
       if(controller.signal.aborted)throw new Error('BUILD_CANCELLED');
       if(canonical(built.environment)!==canonical(environment))throw new Error('BUILD_ENVIRONMENT_CHANGED');
       const stored=await this.repository.save(owner,{source,definition,environment,...built});
-      job.status='succeeded';job.admission=stored.build.admission;
-     }catch(error){job.status=controller.signal.aborted?'cancelled':'failed';job.error=/^[A-Z_]+$/.test(error.message)?error.message:'BUILD_FAILED';if(error.details&&JSON.stringify(error.details).length<=65536)job.diagnostics=error.details;}
+      job.status='succeeded';job.admission=stored.build.admission;job.execution={status:'succeeded'};job.verification=stored.build.validation.runtime;
+     }catch(error){job.status=controller.signal.aborted?'cancelled':'failed';job.execution=error.execution || {status:job.status};job.error=/^[A-Z_]+$/.test(error.message)?error.message:'BUILD_FAILED';if(error.details&&JSON.stringify(error.details).length<=65536)job.diagnostics=error.details;}
      finally{await this.repository.atomic(jobFile,job);this.running.delete(job.buildId);}
     })();
     entry.promise.catch(()=>{});

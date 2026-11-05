@@ -9,17 +9,17 @@ import { handleStudioBridgeHttp } from './StudioBridgeHttp.js';
 import { registerTools } from './registerTools.js';
 import { createSecurity } from './security.js';
 import { FileAssetRepository } from './FileAssetRepository.js';
-import { DockerBuildRunner } from './DockerBuildRunner.js';
+import { createCodeExecutor } from './CodeExecutor.js';
 import { ProgrammaticAssets } from './ProgrammaticAssets.js';
 import { ProgrammaticAssetBuilder } from '../../application/programmatic-assets/ProgrammaticAssetBuilder.js';
 import { createHeadlessGLTFLoader } from './HeadlessGLTFLoader.js';
 import { installHeadlessAssetIO } from './HeadlessAssetIO.js';
-export async function startServer({tokens,port=39015,root=path.resolve('.mcp-sessions'),dataRoot='D:/AgentScapeData/mcp-assets',security={},managerOptions={},buildRunner=null,studioOrigins}={}) {
+export async function startServer({tokens,port=39015,root=path.resolve('.mcp-sessions'),dataRoot=path.resolve('.mcp-assets'),security={},managerOptions={},buildRunner=null,studioOrigins,codeExecution={mode:'worker-wasm'}}={}) {
  installHeadlessAssetIO();
  const repository=new FileAssetRepository(dataRoot);
- const runner=buildRunner || new DockerBuildRunner({configPath:path.join(dataRoot,'sandbox.json')});
+ const runner=buildRunner || createCodeExecutor({...codeExecution,configPath:path.join(dataRoot,'sandbox.json')});
  const assets=new ProgrammaticAssets({repository,runner,builder:new ProgrammaticAssetBuilder({runner,gltfLoader:createHeadlessGLTFLoader()})});
- const authorize=createSecurity(tokens,security); const manager=new SessionManager({root,repository,hostOptions:{sandboxConfig:path.join(dataRoot,'sandbox.json')},...managerOptions});
+ const authorize=createSecurity(tokens,security); const manager=new SessionManager({root,repository,hostOptions:{codeExecution,sandboxConfig:path.join(dataRoot,'sandbox.json')},...managerOptions});
  const studioBridge=new StudioLiveBridge();
  const connections=new Set();
  const http=createServer(async(req,res)=>{
@@ -50,7 +50,7 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
 if(process.argv[1] && import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href) {
  // Deliberately do not load dotenv or the Studio configuration.
  const tokens=JSON.parse(process.env.AGENTSCAPE_MCP_TOKENS||'[]');
- const app=await startServer({tokens,dataRoot:process.env.AGENTSCAPE_MCP_DATA_ROOT || 'D:/AgentScapeData/mcp-assets'});
+ const app=await startServer({tokens,dataRoot:process.env.AGENTSCAPE_MCP_DATA_ROOT || path.resolve('.mcp-assets'),codeExecution:{mode:process.env.AGENTSCAPE_CODE_EXECUTION || 'worker-wasm',authorized:process.env.AGENTSCAPE_TRUSTED_CODE==='1',remote:process.env.AGENTSCAPE_PUBLIC_SERVICE==='1'}});
  console.log(`AgentScape Remote MCP: http://127.0.0.1:${app.port}/mcp`);
  for(const signal of ['SIGINT','SIGTERM']) process.once(signal,()=>app.close().then(()=>process.exit(0)));
 }

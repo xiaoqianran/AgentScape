@@ -32,7 +32,7 @@ export class FileAssetRepository {
   const hashes={source:hash(source),definition:hash(canonical(definition)),glb:hash(result.bytes),manifest:hash(manifestJSON)};
   try{const previous=await this.get(owner,assetId);if(previous.build.hashes.glb!==hashes.glb)throw new Error('BUILD_NONDETERMINISTIC');return previous;}catch(e){if(e.code!=='ENOENT')throw e;}
   if((await this.ids(owner,'assets')).length>=128)throw new Error('ASSET_STORAGE_QUOTA');
-  const build={schema:proceduralContract,assetId,logicalId:definition.id,version,owner:hash(owner),definition,environment,hashes,admission:result.admission,validation:result.validation,security:result.security,createdAt:new Date().toISOString()};
+  const build={schema:proceduralContract,assetId,logicalId:definition?.id || 'visual',version,owner:hash(owner),definition,environment,hashes,admission:result.admission,validation:result.validation,security:result.security,createdAt:new Date().toISOString()};
   if(Buffer.byteLength(JSON.stringify(build))>1048576||Buffer.byteLength(manifestJSON)>262144)throw new Error('BUILD_METADATA_LIMIT');
   await mkdir(path.dirname(target),{recursive:true});const staging=path.join(path.dirname(target),`.tmp-${randomUUID()}`);
   try{
@@ -48,7 +48,7 @@ export class FileAssetRepository {
  async get(owner,assetId,{published=false}={}) {
   const directory=this.target(owner,'assets',assetId);
   const [build,source,bytes,manifestBytes]=await Promise.all([this.json(path.join(directory,'build.json')),this.read(path.join(directory,'source.js'),131072),this.read(path.join(directory,'asset.glb')),this.read(path.join(directory,'manifest.json'),262144)]);
-  if(build.owner!==hash(owner)||build.assetId!==assetId||build.schema!==proceduralContract||build.environment.threeVersion!=='0.186.0'||assetVersion(source.toString('utf8'),parseDefinition(build.definition),build.environment)!==build.version||assetId!==`pa_${build.version}`||hash(source)!==build.hashes.source||hash(canonical(build.definition))!==build.hashes.definition||hash(bytes)!==build.hashes.glb||hash(manifestBytes)!==build.hashes.manifest)throw new Error('STORAGE_INTEGRITY_FAILED');
+  if(build.owner!==hash(owner)||build.assetId!==assetId||build.schema!==proceduralContract||build.environment.threeVersion!=='0.186.0'||assetVersion(source.toString('utf8'),(build.definition == null ? null : parseDefinition(build.definition)),build.environment)!==build.version||assetId!==`pa_${build.version}`||hash(source)!==build.hashes.source||hash(canonical(build.definition))!==build.hashes.definition||hash(bytes)!==build.hashes.glb||hash(manifestBytes)!==build.hashes.manifest)throw new Error('STORAGE_INTEGRITY_FAILED');
   const manifest=JSON.parse(manifestBytes.toString('utf8'));validateAssetManifest(manifest);
   if(manifest.id!==assetId||manifest.source.kind!=='compiled'||manifest.source.key!==assetId||manifest.source.fallbackUrl)throw new Error('STORAGE_INTEGRITY_FAILED');
   let isPublished=false;try{const marker=await this.json(path.join(directory,'published.json'));if(marker.assetId!==assetId||marker.owner!==hash(owner))throw new Error('STORAGE_INTEGRITY_FAILED');isPublished=true;}catch(e){if(e.code!=='ENOENT')throw e;}

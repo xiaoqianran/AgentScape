@@ -23,6 +23,7 @@ export function runCommand(command,args,{input='',timeoutMs=15000,maxBytes=41943
 export class DockerBuildRunner {
  constructor({configPath,command='docker',timeoutMs=15000}={}) {Object.assign(this,{configPath,command,timeoutMs});this.controllers=new Set();this.id=randomUUID();}
  async environment() {
+  if(this.closed)throw new Error('AUTHORING_EXECUTOR_CLOSED');
   try {
    const config=JSON.parse(await readFile(this.configPath,'utf8'));
    if(config.digest!==(await sandboxBundle()).digest)throw Error();
@@ -60,6 +61,6 @@ export class DockerBuildRunner {
    }
   }
  }
- async execute(request) {return (await this.run({mode:'authoring',...request})).document;}
- close() {for(const controller of this.controllers)controller.abort();this.controllers.clear();}
+ async execute(request,options) {return (await this.run({...request,mode:'authoring'},options)).document;}
+ close() {this.closed=true;for(const controller of this.controllers)controller.abort();this.controllers.clear();}
 }
