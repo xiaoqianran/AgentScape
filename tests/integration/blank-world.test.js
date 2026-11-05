@@ -15,6 +15,20 @@ describe('空白实验世界', () => {
     expect(environment.layout.groundY).toBe(0);
   });
 
+  it('新建住宅世界时，从没有家具的物理空地生成有碰撞的完整房屋资产',async()=>{
+    const definition=ENVIRONMENTS.find(value=>value.id==='house-world');
+    const session=createSession(null,{environmentFactory:()=>createBlankWorld({id:'house-world'})});
+    await session.world.init();
+    try {
+      expect(session.world.queries.listObjects()).toHaveLength(0);
+      await bootstrapWorld(new AgentTools(session.world,{profile:'builder',actor:'agent_01',source:'test'}),definition.bootstrap);
+      expect(session.world.queries.listObjects().map(object=>object.id).sort()).toEqual(['agent_01','cup_01','house_01','table_01']);
+      const item=session.world.store.get('house_01');
+      expect(item).toBeDefined();
+      expect(session.world.assetModule.getManifest(item.assetId)?.physics?.body).toBe('fixed');
+      expect(session.world.physics.getPosition('house_01')).toBeDefined();
+    }finally {session.scene.close();session.world.dispose();}
+  });
   it('使用通用资产接口在独立环境中创建桌子、杯子和智能体', async () => {
     const definition = ENVIRONMENTS.find(value => value.id === 'blank-world');
     expect(definition).toBeDefined();
@@ -26,6 +40,8 @@ describe('空白实验世界', () => {
       expect(session.world.queries.listObjects().map(object => object.id).sort()).toEqual(['agent_01','cup_01','table_01']);
       expect(session.world.physics.getPosition('agent_01')).toBeDefined();
       expect(session.world.physics.getPosition('cup_01')).toBeDefined();
+
+
     } finally { session.scene.close(); session.world.dispose(); }
   });
 });

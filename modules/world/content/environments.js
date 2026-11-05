@@ -1,3 +1,4 @@
+import { houseRecipe } from './houseRecipe.js';
 export const ENVIRONMENTS = Object.freeze([
   Object.freeze({
     id:'blank-world',number:'世界 00',title:'空白实验世界',headline:'从一块空地开始搭建世界。',
@@ -5,6 +6,14 @@ export const ENVIRONMENTS = Object.freeze([
     facts:['空白场景','真实地面碰撞','可移动智能体'],worldFirst:true,
     load:()=>import('./blankWorld.js').then(module=>module.createBlankWorld),
     bootstrap:{agent:[-2,0,1],table:[0,0,-2],cup:[0,1.08,-2]},
+    coffeeCorner:{table:[0,0,-2]}
+  }),
+  Object.freeze({
+    id:'house-world',number:'世界 00B',title:'我的第一栋房屋',headline:'从空地上通过代码建造房屋。',
+    description:'由空白物理环境开始，通过 AgentScape Asset Recipe 生成独立住宅资产。',
+    facts:['声明式建筑资产','27个物理碰撞体','门窗与台阶'],worldFirst:true,
+    load:()=>import('./blankWorld.js').then(module=>()=>module.createBlankWorld({id:'house-world'})),
+    bootstrap:{agent:[-2,0,1],table:[0,0,-2],cup:[0,1.08,-2],models:[{id:'house_01',asset:houseRecipe,position:[4,0,-5]}]},
     coffeeCorner:{table:[0,0,-2]}
   }),
   Object.freeze({

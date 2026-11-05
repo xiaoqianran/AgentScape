@@ -2,10 +2,10 @@ import * as THREE from 'three';
 
 // A minimal physical environment: no architecture or pre-existing furniture.
 // Furniture and the Agent are spawned separately through the world bootstrap API.
-export function createBlankWorld() {
+export function createBlankWorld({ id = 'blank-world' } = {}) {
   const root = new THREE.Group();
   root.name = 'BlankWorld';
-  root.userData.environment = 'blank-world';
+  root.userData.environment = id;
 
   const floor = new THREE.Mesh(
     new THREE.BoxGeometry(24, 0.24, 24),
@@ -25,10 +25,10 @@ export function createBlankWorld() {
   root.add(sun);
 
   return {
-    id:'blank-world', root, floor,
+    id, root, floor,
     colliders:[{ shape:'box', halfExtents:[12,0.12,12], translation:[0,-0.12,0] }],
     layout:{ bounds:{min:[-11,-11],max:[11,11]}, groundY:0, margin:1 },
-    camera:{ position:[7,5.5,9], target:[0,0,-1] },
+    camera:id==='house-world' ? { position:[11,7,8], target:[2.4,1.5,-4] } : { position:[7,5.5,9], target:[0,0,-1] },
     rendering:{ background:0xa9c5d6, exposure:1.05 },
     dispose() {}
   };
