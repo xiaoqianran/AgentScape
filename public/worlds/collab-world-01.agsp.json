@@ -1,0 +1,504 @@
+{
+  "schema": "agentscape.project-bundle",
+  "schemaVersion": 1,
+  "project": {
+    "schema": "agentscape.scene-project",
+    "schemaVersion": 1,
+    "name": "Untitled World",
+    "environment": {
+      "type": "builtin",
+      "id": "monument-hall"
+    },
+    "objects": [
+      {
+        "id": "ground_plane",
+        "asset": "./assets/0/model.glb",
+        "level": "physical",
+        "transform": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "guide_agent",
+        "asset": "builtin://agent",
+        "level": "physical",
+        "transform": {
+          "position": [
+            0,
+            0,
+            -2.5
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "work_table",
+        "asset": "builtin://table",
+        "level": "physical",
+        "transform": {
+          "position": [
+            0,
+            0,
+            -5
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "demo_cup",
+        "asset": "builtin://cup",
+        "level": "physical",
+        "transform": {
+          "position": [
+            0.000343767722370103,
+            1.0799559354782104,
+            -4.999587059020996
+          ],
+          "quaternion": [
+            -3.597309614633559e-7,
+            1.4737045717083674e-7,
+            1.5660258156913187e-7,
+            1
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "visitor_chair",
+        "asset": "builtin://chair",
+        "level": "physical",
+        "transform": {
+          "position": [
+            -2,
+            0,
+            -3.8
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "pushable_crate",
+        "asset": "./assets/1/model.glb",
+        "level": "physical",
+        "transform": {
+          "position": [
+            1.1994222402572632,
+            -0.000029206275939941406,
+            -2.482863664627075
+          ],
+          "quaternion": [
+            -0.000002588654979263083,
+            0.001975232968106866,
+            0.000009028872227645479,
+            0.999998152256012
+          ],
+          "scale": 1
+        }
+      }
+    ]
+  },
+  "snapshot": {
+    "schema": "agentscape.scene",
+    "schemaVersion": 1,
+    "metadata": {
+      "name": "Untitled World",
+      "savedAt": "2026-11-05T09:06:43.133Z",
+      "generator": "AgentScape/2.0.0-dev.1",
+      "environment": "monument-hall"
+    },
+    "assets": [],
+    "objects": [
+      {
+        "id": "ground_plane",
+        "assetId": "asset_978dda2bb9a087f9b444b1584c0da76387f9bbbcbac7b686b5bb8d23366ebe9c",
+        "transform": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      },
+      {
+        "id": "guide_agent",
+        "assetId": "agent",
+        "transform": {
+          "position": [
+            0,
+            0,
+            -2.5
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      },
+      {
+        "id": "work_table",
+        "assetId": "table",
+        "transform": {
+          "position": [
+            0,
+            0,
+            -5
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      },
+      {
+        "id": "demo_cup",
+        "assetId": "cup",
+        "transform": {
+          "position": [
+            0.000343767722370103,
+            1.0799559354782104,
+            -4.999587059020996
+          ],
+          "quaternion": [
+            -3.597309614633559e-7,
+            1.4737045717083674e-7,
+            1.5660258156913187e-7,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      },
+      {
+        "id": "visitor_chair",
+        "assetId": "chair",
+        "transform": {
+          "position": [
+            -2,
+            0,
+            -3.8
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      },
+      {
+        "id": "pushable_crate",
+        "assetId": "asset_a965c26602ba0ef36034de6b5f3d272e220ce9dd60fd52d0140f91f01baa9a90",
+        "transform": {
+          "position": [
+            1.1994222402572632,
+            -0.000029206275939941406,
+            -2.482863664627075
+          ],
+          "quaternion": [
+            -0.000002588654979263083,
+            0.001975232968106866,
+            0.000009028872227645479,
+            0.999998152256012
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      }
+    ],
+    "configuration": {
+      "behaviorBundle": null,
+      "physicsRequirements": null
+    },
+    "relations": [
+      {
+        "subject": "guide_agent",
+        "predicate": "ON",
+        "object": "ground_plane",
+        "meta": {
+          "surfaceId": "ground",
+          "gap": 0,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "ground_plane",
+        "predicate": "SUPPORTS",
+        "object": "guide_agent",
+        "meta": {
+          "surfaceId": "ground",
+          "gap": 0,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "work_table",
+        "predicate": "ON",
+        "object": "ground_plane",
+        "meta": {
+          "surfaceId": "ground",
+          "gap": 0,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "ground_plane",
+        "predicate": "SUPPORTS",
+        "object": "work_table",
+        "meta": {
+          "surfaceId": "ground",
+          "gap": 0,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "visitor_chair",
+        "predicate": "ON",
+        "object": "ground_plane",
+        "meta": {
+          "surfaceId": "ground",
+          "gap": 0,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "ground_plane",
+        "predicate": "SUPPORTS",
+        "object": "visitor_chair",
+        "meta": {
+          "surfaceId": "ground",
+          "gap": 0,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "pushable_crate",
+        "predicate": "ON",
+        "object": "ground_plane",
+        "meta": {
+          "surfaceId": "ground",
+          "gap": 0,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "ground_plane",
+        "predicate": "SUPPORTS",
+        "object": "pushable_crate",
+        "meta": {
+          "surfaceId": "ground",
+          "gap": 0,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "guide_agent",
+        "predicate": "NEAR",
+        "object": "pushable_crate",
+        "meta": {
+          "distance": 1.264
+        }
+      },
+      {
+        "subject": "pushable_crate",
+        "predicate": "NEAR",
+        "object": "guide_agent",
+        "meta": {
+          "distance": 1.264
+        }
+      },
+      {
+        "subject": "work_table",
+        "predicate": "NEAR",
+        "object": "demo_cup",
+        "meta": {
+          "distance": 0.7
+        }
+      },
+      {
+        "subject": "demo_cup",
+        "predicate": "NEAR",
+        "object": "work_table",
+        "meta": {
+          "distance": 0.7
+        }
+      },
+      {
+        "subject": "demo_cup",
+        "predicate": "ON",
+        "object": "work_table",
+        "meta": {
+          "surfaceId": "top",
+          "gap": 0.02,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "work_table",
+        "predicate": "SUPPORTS",
+        "object": "demo_cup",
+        "meta": {
+          "surfaceId": "top",
+          "gap": 0.02,
+          "evidence": "spatial-geometry"
+        }
+      }
+    ]
+  },
+  "assets": [
+    {
+      "id": "asset_978dda2bb9a087f9b444b1584c0da76387f9bbbcbac7b686b5bb8d23366ebe9c",
+      "sha256": "e4f6bd9cc7b2fffef0974aeaebfe9fac46c9159c155b0397a37ea41e1615de5e",
+      "bytes": "Z2xURgIAAABkBgAAwAMAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJhbnNmb3JtIHY0LjUuMCIsInZlcnNpb24iOiIyLjAifSwiYWNjZXNzb3JzIjpbeyJ0eXBlIjoiU0NBTEFSIiwiY29tcG9uZW50VHlwZSI6NTEyMywiY291bnQiOjM2LCJidWZmZXJWaWV3IjowLCJieXRlT2Zmc2V0IjowfSx7InR5cGUiOiJWRUMzIiwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjI0LCJtYXgiOlsxMiwwLjExOTk5OTk5NzMxNzc5MDk5LDEyXSwibWluIjpbLTEyLC0wLjExOTk5OTk5NzMxNzc5MDk5LC0xMl0sImJ1ZmZlclZpZXciOjEsImJ5dGVPZmZzZXQiOjB9LHsidHlwZSI6IlZFQzMiLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MjQsImJ1ZmZlclZpZXciOjEsImJ5dGVPZmZzZXQiOjEyfV0sImJ1ZmZlclZpZXdzIjpbeyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjAsImJ5dGVMZW5ndGgiOjcyLCJ0YXJnZXQiOjM0OTYzfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6NzIsImJ5dGVMZW5ndGgiOjU3NiwiYnl0ZVN0cmlkZSI6MjQsInRhcmdldCI6MzQ5NjJ9XSwiYnVmZmVycyI6W3siYnl0ZUxlbmd0aCI6NjQ4fV0sIm1hdGVyaWFscyI6W3sicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC4xMzI4NjgzMjE1NDQxNDYyNywwLjE4MTE2NDI0NDIzOTQ4MywwLjE1ODk2MDgzNTA1MDc3NCwxXSwicm91Z2huZXNzRmFjdG9yIjowLjgyLCJtZXRhbGxpY0ZhY3RvciI6MH19XSwibWVzaGVzIjpbeyJuYW1lIjoic29saWQiLCJwcmltaXRpdmVzIjpbeyJhdHRyaWJ1dGVzIjp7IlBPU0lUSU9OIjoxLCJOT1JNQUwiOjJ9LCJtb2RlIjo0LCJtYXRlcmlhbCI6MCwiaW5kaWNlcyI6MH1dfV0sIm5vZGVzIjpbeyJuYW1lIjoic29saWQiLCJ0cmFuc2xhdGlvbiI6WzAsLTAuMTIsMF0sIm1lc2giOjB9XSwic2NlbmVzIjpbeyJuYW1lIjoiUmVjaXBlIiwibm9kZXMiOlswXX1dLCJzY2VuZSI6MH2IAgAAQklOAAAAAQACAAEAAwACAAQABQAGAAUABwAGAAgACQAKAAkACwAKAAwADQAOAA0ADwAOABAAEQASABEAEwASABQAFQAWABUAFwAWAAAAQEGPwvU9AABAQQAAgD8AAAAAAAAAAAAAQEGPwvW9AABAQQAAgD8AAAAAAAAAAAAAQEGPwvU9AABAwQAAgD8AAAAAAAAAAAAAQEGPwvW9AABAwQAAgD8AAAAAAAAAAAAAQMGPwvU9AABAwQAAgL8AAAAAAAAAAAAAQMGPwvW9AABAwQAAgL8AAAAAAAAAAAAAQMGPwvU9AABAQQAAgL8AAAAAAAAAAAAAQMGPwvW9AABAQQAAgL8AAAAAAAAAAAAAQMGPwvU9AABAwQAAAAAAAIA/AAAAAAAAQMGPwvU9AABAQQAAAAAAAIA/AAAAAAAAQEGPwvU9AABAwQAAAAAAAIA/AAAAAAAAQEGPwvU9AABAQQAAAAAAAIA/AAAAAAAAQMGPwvW9AABAQQAAAAAAAIC/AAAAAAAAQMGPwvW9AABAwQAAAAAAAIC/AAAAAAAAQEGPwvW9AABAQQAAAAAAAIC/AAAAAAAAQEGPwvW9AABAwQAAAAAAAIC/AAAAAAAAQMGPwvU9AABAQQAAAAAAAAAAAACAPwAAQMGPwvW9AABAQQAAAAAAAAAAAACAPwAAQEGPwvU9AABAQQAAAAAAAAAAAACAPwAAQEGPwvW9AABAQQAAAAAAAAAAAACAPwAAQEGPwvU9AABAwQAAAAAAAAAAAACAvwAAQEGPwvW9AABAwQAAAAAAAAAAAACAvwAAQMGPwvU9AABAwQAAAAAAAAAAAACAvwAAQMGPwvW9AABAwQAAAAAAAAAAAACAvw==",
+      "definition": {
+        "type": "prop",
+        "label": "collab_ground_v2",
+        "actions": [],
+        "physics": {
+          "body": "fixed",
+          "mass": 1,
+          "friction": 0.8,
+          "colliders": [
+            {
+              "shape": "box",
+              "halfExtents": [
+                12,
+                0.12,
+                12
+              ],
+              "translation": [
+                0,
+                -0.12,
+                0
+              ]
+            }
+          ]
+        },
+        "parts": {},
+        "surfaces": [
+          {
+            "id": "ground",
+            "localPosition": [
+              0,
+              0,
+              0
+            ],
+            "size": [
+              22,
+              22
+            ]
+          }
+        ],
+        "capabilityLevel": "physical"
+      }
+    },
+    {
+      "id": "asset_a965c26602ba0ef36034de6b5f3d272e220ce9dd60fd52d0140f91f01baa9a90",
+      "sha256": "67743ea653a6d22fd962d3558fec0478d3f99dca42a9ae1d1a312cdc60d2ca14",
+      "bytes": "Z2xURgIAAACsBgAACAQAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJhbnNmb3JtIHY0LjUuMCIsInZlcnNpb24iOiIyLjAifSwiYWNjZXNzb3JzIjpbeyJ0eXBlIjoiU0NBTEFSIiwiY29tcG9uZW50VHlwZSI6NTEyMywiY291bnQiOjM2LCJidWZmZXJWaWV3IjowLCJieXRlT2Zmc2V0IjowfSx7InR5cGUiOiJWRUMzIiwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjI0LCJtYXgiOlswLjQ0OTk5OTk4ODA3OTA3MTA0LDAuNDQ5OTk5OTg4MDc5MDcxMDQsMC40NDk5OTk5ODgwNzkwNzEwNF0sIm1pbiI6Wy0wLjQ0OTk5OTk4ODA3OTA3MTA0LC0wLjQ0OTk5OTk4ODA3OTA3MTA0LC0wLjQ0OTk5OTk4ODA3OTA3MTA0XSwiYnVmZmVyVmlldyI6MSwiYnl0ZU9mZnNldCI6MH0seyJ0eXBlIjoiVkVDMyIsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjoyNCwiYnVmZmVyVmlldyI6MSwiYnl0ZU9mZnNldCI6MTJ9XSwiYnVmZmVyVmlld3MiOlt7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MCwiYnl0ZUxlbmd0aCI6NzIsInRhcmdldCI6MzQ5NjN9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0Ijo3MiwiYnl0ZUxlbmd0aCI6NTc2LCJieXRlU3RyaWRlIjoyNCwidGFyZ2V0IjozNDk2Mn1dLCJidWZmZXJzIjpbeyJieXRlTGVuZ3RoIjo2NDh9XSwibWF0ZXJpYWxzIjpbeyJwYnJNZXRhbGxpY1JvdWdobmVzcyI6eyJiYXNlQ29sb3JGYWN0b3IiOlswLjUwODg4MTMyMDg0NTgwMiwwLjIzNDU1MDU4MjE1MDI2MTY3LDAuMDcwMzYwMDk1Njg4NzQzMDUsMV0sInJvdWdobmVzc0ZhY3RvciI6MC44MiwibWV0YWxsaWNGYWN0b3IiOjB9fV0sIm1lc2hlcyI6W3sibmFtZSI6InNvbGlkIiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MSwiTk9STUFMIjoyfSwibW9kZSI6NCwibWF0ZXJpYWwiOjAsImluZGljZXMiOjB9XX1dLCJub2RlcyI6W3sibmFtZSI6InNvbGlkIiwidHJhbnNsYXRpb24iOlswLDAuNDUsMF0sIm1lc2giOjB9XSwic2NlbmVzIjpbeyJuYW1lIjoiUmVjaXBlIiwibm9kZXMiOlswXX1dLCJzY2VuZSI6MH0gICCIAgAAQklOAAAAAQACAAEAAwACAAQABQAGAAUABwAGAAgACQAKAAkACwAKAAwADQAOAA0ADwAOABAAEQASABEAEwASABQAFQAWABUAFwAWAGZm5j5mZuY+ZmbmPgAAgD8AAAAAAAAAAGZm5j5mZua+ZmbmPgAAgD8AAAAAAAAAAGZm5j5mZuY+ZmbmvgAAgD8AAAAAAAAAAGZm5j5mZua+ZmbmvgAAgD8AAAAAAAAAAGZm5r5mZuY+ZmbmvgAAgL8AAAAAAAAAAGZm5r5mZua+ZmbmvgAAgL8AAAAAAAAAAGZm5r5mZuY+ZmbmPgAAgL8AAAAAAAAAAGZm5r5mZua+ZmbmPgAAgL8AAAAAAAAAAGZm5r5mZuY+ZmbmvgAAAAAAAIA/AAAAAGZm5r5mZuY+ZmbmPgAAAAAAAIA/AAAAAGZm5j5mZuY+ZmbmvgAAAAAAAIA/AAAAAGZm5j5mZuY+ZmbmPgAAAAAAAIA/AAAAAGZm5r5mZua+ZmbmPgAAAAAAAIC/AAAAAGZm5r5mZua+ZmbmvgAAAAAAAIC/AAAAAGZm5j5mZua+ZmbmPgAAAAAAAIC/AAAAAGZm5j5mZua+ZmbmvgAAAAAAAIC/AAAAAGZm5r5mZuY+ZmbmPgAAAAAAAAAAAACAP2Zm5r5mZua+ZmbmPgAAAAAAAAAAAACAP2Zm5j5mZuY+ZmbmPgAAAAAAAAAAAACAP2Zm5j5mZua+ZmbmPgAAAAAAAAAAAACAP2Zm5j5mZuY+ZmbmvgAAAAAAAAAAAACAv2Zm5j5mZua+ZmbmvgAAAAAAAAAAAACAv2Zm5r5mZuY+ZmbmvgAAAAAAAAAAAACAv2Zm5r5mZua+ZmbmvgAAAAAAAAAAAACAvw==",
+      "definition": {
+        "type": "prop",
+        "label": "collab_crate_v2",
+        "actions": [],
+        "physics": {
+          "body": "dynamic",
+          "mass": 4,
+          "friction": 0.8,
+          "colliders": [
+            {
+              "shape": "box",
+              "halfExtents": [
+                0.45,
+                0.45,
+                0.45
+              ],
+              "translation": [
+                0,
+                0.45,
+                0
+              ]
+            }
+          ]
+        },
+        "parts": {},
+        "surfaces": [],
+        "capabilityLevel": "physical"
+      }
+    }
+  ],
+  "lock": {
+    "engine": "2.0.0-dev.1",
+    "builtins": "e24d390940c150116f730a39ede7ecfd119d88bcaf07af150c4c68079bb28af8",
+    "content": "68361c24f0c880b913a7daef39c87b4bab5bbe6099183b9f0f1bd4f6fa051f32"
+  }
+}
