@@ -1,6 +1,7 @@
 import * as z from 'zod/v4';
 
 export const threeCodeInputSchema = z.object({ kind:z.literal('three-code'), source:z.string().min(1).max(32768), definition:z.record(z.string(),z.unknown()).optional() }).strict();
+export const compiledCodeInputSchema = z.object({kind:z.literal('compiled-code'),id:z.string().regex(/^(pa_|asset_)[a-f0-9]{64}$/),bytes:z.instanceof(Uint8Array).refine(bytes=>bytes.byteLength<=4194304),definition:z.record(z.string(),z.unknown())}).strict();
 
 const number = z.number().finite().min(-100).max(100);
 const size = z.number().finite().positive().max(100);

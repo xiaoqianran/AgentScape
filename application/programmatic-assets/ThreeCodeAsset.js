@@ -1,5 +1,27 @@
 import { ProgrammaticAssetBuilder } from './ProgrammaticAssetBuilder.js';
 import { assetDigest, canonicalAssetJson } from '../../modules/asset/model/AssetInputContracts.js';
+import { createAssetModule } from '../../modules/asset/AssetModule.js';
+import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
+
+// Published bytes cross the Studio bridge; compile and verify them locally before
+// the existing Scene mutation, never accept a remote physics verdict as evidence.
+export async function prepareEmbeddedCodeAsset(assets, input, { gltfLoader } = {}) {
+  const asset=`asset://sha256/${input.id.replace(/^(pa_|asset_)/,'')}`;
+  const sourceHash=await assetDigest(input.bytes);
+  const definitionHash=await assetDigest(new TextEncoder().encode(canonicalAssetJson(input.definition)));
+  if(assets.hasAsset(input.id)) {
+    const existing=assets.getManifest(input.id);
+    if(existing.provenance?.codeTransport?.sourceHash!==sourceHash || existing.provenance?.codeTransport?.definitionHash!==definitionHash)throw new Error('ASSET_ID_CONFLICT');
+    return {asset,install:operation=>operation()};
+  }
+  const scratch=createAssetModule({volatile:true,manifests:{},manifestStore:null,libraryStore:null,gltfLoader});
+  scratch.configureVerification({articulationVerifier:new ArticulationVerifier({assetRegistry:scratch.registry,assetLoader:scratch.loader})});
+  const {manifest}=await scratch.importPackageAsset({id:input.id,bytes:input.bytes,definition:input.definition});
+  manifest.provenance={...manifest.provenance,codeTransport:{sourceHash,definitionHash}};
+  const bytes=(await scratch.compiledStore.get(manifest.source.key)).bytes;
+  const expectedSourceHash=await assetDigest(bytes);
+  return {asset,install:operation=>assets.installPreparedAssets([{manifest,bytes,expectedDefinition:manifest,expectedSourceHash}],operation)};
+}
 
 export async function prepareThreeCodeAsset(assets, executor, input, { signal, gltfLoader } = {}) {
   if (!executor) throw new Error('CODE_EXECUTION_DISABLED');

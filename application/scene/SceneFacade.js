@@ -5,8 +5,8 @@ import { createMonumentHall } from '../../modules/world/content/monumentHall.js'
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { assetAdmission } from '../../modules/asset/model/admission.js';
-import { recipeSchema, glbInputSchema, threeCodeInputSchema } from '../../modules/asset/model/AssetInputContracts.js';
-import { prepareThreeCodeAsset } from '../programmatic-assets/ThreeCodeAsset.js';
+import { recipeSchema, glbInputSchema, threeCodeInputSchema, compiledCodeInputSchema } from '../../modules/asset/model/AssetInputContracts.js';
+import { prepareThreeCodeAsset, prepareEmbeddedCodeAsset } from '../programmatic-assets/ThreeCodeAsset.js';
 import { mechanicalDraftSchema } from '../../modules/asset/model/MechanicalAssetDraft.js';
 import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 import { StyleSystem } from '../../modules/rendering/style/StyleSystem.js';
@@ -179,17 +179,19 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       assertIdle();
       if (typeof input?.asset !== 'string') {
         const source = input?.asset;
-        if (source?.kind === 'three-code') {
-          const code = threeCodeInputSchema.parse(source);
-          const model = modelSchema.parse({ ...input, asset:'builtin://pending', level:input.level ?? (code.definition ? 'physical' : 'visual') });
+        if (['three-code','compiled-code'].includes(source?.kind)) {
+          const code = source.kind==='three-code' ? threeCodeInputSchema.parse(source) : compiledCodeInputSchema.parse(source);
+          const model = modelSchema.parse({ ...input, asset:'builtin://pending', level:input.level ?? (code.definition?.capabilityLevel || (code.definition ? 'physical' : 'visual')) });
           if (world.store.has(model.id)) throw sceneError('DUPLICATE_ID');
           if (world.store.list().length >= maxObjects) throw sceneError('OBJECT_LIMIT');
           return exclusive(async () => {
-            const prepared = await prepareThreeCodeAsset(world.assetModule, codeExecutor, code, { signal, gltfLoader:codeGLTFLoader });
+            const prepared = code.kind==='three-code'
+              ? await prepareThreeCodeAsset(world.assetModule, codeExecutor, code, { signal, gltfLoader:codeGLTFLoader })
+              : await prepareEmbeddedCodeAsset(world.assetModule, code, {gltfLoader:codeGLTFLoader});
             return prepared.install(async () => {
               if (signal?.aborted) throw sceneError('BUILD_CANCELLED');
               const added = await executeEdit({ type:'add', model:{...model,asset:prepared.asset} });
-              return {...added, execution:{status:'succeeded'}, buildValidation:prepared.validation};
+              return {...added, execution:{status:code.kind==='three-code'?'succeeded':'not-requested'}, buildValidation:prepared.validation};
             });
           });
         }

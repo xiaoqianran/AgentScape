@@ -35,6 +35,7 @@ export async function exportScenePackage(world, { name = 'Untitled World', readR
     let bytes;
     if (manifest.source.kind === 'compiled') bytes = (await world.assetModule.compiledStore.get(manifest.source.key))?.bytes;
     else if (readResource) bytes = await readResource(manifest.source.url, manifest.id);
+    else if (manifest.source.kind === 'glb') bytes = await world.assetModule.readAssetBytes(manifest.id);
     if (!(bytes instanceof Uint8Array)) throw new Error('RESOURCE_UNAVAILABLE');
     bytes = bytes.slice(); assertEmbeddedGLB(bytes);
     total += bytes.length; if (total > 64 * 1024 * 1024) throw new Error('RESOURCE_LIMIT');

@@ -33,7 +33,7 @@ export async function createStudioRuntime({
   world.generationState = await generation.initialize({ pair:false });
   await world.init();
   const selectedPort = Number(params.get('mcpPort'));
-  const bridgePort = import.meta.env.DEV && Number.isInteger(selectedPort) && selectedPort>=1 && selectedPort<=65535 ? selectedPort : 39015;
+  const bridgePort = Number.isInteger(selectedPort) && selectedPort>=1 && selectedPort<=65535 ? selectedPort : 39015;
   const liveBridge = new StudioLiveBridgeClient({world,scene,serverUrl:'http://127.0.0.1:'+bridgePort});
   ui.attachLiveBridge?.(liveBridge);
 

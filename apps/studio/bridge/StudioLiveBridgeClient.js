@@ -160,7 +160,7 @@ export class StudioLiveBridgeClient {
       case 'verify':return this.scene.verify(args.criteria);
       case 'addModel':{
         let model=args.model;
-        if(model?.asset?.kind==='glb'){
+        if(['glb','compiled-code'].includes(model?.asset?.kind)){
           const {bytesBase64,urdfBase64,...rest}=model.asset;
           model={...model,asset:{...rest,bytes:decode(bytesBase64),...(urdfBase64?{urdfBytes:decode(urdfBase64)}:{})}};
         }

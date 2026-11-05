@@ -34,17 +34,26 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
  add('session_create','Create a private offline monument-hall world with agent, cabinet, cup and table.',{template:z.literal('monument-hall').default('monument-hall')},()=>manager.create(owner));
  add('session_status','Read world session lifecycle.',session,a=>manager.status(owner,a.worldSessionId));
  add('session_close','Cancel work and release your world.',session,a=>manager.close(owner,a.worldSessionId));
- add('asset_build_submit','Submit a versioned createAsset(THREE) source and explicit Manifest to an OS-isolated build. Returns Build ID; inspect status asynchronously. No unsafe fallback.',{contract:z.literal(proceduralContract),source:z.string().min(1).max(32768),definition:definitionSchema,requestId:z.uuid(),forceRebuild:z.boolean().default(false)},a=>assets.submit(owner,a));
+ add('asset_build_submit','Submit versioned createAsset(THREE) source to the configured code executor. Optional definition enables physical admission; inspect execution and physics evidence separately.',{contract:z.literal(proceduralContract),source:z.string().min(1).max(32768),definition:definitionSchema.optional(),requestId:z.uuid(),forceRebuild:z.boolean().default(false)},a=>assets.submit(owner,a));
  add('asset_build_status','Read your build status, immutable asset version, admission or diagnostic code.',{buildId:z.uuid()},a=>assets.status(owner,a.buildId));
- add('asset_build_cancel','Cancel your isolated build and terminate its container.',{buildId:z.uuid()},a=>assets.cancel(owner,a.buildId));
+ add('asset_build_cancel','Cancel your build and terminate its execution Worker or container.',{buildId:z.uuid()},a=>assets.cancel(owner,a.buildId));
  add('asset_publish','Publish a successful immutable asset for your worlds. Provisional requires explicit editing-state opt-in.',{buildId:z.uuid(),allowProvisional:z.boolean().default(false)},a=>assets.publish(owner,a.buildId,a.allowProvisional));
  add('asset_inspect','Inspect your asset, original source (optional), hashes, Manifest and runtime verification evidence.',{assetId:id,includeSource:z.boolean().default(false)},a=>assets.inspect(owner,a.assetId,a.includeSource));
  add('asset_list','List your published asset versions, paginated.',{offset:z.number().int().min(0).max(128).default(0),limit:z.number().int().min(1).max(20).default(20)},async a=>{const all=await assets.repository.list(owner);return {assets:all.slice(a.offset,a.offset+a.limit),total:all.length,nextOffset:a.offset+a.limit<all.length?a.offset+a.limit:null};});
  const run=(a,fn,extra)=>manager.run(owner,a.worldSessionId,fn,{signal:extra?.signal});
- const sceneRun=(a,method,args,fn,extra)=>{
+ const sceneRun=async(a,method,args,fn,extra)=>{
   const target=a.worldSessionId || studioBridge.currentSession().worldSessionId;
-  if(studioBridge?.isStudioSession(target))
+  if(studioBridge?.isStudioSession(target)) {
+   studioBridge.ownerSession(owner,target);
+   const ref=args.model?.asset;
+   if(method==='addModel' && typeof ref==='string' && /^asset:\/\/sha256\/[a-f0-9]{64}$/.test(ref)) {
+    const published=await assets.repository.get(owner,`pa_${ref.slice('asset://sha256/'.length)}`,{published:true});
+    const {id}=published.manifest;
+    const definition=Object.fromEntries(['type','label','actions','physics','parts','surfaces','receptacles','requiredNodes','interactionContract','capabilityLevel'].filter(key=>published.manifest[key]!=null).map(key=>[key,published.manifest[key]]));
+    args={...args,model:{...args.model,asset:{kind:'compiled-code',id,bytesBase64:Buffer.from(published.bytes).toString('base64'),definition}}};
+   }
    return studioBridge.call(owner,target,method,args,{signal:extra?.signal,requestId:a.requestId});
+  }
   return manager.run(owner,target,fn,{signal:extra?.signal,
     ...(a.requestId?{requestId:a.requestId,fingerprint:JSON.stringify([method,args])}:{})});
  };
