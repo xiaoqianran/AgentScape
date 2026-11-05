@@ -27,10 +27,11 @@ function authoringTransform(node) {
 }
 
 export class InspectorProjection {
-  constructor({ world, authoring = null } = {}) {
+  constructor({ world, authoring = null, scene = null } = {}) {
     if (!world?.queries) throw new TypeError('InspectorProjection requires WorldQueries');
     this.world=world;
     this.authoring=authoring;
+    this.scene=scene;
   }
 
   project(selection) {
@@ -43,6 +44,8 @@ export class InspectorProjection {
       const info=this.world.queries.getObjectInfo(selection.id);
       const bounds=this.world.queries.getBounds(selection.id);
       const nearby=this.world.queries.findNearby(selection.id,2);
+      const actor=this.world.store?.list?.().find(([,record])=>record.manifest?.type==='agent')?.[0] || null;
+      const affordances=this.scene?.inspect?.(selection.id,actor?{actor}:{}) || null;
       return {
         source:'runtime',
         kind:'entity',
@@ -60,7 +63,9 @@ export class InspectorProjection {
           size:[...bounds.size],
           nearbyCount:nearby.length
         },
-        actions:[...(info.actions || [])]
+        actions:[...(info.actions || [])],
+        actor,
+        affordances
       };
     }
 
@@ -87,12 +92,16 @@ export class InspectorProjection {
 
     if (selection.source === 'environment') {
       const environment=this.world.environment;
+      const actor=this.world.store?.list?.().find(([,record])=>record.manifest?.type==='agent')?.[0] || null;
+      const affordances=this.scene?.inspect?.(selection.id,actor?{actor}:{}) || null;
       return {
         source:'environment',
         kind:'environment',
         id:selection.id,
         title:environment?.title || environment?.label || selection.id,
-        subtitle:'Environment'
+        subtitle:'Environment',
+        actor,
+        affordances
       };
     }
 

@@ -1,13 +1,7 @@
 import { assetDisplayName } from '../shared/ResourcePresentation';
 import { useEffect, useState } from 'react';
 import type { EditorCommandsLike, InspectorRelation, RuntimeInspectorModel } from './InspectorTypes';
-
-const ACTION_LABELS: Record<string,string> = {
-  open:'打开',
-  close:'关闭',
-  pickup:'拿起',
-  drop:'放下'
-};
+import { AffordanceActionPanel } from './AffordanceActionPanel';
 
 const RELATION_LABELS: Record<string,string> = {
   ON:'位于其上',
@@ -34,18 +28,6 @@ export function RuntimeEntityInspector({
     setScaleInput(String(model.transform.scale));
   },[model.id,model.transform.scale]);
 
-  const runAction=async(action:string)=>{
-    if (busy) return;
-    setBusy('action:' + action);setErrorMessage('');
-    try {
-      await commands.runtimeAction(action === 'drop' ? 'drop' : action,model.id);
-    } catch(error) {
-      const message=error instanceof Error ? error.message : String(error);setErrorMessage(message);log('错误：'+message,'error');
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const applyScale=async()=>{
     if (busy) return;
     const value=Number(scaleInput);
@@ -62,8 +44,6 @@ export function RuntimeEntityInspector({
       setBusy(null);
     }
   };
-
-  const actions=model.actions.filter(action=>Object.hasOwn(ACTION_LABELS,action));
 
   return (
     <div data-inspector-source="runtime">
@@ -123,13 +103,7 @@ export function RuntimeEntityInspector({
 
         <section className="inspect-section">
           <h3>可用操作</h3>
-          <div id="actions" className="action-list">
-            {actions.length ? actions.map(action=>(
-              <button key={action} type="button" disabled={Boolean(busy)} onClick={()=>void runAction(action)}>
-                {busy === 'action:' + action ? '执行中…' : ACTION_LABELS[action]}
-              </button>
-            )) : <span className="muted-copy">暂无可直接执行的操作。</span>}
-          </div>
+          <AffordanceActionPanel targetId={model.id} actor={model.actor ?? null} affordances={model.affordances ?? null} commands={commands} log={log} disabled={Boolean(busy)} />
         </section>
 
         <details className="disclosure">

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createSceneFacade } from '../../../application/scene/SceneFacade.js';
 
 // Selection is UI state; all actions still pass through the production tool boundary.
 export function mountWorldContext({ world, editor, tools, ui }) {
@@ -12,7 +13,8 @@ export function mountWorldContext({ world, editor, tools, ui }) {
   status.setAttribute('role', 'status');
   card.append(title, actions, status);
   ui.viewport.append(card);
-  const labels = { open:'打开',close:'关闭',pickup:'拿起',drop:'放下' };
+  const labels = { open:'打开',close:'关闭',pickup:'拿起',place:'放置' };
+  const scene=createSceneFacade(world);
   let busy = false;
   let selected = null;
   const button = (label, run) => {
@@ -29,25 +31,35 @@ export function mountWorldContext({ world, editor, tools, ui }) {
     actions.replaceChildren();
     status.textContent = '';
     if (card.hidden) return;
-    const info = world.queries.getObjectInfo(selected);
+    const actor=world.store.list().find(([,record])=>record.manifest?.type==='agent')?.[0] || null;
+    const affordances=scene.inspect(selected,actor?{actor}:{});
     title.textContent = selected;
-    for (const action of info.actions.filter(value => labels[value])) {
-      button(labels[action], async () => {
-        if (busy) return;
-        const id = selected;
-        busy = true;
-        status.textContent = '正在执行…';
-        actions.querySelectorAll('button').forEach(item => { item.disabled = true; });
+    for (const entry of affordances.actions.filter(item=>item.execution==='interaction' && labels[item.action])) {
+      const action=entry.action;
+      const trigger=button(labels[action], async () => {
+        if (busy || !actor || entry.available!==true) return;
+        const id=selected;
+        busy=true;
+        status.textContent='执行中，等待实际后置条件验证…';
+        actions.querySelectorAll('button').forEach(item=>{item.disabled=true;});
         try {
-          await tools.call(action, { id });
-          if (selected === id) status.textContent = '已执行';
-        } catch (error) {
-          if (selected === id) status.textContent = error.message;
+          const input={actor,target:id,action,...(entry.partName?{partName:entry.partName}:{}),
+            ...(action==='place' && entry.parameters?.surfaceId?.enum?.length?{surfaceId:entry.parameters.surfaceId.enum[0]}:{})};
+          const job=scene.interact(input);
+          const completed=await scene.waitJob(job.id);
+          if(selected===id) status.textContent=completed.status==='succeeded' && completed.result?.verification.status==='verified'
+            ? '动作状态已验证（不代表抓取力验证）'
+            : '交互未完成：'+(completed.result?.value?.reason || completed.result?.diagnostics?.[0]?.code || completed.status);
+        } catch(error) {
+          if(selected===id)status.textContent=error.message;
         } finally {
-          busy = false;
-          actions.querySelectorAll('button').forEach(item => { item.disabled = false; });
+          busy=false;
+          actions.querySelectorAll('button').forEach(item=>{item.disabled=item.dataset.contractReady==='false';});
         }
       });
+      trigger.disabled=!actor || entry.available!==true;
+      trigger.dataset.contractReady=String(Boolean(actor && entry.available===true));
+      trigger.title=entry.available===true ? '通过 Scene API 执行并验证' : entry.reason || '未检查当前可达性';
     }
     button('检查详情', () => ui.setView('inspect'));
     button('让 Agent 操作', () => {

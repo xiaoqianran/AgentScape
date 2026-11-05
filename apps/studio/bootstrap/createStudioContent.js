@@ -70,9 +70,11 @@ export function createStudioContent({
     log
   });
 
-  const inspectorProjection = new InspectorProjection({ world, authoring });
+  const scene = createSceneFacade(world);
+  const inspectorProjection = new InspectorProjection({ world, authoring, scene });
   const editorCommands = new EditorCommandQueue({
     tools:studioTools,
+    scene,
     authoring,
     log,
     onCommitted:(command)=>{

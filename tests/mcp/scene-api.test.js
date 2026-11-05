@@ -38,7 +38,14 @@ it('shares Scene edits with legacy observation and returns real asynchronous job
     const lamp = await call('scene_observe', { ...base, target: 'test:lamp', actor: 'agent_01' });
     expect(lamp).toMatchObject({ source: 'environment', state: { on: false }, physicsVerified: false });
     expect(lamp.actions[0]).toMatchObject({ execution: 'world-action', available: true });
-    host.world.environment.affordances[0].request('turn_on');
+    const lampJob = await call('scene_interact', { ...base, requestId: randomUUID(), interaction:{ actor:'agent_01',target:'test:lamp',action:'turn_on' } });
+    let lampResult;
+    for(let poll=0;poll<70;poll++) {
+      lampResult=await call('scene_job', { ...base, jobId:lampJob.id });
+      if(lampResult.status!=='running')break;
+      await new Promise(resolve=>setTimeout(resolve,5));
+    }
+    expect(lampResult).toMatchObject({status:'succeeded',result:{verification:{status:'verified'},value:{evidenceKind:'device-state',physicsVerified:false}}});
     expect((await call('scene_observe', { ...base, target: 'test:lamp' })).state.on).toBe(true);
     host.world.environment.affordances = [];
     await call('scene_add_model', { ...base, requestId: randomUUID(), model: { id: 'held_test', asset: 'builtin://cup', position: [0, 0, 8] } });

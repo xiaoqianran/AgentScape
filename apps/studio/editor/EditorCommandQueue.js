@@ -1,12 +1,14 @@
 export class EditorCommandQueue {
   constructor({
     tools,
+    scene = null,
     authoring = null,
     onCommitted = () => {},
     log = () => {}
   } = {}) {
     if (!tools?.call) throw new TypeError('EditorCommandQueue requires AgentTools-like call()');
     this.tools = tools;
+    this.scene = scene;
     this.authoring = authoring;
     this.onCommitted = onCommitted;
     this.log = log;
@@ -68,6 +70,26 @@ export class EditorCommandQueue {
     return this.enqueue(
       { type:'runtime-action', source:'runtime', id, action },
       () => this.tools.call(action,{ id, ...args })
+    );
+  }
+
+  /** The SDK, MCP and Studio share the same SceneFacade job/verification boundary. */
+  executeAffordance(interaction) {
+    if (!this.scene?.interact || !this.scene?.waitJob) throw new Error('SCENE_INTERACTION_UNAVAILABLE');
+    if (!interaction?.actor || !interaction?.target || !interaction?.action) throw new TypeError('Interaction requires actor, target and action');
+    const source=this.scene.inspect?.(interaction.target)?.source === 'environment' ? 'environment' : 'runtime';
+    return this.enqueue(
+      { type:'scene-interaction', source, id:interaction.target, action:interaction.action },
+      async () => {
+        const job=this.scene.interact(interaction);
+        const completed=await this.scene.waitJob(job.id);
+        const result=completed.result;
+        if (completed.status !== 'succeeded' || result?.verification?.status !== 'verified') {
+          const reason=result?.value?.reason || result?.diagnostics?.[0]?.code || result?.value?.status || completed.status;
+          throw Object.assign(new Error(`交互未验证：${reason}`), { code:'SCENE_INTERACTION_UNVERIFIED', result });
+        }
+        return result;
+      }
     );
   }
 

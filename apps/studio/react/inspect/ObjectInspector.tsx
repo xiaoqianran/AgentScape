@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStudioStore } from '../state/studioStore';
 import { RuntimeEntityInspector } from './RuntimeEntityInspector';
+import { AffordanceActionPanel } from './AffordanceActionPanel';
 import { AuthoringNodeInspector } from './AuthoringNodeInspector';
 import type {
   EditorCommandsLike,
@@ -33,6 +34,19 @@ export function ObjectInspectorView({ projection, commands, log }: InspectorProp
 
   if (model.source === 'runtime' && model.kind === 'entity') {
     return <RuntimeEntityInspector model={model as RuntimeInspectorModel} relations={relations} commands={commands} log={log} />;
+  }
+
+  if (model.source === 'environment' && model.kind === 'environment' && 'affordances' in model && model.affordances?.source === 'environment' && model.id) {
+    return <div data-inspector-source="environment">
+      <header className="screen-heading product-heading product-heading--utility">
+        <div className="eyebrow">环境交互对象</div>
+        <h1 id="inspect-heading">{model.affordances.label}</h1>
+        <p id="inspect-subheading">{model.id}</p>
+      </header>
+      <section className="inspect-section"><h3>可用操作</h3>
+        <AffordanceActionPanel targetId={model.id} actor={model.actor ?? null} affordances={model.affordances} commands={commands} log={log} />
+      </section>
+    </div>;
   }
 
   if (model.source === 'authoring' && model.kind !== 'missing') {
