@@ -3,11 +3,12 @@ import { DEFAULT_ENVIRONMENT, ENVIRONMENTS, resolveEnvironment } from '../../mod
 
 describe('Environment catalog',()=>{
   it('keeps curated worlds as content metadata instead of Runtime branches',()=>{
-    expect(ENVIRONMENTS.map((item)=>item.id)).toEqual(['magic-cabin','woodland-workshop','monument-hall','ruined-courtyard','grand-urban-block']);
+    expect(ENVIRONMENTS.map((item)=>item.id)).toEqual(['blank-world','house-world','house-door-world','industrial-cabinet-lab','magic-cabin','woodland-workshop','monument-hall','ruined-courtyard','grand-urban-block']);
     expect(new Set(ENVIRONMENTS.map((item)=>item.id)).size).toBe(ENVIRONMENTS.length);
     for(const item of ENVIRONMENTS){
       expect(typeof item.load).toBe('function');
-      expect(item.bootstrap).toMatchObject({agent:expect.any(Array),table:expect.any(Array),cabinet:expect.any(Array),cup:expect.any(Array)});
+      expect(item.bootstrap).toMatchObject({agent:expect.any(Array),table:expect.any(Array),cup:expect.any(Array)});
+      if (item.bootstrap.cabinet) expect(item.bootstrap.cabinet).toEqual(expect.any(Array));
     }
   });
 
