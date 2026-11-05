@@ -23,7 +23,7 @@ export interface AffordanceJoint { type: 'fixed' | 'revolute' | 'prismatic'; axi
 export interface ArticulationState { id: string; partName: string; jointType: string; coordinate: number; target: number | null; error: number | null; tolerance: number; limits: [number, number] | null; localAxis: Vec3; coordinateReference: 'rest-zero-pose' }
 export interface AffordanceAction {
   action: string; parameters: Record<string, unknown>; execution: 'query' | 'editor' | 'interaction' | 'world-action';
-  available: boolean | null; reason?: string | null; partName?: string; distance?: number; maxDistance?: number;
+  available: boolean | null; canApproach?:boolean; reason?: string | null; partName?: string; distance?: number; maxDistance?: number;
   targetPosition?: Vec3; blocker?: Record<string, unknown>; joint?: AffordanceJoint; state?: ArticulationState | null;
   contract?: { id: string; capability: string; action: string; target: { entityId: string; partName: string }; preconditions: unknown[]; effects: unknown[]; stateTransition: Record<string, unknown>; verifierTarget: Record<string, unknown> };
 }
@@ -44,9 +44,11 @@ export type Interaction = PhysicalInteraction | { action: 'navigate'; actor: str
   | { action: 'turn_on' | 'turn_off' | 'pull_out' | 'return'; actor: string; target: string }
   | { action: 'write'; actor: string; target: string; args: { text: string } };
 export interface SceneHandle {
+  actors():{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
+  selectActor(actor:string):{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
   prepareAsset(input:Omit<GLBInput,'review'>):Promise<CapabilityProposal>;
   inspect(target: string, options?: { actor?: string }): ObjectAffordances;
-  observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; style: Record<string, unknown> | null; affordances: AffordanceListing; objects: Array<{ id: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };
+  observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; actors: ReturnType<SceneHandle['actors']>; style: Record<string, unknown> | null; affordances: AffordanceListing; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };
   addModel(input: ModelInput): Promise<SceneResult>;
   setTransform(input: { id: string; transform: Transform }): Promise<SceneResult>;
   remove(input: { id: string }): Promise<SceneResult>;

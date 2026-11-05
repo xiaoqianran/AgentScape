@@ -48,7 +48,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
   const selected=actions.find(item=>key(item)===chosen) || actions.find(item=>item.available===true) || actions[0];
   const selectedKey=selected ? key(selected) : '';
 
-  useEffect(()=>{setChosen('');setFeedback('');setError('');},[targetId]);
+  useEffect(()=>{setChosen('');setFeedback('');setError('');},[targetId,actor]);
 
   const select=(value:string)=>{
     setChosen(value);setFeedback('');setError('');
@@ -60,7 +60,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
   };
 
   const execute=async()=>{
-    if(!selected || !actor || selected.available!==true || !commands.executeAffordance || running || disabled)return;
+    if(!selected || !actor || (selected.available!==true && !selected.canApproach) || !commands.executeAffordance || running || disabled)return;
     setRunning(true);setFeedback('');setError('');
     try {
       const interaction:{actor:string;target:string;action:string;args?:Record<string,unknown>;partName?:string;surfaceId?:string}={
@@ -99,12 +99,17 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
   };
 
   return <div id="actions" className="affordance-panel" data-affordance-source={affordances?.source || 'unknown'}>
+    {commands.listActors && commands.selectActor ? <><label htmlFor="affordance-actor">执行 Agent</label>
+      <select id="affordance-actor" value={actor || ''} disabled={running || disabled} onChange={event=>{try{commands.selectActor?.(event.target.value);setError('');}catch(cause){setError(cause instanceof Error?cause.message:String(cause));}}}>
+        <option value="" disabled>请选择 Agent</option>
+        {commands.listActors().agents.map(agent=><option key={agent.id} value={agent.id}>{agent.id}</option>)}
+      </select></> : null}
     {actions.length ? <>
-      <p className="affordance-note">执行者：{actor || '未找到 Agent'} · 数据来自实时 Scene Affordance；编辑器拖动不等于物理交互。</p>
+      <p className="affordance-note">执行者：{actor || '请选择 Agent'} · 数据来自实时 Scene Affordance；编辑器拖动不等于物理交互。</p>
       <label htmlFor="affordance-choice">交互动作</label>
       <select id="affordance-choice" value={selectedKey} disabled={running || disabled} onChange={event=>select(event.target.value)}>
         {actions.map(item=><option key={key(item)} value={key(item)}>
-          {LABELS[item.action] || item.action}{item.partName ? ' · '+item.partName : ''}{item.available===true ? '' : ' · 不可用'}
+          {LABELS[item.action] || item.action}{item.partName ? ' · '+item.partName : ''}{item.available===true ? '' : item.canApproach?' · 自动接近':' · 不可用'}
         </option>)}
       </select>
       {selected?.available!==true ? <p className="affordance-reason" role="note">
@@ -138,7 +143,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
         <label htmlFor="affordance-text">文字</label>
         <input id="affordance-text" value={text} maxLength={selected.parameters.text?.maxLength || 100} disabled={running || disabled} onChange={event=>setText(event.target.value)} />
       </div> : null}
-      <button id="execute-affordance" type="button" disabled={running || disabled || !actor || selected?.available!==true || !commands.executeAffordance} onClick={()=>void execute()}>
+      <button id="execute-affordance" type="button" disabled={running || disabled || !actor || (selected?.available!==true && !selected?.canApproach) || !commands.executeAffordance} onClick={()=>void execute()}>
         {running ? '执行与验证中…' : '执行 '+(LABELS[selected?.action || ''] || selected?.action)}
       </button>
     </> : <p className="muted-copy">当前对象没有已注册的具身交互或环境操作。可继续使用独立的编辑器变换功能。</p>}

@@ -31,13 +31,13 @@ export function mountWorldContext({ world, editor, tools, ui }) {
     actions.replaceChildren();
     status.textContent = '';
     if (card.hidden) return;
-    const actor=world.store.list().find(([,record])=>record.manifest?.type==='agent')?.[0] || null;
+    const actor=scene.actors().selected;
     const affordances=scene.inspect(selected,actor?{actor}:{});
     title.textContent = selected;
     for (const entry of affordances.actions.filter(item=>item.execution==='interaction' && labels[item.action])) {
       const action=entry.action;
       const trigger=button(labels[action], async () => {
-        if (busy || !actor || entry.available!==true) return;
+        if (busy || !actor || (entry.available!==true && !entry.canApproach)) return;
         const id=selected;
         busy=true;
         status.textContent='执行中，等待实际后置条件验证…';
@@ -57,9 +57,9 @@ export function mountWorldContext({ world, editor, tools, ui }) {
           actions.querySelectorAll('button').forEach(item=>{item.disabled=item.dataset.contractReady==='false';});
         }
       });
-      trigger.disabled=!actor || entry.available!==true;
-      trigger.dataset.contractReady=String(Boolean(actor && entry.available===true));
-      trigger.title=entry.available===true ? '通过 Scene API 执行并验证' : entry.reason || '未检查当前可达性';
+      trigger.disabled=!actor || (entry.available!==true && !entry.canApproach);
+      trigger.dataset.contractReady=String(Boolean(actor && (entry.available===true || entry.canApproach)));
+      trigger.title=entry.available===true ? '通过 Scene API 执行并验证' : entry.canApproach ? '自动接近后执行并验证' : entry.reason || '未检查当前可达性';
     }
     button('检查详情', () => ui.setView('inspect'));
     button('让 Agent 操作', () => {
@@ -69,6 +69,7 @@ export function mountWorldContext({ world, editor, tools, ui }) {
     button('取消选择', () => editor.select(null));
   };
   const off = world.events.on('editor.selection', render);
+  const offActor=world.events.on('scene.actor.selected',render);
   const point = new THREE.Vector3();
   const viewport = world.rendering.viewport();
   let frame;
@@ -87,5 +88,5 @@ export function mountWorldContext({ world, editor, tools, ui }) {
     frame = requestAnimationFrame(update);
   };
   update();
-  return { dispose() { cancelAnimationFrame(frame); if (typeof off === 'function') off(); card.remove(); } };
+  return { dispose() { cancelAnimationFrame(frame); if (typeof off === 'function') off();offActor?.();card.remove(); } };
 }

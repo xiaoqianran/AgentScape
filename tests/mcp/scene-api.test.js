@@ -47,6 +47,9 @@ it('shares Scene edits with legacy observation and returns real asynchronous job
     }
     expect(lampResult).toMatchObject({status:'succeeded',result:{verification:{status:'verified'},value:{evidenceKind:'device-state',physicsVerified:false}}});
     expect((await call('scene_observe', { ...base, target: 'test:lamp' })).state.on).toBe(true);
+    expect((await call('scene_verify',{...base,criteria:[{id:'lamp-on',kind:'state-equals',targetId:'test:lamp',stateKey:'on',value:true}]})).value.status).toBe('world-accepted');
+    const alternatives=await call('scene_verify',{...base,criteria:[{id:'support',kind:'relation-exists',subject:'cup_01',predicate:'ON',objectAnyOf:['cabinet_01','table_01']}]});
+    expect(alternatives.value.checks[0].objectAnyOf).toEqual(['cabinet_01','table_01']);
     host.world.environment.affordances = [];
     await call('scene_add_model', { ...base, requestId: randomUUID(), model: { id: 'held_test', asset: 'builtin://cup', position: [0, 0, 8] } });
     host.world.interactions.pickup('held_test');

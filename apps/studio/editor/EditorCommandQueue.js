@@ -74,6 +74,8 @@ export class EditorCommandQueue {
   }
 
   /** The SDK, MCP and Studio share the same SceneFacade job/verification boundary. */
+  listActors() {return this.scene?.actors?.() || {agents:[],selected:null};}
+  selectActor(actor) {const result=this.scene.selectActor(actor);this.onCommitted({type:'actor-selection'},result);return result;}
   executeAffordance(interaction) {
     if (!this.scene?.interact || !this.scene?.waitJob) throw new Error('SCENE_INTERACTION_UNAVAILABLE');
     if (!interaction?.actor || !interaction?.target || !interaction?.action) throw new TypeError('Interaction requires actor, target and action');

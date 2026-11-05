@@ -20,3 +20,24 @@ test('Studio uses the same live Affordance vocabulary as Scene SDK and rejects f
   expect(await page.locator('#viewport canvas').evaluate(canvas=>!canvas.getContext('webgl2')?.isContextLost())).toBe(true);
   await testInfo.attach('studio-affordance-panel.png',{body:await page.locator('#selection').screenshot(),contentType:'image/png'});
 });
+
+test('multiple Agents require an explicit shared choice in inspector and task planning',async({page,gateway})=>{
+  await enterWorld(page);
+  await page.getByRole('button',{name:'添加资源',exact:true}).click();
+  await page.locator('[data-asset-id="agent"] button[title="放到视口中心"]').click();
+  await page.getByRole('button',{name:'场景对象',exact:true}).click();
+  await page.locator('[data-object-id="cup_01"]').click();
+  const actor=page.locator('#affordance-actor');
+  await expect(actor).toHaveValue('');
+  await expect(page.locator('#execute-affordance')).toBeDisabled();
+  const second=await actor.locator('option').evaluateAll(options=>options.map(option=>option.value).find(value=>value && value!=='agent_01'));
+  expect(second).toBeTruthy();
+  await actor.selectOption(second);
+  await page.locator('#open-world-task').click();
+  await expect(page.locator('#task-actor')).toHaveValue(second);
+  await page.locator('#input').fill('观察当前房间');
+  await page.locator('#send').click();
+  await expect(page.locator('#task-state')).toHaveAttribute('data-state','partial');
+  expect(gateway.requests.at(-1).context.task.actor.id).toBe(second);
+  expect(gateway.requests.at(-1).context.scene.actors.selected).toBe(second);
+});

@@ -4,6 +4,7 @@ import { compileWorldAcceptance } from '../../modules/world/verification/WorldAc
 import { definitionSchema, proceduralContract } from '../../application/programmatic-assets/ProgrammaticAssetContract.js';
 import { assetAdmission } from '../../modules/asset/model/admission.js';
 const id=z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
+const targetId=z.string().min(1).max(256);
 const vec=z.array(z.number().finite().min(-100).max(100)).length(3);
 const speed=z.number().positive().max(8).optional();
 export const actionSchemas={
@@ -70,7 +71,7 @@ export function registerTools(server,manager,owner,assets) {
    return s.host.execute(a.skill,args,signal);
   },{requestId:a.requestId,fingerprint:JSON.stringify([a.skill,args]),signal:e.signal});
  });
- const check=z.object({id,kind:z.enum(['world-valid','object-exists','state-equals','interaction-verified','relation-exists','no-unresolved']),targetId:id.optional(),stateKey:id.optional(),value:z.union([z.string().max(200),z.number().finite(),z.boolean(),z.null()]).optional(),capability:id.optional(),subject:id.optional(),predicate:z.enum(['ON','NEAR','INSIDE','CONTAINS','SUPPORTS']).optional(),object:id.optional(),surfaceId:id.optional()}).strict();
+ const check=z.object({id,kind:z.enum(['world-valid','object-exists','state-equals','interaction-verified','relation-exists','no-unresolved']),targetId:targetId.optional(),stateKey:id.optional(),value:z.union([z.string().max(200),z.number().finite(),z.boolean(),z.null()]).optional(),capability:id.optional(),subject:targetId.optional(),predicate:z.enum(['ON','NEAR','INSIDE','CONTAINS','SUPPORTS']).optional(),object:targetId.optional(),objectAnyOf:z.array(targetId).min(1).max(32).optional(),surfaceId:id.optional()}).strict();
  add('world_verify','Verify caller-supplied criteria using Runtime evidence. With no criteria, runs the original cabinet/cup preset.',{...session,criteria:z.array(check).min(1).max(32).optional()},(a,e)=>{if(a.criteria) compileWorldAcceptance(a.criteria); return run(a,s=>s.host.verify(a.criteria),e);});
  add('world_export','Atomically save and return SceneSerializer JSON; assets are not bundled.',session,(a,e)=>run(a,s=>manager.export(s),e));
  add('world_save','Save an owned world and immutable published asset dependencies for recovery after service restart.',session,(a,e)=>run(a,s=>manager.save(owner,s),e));

@@ -12,6 +12,7 @@ export type InspectorAffordanceAction = {
   action:string;
   execution:'query'|'editor'|'interaction'|'world-action';
   available:boolean|null;
+  canApproach?:boolean;
   reason?:string|null;
   partName?:string;
   parameters:Record<string,{type?:string;enum?:string[];limits?:number[];maxLength?:number;[key:string]:unknown}>;
@@ -91,6 +92,8 @@ export type InspectorProjectionLike = {
 };
 
 export type EditorCommandsLike = {
+  listActors?:()=>{agents:Array<{id:string}>;selected:string|null};
+  selectActor?:(actor:string)=>unknown;
   runtimeAction:(action:string,id:string,args?:Record<string,unknown>)=>Promise<unknown>;
   executeAffordance?:(input:{actor:string;target:string;action:string;args?:Record<string,unknown>;partName?:string;surfaceId?:string})=>Promise<{verification?:{status:string};value?:{physicsVerified?:boolean;evidenceKind?:string;status?:string;reason?:string}}>;
   scaleRuntime:(id:string,scale:number)=>Promise<unknown>;

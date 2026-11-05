@@ -44,7 +44,7 @@ export class InspectorProjection {
       const info=this.world.queries.getObjectInfo(selection.id);
       const bounds=this.world.queries.getBounds(selection.id);
       const nearby=this.world.queries.findNearby(selection.id,2);
-      const actor=this.world.store?.list?.().find(([,record])=>record.manifest?.type==='agent')?.[0] || null;
+      const actor=this.scene?.actors?.().selected ?? null;
       const affordances=this.scene?.inspect?.(selection.id,actor?{actor}:{}) || null;
       return {
         source:'runtime',
@@ -92,7 +92,7 @@ export class InspectorProjection {
 
     if (selection.source === 'environment') {
       const environment=this.world.environment;
-      const actor=this.world.store?.list?.().find(([,record])=>record.manifest?.type==='agent')?.[0] || null;
+      const actor=this.scene?.actors?.().selected ?? null;
       const affordances=this.scene?.inspect?.(selection.id,actor?{actor}:{}) || null;
       return {
         source:'environment',

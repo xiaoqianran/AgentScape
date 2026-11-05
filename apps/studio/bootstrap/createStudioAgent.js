@@ -5,6 +5,7 @@ import { GeneratedPlacementDemoRunner } from '../demos/generated-placement/Gener
 import { RunsPanel } from '../ui/runs/RunsPanel.js';
 import { TaskPanel } from '../ui/task/TaskPanel.js';
 import { CAPABILITY_API } from '../config/capabilityEntry.js';
+import { createSceneFacade } from '../../../application/scene/SceneFacade.js';
 
 export function createStudioAgent({
   ui,
@@ -15,6 +16,8 @@ export function createStudioAgent({
 }) {
   const runsPanel = new RunsPanel();
   let taskPanel = null;
+  const scene=createSceneFacade(world);
+  Object.defineProperty(agentTools,'actor',{configurable:true,get:()=>scene.actors().selected});
 
   const generatedPlacementDemo = new GeneratedPlacementDemoRunner({
     world,
@@ -30,7 +33,9 @@ export function createStudioAgent({
     setView:ui.setView,
     onRun:(run)=>runsPanel.addRun(run),
     demoRunners:{ 'generated-placement':generatedPlacementDemo },
-    runtimeTestRunner
+    runtimeTestRunner,
+    getActors:()=>scene.actors(),
+    onSelectActor:actor=>scene.selectActor(actor)
   });
 
   const gateway = new HttpLLMGateway({
@@ -39,18 +44,21 @@ export function createStudioAgent({
   const agent = new ToolCallingAgent({
     tools:agentTools,
     gateway,
+    maxSteps:32,
     log:(text,kind)=>taskPanel.log(text,kind)
   });
 
   taskPanel.attachAgent({ agent, gateway });
   taskPanel.setAvailability(capabilityStatus.agent.available);
   ui.attachAgent?.({ taskPanel, runsPanel });
+  const actorEvents=['object.spawned','object.removed','scene.restored','scene.actor.selected'].map(name=>world.events.on(name,()=>{taskPanel.emit();ui.refreshInspector?.();}));
 
   return {
     taskPanel,
     runsPanel,
     gateway,
     dispose() {
+      actorEvents.forEach(off=>off());
       ui.attachAgent?.(null);
       taskPanel.dispose?.();
       runsPanel.dispose?.();

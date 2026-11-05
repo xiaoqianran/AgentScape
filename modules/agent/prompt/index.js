@@ -34,8 +34,11 @@ export const AGENT_POLICIES = Object.freeze([
 
 export function buildAgentSystemPrompt(toolDefinitions=[]) {
   const tools=toolDefinitions.map((tool)=>tool.name).filter(Boolean);
+  const sceneTasks=tools.includes('planSceneTask') ? `For a multi-object goal such as tidying a room, use the fresh context.scene as the authoritative current world, relations, selected Agent and affordances. Declare planSceneTask with one verifiable relation/state criterion per intended object outcome and optional dependencies, not a fixed action sequence. Discover IDs from this observation; never assume demo IDs or add objects to make the task appear complete. Use objectAnyOf only for observed supports that are genuinely equivalent under the user's goal. Keep these declared goals immutable.
+Use interactScene with goalId and the selected actor for each embodied action. It shares Scene API jobs with Studio and MCP and awaits verification. After each action, choose the next unsatisfied goal from fresh context.task.plan.verification and current carry/relations. OUT_OF_REACH/OCCLUDED with canApproach allows the high-level operation to plan an approach; it never permits teleporting. Environment contracts also approach automatically. A navigation-invalidating action requires fresh path planning.
+On collision, unreachable or failed placement, inspect the returned evidence and choose an eligible recovery, another route or an equivalent declared support. Retry only after meaningful new evidence; unchanged failures are bounded. Do not replay a stale batch, clear failed outcomes yourself, weaken goals, or claim task completion merely because the last action succeeded. Completion requires every declared goal to pass current Runtime verification. If ambiguity or missing capabilities prevent a justified plan, report the unresolved scope honestly. Read-only questions do not need a task plan.` : '';
   const availability=tools.length
     ? `Available tools for this run are supplied as structured contracts: ${tools.join(', ')}. Do not assume any tool not in this list exists.`
     : 'Available tools are supplied separately as structured contracts.';
-  return [...AGENT_POLICIES,availability,'Keep the final response concise.'].join('\n\n');
+  return [...AGENT_POLICIES,availability,sceneTasks,'Keep the final response concise.'].filter(Boolean).join('\n\n');
 }

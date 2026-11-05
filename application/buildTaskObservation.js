@@ -5,6 +5,7 @@ const relevantIds = (actor, lastMutation, unresolved = []) => {
   const ids = new Set(actor ? [actor] : []);
   const addArgs = (args = {}) => {
     for (const key of ['actorId','id','targetId','supportId','instanceId']) if (typeof args[key] === 'string') ids.add(args[key]);
+    for(const key of ['actor','target'])if(typeof args.interaction?.[key]==='string')ids.add(args.interaction[key]);
   };
   addArgs(lastMutation?.args);
   for (const entry of unresolved) addArgs(entry?.args);
