@@ -3,7 +3,7 @@ import { DEFAULT_ENVIRONMENT, ENVIRONMENTS, resolveEnvironment } from '../../mod
 
 describe('Environment catalog',()=>{
   it('keeps curated worlds as content metadata instead of Runtime branches',()=>{
-    expect(ENVIRONMENTS.map((item)=>item.id)).toEqual(['suzhou-garden','liangzhu-ancient-city','yuanmingyuan-western-mansions','blank-world','house-world','house-door-world','industrial-cabinet-lab','magic-cabin','woodland-workshop','monument-hall','ruined-courtyard','grand-urban-block']);
+    expect(ENVIRONMENTS.map((item)=>item.id)).toEqual(['suzhou-garden','yuanmingyuan-western-mansions','blank-world','house-world','house-door-world','industrial-cabinet-lab','magic-cabin','woodland-workshop','monument-hall','ruined-courtyard','grand-urban-block']);
     expect(new Set(ENVIRONMENTS.map((item)=>item.id)).size).toBe(ENVIRONMENTS.length);
     for(const item of ENVIRONMENTS){
       expect(typeof item.load).toBe('function');

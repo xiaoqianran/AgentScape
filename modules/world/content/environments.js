@@ -10,16 +10,6 @@ export const ENVIRONMENTS = Object.freeze([
     bootstrap:{agent:[0,0,65]},coffeeCorner:{}
   }),
   Object.freeze({
-    id:'liangzhu-ancient-city',number:'世界 07',title:'良渚古城 · 水城',
-    headline:'探索五千年前的古城、水网与外围水利工程。',
-    description:'程序化良渚古城、莫角山、城墙、水门、湿地和高低坝；原生接入 AgentScape Runtime。',
-    facts:['大型考古主题场景','程序化地形和水网','原生 Three.js Environment'],
-    worldFirst:true,rendererMode:'webgl-legacy',
-    load:()=>import('./liangzhu/index.js').then(module=>module.createLiangzhuEnvironment),
-    bootstrap:{agent:[0,18.3,-190]},
-    coffeeCorner:{}
-  }),
-  Object.freeze({
     id:'yuanmingyuan-western-mansions',number:'世界 06',title:'圆明园 · 西洋楼',rendererMode:'webgl-legacy',
     headline:'走进一座可被 AI 探索的历史园林。',
     description:'程序化生成的大水法、海晏堂、远瀛观、湖泊与园林；原生接入 AgentScape Runtime。',
