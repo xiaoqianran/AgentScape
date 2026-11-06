@@ -162,7 +162,8 @@ export class StudioLiveBridgeClient {
         let model=args.model;
         if(['glb','compiled-code'].includes(model?.asset?.kind)){
           const {bytesBase64,urdfBase64,...rest}=model.asset;
-          model={...model,asset:{...rest,bytes:decode(bytesBase64),...(urdfBase64?{urdfBytes:decode(urdfBase64)}:{})}};
+          const assetId=rest.kind==='compiled-code'&&rest.id?.startsWith('pa_')?'asset_'+rest.id.slice(3):rest.id;
+          model={...model,asset:{...rest,...(assetId?{id:assetId}:{}),bytes:decode(bytesBase64),...(urdfBase64?{urdfBytes:decode(urdfBase64)}:{})}};
         }
         return args.mode==='prepare'?this.scene.prepareAsset(model.asset):this.scene.addModel(model);
       }

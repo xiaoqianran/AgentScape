@@ -92,3 +92,20 @@ describe('Studio Live Bridge through real MCP HTTP',()=>{
     }
   },120000);
 });
+
+it('normalizes a published compiled asset ID before forwarding it to SceneFacade',async()=>{
+  const forwarded=[];
+  const client=new StudioLiveBridgeClient({
+    scene:{observe:()=>({}),addModel:async model=>{forwarded.push(model);return {status:'succeeded'};},prepareAsset:async asset=>{forwarded.push(asset);return {status:'succeeded'};}},
+    world:{events:{on:()=>()=>{}}},
+    fetchImpl:async()=>({ok:true,json:async()=>({})})
+  });
+  try{
+    const bytesBase64=Buffer.from([1,2,3]).toString('base64');
+    await client.execute({method:'addModel',args:{model:{id:'fixture',asset:{kind:'compiled-code',id:'pa_abc123',bytesBase64}}}});
+    expect(forwarded[0].asset.id).toBe('asset_abc123');
+    expect(Array.from(forwarded[0].asset.bytes)).toEqual([1,2,3]);
+    await client.execute({method:'addModel',args:{mode:'prepare',model:{asset:{kind:'compiled-code',id:'asset_existing',bytesBase64}}}});
+    expect(forwarded[1].id).toBe('asset_existing');
+  }finally{client.dispose();}
+});

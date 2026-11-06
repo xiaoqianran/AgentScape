@@ -41,3 +41,9 @@ An optional `definition` provides the existing programmatic Manifest contract (`
 Use `addModel(input,{signal})` to cancel. Saved bundles embed versioned compiled assets and their physical definitions and restore without executing source. Build execution, admission and live interaction verification are separate results.
 
 `agentscape mcp` starts the local authenticated loopback MCP server. Set `AGENTSCAPE_MCP_TOKENS` to a JSON array such as `[{"identity":"local","token":"a-random-secret-at-least-32-characters"}]` using a freshly generated secret. The default backend is `worker-wasm`. Trusted execution additionally requires `AGENTSCAPE_CODE_EXECUTION=trusted-local` and `AGENTSCAPE_TRUSTED_CODE=1`. Public deployments set `AGENTSCAPE_PUBLIC_SERVICE=1` and configure `os-isolated`; the server rejects unsafe modes. The programmatic entry is `import {startServer} from '@agentscape/sdk/mcp'`.
+
+## npm 发布门槛（维护者）
+
+当前版本 `2.0.0-dev.1` 是开发预览版，尚未发布 npm。正式发布前必须在项目根目录通过 `npm run check`、`npm run test:browser` 和 `npm run sdk:verify`，并确认 `git status` 干净、发布版本号未被占用、许可证及依赖清单完整。浏览器测试必须覆盖自动 Studio MCP 连接、手动配对、复杂物理资产创建和跨进程保存/恢复。
+
+发布目标固定为官方 npm Registry (`https://registry.npmjs.org/`) 的公开作用域包，避免将镜像缓存结果当作发布状态。维护者需持有 `@agentscape` 作用域的发布权限，通过 `npm whoami --registry=https://registry.npmjs.org/` 检查认证，再从 `sdk/typescript` 目录使用 `npm pack --dry-run` 审阅归档。`npm publish --access public` 仅在版本确定、全部验收通过且获得发布授权后执行；不要在自动测试中发布。
