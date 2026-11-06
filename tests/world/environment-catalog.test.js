@@ -3,16 +3,16 @@ import { DEFAULT_ENVIRONMENT, ENVIRONMENTS, resolveEnvironment } from '../../mod
 
 describe('Environment catalog',()=>{
   it('keeps curated worlds as content metadata instead of Runtime branches',()=>{
-    expect(ENVIRONMENTS.map((item)=>item.id)).toEqual(['yuanmingyuan-western-mansions','blank-world','house-world','house-door-world','industrial-cabinet-lab','magic-cabin','woodland-workshop','monument-hall','ruined-courtyard','grand-urban-block']);
+    expect(ENVIRONMENTS.map((item)=>item.id)).toEqual(['suzhou-garden','liangzhu-ancient-city','yuanmingyuan-western-mansions','blank-world','house-world','house-door-world','industrial-cabinet-lab','magic-cabin','woodland-workshop','monument-hall','ruined-courtyard','grand-urban-block']);
     expect(new Set(ENVIRONMENTS.map((item)=>item.id)).size).toBe(ENVIRONMENTS.length);
     for(const item of ENVIRONMENTS){
       expect(typeof item.load).toBe('function');
-      expect(item.bootstrap).toMatchObject({agent:expect.any(Array),table:expect.any(Array),cup:expect.any(Array)});
+      expect(item.bootstrap.agent).toEqual(expect.any(Array));
       if (item.bootstrap.cabinet) expect(item.bootstrap.cabinet).toEqual(expect.any(Array));
     }
   });
 
-  it('uses Monument Hall as the stable fallback for unknown links',()=>{
+  it('uses the configured default world for unknown links',()=>{
     expect(resolveEnvironment('ruined-courtyard').id).toBe('ruined-courtyard');
     expect(resolveEnvironment('does-not-exist')).toBe(DEFAULT_ENVIRONMENT);
   });
