@@ -105,13 +105,13 @@ test('paired MCP creates a code house and restores it through the public SDK',as
       saved=await call('scene_save',{worldSessionId:pair.worldSessionId});
       expect(saved.isError,JSON.stringify(saved)).toBe(false);
     });
-    await test.step('import the saved world into an independent SDK browser page',async()=>{
-      const sdkPage=await page.context().newPage();
-      try {
-        await sdkPage.goto('/examples/three-code/');
-        await sdkPage.getByRole('button',{name:'Authorize and run trusted code example'}).click();
-        await expect(sdkPage.getByRole('status')).toHaveText('Cube created',{timeout:60000});
-        const restored=await sdkPage.evaluate(async bundle=>{
+    await test.step('restore in the SDK after unloading the Studio rendering page',async()=>{
+      // SwiftShader runners have no GPU budget for two simultaneously rendering
+      // worlds; navigate the same tab and preserve the serialized bundle.
+      await page.goto('/examples/three-code/');
+      await page.getByRole('button',{name:'Authorize and run trusted code example'}).click();
+      await expect(page.getByRole('status')).toHaveText('Cube created',{timeout:60000});
+      const restored=await page.evaluate(async bundle=>{
           const {AgentScape,world:demo}=window.codeDemo;demo.close();
           const world=await AgentScape.open({canvas:'#app',bundle});
           try {
@@ -119,10 +119,9 @@ test('paired MCP creates a code house and restores it through the public SDK',as
             const job=await world.waitJob(world.interact({actor:'agent_01',action:'open',target:'code_house'}).id);
             return {physicsRegistered:codeHouse.physicsRegistered,status:job.status,result:job.result};
           } finally {world.close();}
-        },saved.value);
-        expect(restored.physicsRegistered).toBe(true);
-        expect(restored.status,JSON.stringify(restored.result)).toBe('succeeded');
-      } finally {await sdkPage.close().catch(()=>{});}
+      },saved.value);
+      expect(restored.physicsRegistered).toBe(true);
+      expect(restored.status,JSON.stringify(restored.result)).toBe('succeeded');
     });
   })
 );
