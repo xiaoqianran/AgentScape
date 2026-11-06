@@ -35,10 +35,10 @@ Edit [`apps/starter/scene.json`](apps/starter/scene.json) and reload. Your scene
 { "id": "reading-chair", "asset": "chair", "position": [-4, 0, 3] }
 ```
 
-The development SDK shares the Scene service with Studio and MCP. It is not published to npm; [build a local tarball](sdk/typescript/README.md).
+The `agentscape3d` SDK shares the Scene service with Studio and MCP. The `2.0.0-beta.1` package is being prepared for npm; until publication, [build a local tarball](sdk/typescript/README.md). After publication, install with `npm install agentscape3d`.
 
 ```js
-import { AgentScape } from '@agentscape/sdk';
+import { AgentScape } from 'agentscape3d';
 const world = await AgentScape.open({ canvas: '#app' });
 await world.addModel({ id: 'seat', asset: 'builtin://chair', position: [-4, 0, 3] });
 await world.setStyle('builtin://toon');
@@ -58,11 +58,11 @@ Interactions return jobs. Browser rendering advances automatically; headless hos
 | Diagnose physics/navigation | `/observatory/` |
 | Understand engine boundaries | [Architecture](docs/architecture.md) and [repository layout](docs/repository-layout.md) |
 
-The existing MCP supports isolated worlds, actions, verification, procedural asset builds and trusted save/restore. Remote code builds require a configured Docker sandbox; they do not silently fall back to the server process. MCP sessions do not currently control the Studio's open world.
+The existing MCP supports isolated worlds, actions, verification, procedural asset builds and trusted save/restore. Remote code builds require a configured Docker sandbox; they do not silently fall back to the server process. The local Studio live bridge also supports explicitly paired and loopback automatic sessions targeting the open Studio world; these remain distinct from isolated world sessions.
 
 ## Development scope
 
-Implemented: Scene Project v1, bounded Asset Recipes, self-contained GLB Visual import, portable project bundles and three declarative StylePacks. Starter, Studio, SDK and MCP share business rules. MCP retains 24 original tools plus 9 Scene tools; sessions remain isolated from Studio.
+Implemented: Scene Project v1, bounded Asset Recipes, self-contained GLB Visual import, portable project bundles and three declarative StylePacks. Starter, Studio, SDK and MCP share business rules. MCP retains the legacy tool surface alongside Scene tools; isolated sessions remain separate from the opt-in Studio bridge.
 
 Public projects currently support monument-hall and up to 32 entities. JSON is the only normative format. Generic archive/directory import, arbitrary shaders and YAML are outside v1. Other Studio environments retain explicitly labelled legacy snapshots. Asset admission, edits and physically verified actions remain distinct; restored actions must be verified again.
 

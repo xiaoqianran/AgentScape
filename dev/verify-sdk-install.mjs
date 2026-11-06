@@ -12,7 +12,12 @@ const temporary = mkdtempSync(join(tmpdir(), 'agentscape-sdk-verify-'));
 const npm = (args, cwd) => execFileSync(process.execPath, [npmCli, ...args], { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'] });
 try {
   execFileSync(process.execPath, ['dev/build-sdk.mjs'], { cwd: root, stdio: 'inherit' });
-  const packedResult = JSON.parse(npm(['pack', '--json', '--pack-destination', temporary], join(root, 'sdk/typescript')));
+  // npm lifecycle scripts can print to stdout before the pack JSON payload.
+  // Parse the final top-level JSON envelope instead of assuming clean stdout.
+  const packOutput = npm(['pack', '--json', '--silent', '--pack-destination', temporary], join(root, 'sdk/typescript'));
+  const jsonStart = Math.max(packOutput.lastIndexOf('\n{'), packOutput.lastIndexOf('\n['));
+  if (jsonStart < 0) throw new Error('SDK package metadata JSON missing');
+  const packedResult = JSON.parse(packOutput.slice(jsonStart + 1));
   const packed = Array.isArray(packedResult) ? packedResult[0] : packedResult['agentscape3d'];
   if (!packed?.filename) throw new Error('SDK package metadata missing');
   const consumer = join(temporary, 'consumer'); mkdirSync(consumer);

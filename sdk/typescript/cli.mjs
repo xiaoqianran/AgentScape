@@ -10,7 +10,7 @@ if (command === 'mcp') {
   console.log(`AgentScape MCP: http://127.0.0.1:${app.port}/mcp`);
   for(const signal of ['SIGINT','SIGTERM'])process.once(signal,()=>app.close().then(()=>process.exit(0)));
 } else if (command !== 'starter') {
-  console.log('Usage: agentscape starter [new-directory] | mcp');
+  console.log('Usage: agentscape3d starter [new-directory] | mcp (alias: agentscape)');
   process.exitCode = command === '--help' || !command ? 0 : 1;
 } else {
   const directory = resolve(target);

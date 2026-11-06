@@ -23,7 +23,8 @@
     }
   },
   "bin": {
-    "agentscape": "./cli.mjs"
+    "agentscape": "./cli.mjs",
+    "agentscape3d": "./cli.mjs"
   },
   "files": [
     "dist",
@@ -35,7 +36,8 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "build": "node ../../dev/build-sdk.mjs"
+    "build": "node ../../dev/build-sdk.mjs",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
@@ -62,6 +64,6 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/",
-    "tag": "beta"
+    "tag": "latest"
   }
 }

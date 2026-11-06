@@ -1,6 +1,6 @@
 # AgentScape
 
-> v2 开发实现已包含统一 Scene API、Recipe、完整项目包与三种 StylePack；SDK 尚未发布。最新能力与限制见 [v1 契约](planning/public-contracts-v1.md)和[发布清单](docs/v2-release.md)。
+> v2 已实现统一 Scene API、Recipe、完整项目包与三种 StylePack；`agentscape3d@2.0.0-beta.1` 正在准备公开发布，尚未上线 npm。最新能力与限制见 [v1 契约](planning/public-contracts-v1.md)和[发布清单](docs/v2-release.md)。
 
 **让人和 AI 能够操作同一个交互式 3D 世界。**
 
@@ -33,7 +33,7 @@ npm run starter
 
 Starter 是最小学习入口；Studio 编辑器仍在 `/`，诊断台在 `/observatory/`。现有 MCP 的独立世界、程序化资产、真实交互与可信恢复继续保留。远程源码构建需要受限 Docker 环境。
 
-SDK 已支持自包含 GLB Visual、受约束 Recipe、完整项目包和三种 StylePack；Starter 的按钮仍保持最小学习范围，Studio 提供风格切换。项目仅支持 monument-hall、32 个实体；YAML、任意 Shader 插件和通用压缩包上传不属于 v1。SDK 是未发布的开发版。
+SDK 已支持自包含 GLB Visual、受约束 Recipe、完整项目包和三种 StylePack；Starter 的按钮仍保持最小学习范围，Studio 提供风格切换。项目仅支持 monument-hall、32 个实体；YAML、任意 Shader 插件和通用压缩包上传不属于 v1。发布后可使用 `npm install agentscape3d` 和 `npx agentscape3d starter my-world`；发布前请参考 [SDK 本地打包说明](sdk/typescript/README.md)。
 
 ## 验证与贡献
 
