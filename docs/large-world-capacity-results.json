@@ -1,0 +1,103 @@
+{
+  "measuredAt": "2026-11-06T08:50:17.399Z",
+  "node": "v24.18.0",
+  "platform": "win32 10.0.26300 x64",
+  "cpu": "12th Gen Intel(R) Core(TM) i5-12400F",
+  "logicalCpus": 12,
+  "totalMemoryGiB": 31.856796264648438,
+  "rows": [
+    {
+      "kind": "logical-store-and-facade-query",
+      "count": 100,
+      "queried": 100,
+      "createMs": 0.5886999999999603,
+      "firstPageMs": 0.6770999999999958,
+      "observeAllPagesMs": 2.52819999999997,
+      "before": {
+        "heapMiB": 25.27025604248047,
+        "rssMiB": 100.44140625,
+        "externalMiB": 17.195940017700195
+      },
+      "after": {
+        "heapMiB": 25.617340087890625,
+        "rssMiB": 100.78125,
+        "externalMiB": 15.013872146606445
+      },
+      "closed": {
+        "heapMiB": 25.45020294189453,
+        "rssMiB": 100.42578125,
+        "externalMiB": 15.013872146606445
+      }
+    },
+    {
+      "kind": "logical-store-and-facade-query",
+      "count": 1000,
+      "queried": 1000,
+      "createMs": 3.3611000000000217,
+      "firstPageMs": 0.3020999999999958,
+      "observeAllPagesMs": 5.05540000000002,
+      "before": {
+        "heapMiB": 25.55091094970703,
+        "rssMiB": 104.3828125,
+        "externalMiB": 17.4661808013916
+      },
+      "after": {
+        "heapMiB": 27.760772705078125,
+        "rssMiB": 104.25,
+        "externalMiB": 15.013872146606445
+      },
+      "closed": {
+        "heapMiB": 25.698402404785156,
+        "rssMiB": 103.76171875,
+        "externalMiB": 15.013872146606445
+      }
+    },
+    {
+      "kind": "logical-store-and-facade-query",
+      "count": 10000,
+      "queried": 10000,
+      "createMs": 43.47270000000003,
+      "firstPageMs": 0.27920000000005984,
+      "observeAllPagesMs": 42.58759999999995,
+      "before": {
+        "heapMiB": 25.78546905517578,
+        "rssMiB": 106.23828125,
+        "externalMiB": 17.4661808013916
+      },
+      "after": {
+        "heapMiB": 46.5986328125,
+        "rssMiB": 173.97265625,
+        "externalMiB": 15.013872146606445
+      },
+      "closed": {
+        "heapMiB": 25.838233947753906,
+        "rssMiB": 174.07421875,
+        "externalMiB": 15.013872146606445
+      }
+    },
+    {
+      "kind": "physical-rapier-cups",
+      "count": 100,
+      "registeredInPage": 100,
+      "savedObjects": 100,
+      "createMs": 161.60659999999996,
+      "firstPageMs": 0.8155000000000427,
+      "snapshotMs": 0.21550000000002,
+      "before": {
+        "heapMiB": 25.839492797851562,
+        "rssMiB": 174.19921875,
+        "externalMiB": 15.01384162902832
+      },
+      "after": {
+        "heapMiB": 35.4520263671875,
+        "rssMiB": 176.83203125,
+        "externalMiB": 16.094255447387695
+      },
+      "closed": {
+        "heapMiB": 34.24205780029297,
+        "rssMiB": 177.1796875,
+        "externalMiB": 16.086565017700195
+      }
+    }
+  ]
+}

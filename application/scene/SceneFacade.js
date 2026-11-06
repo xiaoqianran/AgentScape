@@ -61,7 +61,7 @@ export const sceneInteractionSchema = z.discriminatedUnion('action', [
 const diagnostic = error => ({ code: error.code || 'INVALID_OPERATION', message: error.code || 'Operation failed', stage: 'scene', retryable: false });
 
 /** One application service per existing Runtime. No entity or asset cache. */
-export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', maxObjects = 32, codeExecutor = null, codeGLTFLoader = undefined } = {}) {
+export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', codeExecutor = null, codeGLTFLoader = undefined } = {}) {
   if (services.has(world)) return services.get(world);
   let busy = false, closed = false, revision = 0, selectedActor = null;
   const jobs = new Map(), requests = new Map();
@@ -100,7 +100,6 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     }
     const value = await world.mutate(`scene:${op.type}`, async () => {
       if (op.type === 'add') {
-        if (world.store.list().length >= maxObjects) throw sceneError('OBJECT_LIMIT');
         if (world.store.has(op.model.id)) throw sceneError('DUPLICATE_ID');
         const key = assetId(op.model.asset, op.model.level);
         const transform = op.model.transform || sceneTransformSchema.parse({ position: op.model.position });
@@ -136,8 +135,21 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       return inspection;
     },
     observe(options = {}) {
-      const { actor } = z.object({ actor: id.optional() }).strict().parse(options);
-      assertOpen(); world.sceneGraph.update();
+      const { actor, offset, limit } = z.object({ actor: id.optional(),
+        offset: z.number().int().nonnegative().default(0), limit: z.number().int().min(1).max(1000).optional()
+      }).strict().parse(options);
+      assertOpen();
+      // Explicit object pages do not derive the global graph or affordances.
+      if (limit != null) {
+        const page = world.store.page({ offset, limit });
+        return { schema: 'agentscape.scene-object-page', schemaVersion: 1, revision,
+          total: world.store.size, offset, nextOffset: page.nextOffset,
+          objects: page.entries.map(([key, record]) => ({ ...world.observation.object(key), state: structuredClone(record.state),
+            transform: { position: record.object.position.toArray(), quaternion: record.object.quaternion.toArray(), scale: record.object.scale.x },
+            physicsRegistered: Boolean(world.physics.getPosition(key)) })) };
+      }
+      if (offset) throw sceneError('PAGE_LIMIT_REQUIRED');
+      world.sceneGraph.update();
       return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision,
         style: styles.export(), actors:handle.actors(), affordances: world.affordances.list({ actorId: actor, limit: 100 }),
         objects: world.store.list().map(([key, record]) => ({ ...world.observation.object(key), state: structuredClone(record.state),
@@ -183,7 +195,6 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
           const code = source.kind==='three-code' ? threeCodeInputSchema.parse(source) : compiledCodeInputSchema.parse(source);
           const model = modelSchema.parse({ ...input, asset:'builtin://pending', level:input.level ?? (code.definition?.capabilityLevel || (code.definition ? 'physical' : 'visual')) });
           if (world.store.has(model.id)) throw sceneError('DUPLICATE_ID');
-          if (world.store.list().length >= maxObjects) throw sceneError('OBJECT_LIMIT');
           return exclusive(async () => {
             const prepared = code.kind==='three-code'
               ? await prepareThreeCodeAsset(world.assetModule, codeExecutor, code, { signal, gltfLoader:codeGLTFLoader })
@@ -201,7 +212,6 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         const requested = input.level ?? (machine ? machine.motions.length ? 'interactive' : 'physical' : glb ? glb.review ? 'physical' : 'visual' : recipe.capabilities.level);
         const model = modelSchema.parse({ ...input, asset: 'builtin://pending', level: requested });
         if (world.store.has(model.id)) throw sceneError('DUPLICATE_ID');
-        if (world.store.list().length >= maxObjects) throw sceneError('OBJECT_LIMIT');
         const sourceEnvironment = world.environment;
         return exclusive(async () => {
           const resolved = machine ? await world.assetModule.importMechanicalDraft(machine)
@@ -267,7 +277,6 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       return exclusive(async () => {
         const copy = structuredClone(snapshot); world.serializer.validate(copy);
         if (copy.assets.length || (!prepared && (copy.configuration?.behaviorBundle || copy.configuration?.physicsRequirements || copy.metadata?.environmentState || copy.metadata?.worldRevision))) throw sceneError('UNSUPPORTED_SAVE');
-        if (copy.objects.length > maxObjects) throw sceneError('OBJECT_LIMIT');
         for (const object of copy.objects) { id.parse(object.id); if (!world.assetModule.hasAsset(object.assetId)) throw sceneError('ASSET_UNAVAILABLE'); }
         await world.restore(copy); return result('restore', { objects: copy.objects.length });
       });
@@ -335,7 +344,10 @@ export async function openScene({ project, container = null, assetModule = null,
   const scene = createSceneFacade(world, { ownsWorld: true, name: definition.name, codeExecutor, codeGLTFLoader });
   try {
     await world.init();
-    if (definition.objects.length) { const initialized = await scene.apply({ operations: definition.objects.map(model => ({ type: 'add', model })) }); if (initialized.status !== 'succeeded') throw sceneError(initialized.diagnostics[0].code); }
+    for (let offset = 0; offset < definition.objects.length; offset += 32) {
+      const initialized = await scene.apply({ operations: definition.objects.slice(offset, offset + 32).map(model => ({ type: 'add', model })) });
+      if (initialized.status !== 'succeeded') throw sceneError(initialized.diagnostics[0].code);
+    }
     if (definition.style) await scene.setStyle(definition.style);
     world.rendering?.applyCameraState({ position: [10, 10, 16], target: [0, 0.8, 3] }); world.simulation.play();
     return scene;

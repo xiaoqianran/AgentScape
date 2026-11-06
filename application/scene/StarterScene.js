@@ -10,7 +10,7 @@ export const starterProjectSchema = z.object({
   schema: z.literal('agentscape.starter-project'),
   schemaVersion: z.literal(1),
   name: z.string().min(1).max(100),
-  objects: z.array(object).max(32)
+  objects: z.array(object)
 }).strict().refine(p => new Set(p.objects.map(o => o.id)).size === p.objects.length, 'Duplicate object ID');
 const interaction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('pickup'), actorId: id, targetId: id }).strict(),

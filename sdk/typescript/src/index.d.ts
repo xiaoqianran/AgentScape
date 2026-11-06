@@ -61,6 +61,8 @@ export interface SceneHandle {
   selectActor(actor:string):{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
   prepareAsset(input:Omit<GLBInput,'review'>):Promise<CapabilityProposal>;
   inspect(target: string, options?: { actor?: string }): ObjectAffordances;
+  /** Object-only page in live insertion order. Restart after mutations; no global graph work. */
+  observe(options: { actor?: string; offset?: number; limit: number }): { schema: 'agentscape.scene-object-page'; schemaVersion: 1; revision: number; total: number; offset: number; nextOffset: number | null; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }> };
   observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; actors: ReturnType<SceneHandle['actors']>; style: Record<string, unknown> | null; affordances: AffordanceListing; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };
   addModel(input: ModelInput, options?:{signal?:AbortSignal}): Promise<SceneResult>;
   setTransform(input: { id: string; transform: Transform }): Promise<SceneResult>;

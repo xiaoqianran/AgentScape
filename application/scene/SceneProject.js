@@ -31,7 +31,7 @@ export const sceneProjectSchema = z.object({
   name: z.string().trim().min(1).max(100),
   environment: z.object({ type: z.literal('builtin'), id: z.enum(['monument-hall','yuanmingyuan-western-mansions']) }).strict(),
   style: sceneAssetRefSchema.optional(),
-  objects: z.array(sceneObjectSchema).max(32)
+  objects: z.array(sceneObjectSchema)
 }).strict().superRefine((project, ctx) => {
   const used = new Set();
   for (let index = 0; index < project.objects.length; index++) {
