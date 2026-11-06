@@ -1,7 +1,7 @@
 import { validateRemoteAuthoringDocument } from './RemoteAuthoringDocument.js';
 
 /** Trusted browser Worker. No OS isolation; never execute source on the UI thread. */
-export function createBrowserCodeExecutor({ mode='disabled', authorized=false, wallTimeoutMs=12000 } = {}) {
+export function createBrowserCodeExecutor({ mode='disabled', authorized=false, wallTimeoutMs=30000 } = {}) {
   if (mode === 'disabled') return null;
   if (mode !== 'trusted-local') throw new Error('BROWSER_CODE_MODE_UNSUPPORTED');
   if (authorized !== true) throw new Error('CODE_EXECUTION_AUTHORIZATION_REQUIRED');

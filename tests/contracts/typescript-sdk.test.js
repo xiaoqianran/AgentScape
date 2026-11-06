@@ -21,7 +21,7 @@ it('runs the bundled SDK without repository sources and creates a safe Starter',
     } finally { world.close(); }
     const starter = resolve(directory, 'starter');
     execFileSync(process.execPath, ['sdk/typescript/cli.mjs', 'starter', starter]);
-    expect(await readFile(resolve(starter, 'main.js'), 'utf8')).toContain("from '@agentscape/sdk'");
+    expect(await readFile(resolve(starter, 'main.js'), 'utf8')).toContain("from 'agentscape3d'");
     expect(() => execFileSync(process.execPath, ['sdk/typescript/cli.mjs', 'starter', starter], { stdio: 'pipe' })).toThrow();
   } finally {
     // mkdtemp returns a verified task-local path; no user paths are removed.

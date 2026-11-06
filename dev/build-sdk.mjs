@@ -7,7 +7,7 @@ const root = new URL('../', import.meta.url);
 const source = new URL('sdk/typescript/', root);
 const pkg = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
 const sdk = JSON.parse(await readFile(new URL('package.json', source), 'utf8'));
-sdk.version = pkg.version;
+// SDK releases are versioned independently from the private monorepo.
 const referenced = new Set();
 const output = fileURLToPath(new URL('dist/', source));
 if (resolve(dirname(output)) !== resolve(fileURLToPath(source))) throw new Error('Unsafe SDK output path');

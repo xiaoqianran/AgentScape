@@ -13,14 +13,14 @@ const npm = (args, cwd) => execFileSync(process.execPath, [npmCli, ...args], { c
 try {
   execFileSync(process.execPath, ['dev/build-sdk.mjs'], { cwd: root, stdio: 'inherit' });
   const packedResult = JSON.parse(npm(['pack', '--json', '--pack-destination', temporary], join(root, 'sdk/typescript')));
-  const packed = Array.isArray(packedResult) ? packedResult[0] : packedResult['@agentscape/sdk'];
+  const packed = Array.isArray(packedResult) ? packedResult[0] : packedResult['agentscape3d'];
   if (!packed?.filename) throw new Error('SDK package metadata missing');
   const consumer = join(temporary, 'consumer'); mkdirSync(consumer);
   writeFileSync(join(consumer, 'package.json'), JSON.stringify({ name: 'agentscape-clean-consumer', private: true, type: 'module' }));
   const installation = npm(['install', '--ignore-scripts', join(temporary, packed.filename)], consumer);
   writeFileSync(join(consumer, 'table.json'), readFileSync(join(root, 'examples/recipes/table.json')));
   writeFileSync(join(consumer, 'create.mjs'), `
-import { AgentScape } from '@agentscape/sdk';
+import { AgentScape } from 'agentscape3d';
 import { readFile, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const scene = await AgentScape.open();
@@ -33,7 +33,7 @@ try {
 } finally {scene.close();}
 `);
   writeFileSync(join(consumer, 'restore.mjs'), `
-import { AgentScape } from '@agentscape/sdk';
+import { AgentScape } from 'agentscape3d';
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const scene = await AgentScape.open({bundle:JSON.parse(await readFile('project.json','utf8'))});
@@ -47,8 +47,8 @@ try {
   execFileSync(process.execPath, ['create.mjs'], { cwd: consumer, stdio: 'inherit' });
   const restoration = execFileSync(process.execPath, ['restore.mjs'], { cwd: consumer, encoding: 'utf8' });
   writeFileSync(join(consumer, 'code.mjs'), `
-import { AgentScape } from '@agentscape/sdk';
-import { startServer } from '@agentscape/sdk/mcp';
+import { AgentScape } from 'agentscape3d';
+import { startServer } from 'agentscape3d/mcp';
 import assert from 'node:assert/strict';
 const world=await AgentScape.open({codeExecution:{mode:'worker-wasm'}});
 let restored;

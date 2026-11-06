@@ -56,14 +56,15 @@ it('builds box/table/house without Docker, executes physical tasks, restarts the
   const {meshes:staticMeshes}=runtime.navigation.collectStaticMeshes();
   expect(staticMeshes.some(mesh=>mesh.name==='panel_0')).toBe(true);
   expect(staticMeshes.some(mesh=>mesh.name==='Door')).toBe(false);
-  const ensure=runtime.navigation.ensureCurrent;
-  runtime.navigation.ensureCurrent=async()=>({success:false});
+  const navigation=runtime.navigation;
+  const ensure=navigation.ensureCurrent;
+  navigation.ensureCurrent=async()=>({success:false});
   try{
    const failed=await client.callTool({name:'action_execute',arguments:{...base,skill:'replaceAsset',args:{id:'my_box',assetId:upgraded.assetId},requestId:randomUUID()}});
    expect(failed.isError).toBe(true);
    expect(runtime.store.get('my_box').assetId).toBe(published[0].assetId);
    expect(runtime.physics.getPosition('my_box')).toBeTruthy();
-  }finally{runtime.navigation.ensureCurrent=ensure;}
+  }finally{navigation.ensureCurrent=ensure;}
   expect((await action('replaceAsset',{id:'my_box',assetId:upgraded.assetId})).result.assetId).toBe(upgraded.assetId);
   await call('session_close',base);await client.close();await app.close();app=null;client=null;
   await connect();

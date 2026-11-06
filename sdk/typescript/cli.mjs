@@ -18,10 +18,10 @@ if (command === 'mcp') {
   if ((await readdir(directory)).length) throw new Error('Starter destination must be empty');
   const pkg = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'));
   const files = {
-    'package.json': JSON.stringify({ name: 'my-agentscape-world', private: true, type: 'module', scripts: { dev: 'vite' }, dependencies: { '@agentscape/sdk': pkg.version }, devDependencies: { vite: '^8.2.2' } }, null, 2),
+    'package.json': JSON.stringify({ name: 'my-agentscape-world', private: true, type: 'module', scripts: { dev: 'vite' }, dependencies: { 'agentscape3d': pkg.version }, devDependencies: { vite: '^8.2.2' } }, null, 2),
     'index.html': '<!doctype html><html><head><title>AgentScape world</title></head><body style="margin:0"><div id="app" style="width:100vw;height:100vh"></div><script type="module" src="/main.js"></script></body></html>',
-    'main.js': `import { AgentScape } from '@agentscape/sdk';\nconst world = await AgentScape.open({canvas:'#app'});\nawait world.addModel({id:'table',asset:'builtin://table',position:[0,0,3]});\nawait world.addModel({id:'cup',asset:'builtin://cup',position:[2,0,2]});\nwindow.world = world;\n`
+    'main.js': `import { AgentScape } from 'agentscape3d';\nconst world = await AgentScape.open({canvas:'#app'});\nawait world.addModel({id:'table',asset:'builtin://table',position:[0,0,3]});\nawait world.addModel({id:'cup',asset:'builtin://cup',position:[2,0,2]});\nwindow.world = world;\n`
   };
   for (const [name, content] of Object.entries(files)) await writeFile(resolve(directory, name), content, { flag: 'wx' });
-  console.log(`Created ${directory}. Install the SDK development tarball and Vite, then run npm run dev. This development version is not published to npm.`);
+  console.log(`Created ${directory}. Run npm install in the new directory, then npm run dev.`);
 }

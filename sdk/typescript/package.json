@@ -1,8 +1,8 @@
 {
-  "name": "@agentscape/sdk",
-  "version": "2.0.0-dev.1",
+  "name": "agentscape3d",
+  "version": "2.0.0-beta.1",
   "type": "module",
-  "description": "AgentScape Scene API development SDK",
+  "description": "AgentScape 3D world engine, SDK, CLI and local MCP server",
   "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -61,6 +61,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "registry": "https://registry.npmjs.org/"
+    "registry": "https://registry.npmjs.org/",
+    "tag": "beta"
   }
 }
