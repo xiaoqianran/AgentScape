@@ -47,6 +47,10 @@ jobs:
     name: Studio browser acceptance (fixed protocol)
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -55,14 +59,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - run: npm run test:browser -- --shard=${{ matrix.shard }}/3
       - name: Collect performance baseline
+        if: matrix.shard == 1
         run: node dev/report-browser-baseline.mjs
       - name: Preserve browser report and failure evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: studio-browser-acceptance
+          name: studio-browser-acceptance-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/browser/
