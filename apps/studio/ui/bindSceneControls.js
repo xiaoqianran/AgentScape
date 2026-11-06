@@ -1,5 +1,6 @@
 import { bootstrapWorld } from '../../../modules/agent/bootstrapWorld.js';
 import { createSceneFacade } from '../../../application/scene/SceneFacade.js';
+import { exportWorldFile, importWorldFile } from './WorldFileUI.js';
 
 export function bindSceneControls({
   world,
@@ -120,6 +121,39 @@ export function bindSceneControls({
     }
   };
 
+  const exportWorldPackage = async () => {
+    try {
+      assertWorldIdle();
+      const root = await exportWorldFile(world,currentEnvironmentDefinition().id);
+      fileStatus='世界包已导出'; emit();
+      log('世界包已导出 · '+root.hash.slice(0,12),'result');
+      return root;
+    } catch(error) {
+      if(error.name==='AbortError') {fileStatus='已取消导出';emit();return null;}
+      fileStatus='导出失败：'+error.message;emit();
+      log('世界包导出错误：'+error.message,'error');
+      return null;
+    }
+  };
+
+  const importWorldPackage = async(file) => {
+    if(!file)return null;
+    try {
+      assertWorldIdle();
+      fileStatus='正在验证和导入世界包…';emit();
+      const summary=await importWorldFile(world,file);
+      editor.select(null);
+      // The world archive stays on disk; do not flatten large worlds into localStorage JSON.
+      fileStatus='世界包已导入（刷新后可重新导入该文件）';emit();
+      log('世界包已导入 · '+summary.entities+' 个对象','result');
+      return summary;
+    } catch(error) {
+      fileStatus='导入失败：'+error.message;emit();
+      log('世界包导入错误：'+error.message,'error');
+      return null;
+    }
+  };
+
   const exportScene=async()=>{
     try {
       const portable = world.environment?.id === 'monument-hall';
@@ -197,6 +231,8 @@ export function bindSceneControls({
     loadScene,
     exportScene,
     importScene,
+    exportWorldPackage,
+    importWorldPackage,
     undo:()=>runHistory('undo'),
     redo:()=>runHistory('redo'),
     duplicate,

@@ -4,6 +4,8 @@ import { createBrowserCodeExecutor } from '../../../application/code-execution/B
 export { parseSceneProject } from '../../../application/scene/SceneProject.js';
 export { recipeSchema, assetPackageSchema } from '../../../modules/asset/model/AssetInputContracts.js';
 export { stylePackSchema, officialStylePacks } from '../../../modules/rendering/style/StylePack.js';
+export { WorldStorage, blobChunks } from '../../../application/scene/WorldStorage.js';
+export { WorldDirectory } from '../../../application/scene/WorldDirectory.js';
 
 export const AgentScape = {
   async open({ canvas, project, bundle, environment = 'monument-hall', autoStart = true, codeExecution, codeExecutor = null, codeGLTFLoader, assetModule = null }: {

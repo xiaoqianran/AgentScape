@@ -75,6 +75,9 @@ export interface SceneHandle {
   cancelJob(id: string): JobRef & { cancellationRequested: boolean };
   verify(criteria?: unknown[]): SceneResult;
   save(): Promise<SceneResult>;
+  exportWorld(storage:WorldStorage,writer?:{write(data:Uint8Array):Promise<unknown>},options?:{name?:string;linked?:boolean;signal?:AbortSignal}):Promise<SceneResult<WorldBlockRef>>;
+  prepareWorld(storage:WorldStorage,root:WorldBlockRef,options?:{active?:'none'|'saved'|'bounded';maxActiveEntities?:number;signal?:AbortSignal}):Promise<PreparedWorld>;
+  importWorld(storage:WorldStorage,source:AsyncIterable<Uint8Array>,options?:{active?:'none'|'saved'|'bounded';maxActiveEntities?:number;signal?:AbortSignal}):Promise<SceneResult>;
   setStyle(style: string | Record<string, unknown>, options?: { fallback?: 'reject' | 'declared' }): Promise<SceneResult>;
   frame(timestamp: number): void; step(): unknown; close(): void;
 }
@@ -84,3 +87,19 @@ export declare const recipeSchema: { parse(input: unknown): unknown };
 export declare const assetPackageSchema: { parse(input: unknown): unknown };
 export declare const stylePackSchema: { parse(input: unknown): unknown };
 export declare const officialStylePacks: Readonly<Record<'realistic' | 'toon' | 'low-poly', Record<string, unknown>>>;
+
+export interface WorldBlockRef { hash:string;bytes:number;kind?:string }
+export interface WorldBlockBackend { read(hash:string,expectedBytes:number):Promise<Uint8Array>;write(hash:string,bytes:Uint8Array):Promise<void> }
+export interface PreparedWorld { summary:{entities:number;assets:number;activeEntities:number;dormantEntities:number;environment:string};commit():Promise<unknown>;dispose():void }
+export declare class WorldStorage {
+  constructor(backend:WorldBlockBackend);
+  put(bytes:Uint8Array,options?:{signal?:AbortSignal}):Promise<WorldBlockRef>;
+  read(ref:WorldBlockRef,options?:{signal?:AbortSignal}):Promise<Uint8Array>;
+  resource(ref:WorldBlockRef,options?:{signal?:AbortSignal}):AsyncIterable<Uint8Array>;
+}
+export declare class WorldDirectory implements WorldBlockBackend {
+  constructor(directory:FileSystemDirectoryHandle);
+  read(hash:string,expectedBytes:number):Promise<Uint8Array>;
+  write(hash:string,bytes:Uint8Array):Promise<void>;
+}
+export declare function blobChunks(blob:Blob,options?:{signal?:AbortSignal}):AsyncIterable<Uint8Array>;

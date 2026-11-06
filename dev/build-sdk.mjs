@@ -26,7 +26,7 @@ await bundle.close();
 // Keep Node execution and MCP out of the browser entry. Package their source closure
 // so Worker URLs and the audited sandbox bundle are available after npm installation.
 const runtime = new URL('dist/runtime/', source);
-for (const directory of ['application','modules','foundation','apps/mcp-server','public/assets']) {
+for (const directory of ['application','modules','foundation','apps/mcp-server','apps/server','public/assets']) {
   await cp(new URL(directory, root), new URL(directory, runtime), {recursive:true});
 }
 await copyFile(new URL('package-lock.json', root), new URL('package-lock.json', runtime));

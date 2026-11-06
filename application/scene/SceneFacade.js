@@ -273,7 +273,26 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         return result('save', await exportScenePackage(world, { ...options, name, style: styles.export() }));
       });
     },
-    async restoreSnapshot(snapshot, { prepared = false } = {}) {
+    /** Bounded streaming world archive; storage is an injected hash-block backend. */
+    async exportWorld(storage, writer, options = {}) {
+      return exclusive(async () => {
+        const { exportWorld } = await import('./WorldIO.js');
+        return result('exportWorld', await exportWorld(world, storage, writer, { name, ...options }));
+      });
+    },
+    async prepareWorld(storage, root, options = {}) {
+      assertIdle();
+      const { prepareWorld } = await import('./WorldIO.js');
+      const prepared = await prepareWorld(storage, root, { active:'bounded', ...options });
+      // Never expose the private Runtime simply to commit a validated world.
+      return { summary:prepared.summary, commit:()=>exclusive(()=>prepared.commit(world)), dispose:()=>prepared.dispose() };
+    },
+    async importWorld(storage, source, options = {}) {
+      return exclusive(async () => {
+        const { importWorld } = await import('./WorldIO.js');
+        return result('importWorld', await importWorld(world, storage, source, { active:'bounded', ...options }));
+      });
+    },    async restoreSnapshot(snapshot, { prepared = false } = {}) {
       return exclusive(async () => {
         const copy = structuredClone(snapshot); world.serializer.validate(copy);
         if (copy.assets.length || (!prepared && (copy.configuration?.behaviorBundle || copy.configuration?.physicsRequirements || copy.metadata?.environmentState || copy.metadata?.worldRevision))) throw sceneError('UNSUPPORTED_SAVE');

@@ -7,3 +7,10 @@ export interface CodeExecutor {
   close():void;
 }
 export declare function createCodeExecutor(options?:CodeExecutionOptions):CodeExecutor;
+
+export declare class WorldDiskStorage {
+  constructor(directory:string);
+  initialize():Promise<WorldDiskStorage>;
+  read(hash:string,expectedBytes:number):Promise<Uint8Array>;
+  write(hash:string,bytes:Uint8Array):Promise<void>;
+}

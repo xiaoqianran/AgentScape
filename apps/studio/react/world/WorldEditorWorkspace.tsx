@@ -39,6 +39,7 @@ function AuthoringMenu({ controller }: { controller:any }) {
 function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authoring:any }) {
   const state:any = useSyncExternalStore(controls.subscribe,controls.snapshot,controls.snapshot);
   const importRef = useRef<HTMLInputElement|null>(null);
+  const worldImportRef = useRef<HTMLInputElement|null>(null);
   const selection = useStudioStore(state=>state.editor.selection);
   const interactionMode=useStudioStore(state=>state.editor.interactionMode);
   const setInteractionMode=useStudioStore(state=>state.setInteractionMode);
@@ -65,7 +66,9 @@ function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authorin
           <button id="save-scene" type="button" onClick={()=>controls.saveScene()}>保存到本机</button>
           <button id="load-scene" type="button" onClick={()=>void controls.loadScene()}>加载本机存档</button>
           <button id="export-scene" type="button" onClick={()=>controls.exportScene()}>导出 JSON</button>
+          <button id="export-world-package" type="button" onClick={()=>void controls.exportWorldPackage()}>导出世界包</button>
           <button id="import-scene" type="button" onClick={()=>importRef.current?.click()}>导入 JSON</button>
+          <button id="import-world-package" type="button" onClick={()=>worldImportRef.current?.click()}>导入世界包</button>
           {state.fileStatus ? <span id="scene-file-status" className="toolbar-menu-status" role="status">{state.fileStatus}</span> : null}
           <button id="reset-world" className="danger" type="button" disabled={state.resetBusy} onClick={()=>void controls.resetWorld()}>
             {state.resetBusy ? '正在重置…' : state.resetWorldArmed ? '确认重置' : '重置世界'}
@@ -76,6 +79,18 @@ function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authorin
         <summary>调试图层</summary>
         <div className="toolbar-menu debug-layer-menu" id="debug-layer-menu" />
       </details>
+      <input
+        ref={worldImportRef}
+        id="import-world-package-file"
+        type="file"
+        accept=".asworld,application/octet-stream"
+        hidden
+        onChange={(event)=>{
+          const file=event.target.files?.[0];
+          if(file)void controls.importWorldPackage(file);
+          event.target.value='';
+        }}
+      />
       <input
         ref={importRef}
         id="import-scene-file"
