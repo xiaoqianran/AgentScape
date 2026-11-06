@@ -5,7 +5,10 @@ const disposeTextureValue = (value, textures) => {
   }
 };
 
+export const RELEASE_RESOURCE = Symbol('agentscape.release-resource');
+
 export function disposeObject3D(root) {
+  if (root?.[RELEASE_RESOURCE]) return root[RELEASE_RESOURCE]();
   const geometries = new Set();
   const materials = new Set();
   const textures = new Set();

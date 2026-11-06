@@ -193,7 +193,7 @@ export class WorldRuntime {
   }
 
   async replaceEnvironment(environment,{disposePrevious=true,reason='environment-replaced'}={}) {
-    if (this.store.list().length) {
+    if (this.store.size) {
       const error=new Error('Environment replacement requires an empty ObjectStore');
       error.code='ENVIRONMENT_REPLACE_REQUIRES_EMPTY_WORLD';
       throw error;
@@ -240,8 +240,10 @@ export class WorldRuntime {
       throw error;
     }
   }
-  async spawn(assetId, { position = [0, 0, 0], quaternion = [0, 0, 0, 1], scale = 1, id = `${assetId}_${crypto.randomUUID()}`, initialState = null } = {}) {
-    const { object, manifest } = await this.assetModule.instantiate(assetId);
+  async spawn(assetId, { position = [0, 0, 0], quaternion = [0, 0, 0, 1], scale = 1, id = `${assetId}_${crypto.randomUUID()}`, initialState = null, active = true, signal } = {}) {
+    if (this.store.has(id)) throw new Error('Duplicate object id: ' + id);
+    const { object, manifest } = active ? await this.assetModule.instantiate(assetId, { signal })
+      : { object: new THREE.Object3D(), manifest: this.assetModule.getManifest(assetId) };
     const uniformScale = uniformScaleValue(scale);
     if (!Array.isArray(position) || position.length !== 3 || !position.every(Number.isFinite)) {
       const error=new TypeError('Object position requires finite vec3'); error.code='OBJECT_POSITION_INVALID'; throw error;
@@ -261,16 +263,16 @@ export class WorldRuntime {
     let attached = false;
     try {
       this.scene.add(object);
-      this.store.add(id, { id, assetId, object, manifest, state: {}, physicsScale:uniformScale });
+      this.store.add(id, { id, assetId, object, manifest, state: {}, physicsScale:uniformScale, active });
       stored = true;
-      if (manifest.capabilityLevel !== 'visual') {
+      if (active && manifest.capabilityLevel !== 'visual') {
         this.physics.addObject(id, physicsManifest, object);
         attached = true;
       }
       clearInteractionEvidenceForTarget(this,id);
       if (initialState && Object.keys(initialState).length) this.restoreObjectState(id, initialState);
       this.invalidateNavigationForObject(id, 'object.spawned');
-      this.sceneGraph?.changed();
+      if (active) this.sceneGraph?.changed(); else this.sceneGraph?.invalidate();
       this.events.emit('object.spawned', { id, assetId, position });
       return id;
     } catch (error) {
@@ -282,6 +284,40 @@ export class WorldRuntime {
       throw error;
     }
   }
+  async setObjectActive(id, active, { signal } = {}) {
+    const record = this.store.get(id);
+    if ((record.active !== false) === active) return;
+    if (record.state?.heldBy || this.interactions?.isHeld?.(id)) throw new Error('OBJECT_HELD');
+    const old = record.object;
+    if (!active) {
+      record.dormantArticulation = this.physics.captureArticulationPose(id);
+      this.locomotion?.cancel(id, 'OBJECT_DEACTIVATED');
+      this.physics.removeObject(id);
+      this.scene.remove(old);
+      const placeholder = new THREE.Object3D();
+      placeholder.position.copy(old.position); placeholder.quaternion.copy(old.quaternion); placeholder.scale.copy(old.scale);
+      record.object = placeholder; record.active = false;
+      disposeObject3D(old);
+    } else {
+      const { object } = await this.assetModule.instantiate(record.assetId, { signal });
+      try {
+        if (signal?.aborted) throw new Error('ASSET_CANCELLED');
+        object.position.copy(old.position); object.quaternion.copy(old.quaternion); object.scale.copy(old.scale);
+        object.userData.instanceId = id; ensureBoundsTrees(object); this.scene.add(object);
+        if (record.manifest.capabilityLevel !== 'visual') this.physics.addObject(id, physicsManifestForUniformScale(record.manifest, old.scale.x), object);
+        record.object = object; record.active = true;
+        this.restoreObjectState(id, record.state);
+        if (record.dormantArticulation?.length) this.physics.restoreArticulationPose(id, record.dormantArticulation);
+        this.scene.remove(old);
+      } catch (error) {
+        this.physics.removeObject(id); this.scene.remove(object); disposeObject3D(object);
+        record.object = old; record.active = false; throw error;
+      }
+    }
+    this.navigation?.invalidate('entity-activation'); this.sceneGraph?.invalidate();
+    this.events.emit('object.activation', { id, active });
+  }
+
   applyObjectTransform(id,{position=null,quaternion=null,rotationDegrees=null,scale=null}={}, {source='runtime'}={}) {
     const record=this.store.get(id);
     const object=record.object;
@@ -319,7 +355,8 @@ export class WorldRuntime {
     object.scale.setScalar(nextScale);
     object.updateMatrixWorld(true);
     try {
-      if (scaleChanged) {
+      if (record.active === false) { record.physicsScale = nextScale; }
+      else if (scaleChanged) {
         this.physics.removeObject(id);
         this.physics.addObject(id,nextPhysicsManifest,object);
         record.physicsScale=nextScale;
@@ -439,6 +476,35 @@ export class WorldRuntime {
   }
 
   serialize(options) { return this.serializer.serialize(this, options); }
+  async installWorld({ snapshot, assetModule, environment }) {
+    this.serializer.validate(snapshot);
+    return this.exclusiveMutation('world:commit', async () => {
+      const previous = this.snapshot(), oldAssets = this.assetModule, oldEnvironment = this.environment;
+      const authority = captureWorldAuthority(this), physics = this.physics.captureState();
+      const running = this.simulation.running;
+      this.simulation.pause(); this.restoring = true; this.ruleRuntime.suspendEvents();
+      try {
+        await this.clearObjects({ silent: true });
+        await this.replaceEnvironment(environment, { disposePrevious: false });
+        this.assetModule = assetModule;
+        await this.serializer.applyScene(this, snapshot);
+        this.history.clear();
+      } catch (error) {
+        try {
+          await this.clearObjects({ silent: true }); this.assetModule = oldAssets;
+          if (this.environment !== oldEnvironment) await this.replaceEnvironment(oldEnvironment, { disposePrevious: false });
+          await this.serializer.applyScene(this, previous); this.physics.restoreState(physics); restoreWorldAuthority(this, authority);
+        } catch (rollbackError) {
+          throw Object.assign(new AggregateError([error, rollbackError], 'World commit rollback failed'), { code: 'WORLD_COMMIT_ROLLBACK_FAILED' });
+        }
+        throw error;
+      } finally {
+        this.restoring = false; this.ruleRuntime.resumeEvents(); if (running) this.simulation.play();
+      }
+      if (oldEnvironment !== environment) oldEnvironment.dispose?.();
+      this.events.emit('world.committed', { entities: this.store.size });
+    });
+  }
   async restore(scene) {
     return this.exclusiveMutation('scene:restore', () => this.restoreSnapshot(scene));
   }
@@ -484,6 +550,7 @@ export class WorldRuntime {
   restoreObjectState(id, state = {}) {
     const record = this.store.get(id);
     record.state = structuredClone(state);
+    if (record.active === false) return;
     if (record.state.navigation?.status === 'moving') record.state.navigation.status = 'interrupted';
     const articulationTargets = Object.keys(state.partTargets || {}).length ? state.partTargets : (state.parts || {});
     for (const [partName, action] of Object.entries(articulationTargets)) {

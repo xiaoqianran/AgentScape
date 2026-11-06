@@ -9,30 +9,23 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 const isFiniteVec = (value, length) => Array.isArray(value) && value.length === length && value.every(Number.isFinite);
 
 export class SceneSerializer {
-  serialize(runtime, { name = 'Untitled World', includeRelations = true } = {}) {
-    if (includeRelations) runtime.sceneGraph?.update?.();
-    const usedAssets = new Set();
-    const objects = runtime.store.list().map(([id, record]) => {
-      usedAssets.add(record.assetId);
+  *objects(runtime) {
+    for (const [id, record] of runtime.store.entries()) {
       const object = record.object;
       const articulation = runtime.physics?.captureArticulationPose?.(id) || [];
-      return {
-        id,
-        assetId: record.assetId,
-        transform: {
-          position: object.position.toArray(),
-          quaternion: object.quaternion.toArray(),
-          scale: object.scale.toArray()
-        },
-        state: clone(record.state || {}),
-        ...(articulation.length ? { articulation } : {})
-      };
-    });
+      yield { id, assetId: record.assetId,
+        transform: { position: object.position.toArray(), quaternion: object.quaternion.toArray(), scale: object.scale.toArray() },
+        state: clone(record.state || {}), ...(record.active === false ? { active: false } : {}),
+        ...(articulation.length ? { articulation } : record.dormantArticulation?.length ? { articulation: clone(record.dormantArticulation) } : {}) };
+    }
+  }
 
-    const assets = [...usedAssets]
-      .map((assetId) => runtime.assetModule.getManifest(assetId))
-      .filter((manifest) => ['glb', 'compiled'].includes(manifest.source?.kind))
-      .map(clone);
+  serialize(runtime, { name = 'Untitled World', includeRelations = true, includeObjects = true } = {}) {
+    if (includeRelations) runtime.sceneGraph?.update?.();
+    const objects = includeObjects ? Array.from(this.objects(runtime)) : [];
+    const usedAssets = new Set(objects.map(object => object.assetId));
+    const assets = [...usedAssets].map(assetId => runtime.assetModule.getManifest(assetId))
+      .filter(manifest => ['glb', 'compiled'].includes(manifest.source?.kind)).map(clone);
 
     const worldRevision=runtime.currentWorldRevision ? clone(runtime.currentWorldRevision) : null;
     const acceptanceEvidence=runtime.lastAcceptanceBundle ? clone(runtime.lastAcceptanceBundle) : null;
@@ -103,6 +96,7 @@ export class SceneSerializer {
     const objectIds = new Set();
     for (const object of scene.objects) {
       if (!object.id || !object.assetId) throw new Error('Scene object requires id and assetId');
+      if (object.active != null && typeof object.active !== 'boolean') throw new Error('Invalid entity activation');
       if (object.articulation != null) {
         if (!Array.isArray(object.articulation) || object.articulation.length > 128) throw new Error('Invalid articulation poses');
         const names = new Set();
@@ -200,12 +194,16 @@ export class SceneSerializer {
           id:item.id,
           position:item.transform.position,
           quaternion:item.transform.quaternion,
-          scale:item.transform.scale
+          scale:item.transform.scale,
+          active: item.active !== false
         });
         const record = runtime.store.get(item.id);
         record.state = clone(item.state || {});
         runtime.restoreObjectState(item.id, record.state);
-        if (item.articulation?.length) runtime.physics.restoreArticulationPose(item.id, item.articulation);
+        if (item.articulation?.length) {
+          if (record.active === false) record.dormantArticulation = clone(item.articulation);
+          else runtime.physics.restoreArticulationPose(item.id, item.articulation);
+        }
       }
       runtime.interactions?.rebuildHeldOwnership?.();
       runtime.sceneGraph.changed();

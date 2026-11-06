@@ -68,7 +68,7 @@ export class SceneGraph {
     const previous = JSON.stringify([...this.edges.values()]);
     this.clear();
     for (const fact of this.environmentFacts) this.set(fact.subject, fact.predicate, fact.object, fact.meta);
-    const records = this.store.list();
+    const records = this.store.list().filter(([, record]) => record.active !== false);
     const spatialSnapshot = snapshot || this.spatial.snapshot();
     const surfaces = new Map();
 

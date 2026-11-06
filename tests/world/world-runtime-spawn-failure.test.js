@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { expect, it, vi } from 'vitest';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 
 it('rolls back Three/store resources when physics attachment fails', async () => {
   const geometry = new THREE.BoxGeometry(); geometry.dispose = vi.fn();
@@ -9,13 +10,14 @@ it('rolls back Three/store resources when physics attachment fails', async () =>
   const runtime = {
     assetModule:{ instantiate:vi.fn(async () => ({ object, manifest:{ id:'x', actions:['move'] } })) },
     scene:{ add:vi.fn(), remove:vi.fn() },
-    store:{ add:vi.fn(), delete:vi.fn() },
+    store:new ObjectStore(),
     physics:{ addObject:vi.fn(() => { throw new Error('physics failed'); }), removeObject:vi.fn() },
     sceneGraph:{ update:vi.fn() }, events:{ emit:vi.fn() }
   };
 
+  const removeRecord = vi.spyOn(runtime.store,'delete');
   await expect(WorldRuntime.prototype.spawn.call(runtime, 'x', { id:'x_1' })).rejects.toThrow('physics failed');
-  expect(runtime.store.delete).toHaveBeenCalledWith('x_1');
+  expect(removeRecord).toHaveBeenCalledWith('x_1');
   expect(runtime.scene.remove).toHaveBeenCalledWith(object);
   expect(geometry.dispose).toHaveBeenCalledOnce();
   expect(material.dispose).toHaveBeenCalledOnce();

@@ -3,9 +3,16 @@ const STORE_NAME = 'compiled-glb';
 const DB_VERSION = 1;
 
 export class CompiledAssetStore {
-  constructor({ indexedDBImpl = globalThis.indexedDB } = {}) {
+  constructor({ indexedDBImpl = globalThis.indexedDB, maxDecodeBytes = 32 * 1024 * 1024 } = {}) {
     this.indexedDB = indexedDBImpl;
     this.memory = new Map();
+    this.sources = new Map();
+    this.maxDecodeBytes = maxDecodeBytes;
+  }
+
+  registerSource(key, { bytes, read }) {
+    if (!Number.isSafeInteger(bytes) || bytes < 0 || typeof read !== 'function' || this.sources.has(key)) throw new TypeError('Invalid compiled resource source');
+    this.sources.set(key, { bytes, read });
   }
 
   async open() {
@@ -36,6 +43,17 @@ export class CompiledAssetStore {
   }
 
   async get(key) {
+    const source = this.sources.get(key);
+    if (source) {
+      if (source.bytes > this.maxDecodeBytes) throw Object.assign(new Error('ASSET_DECODE_BUDGET'), { code: 'ASSET_DECODE_BUDGET' });
+      const bytes = new Uint8Array(source.bytes); let offset = 0;
+      for await (const chunk of source.read()) {
+        if (!(chunk instanceof Uint8Array) || offset + chunk.length > bytes.length) throw new Error('ASSET_RESOURCE_SIZE_MISMATCH');
+        bytes.set(chunk, offset); offset += chunk.length;
+      }
+      if (offset !== bytes.length) throw new Error('ASSET_RESOURCE_SIZE_MISMATCH');
+      return { bytes, metadata: { contentAddressed: true } };
+    }
     const db = await this.open();
     if (!db) return this.memory.get(key) || null;
     const value = await new Promise((resolve, reject) => {
@@ -51,6 +69,7 @@ export class CompiledAssetStore {
   async has(key) { return Boolean(await this.get(key)); }
 
   async delete(key) {
+    if (this.sources.delete(key)) return true;
     const db = await this.open();
     if (!db) return this.memory.delete(key);
     await new Promise((resolve, reject) => {

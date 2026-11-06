@@ -16,7 +16,7 @@ export class SpatialSystem {
 
   snapshot() {
     const snapshot = new Map();
-    for (const [id, record] of this.store.entries()) snapshot.set(id, spatialSnapshotEntry(id, record.object));
+    for (const [id, record] of this.store.entries()) if (record.active !== false) snapshot.set(id, spatialSnapshotEntry(id, record.object));
     return snapshot;
   }
 

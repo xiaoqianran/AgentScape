@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { expect, it, vi } from 'vitest';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
+import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 
 it('updates the semantic scene graph immediately after direct spawn', async () => {
   const object = new THREE.Group();
@@ -8,7 +9,7 @@ it('updates the semantic scene graph immediately after direct spawn', async () =
   const runtime = {
     assetModule:{ instantiate:vi.fn(async () => ({ object, manifest })) },
     scene:{ add:vi.fn() },
-    store:{ add:vi.fn() },
+    store:new ObjectStore(),
     physics:{ addObject:vi.fn(), removeObject:vi.fn() },
     sceneGraph:{ changed:vi.fn() },
     invalidateNavigationForObject:vi.fn(),
@@ -26,7 +27,7 @@ it('applies revision-authored initial state only after physics attachment succee
   const manifest={id:'cabinet',actions:['move']};
   const runtime={
     assetModule:{instantiate:vi.fn(async()=>({object,manifest}))},
-    scene:{add:vi.fn()},store:{add:vi.fn()},
+    scene:{add:vi.fn()},store:new ObjectStore(),
     physics:{addObject:vi.fn(),removeObject:vi.fn()},
     restoreObjectState:vi.fn(),sceneGraph:{changed:vi.fn()},invalidateNavigationForObject:vi.fn(),events:{emit:vi.fn()}
   };
@@ -47,7 +48,7 @@ it('builds BVH bounds when an object enters WorldRuntime instead of relying on a
   const runtime={
     assetModule:{instantiate:vi.fn(async()=>({object,manifest}))},
     scene:{add:vi.fn(),remove:vi.fn()},
-    store:{add:vi.fn(),delete:vi.fn()},
+    store:new ObjectStore(),
     physics:{addObject:vi.fn(),removeObject:vi.fn()},
     sceneGraph:{changed:vi.fn()},invalidateNavigationForObject:vi.fn(),events:{emit:vi.fn()}
   };
