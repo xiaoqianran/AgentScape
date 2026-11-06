@@ -16,7 +16,7 @@ type EventBus = {
 };
 
 type WorldLike = {
-  environment?: { id?: string; title?: string; label?: string } | null;
+  environment?: { id?: string; title?: string; label?: string; interactions?: Array<{ id:string; contractId?:string; label?:string; object?:{name?:string} }> } | null;
   queries: { listObjects: () => Array<{ id:string; asset?:string; assetId?:string; type?:string; label?:string }> };
   events: EventBus;
 };
@@ -124,7 +124,8 @@ export function SceneExplorerView({
     authoringDocument:authoring?.export?.() || null,
     environment:{
       id:environmentId,
-      title
+      title,
+      interactions:environment?.interactions || []
     },
     selection
   }), [authoring, editorRevision, environmentId, revision, selection, title, world.queries]);
@@ -147,6 +148,11 @@ export function SceneExplorerView({
     () => filterRows(projection.authoringRows),
     [projection.authoringRows,query]
   );
+  const environmentCount=projection.environmentRows.filter(row=>row.kind==='environment-interaction').length;
+  const visibleEnvironmentInteractions=useMemo(
+    () => filterRows(projection.environmentRows.filter(row=>row.kind==='environment-interaction')),
+    [projection.environmentRows,query]
+  );
 
   const assets = useMemo(() => resources.snapshot().assets || [], [resourceRevision, resources]);
   const visibleAssets = useMemo(() => {
@@ -168,6 +174,9 @@ export function SceneExplorerView({
     editor.selectSelection({ source:'authoring', id });
 
   };
+  const selectEnvironmentInteraction = (id: string) => {
+    editor.selectSelection({ source:'environment', id });
+  };
 
   const startAssetDrag = (event: DragEvent, assetId: string) => {
     if (!placement.beginDrag(assetId)) {
@@ -181,7 +190,7 @@ export function SceneExplorerView({
 
   const runtimeCount=projection.runtimeRows.length;
   const authoringCount=projection.authoringRows.length;
-  const sceneCount=runtimeCount + authoringCount;
+  const sceneCount=runtimeCount + authoringCount + environmentCount;
 
   return (
     <>
@@ -249,7 +258,7 @@ export function SceneExplorerView({
             </label>
 
             <div className="scene-section-heading">
-              <span>可交互对象</span>
+              <span>Runtime 场景实体</span>
               <small>{visibleRuntimeObjects.length} / {runtimeCount}</small>
             </div>
             <div id="scene-object-list" className="scene-object-list" data-source="runtime">
@@ -276,6 +285,36 @@ export function SceneExplorerView({
                 </button>
               ))}
             </div>
+
+            {environmentCount > 0 ? (
+              <>
+                <div className="scene-section-heading">
+                  <span>场景交互点</span>
+                  <small>{visibleEnvironmentInteractions.length} / {environmentCount}</small>
+                </div>
+                <div className="scene-object-list" data-source="environment">
+                  {visibleEnvironmentInteractions.slice(0,100).map(record=>(
+                    <button
+                      key={record.key}
+                      type="button"
+                      className={'scene-object-row'+(record.selected?' active':'')}
+                      data-object-id={record.id}
+                      data-scene-key={record.key}
+                      data-source="environment"
+                      aria-pressed={record.selected}
+                      onClick={()=>selectEnvironmentInteraction(record.id)}
+                    >
+                      <span className="scene-object-glyph">✦</span>
+                      <span className="scene-object-copy">
+                        <strong>{record.label}</strong>
+                        <small>{record.id}</small>
+                      </span>
+                    </button>
+                  ))}
+                  {visibleEnvironmentInteractions.length > 100 ? <div className="scene-empty">仅展示前 100 项，请搜索定位其余交互点</div> : null}
+                </div>
+              </>
+            ) : null}
 
             {authoringCount > 0 ? (
               <>

@@ -1,7 +1,7 @@
 import * as z from 'zod/v4';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 import { RenderingSystem } from '../../modules/world/runtime/systems/RenderingSystem.js';
-import { createMonumentHall } from '../../modules/world/content/monumentHall.js';
+import { findEnvironment } from '../../modules/world/content/environments.js';
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { assetAdmission } from '../../modules/asset/model/admission.js';
@@ -38,6 +38,7 @@ const affordanceTarget = z.string().regex(/^[A-Za-z][A-Za-z0-9_:-]{0,255}$/);
 const physicalActions = new Set(['push', 'drag', 'rotate', 'slide', 'rotateJoint']);
 export const sceneInteractionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('navigate'), actor: id, position: sceneVector3Schema }).strict(),
+  z.object({ action: z.literal('activate'), actor: id, target: affordanceTarget }).strict(),
   z.object({ action: z.literal('pickup'), actor: id, target: affordanceTarget }).strict(),
   z.object({ action: z.literal('place'), actor: id, target: affordanceTarget, surfaceId: id.optional() }).strict(),
   z.object({ action: z.enum(['open', 'close']), actor: id, target: affordanceTarget, partName: id.optional() }).strict(),
@@ -150,8 +151,16 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       }
       if (offset) throw sceneError('PAGE_LIMIT_REQUIRED');
       world.sceneGraph.update();
+      const native = world.queries?.listEnvironmentInteractables?.({actorId:actor,radius:20});
       return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision,
         style: styles.export(), actors:handle.actors(), affordances: world.affordances.list({ actorId: actor, limit: 100 }),
+        // Native interaction points are not Asset entities. Expose their stable
+        // IDs and explicitly provisional evidence without claiming physics verification.
+        nativeInteractions: {
+          count:native?.items?.length || 0,
+          items:(native?.items || []).slice(0,100),
+          truncated:(native?.items?.length || 0)>100
+        },
         objects: world.store.list().map(([key, record]) => ({ ...world.observation.object(key), state: structuredClone(record.state),
           transform: { position: record.object.position.toArray(), quaternion: record.object.quaternion.toArray(), scale: record.object.scale.x },
           physicsRegistered: Boolean(world.physics.getPosition(key)) })), relations: structuredClone(world.sceneGraph.list()) };
@@ -228,9 +237,14 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     async replaceAsset(input) { return single(operations.parse({ ...input, type: 'replaceAsset' })); },
     interact(input) {
       const args = sceneInteractionSchema.parse(input); assertIdle();
+      const nativeAction = args.action === 'activate';
+      if (nativeAction && !handle.actors().agents.some(agent=>agent.id===args.actor)) throw sceneError('ACTOR_NOT_AGENT');
+      if (nativeAction && !world.environment?.interactions?.some(item=>item.id===args.target && typeof item.activate==='function')) {
+        throw sceneError('INTERACTION_UNAVAILABLE');
+      }
       const contract = 'target' in args ? world.affordances?.get?.(args.target) : null;
-      const worldAction = Boolean(contract);
-      if (contract && !contract.actions.includes(args.action)) throw sceneError('ACTION_UNSUPPORTED');
+      const worldAction = Boolean(contract) && !nativeAction;
+      if (worldAction && !contract.actions.includes(args.action)) throw sceneError('ACTION_UNSUPPORTED');
       if (!contract && ['turn_on', 'turn_off', 'pull_out', 'return', 'write'].includes(args.action)) throw sceneError('ACTION_UNSUPPORTED');
       if (jobs.size >= 128) { const terminal = [...jobs].find(([, job]) => job.status !== 'running'); if (terminal) jobs.delete(terminal[0]); else throw sceneError('JOB_LIMIT'); }
       const job = { id: `job_${crypto.randomUUID()}`, status: 'running', result: null };
@@ -240,7 +254,9 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         : args.action === 'place' ? ['approachAndPlace', { actorId: args.actor, supportId: args.target, surfaceId: args.surfaceId }]
         : ['approachAndInteract', { actorId: args.actor, targetId: args.target, action: args.action, partName: args.partName }];
       const physical = physicalActions.has(args.action);
-      const operation = worldAction ? world.mutate(`scene:world-action:${args.action}`, () => world.commands.executeAffordance({
+      const operation = nativeAction ? world.mutate('scene:native-activate', () => world.commands.activateEnvironmentInteraction(args.target,{
+        actorId:args.actor,requireReach:true
+      })) : worldAction ? world.mutate(`scene:world-action:${args.action}`, () => world.commands.executeAffordance({
         targetId: args.target, actorId: args.actor, action: args.action, args: args.args || {}
       },{approach:true})) : physical ? world.mutate(`scene:${args.action}`, async () => {
         const value = await world.interactions.manipulate(args.actor, args.target, args.action, args.args);
@@ -249,10 +265,13 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         return value;
       }) : tools.call(skill, params);
       job.promise = operation.then(value => {
-        const outcome = worldAction
+        const activated = nativeAction && value.status === 'environment-interaction-activated';
+        const outcome = nativeAction
+          ? {state:value.verified === true ? 'verified' : activated ? 'unverified' : 'failed',verified:value.verified === true,physicsVerified:false}
+          : worldAction
           ? { state:value.status === 'world-action-completed' && value.verified === true ? 'verified' : 'failed', verified:value.status === 'world-action-completed' && value.verified === true, physicsVerified:false }
           : physical ? { state:value.verified ? 'verified' : 'failed', verified:value.verified === true } : tools.executionPolicy(skill, value).outcome;
-        job.status = job.cancelled ? 'cancelled' : outcome.verified ? 'succeeded' : 'failed';
+        job.status = job.cancelled ? 'cancelled' : (outcome.verified || activated) ? 'succeeded' : 'failed';
         job.result = result('interact', value, { status: job.status, verification: { status: !job.cancelled && outcome.verified ? 'verified' : 'unverified', evidence: value }, outcome });
       }).catch(error => { job.status = job.cancelled ? 'cancelled' : 'failed'; job.result = result('interact', null, { status: job.status, diagnostics: [diagnostic(error)] }); })
         .finally(() => { clearTimeout(job.timer); busy = false; });
@@ -351,9 +370,12 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
 export async function openScene({ project, container = null, assetModule = null, codeExecutor = null, codeGLTFLoader } = {}) {
   const definition = parseSceneProject(project);
   const assets = assetModule || createAssetModule({ volatile: true, manifests: Object.fromEntries(['agent', 'cup', 'table', 'chair'].map(key => [key, structuredClone(assetManifests[key])])), manifestStore: null, libraryStore: null });
-  const environmentFactory = definition.environment.id === 'yuanmingyuan-western-mansions'
-    ? (await import('../../modules/world/content/yuanmingyuan/index.js')).createYuanmingyuanEnvironment
-    : () => createMonumentHall({ loadAssets: false });
+  const environment = findEnvironment(definition.environment.id);
+  if (!environment) throw sceneError('ENVIRONMENT_UNAVAILABLE');
+  if (environment.cabin && typeof document === 'undefined') throw sceneError('ENVIRONMENT_REQUIRES_BROWSER');
+  const factory = await environment.load();
+  if (typeof factory !== 'function') throw sceneError('ENVIRONMENT_FACTORY_INVALID');
+  const environmentFactory = (options) => factory({ loadAssets: false, ...options });
   const world = new WorldRuntime({ assetModule: assets, environmentFactory });
   assets.configureVerification({articulationVerifier:new ArticulationVerifier({assetRegistry:assets.registry,assetLoader:assets.loader})});
   if (container) world.attachRendering(new RenderingSystem({ container, scene: world.scene, events: world.events, rendererMode: 'webgl' }));
@@ -368,7 +390,12 @@ export async function openScene({ project, container = null, assetModule = null,
       if (initialized.status !== 'succeeded') throw sceneError(initialized.diagnostics[0].code);
     }
     if (definition.style) await scene.setStyle(definition.style);
-    world.rendering?.applyCameraState({ position: [10, 10, 16], target: [0, 0.8, 3] }); world.simulation.play();
+    const camera = world.environment?.camera;
+    world.rendering?.applyCameraState({
+      position: camera?.position || [10, 10, 16],
+      target: camera?.target || [0, 0.8, 3]
+    });
+    world.simulation.play();
     return scene;
   } catch (error) { if (world.sceneGraph) world.dispose(); else { world.rendering?.dispose(); world.physics.dispose(); } throw error; }
 }

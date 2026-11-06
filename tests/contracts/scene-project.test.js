@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseSceneProject, resolveSceneProject } from '../../application/scene/SceneProject.js';
+import { BUILTIN_ENVIRONMENT_IDS } from '../../modules/world/content/environments.js';
 
 const project = () => ({ schema: 'agentscape.scene-project', schemaVersion: 1, name: 'Example',
   environment: { type: 'builtin', id: 'monument-hall' },
@@ -7,6 +8,16 @@ const project = () => ({ schema: 'agentscape.scene-project', schemaVersion: 1, n
 const builtins = new Map([['builtin://monument-hall', 'a'.repeat(64)]]);
 
 describe('Scene Project v1 contract', () => {
+  it('uses the actual built-in environment catalog for portable project IDs', () => {
+    for (const environmentId of BUILTIN_ENVIRONMENT_IDS) {
+      const parsed=parseSceneProject({ ...project(), environment:{type:'builtin',id:environmentId} });
+      expect(parsed.environment.id).toBe(environmentId);
+    }
+    for (const environmentId of ['liangzhu-ancient-city','unknown-world']) {
+      expect(() => parseSceneProject({ ...project(), environment:{type:'builtin',id:environmentId} }))
+        .toThrow('INVALID_DOCUMENT');
+    }
+  });
   it('parses JSON with independent default transforms and preserves requested capability', () => {
     const input = project();
     input.objects.push({ id: 'table', asset: 'builtin://table', level: 'interactive' });

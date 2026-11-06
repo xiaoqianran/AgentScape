@@ -13,7 +13,7 @@ AgentScape.open() 返回 SceneHandle。SceneFacade 复用唯一 Runtime、Object
 
 ## 项目和资源
 
-Scene Project 包含 name、environment、objects、可选 style。当前 environment 仅支持 {"type":"builtin","id":"monument-hall"}。对象有唯一 id、asset、level（visual/physical/interactive），以及可选 transform。最多 32 个实体；位置范围 ±10000；四元数归一化；正均匀缩放 0.05–20。
+Scene Project 包含 name、environment、objects、可选 style。当前 environment 支持内置环境目录定义的 ID，例如 {"type":"builtin","id":"monument-hall"}；未知环境拒绝解析。对象有唯一 id、asset、level（visual/physical/interactive），以及可选 transform。不再固定限制 32 个实体，实际激活与分页有独立预算；位置范围 ±10000；四元数归一化；正均匀缩放 0.05–20。
 
 引用支持 builtin://name、asset://sha256/<64位小写hash> 和安全 ./ 包内路径。解析器接收已提取的 resources Map，不读取主机文件或下载 URL。拒绝路径越界、Windows 特殊路径、大小写冲突。项目 JSON 文本限 256 KiB；资源最多 128 项、单项 32 MiB、合计 64 MiB。目录/压缩适配器仍需独立实现提取和符号链接安全边界。
 

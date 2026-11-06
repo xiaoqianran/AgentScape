@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { openScene, createSceneFacade } from '../../application/scene/SceneFacade.js';
 import { createSession } from '../../application/createSession.js';
 import { createMonumentHall } from '../../modules/world/content/monumentHall.js';
+import { createBlankWorld } from '../../modules/world/content/blankWorld.js';
+import * as THREE from 'three';
 
 const project = { schema: 'agentscape.scene-project', schemaVersion: 1, name: 'Contract', environment: { type: 'builtin', id: 'monument-hall' }, objects: [] };
 async function finish(scene, job) {
@@ -13,6 +15,51 @@ async function finish(scene, job) {
   return scene.waitJob(job.id);
 }
 describe('single Scene application service', () => {
+  it('discovers native environment interactions and distinguishes activation from verified physics', async () => {
+    const session=createSession(null,{environmentFactory:createBlankWorld});
+    await session.world.init();
+    const {world,scene}=session;
+    try {
+      await scene.addModel({id:'agent',asset:'builtin://agent',level:'physical',position:[0,0,0]});
+      const mesh=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),new THREE.MeshBasicMaterial());
+      mesh.position.set(0,1,0.5);
+      world.environment.root.add(mesh);
+      let activated=0;
+      world.environment.interactions=[{id:'switch_1',label:'Demo switch',object:mesh,activate:()=>{activated++;}}];
+
+      const observed=scene.observe({actor:'agent'}).nativeInteractions;
+      expect(observed.count).toBe(1);
+      expect(observed.items[0]).toMatchObject({
+        id:'switch_1',verification:'native-provisional',executeVia:'activateEnvironmentInteract'
+      });
+      const job=scene.interact({action:'activate',actor:'agent',target:'switch_1'});
+      const outcome=await scene.waitJob(job.id);
+      expect(outcome).toMatchObject({
+        status:'succeeded',
+        result:{verification:{status:'unverified'},value:{provisional:true,physicsVerified:false}}
+      });
+      expect(activated).toBe(1);
+      mesh.position.set(9,1,0);
+      const blocked=await scene.waitJob(scene.interact({action:'activate',actor:'agent',target:'switch_1'}).id);
+      expect(blocked).toMatchObject({status:'failed',result:{value:{reason:'OUT_OF_REACH'}}});
+      expect(activated).toBe(1);
+      expect(()=>scene.interact({action:'activate',actor:'agent',target:'missing'})).toThrow('INTERACTION_UNAVAILABLE');
+      expect(()=>scene.interact({action:'activate',actor:'fake',target:'switch_1'})).toThrow('ACTOR_NOT_AGENT');
+    } finally {scene.close();world.dispose();}
+  });
+  it.each(['blank-world','house-door-world','suzhou-garden'])('uses catalog environment %s without silently opening Monument Hall', async id => {
+    const scene=await openScene({project:{...project,environment:{type:'builtin',id}}});
+    try {
+      expect(scene.snapshot().metadata.environment).toBe(id);
+      expect((await scene.save()).value.project.environment.id).toBe(id);
+    } finally {scene.close();}
+  },30000);
+  it('explicitly refuses headless browser-only and unknown environments', async () => {
+    await expect(openScene({project:{...project,environment:{type:'builtin',id:'magic-cabin'}}}))
+      .rejects.toMatchObject({code:'ENVIRONMENT_REQUIRES_BROWSER'});
+    await expect(openScene({project:{...project,environment:{type:'builtin',id:'does-not-exist'}}}))
+      .rejects.toMatchObject({code:'INVALID_DOCUMENT'});
+  });
   it('keeps the scene locked while a recipe is being compiled and admitted', async () => {
     const session = createSession(null, { environmentFactory: () => createMonumentHall({ loadAssets: false }) });
     await session.world.init();

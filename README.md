@@ -58,13 +58,13 @@ Interactions return jobs. Browser rendering advances automatically; headless hos
 | Diagnose physics/navigation | `/observatory/` |
 | Understand engine boundaries | [Architecture](docs/architecture.md) and [repository layout](docs/repository-layout.md) |
 
-The existing MCP supports isolated worlds, actions, verification, procedural asset builds and trusted save/restore. Remote code builds require a configured Docker sandbox; they do not silently fall back to the server process. The local Studio live bridge also supports explicitly paired and loopback automatic sessions targeting the open Studio world; these remain distinct from isolated world sessions.
+The existing MCP supports isolated worlds, actions, verification, procedural asset builds and trusted save/restore. Local code assets use the constrained QuickJS Worker without Docker. Public untrusted code execution requires an OS-isolated backend or remains disabled. The local Studio live bridge also supports explicitly paired and loopback automatic sessions targeting the open Studio world; these remain distinct from isolated world sessions.
 
 ## Development scope
 
 Implemented: Scene Project v1, bounded Asset Recipes, self-contained GLB Visual import, portable project bundles and three declarative StylePacks. Starter, Studio, SDK and MCP share business rules. MCP retains the legacy tool surface alongside Scene tools; isolated sessions remain separate from the opt-in Studio bridge.
 
-Public projects currently support monument-hall and up to 32 entities. JSON is the only normative format. Generic archive/directory import, arbitrary shaders and YAML are outside v1. Other Studio environments retain explicitly labelled legacy snapshots. Asset admission, edits and physically verified actions remain distinct; restored actions must be verified again.
+Scene Projects use the shared built-in environment catalog; the SDK defaults to monument-hall. Browser-only environments reject headless use. There is no fixed 32-entity cap; activation, paging and storage retain separate budgets. JSON is the only normative format. Generic archive/directory import, arbitrary shaders and YAML are outside v1. Other Studio environments retain explicitly labelled legacy snapshots. Asset admission, edits and physically verified actions remain distinct; restored actions must be verified again.
 
 See [release gates](docs/v2-release.md) for external acceptance still required before publication.
 

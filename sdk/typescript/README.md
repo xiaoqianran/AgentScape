@@ -14,7 +14,7 @@ world.close();
 
 `#app` is an HTML container with an explicit width and height. Rendering schedules automatically when a container is supplied. Headless hosts advance `step()` themselves. Interactions return jobs; query or await them with `getJob` / `waitJob`, and inspect their verification evidence separately.
 
-The current built-in environment is `monument-hall`; assets include agent, cup, table and chair. Use await world.setStyle(ref) with builtin://realistic, builtin://toon or builtin://low-poly. Headless hosts validate and defer rendering. This SDK shares the application Scene service and does not maintain another object store.
+The SDK defaults to `monument-hall`; other built-in IDs are resolved through the shared Studio catalog. Some environments require a browser DOM and reject headless Node. Studio preset furniture is not implicitly inserted into Scene Projects. Bundled assets include agent, cup, table and chair. Use await world.setStyle(ref) with builtin://realistic, builtin://toon or builtin://low-poly. Headless hosts validate and defer rendering. This SDK shares the application Scene service and does not maintain another object store.
 
 `npx agentscape3d starter new-directory` (or `agentscape starter new-directory`) scaffolds an empty destination. Install this SDK tarball and Vite in that directory, then `npm run dev`. No provider key or paid service is needed for built-in worlds. Python Connector SDK usage is unchanged.
 

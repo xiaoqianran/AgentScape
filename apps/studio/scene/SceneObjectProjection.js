@@ -109,6 +109,24 @@ export function collectStudioSceneProjection({
     parentKey:'environment-root',
     selected:selectionMatches(selection,'environment',environment.id)
   }] : [];
+  // Only named, selectable native interactions are projected. Decorative meshes
+  // are not Runtime entities and must not be advertised as independently editable.
+  const seenInteractions=new Set();
+  for (const item of environment?.interactions || []) {
+    if (!environment?.id || !item?.id || !item?.object) continue;
+    const interactionId=item.contractId || item.id;
+    if (seenInteractions.has(interactionId)) continue;
+    seenInteractions.add(interactionId);
+    environmentRows.push({
+      key:sceneProjectionKey('environment',interactionId),
+      source:'environment',
+      kind:'environment-interaction',
+      id:interactionId,
+      label:item.label || item.object.name || interactionId,
+      parentKey:sceneProjectionKey('environment',environment.id),
+      selected:selectionMatches(selection,'environment',interactionId)
+    });
+  }
 
   const runtimeRows=collectRuntimeSceneRows(runtimeObjects,selection);
   const authoringRows=collectAuthoringSceneRows(authoringDocument,selection);

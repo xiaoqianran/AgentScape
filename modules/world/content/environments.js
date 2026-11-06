@@ -102,5 +102,8 @@ export const ENVIRONMENTS = Object.freeze([
 ]);
 
 const byId=new Map(ENVIRONMENTS.map((value)=>[value.id,value]));
+export const BUILTIN_ENVIRONMENT_IDS=Object.freeze(ENVIRONMENTS.map((value)=>value.id));
+/** Strict lookup for Scene Project / SDK. Studio routes may use resolveEnvironment's fallback. */
+export const findEnvironment=(id)=>byId.get(id)||null;
 export const DEFAULT_ENVIRONMENT=ENVIRONMENTS.find(value=>value.id==='suzhou-garden');
 export const resolveEnvironment=(id)=>byId.get(id)||DEFAULT_ENVIRONMENT;

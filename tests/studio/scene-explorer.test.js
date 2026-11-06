@@ -5,6 +5,25 @@ import {
 } from '../../apps/studio/scene/SceneObjectProjection.js';
 
 describe('StudioSceneProjection', () => {
+  it('projects native environment interaction identities without mistaking meshes for Runtime entities', () => {
+    const projection=collectStudioSceneProjection({
+      runtimeObjects:[{id:'door',asset:'door',label:'Runtime door'}],
+      environment:{id:'cabin',title:'Cabin',interactions:[
+        {id:'hinge',contractId:'cabin:door',label:'Front door',object:{name:'doorMesh'}},
+        {id:'duplicate-hinge',contractId:'cabin:door',object:{name:'anotherMesh'}},
+        {id:'lamp',object:{name:'Table lamp'}},
+        {id:'visual-only',label:'Sky'}
+      ]},
+      selection:{source:'environment',id:'cabin:door'}
+    });
+    expect(projection.runtimeRows).toHaveLength(1);
+    expect(projection.environmentRows.map(row=>row.id)).toEqual(['cabin','cabin:door','lamp']);
+    expect(projection.environmentRows[1]).toMatchObject({
+      source:'environment',kind:'environment-interaction',
+      parentKey:'environment:cabin',selected:true,label:'Front door'
+    });
+    expect(projection.environmentRows[2].selected).toBe(false);
+  });
   it('keeps the legacy runtime projection stable for non-React callers', () => {
     const store={list:()=>[
       ['table_01',{assetId:'table',manifest:{label:'Table',type:'table'}}],

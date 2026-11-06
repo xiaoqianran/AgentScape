@@ -15,6 +15,10 @@ test('environment references and world changes use the shared dock',async({page,
  await page.goto('/?page=world&world=magic-cabin&renderer=webgl');await waitForRuntimeReady(page);
  await page.locator('.cabin-catalog summary').click();await page.locator('.cabin-catalog button').filter({hasText:'木灯'}).click();
  const dock=page.locator('.selection-action-dock');await expect(dock).toBeVisible();await expect(page.locator('.cabin-interact')).toHaveCount(0);
+ const nativeRow=page.locator('.scene-object-list[data-source="environment"] [data-object-id="cabin:table-lamp"]');
+ await expect(nativeRow).toBeVisible();
+ await nativeRow.click();
+ await expect(dock.locator('strong')).toHaveAttribute('title','cabin:table-lamp');
  await dock.getByRole('button',{name:'让 Agent 操作'}).click();await expect(page.locator('.task-object-reference')).toContainText('cabin:table-lamp');
  await page.locator('#input').fill('观察这个对象');await page.locator('#send').click();
  await expect.poll(()=>gateway.requests.length).toBeGreaterThan(0);

@@ -1,4 +1,5 @@
 import * as z from 'zod/v4';
+import { BUILTIN_ENVIRONMENT_IDS } from '../../modules/world/content/environments.js';
 
 export const sceneObjectIdSchema = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/);
 export const sceneVector3Schema = z.tuple([z.number().finite().min(-10000).max(10000), z.number().finite().min(-10000).max(10000), z.number().finite().min(-10000).max(10000)]);
@@ -29,7 +30,7 @@ export const sceneProjectSchema = z.object({
   schema: z.literal('agentscape.scene-project'),
   schemaVersion: z.literal(1),
   name: z.string().trim().min(1).max(100),
-  environment: z.object({ type: z.literal('builtin'), id: z.enum(['monument-hall','yuanmingyuan-western-mansions']) }).strict(),
+  environment: z.object({ type: z.literal('builtin'), id: z.enum(BUILTIN_ENVIRONMENT_IDS) }).strict(),
   style: sceneAssetRefSchema.optional(),
   objects: z.array(sceneObjectSchema)
 }).strict().superRefine((project, ctx) => {
