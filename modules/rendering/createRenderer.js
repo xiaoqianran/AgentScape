@@ -1,9 +1,11 @@
 import { WebGPURenderer } from 'three/webgpu';
+import { WebGLRenderer } from 'three';
 
 export const RENDERER_MODE = Object.freeze({
   AUTO: 'auto',
   WEBGPU: 'webgpu',
-  WEBGL2: 'webgl2'
+  WEBGL2: 'webgl2',
+  WEBGL_LEGACY: 'webgl-legacy'
 });
 
 const VALID_MODES = new Set(Object.values(RENDERER_MODE));
@@ -21,7 +23,7 @@ export function normalizeRendererMode(value = RENDERER_MODE.AUTO) {
 
 export function rendererBackend(renderer) {
   if (renderer?.backend?.isWebGPUBackend === true) return RENDERER_MODE.WEBGPU;
-  if (renderer?.backend?.isWebGLBackend === true) return RENDERER_MODE.WEBGL2;
+  if (renderer?.backend?.isWebGLBackend === true || renderer?.isWebGLRenderer === true) return RENDERER_MODE.WEBGL2;
   return 'unknown';
 }
 
@@ -44,14 +46,15 @@ export async function createRenderer({
   RendererClass = WebGPURenderer
 } = {}) {
   const requestedMode = normalizeRendererMode(mode);
-  const renderer = new RendererClass({
+  const Renderer = requestedMode === RENDERER_MODE.WEBGL_LEGACY ? WebGLRenderer : RendererClass;
+  const renderer = new Renderer({
     antialias: Boolean(antialias),
     alpha: Boolean(alpha),
     trackTimestamp: Boolean(trackTimestamp),
     forceWebGL: requestedMode === RENDERER_MODE.WEBGL2
   });
 
-  await renderer.init();
+  await renderer.init?.();
   const info = rendererDiagnostics(renderer, requestedMode);
 
   if (info.backend === 'unknown') {

@@ -188,7 +188,7 @@ export class RenderingSystem {
     const background = rendering.background ?? 0x080b10;
     this.scene.background = new THREE.Color(background);
     const fog = rendering.fog || { color: background, near: 22, far: 58 };
-    this.scene.fog = new THREE.Fog(fog.color, fog.near, fog.far);
+    this.scene.fog = fog.isFogExp2 ? fog : fog.type === 'exp2' ? new THREE.FogExp2(fog.color, fog.density) : new THREE.Fog(fog.color, fog.near, fog.far);
     this.renderer.toneMappingExposure = rendering.exposure ?? 1.1;
 
     const camera = environment.camera || {};

@@ -31,6 +31,16 @@ export async function createStudioWorkspace({
   };
 
   const openBuiltinWorld = async (id,{ historyMode='push' }={}) => {
+    const definition = environments.find(item => item.id === id);
+    // Classic WebGL shaders cannot run on the WebGPURenderer WebGL backend.
+    // Preserve local world state, then reopen through the existing Studio route.
+    if (definition?.rendererMode === 'webgl-legacy' && !world.rendering?.renderer?.isWebGLRenderer) {
+      lifecycle.worldSession.autosave.flush();
+      const target = new URL(builtInWorldUrl(currentHref(), id));
+      target.searchParams.set('renderer', 'webgl-legacy');
+      globalThis.location.assign(target.href);
+      return {status:'world-reloading',environmentId:id};
+    }
     const result = await lifecycle.openBuiltinWorld(id);
     if (historyMode !== 'none') {
       enterEditor(builtInWorldUrl(currentHref(),id),{ replace:historyMode === 'replace' });

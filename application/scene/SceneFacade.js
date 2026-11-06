@@ -323,7 +323,10 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
 export async function openScene({ project, container = null, assetModule = null, codeExecutor = null, codeGLTFLoader } = {}) {
   const definition = parseSceneProject(project);
   const assets = assetModule || createAssetModule({ volatile: true, manifests: Object.fromEntries(['agent', 'cup', 'table', 'chair'].map(key => [key, structuredClone(assetManifests[key])])), manifestStore: null, libraryStore: null });
-  const world = new WorldRuntime({ assetModule: assets, environmentFactory: () => createMonumentHall({ loadAssets: false }) });
+  const environmentFactory = definition.environment.id === 'yuanmingyuan-western-mansions'
+    ? (await import('../../modules/world/content/yuanmingyuan/index.js')).createYuanmingyuanEnvironment
+    : () => createMonumentHall({ loadAssets: false });
+  const world = new WorldRuntime({ assetModule: assets, environmentFactory });
   assets.configureVerification({articulationVerifier:new ArticulationVerifier({assetRegistry:assets.registry,assetLoader:assets.loader})});
   if (container) world.attachRendering(new RenderingSystem({ container, scene: world.scene, events: world.events, rendererMode: 'webgl' }));
   world.skills = new SkillRegistry({ policy: world.policy, trace: world.trace, runtime: world });

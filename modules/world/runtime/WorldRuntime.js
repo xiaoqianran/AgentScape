@@ -138,7 +138,7 @@ export class WorldRuntime {
   }
   async addEnvironment() {
     if (!this.environmentFactory) throw new Error('WorldRuntime requires an environmentFactory');
-    const environment = await this.environmentFactory({ scene:this.scene });
+    const environment = await this.environmentFactory({ scene:this.scene, renderer:this.rendering?.renderer || null });
     this.installEnvironment(environment);
     return environment;
   }

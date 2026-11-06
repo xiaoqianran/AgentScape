@@ -1,6 +1,15 @@
 import { houseRecipe } from './houseRecipe.js';
 export const ENVIRONMENTS = Object.freeze([
   Object.freeze({
+    id:'yuanmingyuan-western-mansions',number:'世界 06',title:'圆明园 · 西洋楼',rendererMode:'webgl-legacy',
+    headline:'走进一座可被 AI 探索的历史园林。',
+    description:'程序化生成的大水法、海晏堂、远瀛观、湖泊与园林；原生接入 AgentScape Runtime。',
+    facts:['大型程序化世界','地形碰撞','原生 Three.js 环境'],worldFirst:true,
+    load:()=>import('./yuanmingyuan/index.js').then(module=>module.createYuanmingyuanEnvironment),
+    bootstrap:{agent:[0,0,62],table:[3,0,62],cup:[3.3,1.1,62]},
+    coffeeCorner:{table:[3,0,62]}
+  }),
+  Object.freeze({
     id:'blank-world',number:'世界 00',title:'空白实验世界',headline:'从一块空地开始搭建世界。',
     description:'没有现成建筑的独立物理场景，使用通用资产接口放置桌子、杯子和智能体。',
     facts:['空白场景','真实地面碰撞','可移动智能体'],worldFirst:true,

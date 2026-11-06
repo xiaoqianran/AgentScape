@@ -21,7 +21,7 @@ export async function createStudioRuntime({
   const environmentMaterializer = new StudioEnvironmentMaterializer({ parent:ui.shell });
   const { world, generation, authoring, promotion, scene } = createSession(ui.viewport, {
     environmentFactory: options => environmentMaterializer.materialize(environmentDefinition, options),
-    rendererMode: params.get('renderer') || 'auto',
+    rendererMode: params.get('renderer') || environmentDefinition.rendererMode || 'auto',
     rendererTiming: params.get('gpuTiming') === '1',
     generation: {
       assetInputPolicy:'approved-image',

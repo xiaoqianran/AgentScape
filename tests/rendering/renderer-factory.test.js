@@ -47,6 +47,7 @@ describe('renderer factory', () => {
     expect(normalizeRendererMode()).toBe(RENDERER_MODE.AUTO);
     expect(normalizeRendererMode('WEBGPU')).toBe(RENDERER_MODE.WEBGPU);
     expect(normalizeRendererMode('webgl')).toBe(RENDERER_MODE.WEBGL2);
+    expect(normalizeRendererMode('webgl-legacy')).toBe(RENDERER_MODE.WEBGL_LEGACY);
     expect(() => normalizeRendererMode('canvas2d')).toThrowError(/Unsupported renderer mode/);
   });
 

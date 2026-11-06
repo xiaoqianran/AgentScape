@@ -36,7 +36,7 @@ export function createStudioWorldLifecycle({
   const worldOpener = new StudioWorldOpener({
     session:worldSession,
     builtins:ENVIRONMENTS,
-    materializeBuiltin:(definition)=>environmentMaterializer.materialize(definition,{ scene:world.scene }),
+    materializeBuiltin:(definition)=>environmentMaterializer.materialize(definition,{ scene:world.scene, renderer:world.rendering?.renderer || null }),
     materializeGenerated:(artifactId)=>materializePersistedWorldEnvironment(world,artifactId),
     authoring:authoringWorlds
   });

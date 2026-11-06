@@ -29,7 +29,7 @@ export const sceneProjectSchema = z.object({
   schema: z.literal('agentscape.scene-project'),
   schemaVersion: z.literal(1),
   name: z.string().trim().min(1).max(100),
-  environment: z.object({ type: z.literal('builtin'), id: z.literal('monument-hall') }).strict(),
+  environment: z.object({ type: z.literal('builtin'), id: z.enum(['monument-hall','yuanmingyuan-western-mansions']) }).strict(),
   style: sceneAssetRefSchema.optional(),
   objects: z.array(sceneObjectSchema).max(32)
 }).strict().superRefine((project, ctx) => {
