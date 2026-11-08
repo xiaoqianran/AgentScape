@@ -43,7 +43,40 @@ await session.scene.addModel({ id: 'cup_01', asset: 'builtin://cup', position: [
 
 ## 3. 持久化与能力边界
 
-原生模式目前刻意拒绝 `scene.save()`、原生项目导入/导出及 `setStyle()`，分别报告 `NATIVE_PROJECT_SAVE_UNSUPPORTED`、`NATIVE_PROJECT_IMPORT_UNSUPPORTED` 和 `NATIVE_RENDERING_OWNED_BY_PROJECT`。不要把原项目伪装成内置 Scene Project；未来将以独立的注入层存档承载 AgentScape 修改，原有项目的材质、动画、资源和源码继续由宿主负责。
+原生模式仍拒绝 `scene.save()`、完整原生项目导入/导出及 `setStyle()`，这些能力会错误地把宿主项目伪装成 AgentScape 项目。现在提供独立的 AgentScape 注入层 Overlay 持久化：
+
+```js
+import { AgentScape, WorldStorage, WorldDirectory } from 'agentscape3d';
+
+const session = await AgentScape.attach({
+  scene, camera, renderer,
+  hostProjectId: 'com.example.my-three-game',
+  hostRevision: 'world-layout-v3', // 地面/障碍/导航布局改变时更新
+  walkableMesh: floor,
+});
+const directory = await window.showDirectoryPicker();
+const storage = new WorldStorage(new WorldDirectory(directory));
+
+// 保存只包含 AgentScape 管理的实体、状态与资产。
+const root = await session.scene.saveOverlay(storage);
+// 宿主应用必须把 root 引用保存到自己的项目配置/数据库中。
+
+// 新进程或新挂载后，使用相同 hostProjectId / hostRevision：
+const prepared = await session.scene.prepareOverlay(storage, root);
+// 先校验和准备所有依赖；原世界此时尚未改变。
+await prepared.commit();
+// 或直接调用 await session.scene.restoreOverlay(storage, root)。
+
+// 需要搬运时，使用既有 ASWORLD 分块归档协议：
+await session.scene.exportOverlay(storage, root, writer);
+const importedRoot = await session.scene.importOverlay(storage, source);
+```
+
+- 持久化需要显式提供稳定的 `hostProjectId`；可选但建议提供 `hostRevision`，它必须在宿主几何、碰撞或导航布局变化时更新。身份或版本不匹配时拒绝恢复。
+- Overlay 复用 `WorldStorage` 的内容寻址块、哈希校验和流式归档。保存返回的 root 引用必须由宿主另行持久化；内容块不会替宿主保存项目文件或配置。
+- 仅保存 AgentScape 的实体、资产、实体状态和必要运行配置；不保存宿主源码、Mesh、材质、Shader、动画、相机、渲染器或宿主环境状态。
+- `prepareOverlay()` 在独立资源与 Runtime 状态中完成检查；只有 `commit()` 才替换当前 AgentScape 注入层。提交失败由现有 `WorldRuntime.installWorld()` 回滚。准备对象不用时调用 `dispose()`。
+- Overlay 是宿主项目的附属数据，不是完整 Three.js 项目备份。宿主仍负责保存自己的源码、模型、相机、灯光和渲染配置。
 
 场景的可视显示、物理注册与 Agent 动作验收是不同条件：`scene.addModel()` 成功不保证导航或动作执行成功，应继续观察 `scene.observe()` 和 Job 验证证据。
 
@@ -52,7 +85,7 @@ await session.scene.addModel({ id: 'cup_01', asset: 'builtin://cup', position: [
 ```sh
 npm ci
 npx playwright test tests/browser/native-scene.spec.js
-npx vitest run tests/integration/native-scene.test.js tests/integration/native-scene-plugin.test.js
+npx vitest run tests/integration/native-scene.test.js tests/integration/native-scene-plugin.test.js tests/integration/native-scene-overlay.test.js
 npm run sdk:verify
 ```
 

@@ -17,7 +17,13 @@ it('stores runtime entities as immutable pages and requires an explicitly regist
     for (let i = 0; i < 140; i++) await session.scene.addModel({ id: `cup_${i}`, asset: 'builtin://cup', position: [i * 2, 1, 0] });
     const storage = new WorldStorage(await new WorldDiskStorage(directory).initialize());
     const root = await writeWorldDocument(session.world, storage);
-    const plugins = new EnvironmentPlugins().register('monument-hall', { create: () => createMonumentHall({ loadAssets: false }) });
+    session.world.environment.snapshot = () => ({ doors: { main: 'open' } });
+    const withEnvironmentState = await writeWorldDocument(session.world, storage);
+    const withStateNode = await storage.node(withEnvironmentState);
+    expect(withStateNode.data.header.metadata.environmentState).toEqual({ doors: { main: 'open' } });
+    const withoutEnvironmentState = await writeWorldDocument(session.world, storage, { includeEnvironmentState: false });
+    const withoutStateNode = await storage.node(withoutEnvironmentState);
+    expect(withoutStateNode.data.header.metadata.environmentState).toBeUndefined();    const plugins = new EnvironmentPlugins().register('monument-hall', { create: () => createMonumentHall({ loadAssets: false }) });
     const document = await inspectWorldDocument(storage, root, { plugins });
     const entities = [];
     for await (const page of storage.pages(document.entities, 'entities')) entities.push(...page);

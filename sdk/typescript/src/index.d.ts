@@ -84,13 +84,25 @@ export interface SceneHandle {
 export interface NativeSceneOptions {
   scene: any; camera: any; renderer: any; three?: any; name?: string;
   environmentId?: string; colliders?: Record<string, unknown>[]; navigationRoot?: any;
-  staticMeshes?: any[]; walkableMesh?: any;
+  staticMeshes?: any[]; walkableMesh?: any; hostProjectId?: string; hostRevision?: string;
   assetModule?: any; autoStart?: boolean; codeExecutor?: any; codeGLTFLoader?: any; assetBaseUrl?: string | null;
 }
+export interface NativeOverlayPrepared {
+  summary: unknown;
+  commit(): Promise<unknown>;
+  dispose(): void;
+}
+export interface NativeSceneHandle extends SceneHandle {
+  saveOverlay(storage: WorldStorage, options?: { name?: string; signal?: AbortSignal }): Promise<WorldBlockRef & {kind:'native-overlay'}>;
+  prepareOverlay(storage: WorldStorage, root: WorldBlockRef & {kind:'native-overlay'}, options?: {signal?:AbortSignal;active?:'saved'|'none'|'bounded';maxActiveEntities?:number}): Promise<NativeOverlayPrepared>;
+  restoreOverlay(storage: WorldStorage, root: WorldBlockRef & {kind:'native-overlay'}, options?: {signal?:AbortSignal;active?:'saved'|'none'|'bounded';maxActiveEntities?:number}): Promise<unknown>;
+  exportOverlay(storage: WorldStorage, root: WorldBlockRef & {kind:'native-overlay'}, writer: {write(bytes:Uint8Array):Promise<unknown>}, options?: {signal?:AbortSignal}): Promise<unknown>;
+  importOverlay(storage: WorldStorage, source: AsyncIterable<Uint8Array>, options?: {signal?:AbortSignal}): Promise<WorldBlockRef & {kind:'native-overlay'}>;
+}
 export interface NativeSceneSession {
-  scene: SceneHandle & { native: { scene: any; renderer: any; camera: any; root: any };
+  scene: NativeSceneHandle & { native: { scene: any; renderer: any; camera: any; root: any };
     capabilities: { mode: 'native-scene'; threeRevision: string; sourceConversion: false;
-      ownsRenderer: false; nativeProjectSave: false; environmentColliders: number; navigationRegistered: boolean } };
+      ownsRenderer: false; nativeProjectSave: false; nativeOverlayPersistence: boolean; environmentColliders: number; navigationRegistered: boolean } };
   world: any;
   close(): void;
 }
