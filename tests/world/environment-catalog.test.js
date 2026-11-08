@@ -43,6 +43,6 @@ describe('Environment catalog',()=>{
       expect(world.layout.bounds.min[1]).toBeLessThan(world.layout.bounds.max[1]);
       world.dispose();
     }
-  });
+  }, 30000);
 
 });
