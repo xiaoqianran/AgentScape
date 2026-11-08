@@ -4,6 +4,20 @@ import { createSession } from '../../application/createSession.js';
 import { createBlankWorld } from '../../modules/world/content/blankWorld.js';
 
 describe('Scene API batched edits',()=>{
+  it('does not roll back a committed edit if an optional snapshot cache callback throws',async()=>{
+    const session=createSession(null,{environmentFactory:()=>createBlankWorld({id:'cache-hook'})});
+    const {world,scene}=session;
+    try{
+      await world.init();
+      await world.mutate('scene:add',async()=>world.commands.spawn('cup',{id:'cached_cup',position:[0,0,0]}),{},{
+        onSnapshot:()=>{throw new Error('cache-not-available');}
+      });
+      expect(world.store.has('cached_cup')).toBe(true);
+      expect(world.history.status().undo).toBe(1);
+      await world.history.undo();
+      expect(world.store.has('cached_cup')).toBe(false);
+    }finally{scene.close();world.dispose();}
+  });
   it('coalesces graph rebuilds across a batch while preserving relations',async()=>{
     const session=createSession(null,{environmentFactory:()=>createBlankWorld({id:'batch-performance'})});
     const {world,scene}=session;

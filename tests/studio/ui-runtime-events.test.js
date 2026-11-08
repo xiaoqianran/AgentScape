@@ -46,6 +46,13 @@ describe('UI runtime event lifecycle', () => {
     f.binding.dispose();
   });
 
+  it('reports exhausted autosave retries', () => {
+    const f=fixture();
+    f.handlers.get('scene.autosave.retry-exhausted')({attempts:3});
+    expect(f.taskPanel.log).toHaveBeenCalledWith(expect.stringContaining('重试 3 次后仍失败'),'error');
+    f.binding.dispose();
+  });
+
   it('reports generated SPZ readiness with splat count', () => {
     const f = fixture();
     f.handlers.get('renderer.generated-visual-ready')({ format:'spz', splatCount:134414 });

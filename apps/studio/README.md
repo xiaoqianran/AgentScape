@@ -6,6 +6,12 @@
 
 任务见 tasks.jsonl。验证：npm run test:studio、npm run typecheck、npm run build。
 
+## 自动保存失败处理
+
+Studio 自动保存仍使用同步 `localStorage`，不会声称已经完成 IndexedDB 迁移。每次有新编辑时延迟 600 ms 保存；如果存储或序列化失败，发送 `scene.autosave.failed`，并自动最多重试 2 次（默认延迟分别为 2 s、4 s）。重试全部失败时发送 `scene.autosave.retry-exhausted`，任务面板提示用户及时导出备份。新编辑可重新触发保存，成功后清空失败状态。
+
+主动切换世界时的 `flush()` 依旧会向调用方抛出保存失败，从而阻止未经保存的世界切换；定时保存失败则不会作为未捕获异常破坏页面。**配额不足不会被重试机制解决**，必须由用户清理存储或导出备份。IndexedDB 主存储迁移需要同步改造 WorldSession 的异步读写、回滚和旧存档恢复流程，尚未实施。
+
 ## 渲染像素比例（可选）
 
 Studio 可在启动 URL 中附加 `renderScale=0.75`（允许范围 0.5–1，默认 1）。它只缩放实际 GPU 渲染像素比，不修改世界坐标、摄像机宽高比、物理步长或导航网格。例如：`/?world=industrial-cabinet-lab&page=world&renderScale=0.75`。设置在页面初始化时生效；无效值回退到 1。

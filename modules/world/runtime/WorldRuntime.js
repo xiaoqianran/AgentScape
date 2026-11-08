@@ -424,7 +424,10 @@ export class WorldRuntime {
         const after = this.snapshot();
         this.history.commit(after, meta);
         committed = true;
-        onSnapshot?.(after);
+        // Cache updates are advisory. Once committed, a cache callback error
+        // must never invoke rollback against an already recorded history entry.
+        try { onSnapshot?.(after); }
+        catch { /* The next mutation will take a fresh snapshot. */ }
         return result;
       } catch (error) {
         this.history.cancel();

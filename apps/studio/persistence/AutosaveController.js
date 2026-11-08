@@ -1,8 +1,11 @@
 export class AutosaveController {
-  constructor({ runtime, store, delayMs = 500 } = {}) {
+  constructor({ runtime, store, delayMs = 500, retryDelayMs = 2000, maxRetries = 2 } = {}) {
     this.runtime = runtime;
     this.store = store;
     this.delayMs = delayMs;
+    this.retryDelayMs = retryDelayMs;
+    this.maxRetries = maxRetries;
+    this.retryCount = 0;
     this.timer = null;
     this.enabled = true;
     this.unsubscribers = [];
@@ -19,16 +22,36 @@ export class AutosaveController {
 
   schedule() {
     if (!this.enabled) return;
+    this.retryCount = 0;
+    this.#setTimer(this.delayMs);
+  }
+
+  #setTimer(delayMs) {
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
-      try { this.flush(); }
-      catch { /* flush emits scene.autosave.failed; a timer must not throw globally. */ }
-    }, this.delayMs);
+      try {
+        this.flush();
+        this.retryCount = 0;
+      } catch {
+        // A new edit resets the retry budget through schedule().
+        if (this.retryCount < this.maxRetries) {
+          this.retryCount++;
+          this.#setTimer(this.retryDelayMs * 2 ** (this.retryCount - 1));
+        } else {
+          try {
+            this.runtime.events.emit('scene.autosave.retry-exhausted', {
+              ...this.lastError, attempts:this.retryCount + 1
+            });
+          } catch { /* A UI event listener must not crash the timer callback. */ }
+        }
+      }
+    }, delayMs);
   }
 
   cancelPending() {
     clearTimeout(this.timer);
     this.timer = null;
+    this.retryCount = 0;
   }
 
   flush() {
@@ -42,6 +65,7 @@ export class AutosaveController {
       stage = 'storage';
       this.store.save(scene);
       this.lastError = null;
+      this.retryCount = 0;
     } catch (error) {
       const code = error?.name === 'QuotaExceededError' ? 'AUTOSAVE_QUOTA_EXCEEDED' : 'AUTOSAVE_FAILED';
       this.lastError = { code, stage, message: error?.message || String(error) };

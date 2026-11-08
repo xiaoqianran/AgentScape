@@ -56,6 +56,9 @@ export function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, aut
     const reason=code==='AUTOSAVE_QUOTA_EXCEEDED' ? '浏览器存储空间不足' : stage==='serialize' ? '场景序列化失败' : '浏览器保存失败';
     log(`自动保存失败：${reason} · 当前修改尚未持久化，请导出场景备份`,'error');
   });
+  listen('scene.autosave.retry-exhausted',({ attempts })=>{
+    log(`自动保存重试 ${attempts} 次后仍失败 · 请立即导出场景备份`,'error');
+  });
 
   return {
     dispose() {
