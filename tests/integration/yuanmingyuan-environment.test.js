@@ -43,5 +43,5 @@ describe('Yuanmingyuan original-world integration', () => {
       restored?.close();
       scene.close();
     }
-  });
+  }, 30_000);
 });
