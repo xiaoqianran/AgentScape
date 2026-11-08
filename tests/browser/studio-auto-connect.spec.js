@@ -73,6 +73,8 @@ test('offline MCP shows a recoverable, explicit state and distinguishes native T
   await expect(page.locator('.studio-mcp-recovery code')).toContainText('127.0.0.1:49199');
   await page.getByText('如何连接自己的 Three.js 项目？').click();
   await expect(page.locator('.studio-mcp-native-help')).toContainText('不会自动扫描或导入外部项目');
+  await expect(page.getByRole('link',{name:'打开可操作的原生场景示例'}))
+    .toHaveAttribute('href','/examples/native-scene/');
   await expect(page.getByRole('link',{name:'查看原生 Three.js 接入指南'}))
     .toHaveAttribute('href',/docs\/native-threejs-integration\.md$/);
   await page.locator('#studio-mcp-retry').click();
