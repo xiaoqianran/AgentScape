@@ -75,7 +75,7 @@ export async function prepareWorld(storage, root, {
       if (state !== 'prepared') throw worldStorageError('WORLD_PREPARED_STATE');
       checkCancelled(signal); state = 'committing'; onStage('commit');
       try { await runtime.installWorld({ snapshot, assetModule: assets, environment }); state = 'committed'; }
-      catch (error) { state = 'failed'; environment.dispose?.(); throw error; }
+      catch (error) { state = 'failed'; environment.dispose?.(); assets.loader.gltfLoader.dispose?.(); throw error; }
       return { root, entities: objects.length };
     },
     dispose() { if (state === 'prepared') { state = 'disposed'; environment.dispose?.(); assets.loader.gltfLoader.dispose?.(); } }

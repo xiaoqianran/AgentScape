@@ -93,3 +93,38 @@ test('real MCP HTTP injects into the native browser scene and disconnects when d
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('native overlay survives detach and reattach without replacing host-owned objects', async ({ page }) => {
+  await page.goto('/examples/native-scene/');
+  await page.getByRole('button', { name: '连接场景', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已连接');
+  await page.getByRole('button', { name: '注入柜子、杯子和 Agent' }).click();
+  await expect(page.getByRole('status')).toContainText('已注入 3 个资产', { timeout: 60000 });
+  const root = await page.evaluate(async () => {
+    const saved = await window.nativeDemo.session.scene.saveOverlay(window.nativeDemo.storage);
+    await window.nativeDemo.session.scene.addModel({
+      id: 'temporary_overlay_object', asset: 'builtin://chair', position: [0, 0, 0]
+    });
+    return saved;
+  });
+  expect(root.kind).toBe('native-overlay');
+  await page.getByRole('button', { name: '移除注入层' }).click();
+  await expect(page.getByRole('status')).toContainText('原生场景继续运行');
+  await page.getByRole('button', { name: '连接场景', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已连接');
+  const restored = await page.evaluate(async root => {
+    const session = window.nativeDemo.session;
+    await session.scene.restoreOverlay(window.nativeDemo.storage, root);
+    return {
+      ids: session.scene.observe().objects.map(object => object.id).sort(),
+      hostFloor: session.scene.native.scene.getObjectByName('NativeFloor') != null,
+      rendererOwned: session.scene.capabilities.ownsRenderer,
+    };
+  }, root);
+  expect(restored).toEqual({
+    ids: ['native_agent', 'native_cabinet', 'native_cup'],
+    hostFloor: true,
+    rendererOwned: false,
+  });
+  await page.getByRole('button', { name: '移除注入层' }).click();
+});

@@ -1,3 +1,4 @@
+import { WorldStorage } from '../../application/scene/WorldStorage.js';
 import { attachNativeScene } from '../../application/native-scene/NativeSceneHost.js';
 import { listNativeScenes, subscribeNativeScenes } from '../../application/native-scene/NativeRenderDiscovery.js';
 import { StudioLiveBridgeClient } from '../../apps/studio/bridge/StudioLiveBridgeClient.js';
@@ -9,6 +10,17 @@ const detach = document.querySelector('#detach');
 const mcp = document.querySelector('#mcp');
 const status = document.querySelector('[role=status]');
 let session = null, bridge = null;
+const overlayBlocks = new Map();
+const overlayStorage = new WorldStorage({
+  async read(hash, expectedBytes) {
+    const bytes = overlayBlocks.get(hash);
+    if (!bytes || bytes.length !== expectedBytes) throw new Error('OVERLAY_BLOCK_NOT_FOUND');
+    return bytes.slice();
+  },
+  async write(hash, bytes) {
+    if (!overlayBlocks.has(hash)) overlayBlocks.set(hash, bytes.slice());
+  }
+});
 const refresh = () => {
   const previous = target.value;
   target.replaceChildren(...listNativeScenes().map(candidate => {
@@ -33,6 +45,8 @@ attach.onclick = async () => {
     session = await attachNativeScene({ ...candidate,
       // Reuse the original mesh for physical collision and navigation.
       walkableMesh: floor,
+      hostProjectId: 'agentscape.native-three-demo',
+      hostRevision: 'native-courtyard-v1',
     });
     const port = new URLSearchParams(location.search).get('mcpPort') || '39015';
     if (!/^\d{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('MCP_PORT_INVALID');
@@ -87,5 +101,5 @@ detach.onclick = () => {
 };
 mcp.onchange = () => bridge?.setAutoEnabled(mcp.checked);
 // Inspection hooks for the example and browser acceptance; never used by the project.
-window.nativeDemo = { listNativeScenes, get session() { return session; }, get bridge() { return bridge; } };
+window.nativeDemo = { listNativeScenes, storage: overlayStorage, get session() { return session; }, get bridge() { return bridge; } };
 await import('./project/main.js');
