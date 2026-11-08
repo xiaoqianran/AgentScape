@@ -98,6 +98,7 @@ export function StudioMcpConnection({controller}:{controller:Controller}) {
         </ol>
         <a href="https://github.com/xiaoqianran/AgentScape/blob/main/docs/native-threejs-integration.md"
           target="_blank" rel="noopener noreferrer">查看原生 Three.js 接入指南</a>
+        <a href="/examples/native-scene/">打开可操作的原生场景示例</a>
       </details>
       <small>仅连接本机 {controller.base}，不会将 MCP Bearer Token 暴露给浏览器。多个 Studio 标签页时需使用明确的会话 ID。</small>
     </section>:null}

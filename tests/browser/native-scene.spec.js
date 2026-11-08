@@ -159,3 +159,51 @@ test('published native overlay survives browser reload and restores automaticall
   });
   await page.getByRole('button', { name: '移除注入层' }).click();
 });
+test('guided native onboarding saves, reloads and manually restores assets with visible feedback', async ({page}) => {
+  await page.goto('/examples/native-scene/');
+  await expect(page.getByRole('button',{name:'保存注入层'})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'恢复最近存档'})).toBeDisabled();
+  await expect(page.getByText('首次使用 · 四步完成')).toBeVisible();
+  await page.getByRole('button',{name:'连接场景',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('已连接');
+  await expect(page.locator('#overlay-status')).toContainText('尚无已发布存档');
+  await page.getByRole('button',{name:'注入柜子、杯子和 Agent'}).click();
+  await expect(page.getByRole('status')).toContainText('已注入 3 个资产',{timeout:60000});
+  await expect(page.locator('#overlay-status')).toContainText('新增对象尚未保存');
+  await page.getByRole('button',{name:'保存注入层'}).click();
+  await expect(page.locator('#overlay-status')).toContainText('已保存注入层',{timeout:30000});
+  await expect(page.getByRole('button',{name:'恢复最近存档'})).toBeEnabled();
+  await page.evaluate(()=>window.nativeDemo.session.scene.addModel({
+    id:'unsaved_added_chair',asset:'builtin://chair',position:[0,0,0]
+  }));
+  await page.getByRole('button',{name:'恢复最近存档'}).click();
+  await expect(page.locator('#overlay-status')).toContainText('已恢复最近存档',{timeout:30000});
+  expect(await page.evaluate(()=>window.nativeDemo.session.scene.observe().objects.map(o=>o.id).sort()))
+    .toEqual(['native_agent','native_cabinet','native_cup']);
+  await page.reload();
+  await page.getByRole('button',{name:'连接场景',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('已连接');
+  await expect(page.getByRole('button',{name:'恢复最近存档'})).toBeEnabled();
+  expect(await page.evaluate(()=>window.nativeDemo.session.scene.observe().objects.map(o=>o.id).sort()))
+    .toEqual(['native_agent','native_cabinet','native_cup']);
+  await page.getByRole('button',{name:'移除注入层'}).click();
+  await expect(page.getByRole('button',{name:'保存注入层'})).toBeDisabled();
+});
+
+test('guided native restore failure remains visible and preserves the current world',async({page})=>{
+  await page.goto('/examples/native-scene/');
+  await page.getByRole('button',{name:'连接场景',exact:true}).click();
+  await page.getByRole('button',{name:'注入柜子、杯子和 Agent'}).click();
+  await expect(page.getByRole('status')).toContainText('已注入 3 个资产',{timeout:60000});
+  await page.getByRole('button',{name:'保存注入层'}).click();
+  await expect(page.locator('#overlay-status')).toContainText('已保存注入层');
+  await page.evaluate(()=>{
+    window.nativeDemo.checkpoint.restoreLatest=async()=>{
+      throw Object.assign(new Error('TEST_RESTORE_FAILURE'),{code:'TEST_RESTORE_FAILURE'});
+    };
+  });
+  await page.getByRole('button',{name:'恢复最近存档'}).click();
+  await expect(page.locator('#overlay-status')).toContainText('恢复失败：TEST_RESTORE_FAILURE');
+  expect(await page.evaluate(()=>window.nativeDemo.session.scene.observe().objects.length)).toBe(3);
+  await expect(page.getByRole('button',{name:'保存注入层'})).toBeEnabled();
+});
