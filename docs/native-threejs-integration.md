@@ -15,10 +15,7 @@ const session = await AgentScape.attach({
   camera,
   renderer,
   autoStart: false, // 宿主已有动画循环时，由宿主驱动 Runtime
-  colliders: [
-    { shape: 'box', halfExtents: [12, 0.1, 12], translation: [0, -0.1, 0] },
-  ],
-  navigationRoot: floor,
+  walkableMesh: floor, // 从静态地面 Mesh 创建碰撞体与导航来源
 });
 await session.scene.addModel({ id: 'cup_01', asset: 'builtin://cup', position: [0, 2, 0] });
 
@@ -31,8 +28,8 @@ await session.scene.addModel({ id: 'cup_01', asset: 'builtin://cup', position: [
 ```
 
 - `autoStart: false` 时必须在宿主帧循环中持续调用 `session.scene.frame(timestamp)`，否则物理模拟/Agent Job 不会自行推进。默认 `autoStart: true` 使用独立的 requestAnimationFrame；两种方式只选择一种，不要重复驱动同一 Runtime。
-- `colliders` 描述参与 AgentScape 物理引擎的宿主环境。原生场景中普通可见 Mesh **不自动**成为物理碰撞体；只传入 `navigationRoot` 也不等于它具有物理碰撞。
-- `navigationRoot` 是可选的宿主导航几何来源。导航能否成功还需要实际 Runtime 验证。
+- `colliders` 描述参与 AgentScape 物理引擎的宿主环境。原生可见 Mesh 不会被自动扫描。`walkableMesh` 显式指定静态地面，提取世界坐标碰撞三角网格并作为导航来源；`staticMeshes` 用于其他明确选定的静态障碍物。
+- 仅支持可信、保持静止的普通 Mesh；拒绝 SkinnedMesh、InstancedMesh、Morph Mesh、动态标记或过大几何。最多 32 个 Mesh、100,000 个三角面、200,000 个顶点。仍可使用 `navigationRoot` 指定导航根，导航是否成功以 Runtime 真实作业验证为准。
 - 必须复用同一份 `three` 构造器。`NATIVE_THREE_INSTANCE_MISMATCH` 说明项目存在不兼容或重复实例；先检查打包器去重，不能靠转换原生对象绕过。
 - 仅在可信项目中注入；不要把浏览器内执行任意外来代码当成不可信代码沙箱。
 

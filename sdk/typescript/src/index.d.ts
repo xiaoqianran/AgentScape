@@ -84,6 +84,7 @@ export interface SceneHandle {
 export interface NativeSceneOptions {
   scene: any; camera: any; renderer: any; three?: any; name?: string;
   environmentId?: string; colliders?: Record<string, unknown>[]; navigationRoot?: any;
+  staticMeshes?: any[]; walkableMesh?: any;
   assetModule?: any; autoStart?: boolean; codeExecutor?: any; codeGLTFLoader?: any; assetBaseUrl?: string | null;
 }
 export interface NativeSceneSession {

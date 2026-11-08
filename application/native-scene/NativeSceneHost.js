@@ -8,6 +8,7 @@ import { SkillRegistry } from '../skills/SkillRegistry.js';
 import { registerSceneSkills } from '../skills/packs/sceneSkills.js';
 import { registerSpatialSkills } from '../skills/packs/spatialSkills.js';
 import { registerInteractionSkills } from '../skills/packs/interactionSkills.js';
+import { extractNativeStaticColliders } from './NativeEnvironmentGeometry.js';
 
 const bindings = new WeakMap();
 const fail = code => Object.assign(new Error(code), { code });
@@ -19,6 +20,7 @@ const fail = code => Object.assign(new Error(code), { code });
 export async function attachNativeScene({
   scene: nativeScene, camera, renderer, three = THREE, name = 'Native scene',
   environmentId = 'native-scene', colliders = [], navigationRoot = null,
+  staticMeshes = [], walkableMesh = null,
   assetModule = null, autoStart = true, codeExecutor = null, codeGLTFLoader,
   assetBaseUrl = globalThis.location?.origin ? globalThis.location.origin + '/' : null,
 } = {}) {
@@ -30,6 +32,9 @@ export async function attachNativeScene({
   if (!nativeScene.matrixWorld.equals(new THREE.Matrix4())) throw fail('NATIVE_WORLD_TRANSFORM_UNSUPPORTED');
   if (!Array.isArray(colliders)) throw fail('NATIVE_COLLIDERS_INVALID');
   if (navigationRoot && !navigationRoot.isObject3D) throw fail('NATIVE_NAVIGATION_ROOT_INVALID');
+  const extractedColliders = extractNativeStaticColliders(nativeScene, { staticMeshes, walkableMesh });
+  const environmentColliders = [...structuredClone(colliders), ...extractedColliders];
+  const environmentNavigation = navigationRoot || walkableMesh;
   bindings.set(nativeScene, true); // Reserve before asynchronous physics initialization.
   let assets, world, facade, frameId, closed = false;
   const unsupported = code => async () => { throw fail(code); };
@@ -44,8 +49,8 @@ export async function attachNativeScene({
     const environmentRoot = new THREE.Group();
     environmentRoot.name = 'AgentScapeEnvironment';
     world = new WorldRuntime({ assetModule: assets, environmentFactory: () => ({
-      id: environmentId, root: environmentRoot, colliders: structuredClone(colliders),
-      ...(navigationRoot ? { navigationRoot } : {}), dispose() {},
+      id: environmentId, root: environmentRoot, colliders: environmentColliders,
+      ...(environmentNavigation ? { navigationRoot: environmentNavigation } : {}), dispose() {},
     }) });
     world.scene.name = 'AgentScapeRoot';
     // The runtime owns only this subtree. Host environment/materials stay untouched.
@@ -101,7 +106,7 @@ export async function attachNativeScene({
       native: { scene: nativeScene, renderer, camera, root: world.scene },
       capabilities: Object.freeze({ mode: 'native-scene', threeRevision: THREE.REVISION,
         sourceConversion: false, ownsRenderer: false, nativeProjectSave: false,
-        environmentColliders: colliders.length, navigationRegistered: Boolean(navigationRoot) }),
+        environmentColliders: environmentColliders.length, navigationRegistered: Boolean(environmentNavigation) }),
     };
     // Runtime is exposed to the local Studio bridge, never serialized over MCP.
     return { scene: handle, world, close };

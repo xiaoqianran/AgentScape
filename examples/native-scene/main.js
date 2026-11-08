@@ -28,9 +28,11 @@ attach.onclick = async () => {
     const candidate = listNativeScenes().find(item => item.id === target.value);
     if (!candidate) throw new Error('未找到目标场景');
     // Sidecar environment registration. Nothing is added to the original source.
+    const floor = candidate.scene.getObjectByName('NativeFloor');
+    if (!floor) throw new Error('NATIVE_FLOOR_NOT_FOUND');
     session = await attachNativeScene({ ...candidate,
-      colliders: [{ shape: 'box', halfExtents: [12, .1, 12], translation: [0, -.1, 0] }],
-      navigationRoot: candidate.scene.getObjectByName('NativeFloor'),
+      // Reuse the original mesh for physical collision and navigation.
+      walkableMesh: floor,
     });
     const port = new URLSearchParams(location.search).get('mcpPort') || '39015';
     if (!/^\d{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('MCP_PORT_INVALID');
