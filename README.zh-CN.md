@@ -29,6 +29,10 @@ npm run starter
 
 修改 `apps/starter/scene.json` 后刷新即可改变初始布局。支持 agent、cup、table、chair 四种内置物理资产；`main.js` 展示统一 SDK 的使用方式，包括浏览器帧循环。
 
+## 接入已有 Three.js 项目
+
+原生集成示例位于 [examples/native-scene](examples/native-scene/)，详细接入步骤、同一 Three.js 实例、物理碰撞体和宿主渲染循环约束见 [原生 Three.js 集成指南](docs/native-threejs-integration.md)。此能力复用原来的 SceneFacade / Runtime，不接管宿主渲染器；原生项目保存/导出尚未实现。
+
 ## 当前边界
 
 Starter 是最小学习入口；Studio 编辑器仍在 `/`，诊断台在 `/observatory/`。现有 MCP 的独立世界、程序化资产、真实交互与可信恢复继续保留。本机代码资产默认可通过受限 QuickJS Worker 运行，无须 Docker；公网不可信源码执行必须配置操作系统隔离后端，否则明确拒绝。

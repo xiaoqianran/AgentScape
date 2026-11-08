@@ -7,6 +7,7 @@ export * from './index.js';
 export { createCodeExecutor };
 export { WorldDiskStorage } from './runtime/apps/server/WorldDiskStorage.js';
 export const AgentScape = {
+  attach: BrowserAgentScape.attach,
   async open(options = {}) {
     installHeadlessAssetIO();
     const executor = createCodeExecutor(options.codeExecution || { mode:'disabled' });

@@ -1,6 +1,9 @@
 import { openScene } from '../../../application/scene/SceneFacade.js';
 import { openScenePackage } from '../../../application/scene/ScenePackage.js';
 import { createBrowserCodeExecutor } from '../../../application/code-execution/BrowserCodeExecutor.js';
+import { attachNativeScene } from '../../../application/native-scene/NativeSceneHost.js';
+export { attachNativeScene };
+export { observeNativeRenderer, listNativeScenes, subscribeNativeScenes } from '../../../application/native-scene/NativeRenderDiscovery.js';
 export { parseSceneProject } from '../../../application/scene/SceneProject.js';
 export { recipeSchema, assetPackageSchema } from '../../../modules/asset/model/AssetInputContracts.js';
 export { stylePackSchema, officialStylePacks } from '../../../modules/rendering/style/StylePack.js';
@@ -8,6 +11,7 @@ export { WorldStorage, blobChunks } from '../../../application/scene/WorldStorag
 export { WorldDirectory } from '../../../application/scene/WorldDirectory.js';
 
 export const AgentScape = {
+  attach: attachNativeScene,
   async open({ canvas, project, bundle, environment = 'monument-hall', autoStart = true, codeExecution, codeExecutor = null, codeGLTFLoader, assetModule = null }: {
     canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean;
     codeExecution?: {mode?:string;authorized?:boolean;wallTimeoutMs?:number}; codeExecutor?: any; codeGLTFLoader?: any; assetModule?: any;
