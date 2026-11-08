@@ -23,6 +23,18 @@ it('shares Scene edits with legacy observation and returns real asynchronous job
   try {
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${app.port}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
     const session = await call('session_create'), base = { worldSessionId: session.worldSessionId };
+    const firstPage=await call('scene_observe',{...base,limit:2,offset:0});
+    expect(firstPage).toMatchObject({
+      schema:'agentscape.scene-object-page',total:4,offset:0,nextOffset:2
+    });
+    expect(firstPage.objects).toHaveLength(2);
+    expect(firstPage).not.toHaveProperty('relations');
+    const secondPage=await call('scene_observe',{...base,limit:2,offset:2});
+    expect(secondPage.objects).toHaveLength(2);
+    expect(secondPage.nextOffset).toBeNull();
+    const initialFull=await call('scene_observe',base);
+    expect(initialFull.objects).toHaveLength(4);
+    expect(initialFull).toHaveProperty('relations');
     const missing = await client.callTool({ name: 'scene_observe', arguments: { ...base, target: 'missing' } });
     expect(missing.isError).toBe(true);
     expect(missing.content[0].text).toContain('OBJECT_NOT_FOUND');

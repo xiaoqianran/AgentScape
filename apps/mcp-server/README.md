@@ -75,6 +75,14 @@ npm run mcp:serve
 | world_verify | worldSessionId | verified/unverified、逐项验收证据、持物状态 |
 | world_export | worldSessionId | fileName、bytes、snapshot、scope=scene-json-only |
 
+### Studio 实时世界的轻量观察与批量编辑
+
+Studio 已自动连接时，`scene_observe` 可不传 `worldSessionId`（仅允许一个自动连接的本地世界）。默认返回完整对象、交互能力及空间关系；传入 `target` 则检查单个对象；传入 `limit`（1–1000）和可选 `offset` 则返回轻量 `agentscape.scene-object-page`，包含 `total`、`objects` 和 `nextOffset`，不会展开全局空间关系。`offset` 必须配合 `limit`，且分页参数不能与 `target` 同时使用。
+
+批量编辑使用 `scene_apply`，一个 UUID `requestId` 对应最多 32 个 `operations`。Runtime 仍逐条执行，失败时保留已执行操作并返回 `applied`、`failed`、`notRun`；这**不是原子回滚事务**。SceneGraph 在一次批量调用结束后合并关系更新，避免无意义的重复全量重建。大量相同资产推荐先注册资产，再使用 `scene_apply` 按引用批量实例化。
+
+场景关系 CPU 基准：`node dev/scripts/benchmark-scene-graph.mjs`。它只测试稀疏对象的 SceneGraph，不能作为 MCP 往返、GPU、物理或导航性能指标。
+
 MCP Transport 使用无状态 HTTP；没有 MCP 协议会话 ID，worldSessionId 专属于世界生命周期。每个工具调用仍要求 Bearer 鉴权。SDK 处理协议消息及参数验证；工具执行错误返回 isError 和脱敏错误码。
 
 动作白名单：spawnAsset、moveObject、navigateTo、approachAndInteract、approachAndPickup、approachAndPlace。参数完全遵循 skills_list 返回的 Schema；拒绝未知字段。初始资产为本地 agent / cabinet / cup / table，也允许实例化当前会话已编译注册的创作资产。动作接口不能指定 URL 或磁盘目录；Three.js 代码只能通过 authoring_execute 在受限引擎内执行。profile、actor 的授权身份均由服务端固定，actorId 只是世界内对象 ID。

@@ -1,3 +1,16 @@
+// Broad-phase only: the SpatialSystem remains the source of truth for exact
+// ON / INSIDE geometry. Reject only pairs that cannot possibly match.
+const mayRestOn = (subjectBox, surface) => {
+  const halfX=surface.size[0]/2+0.05;
+  const halfZ=surface.size[1]/2+0.05;
+  return subjectBox.min.x <= surface.center.x+halfX &&
+    subjectBox.max.x >= surface.center.x-halfX &&
+    subjectBox.min.z <= surface.center.z+halfZ &&
+    subjectBox.max.z >= surface.center.z-halfZ &&
+    subjectBox.min.y >= surface.center.y-0.03 &&
+    subjectBox.min.y <= surface.center.y+0.12;
+};
+
 export class SceneGraph {
   constructor({ store, spatial, events = null } = {}) {
     this.store = store;
@@ -71,15 +84,22 @@ export class SceneGraph {
     const records = this.store.list().filter(([, record]) => record.active !== false);
     const spatialSnapshot = snapshot || this.spatial.snapshot();
     const surfaces = new Map();
+    const containmentBounds = new Map();
 
     for (const [id, record] of records) {
       surfaces.set(id, (record.manifest.surfaces || [])
         .map((surface) => this.spatial.getSupportSurface(id, surface.id, spatialSnapshot))
         .filter(Boolean));
+      const receptacles=record.manifest.receptacles||[];
+      const zones=receptacles.length
+        ? receptacles.map((entry)=>this.spatial.getReceptacle(id,entry.id,spatialSnapshot)?.box)
+        : [spatialSnapshot.get(id).box];
+      containmentBounds.set(id,zones.filter(Boolean).map((box)=>box.clone().expandByScalar(0.02)));
     }
 
     const deriveDirected = (subjectId, subject, targetId, target) => {
       for (const support of surfaces.get(targetId)) {
+        if (!mayRestOn(subject.box,support)) continue;
         const status = this.spatial.supportGeometry(subjectId,targetId,{surfaceId:support.id,snapshot:spatialSnapshot});
         if (status.supported) {
           const meta = { surfaceId:support.id, gap:Number(status.gap.toFixed(3)), evidence:'spatial-geometry' };
@@ -87,11 +107,13 @@ export class SceneGraph {
           this.set(targetId, 'SUPPORTS', subjectId, meta);
         }
       }
-      const containment = this.spatial.containmentGeometry(subjectId,targetId,{snapshot:spatialSnapshot});
-      if (containment.inside) {
-        const meta = { ...(containment.receptacleId ? { receptacleId:containment.receptacleId } : {}), evidence:'spatial-geometry' };
-        this.set(subjectId, 'INSIDE', targetId, meta);
-        this.set(targetId, 'CONTAINS', subjectId, meta);
+      if (containmentBounds.get(targetId).some((box)=>box.containsBox(subject.box))) {
+        const containment = this.spatial.containmentGeometry(subjectId,targetId,{snapshot:spatialSnapshot});
+        if (containment.inside) {
+          const meta = { ...(containment.receptacleId ? { receptacleId:containment.receptacleId } : {}), evidence:'spatial-geometry' };
+          this.set(subjectId, 'INSIDE', targetId, meta);
+          this.set(targetId, 'CONTAINS', subjectId, meta);
+        }
       }
     };
 

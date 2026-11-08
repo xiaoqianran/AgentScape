@@ -6,6 +6,12 @@
 
 任务见 tasks.jsonl。验证：npm run test:studio、npm run typecheck、npm run build。
 
+## 渲染像素比例（可选）
+
+Studio 可在启动 URL 中附加 `renderScale=0.75`（允许范围 0.5–1，默认 1）。它只缩放实际 GPU 渲染像素比，不修改世界坐标、摄像机宽高比、物理步长或导航网格。例如：`/?world=industrial-cabinet-lab&page=world&renderScale=0.75`。设置在页面初始化时生效；无效值回退到 1。
+
+高 DPI 屏幕上按 0.75 比例渲染，理论像素工作量是原来的 56.25%；实际 FPS 是否提升还取决于 GPU、物理和 CPU 瓶颈。这个设置是显式可选的画质/性能权衡，**不是已测量的自适应调画质功能**。
+
 ## Studio UI 边界
 
 Studio 采用单 React Root 的产品展示层，避免视觉设计反向侵入 World / Agent / Asset / Generation 主链路：

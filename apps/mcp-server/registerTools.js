@@ -101,7 +101,12 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
  add('world_export','Atomically save and return SceneSerializer JSON; assets are not bundled.',session,(a,e)=>run(a,s=>manager.export(s),e));
  add('world_save','Save an owned world and immutable published asset dependencies for recovery after service restart.',session,(a,e)=>run(a,s=>manager.save(owner,s),e));
  add('world_restore','Create a new private session from your server-issued save ID. Verifies all hashes and restores via SceneSerializer; historical action evidence is not reused.',{saveId:z.uuid(),requestId:z.uuid()},a=>manager.restore(owner,a.saveId,a.requestId));
- add('scene_observe','Observe the scene or inspect a target and its current affordances, constraints and blocked reasons.',{...sceneSession,target:z.string().min(1).max(256).optional(),actor:id.optional()},(a,e)=>sceneRun(a,'observe',{target:a.target,actor:a.actor},s=>a.target?s.host.scene.inspect(a.target,{actor:a.actor}):s.host.scene.observe({actor:a.actor}),e));
+ add('scene_observe','Observe a target, the full scene, or a lightweight paginated object list. Use limit and offset to avoid global relations and affordance expansion.',{...sceneSession,target:z.string().min(1).max(256).optional(),actor:id.optional(),offset:z.number().int().nonnegative().max(1000000).optional(),limit:z.number().int().min(1).max(1000).optional()},(a,e)=>{
+  if(a.target && (a.offset!=null||a.limit!=null))throw new Error('SCENE_OBSERVE_MODE_CONFLICT');
+  if(a.offset!=null && a.limit==null)throw new Error('PAGE_LIMIT_REQUIRED');
+  const query={actor:a.actor,...(a.limit!=null?{limit:a.limit,offset:a.offset||0}:{})};
+  return sceneRun(a,'observe',{target:a.target,...query},s=>a.target?s.host.scene.inspect(a.target,{actor:a.actor}):s.host.scene.observe(query),e);
+ });
  add('scene_apply','Apply structured scene edits with revision protection and explicit partial results.',{...sceneSession,requestId:z.uuid(),expectedRevision:z.number().int().nonnegative().optional(),operations:z.array(z.record(z.string(),z.unknown())).min(1).max(32)},(a,e)=>sceneRun(a,'apply',{requestId:a.requestId,expectedRevision:a.expectedRevision,operations:a.operations},async s=>{await attachSceneAssets(s,a.operations.map(op=>op.type==='add'?op.model?.asset:op.asset));return s.host.scene.apply({expectedRevision:a.expectedRevision,operations:a.operations});},e));
  add('scene_interact','Start a real action and return a queryable JobRef immediately.',{...sceneSession,requestId:z.uuid(),interaction:z.record(z.string(),z.unknown())},(a,e)=>sceneRun(a,'interact',{interaction:a.interaction},s=>s.host.startSceneInteraction(a.interaction),e));
  const job={...sceneSession,jobId:z.string().regex(/^job_[a-f0-9-]+$/)};

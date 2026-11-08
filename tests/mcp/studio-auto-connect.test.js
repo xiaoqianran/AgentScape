@@ -59,12 +59,28 @@ describe('local automatic Studio MCP',()=>{
       expect(added.isError).toBe(false);
       expect(first.world.store.has('auto_cup')).toBe(true);
       expect(second.world.store.has('auto_cup')).toBe(false);
+      const paged=await parse(client,'scene_observe',{limit:1,offset:0});
+      expect(paged).toMatchObject({
+        schema:'agentscape.scene-object-page',total:1,offset:0,nextOffset:null
+      });
+      expect(paged.objects.map(item=>item.id)).toEqual(['auto_cup']);
+      expect(paged).not.toHaveProperty('relations');
+      expect((await parse(client,'scene_observe',{offset:1})).code).toBe('PAGE_LIMIT_REQUIRED');
+      expect((await parse(client,'scene_observe',{target:'auto_cup',limit:1})).code).toBe('SCENE_OBSERVE_MODE_CONFLICT');
+      const edited=await parse(client,'scene_apply',{
+        requestId:randomUUID(),
+        operations:[{type:'setTransform',id:'auto_cup',transform:{position:[1,2,0]}}]
+      });
+      expect(edited.isError).toBe(false);
+      expect(edited.status).toBe('succeeded');
+      expect(first.world.store.get('auto_cup').object.position.toArray()).toEqual([1,2,0]);
 
       page2.setAutoEnabled(true);
       await waitFor(()=>page2.snapshot().status==='connected');
       expect((await parse(client,'scene_observe')).code).toBe('STUDIO_MULTIPLE_WORLDS');
       const explicit=await parse(client,'scene_observe',{worldSessionId:current.worldSessionId});
       expect(explicit.objects).toHaveLength(1);
+      expect((await parse(client,'scene_observe',{worldSessionId:current.worldSessionId,limit:1})).total).toBe(1);
 
       page2.setAutoEnabled(false);
       await waitFor(()=>!app.studioBridge.sessions.has(page2.snapshot().worldSessionId)&&app.studioBridge.autoByInstance.size===1);

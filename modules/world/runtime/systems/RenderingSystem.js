@@ -24,6 +24,7 @@ export class RenderingSystem {
     rendererFactory = createRenderer,
     rendererMode = 'auto',
     rendererTiming = false,
+    pixelRatioScale = 1,
     ResizeObserverClass = globalThis.ResizeObserver,
     controlsFactory = (camera, domElement) => new OrbitControls(camera, domElement),
     environmentLoader = new HDRLoader(),
@@ -41,6 +42,8 @@ export class RenderingSystem {
     if (!environmentLoader || typeof environmentLoader.loadAsync !== 'function') throw new TypeError('RenderingSystem requires an environment loader');
     if (typeof postFxFactory !== 'function') throw new TypeError('RenderingSystem postFxFactory must be a function');
     if (typeof generatedVisualLoader !== 'function') throw new TypeError('RenderingSystem generatedVisualLoader must be a function');
+    if (!Number.isFinite(pixelRatioScale) || pixelRatioScale < 0.5 || pixelRatioScale > 1)
+      throw new RangeError('RenderingSystem pixelRatioScale must be between 0.5 and 1');
 
     this.container = container;
     this.scene = scene;
@@ -48,6 +51,7 @@ export class RenderingSystem {
     this.rendererFactory = rendererFactory;
     this.rendererMode = rendererMode;
     this.rendererTiming = Boolean(rendererTiming);
+    this.pixelRatioScale = pixelRatioScale;
     this.ResizeObserverClass = ResizeObserverClass;
     this.controlsFactory = controlsFactory;
     this.environmentLoader = environmentLoader;
@@ -154,7 +158,7 @@ export class RenderingSystem {
     });
 
     const pixelRatio = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1;
-    this.renderer.setPixelRatio(Math.min(pixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(pixelRatio, 2) * this.pixelRatioScale);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;

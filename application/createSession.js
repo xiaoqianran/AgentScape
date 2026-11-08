@@ -19,6 +19,7 @@ export function createSession(container, {
   rendererFactory = null,
   rendererMode = 'auto',
   rendererTiming = false,
+  rendererPixelRatioScale = 1,
   articulationVerifier = null,
   authoringOptions = null,
   codeExecutor = null,
@@ -43,7 +44,8 @@ export function createSession(container, {
       scene:world.scene,
       events:world.events,
       rendererMode,
-      rendererTiming
+      rendererTiming,
+      pixelRatioScale:rendererPixelRatioScale
     };
     if (rendererFactory) renderingOptions.rendererFactory = rendererFactory;
     world.attachRendering(new RenderingSystem(renderingOptions));

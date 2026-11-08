@@ -19,10 +19,14 @@ export async function createStudioRuntime({
   capabilityStatus
 }) {
   const environmentMaterializer = new StudioEnvironmentMaterializer({ parent:ui.shell });
+  const requestedRenderScale = Number(params.get('renderScale') ?? 1);
+  const rendererPixelRatioScale = Number.isFinite(requestedRenderScale) && requestedRenderScale >= 0.5 && requestedRenderScale <= 1
+    ? requestedRenderScale : 1;
   const { world, generation, authoring, promotion, scene } = createSession(ui.viewport, {
     environmentFactory: options => environmentMaterializer.materialize(environmentDefinition, options),
     rendererMode: params.get('renderer') || environmentDefinition.rendererMode || 'auto',
     rendererTiming: params.get('gpuTiming') === '1',
+    rendererPixelRatioScale,
     generation: {
       assetInputPolicy:'approved-image',
       compilerEndpoint:capabilityStatus.assetCompile.available ? CAPABILITY_API.assetCompile : '',

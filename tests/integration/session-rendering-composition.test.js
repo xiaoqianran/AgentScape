@@ -26,6 +26,14 @@ describe('createSession rendering composition', () => {
     expect(world.rendering.authoringScenes.get(authoring.scene)).toBe('overlay');
   });
 
+  it('forwards the optional GPU resolution scale without changing headless behavior',()=>{
+    const viewport={appendChild:vi.fn(),clientWidth:800,clientHeight:600};
+    const {world}=createSession(viewport,{environmentFactory,rendererPixelRatioScale:0.75});
+    expect(world.rendering.pixelRatioScale).toBe(0.75);
+    const headless=createSession(null,{environmentFactory,rendererPixelRatioScale:0.75});
+    expect(headless.world.rendering).toBeNull();
+  });
+
   it('composes articulation verification through AssetModule instead of WorldRuntime', async () => {
     const articulationVerifier = { verify:vi.fn(async (assetId) => ({ ok:true, assetId })) };
     const { world } = createSession(null, { environmentFactory, articulationVerifier });

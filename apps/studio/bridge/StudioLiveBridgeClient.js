@@ -152,7 +152,9 @@ export class StudioLiveBridgeClient {
   async execute(request){
     const {method,args={}}=request;
     switch(method){
-      case 'observe':return args.target?this.scene.inspect(args.target,{actor:args.actor}):this.scene.observe({actor:args.actor});
+      case 'observe':return args.target?this.scene.inspect(args.target,{actor:args.actor}):this.scene.observe({
+        actor:args.actor,...(args.limit!=null?{limit:args.limit,offset:args.offset||0}:{})
+      });
       case 'apply':return this.scene.apply({requestId:args.requestId,expectedRevision:args.expectedRevision,operations:args.operations});
       case 'interact':return this.scene.interact(args.interaction);
       case 'job':return this.scene.getJob(args.jobId);

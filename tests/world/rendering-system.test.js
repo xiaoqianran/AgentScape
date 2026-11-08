@@ -30,6 +30,21 @@ const createHarness = () => {
 };
 
 describe('RenderingSystem', () => {
+  it('supports an opt-in pixel-ratio scale while preserving the viewport layout',async()=>{
+    const h=createHarness();
+    const rendering=new RenderingSystem({
+      container:h.container,scene:new THREE.Scene(),pixelRatioScale:0.75,
+      rendererFactory:h.rendererFactory,controlsFactory:h.controlsFactory
+    });
+    await rendering.init();
+    const raw=typeof devicePixelRatio==='number'?devicePixelRatio:1;
+    expect(h.renderer.setPixelRatio).toHaveBeenCalledWith(Math.min(raw,2)*0.75);
+    expect(h.renderer.setSize).toHaveBeenCalledWith(800,400,false);
+    expect(rendering.camera.aspect).toBe(2);
+    rendering.dispose();
+    expect(()=>new RenderingSystem({container:{},scene:new THREE.Scene(),pixelRatioScale:1.5}))
+      .toThrow(RangeError);
+  });
   it('releases the owned WebGL context after asynchronous backend cleanup', async () => {
     const h = createHarness();
     let finish;

@@ -32,7 +32,7 @@ const operations = z.discriminatedUnion('type', [
   z.object({ type: z.literal('remove'), id }).strict(),
   z.object({ type: z.literal('replaceAsset'), id, asset: ref, level }).strict()
 ]);
-const applySchema = z.object({ requestId: id.optional(), expectedRevision: z.number().int().nonnegative().optional(), operations: z.array(operations).min(1).max(32) }).strict();
+const applySchema = z.object({ requestId: z.union([id,z.uuid()]).optional(), expectedRevision: z.number().int().nonnegative().optional(), operations: z.array(operations).min(1).max(32) }).strict();
 const operationVector = sceneVector3Schema.refine(value => Math.hypot(...value) > 1e-6, 'Direction must be nonzero');
 const affordanceTarget = z.string().regex(/^[A-Za-z][A-Za-z0-9_:-]{0,255}$/);
 const physicalActions = new Set(['push', 'drag', 'rotate', 'slide', 'rotateJoint']);
@@ -176,12 +176,16 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       const promise = exclusive(async () => {
         if (args.expectedRevision != null && args.expectedRevision !== revision) throw sceneError('REVISION_CONFLICT');
         for (const op of args.operations) if (op.type === 'add') assetId(op.model.asset, op.model.level); else if (op.type === 'replaceAsset') assetId(op.asset, op.level);
-        const applied = [];
-        for (let i = 0; i < args.operations.length; i++) {
-          try { applied.push(await executeEdit(args.operations[i])); }
-          catch (error) { return result('apply', { applied, failed: { index: i, diagnostic: diagnostic(error) }, notRun: args.operations.slice(i + 1).map((_, n) => i + n + 1) }, { status: 'failed', diagnostics: [diagnostic(error)] }); }
-        }
-        return result('apply', { applied, failed: null, notRun: [] });
+        // Keep the documented partial-result semantics while coalescing spatial
+        // relation rebuilds. Explicit graph reads inside an operation still update.
+        return world.sceneGraph.batch(async () => {
+          const applied = [];
+          for (let i = 0; i < args.operations.length; i++) {
+            try { applied.push(await executeEdit(args.operations[i])); }
+            catch (error) { return result('apply', { applied, failed: { index: i, diagnostic: diagnostic(error) }, notRun: args.operations.slice(i + 1).map((_, n) => i + n + 1) }, { status: 'failed', diagnostics: [diagnostic(error)] }); }
+          }
+          return result('apply', { applied, failed: null, notRun: [] });
+        });
       });
       if (args.requestId) requests.set(args.requestId, { signature, promise });
       return structuredClone(await promise);
