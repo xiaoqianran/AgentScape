@@ -1,4 +1,3 @@
-import { houseRecipe } from './houseRecipe.js';
 export const ENVIRONMENTS = Object.freeze([
   Object.freeze({
     id:'suzhou-garden',number:'世界 08',title:'吴苑澄观 · 苏州园林',
@@ -17,30 +16,6 @@ export const ENVIRONMENTS = Object.freeze([
     load:()=>import('./yuanmingyuan/index.js').then(module=>module.createYuanmingyuanEnvironment),
     bootstrap:{agent:[0,0,62],table:[3,0,62],cup:[3.3,1.1,62]},
     coffeeCorner:{table:[3,0,62]}
-  }),
-  Object.freeze({
-    id:'blank-world',number:'世界 00',title:'空白实验世界',headline:'从一块空地开始搭建世界。',
-    description:'没有现成建筑的独立物理场景，使用通用资产接口放置桌子、杯子和智能体。',
-    facts:['空白场景','真实地面碰撞','可移动智能体'],worldFirst:true,
-    load:()=>import('./blankWorld.js').then(module=>module.createBlankWorld),
-    bootstrap:{agent:[-2,0,1],table:[0,0,-2],cup:[0,1.08,-2]},
-    coffeeCorner:{table:[0,0,-2]}
-  }),
-  Object.freeze({
-    id:'house-world',number:'世界 00B',title:'我的第一栋房屋',headline:'从空地上通过代码建造房屋。',
-    description:'由空白物理环境开始，通过 AgentScape Asset Recipe 生成独立住宅资产。',
-    facts:['声明式建筑资产','27个物理碰撞体','门窗与台阶'],worldFirst:true,
-    load:()=>import('./blankWorld.js').then(module=>()=>module.createBlankWorld({id:'house-world'})),
-    bootstrap:{agent:[-2,0,1],table:[0,0,-2],cup:[0,1.08,-2],models:[{id:'house_01',asset:houseRecipe,position:[4,0,-5]}]},
-    coffeeCorner:{table:[0,0,-2]}
-  }),
-  Object.freeze({
-    id:'house-door-world',number:'世界 00C',title:'我的房屋 · 可开关门',headline:'带真实铰链与碰撞的可交互住宅。',
-    description:'使用固定建筑 Asset Recipe 和独立的旋转关节门构建，不占用旧房屋的本地存档。',
-    facts:['可开关门','旋转关节','物理碰撞'],worldFirst:true,
-    load:()=>import('./blankWorld.js').then(module=>()=>module.createBlankWorld({id:'house-door-world'})),
-    bootstrap:{agent:[-2,0,1],table:[0,0,-2],cup:[0,1.08,-2],models:[{id:'house_01',asset:houseRecipe,position:[4,0,-5]}],assets:[{assetId:'house_door',position:[4,0,-2.8],instanceId:'house_door_01'}]},
-    coffeeCorner:{table:[0,0,-2]}
   }),
   Object.freeze({
     id:'industrial-cabinet-lab',number:'世界 00D',title:'工业储物柜实验室',

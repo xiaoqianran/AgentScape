@@ -28,7 +28,7 @@ export function createBlankWorld({ id = 'blank-world' } = {}) {
     id, root, floor,
     colliders:[{ shape:'box', halfExtents:[12,0.12,12], translation:[0,-0.12,0] }],
     layout:{ bounds:{min:[-11,-11],max:[11,11]}, groundY:0, margin:1 },
-    camera:['house-world','house-door-world'].includes(id) ? { position:[11,7,8], target:[2.4,1.5,-4] } : { position:[7,5.5,9], target:[0,0,-1] },
+    camera:{ position:[7,5.5,9], target:[0,0,-1] },
     rendering:{ background:0xa9c5d6, exposure:1.05 },
     dispose() {}
   };

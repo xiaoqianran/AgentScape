@@ -47,7 +47,7 @@ describe('single Scene application service', () => {
       expect(()=>scene.interact({action:'activate',actor:'fake',target:'switch_1'})).toThrow('ACTOR_NOT_AGENT');
     } finally {scene.close();world.dispose();}
   });
-  it.each(['blank-world','house-door-world','suzhou-garden'])('uses catalog environment %s without silently opening Monument Hall', async id => {
+  it.each(['industrial-cabinet-lab','suzhou-garden'])('uses catalog environment %s without silently opening Monument Hall', async id => {
     const scene=await openScene({project:{...project,environment:{type:'builtin',id}}});
     try {
       expect(scene.snapshot().metadata.environment).toBe(id);
@@ -59,6 +59,10 @@ describe('single Scene application service', () => {
       .rejects.toMatchObject({code:'ENVIRONMENT_REQUIRES_BROWSER'});
     await expect(openScene({project:{...project,environment:{type:'builtin',id:'does-not-exist'}}}))
       .rejects.toMatchObject({code:'INVALID_DOCUMENT'});
+    for(const removedId of ['blank-world','house-world','house-door-world']){
+      await expect(openScene({project:{...project,environment:{type:'builtin',id:removedId}}}))
+        .rejects.toMatchObject({code:'INVALID_DOCUMENT'});
+    }
   });
   it('keeps the scene locked while a recipe is being compiled and admitted', async () => {
     const session = createSession(null, { environmentFactory: () => createMonumentHall({ loadAssets: false }) });
