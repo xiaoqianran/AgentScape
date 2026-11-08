@@ -24,6 +24,7 @@
     "agent:probe": "node dev/scripts/probe-test-agent.mjs",
     "test:asset": "vitest run tests/asset tests/integration/asset-production-pipeline.test.js",
     "test:world": "vitest run tests/world tests/e2e --exclude tests/e2e/generated-cup-runtime-e2e.test.js",
+    "test:native-heavyworld": "vitest run tests/integration/native-heavyworld-acceptance.test.js tests/integration/world-preparation-cleanup.test.js tests/integration/world-storage.test.js",
     "experiment:asset": "node dev/experiments/asset/001-real-glb-admission.mjs",
     "experiment:world": "node dev/experiments/world/001-existing-assets-world.mjs",
     "experiment:physics": "node dev/experiments/physics/002-physics-api-harness.mjs",
