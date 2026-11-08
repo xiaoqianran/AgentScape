@@ -94,11 +94,12 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     if (!world.store.has(key)) throw sceneError('OBJECT_NOT_FOUND');
     if (world.store.get(key).state?.heldBy || world.interactions?.isHeld?.(key) || world.interactions?.carry?.agentHeld?.has(key)) throw sceneError('OBJECT_HELD');
   };
-  const executeEdit = async op => {
+  const executeEdit = async (op, batchSnapshots = null) => {
     if (op.type === 'replaceAsset') {
       editable(op.id); const key = assetId(op.asset, op.level);
       return result(op.type, await world.commands.replaceAsset(op.id, key), { id: op.id, admission: assetAdmission(world.assetModule.getManifest(key)) });
     }
+    const snapshotOptions = batchSnapshots?.options() || undefined;
     const value = await world.mutate(`scene:${op.type}`, async () => {
       if (op.type === 'add') {
         if (world.store.has(op.model.id)) throw sceneError('DUPLICATE_ID');
@@ -109,7 +110,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       }
       editable(op.id);
       return op.type === 'remove' ? world.commands.remove(op.id) : world.commands.transform(op.id, op.transform, { source: 'scene-api' });
-    });
+    }, {}, snapshotOptions);
     return result(op.type, value, { id: op.model?.id || op.id, admission: value?.admission || null });
   };
   const cancelPending = () => {
@@ -179,9 +180,29 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         // Keep the documented partial-result semantics while coalescing spatial
         // relation rebuilds. Explicit graph reads inside an operation still update.
         return world.sceneGraph.batch(async () => {
+          // Preserve per-operation history and partial failures. Reuse the
+          // preceding after-snapshot only while the simulation tick is unchanged.
+          let cachedSnapshot = null, cachedTick = null;
+          const batchSnapshots = {
+            options: () => ({
+              beforeSnapshot: cachedTick === world.simulation?.tick ? cachedSnapshot : null,
+              onSnapshot: snapshot => {
+                cachedSnapshot = snapshot;
+                cachedTick = world.simulation?.tick;
+              }
+            }),
+            invalidate: () => { cachedSnapshot = null; cachedTick = null; }
+          };
           const applied = [];
           for (let i = 0; i < args.operations.length; i++) {
-            try { applied.push(await executeEdit(args.operations[i])); }
+            try {
+              const op = args.operations[i];
+              // replaceAsset has a nested Runtime transaction and must not reuse
+              // a snapshot captured before that transaction.
+              if (op.type === 'replaceAsset') batchSnapshots.invalidate();
+              applied.push(await executeEdit(op, batchSnapshots));
+              if (op.type === 'replaceAsset') batchSnapshots.invalidate();
+            }
             catch (error) { return result('apply', { applied, failed: { index: i, diagnostic: diagnostic(error) }, notRun: args.operations.slice(i + 1).map((_, n) => i + n + 1) }, { status: 'failed', diagnostics: [diagnostic(error)] }); }
           }
           return result('apply', { applied, failed: null, notRun: [] });

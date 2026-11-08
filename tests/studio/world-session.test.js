@@ -93,6 +93,22 @@ describe('WorldSession',()=>{
     session.dispose();
   });
 
+  it('does not begin switching worlds if the outgoing world cannot be saved',async()=>{
+    const h=harness();
+    const session=new WorldSession({
+      world:h.world,tools:h.tools,store:h.store,autosave:h.autosave,builtins:[builtin],fallback:builtin
+    });
+    const source=vi.fn(async()=>({id:'generated',dispose:vi.fn()}));
+    const quota=Object.assign(new Error('quota exceeded'),{name:'QuotaExceededError'});
+    h.store.save=()=>{throw quota;};
+    await expect(session.open(source)).rejects.toBe(quota);
+    expect(source).not.toHaveBeenCalled();
+    expect(h.world.environment).toBe(h.previous);
+    expect(session.current.id).toBe('monument-hall');
+    expect(h.autosave.lastError?.code).toBe('AUTOSAVE_QUOTA_EXCEEDED');
+    session.dispose();
+  });
+
   it('opens a materialized generated world, restores its own scene, and commits only after rebinding',async()=>{
     const h=harness();
     const next={

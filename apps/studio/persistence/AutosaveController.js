@@ -6,6 +6,7 @@ export class AutosaveController {
     this.timer = null;
     this.enabled = true;
     this.unsubscribers = [];
+    this.lastError = null;
   }
 
   start() {
@@ -19,7 +20,10 @@ export class AutosaveController {
   schedule() {
     if (!this.enabled) return;
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.flush(), this.delayMs);
+    this.timer = setTimeout(() => {
+      try { this.flush(); }
+      catch { /* flush emits scene.autosave.failed; a timer must not throw globally. */ }
+    }, this.delayMs);
   }
 
   cancelPending() {
@@ -31,8 +35,20 @@ export class AutosaveController {
     clearTimeout(this.timer);
     this.timer = null;
     if (!this.enabled) return null;
-    const scene = this.runtime.serialize({ name: 'AgentScape Autosave' });
-    this.store.save(scene);
+    let stage = 'serialize';
+    let scene;
+    try {
+      scene = this.runtime.serialize({ name: 'AgentScape Autosave' });
+      stage = 'storage';
+      this.store.save(scene);
+      this.lastError = null;
+    } catch (error) {
+      const code = error?.name === 'QuotaExceededError' ? 'AUTOSAVE_QUOTA_EXCEEDED' : 'AUTOSAVE_FAILED';
+      this.lastError = { code, stage, message: error?.message || String(error) };
+      try { this.runtime.events.emit('scene.autosave.failed', { ...this.lastError, key:this.store.key || null }); }
+      catch { /* Preserve the original storage error if a listener throws. */ }
+      throw error;
+    }
     this.runtime.events.emit('scene.autosaved', { objects: scene.objects?.length ?? 0, savedAt: scene.metadata?.savedAt ?? new Date().toISOString() });
     return scene;
   }

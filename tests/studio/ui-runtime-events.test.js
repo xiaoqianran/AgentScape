@@ -38,6 +38,14 @@ describe('UI runtime event lifecycle', () => {
     expect(f.taskPanel.log).toHaveBeenCalledWith('渲染中断后的自动保存失败：quota', 'error');
   });
 
+  it('reports background autosave failures to the user', () => {
+    const f=fixture();
+    f.handlers.get('scene.autosave.failed')({code:'AUTOSAVE_QUOTA_EXCEEDED',stage:'storage'});
+    expect(f.taskPanel.log).toHaveBeenCalledWith(expect.stringContaining('浏览器存储空间不足'),'error');
+    expect(f.taskPanel.log).toHaveBeenCalledWith(expect.stringContaining('尚未持久化'),'error');
+    f.binding.dispose();
+  });
+
   it('reports generated SPZ readiness with splat count', () => {
     const f = fixture();
     f.handlers.get('renderer.generated-visual-ready')({ format:'spz', splatCount:134414 });

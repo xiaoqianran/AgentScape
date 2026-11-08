@@ -397,12 +397,13 @@ export class WorldRuntime {
     } finally { endWorldWrite(this, committed); }
   }
 
-  async mutate(label, operation, meta = {}) {
+  async mutate(label, operation, meta = {}, { beforeSnapshot = null, onSnapshot = null } = {}) {
     beginWorldWrite(this, label, meta.ruleCascadeDepth);
     let committed = false;
     try {
       const authorityBefore = captureWorldAuthority(this);
-      const before = this.snapshot();
+      // Sequential batches may reuse a committed after-snapshot as the next before-state.
+      const before = beforeSnapshot ?? this.snapshot();
       const physicsBefore = this.physics?.captureState?.();
       if (!this.history.begin(label, before)) {
         const error = new Error('World history transaction unavailable');
@@ -420,8 +421,10 @@ export class WorldRuntime {
           await rollbackMutation(this, before, authorityBefore, physicsBefore);
           return result;
         }
-        this.history.commit(this.snapshot(), meta);
+        const after = this.snapshot();
+        this.history.commit(after, meta);
         committed = true;
+        onSnapshot?.(after);
         return result;
       } catch (error) {
         this.history.cancel();

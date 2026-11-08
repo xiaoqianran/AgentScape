@@ -52,6 +52,10 @@ export function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, aut
     if (editor.selectedId && world.queries.hasObject(editor.selectedId)) inspector.render(editor.selectedId);
   });
   listen('scene.autosaved',({ objects })=>log(`已自动保存 · ${objects} 个对象`,'autosave'));
+  listen('scene.autosave.failed',({ code, stage })=>{
+    const reason=code==='AUTOSAVE_QUOTA_EXCEEDED' ? '浏览器存储空间不足' : stage==='serialize' ? '场景序列化失败' : '浏览器保存失败';
+    log(`自动保存失败：${reason} · 当前修改尚未持久化，请导出场景备份`,'error');
+  });
 
   return {
     dispose() {
