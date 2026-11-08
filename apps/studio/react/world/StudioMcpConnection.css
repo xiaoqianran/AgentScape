@@ -48,3 +48,12 @@
 }
 #studio-mcp-panel details summary { cursor: pointer; font-weight: 600; }
 #studio-mcp-panel details > label { margin: 10px 0; }
+
+#studio-mcp-panel .studio-mcp-recovery { display:grid; gap:8px; }
+#studio-mcp-panel .studio-mcp-recovery button { justify-self:start; padding:6px 11px; }
+#studio-mcp-panel [data-mcp-diagnostic="offline"] { color:var(--studio-text); }
+#studio-mcp-panel .studio-mcp-native-help { border-top:1px solid var(--studio-border); padding-top:10px; }
+#studio-mcp-panel .studio-mcp-native-help summary { font-weight:600; cursor:pointer; }
+#studio-mcp-panel .studio-mcp-native-help[open] { display:grid; gap:9px; }
+#studio-mcp-panel .studio-mcp-native-help ol { margin:0; padding-left:18px; line-height:1.7; color:var(--studio-text-2); }
+#studio-mcp-panel .studio-mcp-native-help a { color:var(--studio-accent); text-decoration:underline; }

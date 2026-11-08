@@ -60,3 +60,24 @@ test('local Studio automatically connects and follows the active world without p
     await rm(root,{recursive:true,force:true});
   }
 });
+
+test('offline MCP shows a recoverable, explicit state and distinguishes native Three.js SDK setup',async({page})=>{
+  // No MCP server is listening on this port; do not start one for this test.
+  await page.goto('/?page=world&world=monument-hall&mcpPort=49199');
+  await waitForRuntimeReady(page);
+  await expect(page.locator('.studio-mcp-connection')).toHaveAttribute('data-auto-enabled','true');
+  await expect(page.locator('.studio-mcp-connection')).toHaveAttribute('data-bridge-state','disconnected',{timeout:18000});
+  await expect(page.locator('#studio-mcp-toggle')).toContainText('等待服务');
+  await page.locator('#studio-mcp-toggle').click();
+  await expect(page.locator('[data-mcp-diagnostic="offline"]')).toContainText('AI 尚不能操作当前世界');
+  await expect(page.locator('.studio-mcp-recovery code')).toContainText('127.0.0.1:49199');
+  await page.getByText('如何连接自己的 Three.js 项目？').click();
+  await expect(page.locator('.studio-mcp-native-help')).toContainText('不会自动扫描或导入外部项目');
+  await expect(page.getByRole('link',{name:'查看原生 Three.js 接入指南'}))
+    .toHaveAttribute('href',/docs\/native-threejs-integration\.md$/);
+  await page.locator('#studio-mcp-retry').click();
+  await expect(page.locator('.studio-mcp-connection')).toHaveAttribute('data-bridge-state','disconnected',{timeout:15000});
+  await expect(page.locator('#studio-mcp-toggle')).toContainText('等待服务');
+  await page.locator('#studio-mcp-auto-enabled').uncheck();
+  await expect(page.locator('#studio-mcp-toggle')).toContainText('未连接');
+});
