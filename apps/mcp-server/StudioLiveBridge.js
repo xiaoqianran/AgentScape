@@ -1,3 +1,4 @@
+import { createRequestWindow } from '../../application/scene/RequestWindow.js';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 
 const issue = (code) => Object.assign(new Error(code), {code});
@@ -18,6 +19,7 @@ export class StudioLiveBridge {
     this.rpcTimeoutMs=rpcTimeoutMs;
     this.sessions=new Map();
     this.autoByInstance=new Map();
+    this.autoOwnerHistory=new Map(); // Short-lived tab binding across disconnect/reconnect.
   }
 
   pair(owner) {
@@ -27,7 +29,7 @@ export class StudioLiveBridge {
     if(this.sessions.size>=32)throw issue('STUDIO_SESSION_LIMIT');
     const worldSessionId=randomUUID(),pairCode=secret();
     this.sessions.set(worldSessionId,{owner,pairCode,expiresAt:this.now()+this.pairTtlMs,
-      token:null,connected:false,lastSeen:0,pending:new Map(),requests:new Map(),queue:[],pollWaiter:null});
+      token:null,connected:false,lastSeen:0,pending:new Map(),requests:createRequestWindow({now:this.now}),queue:[],pollWaiter:null});
     return {worldSessionId,pairCode,expiresInSeconds:Math.ceil(this.pairTtlMs/1000),status:'awaiting-studio'};
   }
 
@@ -42,32 +44,37 @@ export class StudioLiveBridge {
       if(session.auto && (!session.connected||this.now()-session.lastSeen>this.heartbeatMs))this.disconnect(id,'STUDIO_DISCONNECTED');
     }
     const previous=this.autoByInstance.get(instanceId);
+    for(const [key,entry] of this.autoOwnerHistory)if(entry.expiresAt<=this.now())this.autoOwnerHistory.delete(key);
+    const previousOwner=(previous?this.sessions.get(previous)?.owner:null)??this.autoOwnerHistory.get(instanceId)?.owner??null;
     if(previous)this.disconnect(previous,'STUDIO_REPLACED');
     if(this.autoByInstance.size>=8)throw issue('STUDIO_TAB_LIMIT');
     const worldSessionId=randomUUID(),token=secret();
     this.sessions.set(worldSessionId,{
-      owner:null,auto:true,instanceId,worldId,pairCode:null,expiresAt:0,
-      token,connected:true,lastSeen:this.now(),pending:new Map(),requests:new Map(),queue:[],pollWaiter:null
+      owner:previousOwner,auto:true,instanceId,worldId,pairCode:null,expiresAt:0,
+      token,connected:true,lastSeen:this.now(),pending:new Map(),requests:createRequestWindow({now:this.now}),queue:[],pollWaiter:null
     });
     this.autoByInstance.set(instanceId,worldSessionId);
     return {worldSessionId,studioToken:token,status:'connected',mode:'automatic',worldId};
   }
 
-  currentSession() {
+  currentSession(owner=null) {
     const active=[];
     for(const [id,s] of this.sessions){
       if(!s.auto)continue;
       if(!s.connected||this.now()-s.lastSeen>this.heartbeatMs){this.disconnect(id,'STUDIO_DISCONNECTED');continue;}
+      if(owner!=null && s.owner!=null && s.owner!==owner)continue;
       active.push({worldSessionId:id,worldId:s.worldId,status:'connected',connected:true,mode:'automatic'});
     }
     if(!active.length)throw issue('STUDIO_NOT_CONNECTED');
     if(active.length>1)throw issue('STUDIO_MULTIPLE_WORLDS');
+    if(owner!=null)this.ownerSession(owner,active[0].worldSessionId);
     return active[0];
   }
   isStudioSession(id) {return this.sessions.has(id);}
   ownerSession(owner,id) {
     const s=this.sessions.get(id);
-    if(!s||(!s.auto && s.owner!==owner))throw issue('SESSION_NOT_FOUND');
+    if(!s||(s.owner!=null && s.owner!==owner))throw issue('SESSION_NOT_FOUND');
+    if(s.auto && s.owner==null){if(!owner)throw issue('OWNER_REQUIRED');s.owner=owner;}
     return s;
   }
   status(owner,id) {
@@ -125,12 +132,10 @@ export class StudioLiveBridge {
       this.disconnect(id,'STUDIO_DISCONNECTED');
       throw issue('STUDIO_DISCONNECTED');
     }
-    if(requestId && s.requests.has(requestId)){
-      const previous=s.requests.get(requestId);
-      if(previous.fingerprint!==JSON.stringify([method,args]))throw issue('IDEMPOTENCY_CONFLICT');
-      return previous.promise;
-    }
-    if(requestId && s.requests.size>=256)throw issue('REQUEST_BUDGET_EXHAUSTED');
+    const fingerprint=requestId?JSON.stringify([method,args]):null;
+    const replay=s.requests.replay(requestId,fingerprint);
+    if(replay)return replay;
+    if(requestId)s.requests.ensureCapacity();
     if(s.pending.size>=1)throw issue('STUDIO_BUSY');
     if(signal?.aborted)throw issue('ACTION_CANCELLED');
     const transportId=randomUUID();
@@ -158,7 +163,7 @@ export class StudioLiveBridge {
       }else s.queue.push(request);
     });
     if(requestId){
-      s.requests.set(requestId,{fingerprint:JSON.stringify([method,args]),promise});
+      s.requests.track(requestId,fingerprint,promise);
     }
     return promise;
   }
@@ -167,6 +172,11 @@ export class StudioLiveBridge {
     if(!s)return false;
     this.sessions.delete(id);
     if(s.auto && this.autoByInstance.get(s.instanceId)===id)this.autoByInstance.delete(s.instanceId);
+    if(s.auto && s.owner!=null){
+      this.autoOwnerHistory.delete(s.instanceId);
+      this.autoOwnerHistory.set(s.instanceId,{owner:s.owner,expiresAt:this.now()+10*60_000});
+      while(this.autoOwnerHistory.size>64)this.autoOwnerHistory.delete(this.autoOwnerHistory.keys().next().value);
+    }
     s.connected=false;
     if(s.pollWaiter){
       clearTimeout(s.pollWaiter.timer);s.pollWaiter.resolve({request:null});s.pollWaiter=null;
@@ -176,5 +186,5 @@ export class StudioLiveBridge {
     return true;
   }
   close(owner,id) {this.ownerSession(owner,id);this.disconnect(id);return {worldSessionId:id,status:'disconnected'};}
-  dispose(){for(const id of [...this.sessions.keys()])this.disconnect(id);}
+  dispose(){for(const id of [...this.sessions.keys()])this.disconnect(id);this.autoOwnerHistory.clear();}
 }

@@ -1,3 +1,4 @@
+import { createRequestWindow } from './RequestWindow.js';
 import * as z from 'zod/v4';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 import { RenderingSystem } from '../../modules/world/runtime/systems/RenderingSystem.js';
@@ -65,7 +66,7 @@ const diagnostic = error => ({ code: error.code || 'INVALID_OPERATION', message:
 export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', codeExecutor = null, codeGLTFLoader = undefined } = {}) {
   if (services.has(world)) return services.get(world);
   let busy = false, closed = false, revision = 0, selectedActor = null;
-  const jobs = new Map(), requests = new Map();
+  const jobs = new Map(), requests = createRequestWindow({conflictCode:'REQUEST_CONFLICT',limitCode:'REQUEST_LIMIT'});
   const tools = new AgentTools(world, { profile: 'builder', source: 'scene-api' });
   const styles = new StyleSystem({ scene: world.scene, events: world.events, getRenderer: () => world.rendering?.renderer, getCamera: () => world.rendering?.camera });
   world.rendering?.attachStyleSystem?.(styles);
@@ -168,12 +169,9 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     },
     async apply(input) {
       const args = applySchema.parse(input), signature = JSON.stringify(args); assertOpen();
-      if (args.requestId && requests.has(args.requestId)) {
-        const previous = requests.get(args.requestId);
-        if (previous.signature !== signature) throw sceneError('REQUEST_CONFLICT');
-        return structuredClone(await previous.promise);
-      }
-      if (args.requestId && requests.size >= 256) throw sceneError('REQUEST_LIMIT');
+      const replay = requests.replay(args.requestId, signature);
+      if (replay) return structuredClone(await replay);
+      if (args.requestId) requests.ensureCapacity();
       const promise = exclusive(async () => {
         if (args.expectedRevision != null && args.expectedRevision !== revision) throw sceneError('REVISION_CONFLICT');
         for (const op of args.operations) if (op.type === 'add') assetId(op.model.asset, op.model.level); else if (op.type === 'replaceAsset') assetId(op.asset, op.level);
@@ -208,7 +206,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
           return result('apply', { applied, failed: null, notRun: [] });
         });
       });
-      if (args.requestId) requests.set(args.requestId, { signature, promise });
+      if (args.requestId) requests.track(args.requestId, signature, promise);
       return structuredClone(await promise);
     },
     // Compatibility entry for audited legacy adapters; public SDK types expose
@@ -353,7 +351,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     },
     frame(timestamp) { assertOpen(); cancelPending(); world.simulation.pump(timestamp); world.rendering?.render(timestamp); },
     step() { assertOpen(); cancelPending(); return world.simulation.step(); },
-    close() { if (closed) return; assertIdle(); closed = true; codeExecutor?.close(); unsubscribe.forEach(fn => fn()); if (ownsWorld) world.dispose(); }
+    close() { if (closed) return; assertIdle(); closed = true; codeExecutor?.close(); unsubscribe.forEach(fn => fn()); requests.clear(); if (ownsWorld) world.dispose(); }
   };
   async function single(op) { const batch = await handle.apply({ operations: [op] }); if (batch.status === 'failed') throw sceneError(batch.diagnostics[0].code); return batch.value.applied[0]; }
   function getJob(key) { const job = jobs.get(key); if (!job) throw sceneError('JOB_NOT_FOUND'); return job; }

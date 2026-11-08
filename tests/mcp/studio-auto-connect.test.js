@@ -32,10 +32,14 @@ describe('local automatic Studio MCP',()=>{
   it('automatically targets a single Studio, revokes old worlds and requires explicit ID for multiple tabs',async()=>{
     const root=await mkdtemp(path.join(tmpdir(),'agentscape-auto-mcp-'));
     const token=randomBytes(32).toString('hex');
-    const app=await startServer({tokens:[{identity:'owner',token}],root,port:0,dataRoot:path.join(root,'assets')});
+    const otherToken=randomBytes(32).toString('hex');
+    const app=await startServer({tokens:[{identity:'owner',token},{identity:'other',token:otherToken}],root,port:0,dataRoot:path.join(root,'assets')});
     const client=new Client({name:'auto-studio-test',version:'1'});
+    const other=new Client({name:'other-auto-studio-test',version:'1'});
     const transport=new StreamableHTTPClientTransport(new URL('http://127.0.0.1:'+app.port+'/mcp'),
       {requestInit:{headers:{Authorization:'Bearer '+token}}});
+    const otherTransport=new StreamableHTTPClientTransport(new URL('http://127.0.0.1:'+app.port+'/mcp'),
+      {requestInit:{headers:{Authorization:'Bearer '+otherToken}}});
     const first=createSession(null,{environmentFactory:()=>createBlankWorld({id:'empty_one'})});
     const second=createSession(null,{environmentFactory:()=>createBlankWorld({id:'empty_two'})});
     await first.world.init();
@@ -44,6 +48,7 @@ describe('local automatic Studio MCP',()=>{
     const page2=autoPage(second,app.port);
     try{
       await client.connect(transport);
+      await other.connect(otherTransport);
       expect((await parse(client,'scene_observe')).code).toBe('STUDIO_NOT_CONNECTED');
       page1.setAutoEnabled(true);
       await waitFor(()=>page1.snapshot().status==='connected');
@@ -52,6 +57,8 @@ describe('local automatic Studio MCP',()=>{
       const current=await parse(client,'session_attach');
       expect(current.mode).toBe('automatic');
       expect(current.worldId).toBe('empty_one');
+      expect((await parse(other,'session_attach')).code).toBe('STUDIO_NOT_CONNECTED');
+      expect((await parse(other,'scene_observe',{worldSessionId:current.worldSessionId})).code).toBe('SESSION_NOT_FOUND');
 
       const added=await parse(client,'scene_add_model',{
         requestId:randomUUID(),model:{id:'auto_cup',asset:'builtin://cup',position:[0,0,0]}
@@ -92,6 +99,7 @@ describe('local automatic Studio MCP',()=>{
       await waitFor(()=>page1.snapshot().status==='connected'&&page1.snapshot().worldSessionId!==oldId);
       expect((await parse(client,'scene_observe',{worldSessionId:oldId})).code).toBe('SESSION_NOT_FOUND');
       expect((await parse(client,'session_attach')).worldId).toBe('empty_replaced');
+      expect((await parse(other,'scene_observe',{worldSessionId:page1.snapshot().worldSessionId})).code).toBe('SESSION_NOT_FOUND');
 
       page1.setAutoEnabled(false);
       await waitFor(()=>app.studioBridge.autoByInstance.size===0);
@@ -104,6 +112,7 @@ describe('local automatic Studio MCP',()=>{
       first.scene.close();first.world.dispose();
       second.scene.close();second.world.dispose();
       await client.close().catch(()=>{});
+      await other.close().catch(()=>{});
       await app.close();
       await rm(root,{recursive:true,force:true});
     }
