@@ -128,3 +128,34 @@ test('native overlay survives detach and reattach without replacing host-owned o
   });
   await page.getByRole('button', { name: '移除注入层' }).click();
 });
+test('published native overlay survives browser reload and restores automatically from OPFS and IndexedDB', async ({ page }) => {
+  await page.goto('/examples/native-scene/');
+  await page.getByRole('button', { name: '连接场景', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已连接');
+  await page.getByRole('button', { name: '注入柜子、杯子和 Agent' }).click();
+  await expect(page.getByRole('status')).toContainText('已注入 3 个资产', { timeout: 60000 });
+  const savedRoot = await page.evaluate(() => window.nativeDemo.checkpoint.saveLatest());
+  expect(savedRoot.kind).toBe('native-overlay');
+  const stalePublishRejected = await page.evaluate(async () => {
+    try {
+      const root = await window.nativeDemo.checkpoint.readLatest();
+      await window.nativeDemo.heads.publish(null, root);
+      return false;
+    } catch (error) { return error.code === 'NATIVE_OVERLAY_HEAD_CONFLICT'; }
+  });
+  expect(stalePublishRejected).toBe(true);
+  await page.reload();
+  await page.getByRole('button', { name: '连接场景', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已连接');
+  const restored = await page.evaluate(async () => ({
+    root: await window.nativeDemo.checkpoint.readLatest(),
+    ids: window.nativeDemo.session.scene.observe().objects.map(o => o.id).sort(),
+    floor: !!window.nativeDemo.session.scene.native.scene.getObjectByName('NativeFloor')
+  }));
+  expect(restored).toEqual({
+    root: savedRoot,
+    ids: ['native_agent', 'native_cabinet', 'native_cup'],
+    floor: true
+  });
+  await page.getByRole('button', { name: '移除注入层' }).click();
+});

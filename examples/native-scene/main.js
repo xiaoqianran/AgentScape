@@ -1,4 +1,6 @@
 import { WorldStorage } from '../../application/scene/WorldStorage.js';
+import { WorldDirectory } from '../../application/scene/WorldDirectory.js';
+import { openNativeOverlayCheckpoint, IndexedDBNativeOverlayHeadStore } from '../../application/native-scene/NativeOverlayCheckpoint.js';
 import { attachNativeScene } from '../../application/native-scene/NativeSceneHost.js';
 import { listNativeScenes, subscribeNativeScenes } from '../../application/native-scene/NativeRenderDiscovery.js';
 import { StudioLiveBridgeClient } from '../../apps/studio/bridge/StudioLiveBridgeClient.js';
@@ -9,17 +11,12 @@ const inject = document.querySelector('#inject');
 const detach = document.querySelector('#detach');
 const mcp = document.querySelector('#mcp');
 const status = document.querySelector('[role=status]');
-let session = null, bridge = null;
-const overlayBlocks = new Map();
-const overlayStorage = new WorldStorage({
-  async read(hash, expectedBytes) {
-    const bytes = overlayBlocks.get(hash);
-    if (!bytes || bytes.length !== expectedBytes) throw new Error('OVERLAY_BLOCK_NOT_FOUND');
-    return bytes.slice();
-  },
-  async write(hash, bytes) {
-    if (!overlayBlocks.has(hash)) overlayBlocks.set(hash, bytes.slice());
-  }
+let session = null, bridge = null, checkpoint = null;
+// OPFS stores immutable content blocks. IndexedDB atomically publishes the
+// latest root pointer, across full browser page reloads.
+const overlayStorage = new WorldStorage(new WorldDirectory(await navigator.storage.getDirectory()));
+const overlayHeads = new IndexedDBNativeOverlayHeadStore({
+  key: 'agentscape.native-three-demo:native-courtyard-v1'
 });
 const refresh = () => {
   const previous = target.value;
@@ -48,6 +45,7 @@ attach.onclick = async () => {
       hostProjectId: 'agentscape.native-three-demo',
       hostRevision: 'native-courtyard-v1',
     });
+    checkpoint = await openNativeOverlayCheckpoint(session.scene, overlayStorage, overlayHeads);
     const port = new URLSearchParams(location.search).get('mcpPort') || '39015';
     if (!/^\d{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('MCP_PORT_INVALID');
     bridge = new StudioLiveBridgeClient({ ...session, serverUrl: `http://127.0.0.1:${port}` });
@@ -66,6 +64,7 @@ attach.onclick = async () => {
     bridge = null;
     session?.close();
     session = null;
+    checkpoint = null;
     status.textContent = `连接失败：${error.code || error.message}`;
     attach.disabled = false;
   }
@@ -93,6 +92,7 @@ detach.onclick = () => {
     bridge.dispose();
     bridge = null;
     session = null;
+    checkpoint = null;
     inject.disabled = detach.disabled = true;
     target.disabled = false;
     refresh();
@@ -101,5 +101,5 @@ detach.onclick = () => {
 };
 mcp.onchange = () => bridge?.setAutoEnabled(mcp.checked);
 // Inspection hooks for the example and browser acceptance; never used by the project.
-window.nativeDemo = { listNativeScenes, storage: overlayStorage, get session() { return session; }, get bridge() { return bridge; } };
+window.nativeDemo = { listNativeScenes, storage: overlayStorage, heads: overlayHeads, get checkpoint() { return checkpoint; }, get session() { return session; }, get bridge() { return bridge; } };
 await import('./project/main.js');

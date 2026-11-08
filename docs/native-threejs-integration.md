@@ -78,6 +78,39 @@ const importedRoot = await session.scene.importOverlay(storage, source);
 - `prepareOverlay()` 在独立资源与 Runtime 状态中完成检查；只有 `commit()` 才替换当前 AgentScape 注入层。提交失败由现有 `WorldRuntime.installWorld()` 回滚。准备对象不用时调用 `dispose()`。
 - Overlay 是宿主项目的附属数据，不是完整 Three.js 项目备份。宿主仍负责保存自己的源码、模型、相机、灯光和渲染配置。
 
+### 可靠存档指针与自动恢复（PR-05）
+
+`saveOverlay(storage)` 仍提供底层显式 API。推荐使用 `openNativeOverlayCheckpoint` 将存档的完整流程包起来：
+
+```js
+import {
+  AgentScape, WorldStorage, WorldDirectory,
+  IndexedDBNativeOverlayHeadStore, openNativeOverlayCheckpoint,
+} from 'agentscape3d';
+
+const session = await AgentScape.attach({
+  scene, camera, renderer,
+  hostProjectId: 'com.example.my-three-game',
+  hostRevision: 'world-layout-v3',
+  walkableMesh: floor,
+});
+const storage = new WorldStorage(
+  new WorldDirectory(await navigator.storage.getDirectory())
+);
+const heads = new IndexedDBNativeOverlayHeadStore({
+  key: 'com.example.my-three-game:world-layout-v3'
+});
+const checkpoint = await openNativeOverlayCheckpoint(session.scene, storage, heads);
+// 默认读取并恢复最新存档；没有存档时不改变世界。
+await checkpoint.saveLatest(); // 写内容块、验证依赖、最后原子发布 head
+```
+
+- 内容块存于浏览器 OPFS，最新 root 引用存于 IndexedDB 的读写事务中。浏览器重新加载时重建 `storage`、`heads`，再调用 `openNativeOverlayCheckpoint()` 即可恢复；无需全量 JSON 和重新导入宿主 Three.js 项目。
+- `saveLatest()` 先读取预期 root，再生成新内容块，在隔离环境中完整准备并验证，最后以 compare-and-swap 发布；未准备成功或其他标签页抢先更新 root 时，旧的最后有效存档保持不变。
+- `restoreLatest()` 如果 root 的内容块损坏、身份/版本不匹配或提交失败，会抛出明确异常，而不是覆盖当前场景；宿主决定告警、重试或回退。提交失败的 Runtime 回滚使用 PR-04 既有机制。
+- 只针对通过 `hostProjectId` 标识的可信原生场景，不替宿主保存其源代码、物理网格或动画。不同浏览器、浏览器配置文件和清空站点存储后的 OPFS/IndexedDB 彼此隔离；若需要跨设备备份，可使用 `exportOverlay` 导出分块归档并由宿主保存。
+- 无法使用 IndexedDB 或 OPFS 的非浏览器环境，可注入自定义 `WorldStorage` 块后端和实现 `read()/publish(expected,next)` 的持久 root 后端。`MemoryNativeOverlayHeadStore` 只适合测试，不可当作跨进程持久存储。指针后端的 `publish` 必须具备原子 CAS 语义。
+
 场景的可视显示、物理注册与 Agent 动作验收是不同条件：`scene.addModel()` 成功不保证导航或动作执行成功，应继续观察 `scene.observe()` 和 Job 验证证据。
 
 ## 4. 本仓库真实验收
@@ -85,7 +118,7 @@ const importedRoot = await session.scene.importOverlay(storage, source);
 ```sh
 npm ci
 npx playwright test tests/browser/native-scene.spec.js
-npx vitest run tests/integration/native-scene.test.js tests/integration/native-scene-plugin.test.js tests/integration/native-scene-overlay.test.js
+npx vitest run tests/integration/native-scene.test.js tests/integration/native-scene-plugin.test.js tests/integration/native-scene-overlay.test.js tests/integration/native-overlay-checkpoint.test.js
 npm run sdk:verify
 ```
 

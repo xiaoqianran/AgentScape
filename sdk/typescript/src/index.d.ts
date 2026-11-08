@@ -134,3 +134,25 @@ export declare class WorldDirectory implements WorldBlockBackend {
   write(hash:string,bytes:Uint8Array):Promise<void>;
 }
 export declare function blobChunks(blob:Blob,options?:{signal?:AbortSignal}):AsyncIterable<Uint8Array>;
+
+export interface NativeOverlayHeadStore {
+  read():Promise<WorldBlockRef | null>;
+  publish(expected:WorldBlockRef | null,root:WorldBlockRef):Promise<WorldBlockRef>;
+}
+export declare class MemoryNativeOverlayHeadStore implements NativeOverlayHeadStore {
+  constructor();
+  read():Promise<WorldBlockRef | null>;
+  publish(expected:WorldBlockRef | null,root:WorldBlockRef):Promise<WorldBlockRef>;
+}
+export declare class IndexedDBNativeOverlayHeadStore implements NativeOverlayHeadStore {
+  constructor(options:{key:string;databaseName?:string});
+  read():Promise<WorldBlockRef | null>;
+  publish(expected:WorldBlockRef | null,root:WorldBlockRef):Promise<WorldBlockRef>;
+}
+export interface NativeOverlayCheckpoint {
+  readLatest():Promise<WorldBlockRef | null>;
+  saveLatest(options?:{name?:string;signal?:AbortSignal}):Promise<WorldBlockRef>;
+  restoreLatest(options?:{signal?:AbortSignal;active?:'saved'|'none'|'bounded';maxActiveEntities?:number}):Promise<WorldBlockRef | null>;
+}
+export declare function createNativeOverlayCheckpoint(scene:NativeSceneHandle,storage:WorldStorage,heads:NativeOverlayHeadStore):NativeOverlayCheckpoint;
+export declare function openNativeOverlayCheckpoint(scene:NativeSceneHandle,storage:WorldStorage,heads:NativeOverlayHeadStore,options?:{restore?:boolean}):Promise<NativeOverlayCheckpoint>;
