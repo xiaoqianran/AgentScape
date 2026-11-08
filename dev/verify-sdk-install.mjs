@@ -69,6 +69,45 @@ try {
 } finally {restored?.close();world.close();}
 `);
   execFileSync(process.execPath, ['code.mjs'], { cwd: consumer, stdio: 'inherit' });
+  // A clean consumer must share the same Three.js constructors with NativeSceneHost.
+  writeFileSync(join(consumer, 'native.mjs'), `
+import { AgentScape, attachNativeScene } from 'agentscape3d';
+import * as THREE from 'three';
+import assert from 'node:assert/strict';
+assert.equal(AgentScape.attach, attachNativeScene);
+const scene = new THREE.Scene();
+const retained = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+scene.add(retained);
+const renderer = {
+  render() { throw new Error('HOST_RENDER_CALLED'); },
+  dispose() { throw new Error('HOST_RENDERER_DISPOSED'); },
+  extensions: { has: () => false }
+};
+const renderBefore = renderer.render;
+const session = await AgentScape.attach({
+  scene, camera: new THREE.PerspectiveCamera(), renderer, autoStart: false,
+  colliders: [{ shape: 'box', halfExtents: [8, .1, 8], translation: [0, -.1, 0] }]
+});
+try {
+  assert.equal(session.scene.native.scene, scene);
+  assert.equal(session.scene.capabilities.ownsRenderer, false);
+  const result = await session.scene.addModel({
+    id: 'consumer_native_cup', asset: 'builtin://cup', position: [0, 2, 0]
+  });
+  assert.equal(result.status, 'succeeded');
+  assert.equal(session.scene.observe().objects[0].physicsRegistered, true);
+  assert.equal(scene.children.includes(session.scene.native.root), true);
+  await assert.rejects(session.scene.save(), error => error.code === 'NATIVE_PROJECT_SAVE_UNSUPPORTED');
+} finally {
+  session.close();
+}
+assert.deepEqual(scene.children, [retained]);
+assert.equal(renderer.render, renderBefore);
+retained.geometry.dispose();
+retained.material.dispose();
+console.log('Installed SDK native Three.js attach, physics, detach and instance identity passed');
+`);
+  execFileSync(process.execPath, ['native.mjs'], { cwd: consumer, stdio: 'inherit' });
   const report = { version: packed.version, node: process.version, platform: process.platform,
     sha256: createHash('sha256').update(readFileSync(join(temporary, packed.filename))).digest('hex'),
     files: packed.files.map(file => file.path), installation, restoration: JSON.parse(restoration.trim()) };

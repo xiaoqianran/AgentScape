@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { capabilityDevPlugin } from "./dev/capabilityDevPlugin.js";
+import { nativeScenePlugin } from "./dev/nativeScenePlugin.js";
 
 function observatoryRoutePlugin() {
   const redirect = (req, res, next) => {
@@ -59,7 +60,7 @@ export default defineConfig(({ mode }) => {
   const devHost = String(env.AGENTSCAPE_DEV_HOST || "127.0.0.1").trim() || "127.0.0.1";
   return {
     base: "/",
-    plugins: [react(), observatoryRoutePlugin(), capabilityDevPlugin()],
+    plugins: [nativeScenePlugin({ projectRoots: ['examples/native-scene/project'] }), react(), observatoryRoutePlugin(), capabilityDevPlugin()],
     test: {
       include: ["tests/**/*.test.js"],
       // Physics/WASM world fixtures each own native resources; cap concurrent
@@ -80,6 +81,7 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         input: {
+          nativeScene: new URL('./examples/native-scene/index.html', import.meta.url).pathname,
           codeExample: new URL('./examples/three-code/index.html', import.meta.url).pathname,
           starter: new URL("./apps/starter/index.html", import.meta.url).pathname,
           studio: new URL("./index.html", import.meta.url).pathname,

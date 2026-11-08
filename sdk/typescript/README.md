@@ -14,6 +14,10 @@ world.close();
 
 `#app` is an HTML container with an explicit width and height. Rendering schedules automatically when a container is supplied. Headless hosts advance `step()` themselves. Interactions return jobs; query or await them with `getJob` / `waitJob`, and inspect their verification evidence separately.
 
+## Embedding in an existing Three.js scene
+
+Use `AgentScape.attach({scene,camera,renderer,autoStart:false,colliders,navigationRoot})` to mount a self-owned Runtime subtree into a trusted native Three.js project without taking over its renderer or animation loop. Call `session.scene.frame(timestamp)` in the host's existing frame callback, and `session.close()` to detach. Physical colliders are explicit; native project save/import/style takeover is not supported yet. See [the native integration guide](../../docs/native-threejs-integration.md) and [unchanged native project example](../../examples/native-scene/).
+
 The SDK defaults to `monument-hall`; other built-in IDs are resolved through the shared Studio catalog. Some environments require a browser DOM and reject headless Node. Studio preset furniture is not implicitly inserted into Scene Projects. Bundled assets include agent, cup, table and chair. Use await world.setStyle(ref) with builtin://realistic, builtin://toon or builtin://low-poly. Headless hosts validate and defer rendering. This SDK shares the application Scene service and does not maintain another object store.
 
 `npx agentscape3d starter new-directory` (or `agentscape starter new-directory`) scaffolds an empty destination. Install this SDK tarball and Vite in that directory, then `npm run dev`. No provider key or paid service is needed for built-in worlds. Python Connector SDK usage is unchanged.

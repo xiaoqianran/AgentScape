@@ -81,7 +81,25 @@ export interface SceneHandle {
   setStyle(style: string | Record<string, unknown>, options?: { fallback?: 'reject' | 'declared' }): Promise<SceneResult>;
   frame(timestamp: number): void; step(): unknown; close(): void;
 }
-export declare const AgentScape: { open(options?: { canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean; codeExecution?:CodeExecutionOptions }): Promise<SceneHandle> };
+export interface NativeSceneOptions {
+  scene: any; camera: any; renderer: any; three?: any; name?: string;
+  environmentId?: string; colliders?: Record<string, unknown>[]; navigationRoot?: any;
+  assetModule?: any; autoStart?: boolean; codeExecutor?: any; codeGLTFLoader?: any; assetBaseUrl?: string | null;
+}
+export interface NativeSceneSession {
+  scene: SceneHandle & { native: { scene: any; renderer: any; camera: any; root: any };
+    capabilities: { mode: 'native-scene'; threeRevision: string; sourceConversion: false;
+      ownsRenderer: false; nativeProjectSave: false; environmentColliders: number; navigationRegistered: boolean } };
+  world: any;
+  close(): void;
+}
+/** Bind a trusted native scene. Save/import/style takeover are explicitly unsupported. */
+export declare function attachNativeScene(options: NativeSceneOptions): Promise<NativeSceneSession>;
+export interface NativeSceneCandidate { id: string; scene: any; camera: any; renderer: any; renders: number }
+export declare function observeNativeRenderer(renderer: any): () => void;
+export declare function listNativeScenes(): NativeSceneCandidate[];
+export declare function subscribeNativeScenes(listener: (candidate: NativeSceneCandidate) => void): () => void;
+export declare const AgentScape: { attach: typeof attachNativeScene; open(options?: { canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean; codeExecution?:CodeExecutionOptions }): Promise<SceneHandle> };
 export declare function parseSceneProject(input: unknown): unknown;
 export declare const recipeSchema: { parse(input: unknown): unknown };
 export declare const assetPackageSchema: { parse(input: unknown): unknown };
