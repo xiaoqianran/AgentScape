@@ -53,7 +53,7 @@ export type PhysicalInteraction = { action: 'push' | 'drag'; actor: string; targ
   | { action: 'rotate'; actor: string; target: string; args: { axis: Vec3; angle: number; maxTorque?: number } }
   | { action: 'slide'; actor: string; target: string; args: { part: string } & ({ target: number; distance?: never } | { distance: number; target?: never }) }
   | { action: 'rotateJoint'; actor: string; target: string; args: { part: string } & ({ target: number; angle?: never } | { angle: number; target?: never }) };
-export type Interaction = PhysicalInteraction | { action: 'navigate'; actor: string; position: Vec3 } | { action: 'pickup'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string }
+export type Interaction = PhysicalInteraction | { action: 'navigate'; actor: string; position: Vec3 } | { action: 'activate'; actor: string; target: string } | { action: 'pickup'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string }
   | { action: 'turn_on' | 'turn_off' | 'pull_out' | 'return'; actor: string; target: string }
   | { action: 'write'; actor: string; target: string; args: { text: string } };
 export interface SceneHandle {
@@ -63,7 +63,7 @@ export interface SceneHandle {
   inspect(target: string, options?: { actor?: string }): ObjectAffordances;
   /** Object-only page in live insertion order. Restart after mutations; no global graph work. */
   observe(options: { actor?: string; offset?: number; limit: number }): { schema: 'agentscape.scene-object-page'; schemaVersion: 1; revision: number; total: number; offset: number; nextOffset: number | null; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }> };
-  observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; actors: ReturnType<SceneHandle['actors']>; style: Record<string, unknown> | null; affordances: AffordanceListing; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };
+  observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; actors: ReturnType<SceneHandle['actors']>; style: Record<string, unknown> | null; affordances: AffordanceListing; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[]; nativeObjects?: NativeObjectSnapshot[] };
   addModel(input: ModelInput, options?:{signal?:AbortSignal}): Promise<SceneResult>;
   setTransform(input: { id: string; transform: Transform }): Promise<SceneResult>;
   remove(input: { id: string }): Promise<SceneResult>;
@@ -81,10 +81,26 @@ export interface SceneHandle {
   setStyle(style: string | Record<string, unknown>, options?: { fallback?: 'reject' | 'declared' }): Promise<SceneResult>;
   frame(timestamp: number): void; step(): unknown; close(): void;
 }
+export interface NativeObjectInput {
+  id: string;
+  object: any;
+  label?: string;
+  /** Trusted host callback; no physical actuation is inferred from this callback. */
+  activate?: () => void;
+  contractId?: string;
+}
+export interface NativeObjectSnapshot {
+  id: string;
+  label: string;
+  position: Vec3;
+  interactive: boolean;
+  contractId: string | null;
+}
 export interface NativeSceneOptions {
   scene: any; camera: any; renderer: any; three?: any; name?: string;
   environmentId?: string; colliders?: Record<string, unknown>[]; navigationRoot?: any;
-  staticMeshes?: any[]; walkableMesh?: any; hostProjectId?: string; hostRevision?: string;
+  staticMeshes?: any[]; walkableMesh?: any; nativeObjects?: NativeObjectInput[];
+  hostProjectId?: string; hostRevision?: string;
   assetModule?: any; autoStart?: boolean; codeExecutor?: any; codeGLTFLoader?: any; assetBaseUrl?: string | null;
 }
 export interface NativeOverlayPrepared {
@@ -100,9 +116,15 @@ export interface NativeSceneHandle extends SceneHandle {
   importOverlay(storage: WorldStorage, source: AsyncIterable<Uint8Array>, options?: {signal?:AbortSignal}): Promise<WorldBlockRef & {kind:'native-overlay'}>;
 }
 export interface NativeSceneSession {
-  scene: NativeSceneHandle & { native: { scene: any; renderer: any; camera: any; root: any };
+  scene: NativeSceneHandle & { native: {
+      scene: any; renderer: any; camera: any; root: any;
+      registerObject(input: NativeObjectInput): NativeObjectSnapshot;
+      unregisterObject(id: string): boolean;
+      listObjects(): NativeObjectSnapshot[];
+    };
     capabilities: { mode: 'native-scene'; threeRevision: string; sourceConversion: false;
-      ownsRenderer: false; nativeProjectSave: false; nativeOverlayPersistence: boolean; environmentColliders: number; navigationRegistered: boolean } };
+      ownsRenderer: false; nativeProjectSave: false; nativeOverlayPersistence: boolean;
+      nativeObjectRegistration: true; environmentColliders: number; navigationRegistered: boolean } };
   world: any;
   close(): void;
 }

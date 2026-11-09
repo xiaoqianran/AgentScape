@@ -9,6 +9,7 @@ import { registerSceneSkills } from '../skills/packs/sceneSkills.js';
 import { registerSpatialSkills } from '../skills/packs/spatialSkills.js';
 import { registerInteractionSkills } from '../skills/packs/interactionSkills.js';
 import { extractNativeStaticColliders } from './NativeEnvironmentGeometry.js';
+import { NativeObjectRegistry } from './NativeObjectRegistry.js';
 import { writeNativeSceneOverlay, prepareNativeSceneOverlay, restoreNativeSceneOverlay, exportNativeSceneOverlay, importNativeSceneOverlay } from './NativeSceneOverlay.js';
 
 const bindings = new WeakMap();
@@ -21,7 +22,7 @@ const fail = code => Object.assign(new Error(code), { code });
 export async function attachNativeScene({
   scene: nativeScene, camera, renderer, three = THREE, name = 'Native scene',
   environmentId = 'native-scene', colliders = [], navigationRoot = null,
-  staticMeshes = [], walkableMesh = null, hostProjectId = null, hostRevision = null,
+  staticMeshes = [], walkableMesh = null, nativeObjects = [], hostProjectId = null, hostRevision = null,
   assetModule = null, autoStart = true, codeExecutor = null, codeGLTFLoader,
   assetBaseUrl = globalThis.location?.origin ? globalThis.location.origin + '/' : null,
 } = {}) {
@@ -35,6 +36,9 @@ export async function attachNativeScene({
   if (hostProjectId != null && (typeof hostProjectId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(hostProjectId))) throw fail('NATIVE_HOST_IDENTITY_INVALID');
   if (hostRevision != null && (typeof hostRevision !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(hostRevision))) throw fail('NATIVE_HOST_IDENTITY_INVALID');
   if (navigationRoot && !navigationRoot.isObject3D) throw fail('NATIVE_NAVIGATION_ROOT_INVALID');
+  if (!Array.isArray(nativeObjects)) throw fail('NATIVE_OBJECTS_INVALID');
+  const objectRegistry = new NativeObjectRegistry(nativeScene);
+  for (const object of nativeObjects) objectRegistry.registerObject(object);
   const extractedColliders = extractNativeStaticColliders(nativeScene, { staticMeshes, walkableMesh });
   const environmentColliders = [...structuredClone(colliders), ...extractedColliders];
   const environmentNavigation = navigationRoot || walkableMesh;
@@ -53,9 +57,11 @@ export async function attachNativeScene({
     environmentRoot.name = 'AgentScapeEnvironment';
     world = new WorldRuntime({ assetModule: assets, environmentFactory: () => ({
       id: environmentId, root: environmentRoot, colliders: environmentColliders,
-      ...(environmentNavigation ? { navigationRoot: environmentNavigation } : {}), dispose() {},
+      ...(environmentNavigation ? { navigationRoot: environmentNavigation } : {}),
+      interactions: objectRegistry.interactions, dispose() {},
     }) });
     world.scene.name = 'AgentScapeRoot';
+    objectRegistry.setManagedRoot(world.scene);
     // The runtime owns only this subtree. Host environment/materials stay untouched.
     // A nested Scene is traversed as Object3D; the outer Scene still owns lighting/fog.
     world.attachRendering({ scene: world.scene, renderer, camera,
@@ -75,6 +81,7 @@ export async function attachNativeScene({
     world.simulation.play();
     const frame = timestamp => {
       if (closed) throw fail('SCENE_CLOSED');
+      objectRegistry.pruneDetached();
       // Do not call renderer.render: the original project owns every render pass.
       facade.frame(timestamp);
     };
@@ -91,6 +98,7 @@ export async function attachNativeScene({
       if (frameId != null) cancelAnimationFrame(frameId);
       world.scene.removeFromParent();
       try { world.dispose(); } finally {
+        objectRegistry.close();
         if (!assetModule) assets.loader.gltfLoader.dispose?.();
         bindings.delete(nativeScene);
       }
@@ -99,6 +107,17 @@ export async function attachNativeScene({
       ...facade,
       frame,
       close,
+      observe(options) {
+        objectRegistry.pruneDetached();
+        const observation = facade.observe(options);
+        return observation.schema === 'agentscape.scene-observation'
+          ? { ...observation, nativeObjects: objectRegistry.listObjects() }
+          : observation;
+      },
+      interact(input) {
+        objectRegistry.pruneDetached();
+        return facade.interact(input);
+      },
       // Never export a native project as a misleading built-in Scene Project.
       save: unsupported('NATIVE_PROJECT_SAVE_UNSUPPORTED'),
       exportWorld: unsupported('NATIVE_PROJECT_SAVE_UNSUPPORTED'),
@@ -140,11 +159,25 @@ export async function attachNativeScene({
       importWorld: unsupported('NATIVE_PROJECT_IMPORT_UNSUPPORTED'),
       prepareWorld: unsupported('NATIVE_PROJECT_IMPORT_UNSUPPORTED'),
       setStyle: unsupported('NATIVE_RENDERING_OWNED_BY_PROJECT'),
-      native: { scene: nativeScene, renderer, camera, root: world.scene },
+      native: {
+        scene: nativeScene, renderer, camera, root: world.scene,
+        registerObject: input => {
+          if (closed) throw fail('SCENE_CLOSED');
+          return objectRegistry.registerObject(input);
+        },
+        unregisterObject: id => {
+          if (closed) throw fail('SCENE_CLOSED');
+          return objectRegistry.unregisterObject(id);
+        },
+        listObjects: () => {
+          if (closed) throw fail('SCENE_CLOSED');
+          return objectRegistry.listObjects();
+        },
+      },
       capabilities: Object.freeze({ mode: 'native-scene', threeRevision: THREE.REVISION,
         sourceConversion: false, ownsRenderer: false, nativeProjectSave: false,
         environmentColliders: environmentColliders.length, navigationRegistered: Boolean(environmentNavigation),
-        nativeOverlayPersistence: Boolean(hostProjectId) }),
+        nativeOverlayPersistence: Boolean(hostProjectId), nativeObjectRegistration: true }),
     };
     // Runtime is exposed to the local Studio bridge, never serialized over MCP.
     return { scene: handle, world, close };
@@ -156,6 +189,7 @@ export async function attachNativeScene({
       if (world?.sceneGraph) world.dispose();
       else world?.physics.dispose();
     } finally {
+      objectRegistry.close();
       if (!assetModule) assets?.loader.gltfLoader.dispose?.();
       bindings.delete(nativeScene);
     }

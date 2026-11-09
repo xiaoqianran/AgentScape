@@ -2,6 +2,8 @@
 
 本集成复用项目既有 `SceneFacade`、`WorldRuntime`、物理和交互系统。AgentScape 只向宿主 `THREE.Scene` 挂载自己负责的子树；不接管原项目的 renderer、Shader、Composer、动画循环、其他 Mesh 或原始源码。
 
+React、Vue 3 和 React Three Fiber 的显式接入原则、组件卸载与可运行示例见 [React / Vue 原生宿主接入](./native-framework-hosts.md)。原生 Object3D 可以通过 `nativeObjects` 或 `session.scene.native.registerObject()` 登记供 Agent 查询和触发可信回调，但不会成为 ObjectStore 资产。
+
 ## 不写代码也能试运行：原生场景可视化引导
 
 启动本项目示例服务器后，访问 `/examples/native-scene/`。这是一个 **原生 Three.js 工程与 AgentScape 注入层相互独立** 的演示，不会修改 `examples/native-scene/project/main.js`。
