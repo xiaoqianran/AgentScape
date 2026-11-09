@@ -82,6 +82,8 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           nativeScene: new URL('./examples/native-scene/index.html', import.meta.url).pathname,
+          nativeReact: new URL('./examples/native-react/index.html', import.meta.url).pathname,
+          nativeVue: new URL('./examples/native-vue/index.html', import.meta.url).pathname,
           codeExample: new URL('./examples/three-code/index.html', import.meta.url).pathname,
           starter: new URL("./apps/starter/index.html", import.meta.url).pathname,
           studio: new URL("./index.html", import.meta.url).pathname,
