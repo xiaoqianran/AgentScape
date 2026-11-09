@@ -1,5 +1,5 @@
 import { createSession } from '../../../application/createSession.js';
-import { AgentTools } from '../../../application/AgentTools.js';
+import { SceneAgentTools } from '../../../application/scene/SceneAgentTools.js';
 import { createAuthoringModelResolver } from '../../../application/world-authoring/AuthoringModelResolver.js';
 import { AuthoringWorldController } from '../authoring/AuthoringWorldController.js';
 import { AuthoringWorldStore } from '../persistence/AuthoringWorldStore.js';
@@ -53,14 +53,11 @@ export async function createStudioRuntime({
     resolveModel:resolveAuthoringModel
   }) : null;
 
-  const studioTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'studio-ui' });
+  const studioTools = new SceneAgentTools(world, scene, { profile:'builder', actor:'agent_01', source:'studio-ui' });
   if (authoringWorlds) authoringWorlds.tools = studioTools;
-  const agentTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'agent' });
-  const runtimeTestTools = new AgentTools(world, { profile:'builder', actor:'agent_01', source:'runtime-test' });
-  for (const adapter of [studioTools, agentTools, runtimeTestTools]) {
-    const original = adapter.call.bind(adapter);
-    adapter.call = (name, args, internalContext) => SCENE_LEGACY_SKILLS.includes(name) ? scene.executeSkill(name, args) : original(name, args, internalContext);
-  }
+  const agentTools = new SceneAgentTools(world, scene, { profile:'builder', actor:'agent_01', source:'agent' });
+  const runtimeTestTools = new SceneAgentTools(world, scene, { profile:'builder', actor:'agent_01', source:'runtime-test' });
+
   if (promotion) {
     const verifier = new AssetAgentVerifier({ world, tools:runtimeTestTools });
     promotion.verifyBehavior = async entry => {
