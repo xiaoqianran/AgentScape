@@ -1,4 +1,6 @@
 import { createRequestWindow } from './RequestWindow.js';
+import { SCENE_LEGACY_SKILLS } from './SceneSkillNames.js';
+export { SCENE_LEGACY_SKILLS } from './SceneSkillNames.js';
 import * as z from 'zod/v4';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 import { RenderingSystem } from '../../modules/world/runtime/systems/RenderingSystem.js';
@@ -22,7 +24,6 @@ import { parseSceneProject, sceneObjectIdSchema as id, sceneTransformSchema, sce
 
 export const sceneError = (code, message = code) => Object.assign(new Error(message), { code });
 const services = new WeakMap();
-export const SCENE_LEGACY_SKILLS = Object.freeze(['spawnAsset', 'moveObject', 'rotateObject', 'scaleObject', 'transformObject', 'removeObject', 'duplicateObject', 'replaceAsset', 'navigateTo', 'approachAndInteract', 'approachAndPickup', 'approachAndPlace', 'evaluateWorldAcceptance', 'pickup', 'drop', 'place', 'open', 'close', 'dropHeld']);
 const ref = z.string().regex(/^(builtin:\/\/[a-zA-Z][a-zA-Z0-9_-]{0,63}|asset:\/\/sha256\/[a-f0-9]{64})$/);
 const level = z.enum(['visual', 'physical', 'interactive']).default('physical');
 const modelSchema = z.object({ id, asset: ref, level, transform: sceneTransformSchema.optional(), position: sceneVector3Schema.optional() }).strict().refine(v => !v.transform || !v.position, 'Use transform or position');
