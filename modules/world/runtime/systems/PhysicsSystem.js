@@ -1,43 +1,7 @@
 import * as THREE from 'three';
 import { orderParts, ROOT_PART } from '../../../asset/model/parts.js';
-
-const array3 = (v) => [v.x, v.y, v.z];
-const upright = (q) => {
-  const upX = 2 * (q.x * q.y - q.z * q.w);
-  const upY = 1 - 2 * (q.x * q.x + q.z * q.z);
-  const upZ = 2 * (q.y * q.z + q.x * q.w);
-  return upY > 0.999 && Math.abs(upX) < 0.02 && Math.abs(upZ) < 0.02;
-};
-const yaw = (q) => Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
-const boxAabbHalfExtents = (half, q) => {
-  const xx = 1 - 2 * (q.y * q.y + q.z * q.z), xy = 2 * (q.x * q.y - q.z * q.w), xz = 2 * (q.x * q.z + q.y * q.w);
-  const yx = 2 * (q.x * q.y + q.z * q.w), yy = 1 - 2 * (q.x * q.x + q.z * q.z), yz = 2 * (q.y * q.z - q.x * q.w);
-  const zx = 2 * (q.x * q.z - q.y * q.w), zy = 2 * (q.y * q.z + q.x * q.w), zz = 1 - 2 * (q.x * q.x + q.y * q.y);
-  return [
-    Math.abs(xx) * half.x + Math.abs(xy) * half.y + Math.abs(xz) * half.z,
-    Math.abs(yx) * half.x + Math.abs(yy) * half.y + Math.abs(yz) * half.z,
-    Math.abs(zx) * half.x + Math.abs(zy) * half.y + Math.abs(zz) * half.z
-  ];
-};
-const cylinderAabbHalfExtents = (radius, halfHeight, q) => {
-  const axis = [2 * (q.x * q.y - q.z * q.w), 1 - 2 * (q.x * q.x + q.z * q.z), 2 * (q.y * q.z + q.x * q.w)];
-  return axis.map((component) => radius * Math.sqrt(Math.max(0, 1 - component * component)) + halfHeight * Math.abs(component));
-};
-const capsuleAabbHalfExtents = (radius, halfHeight, q) => {
-  const axis = [2 * (q.x * q.y - q.z * q.w), 1 - 2 * (q.x * q.x + q.z * q.z), 2 * (q.y * q.z + q.x * q.w)];
-  return axis.map((component) => radius + halfHeight * Math.abs(component));
-};
-const convexAabb = (vertices, position, rotation) => {
-  const q = new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
-  const v = new THREE.Vector3();
-  const min = new THREE.Vector3(Infinity, Infinity, Infinity);
-  const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
-  for (let i = 0; i < vertices.length; i += 3) {
-    v.set(vertices[i], vertices[i + 1], vertices[i + 2]).applyQuaternion(q).add(position);
-    min.min(v); max.max(v);
-  }
-  return { position:min.clone().add(max).multiplyScalar(0.5).toArray(), halfExtents:max.clone().sub(min).multiplyScalar(0.5).toArray() };
-};
+import { projectNavigationObstacle, vector3Array } from './physics/NavigationObstacleGeometry.js';
+import { shapeBoundingRadius, estimateArticulationSampleCount, denseCounterfactualSamples, summarizeCounterfactualConvergence } from './physics/CounterfactualGeometry.js';
 
 export class PhysicsSystem {
   constructor({ backend } = {}) {
@@ -815,11 +779,11 @@ export class PhysicsSystem {
       const snapshot = this.backend.colliderSnapshot(collider), shape = snapshot.shape;
       let vertexRadius = 0;
       if (shape.vertices) for (let i=0;i<shape.vertices.length;i+=3) vertexRadius = Math.max(vertexRadius,Math.hypot(shape.vertices[i],shape.vertices[i+1],shape.vertices[i+2]));
-      const radius = shape.kind === 'box' ? Math.hypot(...array3(shape.halfExtents))
+      const radius = shape.kind === 'box' ? Math.hypot(...vector3Array(shape.halfExtents))
         : shape.kind === 'cylinder' ? Math.hypot(shape.radius,shape.halfHeight)
         : shape.kind === 'capsule' ? shape.radius+shape.halfHeight
         : shape.vertices ? vertexRadius : null;
-      return { center:array3(snapshot.position), radius };
+      return { center:vector3Array(snapshot.position), radius };
     }).filter(candidate => Number.isFinite(candidate.radius) && candidate.radius > 0);
     return { registered: Boolean(body), body: body ? this.backend.bodyType(body) : null,
       joint: Boolean(part?.joint), mass: spec?.mass ?? null,
@@ -996,24 +960,7 @@ export class PhysicsSystem {
   }
 
   shapeBoundingRadius(shape) {
-    if (!shape) return null;
-    if (shape.halfExtents) {
-      const h=shape.halfExtents;
-      const border=Number(shape.borderRadius) || 0;
-      return Math.hypot(h.x+border,h.y+border,h.z+border);
-    }
-    if (Number.isFinite(shape.halfHeight) && Number.isFinite(shape.radius)) {
-      const border=Number(shape.borderRadius) || 0;
-      return Math.hypot(shape.radius+border,shape.halfHeight+shape.radius+border);
-    }
-    if (Number.isFinite(shape.radius)) return shape.radius;
-    if (shape.vertices?.length) {
-      let radius=0;
-      for(let i=0;i+2<shape.vertices.length;i+=3) radius=Math.max(radius,Math.hypot(shape.vertices[i],shape.vertices[i+1],shape.vertices[i+2]));
-      return radius || null;
-    }
-    if (shape.a && shape.b) return Math.max(Math.hypot(shape.a.x,shape.a.y,shape.a.z),Math.hypot(shape.b.x,shape.b.y,shape.b.z));
-    return null;
+    return shapeBoundingRadius(shape);
   }
 
   articulationCounterfactualSampleCount(id, partName, current, target, { minSamples = 5, maxSamples = 33 } = {}) {
@@ -1021,7 +968,7 @@ export class PhysicsSystem {
     const part=entry?.parts.get(partName);
     if (!part || !Number.isFinite(current) || !Number.isFinite(target)) return {checked:false,reason:'PART_SAMPLE_GEOMETRY_UNAVAILABLE'};
     const delta=Math.abs(target-current);
-    if (delta<1e-9) return {checked:true,count:minSamples,delta,maxTravel:0,resolution:.08};
+    if (delta<1e-9) return estimateArticulationSampleCount({jointType:part.spec.joint.type,current,target,minSamples,maxSamples});
     const bodyPose=this.backend.bodyPose(part.body);
     const bodyPosition=new THREE.Vector3(...bodyPose.position);
     const bodyRotation=new THREE.Quaternion(...bodyPose.rotation).normalize();
@@ -1037,11 +984,7 @@ export class PhysicsSystem {
       maxLever=Math.max(maxLever,localCenter.distanceTo(childAnchor)+radius);
       covered+=1;
     }
-    if (!covered || !Number.isFinite(minRadius)) return {checked:false,reason:'COLLIDER_EXTENT_UNAVAILABLE'};
-    const maxTravel=part.spec.joint.type==='revolute' ? delta*maxLever : delta;
-    const resolution=THREE.MathUtils.clamp(minRadius*.35,.02,.08);
-    const count=THREE.MathUtils.clamp(Math.ceil(maxTravel/resolution)+1,minSamples,maxSamples);
-    return {checked:true,count,delta,maxTravel,resolution,colliders:covered,minRadius,maxLever:part.spec.joint.type==='revolute'?maxLever:null};
+    return estimateArticulationSampleCount({jointType:part.spec.joint.type,current,target,minRadius,maxLever,covered,minSamples,maxSamples});
   }
 
   articulationPairCounterfactual(originalId, originalPartName, originalTarget, blockerId, blockerPartName, blockerTarget, { samples = null } = {}) {
@@ -1194,37 +1137,10 @@ export class PhysicsSystem {
   articulationPairCounterfactualConvergence(originalId, originalPartName, originalTarget, blockerId, blockerPartName, blockerTarget, { multiplier = 2 } = {}) {
     const base=this.articulationPairCounterfactual(originalId,originalPartName,originalTarget,blockerId,blockerPartName,blockerTarget);
     if (!base.checked) return {checked:false,reason:base.reason || 'BASE_COUNTERFACTUAL_UNAVAILABLE',base};
-    const denserCount=(count)=>Math.min(33,Math.max(count+2,Math.ceil(count*Math.max(1.25,multiplier))));
-    const denseSamples={original:denserCount(base.samples.original),blocker:denserCount(base.samples.blocker)};
+    const denseSamples=denseCounterfactualSamples(base.samples,multiplier);
     const dense=this.articulationPairCounterfactual(originalId,originalPartName,originalTarget,blockerId,blockerPartName,blockerTarget,{samples:denseSamples});
-    if (!dense.checked) return {checked:false,reason:dense.reason || 'DENSE_COUNTERFACTUAL_UNAVAILABLE',base,dense};
-    const ratio=(value,total)=>total>0?value/total:0;
-    const baseRatios={
-      current:ratio(base.current.conflictSamples,base.samples.original),
-      target:ratio(base.target.conflictSamples,base.samples.original),
-      action:ratio(base.action.conflictSamplePairs,base.samples.original*base.samples.blocker)
-    };
-    const denseRatios={
-      current:ratio(dense.current.conflictSamples,dense.samples.original),
-      target:ratio(dense.target.conflictSamples,dense.samples.original),
-      action:ratio(dense.action.conflictSamplePairs,dense.samples.original*dense.samples.blocker)
-    };
-    const drift={
-      current:Math.abs(baseRatios.current-denseRatios.current),
-      target:Math.abs(baseRatios.target-denseRatios.target),
-      action:Math.abs(baseRatios.action-denseRatios.action)
-    };
-    const qualitative={
-      targetSweepClear:base.targetSweepClear===dense.targetSweepClear,
-      clearanceGain:(base.conflictReduction>0)===(dense.conflictReduction>0)
-    };
-    return {
-      checked:true,causal:false,status:qualitative.targetSweepClear&&qualitative.clearanceGain?'stable':'unstable',
-      base,dense,
-      qualitative,
-      ratios:{base:baseRatios,dense:denseRatios,drift},
-      maxRatioDrift:Math.max(drift.current,drift.target,drift.action)
-    };
+    if(!dense.checked) return {checked:false,reason:dense.reason || 'DENSE_COUNTERFACTUAL_UNAVAILABLE',base,dense};
+    return summarizeCounterfactualConvergence(base,dense);
   }
 
   ownerOfBody(body) {
@@ -1365,37 +1281,13 @@ export class PhysicsSystem {
     const skipped = [];
     const addBody=(objectId,partName,body,bodyType,navigationObstacle=true)=>{
       if(bodyType==='fixed' || navigationObstacle===false) return;
-      for(const [i,collider] of this.backend.colliders(body).entries()) {
+      for(const [colliderIndex,collider] of this.backend.colliders(body).entries()) {
         const snapshot=this.backend.colliderSnapshot(collider);
-        const {shape,position,rotation}=snapshot;
-        const id=`${objectId}:${partName}:${i}`;
-        if(shape.kind==='box') {
-          const exact=upright(rotation);
-          items.push({
-            id,objectId,part:partName,collider:i,shape:'box',sourceShape:'box',quality:exact?'exact-yaw':'conservative-aabb',
-            position:array3(position),
-            halfExtents:exact?array3(shape.halfExtents):boxAabbHalfExtents(shape.halfExtents,rotation),
-            angle:exact?yaw(rotation):0
-          });
-        } else if(shape.kind==='cylinder') {
-          if(upright(rotation)) {
-            items.push({id,objectId,part:partName,collider:i,shape:'cylinder',sourceShape:'cylinder',quality:'exact-upright',position:[position.x,position.y-shape.halfHeight,position.z],radius:shape.radius,height:shape.halfHeight*2});
-          } else {
-            items.push({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'cylinder',quality:'conservative-aabb',position:array3(position),halfExtents:cylinderAabbHalfExtents(shape.radius,shape.halfHeight,rotation),angle:0});
-          }
-        } else if(shape.kind==='capsule') {
-          const extentY=shape.halfHeight+shape.radius;
-          if(upright(rotation)) {
-            items.push({id,objectId,part:partName,collider:i,shape:'cylinder',sourceShape:'capsule',quality:'conservative-upright',position:[position.x,position.y-extentY,position.z],radius:shape.radius,height:extentY*2});
-          } else {
-            items.push({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'capsule',quality:'conservative-aabb',position:array3(position),halfExtents:capsuleAabbHalfExtents(shape.radius,shape.halfHeight,rotation),angle:0});
-          }
-        } else if(shape.kind==='convexHull' && shape.vertices?.length) {
-          const box=convexAabb(shape.vertices,new THREE.Vector3(position.x,position.y,position.z),rotation);
-          items.push({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'convexHull',quality:'conservative-aabb',...box,angle:0});
-        } else {
-          skipped.push({id,objectId,part:partName,collider:i,reason:'unsupported-shape',shapeType:shape.kind});
-        }
+        const projected=projectNavigationObstacle({
+          objectId,partName,colliderIndex,shape:snapshot.shape,position:snapshot.position,rotation:snapshot.rotation
+        });
+        if(projected.item) items.push(projected.item);
+        else skipped.push(projected.skipped);
       }
     };
 
