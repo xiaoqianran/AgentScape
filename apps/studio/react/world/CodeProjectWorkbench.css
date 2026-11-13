@@ -9,6 +9,17 @@
 .code-source-label { flex:1; min-height:240px; }
 .code-source-label textarea { flex:1; resize:vertical; min-height:240px; font:12px/1.5 monospace; tab-size:2; white-space:pre; }
 .code-project-buttons { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.code-project-batch { display:grid; gap:10px; padding:12px; border:1px solid #6b92c5; border-radius:8px; }
+.code-project-batch h3,.code-project-batch p { margin:0; }
+.code-project-batch p,.code-project-batch small { font-size:12px; }
+.code-project-diff { margin:0; border:1px solid #44546a; border-radius:6px; padding:8px; min-width:0; }
+.code-project-diff summary { cursor:pointer; font-weight:600; overflow-wrap:anywhere; }
+.code-project-diff pre { overflow:auto; max-height:240px; margin:8px 0 0; font:12px/1.5 monospace; white-space:pre; }
+.code-project-diff pre span { display:block; min-height:1em; }
+.code-project-diff pre span.added { color:#79d99c; background:rgba(24,115,58,.13); }
+.code-project-diff pre span.removed { color:#f39a9a; background:rgba(153,32,32,.12); }
+.code-project-diff pre span.context { opacity:.75; }
+.code-project-batch-undo { display:grid; gap:8px; }
 .code-project-files { display:grid; gap:4px; padding:10px; border:1px solid #44546a; border-radius:8px; }
 .code-project-files > strong,.code-project-resources > strong { display:flex; justify-content:space-between; align-items:center; }
 .code-project-files button { display:flex; justify-content:space-between; gap:6px; width:100%; text-align:left;

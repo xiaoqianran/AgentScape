@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import './CodeProjectWorkbench.css';
 import { formFieldsForAction, initialActionFieldValues, actionArgumentsFromFields } from './ProjectActionArguments.js';
+import { ProjectBatchReview } from './ProjectBatchReview.js';
 
 export const emptyCodeState = Object.freeze({ visible:false, active:false });
 export const emptyCodeSubscribe = () => () => {};
@@ -81,6 +82,8 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
     {project ? <>
       <label>项目名称<input aria-label="代码项目名称" value={name} disabled={busy}
         onChange={e=>{setName(e.target.value);setDirty(true);}} /></label>
+      <ProjectBatchReview controller={controller} preview={state.batchPreview || null} undo={state.undoBatch || null}
+        revision={state.revision} busy={busy} dirty={dirty} onRun={run} />
       <div className="code-project-files" aria-label="项目文件列表">
         <strong>工程文件 <small>{paths.length} 个</small></strong>
         {paths.map(path=><button key={path} type="button" className={activeFile===path?'selected':''}
@@ -159,24 +162,23 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
     <input hidden ref={codeInput} type="file" multiple accept=".js,.mjs,.glsl,.vert,.frag,.wgsl,.json,.txt" onChange={event=>{
       const inputs=[...(event.target.files || [])];event.target.value='';
       if(inputs.length) void run(async()=>{
-        await apply();let revision=controller.snapshot().revision;
-        for(const input of inputs) {
-          const path=input.webkitRelativePath || input.name;
-          await controller.editFile({action:'create',path,content:await input.text(),expectedRevision:revision});
-          revision=controller.snapshot().revision;
-        }
+        await apply();
+        const operations=await Promise.all(inputs.map(async input=>({
+          kind:'file',action:'create',path:input.webkitRelativePath || input.name,content:await input.text()
+        })));
+        await controller.commitBatch({operations,expectedRevision:controller.snapshot().revision});
         setActiveFile(inputs[inputs.length-1].webkitRelativePath || inputs[inputs.length-1].name);
       },'代码文件已导入');
     }} />
     <input hidden ref={resourceInput} type="file" multiple onChange={event=>{
       const inputs=[...(event.target.files || [])];event.target.value='';
       if(inputs.length) void run(async()=>{
-        await apply();let revision=controller.snapshot().revision;
-        for(const input of inputs) {
-          await controller.editResource({action:'add',path:input.name,mime:input.type || 'application/octet-stream',
-            base64:await resourceBase64(input),expectedRevision:revision});
-          revision=controller.snapshot().revision;
-        }
+        await apply();
+        const operations=await Promise.all(inputs.map(async input=>({
+          kind:'resource',action:'add',path:input.name,mime:input.type || 'application/octet-stream',
+          base64:await resourceBase64(input)
+        })));
+        await controller.commitBatch({operations,expectedRevision:controller.snapshot().revision});
       },'资源文件已导入');
     }} />
   </div>;

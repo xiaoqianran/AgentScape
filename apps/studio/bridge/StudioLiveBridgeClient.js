@@ -160,6 +160,10 @@ export class StudioLiveBridgeClient {
       if (operation === 'file_read') return this.codeProjects.readFile(input.path,input);
       if (operation === 'file') return this.codeProjects.editFile(input);
       if (operation === 'resource') return this.codeProjects.editResource(input);
+      if (operation === 'preview_batch') return this.codeProjects.previewBatch(input);
+      if (operation === 'apply_batch') return this.codeProjects.applyBatch(input);
+      if (operation === 'discard_batch') return this.codeProjects.discardBatch(input);
+      if (operation === 'undo_batch') return this.codeProjects.undoBatch(input);
       if (operation === 'run') return this.codeProjects.run(input);
       if (operation === 'save') return this.codeProjects.save();
       if (operation === 'open') return this.codeProjects.load(input.id);

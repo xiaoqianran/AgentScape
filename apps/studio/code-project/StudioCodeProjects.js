@@ -3,21 +3,12 @@ import { AgentTools } from '../../../application/AgentTools.js';
 import { SCENE_LEGACY_SKILLS } from '../../../application/scene/SceneFacade.js';
 import { AuthoringWorldStore } from '../persistence/AuthoringWorldStore.js';
 import { projectTemplate, projectGuide } from './projectTemplate.js';
-import { assertCodeFilePath, projectFileEntries } from '../../../application/native-scene/CodeProjectModules.js';
+import { projectFileEntries, compileCodeProjectModules } from '../../../application/native-scene/CodeProjectModules.js';
+import { applyProjectChanges, summarizeProjectChanges, patchProjectText } from './StudioProjectChanges.js';
 
 const fail = code => Object.assign(new Error(code), { code });
 const clone = value => structuredClone(value);
 const withoutIntegrity = ({ integrity, ...value }) => value;
-
-/** Replace exactly one source fragment; never guess which occurrence an Agent intended. */
-function patchSource(source, { oldText, newText } = {}) {
-  if (typeof oldText !== 'string' || !oldText.length || typeof newText !== 'string') throw fail('PROJECT_PATCH_INVALID');
-  const start = source.indexOf(oldText);
-  if (start < 0) throw fail('PROJECT_PATCH_NOT_FOUND');
-  if (source.indexOf(oldText, start + 1) >= 0) throw fail('PROJECT_PATCH_AMBIGUOUS');
-  if (oldText === newText) throw fail('PROJECT_PATCH_UNCHANGED');
-  return source.slice(0, start) + newText + source.slice(start + oldText.length);
-}
 
 /** Studio project ownership. Source drafts and live state have distinct revisions. */
 export class StudioCodeProjects {
@@ -26,6 +17,7 @@ export class StudioCodeProjects {
     Object.assign(this, { container, baseScene, baseWorld, store, open, onActivate, onShow });
     this.session = null; this.draft = null; this.revision = 0; this.runningRevision = null;
     this.listeners = new Set(); this.busy = false; this.visible = false;
+    this.pendingBatch = null; this.lastBatch = null;
     this.current = Object.freeze({ visible:false, active:false, busy:false, project:null, revision:0, runningRevision:null, projects:[], error:null });
   }
   subscribe = listener => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
@@ -34,7 +26,10 @@ export class StudioCodeProjects {
   get world() { return this.session?.world || this.baseWorld; }
   emit(patch = {}) {
     this.current = Object.freeze({ ...this.current, visible:this.visible, active:Boolean(this.session), busy:this.busy,
-      project:this.draft ? clone(this.draft) : null, revision:this.revision, runningRevision:this.runningRevision, ...patch });
+      project:this.draft ? clone(this.draft) : null, revision:this.revision, runningRevision:this.runningRevision,
+      batchPreview:this.pendingBatch?.summary || null,
+      undoBatch:this.lastBatch ? { revision:this.lastBatch.revision, ...this.lastBatch.counts } : null,
+      ...patch });
     for (const listener of this.listeners) listener();
   }
   show() { this.visible = true; this.onShow(true); this.emit(); void this.refresh().catch(error => this.emit({ error:error.message })); }
@@ -65,61 +60,79 @@ export class StudioCodeProjects {
       nextOffset:offset+chunk.length<content.length?offset+chunk.length:null,
       revision:this.revision, entry:this.draft.entry || 'main.js' };
   }
-  /** Build an immutable next draft. The shared write() gate validates revision before publishing. */
-  async editFile({ action, path, newPath, content, oldText, newText, name, expectedRevision } = {}) {
+  async editFile({ expectedRevision, ...change } = {}) {
     if (!this.draft) throw fail('PROJECT_REQUIRED');
     if (expectedRevision !== this.revision) throw fail('PROJECT_REVISION_CONFLICT');
-    const entry = this.draft.entry || 'main.js';
-    assertCodeFilePath(path);
-    const next = clone(withoutIntegrity(this.draft));
-    next.entry = entry;
-    next.files ||= {};
-    const exists = path === entry || Object.hasOwn(next.files,path);
-    if (action === 'create') {
-      if (exists) throw fail('PROJECT_FILE_EXISTS');
-      if (typeof content !== 'string') throw fail('PROJECT_FILE_CONTENT_REQUIRED');
-      next.files[path] = content;
-    } else if (action === 'write' || action === 'patch') {
-      if (!exists) throw fail('PROJECT_FILE_NOT_FOUND');
-      const previous = path === entry ? next.source : next.files[path];
-      const updated = action === 'patch' ? patchSource(previous,{oldText,newText}) : content;
-      if (typeof updated !== 'string') throw fail('PROJECT_FILE_CONTENT_REQUIRED');
-      if (updated === previous && (name === undefined || name === next.name)) throw fail('PROJECT_PATCH_UNCHANGED');
-      if (path === entry) next.source = updated; else next.files[path] = updated;
-      if (name !== undefined) next.name = name;
-    } else if (action === 'rename') {
-      assertCodeFilePath(newPath);
-      if (!exists) throw fail('PROJECT_FILE_NOT_FOUND');
-      if (newPath === entry || Object.hasOwn(next.files,newPath)) throw fail('PROJECT_FILE_EXISTS');
-      if (path === entry) next.entry = newPath;
-      else { next.files[newPath] = next.files[path]; delete next.files[path]; }
-    } else if (action === 'delete') {
-      if (path === entry) throw fail('PROJECT_ENTRY_REQUIRED');
-      if (!exists) throw fail('PROJECT_FILE_NOT_FOUND');
-      delete next.files[path];
-    } else throw fail('PROJECT_FILE_ACTION_INVALID');
-    return this.write({ project:next, expectedRevision }).then(result =>
-      ({ ...result, status:'project-file-'+action, path, ...(newPath ? {newPath} : {}) }));
+    const next = applyProjectChanges(this.draft,[{ ...change, kind:'file' }]);
+    const result = await this.write({project:next,expectedRevision});
+    return { ...result,status:'project-file-'+change.action,path:change.path,
+      ...(change.newPath ? {newPath:change.newPath} : {}) };
   }
-  async editResource({ action, path, mime, base64, expectedRevision } = {}) {
+  async editResource({ expectedRevision, ...change } = {}) {
     if (!this.draft) throw fail('PROJECT_REQUIRED');
     if (expectedRevision !== this.revision) throw fail('PROJECT_REVISION_CONFLICT');
-    if (typeof path !== 'string' || path.length > 180 ||
-      !/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/.test(path) ||
-      path.split('/').some(part=>part==='..'||part==='.')) throw fail('PROJECT_RESOURCE_PATH_INVALID');
+    const next = applyProjectChanges(this.draft,[{ ...change, kind:'resource' }]);
+    const result = await this.write({project:next,expectedRevision});
+    return { ...result,status:'project-resource-'+change.action,path:change.path };
+  }
+  /** Validate all changes and relative imports first. Review is transient; no draft is persisted. */
+  async previewBatch({ operations,expectedRevision } = {}) {
+    return this.exclusive(async () => {
+      if (!this.draft) throw fail('PROJECT_REQUIRED');
+      if (expectedRevision !== this.revision) throw fail('PROJECT_REVISION_CONFLICT');
+      const next = await parseCodeProject(applyProjectChanges(this.draft, operations));
+      await compileCodeProjectModules(next); // Resolve the module graph without executing project code.
+      const changes = summarizeProjectChanges(this.draft,next);
+      const previewId = crypto.randomUUID();
+      const summary = { status:'project-batch-preview',previewId,baseRevision:this.revision,
+        operations:operations.length,...changes };
+      this.pendingBatch = { previewId,baseRevision:this.revision,operations:clone(operations),summary };
+      this.emit();
+      return clone(summary);
+    });
+  }
+  /** One persist, one revision, one undo snapshot. Rebase on the latest runtime state. */
+  async applyBatch({ previewId,expectedRevision } = {}) {
+    const pending = this.pendingBatch;
+    if (!pending || pending.previewId !== previewId) throw fail('PROJECT_BATCH_PREVIEW_NOT_FOUND');
+    if (expectedRevision !== pending.baseRevision || this.revision !== pending.baseRevision)
+      throw fail('PROJECT_REVISION_CONFLICT');
+    const before = clone(withoutIntegrity(this.draft));
+    const next = applyProjectChanges(before,pending.operations);
+    const result = await this.write({project:next,expectedRevision});
+    this.lastBatch = { revision:this.revision,before,
+      counts:{files:pending.summary.files,resources:pending.summary.resources} };
+    this.emit();
+    return { ...result,status:'project-batch-applied',previewId,
+      files:pending.summary.files,resources:pending.summary.resources };
+  }
+  async commitBatch({ operations,expectedRevision } = {}) {
+    const preview = await this.previewBatch({operations,expectedRevision});
+    return this.applyBatch({previewId:preview.previewId,expectedRevision});
+  }
+  async discardBatch({ previewId } = {}) {
+    return this.exclusive(async () => {
+      if (!this.pendingBatch || this.pendingBatch.previewId !== previewId)
+        throw fail('PROJECT_BATCH_PREVIEW_NOT_FOUND');
+      this.pendingBatch = null;
+      this.emit();
+      return { status:'project-batch-discarded',previewId };
+    });
+  }
+  /** Revert only the most recently applied batch. Runtime state captured since then is retained. */
+  async undoBatch({ expectedRevision } = {}) {
+    const previous = this.lastBatch;
+    if (!previous) throw fail('PROJECT_BATCH_UNDO_UNAVAILABLE');
+    if (expectedRevision !== this.revision || previous.revision !== this.revision)
+      throw fail('PROJECT_REVISION_CONFLICT');
     const next = clone(withoutIntegrity(this.draft));
-    next.resources ||= {};
-    if (action === 'add') {
-      if (Object.hasOwn(next.resources,path)) throw fail('PROJECT_RESOURCE_EXISTS');
-      if (typeof mime !== 'string' || !mime || typeof base64 !== 'string' ||
-        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64))
-        throw fail('PROJECT_RESOURCE_INVALID');
-      next.resources[path] = { mime, base64 };
-    } else if (action === 'delete') {
-      if (!Object.hasOwn(next.resources,path)) throw fail('PROJECT_RESOURCE_NOT_FOUND');
-      delete next.resources[path];
-    } else throw fail('PROJECT_RESOURCE_ACTION_INVALID');
-    return this.write({ project:next,expectedRevision }).then(result => ({...result,status:'project-resource-'+action,path}));
+    for (const field of ['name','source','entry','files','resources']) {
+      if (Object.hasOwn(previous.before,field)) next[field] = clone(previous.before[field]);
+      else delete next[field];
+    }
+    const result = await this.write({project:next,expectedRevision});
+    return { ...result,status:'project-batch-undone',
+      files:previous.counts.files,resources:previous.counts.resources };
   }
   async exclusive(operation) {
     if (this.busy) throw fail('PROJECT_BUSY');
@@ -137,7 +150,7 @@ export class StudioCodeProjects {
       if (!create && (!this.draft || expectedRevision !== this.revision)) throw fail('PROJECT_REVISION_CONFLICT');
       if (create && this.session) throw fail('CLOSE_PROJECT_BEFORE_CREATE');
       if (patch && (create || project || source !== undefined || name !== undefined)) throw fail('PROJECT_PATCH_INVALID');
-      const nextSource = patch ? patchSource(this.draft.source, patch) : source;
+      const nextSource = patch ? patchProjectText(this.draft.source, patch) : source;
       const input = project || (create
         ? { schema:'agentscape.code-project', schemaVersion:1, id:'world_' + crypto.randomUUID().replaceAll('-',''), name:name || '我的代码世界', source:source || projectTemplate, resources:{} }
         : { ...withoutIntegrity(this.draft), ...(nextSource !== undefined ? { source:nextSource } : {}), ...(name !== undefined ? { name } : {}) });
@@ -146,6 +159,7 @@ export class StudioCodeProjects {
       const revision = this.revision + 1;
       await this.persist(next, revision);
       this.draft = next; this.revision = revision; this.runningRevision = create ? null : this.runningRevision;
+      this.pendingBatch = null; this.lastBatch = null;
       this.visible = true; this.onShow(); this.emit();
       return { status:patch?'project-source-patched':'project-draft-saved', id:next.id, revision };
     });
@@ -193,6 +207,7 @@ export class StudioCodeProjects {
       if (!saved) throw fail('PROJECT_NOT_FOUND');
       const project = await parseCodeProject(saved.document.project);
       this.draft = project; this.revision = Math.max(this.revision + 1, saved.document.revision); this.runningRevision = null;
+      this.pendingBatch = null; this.lastBatch = null;
       this.visible = true; this.onShow(); this.emit();
       return { status:'project-opened', id, revision:this.revision };
     });
@@ -207,11 +222,12 @@ export class StudioCodeProjects {
         this.session.close(); this.session = null; this.runningRevision = null;
         this.stopFrameError?.(); this.onActivate(null);
       }
+      this.pendingBatch = null; this.lastBatch = null;
       this.visible = false; this.emit();
       return { status:'project-closed' };
     });
   }
-  dispose() { this.stopFrameError?.(); this.session?.close(); this.listeners.clear(); }
+  dispose() { this.stopFrameError?.(); this.session?.close(); this.listeners.clear(); this.pendingBatch=null; this.lastBatch=null; }
   wrapTools(base) {
     const controller = this;
     const definitions = [
@@ -226,6 +242,19 @@ export class StudioCodeProjects {
       { name:'editStudioResource', description:'Add or remove one embedded binary project resource (mime and base64 for add). Resource is accessible in project code via resource(path).',
         parameters:{type:'object',properties:{action:{type:'string',enum:['add','delete']},path:{type:'string'},mime:{type:'string'},base64:{type:'string'},expectedRevision:{type:'integer',minimum:0}},
         required:['action','path','expectedRevision'],additionalProperties:false} },
+      { name:'previewStudioProjectBatch', description:'Stage 1-32 coordinated file/resource edits against expectedRevision. Preview all code differences without saving; inspect previewId and changes before applying.', parameters:{type:'object',properties:{
+        expectedRevision:{type:'integer',minimum:0}, operations:{type:'array',minItems:1,maxItems:32,items:{type:'object',
+          properties:{kind:{type:'string',enum:['file','resource']},action:{type:'string',enum:['create','write','patch','rename','delete','add']},
+            path:{type:'string'},newPath:{type:'string'},content:{type:'string'},oldText:{type:'string'},newText:{type:'string'},
+            mime:{type:'string'},base64:{type:'string'}},required:['kind','action','path'],additionalProperties:false }}
+      },required:['expectedRevision','operations'],additionalProperties:false} },
+      { name:'applyStudioProjectBatch', description:'Atomically persist the reviewed multi-file batch using previewId and expectedRevision; one revision, one undo. Run separately.', parameters:{type:'object',
+        properties:{previewId:{type:'string'},expectedRevision:{type:'integer',minimum:0}},
+        required:['previewId','expectedRevision'],additionalProperties:false} },
+      { name:'discardStudioProjectBatch', description:'Discard an uncommitted multi-file preview. Does not change project files.',parameters:{type:'object',
+        properties:{previewId:{type:'string'}},required:['previewId'],additionalProperties:false} },
+      { name:'undoStudioProjectBatch', description:'Undo the last applied multi-file batch if no later edits occurred; retains current runtime state. Run separately.',parameters:{type:'object',
+        properties:{expectedRevision:{type:'integer',minimum:0}},required:['expectedRevision'],additionalProperties:false} },
       ...['run','save','open','close'].map(operation => ({ name:operation+'StudioProject', description:({run:'Run the current source draft in Studio, preserving live serialized state. Failed setup keeps old world.',save:'Save the running source, resources, current custom state and assets to local project library.',open:'Open a saved project draft by id; run separately.',close:'Save live state and return to built-in world.'})[operation], parameters:{ type:'object', properties:operation==='open'?{id:{type:'string'}}:operation==='run'?{expectedRevision:{type:'integer'}}:{}, ...(operation==='open'?{required:['id']}:{}), additionalProperties:false } }))
     ];
     const names = new Set(definitions.map(item => item.name));
@@ -251,6 +280,10 @@ export class StudioCodeProjects {
         if (name === 'readStudioFile') return controller.readFile(args.path,args);
         if (name === 'editStudioFile') return controller.editFile(args);
         if (name === 'editStudioResource') return controller.editResource(args);
+        if (name === 'previewStudioProjectBatch') return controller.previewBatch(args);
+        if (name === 'applyStudioProjectBatch') return controller.applyBatch(args);
+        if (name === 'discardStudioProjectBatch') return controller.discardBatch(args);
+        if (name === 'undoStudioProjectBatch') return controller.undoBatch(args);
         if (name === 'runStudioProject') return controller.run(args);
         if (name === 'saveStudioProject') return controller.save();
         if (name === 'openStudioProject') return controller.load(args.id);
