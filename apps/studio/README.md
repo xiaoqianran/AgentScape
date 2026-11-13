@@ -6,6 +6,8 @@
 
 任务见 tasks.jsonl。验证：npm run test:studio、npm run typecheck、npm run build。
 
+代码世界工作台支持原生多文件 JS、Shader、JSON 编辑、相对 ESM import、资源上传，以及 AI/MCP 文件级操作与存档。示例：[多文件发光雕塑](../../examples/code-project/multifile-studio.json)。
+
 ## 自动保存失败处理
 
 Studio 自动保存仍使用同步 `localStorage`，不会声称已经完成 IndexedDB 迁移。每次有新编辑时延迟 600 ms 保存；如果存储或序列化失败，发送 `scene.autosave.failed`，并自动最多重试 2 次（默认延迟分别为 2 s、4 s）。重试全部失败时发送 `scene.autosave.retry-exhausted`，任务面板提示用户及时导出备份。新编辑可重新触发保存，成功后清空失败状态。

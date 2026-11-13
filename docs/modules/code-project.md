@@ -102,6 +102,21 @@ tests/integration/code-project.test.js 覆盖打包、模块运行、Shader、Ag
 
 保留了工作区已有 180 秒网关默认超时，仅同步了其过时的 90 秒测试预期。本次是本地实现与自动验收记录，不是 npm 发布或独立人类首次使用验收。
 
+## Studio 原生多文件工程（2026-11-13 第二批）
+
+Studio 不再要求每次编辑都先离线打包。代码世界保持 `agentscape.code-project` v1，不修改旧项目格式的必填字段。
+
+- `source`：入口文件源码；`entry`：入口路径（默认 `main.js`，旧项目可省略）；`files`：其余可编辑文本文件，路径到源码的映射；`resources`：图片等二进制资源原有 base64/MIME 映射。
+- Studio 文件列表可创建、导入、切换、重命名、删除及保存 JS/Shader/TXT/JSON 文件；资源区导入图片等二进制文件。默认资源上传单文件上限 8 MiB；总项目由解析预算保护。
+- `import './lib/util.js'`、`import code from './shaders/glow.frag'`、`import config from './settings.json'` 均可直接运行；Shader/TXT 默认导出字符串、JSON 默认导出解析后的值。来自 `three` 的标准导入与当前宿主引擎共享实例。
+- 采用浏览器/Node 共用的轻量 ESM 模块链接，不需要另一套服务器；每个代码文件最大 1 MiB，工程最多 64 个文本文件，编译后的模块 URL 有独立预算。遇到相对导入缺失、循环引用或非法文件名，返回明确错误且不会替换现有世界。
+- 当前**不支持**动态 `import()`、npm 裸包（除 `three`）、Three addons 路径及自动转换 Vue/React 工程。这些工程继续通过 `dev/build-code-project.mjs` 预打包；原生框架宿主可继续使用 `AgentScape.attach()`。
+- 可直接从 Studio 导入 [多文件发光雕塑示例](../../examples/code-project/multifile-studio.json)，真实 ShaderMaterial、动态 `setSpeed` 和保存恢复可共同测试。
+
+AI 工具：`readStudioProject` 返回当前项目基本信息、入口源码预览、文件/资源清单和修订号，**不会把所有资源 base64 发给模型**。`readStudioFile({path,offset,limit})` 可分页阅读文件；`editStudioFile({action,path,newPath,content,oldText,newText,expectedRevision})` 进行文件级创建/写入/补丁/重命名/删除。`editStudioResource({action,path,mime,base64,expectedRevision})` 添加/删除资源。修改不会直接影响正在运行的实例，必须重新运行。文件操作仍受修订号保护，入口文件不可删除。
+
+MCP `studio_project` 对应新增操作 `file_read`、`file`、`resource`；`patch` 也可指定 `path`。完整文件仍只保存在 Studio 本机存储，不要求 MCP 客户端维护世界副本。读文件默认每页 65,536 字符，支持 `nextOffset` 分页。
+
 ## Studio 主工作台
 
 世界页面点击「代码世界」，或从世界库点击「创建或打开代码世界」。左侧编辑完整 ESM，中间运行原生 Three.js，右侧显示项目对象、实时状态和动态动作。常见字符串、数字、布尔值及枚举参数自动显示输入表单；复杂参数可切换高级 JSON，动作运行时可取消，并分别显示执行结果和验证状态。
@@ -114,7 +129,7 @@ tests/integration/code-project.test.js 覆盖打包、模块运行、Shader、Ag
 
 任务面板 AI 工具：readStudioProject 读取源码、修订号、API 指引与实时能力；writeStudioProject 创建或按 expectedRevision 写入完整草稿；patchStudioProject 使用唯一匹配的 oldText/newText/expectedRevision 精确增量修改（缺失、重复或版本冲突均不修改）；runStudioProject 运行；saveStudioProject 保存；openStudioProject 打开；closeStudioProject 保存并返回。AI 工具随活动世界刷新，与主画布共用实例。
 
-MCP 新增 studio_project，operation 为 read/write/patch/run/save/open/close。先 read，再 write 和 run；动态动作继续通过 scene_observe、scene_interact、scene_job 执行。scene_save 同时持久化活动代码项目到本机库。此工具仅作用于连接中的 Studio，受现有 MCP 传输预算约束；大资源作品可从工作台导入。编辑器操作完整单模块 ESM，多文件工程先打包后导入。
+MCP 的 studio_project 支持 read/write/patch/file_read/file/resource/run/save/open/close。先 read，再根据文件清单选择 file_read 和 file 修改，最后 run；动态动作继续通过 scene_observe、scene_interact、scene_job 执行。scene_save 同时持久化活动代码项目到本机库。此工具仅作用于连接中的 Studio，受现有 MCP 传输预算约束；大资源作品可从工作台导入。Studio 能直接编辑并运行相对依赖的 JS/Shader/JSON；第三方 npm 包仍需预打包。
 
 此路径执行可信完整 JavaScript；AI 需要已配置的模型网关。自动验收使用固定协议响应，验证真实工具执行，不代表在线模型成功率。
 
