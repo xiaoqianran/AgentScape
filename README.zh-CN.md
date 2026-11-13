@@ -4,6 +4,8 @@
 
 **让人和 AI 能够操作同一个交互式 3D 世界。**
 
+自由代码项目入口已加入开发工作区：运行多文件 Three.js、Shader 和持续逻辑，自定义可供 AI 发现的动作，保存代码与状态后重开。详见 [Code Project](docs/modules/code-project.md)，本地示例 `/examples/code-project/`；尚不表示已发布到 npm。
+
 Three.js 渲染、Rapier 物理和 Recast 导航共享真实世界状态。人物能够走近物体、拾取和放置；请求成功与实际行为验证分开报告。
 
 [在线 Studio](https://agentscape-virid.vercel.app/) · [在线入门世界](https://agentscape-virid.vercel.app/starter/) · [English](README.md) · [入门示例](apps/starter/README.md) · [MCP](apps/mcp-server/README.md) · [贡献指南](CONTRIBUTING.md)

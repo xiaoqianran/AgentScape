@@ -1,5 +1,7 @@
 # Planning
 
+项目目标与下一阶段路径建议见 [2026-11-12 重规划](replan-2026-11-12.md)。该文件用于收敛产品主线与验收顺序，不替代现行契约或 tasks.jsonl 的权威状态。
+
 ## v2.0 执行基线
 
 本轮 v2 决策优先于旧草案：JSON 是唯一规范格式；以 `AgentScape.open()` / SceneHandle 为公共目标，保留现有 Runtime 和四层目录。Scene Project、Asset Package、StylePack 分别版本化；Recipe 有界且声明式。目标能力尚不能当作已发布接口。

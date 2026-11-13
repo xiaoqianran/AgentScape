@@ -1,0 +1,698 @@
+{
+  "schema": "agentscape.project-bundle",
+  "schemaVersion": 1,
+  "project": {
+    "schema": "agentscape.scene-project",
+    "schemaVersion": 1,
+    "name": "Untitled World",
+    "environment": {
+      "type": "builtin",
+      "id": "monument-hall"
+    },
+    "objects": [
+      {
+        "id": "agent_01",
+        "asset": "builtin://agent",
+        "level": "physical",
+        "transform": {
+          "position": [
+            5.1534199714660645,
+            0.019983874633908272,
+            5.711150646209717
+          ],
+          "quaternion": [
+            0,
+            -0.015406617894768715,
+            0,
+            0.9998813271522522
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "cabinet_01",
+        "asset": "./assets/0/model.glb",
+        "level": "physical",
+        "transform": {
+          "position": [
+            -5.2,
+            0.01,
+            3.9
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "cup_01",
+        "asset": "builtin://cup",
+        "level": "physical",
+        "transform": {
+          "position": [
+            5.199638366699219,
+            1.0899558067321777,
+            4.199717044830322
+          ],
+          "quaternion": [
+            -0.0000011640134971457883,
+            -0.015406145714223385,
+            0.0000017900676994031528,
+            0.9998813271522522
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "table_01",
+        "asset": "builtin://table",
+        "level": "physical",
+        "transform": {
+          "position": [
+            5.2,
+            0.01,
+            4.2
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "demo_cup",
+        "asset": "builtin://cup",
+        "level": "physical",
+        "transform": {
+          "position": [
+            -1.000270128250122,
+            -0.00004456937313079834,
+            8.000295639038086
+          ],
+          "quaternion": [
+            -4.275458422853262e-7,
+            1.1280381961853436e-8,
+            -5.35377409960347e-7,
+            1
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "demo_pillar",
+        "asset": "./assets/1/model.glb",
+        "level": "visual",
+        "transform": {
+          "position": [
+            -2,
+            0,
+            7
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": 1
+        }
+      },
+      {
+        "id": "demo_bench",
+        "asset": "./assets/2/model.glb",
+        "level": "visual",
+        "transform": {
+          "position": [
+            -3.5,
+            0,
+            6
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": 1
+        }
+      }
+    ]
+  },
+  "snapshot": {
+    "schema": "agentscape.scene",
+    "schemaVersion": 1,
+    "metadata": {
+      "name": "Untitled World",
+      "savedAt": "2026-11-05T12:26:36.042Z",
+      "generator": "AgentScape/2.0.0-dev.1",
+      "environment": "monument-hall",
+      "worldRevision": {
+        "revision": {
+          "id": "remote-monument-r1",
+          "reason": "trusted offline template"
+        },
+        "provenance": {
+          "source": "remote-mcp",
+          "createdBy": "AgentScape",
+          "evidenceRefs": []
+        }
+      }
+    },
+    "assets": [],
+    "objects": [
+      {
+        "id": "agent_01",
+        "assetId": "agent",
+        "transform": {
+          "position": [
+            5.1534199714660645,
+            0.019983874633908272,
+            5.711150646209717
+          ],
+          "quaternion": [
+            0,
+            -0.015406617894768715,
+            0,
+            0.9998813271522522
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {
+          "navigation": {
+            "status": "arrived",
+            "target": [
+              5.2,
+              0.1,
+              5.715
+            ],
+            "speed": 2.2
+          }
+        }
+      },
+      {
+        "id": "cabinet_01",
+        "assetId": "cabinet",
+        "transform": {
+          "position": [
+            -5.2,
+            0.01,
+            3.9
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {
+          "parts": {
+            "door": "open"
+          }
+        },
+        "articulation": [
+          {
+            "partName": "door",
+            "position": [
+              -0.8199999809265135,
+              0.9999999904632568,
+              0.38999996185302743
+            ],
+            "quaternion": [
+              -1.2984983088770718e-9,
+              -0.624897301197052,
+              -5.250266887912858e-10,
+              0.7807070016860962
+            ],
+            "motorTarget": -1.35
+          }
+        ]
+      },
+      {
+        "id": "cup_01",
+        "assetId": "cup",
+        "transform": {
+          "position": [
+            5.199638366699219,
+            1.0899558067321777,
+            4.199717044830322
+          ],
+          "quaternion": [
+            -0.0000011640134971457883,
+            -0.015406145714223385,
+            0.0000017900676994031528,
+            0.9998813271522522
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      },
+      {
+        "id": "table_01",
+        "assetId": "table",
+        "transform": {
+          "position": [
+            5.2,
+            0.01,
+            4.2
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      },
+      {
+        "id": "demo_cup",
+        "assetId": "cup",
+        "transform": {
+          "position": [
+            -1.000270128250122,
+            -0.00004456937313079834,
+            8.000295639038086
+          ],
+          "quaternion": [
+            -4.275458422853262e-7,
+            1.1280381961853436e-8,
+            -5.35377409960347e-7,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      },
+      {
+        "id": "demo_pillar",
+        "assetId": "asset_ebaf68ae0dc7b35ec2435be5b1aee7f8d7eae0c7fb3a58252189b9b65df1929e",
+        "transform": {
+          "position": [
+            -2,
+            0,
+            7
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      },
+      {
+        "id": "demo_bench",
+        "assetId": "asset_76a8cab85c5c01835ed8a751aab1ef254be7f154be77e342ca8dbd327bb19183",
+        "transform": {
+          "position": [
+            -3.5,
+            0,
+            6
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "state": {}
+      }
+    ],
+    "configuration": {
+      "behaviorBundle": {
+        "schema": "agentscape.world-behavior-bundle",
+        "schemaVersion": 1,
+        "worldRevisionId": "remote-monument-r1",
+        "capabilityIntents": [
+          {
+            "entityId": "cabinet_01",
+            "capabilities": [
+              "OPEN"
+            ]
+          },
+          {
+            "entityId": "cup_01",
+            "capabilities": [
+              "PICKUP"
+            ]
+          }
+        ],
+        "behaviorGraph": {
+          "schema": "agentscape.runtime-command",
+          "schemaVersion": 1,
+          "commands": []
+        },
+        "ruleGraph": {
+          "schema": "agentscape.rule-graph",
+          "schemaVersion": 1,
+          "rules": []
+        }
+      },
+      "physicsRequirements": {
+        "schema": "agentscape.world-physics-requirements",
+        "schemaVersion": 1,
+        "worldRevisionId": "remote-monument-r1",
+        "policy": {
+          "fallbackPolicy": "deny"
+        },
+        "requirements": []
+      }
+    },
+    "relations": [
+      {
+        "subject": "agent_01",
+        "predicate": "NEAR",
+        "object": "cup_01",
+        "meta": {
+          "distance": 1.559
+        }
+      },
+      {
+        "subject": "cup_01",
+        "predicate": "NEAR",
+        "object": "agent_01",
+        "meta": {
+          "distance": 1.559
+        }
+      },
+      {
+        "subject": "agent_01",
+        "predicate": "NEAR",
+        "object": "table_01",
+        "meta": {
+          "distance": 1.545
+        }
+      },
+      {
+        "subject": "table_01",
+        "predicate": "NEAR",
+        "object": "agent_01",
+        "meta": {
+          "distance": 1.545
+        }
+      },
+      {
+        "subject": "cup_01",
+        "predicate": "NEAR",
+        "object": "table_01",
+        "meta": {
+          "distance": 0.7
+        }
+      },
+      {
+        "subject": "table_01",
+        "predicate": "NEAR",
+        "object": "cup_01",
+        "meta": {
+          "distance": 0.7
+        }
+      },
+      {
+        "subject": "cup_01",
+        "predicate": "ON",
+        "object": "table_01",
+        "meta": {
+          "surfaceId": "top",
+          "gap": 0.02,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "table_01",
+        "predicate": "SUPPORTS",
+        "object": "cup_01",
+        "meta": {
+          "surfaceId": "top",
+          "gap": 0.02,
+          "evidence": "spatial-geometry"
+        }
+      },
+      {
+        "subject": "demo_cup",
+        "predicate": "NEAR",
+        "object": "demo_pillar",
+        "meta": {
+          "distance": 1.574
+        }
+      },
+      {
+        "subject": "demo_pillar",
+        "predicate": "NEAR",
+        "object": "demo_cup",
+        "meta": {
+          "distance": 1.574
+        }
+      },
+      {
+        "subject": "demo_pillar",
+        "predicate": "NEAR",
+        "object": "demo_bench",
+        "meta": {
+          "distance": 1.841
+        }
+      },
+      {
+        "subject": "demo_bench",
+        "predicate": "NEAR",
+        "object": "demo_pillar",
+        "meta": {
+          "distance": 1.841
+        }
+      }
+    ]
+  },
+  "assets": [
+    {
+      "id": "cabinet",
+      "sha256": "6bce21aa67b07faf8147c66e11a906289e2c71af5ba3712675553609403413b8",
+      "bytes": "Z2xURgIAAADIBwAAJAUAAEpTT057ImFzc2V0Ijp7InZlcnNpb24iOiIyLjAiLCJnZW5lcmF0b3IiOiJBZ2VudFNjYXBlIGRlbW8gYXNzZXQgZ2VuZXJhdG9yIn0sInNjZW5lIjowLCJzY2VuZXMiOlt7Im5vZGVzIjpbMCwxXX1dLCJub2RlcyI6W3sibmFtZSI6IkJvZHkiLCJtZXNoIjowLCJ0cmFuc2xhdGlvbiI6WzAsMSwwXSwic2NhbGUiOlsxLjcsMi4wLDAuNzJdfSx7Im5hbWUiOiJkb29ySGluZ2UiLCJ0cmFuc2xhdGlvbiI6Wy0wLjgyLDEsMC4zOV0sImNoaWxkcmVuIjpbMl19LHsibmFtZSI6IkRvb3IiLCJtZXNoIjoxLCJ0cmFuc2xhdGlvbiI6WzAuODEsMCwwXSwic2NhbGUiOlsxLjYyLDEuOSwwLjA4XX1dLCJtZXNoZXMiOlt7Im5hbWUiOiJDYWJpbmV0Qm9keSIsInByaW1pdGl2ZXMiOlt7ImF0dHJpYnV0ZXMiOnsiUE9TSVRJT04iOjAsIk5PUk1BTCI6MX0sImluZGljZXMiOjIsIm1hdGVyaWFsIjowfV19LHsibmFtZSI6IkNhYmluZXREb29yIiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MCwiTk9STUFMIjoxfSwiaW5kaWNlcyI6MiwibWF0ZXJpYWwiOjF9XX1dLCJtYXRlcmlhbHMiOlt7Im5hbWUiOiJDYWJpbmV0Qm9keSIsInBick1ldGFsbGljUm91Z2huZXNzIjp7ImJhc2VDb2xvckZhY3RvciI6WzAuMDg2LDAuMTIsMC4xOCwxXSwicm91Z2huZXNzRmFjdG9yIjowLjYyLCJtZXRhbGxpY0ZhY3RvciI6MH19LHsibmFtZSI6IkNhYmluZXREb29yIiwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC4yNCwwLjM2LDAuNTUsMV0sInJvdWdobmVzc0ZhY3RvciI6MC40NiwibWV0YWxsaWNGYWN0b3IiOjB9fV0sImJ1ZmZlcnMiOlt7ImJ5dGVMZW5ndGgiOjY0OH1dLCJidWZmZXJWaWV3cyI6W3siYnVmZmVyIjowLCJieXRlT2Zmc2V0IjowLCJieXRlTGVuZ3RoIjoyODgsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0IjoyODgsImJ5dGVMZW5ndGgiOjI4OCwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjU3NiwiYnl0ZUxlbmd0aCI6NzIsInRhcmdldCI6MzQ5NjN9XSwiYWNjZXNzb3JzIjpbeyJidWZmZXJWaWV3IjowLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MjQsInR5cGUiOiJWRUMzIiwibWluIjpbLTAuNSwtMC41LC0wLjVdLCJtYXgiOlswLjUsMC41LDAuNV19LHsiYnVmZmVyVmlldyI6MSwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjI0LCJ0eXBlIjoiVkVDMyJ9LHsiYnVmZmVyVmlldyI6MiwiY29tcG9uZW50VHlwZSI6NTEyMywiY291bnQiOjM2LCJ0eXBlIjoiU0NBTEFSIiwibWluIjpbMF0sIm1heCI6WzIzXX1dfYgCAABCSU4AAAAAPwAAAL8AAAC/AAAAPwAAAD8AAAC/AAAAPwAAAD8AAAA/AAAAPwAAAL8AAAA/AAAAvwAAAL8AAAA/AAAAvwAAAD8AAAA/AAAAvwAAAD8AAAC/AAAAvwAAAL8AAAC/AAAAvwAAAD8AAAC/AAAAvwAAAD8AAAA/AAAAPwAAAD8AAAA/AAAAPwAAAD8AAAC/AAAAvwAAAL8AAAA/AAAAvwAAAL8AAAC/AAAAPwAAAL8AAAC/AAAAPwAAAL8AAAA/AAAAvwAAAL8AAAA/AAAAPwAAAL8AAAA/AAAAPwAAAD8AAAA/AAAAvwAAAD8AAAA/AAAAPwAAAL8AAAC/AAAAvwAAAL8AAAC/AAAAvwAAAD8AAAC/AAAAPwAAAD8AAAC/AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAABAAIAAAACAAMABAAFAAYABAAGAAcACAAJAAoACAAKAAsADAANAA4ADAAOAA8AEAARABIAEAASABMAFAAVABYAFAAWABcA",
+      "definition": {
+        "type": "cabinet",
+        "label": "Cabinet",
+        "actions": [
+          "open",
+          "close",
+          "move"
+        ],
+        "physics": {
+          "body": "fixed",
+          "colliders": [
+            {
+              "shape": "box",
+              "halfExtents": [
+                0.05,
+                1,
+                0.36
+              ],
+              "translation": [
+                -0.8,
+                1,
+                0
+              ]
+            },
+            {
+              "shape": "box",
+              "halfExtents": [
+                0.05,
+                1,
+                0.36
+              ],
+              "translation": [
+                0.8,
+                1,
+                0
+              ]
+            },
+            {
+              "shape": "box",
+              "halfExtents": [
+                0.75,
+                0.05,
+                0.32
+              ],
+              "translation": [
+                0,
+                0.05,
+                0
+              ]
+            },
+            {
+              "shape": "box",
+              "halfExtents": [
+                0.75,
+                0.05,
+                0.32
+              ],
+              "translation": [
+                0,
+                1.95,
+                0
+              ]
+            },
+            {
+              "shape": "box",
+              "halfExtents": [
+                0.75,
+                0.9,
+                0.04
+              ],
+              "translation": [
+                0,
+                1,
+                -0.32
+              ]
+            }
+          ]
+        },
+        "parts": {
+          "door": {
+            "node": "doorHinge",
+            "semantic": "door",
+            "actions": [
+              "open",
+              "close"
+            ],
+            "targets": {
+              "open": -1.35,
+              "close": 0
+            },
+            "physics": {
+              "body": "dynamic",
+              "mass": 8,
+              "colliders": [
+                {
+                  "shape": "box",
+                  "halfExtents": [
+                    0.81,
+                    0.95,
+                    0.04
+                  ],
+                  "translation": [
+                    0.81,
+                    0,
+                    0
+                  ]
+                }
+              ]
+            },
+            "joint": {
+              "type": "revolute",
+              "axis": [
+                0,
+                1,
+                0
+              ],
+              "limits": [
+                -1.35,
+                0
+              ],
+              "parentAnchor": [
+                -0.82,
+                1,
+                0.39
+              ],
+              "childAnchor": [
+                0,
+                0,
+                0
+              ],
+              "motor": {
+                "stiffness": 80,
+                "damping": 12
+              }
+            }
+          }
+        },
+        "receptacles": [
+          {
+            "id": "interior",
+            "localPosition": [
+              0,
+              0.95,
+              -0.01
+            ],
+            "size": [
+              1.4,
+              1.7,
+              0.46
+            ]
+          }
+        ],
+        "requiredNodes": [
+          "Body",
+          "doorHinge",
+          "Door"
+        ]
+      }
+    },
+    {
+      "id": "asset_ebaf68ae0dc7b35ec2435be5b1aee7f8d7eae0c7fb3a58252189b9b65df1929e",
+      "sha256": "f945665737c4143ce3b71fd6e9d32252426391e2a36db356538a431f1b7539c1",
+      "bytes": "Z2xURgIAAABEEAAAkAgAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJhbnNmb3JtIHY0LjUuMCIsInZlcnNpb24iOiIyLjAifSwiYWNjZXNzb3JzIjpbeyJ0eXBlIjoiU0NBTEFSIiwiY29tcG9uZW50VHlwZSI6NTEyMywiY291bnQiOjM2LCJidWZmZXJWaWV3IjowLCJieXRlT2Zmc2V0IjowfSx7InR5cGUiOiJTQ0FMQVIiLCJjb21wb25lbnRUeXBlIjo1MTIzLCJjb3VudCI6MzYsImJ1ZmZlclZpZXciOjAsImJ5dGVPZmZzZXQiOjcyfSx7InR5cGUiOiJTQ0FMQVIiLCJjb21wb25lbnRUeXBlIjo1MTIzLCJjb3VudCI6MzYsImJ1ZmZlclZpZXciOjAsImJ5dGVPZmZzZXQiOjE0NH0seyJ0eXBlIjoiVkVDMyIsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjoyNCwibWF4IjpbMC40MDAwMDAwMDU5NjA0NjQ1LDAuMTAwMDAwMDAxNDkwMTE2MTIsMC40MDAwMDAwMDU5NjA0NjQ1XSwibWluIjpbLTAuNDAwMDAwMDA1OTYwNDY0NSwtMC4xMDAwMDAwMDE0OTAxMTYxMiwtMC40MDAwMDAwMDU5NjA0NjQ1XSwiYnVmZmVyVmlldyI6MSwiYnl0ZU9mZnNldCI6MH0seyJ0eXBlIjoiVkVDMyIsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjoyNCwiYnVmZmVyVmlldyI6MSwiYnl0ZU9mZnNldCI6MTJ9LHsidHlwZSI6IlZFQzMiLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MjQsIm1heCI6WzAuMTUwMDAwMDA1OTYwNDY0NDgsMC42NDk5OTk5NzYxNTgxNDIxLDAuMTUwMDAwMDA1OTYwNDY0NDhdLCJtaW4iOlstMC4xNTAwMDAwMDU5NjA0NjQ0OCwtMC42NDk5OTk5NzYxNTgxNDIxLC0wLjE1MDAwMDAwNTk2MDQ2NDQ4XSwiYnVmZmVyVmlldyI6MiwiYnl0ZU9mZnNldCI6MH0seyJ0eXBlIjoiVkVDMyIsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjoyNCwiYnVmZmVyVmlldyI6MiwiYnl0ZU9mZnNldCI6MTJ9LHsidHlwZSI6IlZFQzMiLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MjQsIm1heCI6WzAuMzc1LDAuMTAwMDAwMDAxNDkwMTE2MTIsMC4zNzVdLCJtaW4iOlstMC4zNzUsLTAuMTAwMDAwMDAxNDkwMTE2MTIsLTAuMzc1XSwiYnVmZmVyVmlldyI6MywiYnl0ZU9mZnNldCI6MH0seyJ0eXBlIjoiVkVDMyIsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjoyNCwiYnVmZmVyVmlldyI6MywiYnl0ZU9mZnNldCI6MTJ9XSwiYnVmZmVyVmlld3MiOlt7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MCwiYnl0ZUxlbmd0aCI6MjE2LCJ0YXJnZXQiOjM0OTYzfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MjE2LCJieXRlTGVuZ3RoIjo1NzYsImJ5dGVTdHJpZGUiOjI0LCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6NzkyLCJieXRlTGVuZ3RoIjo1NzYsImJ5dGVTdHJpZGUiOjI0LCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MTM2OCwiYnl0ZUxlbmd0aCI6NTc2LCJieXRlU3RyaWRlIjoyNCwidGFyZ2V0IjozNDk2Mn1dLCJidWZmZXJzIjpbeyJieXRlTGVuZ3RoIjoxOTQ0fV0sIm1hdGVyaWFscyI6W3sicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC40MDE5Nzc3Nzk4MjE5NDY2LDAuNDAxOTc3Nzc5ODIxOTQ2NiwwLjQwMTk3Nzc3OTgyMTk0NjYsMV0sInJvdWdobmVzc0ZhY3RvciI6MC43LCJtZXRhbGxpY0ZhY3RvciI6MH19XSwibWVzaGVzIjpbeyJuYW1lIjoiYmFzZSIsInByaW1pdGl2ZXMiOlt7ImF0dHJpYnV0ZXMiOnsiUE9TSVRJT04iOjMsIk5PUk1BTCI6NH0sIm1vZGUiOjQsIm1hdGVyaWFsIjowLCJpbmRpY2VzIjowfV19LHsibmFtZSI6InNoYWZ0IiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6NSwiTk9STUFMIjo2fSwibW9kZSI6NCwibWF0ZXJpYWwiOjAsImluZGljZXMiOjF9XX0seyJuYW1lIjoidG9wIiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6NywiTk9STUFMIjo4fSwibW9kZSI6NCwibWF0ZXJpYWwiOjAsImluZGljZXMiOjJ9XX1dLCJub2RlcyI6W3sibmFtZSI6ImJhc2UiLCJ0cmFuc2xhdGlvbiI6WzAsMC4xLDBdLCJtZXNoIjowfSx7Im5hbWUiOiJzaGFmdCIsInRyYW5zbGF0aW9uIjpbMCwwLjg1LDBdLCJtZXNoIjoxfSx7Im5hbWUiOiJ0b3AiLCJ0cmFuc2xhdGlvbiI6WzAsMS42LDBdLCJtZXNoIjoyfV0sInNjZW5lcyI6W3sibmFtZSI6IlJlY2lwZSIsIm5vZGVzIjpbMCwxLDJdfV0sInNjZW5lIjowfZgHAABCSU4AAAABAAIAAQADAAIABAAFAAYABQAHAAYACAAJAAoACQALAAoADAANAA4ADQAPAA4AEAARABIAEQATABIAFAAVABYAFQAXABYAAAABAAIAAQADAAIABAAFAAYABQAHAAYACAAJAAoACQALAAoADAANAA4ADQAPAA4AEAARABIAEQATABIAFAAVABYAFQAXABYAAAABAAIAAQADAAIABAAFAAYABQAHAAYACAAJAAoACQALAAoADAANAA4ADQAPAA4AEAARABIAEQATABIAFAAVABYAFQAXABYAzczMPs3MzD3NzMw+AACAPwAAAAAAAAAAzczMPs3MzL3NzMw+AACAPwAAAAAAAAAAzczMPs3MzD3NzMy+AACAPwAAAAAAAAAAzczMPs3MzL3NzMy+AACAPwAAAAAAAAAAzczMvs3MzD3NzMy+AACAvwAAAAAAAAAAzczMvs3MzL3NzMy+AACAvwAAAAAAAAAAzczMvs3MzD3NzMw+AACAvwAAAAAAAAAAzczMvs3MzL3NzMw+AACAvwAAAAAAAAAAzczMvs3MzD3NzMy+AAAAAAAAgD8AAAAAzczMvs3MzD3NzMw+AAAAAAAAgD8AAAAAzczMPs3MzD3NzMy+AAAAAAAAgD8AAAAAzczMPs3MzD3NzMw+AAAAAAAAgD8AAAAAzczMvs3MzL3NzMw+AAAAAAAAgL8AAAAAzczMvs3MzL3NzMy+AAAAAAAAgL8AAAAAzczMPs3MzL3NzMw+AAAAAAAAgL8AAAAAzczMPs3MzL3NzMy+AAAAAAAAgL8AAAAAzczMvs3MzD3NzMw+AAAAAAAAAAAAAIA/zczMvs3MzL3NzMw+AAAAAAAAAAAAAIA/zczMPs3MzD3NzMw+AAAAAAAAAAAAAIA/zczMPs3MzL3NzMw+AAAAAAAAAAAAAIA/zczMPs3MzD3NzMy+AAAAAAAAAAAAAIC/zczMPs3MzL3NzMy+AAAAAAAAAAAAAIC/zczMvs3MzD3NzMy+AAAAAAAAAAAAAIC/zczMvs3MzL3NzMy+AAAAAAAAAAAAAIC/mpkZPmZmJj+amRk+AACAPwAAAAAAAAAAmpkZPmZmJr+amRk+AACAPwAAAAAAAAAAmpkZPmZmJj+amRm+AACAPwAAAAAAAAAAmpkZPmZmJr+amRm+AACAPwAAAAAAAAAAmpkZvmZmJj+amRm+AACAvwAAAAAAAAAAmpkZvmZmJr+amRm+AACAvwAAAAAAAAAAmpkZvmZmJj+amRk+AACAvwAAAAAAAAAAmpkZvmZmJr+amRk+AACAvwAAAAAAAAAAmpkZvmZmJj+amRm+AAAAAAAAgD8AAAAAmpkZvmZmJj+amRk+AAAAAAAAgD8AAAAAmpkZPmZmJj+amRm+AAAAAAAAgD8AAAAAmpkZPmZmJj+amRk+AAAAAAAAgD8AAAAAmpkZvmZmJr+amRk+AAAAAAAAgL8AAAAAmpkZvmZmJr+amRm+AAAAAAAAgL8AAAAAmpkZPmZmJr+amRk+AAAAAAAAgL8AAAAAmpkZPmZmJr+amRm+AAAAAAAAgL8AAAAAmpkZvmZmJj+amRk+AAAAAAAAAAAAAIA/mpkZvmZmJr+amRk+AAAAAAAAAAAAAIA/mpkZPmZmJj+amRk+AAAAAAAAAAAAAIA/mpkZPmZmJr+amRk+AAAAAAAAAAAAAIA/mpkZPmZmJj+amRm+AAAAAAAAAAAAAIC/mpkZPmZmJr+amRm+AAAAAAAAAAAAAIC/mpkZvmZmJj+amRm+AAAAAAAAAAAAAIC/mpkZvmZmJr+amRm+AAAAAAAAAAAAAIC/AADAPs3MzD0AAMA+AACAPwAAAAAAAAAAAADAPs3MzL0AAMA+AACAPwAAAAAAAAAAAADAPs3MzD0AAMC+AACAPwAAAAAAAAAAAADAPs3MzL0AAMC+AACAPwAAAAAAAAAAAADAvs3MzD0AAMC+AACAvwAAAAAAAAAAAADAvs3MzL0AAMC+AACAvwAAAAAAAAAAAADAvs3MzD0AAMA+AACAvwAAAAAAAAAAAADAvs3MzL0AAMA+AACAvwAAAAAAAAAAAADAvs3MzD0AAMC+AAAAAAAAgD8AAAAAAADAvs3MzD0AAMA+AAAAAAAAgD8AAAAAAADAPs3MzD0AAMC+AAAAAAAAgD8AAAAAAADAPs3MzD0AAMA+AAAAAAAAgD8AAAAAAADAvs3MzL0AAMA+AAAAAAAAgL8AAAAAAADAvs3MzL0AAMC+AAAAAAAAgL8AAAAAAADAPs3MzL0AAMA+AAAAAAAAgL8AAAAAAADAPs3MzL0AAMC+AAAAAAAAgL8AAAAAAADAvs3MzD0AAMA+AAAAAAAAAAAAAIA/AADAvs3MzL0AAMA+AAAAAAAAAAAAAIA/AADAPs3MzD0AAMA+AAAAAAAAAAAAAIA/AADAPs3MzL0AAMA+AAAAAAAAAAAAAIA/AADAPs3MzD0AAMC+AAAAAAAAAAAAAIC/AADAPs3MzL0AAMC+AAAAAAAAAAAAAIC/AADAvs3MzD0AAMC+AAAAAAAAAAAAAIC/AADAvs3MzL0AAMC+AAAAAAAAAAAAAIC/",
+      "definition": {
+        "type": "visual",
+        "label": "demo/pillar",
+        "actions": [],
+        "capabilityLevel": "visual"
+      }
+    },
+    {
+      "id": "asset_76a8cab85c5c01835ed8a751aab1ef254be7f154be77e342ca8dbd327bb19183",
+      "sha256": "c2592ab9f9c5e8faad7c7c30881fb20044da3520c2529691d83e6f565e516f99",
+      "bytes": "Z2xURgIAAAC0CwAAiAYAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJhbnNmb3JtIHY0LjUuMCIsInZlcnNpb24iOiIyLjAifSwiYWNjZXNzb3JzIjpbeyJ0eXBlIjoiU0NBTEFSIiwiY29tcG9uZW50VHlwZSI6NTEyMywiY291bnQiOjM2LCJidWZmZXJWaWV3IjowLCJieXRlT2Zmc2V0IjowfSx7InR5cGUiOiJTQ0FMQVIiLCJjb21wb25lbnRUeXBlIjo1MTIzLCJjb3VudCI6MzYsImJ1ZmZlclZpZXciOjAsImJ5dGVPZmZzZXQiOjcyfSx7InR5cGUiOiJWRUMzIiwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjI0LCJtYXgiOlswLjc1LDAuMTAwMDAwMDAxNDkwMTE2MTIsMC4yNzUwMDAwMDU5NjA0NjQ1XSwibWluIjpbLTAuNzUsLTAuMTAwMDAwMDAxNDkwMTE2MTIsLTAuMjc1MDAwMDA1OTYwNDY0NV0sImJ1ZmZlclZpZXciOjEsImJ5dGVPZmZzZXQiOjB9LHsidHlwZSI6IlZFQzMiLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MjQsImJ1ZmZlclZpZXciOjEsImJ5dGVPZmZzZXQiOjEyfSx7InR5cGUiOiJWRUMzIiwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjI0LCJtYXgiOlswLjEwMDAwMDAwMTQ5MDExNjEyLDAuNDI1MDAwMDExOTIwOTI4OTYsMC4xNTAwMDAwMDU5NjA0NjQ0OF0sIm1pbiI6Wy0wLjEwMDAwMDAwMTQ5MDExNjEyLC0wLjQyNTAwMDAxMTkyMDkyODk2LC0wLjE1MDAwMDAwNTk2MDQ2NDQ4XSwiYnVmZmVyVmlldyI6MiwiYnl0ZU9mZnNldCI6MH0seyJ0eXBlIjoiVkVDMyIsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjoyNCwiYnVmZmVyVmlldyI6MiwiYnl0ZU9mZnNldCI6MTJ9XSwiYnVmZmVyVmlld3MiOlt7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MCwiYnl0ZUxlbmd0aCI6MTQ0LCJ0YXJnZXQiOjM0OTYzfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MTQ0LCJieXRlTGVuZ3RoIjo1NzYsImJ5dGVTdHJpZGUiOjI0LCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6NzIwLCJieXRlTGVuZ3RoIjo1NzYsImJ5dGVTdHJpZGUiOjI0LCJ0YXJnZXQiOjM0OTYyfV0sImJ1ZmZlcnMiOlt7ImJ5dGVMZW5ndGgiOjEyOTZ9XSwibWF0ZXJpYWxzIjpbeyJwYnJNZXRhbGxpY1JvdWdobmVzcyI6eyJiYXNlQ29sb3JGYWN0b3IiOlswLjQwMTk3Nzc3OTgyMTk0NjYsMC40MDE5Nzc3Nzk4MjE5NDY2LDAuNDAxOTc3Nzc5ODIxOTQ2NiwxXSwicm91Z2huZXNzRmFjdG9yIjowLjcsIm1ldGFsbGljRmFjdG9yIjowfX1dLCJtZXNoZXMiOlt7Im5hbWUiOiJzZWF0IiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MiwiTk9STUFMIjozfSwibW9kZSI6NCwibWF0ZXJpYWwiOjAsImluZGljZXMiOjB9XX0seyJuYW1lIjoibGVnQSIsInByaW1pdGl2ZXMiOlt7ImF0dHJpYnV0ZXMiOnsiUE9TSVRJT04iOjQsIk5PUk1BTCI6NX0sIm1vZGUiOjQsIm1hdGVyaWFsIjowLCJpbmRpY2VzIjoxfV19XSwibm9kZXMiOlt7Im5hbWUiOiJzZWF0IiwidHJhbnNsYXRpb24iOlswLDAuODUsMF0sIm1lc2giOjB9LHsibmFtZSI6ImxlZ0EiLCJ0cmFuc2xhdGlvbiI6Wy0wLjU1LDAuNDI1LDBdLCJtZXNoIjoxfSx7Im5hbWUiOiJsZWdCIiwidHJhbnNsYXRpb24iOlswLjU1LDAuNDI1LDBdLCJtZXNoIjoxfV0sInNjZW5lcyI6W3sibmFtZSI6IlJlY2lwZSIsIm5vZGVzIjpbMCwxLDJdfV0sInNjZW5lIjowfSAgEAUAAEJJTgAAAAEAAgABAAMAAgAEAAUABgAFAAcABgAIAAkACgAJAAsACgAMAA0ADgANAA8ADgAQABEAEgARABMAEgAUABUAFgAVABcAFgAAAAEAAgABAAMAAgAEAAUABgAFAAcABgAIAAkACgAJAAsACgAMAA0ADgANAA8ADgAQABEAEgARABMAEgAUABUAFgAVABcAFgAAAEA/zczMPc3MjD4AAIA/AAAAAAAAAAAAAEA/zczMvc3MjD4AAIA/AAAAAAAAAAAAAEA/zczMPc3MjL4AAIA/AAAAAAAAAAAAAEA/zczMvc3MjL4AAIA/AAAAAAAAAAAAAEC/zczMPc3MjL4AAIC/AAAAAAAAAAAAAEC/zczMvc3MjL4AAIC/AAAAAAAAAAAAAEC/zczMPc3MjD4AAIC/AAAAAAAAAAAAAEC/zczMvc3MjD4AAIC/AAAAAAAAAAAAAEC/zczMPc3MjL4AAAAAAACAPwAAAAAAAEC/zczMPc3MjD4AAAAAAACAPwAAAAAAAEA/zczMPc3MjL4AAAAAAACAPwAAAAAAAEA/zczMPc3MjD4AAAAAAACAPwAAAAAAAEC/zczMvc3MjD4AAAAAAACAvwAAAAAAAEC/zczMvc3MjL4AAAAAAACAvwAAAAAAAEA/zczMvc3MjD4AAAAAAACAvwAAAAAAAEA/zczMvc3MjL4AAAAAAACAvwAAAAAAAEC/zczMPc3MjD4AAAAAAAAAAAAAgD8AAEC/zczMvc3MjD4AAAAAAAAAAAAAgD8AAEA/zczMPc3MjD4AAAAAAAAAAAAAgD8AAEA/zczMvc3MjD4AAAAAAAAAAAAAgD8AAEA/zczMPc3MjL4AAAAAAAAAAAAAgL8AAEA/zczMvc3MjL4AAAAAAAAAAAAAgL8AAEC/zczMPc3MjL4AAAAAAAAAAAAAgL8AAEC/zczMvc3MjL4AAAAAAAAAAAAAgL/NzMw9mpnZPpqZGT4AAIA/AAAAAAAAAADNzMw9mpnZvpqZGT4AAIA/AAAAAAAAAADNzMw9mpnZPpqZGb4AAIA/AAAAAAAAAADNzMw9mpnZvpqZGb4AAIA/AAAAAAAAAADNzMy9mpnZPpqZGb4AAIC/AAAAAAAAAADNzMy9mpnZvpqZGb4AAIC/AAAAAAAAAADNzMy9mpnZPpqZGT4AAIC/AAAAAAAAAADNzMy9mpnZvpqZGT4AAIC/AAAAAAAAAADNzMy9mpnZPpqZGb4AAAAAAACAPwAAAADNzMy9mpnZPpqZGT4AAAAAAACAPwAAAADNzMw9mpnZPpqZGb4AAAAAAACAPwAAAADNzMw9mpnZPpqZGT4AAAAAAACAPwAAAADNzMy9mpnZvpqZGT4AAAAAAACAvwAAAADNzMy9mpnZvpqZGb4AAAAAAACAvwAAAADNzMw9mpnZvpqZGT4AAAAAAACAvwAAAADNzMw9mpnZvpqZGb4AAAAAAACAvwAAAADNzMy9mpnZPpqZGT4AAAAAAAAAAAAAgD/NzMy9mpnZvpqZGT4AAAAAAAAAAAAAgD/NzMw9mpnZPpqZGT4AAAAAAAAAAAAAgD/NzMw9mpnZvpqZGT4AAAAAAAAAAAAAgD/NzMw9mpnZPpqZGb4AAAAAAAAAAAAAgL/NzMw9mpnZvpqZGb4AAAAAAAAAAAAAgL/NzMy9mpnZPpqZGb4AAAAAAAAAAAAAgL/NzMy9mpnZvpqZGb4AAAAAAAAAAAAAgL8=",
+      "definition": {
+        "type": "visual",
+        "label": "demo/bench",
+        "actions": [],
+        "capabilityLevel": "visual"
+      }
+    }
+  ],
+  "lock": {
+    "engine": "2.0.0-dev.1",
+    "builtins": "e24d390940c150116f730a39ede7ecfd119d88bcaf07af150c4c68079bb28af8",
+    "content": "5cda0db501c2150f81e5ad886e2e61f8be731abe60c71fc422c77e69fd6a33ca"
+  }
+}

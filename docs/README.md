@@ -53,6 +53,7 @@ L1 描述系统 ownership 和依赖方向，不承担字段级 API 说明。
 - [`modules/debug-overlay.md`](modules/debug-overlay.md)
 - [`modules/design-system.md`](modules/design-system.md)
 - [`modules/test-agent.md`](modules/test-agent.md)
+- [`modules/code-project.md`](modules/code-project.md) — 持续代码项目、自定义能力、作品保存与恢复。
 
 **新模块优先新增到这一层。** 模块文档应逐步统一为：
 

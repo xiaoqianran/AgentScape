@@ -1,5 +1,7 @@
 # AgentScape
 
+The development workspace includes **code projects**: run multi-file Three.js with custom shaders and persistent logic, register new actions discoverable by AI, and save/reopen source, embedded resources and state. See the [Code Project contract](docs/modules/code-project.md) and local `/examples/code-project/` demo. This does not indicate a published npm release.
+
 **Build interactive 3D worlds that people and AI agents can operate.**
 
 Three.js rendering, Rapier physics and Recast navigation share one world state. Characters can walk to objects, pick them up and place them on surfaces. The runtime reports what actually happened, separately from what was requested.
