@@ -67,6 +67,33 @@ state-equals、object-exists 验收支持项目实体。Agent 声明目标后可
 
 MCP 沿用 scene_observe、scene_interact、scene_job、scene_cancel、scene_verify、scene_save。函数在本地项目 setup 注册，不通过 JSON 传输或自动执行远端源码。
 
+## 统一语义交互入口（首批）
+
+Scene API 的 `inspect(target,{actor})` 与 `observe({actor})` 现在同时返回兼容的 `actions` 和统一只读 `capabilities`。
+每项能力包含 `name`、`target`、`source`、`executor`、`partName`（可选）、`parameters`、`available` 与 `verification`。
+能力是实时投影，不存储第二份世界状态；只有正式注册且可执行的能力才能调用。
+
+所有来源可以统一通过 `scene.interact({action:'invoke',target,name,actor?,partName?,args?})` 调用：
+
+```js
+const capabilities = scene.inspect('machine_01', {actor:'agent_01'}).capabilities;
+const deploy = capabilities.find(item => item.name === 'deploy' && item.partName === 'upper_drawer');
+if (deploy?.available || deploy?.canApproach) {
+  const job = scene.interact({action:'invoke', target:'machine_01', name:'deploy',
+    partName:'upper_drawer', actor:'agent_01'});
+  const done = await scene.waitJob(job.id);
+  // 只有 verification.status === 'verified' 才算通过验收
+}
+const job = scene.interact({action:'invoke', target:'portal', name:'teleport',
+  args:{destination:'garden'}});
+```
+
+- **资产关节动作**：不再要求动作名是 `open/close`。Manifest 顶层和部件需声明同名动作、有效数值目标与真实物理关节。复用现有寻路、扫掠、关节驱动与稳定验收。多部件同名动作必须传 `partName`；旧 `open/close` 保持可用。
+- **环境动作**：Environment Affordance 声明的任意名称可经过 `invoke` 执行，仍使用环境自己的前置条件、状态读取和验证。状态验证不等于物理验收。
+- **代码项目动作**：已用 `registerEntity` / `registerAction` 注册的行为可通过 `invoke` 调用，复用旧 `custom` 的参数、取消和项目侧验证器。
+- **可追溯性**：已验证动作写入当前 Runtime 的交互证据。没有 World IR 修订的世界使用本次运行的临时证据范围；保存重开后必须重新执行验证。
+- **边界**：本阶段不自动从模型名称生成碰撞体、关节或真实抓取能力。Asset `pickup/place` 仍受 Manifest 与物理承载约束；语义推断和组合状态机在后续阶段实施。旧 `scene.interact` 形式保留。
+
 ## 作品保存
 
 ```js

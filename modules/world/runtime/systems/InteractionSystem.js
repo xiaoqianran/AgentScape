@@ -163,7 +163,7 @@ export class InteractionSystem {
 
   assertSupports(id, action) {
     const record = this.store.get(id);
-    if (record.manifest.source?.kind==='compiled' && ['open','close'].includes(action) && assetAdmission(record.manifest).layers.runtime.status!=='ready') throw Errors.interactionUnavailable(null,id,'RUNTIME_VERIFICATION_REQUIRED');
+    if (record.manifest.source?.kind==='compiled' && this.interactionContracts(record).contracts.some(contract => contract.action === action) && assetAdmission(record.manifest).layers.runtime.status!=='ready') throw Errors.interactionUnavailable(null,id,'RUNTIME_VERIFICATION_REQUIRED');
     if (!this.supports(record, action)) throw Errors.actionUnsupported(id, action);
     return record;
   }
@@ -247,7 +247,7 @@ export class InteractionSystem {
   async correctToPose(...args) { this.approach.locomotion = this.locomotion; return this.approach.correctToPose(...args); }
 
   async approachAndInteract(actorId, targetId, action, { partName = null, maxDistance = DEFAULT_INTERACTION_DISTANCE, speed } = {}) {
-    if (!['open', 'close'].includes(action)) throw Errors.actionUnsupported(targetId, `embodied:${action}`);
+    // Any declared physical part target may use the existing approach and joint verifier.
     this.assertSupports(targetId, action);
     const heldId = this.heldByAgent(actorId);
     if (heldId && !this.recoveryHeld.has(actorId)) return {

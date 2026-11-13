@@ -9,11 +9,11 @@ const store=(runtime)=>runtime.interactionEvidence ||= new Map();
 const summarizeResult=(result)=>{
   if(!result||typeof result!=='object') return null;
   const summary={};
-  for(const field of ['status','action','targetId','actorId','supportId','stateKey']){
+  for(const field of ['status','action','targetId','actorId','supportId','stateKey','evidenceKind']){
     const value=clean(result[field]);
     if(value) summary[field]=value;
   }
-  for(const field of ['targetReached','settled','supportVerified','heldRequired']){
+  for(const field of ['targetReached','settled','supportVerified','heldRequired','physicsVerified']){
     if(typeof result[field]==='boolean') summary[field]=result[field];
   }
   if(Object.prototype.hasOwnProperty.call(result,'value') && (result.value===null||['string','number','boolean'].includes(typeof result.value))) summary.value=result.value;
@@ -34,7 +34,10 @@ export function clearInteractionEvidenceForTarget(runtime,targetId){
 
 export function recordInteractionEvidence(runtime,{targetId,capability,verified,source='runtime',commandId=null,result=null}={}){
   if(verified!==true) return null;
-  const worldRevisionId=clean(runtime?.currentWorldRevision?.revision?.id);
+  // Code Project and ad-hoc worlds have no World IR revision. Use a transient,
+  // runtime-local evidence scope; it is not exported and cannot validate a reopened world.
+  const worldRevisionId=clean(runtime?.currentWorldRevision?.revision?.id)
+    || (runtime.interactionEvidenceScope ||= 'session:' + crypto.randomUUID());
   const target=clean(targetId),normalizedCapability=clean(capability).toUpperCase();
   if(!worldRevisionId||!target||!normalizedCapability) return null;
   const resultSummary=summarizeResult(result);
@@ -50,7 +53,8 @@ export function recordInteractionEvidence(runtime,{targetId,capability,verified,
 }
 
 export function getInteractionEvidence(runtime,targetId,capability,{worldRevisionId=null}={}){
-  const revisionId=clean(worldRevisionId)||clean(runtime?.currentWorldRevision?.revision?.id);
+  const revisionId=clean(worldRevisionId)||clean(runtime?.currentWorldRevision?.revision?.id)
+    || runtime?.interactionEvidenceScope;
   const target=clean(targetId),normalizedCapability=clean(capability).toUpperCase();
   if(!revisionId||!target||!normalizedCapability) return null;
   const evidence=runtime?.interactionEvidence?.get?.(key(revisionId,target,normalizedCapability));

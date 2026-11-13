@@ -7,6 +7,7 @@ const DIRECTION:Record<string,[number,number,number]>={
   'x+':[1,0,0],'x-':[-1,0,0],'z+':[0,0,1],'z-':[0,0,-1]
 };
 const key=(action:InspectorAffordanceAction)=>action.action+':'+(action.partName || '');
+const knownActions=new Set(['pickup','place','open','close','push','drag','rotate','slide','rotateJoint','turn_on','turn_off','pull_out','return','write']);
 const numeric=(value:string,label:string)=>{
   const number=Number(value);
   if(!value.trim() || !Number.isFinite(number))throw new Error(label+'必须是有限数字');
@@ -49,7 +50,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
     if(!selected || !actor || (selected.available!==true && !selected.canApproach) || !commands.executeAffordance || running || disabled)return;
     setError('');
     try {
-      const interaction:{actor:string;target:string;action:string;args?:Record<string,unknown>;partName?:string;surfaceId?:string}={
+      const interaction:{actor:string;target:string;action:string;name?:string;args?:Record<string,unknown>;partName?:string;surfaceId?:string}={
         actor,target:targetId,action:selected.action
       };
       if(selected.action==='push' || selected.action==='drag') {
@@ -73,6 +74,10 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
         const surfaces=selected.parameters.surfaceId?.enum || [];
         if(surfaceId || surfaces.length)interaction.surfaceId=surfaceId || surfaces[0];
       } else if(selected.partName) interaction.partName=selected.partName;
+      if(!knownActions.has(selected.action)) {
+        interaction.action='invoke';interaction.name=selected.action;
+        interaction.args={};
+      }
       // Completion belongs to the shared controller, never to this mounted target's local state.
       void commands.executeAffordance(interaction).catch(()=>{});
     } catch(cause) {

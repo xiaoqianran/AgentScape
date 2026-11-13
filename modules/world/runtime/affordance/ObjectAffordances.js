@@ -54,7 +54,7 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
     add(contract.action, { partName: { type: 'string', enum: [partName], required: true } }, {
       execution: 'interaction', partName, contract,
       joint: structuredClone(manifest.parts[partName].joint), state: live,
-      ...(!['open', 'close'].includes(contract.action) ? blocked('EXECUTOR_UNAVAILABLE') : !live ? blocked('ARTICULATION_PHYSICS_UNAVAILABLE') : {}),
+      ...(!live ? blocked('ARTICULATION_PHYSICS_UNAVAILABLE') : {}),
       ...(manifest.source?.kind==='compiled' && assetAdmission(manifest).layers.runtime.status!=='ready' ? blocked('RUNTIME_VERIFICATION_REQUIRED') : {}),
       ...(runtime.interactions.articulationTasks?.has(`${id}:${partName}`) ? blocked('ACTION_IN_PROGRESS') : {})
     });

@@ -30,7 +30,8 @@ test('code project preserves shaders, discovers actions through real MCP and reo
     expect(observed.project.entities.find(entity => entity.id === 'portal').actions.map(action => action.name)).toContain('teleport');
     const inspected = await call('scene_observe', { target: 'portal' });
     expect(inspected).toMatchObject({ source: 'project', physicsVerified: false });
-    const job = await call('scene_interact', { requestId: randomUUID(), interaction: { action: 'custom', target: 'portal', name: 'teleport', args: { destination: 'garden' } } });
+    expect(inspected.capabilities.find(item => item.name === 'teleport')).toMatchObject({action:'invoke',executor:'project-action'});
+    const job = await call('scene_interact', { requestId: randomUUID(), interaction: { action: 'invoke', target: 'portal', name: 'teleport', args: { destination: 'garden' } } });
     await expect.poll(async () => (await call('scene_job', { jobId: job.id })).status).toBe('succeeded');
     expect((await call('scene_job', { jobId: job.id })).result).toMatchObject({ verification: { status: 'verified' }, value: { evidenceKind: 'project-defined', physicsVerified: false } });
     const saved = await call('scene_save');

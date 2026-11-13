@@ -1,4 +1,5 @@
 import { createSceneEditService } from './SceneEditService.js';
+import { describeCapabilities, inspectCapabilities } from './CapabilityResolver.js';
 import { createSceneJobController } from './SceneJobController.js';
 import { createScenePersistence } from './ScenePersistence.js';
 import { sceneError, sceneInteractionSchema } from './SceneContracts.js';
@@ -40,6 +41,8 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
   const edit = createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision: () => revision, result, codeExecutor, codeGLTFLoader });
   const jobController = createSceneJobController(world, { tools, assertOpen, assertIdle, setBusy: value => { busy = value; }, actors: () => facade.actors(), onProjectAction: () => { revision++; }, result });
   const persistence = createScenePersistence(world, { name, styles, assertIdle, exclusive, result });
+  const withListingCapabilities = listing => ({ ...listing,
+    entities:listing.entities.map(entry => ({ ...entry, capabilities:describeCapabilities(entry) })) });
   const facade = {
     captureProjectState(capture) { return exclusive(capture); },
     registerEntity(definition) { assertOpen(); return world.projectCapabilities.registerEntity(definition); },
@@ -57,8 +60,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     inspect(target, options = {}) {
       assertOpen(); z.string().min(1).max(256).parse(target);
       const { actor } = z.object({ actor: id.optional() }).strict().parse(options);
-      if (world.projectCapabilities.has(target)) return world.projectCapabilities.inspect(target, { actor });
-      const inspection = world.affordances.inspect(target, { actorId: actor });
+      const inspection = inspectCapabilities(world, target, { actor });
       if (!inspection) throw sceneError('OBJECT_NOT_FOUND');
       return inspection;
     },
@@ -80,8 +82,8 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       world.sceneGraph.update();
       const native = world.queries?.listEnvironmentInteractables?.({actorId:actor,radius:20});
       return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision,
-        style: styles.export(), actors:facade.actors(), affordances: world.affordances.list({ actorId: actor, limit: 100 }),
-        project: world.projectCapabilities.list({ actor }),
+        style: styles.export(), actors:facade.actors(), affordances: withListingCapabilities(world.affordances.list({ actorId: actor, limit: 100 })),
+        project: withListingCapabilities(world.projectCapabilities.list({ actor })),
         // Native interaction points are not Asset entities. Expose their stable
         // IDs and explicitly provisional evidence without claiming physics verification.
         nativeInteractions: {

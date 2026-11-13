@@ -6,7 +6,9 @@ const plain=v=>Boolean(v&&typeof v==='object'&&!Array.isArray(v));
 const assertObject=(v,label)=>{if(!plain(v)) throw new TypeError(`${label} must be an object`);return v;};
 const assertFinite=v=>{if(!Number.isFinite(v)) throw new TypeError('Interaction target must be finite');return Number(v);};
 
-const executableActions=new Set(['open','close']);
+// Preserve the historical error for malformed open/close manifests; other
+// semantic operations are executable when a part declares a numeric target.
+const requiredPartTargets=new Set(['open','close']);
 
 export function compileInteractionContract(manifest){
   assertObject(manifest,'Manifest');
@@ -15,7 +17,7 @@ export function compileInteractionContract(manifest){
   const parts=manifest.parts||{};
   for(const action of manifest.actions||[]){
     const candidates=Object.entries(parts).filter(([partName,part])=>part?.actions?.includes(action)&&Number.isFinite(part?.targets?.[action]));
-    if(executableActions.has(action)&&!candidates.length) throw new TypeError(`Action ${action} has no executable part target`);
+    if(requiredPartTargets.has(action)&&!candidates.length) throw new TypeError(`Action ${action} has no executable part target`);
     for(const [partName,part] of candidates){
       const target=assertFinite(part.targets[action]);
       contracts.push({
