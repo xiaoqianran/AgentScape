@@ -1,0 +1,136 @@
+# AgentScape 自动运动学与可验证交互：研究、实验和增量计划
+
+> 2026-11-14。**状态：P0 独立探索性实验，未接入生产编译、注册或 Capability Admission。**
+>
+> 原则：未知模型可以产生候选，但名称、AI 意图、静态外形或独立仿真成功，均不能单独证明物体在真实意义上可开关/可操作。
+
+## 1. 现有系统，无需重造
+
+- `AssetCompiler` 已有 GLB 检查、结构和几何、候选关节、分割证据、face-label 部件物化、URDF JointFrame、碰撞体、审核、质量检查和 Manifest。
+- `AssetModule.prepareInteraction/importReviewedGLB` 已具备候选 / 绑定源文件的人工审核 / 隔离物理验证 / 注册通路。
+- `ArticulationVerifier` 已有 Rapier 关节驱动、目标误差、相互穿透、失速、稳定和返回零位检查。
+- `CapabilityResolver` / `SceneJobController` 已能通过统一 `invoke` 调用资产、环境与代码项目能力。
+- 缺口：无可靠自动 Part Discovery；静态模型缺少关节轴和锚点的确定性信息；当前语义提示主要来自名称/Provider；关节运动验证不等于原始物体功能验证。
+
+## 2. 科研参考与技术取舍
+
+1. **Artiverse（CVPR 2026）**：多视角 few-shot 分割 → 拓扑映射到网格 → bbox / 接触区域几何关节提案 → 人工多阶段确认。最贴合现有 AssetCompiler 的模块化思路。https://3dlg-hcvc.github.io/artiverse/
+2. **URDF-Anything（NeurIPS 2025）**：3D 点云和语言模型共同推断 Part 和关节参数。作为后期高复杂度学习路线，不作为 P0 的强制依赖。https://proceedings.nips.cc/paper_files/paper/2025/hash/88445acb45c922bdb06952e31f8a60ec-Abstract-Conference.html
+3. **Articulate-Anything（ICLR 2025）**：视觉-语言生成与批判反馈的闭环。借鉴迭代纠错，不直接引入其完整 Python/SAPIEN 依赖栈。https://articulate-anything.github.io/
+4. **Articulate AnyMesh（CoRL 2025）**：开放词汇部件语义与关节构建。未来多视角分割路线。https://proceedings.mlr.press/v305/qiu25b.html
+5. **PartNet-Mobility**：官方数据是 gated，条款限定非商业研究/教育；未经明确授权不得作为 AgentScape 公共资产库或商业训练集。https://huggingface.co/datasets/sapien-sim/PartNetMobility
+
+## 3. P0 实际实验（仅候选，不授权）
+
+### 3.1 GLB 已有动画轨道 → 运动学证据
+
+- 源码：`dev/experiments/asset/motion-evidence.mjs`
+- 测试：`tests/asset/motion-evidence-experiment.test.js`
+- 不依赖 node name，解析 glTF animation 的 rotation / translation 关键帧；
+  旋转轨道归纳一致的转轴和角度范围，平移轨道归纳方向和位移。
+- 拒绝复合平移+旋转、轨道多轴不一致、不同 clip 冲突、rest pose 不匹配及暂不支持的插值。
+- 真实二进制 GLB 写入/重新读取；8 个正反例通过。
+- 该方法依赖**已经存在的动画**；无动画的静态模型不生成凭空关节。
+- 输出只含 `candidate`、`executable:false`、`physicsVerified:false`；缺物理与功能证据。
+
+### 3.2 静态面板几何 → 有歧义的轴线候选
+
+- 源码：`dev/experiments/asset/static-panel-evidence.mjs`
+- 测试：`tests/asset/static-panel-evidence-experiment.test.js`
+- 只考虑轴对齐、实体前后面附近、尺寸覆盖合理的薄平板；读取真实 GLB 几何 AABB，不依赖物体名称。
+- `public/assets/cabinet.glb` 全节点重命名后：找到一个面板候选；两个可能的竖直转轴线 x≈-0.82 / +0.80。**没有从证据中选定哪边是真铰链**。
+- 小旋钮、远离前后侧表面的内部隔板不误认成面板候选。与门形状相同的装饰板依然会产生候选，因此语义功能不可从单姿态确定。
+- 五项测试通过。实验完全不设置 joint limits，不自动构建 Part/动作，不注册。
+- 局限：未处理任意旋转、复杂层级、非面板结构、单 Mesh 分割；AABB 不是精确接触几何。
+
+### 3.3 复现与回归
+
+在项目根目录执行：
+
+```powershell
+node node_modules/vitest/vitest.mjs run tests/asset/motion-evidence-experiment.test.js tests/asset/static-panel-evidence-experiment.test.js tests/asset/asset-compiler-part-proposal.test.js tests/integration/semantic-capabilities.test.js --maxWorkers=1
+npm run architecture:validate
+npm run typecheck
+```
+
+2026-11-14 已实际运行：4 个测试文件、22 项通过；仓库架构及类型检查通过。
+仅限研究阶段自制与仓库资产的样例覆盖；还未执行外部数据集泛化评测、自动升格或新候选物理验证。
+
+## 4. 下一步建议的唯一架构主线
+
+```text
+Source GLB / optional motion / optional URDF / optional multiview
+  -> Geometry & Part Evidence       (不可变来源、局部/世界坐标)
+  -> Kinematic Hypotheses [N个]    (含替代轴/歧义及缺失证据)
+  -> Per-hypothesis Physics Sandbox (只验证该机构可运行)
+  -> Task-level Semantic Verifier   (独立验证通过、开口、取出等效果)
+  -> Capability Admission          (每个能力逐项准入)
+  -> Manifest + Scene.invoke / MCP (只有已授权动作开放)
+```
+
+严格区分：
+- **观测**：动画/几何/URDF/来源对象哈希，不修改世界。
+- **推断**：关节类型、轴、轴线锚点、限位、碰撞代理，允许多个候选。
+- **物理可执行**：给定构造的机器能运动，仍不一定就是原物的真实机关。
+- **语义功能正确**：一个与关节目标独立的检查器证明打开了可通行的开口、抽屉空腔可用等。
+- **当前可用**：场景中 actor 距离、遮挡、占用、权限、动力学状态均允许本次执行。
+
+所有证据应携带 `sourceHash`、`compilerVersion`、`motionSource`、`coordinateFrame`、`physicsBackendVersion`、参数来源及重验证策略。不能把 `physicsVerified` 用作物体真实语义的单一布尔值。
+
+## 5. 分批开发计划与退出门槛
+
+### P0-A：证据候选并入 prepare 读取路径（首个生产 PR）
+
+- 将目前两个独立实验抽成纯函数的 `MotionEvidencePass` 和 `StaticPartGeometryEvidencePass`。
+- 仅让 `AssetCompiler.proposeInteraction` / `scene.prepareAsset` 展示候选与缺失项；`compile` 和 `Manifest` 不自动提升任何未知动作。
+- 对重复节点名使用稳定 node path/index；静态世界空间轴线在后续审核时显式转为父/子局部坐标帧。
+- 性能测量：静态几何核验不跑大模型；对同源相同参数按哈希缓存；无动画无合格面板时仍正常加载。
+- 退出门槛：源文件换掉后证据失效、无法调用未批准的 `invoke`、原有 URDF/显式授权链路不回退。
+
+### P0-B：多候选物理筛选（第二个 PR）
+
+- 对每个几何假设生成独立可回收的测试 Scene；补足已确认的质量、碰撞体、motor、limits。
+- `ArticulationVerifier` 在受限运动范围、往返、碰撞基线与不同摆位条件下进行测量。
+- 仿真成功**不能直接授权语义动作**：它只将候选升级为 `mechanically-verified`，依然保留是否与原始结构一致的歧义。
+- 不通过的候选需有机器可读的失败原因、恢复策略和失败后的资源清理。
+- 退出门槛：错误锚点、碰撞阻塞、假开门装饰板不会自动开放 `open`。
+
+### P1：真正的 Part Discovery 和精确关系推断
+
+- 已分离节点：利用拓扑组件、局部 OBB、层级和接触/间隙几何，替代实验中的轴对齐 AABB；候选轴可以多解。
+- 单 Mesh：仅在低置信度或用户明确要求时调用多视角视觉分割 Provider，产出 faceLabels，复用 `SegmentMaterializePass`。
+- Provider 输出视为**提案**，不得修改 source bytes 的有效性或篡改独立验证报告。
+- 以固定小型自制 3D 样本为基准；扩展外部基准时逐一确认数据许可。
+
+### P2：功能验证与复合交互
+
+- 建立 `TaskVerifier` 独立语义检查，如打开后自由空间增大、抽屉可访问空间与接触面、开门后导航可达性。
+- `cook` / `turnPage` 等动作可能由 Code Project 状态机与多阶段执行组成，不能只把转轴运动冒充完整业务功能。
+- 对少量高价值对象做失败数据集、负例和 Agent 行为回归，再考虑自动审批。
+
+## 6. 度量与对照实验
+
+建议建立一个完全自制、可公开分发的小基准集：带真值关节的旋转件和滑动件、无运动的装饰件、错层级/错轴模型、单 Mesh，以及有/无动画的相同形态对象。
+
+报告指标至少包含：
+- Part proposal precision / recall；候选召回率分层报告，**不能把候选当成功执行**。
+- 关节类型准确率、轴角误差、轴线位置误差（按模型包围盒对角线归一化）。
+- 歧义集大小、排序正确率 top-1 / top-2。
+- 物理隔离仿真通过率、碰撞回归率、双向返回成功率。
+- 独立任务完成率及虚假功能准入率（**目标必须为零**）。
+- 中位数及 p95 CPU/GPU 耗时、每资产资源开销、回退率。
+
+本次 8/8 和 5/5 只覆盖自制单元测试及一件真实 GLB 的静态几何实例，**不能视为外部通用准确率**。任何面向未知静态 GLB 的准确率目标必须待固定评测集后确定。
+
+## 7. 成本与工程边界
+
+- P0 使用已有 Node.js、Three.js、glTF-Transform 和 Rapier；不下载大型模型，不使用云 GPU，不需要新增运行时后端。
+- P1 可选调用视觉分割 GPU Provider，但输出离线缓存；`scene.observe`、`scene.inspect` 只读取既有能力结果，绝不在每帧推理。
+- 不引入第二套 Action Executor、SceneFacade 或 PhysicsRuntime。
+- 模型未知材质/质量必须标记为假设；单锚点搬运不可称为真实抓握力验证。
+- 若发生误放行、性能显著回退或污染现有资产，立即关闭对应 evidence pass，继续保持旧版人工审核/显式关节路径。
+
+## 8. 本次范围限制
+
+探索实验仅增加独立 `dev/experiments/asset` 模块、定向测试和这份规划文档；
+不注册动作，不改现有 AssetCompiler/PhysicsSystem/Scene API，不下载受限数据，所有正式系统集成均留待单独的小 PR。
