@@ -28,6 +28,29 @@ const completed = await scene.waitJob(job.id); // 宿主必须推进模拟
 
 示例中的质量和摩擦是审核者选定的参数，不是从 GLB 测量得出的真实材质属性。实际站位、距离、碰撞或力不足仍可能使任务失败，应检查 Job 的终态和验证证据。
 
+## 自动关节候选与隔离物理筛选（P0-A/B）
+
+`prepareAsset` 现可返回 `proposal.kinematics.hypotheses`，证据来自真实 GLB 的动画轨道和已分离节点的局部几何，不靠柜子/门等类别白名单。静态板件可能返回左右两个铰链候选；任何候选都始终 `executable:false`、`physicsVerified:false`、`functionVerified:false`。
+
+```js
+const source = {kind:'glb',bytes,name:'unknown.glb'};
+const proposal = await scene.prepareAsset(source);
+const hypotheses = proposal.kinematics.hypotheses;
+// 仅对用户选择的少量候选做隔离实验；最多四个候选
+const screen = await scene.screenAsset({
+  ...source,
+  proposalId:proposal.proposalId,
+  hypothesisIds:hypotheses.slice(0,4).map(candidate=>candidate.id)
+});
+for (const result of screen.results) {
+  console.log(result.id, result.mechanicalFeasible, result.trials);
+}
+```
+
+`screenAsset` 重新核验源 GLB 与 `proposalId`，不接受客户端提交的关节、轴、验证标记或伪造候选 ID。每次试验重载 GLB 并在隔离 Rapier 中建立临时关节，测试可运动性、碰撞、稳定及回零。没有保存任何 Asset/World/Manifest，也没有放开 `scene.interact`。若候选是静态平板，转轴两侧还需分别测试正、负两个可能方向；角度、质量和 AABB 碰撞体均是假设，分别记入 `trials[].assumptions`。
+
+`mechanicalFeasible:true` 的含义只是“某一假设方向在此次模拟条件下运动验证通过”。它**不是原始物体具备该关节的证据**，更不是功能正确或可直接调用的权限。真正发布仍走下方已有的显式审核与正式物理验证。
+
 审核契约由 `interactionReviewSchema` 统一约束：必须确认 proposalId、刚体类型、正质量和摩擦。移动部件还必须确认唯一的 id / node、parent、部件物理参数、关节类型、非零轴、两个锚点及包含 GLB 零位的限位。电机参数可调整，默认 stiffness=80、damping=12。支持 box 碰撞体覆盖；省略 colliders 时复用现有几何 Pass 生成的代理。
 
 ## 既有 Pass 与证据

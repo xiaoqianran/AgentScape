@@ -1,6 +1,6 @@
 # AgentScape 自动运动学与可验证交互：研究、实验和增量计划
 
-> 2026-11-14。**状态：P0 独立探索性实验，未接入生产编译、注册或 Capability Admission。**
+> 2026-11-14。**状态：P0-A 候选分析已集成至 prepareAsset；P0-B 隔离机械筛选已提供显式 screenAsset，仍不接入生产资产注册或 Capability Admission。**
 >
 > 原则：未知模型可以产生候选，但名称、AI 意图、静态外形或独立仿真成功，均不能单独证明物体在真实意义上可开关/可操作。
 
@@ -56,6 +56,17 @@ npm run typecheck
 2026-11-14 已实际运行：4 个测试文件、22 项通过；仓库架构及类型检查通过。
 仅限研究阶段自制与仓库资产的样例覆盖；还未执行外部数据集泛化评测、自动升格或新候选物理验证。
 
+### 3.4 P0-A/B 接入现状（2026-11-14）
+
+- `KinematicEvidencePass` 在明确调用 `AssetCompiler.proposeInteraction()` 时分析已有 glTF 动画与独立节点的轴对齐薄面板，输出 `proposal.kinematics.hypotheses`；普通 `compile()` 不因该实验默认运行复杂发现。
+- `prepareAsset` 返回 `kh_*` 候选 ID、节点引用、观察或猜测的运动学轴/范围、缺失信息及 `executable:false`、`physicsVerified:false`、`functionVerified:false`。候选由现有 `proposalId` 和 `sourceHash` 绑定，改动源 GLB 会导致旧提案无法复用。
+- `scene.screenAsset({kind:'glb',bytes,name,proposalId,hypothesisIds})` 重新计算提案并校验候选 ID，最多筛选四个候选；每个候选使用新加载的 GLB 构造临时关节/粗碰撞体，在独立 Rapier `ArticulationVerifier` 运行目标、碰撞、稳定和返回零位测试。
+- **静态轴/限位没有真实证据**：只在临时物理世界用 ±0.5 rad 两个方向分别探测，保留每个方向的 `trials`；每个静态方向使用独立的单侧临时限位，避免回零电机越过未知零位造成误判。动画提供的范围只在其观察范围内做探测。质量 1kg、摩擦 0.5 和 mesh-local AABB 都是**仿真假设**，不是估计出的真实物理属性。
+- 屏蔽非唯一节点名、缺失部件或根碰撞体、复合/含糊运动及耗尽候选预算；异常回传 `blocked` 与诊断码，不注册资产，也不发布语义动作。
+- `mechanicalFeasible=true` 仅表示某一测试方向在这一组假设下仿真通过，**不能证明轴与原始机械结构一致**，仍需要功能验收和人工/外部证据。始终 `admission:'not-granted'`。
+- MCP 复用 `scene_add_model` 的 `mode:'screen'`（与 `prepare` 同个 source，`model.proposalId`，可选 `model.hypothesisIds`）；Studio Live Bridge 复用同一 Scene API。
+- 既有 `importReviewedGLB`、`ArticulationVerifier` 正式审核和注册流程保持不变。前端或 Agent 不得凭筛选状态伪造 `InteractionReview`。
+
 ## 4. 下一步建议的唯一架构主线
 
 ```text
@@ -79,19 +90,19 @@ Source GLB / optional motion / optional URDF / optional multiview
 
 ## 5. 分批开发计划与退出门槛
 
-### P0-A：证据候选并入 prepare 读取路径（首个生产 PR）
+### P0-A：证据候选并入 prepare 读取路径（基本实现，已验收）
 
-- 将目前两个独立实验抽成纯函数的 `MotionEvidencePass` 和 `StaticPartGeometryEvidencePass`。
+- 已将独立算法迁入 `AnimationMotionEvidence.js`、`StaticPanelEvidence.js`，并通过 `KinematicEvidencePass` 按需发现候选。
 - 仅让 `AssetCompiler.proposeInteraction` / `scene.prepareAsset` 展示候选与缺失项；`compile` 和 `Manifest` 不自动提升任何未知动作。
-- 对重复节点名使用稳定 node path/index；静态世界空间轴线在后续审核时显式转为父/子局部坐标帧。
-- 性能测量：静态几何核验不跑大模型；对同源相同参数按哈希缓存；无动画无合格面板时仍正常加载。
+- 目前保留 `nodeIndex`，筛选要求唯一节点名；重复节点名/不匹配节点保守拦截。未来可添加真正稳定的层级节点路径；当前 P0-B 只在临时测试 Rig 中把世界坐标轴线转换为根局部坐标。
+- 已做到不运行大模型，非 prepare 编译不新增推断；后续须按哈希缓存同源候选并做中位数/p95 性能评估。
 - 退出门槛：源文件换掉后证据失效、无法调用未批准的 `invoke`、原有 URDF/显式授权链路不回退。
 
-### P0-B：多候选物理筛选（第二个 PR）
+### P0-B：多候选物理筛选（有限目标的隔离实现，已验收）
 
-- 对每个几何假设生成独立可回收的测试 Scene；补足已确认的质量、碰撞体、motor、limits。
-- `ArticulationVerifier` 在受限运动范围、往返、碰撞基线与不同摆位条件下进行测量。
-- 仿真成功**不能直接授权语义动作**：它只将候选升级为 `mechanically-verified`，依然保留是否与原始结构一致的歧义。
+- 每个候选/方向独立加载 GLB、生成可回收的临时测试 Rig；当前 mass、friction、AABB、静态限位都明确标记为仿真假设，不宣称真实值。
+- 当前复用 `ArticulationVerifier` 运行关节目标、碰撞、稳定、往返；不同摆位与参数灵敏度扫描尚未实现，列为后续质量项。
+- 仿真通过只记录 `mechanicalFeasible:true` 和逐方向证据，**不**将候选升级为正式已授权资产或语义动作。
 - 不通过的候选需有机器可读的失败原因、恢复策略和失败后的资源清理。
 - 退出门槛：错误锚点、碰撞阻塞、假开门装饰板不会自动开放 `open`。
 
@@ -130,7 +141,9 @@ Source GLB / optional motion / optional URDF / optional multiview
 - 模型未知材质/质量必须标记为假设；单锚点搬运不可称为真实抓握力验证。
 - 若发生误放行、性能显著回退或污染现有资产，立即关闭对应 evidence pass，继续保持旧版人工审核/显式关节路径。
 
-## 8. 本次范围限制
+## 8. P0-A/B 本轮实现范围
 
-探索实验仅增加独立 `dev/experiments/asset` 模块、定向测试和这份规划文档；
-不注册动作，不改现有 AssetCompiler/PhysicsSystem/Scene API，不下载受限数据，所有正式系统集成均留待单独的小 PR。
+本轮将两类实验算法迁入 Asset Compiler 的只读证据层，新增 `screenAsset` / MCP `mode:screen` 的显式隔离筛选通路、定向测试和文档。
+**生产 Runtime、正式 Asset Admission、Manifest Action、InteractionSystem/PhysicsSystem 算法及原有审核授权流程均未更改。**
+没有引入云 GPU、外部模型或受限数据；来源、动作范围、碰撞代理等不确定性持续保留。
+未经重验证，不应把隔离机械结果保存为正式 Asset 验证证据。

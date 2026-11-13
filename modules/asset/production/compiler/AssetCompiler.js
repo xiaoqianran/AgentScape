@@ -14,6 +14,7 @@ import { NormalizeTransformPass } from './passes/NormalizeTransformPass.js';
 import { GeometryPass } from './passes/GeometryPass.js';
 import { SemanticHeuristicPass } from './passes/SemanticHeuristicPass.js';
 import { ArticulationCandidatePass } from './passes/ArticulationCandidatePass.js';
+import { KinematicEvidencePass } from './passes/KinematicEvidencePass.js';
 import { ColliderFallbackPass } from './passes/ColliderFallbackPass.js';
 import { RemoteEnrichmentPass } from './passes/RemoteEnrichmentPass.js';
 import { ResourceBudgetPass } from './passes/ResourceBudgetPass.js';
@@ -46,6 +47,7 @@ export class AssetCompiler {
       new StructurePass(),
       new NormalizeTransformPass(),
       new GeometryPass(),
+      new KinematicEvidencePass(),
       new SemanticHeuristicPass(),
       new AuthoringIntentPass(),
       new ArticulationCandidatePass(),
@@ -101,6 +103,7 @@ export class AssetCompiler {
       missing:['mass','friction',...['axis','parentAnchor','childAnchor','limits'].filter(field=>part.joint?.[field]==null).map(field=>`joint.${field}`),'review-confirmation','runtime-verification'] }));
     const proposal={schema:'agentscape.capability-proposal',schemaVersion:1,sourceHash,urdfHash,compilerVersion:this.version,
       physics:{body:null,mass:null,friction:null,colliders:output.manifest.physics.colliders},parts,
+      kinematics:output.kinematicEvidence || {schema:'agentscape.kinematic-evidence',schemaVersion:1,hypotheses:[],issues:[]},
       operations:[
         ...(output.geometry.bounds.size.every(size=>Number.isFinite(size)&&size>0&&size<=1.25)
           ? ['pickup','drop','place'].map(action=>({action,executable:false,physicsVerified:false,requires:'reviewed-dynamic-body-mass-and-carry-geometry'})) : []),
@@ -115,7 +118,7 @@ export class AssetCompiler {
       evidence:{geometry:output.geometry.bounds,collisionStrategy:output.collision.strategy,articulationSource:output.partProposal?.source || output.articulation.source,
         confidenceScope:'name-or-source-metadata-only; not physical verification',
         semanticConfidence:output.manifest.compiler.semanticConfidence,jointFrame:output.partProposal?.jointFrame || null,
-        issues:output.partProposal?.issues || [],passes:['SemanticHeuristicPass','ArticulationCandidatePass','PartColliderPass','JointFramePass']}};
+        issues:output.partProposal?.issues || [],passes:['SemanticHeuristicPass','KinematicEvidencePass','ArticulationCandidatePass','PartColliderPass','JointFramePass']}};
     return {...proposal,proposalId:await assetDigest(new TextEncoder().encode(canonicalAssetJson(proposal)))};
   }
 
@@ -155,6 +158,7 @@ export class AssetCompiler {
       geometry: context.geometry,
       optimization: context.optimization,
       articulation: context.articulation,
+      kinematicEvidence: context.kinematicEvidence || null,
       collision: context.collision,
       enrichment: context.enrichment,
       meshQuality: context.meshQuality || null,

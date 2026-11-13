@@ -104,6 +104,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       return exclusive(() => tools.call(name, args));
     },
     prepareAsset: input => edit.prepareAsset(input),
+    screenAsset: input => edit.screenAsset(input),
     addModel: (input, options) => edit.addModel(input, options),
     setTransform: input => edit.setTransform(input),
     remove: input => edit.remove(input),

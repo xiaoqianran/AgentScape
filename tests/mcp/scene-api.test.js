@@ -77,6 +77,10 @@ it('shares Scene edits with legacy observation and returns real asynchronous job
     const source={kind:'glb',name:'external_box.glb',bytesBase64:Buffer.from(binary.bytes).toString('base64')};
     const proposal=await call('scene_add_model',{...base,requestId:randomUUID(),mode:'prepare',model:{asset:source}});
     expect(proposal.operations.every(action=>!action.executable && !action.physicsVerified)).toBe(true);
+    expect(proposal.kinematics).toMatchObject({schema:'agentscape.kinematic-evidence',hypotheses:[]});
+    const screened=await call('scene_add_model',{...base,requestId:randomUUID(),mode:'screen',
+      model:{asset:source,proposalId:proposal.proposalId}});
+    expect(screened).toMatchObject({schema:'agentscape.kinematic-screen',results:[],admission:'not-granted'});
     expect((await call('world_observe',base)).objects).toHaveLength(4);
     await call('scene_add_model', { ...base, requestId: randomUUID(), model: { id:'novel_box', position:[.65,0,9], asset:{...source,
       review:{proposalId:proposal.proposalId,confirmed:true,physics:{body:'dynamic',mass:2,friction:.5},parts:[]}

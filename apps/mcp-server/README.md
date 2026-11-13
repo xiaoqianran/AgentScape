@@ -6,7 +6,7 @@
 
 Scene 工具为 `scene_observe`、`scene_apply`、`scene_add_model`、`scene_interact`、`scene_job`、`scene_cancel`、`scene_verify`、`scene_save`、`scene_set_style`。它们使用与 SDK/Studio 相同的 Scene 应用服务和 Runtime。`scene_interact` 立即返回 JobRef，由宿主推进模拟，调用方轮询任务并分别检查执行状态与验证证据。Recipe 可以直接作为 scene_add_model 的 model.asset 输入，无需生成 JavaScript。
 
-外部 GLB 可通过 `scene_add_model` 的 `mode: "prepare"` 生成能力候选，再以默认 `mode: "add"` 附审核参数完成编译、物理验证和注册；配套 URDF 复用既有 Compiler Provider。接口、证据边界、Studio 审核入口和传输配额见 [资产交互化流程](../../docs/asset-interaction-pipeline.md)。
+外部 GLB 可通过 `scene_add_model` 的 `mode: "prepare"` 生成能力候选（包含 `kinematics.hypotheses`）；若希望在不注册资产的情况下做隔离 Rapier 机械测试，可再次调用相同工具并设置 `mode: "screen"`、`model: {asset: 相同的 GLB source, proposalId: 上轮提案 ID, hypothesisIds?: 候选 ID[]}`。筛选逐方向返回 `trials` 和碰撞、稳定性报告，**即便机械测试通过也不会授权语义动作**。最后才使用默认 `mode: "add"`，附明确审核参数进行正式编译、物理验证和注册；配套 URDF 仍复用既有 Compiler Provider。接口、证据边界、Studio 审核入口和传输配额见 [资产交互化流程](../../docs/asset-interaction-pipeline.md)。
 
 `scene_observe({ worldSessionId, target, actor? })` 等价于 SDK 的 `scene.inspect(target, { actor })`，返回资产或环境契约的统一能力说明。省略 target 时，场景观察的 `affordances` 包含这些对象的能力列表（最多 100 项，total 为总数）。能力在每次查询时读取当前状态，不额外保存对象状态。
 

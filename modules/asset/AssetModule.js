@@ -189,6 +189,24 @@ export function createAssetModule({
       const {AssetCompiler}=await import('./production/compiler/AssetCompiler.js');
       return new AssetCompiler({store,version:'interaction-v1'}).proposeInteraction({bytes,sourceName:name,partProposal,urdfHash});
     },
+    async screenInteraction({bytes,urdfBytes,name='import.glb',proposalId,hypothesisIds}={}) {
+      assertEmbeddedGLB(bytes);
+      if (!/^[a-f0-9]{64}$/.test(String(proposalId || ''))) throw Object.assign(new Error('Invalid proposal ID'),{code:'PROPOSAL_MISMATCH'});
+      if (!articulationVerifier) throw Object.assign(new Error('Runtime verification unavailable'),{code:'RUNTIME_VERIFICATION_UNAVAILABLE'});
+      // Recompute from *these bytes*, with the same name and optional URDF:
+      // the client never provides joint frames, evidence or verification flags.
+      const proposal=await module.prepareInteraction({bytes,urdfBytes,name});
+      if (proposal.proposalId !== proposalId) throw Object.assign(new Error('Review does not match the imported source'),{code:'PROPOSAL_MISMATCH'});
+      const hypotheses=proposal.kinematics?.hypotheses || [];
+      const ids=hypothesisIds || hypotheses.slice(0,4).map(item=>item.id);
+      if (!Array.isArray(ids) || ids.length > 4 || ids.some(id=>typeof id!=='string'))
+        throw Object.assign(new Error('Invalid hypothesis selection'),{code:'HYPOTHESIS_SELECTION_INVALID'});
+      if (!ids.length) return {schema:'agentscape.kinematic-screen',schemaVersion:1,
+        proposalId,sourceHash:proposal.sourceHash,results:[],admission:'not-granted',
+        interpretation:'simulation-only; no semantic authorization or real-world mechanism proof'};
+      const {screenKinematicHypotheses}=await import('./production/verification/KinematicHypothesisScreen.js');
+      return screenKinematicHypotheses({bytes,proposal,ids,loader:loader.gltfLoader,verifier:articulationVerifier});
+    },
     async importReviewedGLB({bytes,urdfBytes,name='import.glb',review,level='physical'}) {
       review=interactionReviewSchema.parse(review);
       bytes=bytes.slice();urdfBytes=urdfBytes?.slice();

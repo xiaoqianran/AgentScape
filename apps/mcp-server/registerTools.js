@@ -130,7 +130,15 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
  add('scene_job','Read task completion and physical verification separately.',job,(a,e)=>sceneRun(a,'job',{jobId:a.jobId},s=>s.host.scene.getJob(a.jobId),e));
  add('scene_cancel','Request task cancellation and query until terminal.',job,(a,e)=>sceneRun(a,'cancel',{jobId:a.jobId},s=>s.host.scene.cancelJob(a.jobId),e));
  add('scene_verify','Evaluate explicit postconditions through the common verifier.',{...sceneSession,criteria:z.array(check).min(1).max(32)},(a,e)=>sceneRun(a,'verify',{criteria:a.criteria},s=>s.host.scene.verify(a.criteria),e));
- add('scene_add_model','Prepare a GLB/URDF capability proposal with mode=prepare, or add an AssetRef, Recipe, MechanicalDraft or reviewed GLB with mode=add. GLB bytes use bytesBase64; optional URDF uses urdfBase64. Review is configuration, never physics verification.',{...sceneSession,requestId:z.uuid(),mode:z.enum(['prepare','add']).default('add'),model:z.record(z.string(),z.unknown())},(a,e)=>sceneRun(a,'addModel',{model:a.model,mode:a.mode},async s=>{const model=decodeModel(a.model);if(a.mode==='prepare')return s.host.scene.prepareAsset(model.asset);await attachSceneAssets(s,[model.asset]);return s.host.scene.addModel(model);},e));
+ add('scene_add_model','Analyze GLB/URDF with mode=prepare; mode=screen runs bounded, isolated Rapier tests of source-bound kinematic candidates (model.proposalId and optional model.hypothesisIds), never grants actions; mode=add imports reviewed assets. GLB uses bytesBase64.',{
+  ...sceneSession,requestId:z.uuid(),mode:z.enum(['prepare','screen','add']).default('add'),model:z.record(z.string(),z.unknown())
+ },(a,e)=>sceneRun(a,'addModel',{model:a.model,mode:a.mode},async s=>{
+  const model=decodeModel(a.model);
+  if(a.mode==='prepare')return s.host.scene.prepareAsset(model.asset);
+  if(a.mode==='screen')return s.host.scene.screenAsset({...model.asset,proposalId:model.proposalId,hypothesisIds:model.hypothesisIds});
+  await attachSceneAssets(s,[model.asset]);
+  return s.host.scene.addModel(model);
+ },e));
  add('scene_save','Export a complete portable project with bounded embedded dependencies.',sceneSession,(a,e)=>sceneRun(a,'save',{},async s=>{
   const result=await s.host.scene.save({readResource:async url=>{
    const prefix='data:model/gltf-binary;base64,';

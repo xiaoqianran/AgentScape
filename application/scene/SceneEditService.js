@@ -94,6 +94,11 @@ export function createSceneEditService(world, { exclusive, assertOpen, assertIdl
       const source=glbInputSchema.omit({review:true}).parse(input);
       return exclusive(()=>world.assetModule.prepareInteraction(source));
     },
+    async screenAsset(input) {
+      const {proposalId,hypothesisIds,...source}=input || {};
+      const glb=glbInputSchema.omit({review:true}).parse(source);
+      return exclusive(()=>world.assetModule.screenInteraction({...glb,proposalId,hypothesisIds}));
+    },
     async addModel(input, { signal } = {}) {
       assertIdle();
       if (typeof input?.asset !== 'string') {

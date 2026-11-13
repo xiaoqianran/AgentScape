@@ -20,8 +20,12 @@ export interface ReviewPhysics { body: 'fixed' | 'dynamic'; mass: number; fricti
 export interface InteractionReview { proposalId:string; confirmed:true; physics:ReviewPhysics; parts?: Array<{id:string;node:string;parent?:string;physics:ReviewPhysics;
   joint:{type:'prismatic'|'revolute';axis:Vec3;parentAnchor:Vec3;childAnchor:Vec3;limits:[number,number];motor?:{stiffness:number;damping:number}}}> }
 export interface GLBInput { kind:'glb';bytes:Uint8Array;name?:string;urdfBytes?:Uint8Array;review?:InteractionReview }
+export interface KinematicHypothesis { id:string;source:'gltf-animation'|'static-geometry';node:string|null;nodeIndex:number;jointType:'revolute'|'prismatic';axisWorld:Vec3;pivotWorld:Vec3;limits:[number,number]|null;evidence:Record<string,unknown>;missing:string[];status:'candidate';executable:false;physicsVerified:false;functionVerified:false }
+export interface KinematicEvidence { schema:'agentscape.kinematic-evidence';schemaVersion:1;hypotheses:KinematicHypothesis[];issues:Array<{code:string;[key:string]:unknown}>;limitations:string[];truncated?:boolean;evidenceSources:string[] }
+export interface KinematicScreenResult { id:string;source:string;jointType:string;status:'simulation-passed'|'simulation-failed'|'blocked';mechanicalFeasible:boolean;physicsVerified:false;functionVerified:false;admission:'not-granted';assumptions?:Record<string,unknown>|null;trials?:Array<{target:number|null;status:'simulation-passed'|'simulation-failed'|'blocked';mechanicalFeasible:boolean;assumptions?:Record<string,unknown>;evidence?:Record<string,unknown>;diagnostics?:Array<{code:string}>}>;evidence?:Record<string,unknown>;diagnostics?:Array<{code:string}> }
+export interface KinematicScreen { schema:'agentscape.kinematic-screen';schemaVersion:1;proposalId:string;sourceHash:string;results:KinematicScreenResult[];admission:'not-granted';interpretation:string }
 export interface CapabilityProposal { schema:'agentscape.capability-proposal';schemaVersion:1;proposalId:string;sourceHash:string;urdfHash:string|null;compilerVersion:string;
-  physics:{body:null;mass:null;friction:null;colliders:unknown[]};
+  physics:{body:null;mass:null;friction:null;colliders:unknown[]};kinematics:KinematicEvidence;
   parts:Array<{id:string;node:string;parent?:string;joint:Record<string,unknown>;physics?:Record<string,unknown>;confidence?:number;executable:false;physicsVerified:false;missing:string[]}>;
   operations:Array<{action:string;part?:string;executable:false;physicsVerified:false;requires:string}>;missing:string[];evidence:Record<string,unknown> }
 export interface ModelInput { id: string; asset: string | AssetRecipe | MechanicalDraft | GLBInput | ThreeCodeInput; level?: CapabilityLevel; transform?: Transform; position?: Vec3 }
@@ -71,6 +75,8 @@ export interface SceneHandle {
   actors():{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
   selectActor(actor:string):{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
   prepareAsset(input:Omit<GLBInput,'review'>):Promise<CapabilityProposal>;
+  /** Temporary Rapier tests of source-bound hypotheses; never authorizes actions. */
+  screenAsset(input:Omit<GLBInput,'review'> & {proposalId:string;hypothesisIds?:string[]}):Promise<KinematicScreen>;
   inspect(target: string, options?: { actor?: string }): ObjectAffordances | ProjectEntityObservation;
   /** Object-only page in live insertion order. Restart after mutations; no global graph work. */
   observe(options: { actor?: string; offset?: number; limit: number }): { schema: 'agentscape.scene-object-page'; schemaVersion: 1; revision: number; total: number; offset: number; nextOffset: number | null; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }> };

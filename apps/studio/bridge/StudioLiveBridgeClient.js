@@ -187,7 +187,10 @@ export class StudioLiveBridgeClient {
           const assetId=rest.kind==='compiled-code'&&rest.id?.startsWith('pa_')?'asset_'+rest.id.slice(3):rest.id;
           model={...model,asset:{...rest,...(assetId?{id:assetId}:{}),bytes:decode(bytesBase64),...(urdfBase64?{urdfBytes:decode(urdfBase64)}:{})}};
         }
-        return args.mode==='prepare'?this.scene.prepareAsset(model.asset):this.scene.addModel(model);
+        if(args.mode==='prepare')return this.scene.prepareAsset(model.asset);
+        if(args.mode==='screen')return this.scene.screenAsset({...model.asset,
+          proposalId:model.proposalId,hypothesisIds:model.hypothesisIds});
+        return this.scene.addModel(model);
       }
       case 'setStyle':return this.scene.setStyle(args.style,{fallback:args.fallback});
       case 'save':return this.codeProjects?.session ? this.codeProjects.save() : this.scene.save();
