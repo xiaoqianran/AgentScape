@@ -8,7 +8,17 @@
 .code-project-editor input,.code-project-editor select,.code-project-editor textarea,.code-project-actions textarea { width:100%; box-sizing:border-box; padding:8px; color:inherit; background:var(--bg-panel,#172131); border:1px solid #526079; border-radius:6px; }
 .code-source-label { flex:1; min-height:240px; }
 .code-source-label textarea { flex:1; resize:vertical; min-height:240px; font:12px/1.5 monospace; tab-size:2; white-space:pre; }
-.code-project-buttons { display:flex; flex-wrap:wrap; gap:6px; }
+.code-project-buttons { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.code-project-files { display:grid; gap:4px; padding:10px; border:1px solid #44546a; border-radius:8px; }
+.code-project-files > strong,.code-project-resources > strong { display:flex; justify-content:space-between; align-items:center; }
+.code-project-files button { display:flex; justify-content:space-between; gap:6px; width:100%; text-align:left;
+  padding:7px 8px; border-radius:6px; border:1px solid transparent; overflow-wrap:anywhere; background:transparent; color:inherit; }
+.code-project-files button.selected { border-color:#6b92c5; background:rgba(78,139,210,.15); }
+.code-project-files small,.code-project-resources small { opacity:.75; font-size:11px; white-space:nowrap; }
+.code-project-file-tools { display:grid; gap:8px; padding:8px; border:1px solid #35465d; border-radius:6px; }
+.code-project-resources { display:grid; gap:8px; padding:10px; border:1px solid #44546a; border-radius:8px; }
+.code-project-resources > div { display:flex; justify-content:space-between; align-items:center; gap:8px; overflow-wrap:anywhere; }
+.code-project-resources > div button { flex-shrink:0; }
 .code-project-note,.code-project-editor small { font-size:12px; opacity:.8; }
 .code-project-actions pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
 .code-project-actions section { border-bottom:1px solid #526079; padding-bottom:12px; }

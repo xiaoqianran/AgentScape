@@ -66,10 +66,13 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
    }
   }
  };
- add('studio_project','Create, edit, run, save and reopen complete trusted code worlds in the active Studio workbench. Read first for source, revision and createProject API guide. write saves a draft; patch applies a unique exact-fragment edit with expectedRevision; run activates it; save persists live state and assets. Not a sandbox. Use scene_observe/interact for dynamic actions.',{
-  ...sceneSession, operation:z.enum(['read','write','patch','run','save','open','close']), requestId:z.uuid().optional(),
+ add('studio_project','Create, edit, run, save and reopen complete trusted code worlds in the active Studio workbench. Read first for source, revision and createProject API guide. file/file_read edit named JavaScript and shader files, resource imports embedded binary resources. write saves a draft; patch applies a unique exact-fragment edit with expectedRevision; run activates it; save persists live state and assets. Not a sandbox. Use scene_observe/interact for dynamic actions.',{
+  ...sceneSession, operation:z.enum(['read','write','patch','file_read','file','resource','run','save','open','close']), requestId:z.uuid().optional(),
   create:z.boolean().optional(), source:z.string().min(1).optional(), name:z.string().min(1).optional(),
   oldText:z.string().min(1).optional(), newText:z.string().optional(),
+  action:z.enum(['create','write','patch','rename','delete','add']).optional(), path:z.string().min(1).max(180).optional(),
+  newPath:z.string().max(180).optional(), content:z.string().optional(), mime:z.string().optional(), base64:z.string().optional(),
+  offset:z.number().int().min(0).optional(), limit:z.number().int().min(1).max(65536).optional(),
   expectedRevision:z.number().int().nonnegative().optional(), id:z.string().optional(), project:z.record(z.string(),z.unknown()).optional()
  },(a,e)=>{
   const {worldSessionId,requestId,...args}=a;

@@ -49,6 +49,7 @@
     "@recast-navigation/core": "^0.43.1",
     "@recast-navigation/generators": "^0.43.1",
     "@sparkjsdev/spark": "~2.1.0",
+    "es-module-lexer": "^2.3.2",
     "jolt-physics": "1.1.0",
     "quickjs-emscripten": "0.32.0",
     "react": "^19.2.8",

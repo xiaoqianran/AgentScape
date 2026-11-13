@@ -157,6 +157,9 @@ export class StudioLiveBridgeClient {
       if (operation === 'read') { await this.codeProjects.refresh(); return this.codeProjects.read(); }
       if (operation === 'write') return this.codeProjects.write(input);
       if (operation === 'patch') return this.codeProjects.patch(input);
+      if (operation === 'file_read') return this.codeProjects.readFile(input.path,input);
+      if (operation === 'file') return this.codeProjects.editFile(input);
+      if (operation === 'resource') return this.codeProjects.editResource(input);
       if (operation === 'run') return this.codeProjects.run(input);
       if (operation === 'save') return this.codeProjects.save();
       if (operation === 'open') return this.codeProjects.load(input.id);

@@ -4,12 +4,14 @@ import { attachNativeScene } from './NativeSceneHost.js';
 import { exportRuntimeState, restoreRuntimeState } from '../scene/ScenePackage.js';
 import { assetDigest, canonicalAssetJson } from '../../modules/asset/model/AssetInputContracts.js';
 import { projectJson } from '../../modules/world/runtime/ProjectCapabilities.js';
+import { compileCodeProjectModules, validateCodeFiles } from './CodeProjectModules.js';
 
 const fail = code => Object.assign(new Error(code), { code });
 const schema = z.object({
   schema: z.literal('agentscape.code-project'), schemaVersion: z.literal(1),
   id: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]*$/), name: z.string().min(1),
-  source: z.string().min(1), resources: z.record(z.string(), z.object({ mime: z.string(), base64: z.string() }).strict()).default({}),
+  source: z.string().min(1), entry:z.string().optional(), files:z.record(z.string(),z.string()).optional(),
+  resources: z.record(z.string(), z.object({ mime: z.string(), base64: z.string() }).strict()).default({}),
   state: z.unknown().optional(), runtime: z.unknown().optional(),
   integrity: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).strict();
@@ -23,6 +25,7 @@ export async function parseCodeProject(input, { maxBytes = 64 * 1024 * 1024 } = 
   const { integrity, ...payload } = project;
   if (integrity && await digest(payload) !== integrity) throw fail('CODE_PROJECT_INTEGRITY_MISMATCH');
   if ('state' in project) projectJson(project.state);
+  validateCodeFiles(project);
   return project;
 }
 
@@ -53,7 +56,7 @@ export async function openCodeProject({ project: input, container = null, author
   };
   const release = () => { for (const url of urls.values()) URL.revokeObjectURL(url); urls.clear(); mount?.remove(); };
   try {
-    const module = await loadModule(project.source);
+    const module = await loadModule(await compileCodeProjectModules(project));
     if (typeof module.createProject !== 'function') throw fail('CODE_PROJECT_FACTORY_REQUIRED');
     instance = await module.createProject({ THREE, container: mount, state: project.state === undefined ? undefined : projectJson(project.state), resource, signal: controller.signal });
     if (!instance || typeof instance !== 'object') throw fail('CODE_PROJECT_INSTANCE_INVALID');
@@ -85,7 +88,8 @@ export async function openCodeProject({ project: input, container = null, author
         const state = projectJson(await instance.serialize?.() ?? null);
         const runtime = await exportRuntimeState(session.world, { name: project.name });
         const payload = { schema: project.schema, schemaVersion: 1, id: project.id, name: project.name,
-          source: project.source, resources: project.resources, state, runtime };
+          source: project.source, ...(project.entry ? { entry:project.entry, files:project.files || {} } : {}),
+          resources: project.resources, state, runtime };
         const value = { ...payload, integrity: await digest(payload) };
         return { schema: 'agentscape.scene-result', schemaVersion: 1, operation: 'save', status: 'succeeded',
           verification: { status: 'not-requested', evidence: null }, diagnostics: [], value };
