@@ -124,3 +124,31 @@ it('executes a new environment capability with state verification but no false p
     expect(scene.verify([{id:'on',kind:'state-equals',targetId:'workstation',stateKey:'powered',value:true}]).value.status).toBe('world-accepted');
   } finally { scene.close(); world.dispose(); }
 }, 20_000);
+
+it('uses the same manifest-backed executor for existing open and close names', async () => {
+  const session = createSession(null, {
+    environmentFactory:() => createBlankWorld({ id:'semantic-legacy-articulation' })
+  });
+  await session.world.init();
+  const { world, scene } = session;
+  try {
+    const preset = ENVIRONMENTS.find(entry => entry.id === 'industrial-cabinet-lab').bootstrap;
+    await bootstrapWorld(new AgentTools(world, { actor:'agent_01', profile:'builder', source:'test' }), preset);
+    const target = 'industrial_cabinet_01', actor = 'agent_01', partName = 'upper_drawer';
+    for (const [name, expected] of [['open', .45], ['close', 0]]) {
+      const capability = scene.inspect(target, { actor }).capabilities.find(item =>
+        item.name === name && item.partName === partName);
+      expect(capability).toMatchObject({ executor:'interaction', verification:'articulation-state' });
+      const completed = await finish(scene, scene.interact({
+        action:'invoke', target, actor, name, partName
+      }));
+      expect(completed.status, JSON.stringify(completed)).toBe('succeeded');
+      expect(completed.result.verification.status).toBe('verified');
+      expect(completed.result.outcome.physicsVerified).toBe(true);
+      expect(world.physics.getArticulationState(target, partName).coordinate).toBeCloseTo(expected, 1);
+    }
+  } finally {
+    scene.close();
+    world.dispose();
+  }
+}, 90_000);

@@ -53,14 +53,14 @@ it('discovers and physically carries a new generic recipe with no pickup/drop/pl
     const observed=await tools.call('observeScene',{actor:'worker'});
     expect(observed.affordances.entities.find(e=>e.id==='unknown_artefact').capabilities.some(c=>c.name==='pickup')).toBe(true);
 
-    const pickup=await finish(scene,scene.interact({action:'pickup',actor:'worker',target:'unknown_artefact'}));
+    const pickup=await finish(scene,scene.interact({action:'invoke',name:'pickup',actor:'worker',target:'unknown_artefact'}));
     expect(pickup.status,JSON.stringify(pickup)).toBe('succeeded');
     expect(pickup.result.verification.status).toBe('verified');
     expect(pickup.result.value).toMatchObject({status:'held',attachment:'kinematic-anchor',graspVerified:false});
     expect(world.interactions.heldByAgent('worker')).toBe('unknown_artefact');
 
     await scene.addModel({id:'support',asset:'builtin://table',position:[2.5,0,-1.5]});
-    const placement=await finish(scene,scene.interact({action:'place',actor:'worker',target:'support'}));
+    const placement=await finish(scene,scene.interact({action:'invoke',name:'place',actor:'worker',target:'support'}));
     expect(placement.status,JSON.stringify(placement)).toBe('succeeded');
     expect(placement.result.value).toMatchObject({status:'placed',supportVerified:true});
     expect(world.interactions.heldByAgent('worker')).toBeNull();

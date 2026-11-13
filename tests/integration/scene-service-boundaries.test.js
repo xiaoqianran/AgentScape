@@ -64,6 +64,16 @@ describe('Scene service boundaries', () => {
     expect(() => jobs.getJob('job_missing')).toThrow('JOB_NOT_FOUND');
   });
 
+  it('releases the shared lock when a legacy command throws synchronously', async () => {
+    const { tools, jobs, isBusy } = createJobsFixture();
+    tools.call.mockImplementationOnce(() => { throw new Error('executor failed'); });
+    const job = jobs.interact({ action:'navigate', actor:'agent', position:[1,0,1] });
+    const completed = await jobs.waitJob(job.id);
+    expect(completed.status).toBe('failed');
+    expect(completed.result.diagnostics[0].stage).toBe('scene');
+    expect(isBusy()).toBe(false);
+  });
+
   it('validates snapshot restore before replacing the authoritative world', async () => {
     const world = {
       serialize: vi.fn(() => ({objects:[],name:'Persisted'})),
