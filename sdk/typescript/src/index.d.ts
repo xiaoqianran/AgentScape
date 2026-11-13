@@ -67,6 +67,7 @@ export type Interaction = { action: 'invoke'; target: string; name: string; acto
 export interface SceneHandle {
   registerEntity(definition: ProjectEntityDefinition): () => void;
   registerAction(definition: ProjectActionDefinition): () => void;
+  registerStateMachine(definition: ProjectStateMachineDefinition): ProjectStateMachineHandle;
   actors():{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
   selectActor(actor:string):{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
   prepareAsset(input:Omit<GLBInput,'review'>):Promise<CapabilityProposal>;
@@ -134,6 +135,32 @@ export interface ProjectActionDefinition {
   available?(context: ProjectActionContext): boolean;
   verify?(evidence: {args:any;before:Record<string,unknown>;after:Record<string,unknown>;value:unknown}, context:ProjectActionContext): boolean | {verified:boolean;[key:string]:unknown} | Promise<boolean | {verified:boolean;[key:string]:unknown}>;
 }
+export type MachineValue = string | number | boolean | null;
+export interface MachineCondition {
+  field:string;op:'eq'|'ne'|'lt'|'lte'|'gt'|'gte';value?:MachineValue;other?:string;
+}
+export interface MachineEffect {field:string;op:'set'|'add';value:MachineValue}
+export interface ProjectMachineTransition {
+  name:string;description?:string;expose?:boolean;when?:MachineCondition[];effects:MachineEffect[];
+}
+export interface ProjectMachineTimer {
+  field:string;rate:number;max:number;when?:MachineCondition[];onComplete?:string;
+}
+export interface ProjectStateMachineDefinition {
+  id:string;label?:string;description?:string;object?:any;
+  initialState:Record<string,MachineValue>;transitions:ProjectMachineTransition[];
+  ranges?:Record<string,{min:number;max:number}>;timers?:ProjectMachineTimer[];
+  onChange?(next:Record<string,MachineValue>,previous:Record<string,MachineValue>,meta:{kind:string;name?:string;seconds?:number;completed?:string[]}):void;
+  verifyVisual?(state:Record<string,MachineValue>,context:{object:any;kind:string}):boolean;
+}
+export interface ProjectStateMachineHandle {
+  read():Record<string,MachineValue>;
+  advance(seconds:number):{changed:boolean;state:Record<string,MachineValue>;completed?:string[]};
+  dispose():void;
+}
+export interface CodeProjectMachineSnapshot {
+  schema:'agentscape.project-machine-state';schemaVersion:1;entities:Record<string,Record<string,MachineValue>>;
+}
 export interface ProjectEntityObservation {
   schema:'agentscape.project-entity';schemaVersion:1;source:'project';id:string;label:string;description:string;state:Record<string,unknown>;physicsVerified:false;
   actions:Array<{action:'custom';name:string;description:string;parameters:Record<string,unknown>;execution:'project-action';available:boolean;verification:'project-defined'|'unverified'}>;
@@ -141,7 +168,8 @@ export interface ProjectEntityObservation {
 }
 export interface CodeProject {
   schema:'agentscape.code-project';schemaVersion:1;id:string;name:string;source:string;
-  resources?:Record<string,{mime:string;base64:string}>;state?:unknown;runtime?:unknown;integrity?:string;
+  resources?:Record<string,{mime:string;base64:string}>;state?:unknown;runtime?:unknown;
+  machines?:CodeProjectMachineSnapshot;integrity?:string;
 }
 export interface CodeProjectSession {
   scene:SceneHandle & {native:NativeSceneSession['scene']['native'];capabilities:Record<string,unknown>};world:any;

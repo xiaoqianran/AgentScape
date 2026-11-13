@@ -13,6 +13,8 @@ const schema = z.object({
   source: z.string().min(1), entry:z.string().optional(), files:z.record(z.string(),z.string()).optional(),
   resources: z.record(z.string(), z.object({ mime: z.string(), base64: z.string() }).strict()).default({}),
   state: z.unknown().optional(), runtime: z.unknown().optional(),
+  machines: z.object({schema:z.literal('agentscape.project-machine-state'),schemaVersion:z.literal(1),
+    entities:z.record(z.string(),z.record(z.string(),z.unknown()))}).strict().optional(),
   integrity: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).strict();
 const digest = value => assetDigest(new TextEncoder().encode(canonicalAssetJson(value)));
@@ -25,6 +27,7 @@ export async function parseCodeProject(input, { maxBytes = 64 * 1024 * 1024 } = 
   const { integrity, ...payload } = project;
   if (integrity && await digest(payload) !== integrity) throw fail('CODE_PROJECT_INTEGRITY_MISMATCH');
   if ('state' in project) projectJson(project.state);
+  if (project.machines) projectJson(project.machines);
   validateCodeFiles(project);
   return project;
 }
@@ -67,6 +70,7 @@ export async function openCodeProject({ project: input, container = null, author
     if (project.runtime) await restoreRuntimeState(session.world, project.runtime);
     await instance.setup?.({ scene: session.scene, world: session.world, signal: controller.signal });
     if (project.state !== undefined) await instance.restore?.(projectJson(project.state));
+    if (project.machines) session.world.projectCapabilities.restoreStateMachines(project.machines);
     const baseFrame = session.scene.frame;
     const frame = timestamp => {
       if (closed) throw fail('SCENE_CLOSED');
@@ -86,10 +90,11 @@ export async function openCodeProject({ project: input, container = null, author
       capturing = true;
       try {
         const state = projectJson(await instance.serialize?.() ?? null);
+        const machines = session.world.projectCapabilities.exportStateMachines();
         const runtime = await exportRuntimeState(session.world, { name: project.name });
         const payload = { schema: project.schema, schemaVersion: 1, id: project.id, name: project.name,
           source: project.source, ...(project.entry ? { entry:project.entry, files:project.files || {} } : {}),
-          resources: project.resources, state, runtime };
+          resources: project.resources, state, ...(machines ? {machines} : {}), runtime };
         const value = { ...payload, integrity: await digest(payload) };
         return { schema: 'agentscape.scene-result', schemaVersion: 1, operation: 'save', status: 'succeeded',
           verification: { status: 'not-requested', evidence: null }, diagnostics: [], value };

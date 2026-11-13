@@ -1,4 +1,5 @@
 import * as z from 'zod/v4';
+import { ProjectStateMachine } from './behavior/ProjectStateMachine.js';
 
 const fail = code => Object.assign(new Error(code), { code });
 const identifier = z.string().min(1).max(256);
@@ -18,7 +19,7 @@ export function projectJson(value) {
 
 /** Project-defined behavior, not a second ObjectStore or physics engine. */
 export class ProjectCapabilities {
-  constructor(runtime) { this.runtime = runtime; this.entities = new Map(); this.closed = false; }
+  constructor(runtime) { this.runtime = runtime; this.entities = new Map(); this.stateMachines = new Map(); this.closed = false; }
   assertOpen() { if (this.closed) throw fail('PROJECT_CAPABILITIES_CLOSED'); }
   has(id) { return this.entities.has(id); }
   registerEntity({ id, label = id, description = '', object = null, read = () => ({}) }) {
@@ -43,6 +44,79 @@ export class ProjectCapabilities {
     entry.actions.set(name, action);
     return () => { if (entry.actions.get(name) === action) entry.actions.delete(name); };
   }
+  /** One declarative entity, arbitrary guarded transitions, and an optional simulation clock. */
+  registerStateMachine({ id, label = id, description = '', object = null, initialState, transitions, timers, ranges, onChange, verifyVisual }) {
+    this.assertOpen();
+    const machine = new ProjectStateMachine({ object, initialState, transitions, timers, ranges, onChange, verifyVisual });
+    const removeEntity = this.registerEntity({ id, label, description, object, read:() => machine.read() });
+    const removeActions = [];
+    try {
+      for (const transition of machine.listedActions()) {
+        const name = transition.name;
+        removeActions.push(this.registerAction({ target:id, name, description:transition.description,
+          available:() => machine.available(name),
+          execute:() => {
+            const result = machine.execute(name);
+            if (result.changed) this.runtime.events.emit('project.machine.changed', {id,kind:'action',name,state:result.state});
+            return result;
+          },
+          verify:({after,value}) => ({
+            verified:value?.changed === true && JSON.stringify(after) === JSON.stringify(value.state),
+            kind:'state-machine-transition', transition:name
+          })
+        }));
+      }
+    } catch (err) { for (const undo of removeActions.reverse()) undo(); removeEntity(); throw err; }
+    this.stateMachines.set(id, machine);
+    const dispose = () => {
+      if (this.stateMachines.get(id) !== machine) return;
+      this.stateMachines.delete(id);
+      for (const undo of removeActions.reverse()) undo();
+      removeEntity();
+    };
+    return Object.freeze({
+      read:() => machine.read(),
+      advance:seconds => {
+        this.assertOpen();
+        if (this.stateMachines.get(id) !== machine) throw fail('PROJECT_MACHINE_NOT_FOUND');
+        const result = machine.advance(seconds);
+        if (result.changed) this.runtime.events.emit('project.machine.changed', {id,kind:'clock',state:result.state,completed:result.completed});
+        return result;
+      },
+      dispose
+    });
+  }
+
+  exportStateMachines() {
+    this.assertOpen();
+    if (!this.stateMachines.size) return null;
+    return {schema:'agentscape.project-machine-state',schemaVersion:1,
+      entities:Object.fromEntries([...this.stateMachines].map(([id,machine]) => [id,machine.read()]))};
+  }
+
+  /** Validate every target first; failed visual sync restores prior machine states. */
+  restoreStateMachines(snapshot) {
+    this.assertOpen();
+    if (!snapshot || snapshot.schema !== 'agentscape.project-machine-state' || snapshot.schemaVersion !== 1
+      || !snapshot.entities || typeof snapshot.entities !== 'object' || Array.isArray(snapshot.entities)
+      || Object.keys(snapshot).some(key => !['schema','schemaVersion','entities'].includes(key))) throw fail('PROJECT_MACHINE_SNAPSHOT_INVALID');
+    projectJson(snapshot);
+    const desired = [];
+    for (const [id,state] of Object.entries(snapshot.entities)) {
+      const machine = this.stateMachines.get(id);
+      if (!machine) throw fail('PROJECT_MACHINE_NOT_FOUND');
+      desired.push([id,machine,machine.validate(state)]);
+    }
+    // Avoid silently losing machines whose callbacks were not installed during setup.
+    if (desired.length !== this.stateMachines.size) throw fail('PROJECT_MACHINE_SNAPSHOT_INVALID');
+    const before = desired.map(([,machine]) => machine.read());
+    try { for (const [,machine,state] of desired) machine.restore(state); }
+    catch (failure) {
+      for (let i=desired.length-1;i>=0;i--) try { desired[i][1].restore(before[i]); } catch { /* preserve failure */ }
+      throw failure;
+    }
+  }
+
   read(entry) {
     const state = projectJson(entry.read());
     if (!state || Array.isArray(state) || typeof state !== 'object') throw fail('PROJECT_STATE_INVALID');
@@ -86,5 +160,5 @@ export class ProjectCapabilities {
     this.runtime.events.emit('project.action.completed', result);
     return result;
   }
-  dispose() { this.closed = true; this.entities.clear(); }
+  dispose() { this.closed = true; this.stateMachines.clear(); this.entities.clear(); }
 }

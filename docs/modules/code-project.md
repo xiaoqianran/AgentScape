@@ -131,6 +131,12 @@ tests/integration/code-project.test.js 覆盖打包、模块运行、Shader、Ag
 
 保留了工作区已有 180 秒网关默认超时，仅同步了其过时的 90 秒测试预期。本次是本地实现与自动验收记录，不是 npm 发布或独立人类首次使用验收。
 
+## 声明式状态机与组合行为（第三批）
+
+通过 `scene.registerStateMachine({id,initialState,transitions,timers?,onChange?,verifyVisual?})`，Code Project 可以直接注册条件约束、原子多字段状态变化、隐藏的内部自动完成，以及对真实 Three.js 网格变换的验证。返回值的 `advance(dt)` 可用于计时。保存 Code Project 时自动加入可选的 `machines` 快照；旧的 `state`/`runtime` 不变。完成验证的项目动作仍标注 `physicsVerified:false`，不得当作 Rapier 接触力验证。
+
+完整 API、限制、状态恢复以及**书籍翻页 + 电饭煲**示例见 [Three.js 声明式状态机](project-state-machines.md)。原生多文件可编辑工程在 `examples/code-project/semantic-workshop.json`，可直接导入 Studio。
+
 ## Studio 原生多文件工程（2026-11-13 第二批）
 
 Studio 不再要求每次编辑都先离线打包。代码世界保持 `agentscape.code-project` v1，不修改旧项目格式的必填字段。

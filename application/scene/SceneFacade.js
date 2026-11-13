@@ -47,6 +47,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     captureProjectState(capture) { return exclusive(capture); },
     registerEntity(definition) { assertOpen(); return world.projectCapabilities.registerEntity(definition); },
     registerAction(definition) { assertOpen(); return world.projectCapabilities.registerAction(definition); },
+    registerStateMachine(definition) { assertOpen(); return world.projectCapabilities.registerStateMachine(definition); },
     actors() {
       assertOpen();
       const agents=world.store.list().filter(([,record])=>record.manifest?.type==='agent').map(([id])=>({id,position:world.physics.getPosition(id)}));
