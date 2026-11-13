@@ -1,6 +1,6 @@
 # AgentScape Remote MCP v0.3
 
-自由代码项目可通过同一 Scene 工具发现并调用 `action:'custom'`、任意项目动作名和 JSON 参数；无验证器也允许执行，证据单列为未验证。代码、Shader、持续逻辑和作品迁移见 [Code Project](../../docs/modules/code-project.md)，示例入口 `/examples/code-project/`。源码由本地项目入口显式运行，MCP 不自动执行远端源码。
+自由代码项目可通过同一 Scene 工具发现并调用 `action:'custom'`、任意项目动作名和 JSON 参数；无验证器也允许执行，证据单列为未验证。代码、Shader、持续逻辑和作品迁移见 [Code Project](../../docs/modules/code-project.md)，示例入口 `/examples/code-project/`。源码由本地项目入口显式运行，MCP 不自动执行远端源码。`studio_project` 的 `preview_batch` 可对最多 32 项文件/资源操作预览差异但不发布；`apply_batch` 使用 `previewId` 和 `expectedRevision` 原子持久化，`discard_batch` 放弃预览，`undo_batch` 在无后续编辑时撤销最近一批；预览仅在当前 Studio 会话内有效。
 
 新增容器隔离的程序化资产构建/发布、不可变版本与文件存储、可信世界保存恢复。原有 33 个工具继续兼容；新增 4 个 Studio Live Bridge 配对/会话工具，使用同一个 `agentscape-world` 连接。契约、示例、隔离设施和保存边界见 [PROGRAMMATIC-ASSETS.md](./PROGRAMMATIC-ASSETS.md)。
 

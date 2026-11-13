@@ -117,6 +117,20 @@ AI 工具：`readStudioProject` 返回当前项目基本信息、入口源码预
 
 MCP `studio_project` 对应新增操作 `file_read`、`file`、`resource`；`patch` 也可指定 `path`。完整文件仍只保存在 Studio 本机存储，不要求 MCP 客户端维护世界副本。读文件默认每页 65,536 字符，支持 `nextOffset` 分页。
 
+## Studio 多文件事务编辑与差异审阅（第三批）
+
+AI 不再需要按文件分别提交并承担工程处于半修改状态的风险。可通过以下流程完成多文件协同修改：
+
+1. 使用 `readStudioProject` 获取当前修订号和文件清单，按需使用 `readStudioFile` 读取源码。
+2. 发送 `previewStudioProjectBatch({expectedRevision,operations})`。每项操作指定 `kind:'file'|'resource'`、`action`、`path` 及创建内容或补丁内容；最多 32 项。系统先对一份内存草稿执行**全部**操作、检查路径、文件限制和模块引用，不运行源码，也不写入 IndexedDB。
+3. 预览返回 `previewId`、受影响文件/资源列表及有界逐行差异。差异最长 3,200 字符/文件，资源只显示 MIME 与编码大小，不返回二进制 base64；Studio 左侧「待审阅多文件修改」显示增删行。
+4. 通过 `applyStudioProjectBatch({previewId,expectedRevision})` 一次性发布所有改动（只调用一次底层项目保存、修订号只增加一次）。用户也可选择 `discardStudioProjectBatch({previewId})` 放弃，已有文件与运行实例保持不变。
+5. 应用后如需回滚，调用 `undoStudioProjectBatch({expectedRevision})` 或点击「撤销上一批修改」。撤销恢复批次前的代码/资源，保留此后保存的运行时状态；**撤销仅限当前会话最近一次批次，后续独立编辑会清空记录**。应用和撤销后都需重新运行代码世界才生效。
+
+MCP `studio_project` 新增 `preview_batch`、`apply_batch`、`discard_batch`、`undo_batch`，参数与 AI 工具等价。预览短期保存在当前 Studio 控制器，刷新页面会消失；存储失败不会发布部分变更，预览仍可重试。版本冲突、任何文件内容匹配失败、非法路径或缺失导入都不会覆盖草稿。多文件及资源批量导入也使用整批校验和一次保存。
+
+这套本地控制器的 `expectedRevision` 不是跨多个浏览器标签页的数据库 CAS；跨标签并发编辑仍应避免，后续可单独升级存储并发控制。批量操作不提供任意 JS 的运行时副作用回滚，只保证草稿文件层面的原子提交。
+
 ## Studio 主工作台
 
 世界页面点击「代码世界」，或从世界库点击「创建或打开代码世界」。左侧编辑完整 ESM，中间运行原生 Three.js，右侧显示项目对象、实时状态和动态动作。常见字符串、数字、布尔值及枚举参数自动显示输入表单；复杂参数可切换高级 JSON，动作运行时可取消，并分别显示执行结果和验证状态。
