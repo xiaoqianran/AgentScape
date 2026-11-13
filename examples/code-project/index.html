@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>自由代码世界 · AgentScape</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101727;color:#e0e8fa;font:15px/1.6 system-ui}#world{height:100vh;width:100vw}canvas{display:block}aside{position:fixed;top:20px;left:20px;width:min(370px,calc(100vw - 40px));padding:22px;background:#182239ee;border:1px solid #40526e;border-radius:16px}h1{font-size:22px;margin:0}button,label{font:inherit}button{cursor:pointer;margin:4px;padding:8px 12px;border:0;border-radius:8px;background:#b8d8ff;color:#12243a}button:disabled{opacity:.4}small{color:#b3c5e0}#file{width:100%}pre{white-space:pre-wrap;font-size:12px;max-height:230px;overflow:auto}
+</style></head>
+<body><div id="world"></div><aside><h1>自由代码世界</h1><p>多文件 Three.js、Shader、持续动画，以及项目自定义的传送能力。</p>
+<button id="start">运行传送门项目</button><button id="teleport" disabled>传送到花园</button><button id="pulse" disabled>改变光效</button><button id="save" disabled>下载完整项目</button>
+<p><label>重开项目 <input id="file" type="file" accept=".json,application/json"></label></p>
+<label><input id="mcp" type="checkbox">连接本机 MCP</label><p role="status">点击运行，执行此示例的项目代码。</p><small id="bridge">MCP 未连接</small><pre id="observation"></pre></aside>
+<script type="module" src="./main.js"></script></body></html>

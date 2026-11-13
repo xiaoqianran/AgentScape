@@ -1,6 +1,36 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { capabilityDevPlugin } from "./dev/capabilityDevPlugin.js";
+import { nativeScenePlugin } from "./dev/nativeScenePlugin.js";
+import { startServer as startAgentGateway, loadEnvFile, DEFAULT_BASE_URL, DEFAULT_MODEL } from "./apps/server/openai-compatible-agent-gateway.mjs";
+
+function localAgentGatewayPlugin(env) {
+  return {
+    name: "agentscape-local-agent-gateway",
+    apply: "serve",
+    configureServer(server) {
+      if (process.env.VITEST) return;
+      const local = {};
+      loadEnvFile(".env.local", local);
+      const settings = { ...env, ...local };
+      const apiKey = settings.AGENTSCAPE_LLM_API_KEY || settings.AGENTSCAPE_TEST_LLM_API_KEY;
+      if (!apiKey) {
+        console.warn("[AgentScape] LLM Gateway not started: API key is missing");
+        return;
+      }
+      const gateway = startAgentGateway({
+        baseUrl: settings.AGENTSCAPE_LLM_BASE_URL || settings.AGENTSCAPE_TEST_LLM_BASE_URL || DEFAULT_BASE_URL,
+        apiKey,
+        model: settings.AGENTSCAPE_LLM_MODEL || settings.AGENTSCAPE_TEST_LLM_MODEL || DEFAULT_MODEL,
+        models: settings.AGENTSCAPE_LLM_MODELS || settings.AGENTSCAPE_TEST_LLM_MODELS || undefined,
+        host: settings.AGENTSCAPE_LLM_HOST || settings.AGENTSCAPE_TEST_LLM_HOST || "127.0.0.1",
+        port: settings.AGENTSCAPE_LLM_PORT || settings.AGENTSCAPE_TEST_LLM_PORT || 8788
+      });
+      gateway.on("error", (error) => console.error("[AgentScape] LLM Gateway failed:", error.message));
+      server.httpServer?.once("close", () => gateway.close());
+    }
+  };
+}
 
 function observatoryRoutePlugin() {
   const redirect = (req, res, next) => {
@@ -59,7 +89,7 @@ export default defineConfig(({ mode }) => {
   const devHost = String(env.AGENTSCAPE_DEV_HOST || "127.0.0.1").trim() || "127.0.0.1";
   return {
     base: "/",
-    plugins: [react(), observatoryRoutePlugin(), capabilityDevPlugin()],
+    plugins: [nativeScenePlugin({ projectRoots: ['examples/native-scene/project'] }), react(), observatoryRoutePlugin(), capabilityDevPlugin(), localAgentGatewayPlugin(env)],
     test: {
       include: ["tests/**/*.test.js"],
       // Physics/WASM world fixtures each own native resources; cap concurrent
@@ -80,6 +110,8 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         input: {
+          codeProject: new URL('./examples/code-project/index.html', import.meta.url).pathname,
+          nativeScene: new URL('./examples/native-scene/index.html', import.meta.url).pathname,
           codeExample: new URL('./examples/three-code/index.html', import.meta.url).pathname,
           starter: new URL("./apps/starter/index.html", import.meta.url).pathname,
           studio: new URL("./index.html", import.meta.url).pathname,

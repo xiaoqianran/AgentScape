@@ -27,6 +27,7 @@ import { WorldObservation } from './WorldObservation.js';
 import { WorldQueries } from './WorldQueries.js';
 import { WorldCommands } from './WorldCommands.js';
 import { WorldRecovery } from './WorldRecovery.js';
+import { ProjectCapabilities } from './ProjectCapabilities.js';
 import { RUNTIME_VERSION } from '../../../foundation/version.js';
 installThreeBvhRuntime();
 
@@ -92,6 +93,7 @@ export class WorldRuntime {
     this.scene = new THREE.Scene();
     this.rendering = null;
     this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null;
+    this.projectCapabilities = new ProjectCapabilities(this);
     this.simulation = new SimulationSession({
       fixedDt:1/60,
       executeStep:(dt)=>this.stepSimulation(dt),
@@ -608,6 +610,7 @@ export class WorldRuntime {
   dispose() {
     this.ready = false;
     this.events?.emit?.('world.disposing');
+    this.projectCapabilities?.dispose();
     this.ruleRuntime?.stop();
     this.affordances?.cancel('RUNTIME_DISPOSED');
     this.interactions?.cancelPending('RUNTIME_DISPOSED');

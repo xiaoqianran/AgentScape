@@ -49,13 +49,13 @@ export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undef
       return validation?.ok===true ? {id:check.id,kind:check.kind,verified:true,evidence:{validation:structuredClone(validation)}} : {id:check.id,kind:check.kind,verified:false,reason:'WORLD_VALIDATION_FAILED',evidence:validation?structuredClone(validation):null};
     }
     if(check.kind==='object-exists'){
-      const exists=Boolean(getRecord(runtime,check.targetId));
+      const exists=Boolean(getRecord(runtime,check.targetId) || runtime?.projectCapabilities?.has(check.targetId));
       return {id:check.id,kind:check.kind,verified:exists,targetId:check.targetId,...(!exists?{reason:'OBJECT_NOT_FOUND'}:{})};
     }
     if(check.kind==='state-equals'){
       const environment=runtime?.affordances?.get?.(check.targetId);
       if(environment?.kind==='text')return {id:check.id,kind:check.kind,verified:false,reason:'ENVIRONMENT_TEXT_REQUIRES_ACTOR_READ'};
-      const value=(getRecord(runtime,check.targetId)?.state || environment?.read?.())?.[check.stateKey];
+      const value=(getRecord(runtime,check.targetId)?.state || environment?.read?.() || runtime?.projectCapabilities?.readState(check.targetId))?.[check.stateKey];
       return {id:check.id,kind:check.kind,verified:Object.is(value,check.value),targetId:check.targetId,stateKey:check.stateKey,expected:check.value,actual:value,...(!Object.is(value,check.value)?{reason:'STATE_MISMATCH'}:{})};
     }
     if(check.kind==='interaction-verified'){

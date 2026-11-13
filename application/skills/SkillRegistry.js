@@ -19,6 +19,8 @@ function classifyResult(result) {
   if (result && typeof result === 'object' && !Array.isArray(result)) {
     if(result.schema==='agentscape.scene-result' && result.operation==='interact') {
       const verified=result.status==='succeeded' && result.verification?.status==='verified';
+      if (result.status === 'succeeded' && result.value?.status === 'project-action-completed' && !verified)
+        return { state:result.value.verificationRequested ? 'unverified' : 'accepted', verified:false, status:result.status, reason:'PROJECT_ACTION_UNVERIFIED' };
       return {state:verified?'verified':result.status==='cancelled'?'unverified':'failed',verified,status:result.status,
         reason:verified?null:result.value?.reason || result.diagnostics?.[0]?.code || 'SCENE_INTERACTION_UNVERIFIED'};
     }

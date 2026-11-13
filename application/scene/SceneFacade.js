@@ -37,6 +37,7 @@ const operationVector = sceneVector3Schema.refine(value => Math.hypot(...value) 
 const affordanceTarget = z.string().regex(/^[A-Za-z][A-Za-z0-9_:-]{0,255}$/);
 const physicalActions = new Set(['push', 'drag', 'rotate', 'slide', 'rotateJoint']);
 export const sceneInteractionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('custom'), target: z.string().min(1).max(256), name: z.string().min(1).max(256), actor: id.optional(), args: z.record(z.string(), z.unknown()).default({}) }).strict(),
   z.object({ action: z.literal('navigate'), actor: id, position: sceneVector3Schema }).strict(),
   z.object({ action: z.literal('activate'), actor: id, target: affordanceTarget }).strict(),
   z.object({ action: z.literal('pickup'), actor: id, target: affordanceTarget }).strict(),
@@ -102,7 +103,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     const snapshotOptions = batchSnapshots?.options() || undefined;
     const value = await world.mutate(`scene:${op.type}`, async () => {
       if (op.type === 'add') {
-        if (world.store.has(op.model.id)) throw sceneError('DUPLICATE_ID');
+        if (world.store.has(op.model.id) || world.projectCapabilities.has(op.model.id)) throw sceneError('DUPLICATE_ID');
         const key = assetId(op.model.asset, op.model.level);
         const transform = op.model.transform || sceneTransformSchema.parse({ position: op.model.position });
         const spawned = await world.commands.spawn(key, { id: op.model.id, ...transform });
@@ -114,11 +115,15 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     return result(op.type, value, { id: op.model?.id || op.id, admission: value?.admission || null });
   };
   const cancelPending = () => {
-    if ([...jobs.values()].some(job => job.status === 'running' && job.cancelled)) {
+    if ([...jobs.values()].some(job => job.status === 'running' && job.cancelled && !job.controller)) {
       world.interactions.cancelPending('SCENE_CANCELLED'); world.locomotion.cancelAll('SCENE_CANCELLED');world.affordances.cancel('SCENE_CANCELLED');
     }
   };
   const handle = {
+    // Trusted project host persistence shares the Scene job/edit lock.
+    captureProjectState(capture) { return exclusive(capture); },
+    registerEntity(definition) { assertOpen(); return world.projectCapabilities.registerEntity(definition); },
+    registerAction(definition) { assertOpen(); return world.projectCapabilities.registerAction(definition); },
     actors() {
       assertOpen();
       const agents=world.store.list().filter(([,record])=>record.manifest?.type==='agent').map(([id])=>({id,position:world.physics.getPosition(id)}));
@@ -132,6 +137,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     inspect(target, options = {}) {
       assertOpen(); z.string().min(1).max(256).parse(target);
       const { actor } = z.object({ actor: id.optional() }).strict().parse(options);
+      if (world.projectCapabilities.has(target)) return world.projectCapabilities.inspect(target, { actor });
       const inspection = world.affordances.inspect(target, { actorId: actor });
       if (!inspection) throw sceneError('OBJECT_NOT_FOUND');
       return inspection;
@@ -155,6 +161,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       const native = world.queries?.listEnvironmentInteractables?.({actorId:actor,radius:20});
       return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision,
         style: styles.export(), actors:handle.actors(), affordances: world.affordances.list({ actorId: actor, limit: 100 }),
+        project: world.projectCapabilities.list({ actor }),
         // Native interaction points are not Asset entities. Expose their stable
         // IDs and explicitly provisional evidence without claiming physics verification.
         nativeInteractions: {
@@ -262,6 +269,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     async replaceAsset(input) { return single(operations.parse({ ...input, type: 'replaceAsset' })); },
     interact(input) {
       const args = sceneInteractionSchema.parse(input); assertIdle();
+      if (args.action === 'custom') return startProjectAction(args);
       const nativeAction = args.action === 'activate';
       if (nativeAction && !handle.actors().agents.some(agent=>agent.id===args.actor)) throw sceneError('ACTOR_NOT_AGENT');
       if (nativeAction && !world.environment?.interactions?.some(item=>item.id===args.target && typeof item.activate==='function')) {
@@ -298,14 +306,14 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
           : physical ? { state:value.verified ? 'verified' : 'failed', verified:value.verified === true } : tools.executionPolicy(skill, value).outcome;
         job.status = job.cancelled ? 'cancelled' : (outcome.verified || activated) ? 'succeeded' : 'failed';
         job.result = result('interact', value, { status: job.status, verification: { status: !job.cancelled && outcome.verified ? 'verified' : 'unverified', evidence: value }, outcome });
-      }).catch(error => { job.status = job.cancelled ? 'cancelled' : 'failed'; job.result = result('interact', null, { status: job.status, diagnostics: [diagnostic(error)] }); })
+      }).catch(error => { job.status = job.cancelled ? 'cancelled' : 'failed'; job.result = result('interact', null, { status: job.status, verification: { status: 'unverified', evidence: null }, diagnostics: [diagnostic(error)] }); })
         .finally(() => { clearTimeout(job.timer); busy = false; });
       job.timer = setTimeout(() => handle.cancelJob(job.id), 60_000); job.timer.unref?.();
       return { id: job.id, status: job.status };
     },
     getJob(key) { assertOpen(); const job = getJob(key); return structuredClone({ id: job.id, status: job.status, result: job.result }); },
     async waitJob(key) { assertOpen(); const job = getJob(key); await job.promise; return handle.getJob(key); },
-    cancelJob(key) { assertOpen(); const job = getJob(key); if (job.status === 'running') { job.cancelled = true; cancelPending(); } return { id: job.id, status: job.status, cancellationRequested: Boolean(job.cancelled) }; },
+    cancelJob(key) { assertOpen(); const job = getJob(key); if (job.status === 'running') { job.cancelled = true; job.controller?.abort(); if (!job.controller) cancelPending(); } return { id: job.id, status: job.status, cancellationRequested: Boolean(job.cancelled) }; },
     verify(criteria = [{ id: 'valid', kind: 'world-valid' }]) {
       assertIdle(); const evidence = evaluateWorldAcceptance(world, compileWorldAcceptance(criteria));
       return result('verify', evidence, { verification: { status: evidence.status === 'world-accepted' ? 'verified' : 'unverified', evidence } });
@@ -355,6 +363,26 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     step() { assertOpen(); cancelPending(); return world.simulation.step(); },
     close() { if (closed) return; assertIdle(); closed = true; codeExecutor?.close(); unsubscribe.forEach(fn => fn()); if (ownsWorld) world.dispose(); }
   };
+  function startProjectAction(args) {
+    if (jobs.size >= 128) { const terminal = [...jobs].find(([, job]) => job.status !== 'running'); if (terminal) jobs.delete(terminal[0]); else throw sceneError('JOB_LIMIT'); }
+    const job = { id: `job_${crypto.randomUUID()}`, status: 'running', result: null, controller: new AbortController() };
+    jobs.set(job.id, job); busy = true;
+    // Project closures are not serializable Runtime history. Their callbacks own
+    // their state; never claim automatic rollback/undo of arbitrary code.
+    job.promise = Promise.resolve().then(() => world.projectCapabilities.execute(args, { signal: job.controller.signal }))
+      .then(value => {
+        job.status = job.cancelled ? 'cancelled' : 'succeeded';
+        const verified = !job.cancelled && value.verified;
+        revision++;
+        job.result = result('interact', value, { status: job.status,
+          verification: { status: verified ? 'verified' : 'unverified', evidence: value.evidence },
+          outcome: { state: job.cancelled ? 'unverified' : verified ? 'verified' : value.verificationRequested ? 'unverified' : 'accepted', verified, physicsVerified: false } });
+      }).catch(error => { job.status = job.cancelled ? 'cancelled' : 'failed'; job.result = result('interact', null, { status: job.status, verification: { status: 'unverified', evidence: null }, diagnostics: [diagnostic(error)] }); })
+      .finally(() => { clearTimeout(job.timer); busy = false; });
+    const timeoutMs = world.projectCapabilities.timeoutFor(args.target, args.name);
+    if (timeoutMs != null) { job.timer = setTimeout(() => handle.cancelJob(job.id), timeoutMs); job.timer.unref?.(); }
+    return { id: job.id, status: job.status };
+  }
   async function single(op) { const batch = await handle.apply({ operations: [op] }); if (batch.status === 'failed') throw sceneError(batch.diagnostics[0].code); return batch.value.applied[0]; }
   function getJob(key) { const job = jobs.get(key); if (!job) throw sceneError('JOB_NOT_FOUND'); return job; }
   services.set(world, handle);
@@ -377,7 +405,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       const graph=compileWorldAcceptance(criteria),ids=new Set(graph.checks.map(check=>check.id));
       for(const check of graph.checks) {
         if(!['relation-exists','state-equals'].includes(check.kind))throw sceneError('TASK_GOAL_KIND_UNSUPPORTED');
-        for(const ref of [check.targetId,check.subject,check.object,...(check.objectAnyOf || [])].filter(Boolean))if(!world.store.has(ref)&&!world.affordances.get(ref))throw sceneError('TASK_GOAL_TARGET_UNKNOWN');
+        for(const ref of [check.targetId,check.subject,check.object,...(check.objectAnyOf || [])].filter(Boolean))if(!world.store.has(ref)&&!world.affordances.get(ref)&&!world.projectCapabilities.has(ref))throw sceneError('TASK_GOAL_TARGET_UNKNOWN');
       }
       if(!dependencies || typeof dependencies!=='object' || Array.isArray(dependencies))throw sceneError('TASK_DEPENDENCIES_INVALID');
       const visiting=new Set(),done=new Set();

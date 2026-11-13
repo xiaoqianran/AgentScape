@@ -6,7 +6,14 @@ import { createAssetModule } from './runtime/modules/asset/AssetModule.js';
 export * from './index.js';
 export { createCodeExecutor };
 export { WorldDiskStorage } from './runtime/apps/server/WorldDiskStorage.js';
+export async function openCodeProject(options = {}) {
+  installHeadlessAssetIO();
+  return BrowserAgentScape.openProject({ ...options,
+    assetModule: createAssetModule({ volatile:true, manifestStore:null, libraryStore:null, gltfLoader:createHeadlessGLTFLoader() }) });
+}
 export const AgentScape = {
+  attach: BrowserAgentScape.attach,
+  openProject: openCodeProject,
   async open(options = {}) {
     installHeadlessAssetIO();
     const executor = createCodeExecutor(options.codeExecution || { mode:'disabled' });

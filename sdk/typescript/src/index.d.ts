@@ -53,17 +53,19 @@ export type PhysicalInteraction = { action: 'push' | 'drag'; actor: string; targ
   | { action: 'rotate'; actor: string; target: string; args: { axis: Vec3; angle: number; maxTorque?: number } }
   | { action: 'slide'; actor: string; target: string; args: { part: string } & ({ target: number; distance?: never } | { distance: number; target?: never }) }
   | { action: 'rotateJoint'; actor: string; target: string; args: { part: string } & ({ target: number; angle?: never } | { angle: number; target?: never }) };
-export type Interaction = PhysicalInteraction | { action: 'navigate'; actor: string; position: Vec3 } | { action: 'pickup'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string }
+export type Interaction = { action: 'custom'; target: string; name: string; args?: Record<string, unknown>; actor?: string } | PhysicalInteraction | { action: 'navigate'; actor: string; position: Vec3 } | { action: 'pickup'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string }
   | { action: 'turn_on' | 'turn_off' | 'pull_out' | 'return'; actor: string; target: string }
   | { action: 'write'; actor: string; target: string; args: { text: string } };
 export interface SceneHandle {
+  registerEntity(definition: ProjectEntityDefinition): () => void;
+  registerAction(definition: ProjectActionDefinition): () => void;
   actors():{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
   selectActor(actor:string):{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
   prepareAsset(input:Omit<GLBInput,'review'>):Promise<CapabilityProposal>;
-  inspect(target: string, options?: { actor?: string }): ObjectAffordances;
+  inspect(target: string, options?: { actor?: string }): ObjectAffordances | ProjectEntityObservation;
   /** Object-only page in live insertion order. Restart after mutations; no global graph work. */
   observe(options: { actor?: string; offset?: number; limit: number }): { schema: 'agentscape.scene-object-page'; schemaVersion: 1; revision: number; total: number; offset: number; nextOffset: number | null; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }> };
-  observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; actors: ReturnType<SceneHandle['actors']>; style: Record<string, unknown> | null; affordances: AffordanceListing; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };
+  observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; actors: ReturnType<SceneHandle['actors']>; style: Record<string, unknown> | null; affordances: AffordanceListing; project: { total: number; entities: ProjectEntityObservation[] }; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };
   addModel(input: ModelInput, options?:{signal?:AbortSignal}): Promise<SceneResult>;
   setTransform(input: { id: string; transform: Transform }): Promise<SceneResult>;
   remove(input: { id: string }): Promise<SceneResult>;
@@ -81,7 +83,50 @@ export interface SceneHandle {
   setStyle(style: string | Record<string, unknown>, options?: { fallback?: 'reject' | 'declared' }): Promise<SceneResult>;
   frame(timestamp: number): void; step(): unknown; close(): void;
 }
-export declare const AgentScape: { open(options?: { canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean; codeExecution?:CodeExecutionOptions }): Promise<SceneHandle> };
+export interface NativeSceneOptions {
+  scene: any; camera: any; renderer: any; three?: any; name?: string;
+  environmentId?: string; colliders?: Record<string, unknown>[]; navigationRoot?: any;
+  assetModule?: any; autoStart?: boolean; codeExecutor?: any; codeGLTFLoader?: any; assetBaseUrl?: string | null;
+}
+export interface NativeSceneSession {
+  scene: SceneHandle & { native: { scene: any; renderer: any; camera: any; root: any };
+    capabilities: { mode: 'native-scene'; threeRevision: string; sourceConversion: false;
+      ownsRenderer: false; nativeProjectSave: false; environmentColliders: number; navigationRegistered: boolean } };
+  world: any;
+  close(): void;
+}
+/** Bind a trusted native scene. Save/import/style takeover are explicitly unsupported. */
+export declare function attachNativeScene(options: NativeSceneOptions): Promise<NativeSceneSession>;
+export interface NativeSceneCandidate { id: string; scene: any; camera: any; renderer: any; renders: number }
+export declare function observeNativeRenderer(renderer: any): () => void;
+export declare function listNativeScenes(): NativeSceneCandidate[];
+export declare function subscribeNativeScenes(listener: (candidate: NativeSceneCandidate) => void): () => void;
+export declare const AgentScape: { attach: typeof attachNativeScene; openProject: typeof openCodeProject; open(options?: { canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean; codeExecution?:CodeExecutionOptions }): Promise<SceneHandle> };
+
+export interface ProjectEntityDefinition { id: string; label?: string; description?: string; object?: any; read?: () => Record<string, unknown> }
+export interface ProjectActionContext { actor?: string; target: string; object: any; signal?: AbortSignal }
+export interface ProjectActionDefinition {
+  target: string; name: string; description?: string; parameters?: Record<string, unknown>;
+  /** Default 60s; null disables automatic cancellation for long-running project actions. */
+  timeoutMs?:number|null;
+  execute(args: any, context: ProjectActionContext): unknown | Promise<unknown>;
+  available?(context: ProjectActionContext): boolean;
+  verify?(evidence: {args:any;before:Record<string,unknown>;after:Record<string,unknown>;value:unknown}, context:ProjectActionContext): boolean | {verified:boolean;[key:string]:unknown} | Promise<boolean | {verified:boolean;[key:string]:unknown}>;
+}
+export interface ProjectEntityObservation {
+  schema:'agentscape.project-entity';schemaVersion:1;source:'project';id:string;label:string;description:string;state:Record<string,unknown>;physicsVerified:false;
+  actions:Array<{action:'custom';name:string;description:string;parameters:Record<string,unknown>;execution:'project-action';available:boolean;verification:'project-defined'|'unverified'}>;
+}
+export interface CodeProject {
+  schema:'agentscape.code-project';schemaVersion:1;id:string;name:string;source:string;
+  resources?:Record<string,{mime:string;base64:string}>;state?:unknown;runtime?:unknown;integrity?:string;
+}
+export interface CodeProjectSession {
+  scene:SceneHandle & {native:NativeSceneSession['scene']['native'];capabilities:Record<string,unknown>};world:any;
+  frame(timestamp:number):void;save():Promise<SceneResult<CodeProject>>;close():void;
+}
+export declare function parseCodeProject(input:unknown,options?:{maxBytes?:number}):Promise<CodeProject>;
+export declare function openCodeProject(options:{project:CodeProject|string;container?:HTMLElement|null;authorized?:boolean;autoStart?:boolean;maxBytes?:number;assetBaseUrl?:string}):Promise<CodeProjectSession>;
 export declare function parseSceneProject(input: unknown): unknown;
 export declare const recipeSchema: { parse(input: unknown): unknown };
 export declare const assetPackageSchema: { parse(input: unknown): unknown };

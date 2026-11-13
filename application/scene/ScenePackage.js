@@ -27,7 +27,7 @@ const definitionOf = manifest => Object.fromEntries(['type', 'label', 'actions',
 /** JSON transport for scene.json, lock, runtime snapshot and embedded resources.
  * Directory/ZIP adapters can encode these same bytes without executing sources.
  */
-export async function exportScenePackage(world, { name = 'Untitled World', readResource = null, style = null } = {}) {
+export async function exportRuntimeState(world, { name = 'Untitled World', readResource = null } = {}) {
   if (world.mutationOwner) throw new Error('SCENE_BUSY');
   const snapshot = world.serialize({ name }), assets = [];
   let total = 0;
@@ -43,6 +43,27 @@ export async function exportScenePackage(world, { name = 'Untitled World', readR
   }
   // Source URLs, historical compiler evidence and host paths never enter transport.
   snapshot.assets = [];
+  return { snapshot, assets };
+}
+
+/** Restore into a newly created code-project Runtime, retaining its native environment. */
+export async function restoreRuntimeState(world, { snapshot, assets }) {
+  world.serializer.validate(snapshot);
+  if (snapshot.assets.length || snapshot.metadata?.environment !== world.environment.id || !Array.isArray(assets)) throw new Error('PROJECT_SNAPSHOT_MISMATCH');
+  const ids = new Set(), prepared = []; let total = 0;
+  for (const item of assets) {
+    if (ids.has(item.id) || assetManifests[item.id]?.source.kind === 'builtin') throw new Error('ASSET_ID_CONFLICT');
+    ids.add(item.id);
+    const bytes = decode(item.bytes); total += bytes.length;
+    if (total > 64 * 1024 * 1024 || await assetDigest(bytes) !== item.sha256) throw new Error('RESOURCE_INTEGRITY_MISMATCH');
+    assertEmbeddedGLB(bytes); prepared.push({ ...item, bytes });
+  }
+  for (const item of prepared) await world.assetModule.importPackageAsset(item);
+  await world.restore(snapshot);
+}
+
+export async function exportScenePackage(world, { name = 'Untitled World', readResource = null, style = null } = {}) {
+  const { snapshot, assets } = await exportRuntimeState(world, { name, readResource });
   const project = parseSceneProject({ schema: 'agentscape.scene-project', schemaVersion: 1, name,
     environment: { type: 'builtin', id: world.environment.id },
     ...(style ? { style: './styles/current/style.json' } : {}),

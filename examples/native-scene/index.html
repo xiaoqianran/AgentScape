@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>原生 Three.js · AgentScape</title>
+  <style>
+    * { box-sizing: border-box; } body { margin: 0; font: 14px/1.6 system-ui; color: #e7edf5; background: #17212d; }
+    canvas { display: block; }
+    aside { position: fixed; z-index: 2; top: 20px; left: 20px; width: min(360px, calc(100vw - 40px)); padding: 22px; background: #142233ed; border: 1px solid #455668; border-radius: 14px; }
+    h1 { font-size: 20px; margin: 0 0 10px; } p { margin: 8px 0; } small { color: #adc0d5; }
+    button, select { font: inherit; border-radius: 6px; padding: 8px 10px; margin: 5px 4px 5px 0; }
+    button { cursor: pointer; background: #bddffa; border: 0; color: #10273a; } button:disabled { opacity: .45; cursor: default; }
+    select { max-width: 100%; } label { display: block; } a { color: #bddffa; }
+  </style>
+</head>
+<body>
+  <aside>
+    <h1>原生 Three.js 场景</h1>
+    <p>原项目持续渲染。将 AgentScape 资产注入同一个场景。</p>
+    <label>目标场景 <select id="target" aria-label="目标场景"></select></label>
+    <button id="attach" disabled>连接场景</button>
+    <button id="inject" disabled>注入柜子、杯子和 Agent</button>
+    <button id="detach" disabled>移除注入层</button>
+    <label><input id="mcp" type="checkbox"> 连接本机 MCP</label>
+    <p role="status">正在发现原生场景…</p>
+    <small id="bridge-status">MCP 未连接</small>
+    <p><small>拖动旋转视角，滚轮缩放。发光环与立柱属于原项目；连接和卸载都保留它们。</small></p>
+  </aside>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
