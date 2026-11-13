@@ -12,6 +12,11 @@
     button, select { font: inherit; border-radius: 6px; padding: 8px 10px; margin: 5px 4px 5px 0; }
     button { cursor: pointer; background: #bddffa; border: 0; color: #10273a; } button:disabled { opacity: .45; cursor: default; }
     select { max-width: 100%; } label { display: block; } a { color: #bddffa; }
+    .native-save-actions { display:flex; flex-wrap:wrap; gap:4px; }
+    #overlay-status { color:#b9d5e8; font-size:12px; overflow-wrap:anywhere; }
+    .native-getting-started { border-top:1px solid #455668; padding-top:10px; margin-top:9px; }
+    .native-getting-started summary { cursor:pointer; font-weight:600; }
+    .native-getting-started ol { margin:8px 0; padding-left:20px; }
   </style>
 </head>
 <body>
@@ -22,6 +27,21 @@
     <button id="attach" disabled>连接场景</button>
     <button id="inject" disabled>注入柜子、杯子和 Agent</button>
     <button id="detach" disabled>移除注入层</button>
+    <div class="native-save-actions" aria-label="注入层存档操作">
+      <button id="save-overlay" disabled>保存注入层</button>
+      <button id="restore-overlay" disabled>恢复最近存档</button>
+    </div>
+    <p id="overlay-status" aria-live="polite">尚未连接 · 存档由浏览器 OPFS 和 IndexedDB 保存</p>
+    <details class="native-getting-started" open>
+      <summary>首次使用 · 四步完成</summary>
+      <ol>
+        <li>选择并连接原生 Three.js 场景</li>
+        <li>注入柜子、杯子与 Agent，观察真实物理</li>
+        <li>点击「保存注入层」，只保存 AgentScape 管理的对象</li>
+        <li>重新连接或刷新页面后，恢复最近一次有效存档</li>
+      </ol>
+      <small>不会修改原项目源码、原生 Mesh、材质和渲染循环。自动连接本机 MCP 需要另外启动并勾选 MCP 服务。</small>
+    </details>
     <label><input id="mcp" type="checkbox"> 连接本机 MCP</label>
     <p role="status">正在发现原生场景…</p>
     <small id="bridge-status">MCP 未连接</small>

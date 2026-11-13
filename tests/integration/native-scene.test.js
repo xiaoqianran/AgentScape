@@ -25,6 +25,17 @@ it('discovers multiple scenes without changing render receiver/results and resto
   releaseAgain();
 });
 
+it('never re-discovers scenes through stale renderer wrappers after release', () => {
+  const renderer = { render: vi.fn(() => 41) };
+  const release = observeNativeRenderer(renderer);
+  const wrapped = renderer.render;
+  release();
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera();
+  // A project may retain a reference to the old wrapped callback.
+  expect(wrapped.call(renderer, scene, camera)).toBe(41);
+  expect(listNativeScenes().some(candidate => candidate.renderer === renderer)).toBe(false);
+});
+
 it('injects physical assets into the exact native scene and detaches without touching native resources', async () => {
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera();
   const native = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.ShaderMaterial());

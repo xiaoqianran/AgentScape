@@ -8,6 +8,8 @@ import { SkillRegistry } from '../skills/SkillRegistry.js';
 import { registerSceneSkills } from '../skills/packs/sceneSkills.js';
 import { registerSpatialSkills } from '../skills/packs/spatialSkills.js';
 import { registerInteractionSkills } from '../skills/packs/interactionSkills.js';
+import { extractNativeStaticColliders } from './NativeEnvironmentGeometry.js';
+import { writeNativeSceneOverlay, prepareNativeSceneOverlay, restoreNativeSceneOverlay, exportNativeSceneOverlay, importNativeSceneOverlay } from './NativeSceneOverlay.js';
 
 const bindings = new WeakMap();
 const fail = code => Object.assign(new Error(code), { code });
@@ -19,6 +21,7 @@ const fail = code => Object.assign(new Error(code), { code });
 export async function attachNativeScene({
   scene: nativeScene, camera, renderer, three = THREE, name = 'Native scene',
   environmentId = 'native-scene', colliders = [], navigationRoot = null,
+  staticMeshes = [], walkableMesh = null, hostProjectId = null, hostRevision = null,
   assetModule = null, autoStart = true, codeExecutor = null, codeGLTFLoader,
   assetBaseUrl = globalThis.location?.origin ? globalThis.location.origin + '/' : null,
 } = {}) {
@@ -29,7 +32,12 @@ export async function attachNativeScene({
   nativeScene.updateWorldMatrix(true, false);
   if (!nativeScene.matrixWorld.equals(new THREE.Matrix4())) throw fail('NATIVE_WORLD_TRANSFORM_UNSUPPORTED');
   if (!Array.isArray(colliders)) throw fail('NATIVE_COLLIDERS_INVALID');
+  if (hostProjectId != null && (typeof hostProjectId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(hostProjectId))) throw fail('NATIVE_HOST_IDENTITY_INVALID');
+  if (hostRevision != null && (typeof hostRevision !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(hostRevision))) throw fail('NATIVE_HOST_IDENTITY_INVALID');
   if (navigationRoot && !navigationRoot.isObject3D) throw fail('NATIVE_NAVIGATION_ROOT_INVALID');
+  const extractedColliders = extractNativeStaticColliders(nativeScene, { staticMeshes, walkableMesh });
+  const environmentColliders = [...structuredClone(colliders), ...extractedColliders];
+  const environmentNavigation = navigationRoot || walkableMesh;
   bindings.set(nativeScene, true); // Reserve before asynchronous physics initialization.
   let assets, world, facade, frameId, closed = false;
   const unsupported = code => async () => { throw fail(code); };
@@ -44,8 +52,8 @@ export async function attachNativeScene({
     const environmentRoot = new THREE.Group();
     environmentRoot.name = 'AgentScapeEnvironment';
     world = new WorldRuntime({ assetModule: assets, environmentFactory: () => ({
-      id: environmentId, root: environmentRoot, colliders: structuredClone(colliders),
-      ...(navigationRoot ? { navigationRoot } : {}), dispose() {},
+      id: environmentId, root: environmentRoot, colliders: environmentColliders,
+      ...(environmentNavigation ? { navigationRoot: environmentNavigation } : {}), dispose() {},
     }) });
     world.scene.name = 'AgentScapeRoot';
     // The runtime owns only this subtree. Host environment/materials stay untouched.
@@ -94,6 +102,40 @@ export async function attachNativeScene({
       // Never export a native project as a misleading built-in Scene Project.
       save: unsupported('NATIVE_PROJECT_SAVE_UNSUPPORTED'),
       exportWorld: unsupported('NATIVE_PROJECT_SAVE_UNSUPPORTED'),
+      saveOverlay: async (storage, options = {}) => {
+        if (closed) throw fail('SCENE_CLOSED');
+        if (!hostProjectId) throw fail('NATIVE_HOST_IDENTITY_REQUIRED');
+        return writeNativeSceneOverlay(world, storage, { projectId: hostProjectId, revision: hostRevision }, options);
+      },
+      prepareOverlay: async (storage, root, options = {}) => {
+        if (closed) throw fail('SCENE_CLOSED');
+        if (!hostProjectId) throw fail('NATIVE_HOST_IDENTITY_REQUIRED');
+        const prepared = await prepareNativeSceneOverlay(world, storage, root,
+          { projectId: hostProjectId, revision: hostRevision }, options);
+        return {
+          summary: prepared.summary,
+          commit: () => { if (closed) throw fail('SCENE_CLOSED'); return prepared.commit(); },
+          dispose: () => prepared.dispose()
+        };
+      },
+      restoreOverlay: async (storage, root, options = {}) => {
+        if (closed) throw fail('SCENE_CLOSED');
+        if (!hostProjectId) throw fail('NATIVE_HOST_IDENTITY_REQUIRED');
+        return restoreNativeSceneOverlay(world, storage, root,
+          { projectId: hostProjectId, revision: hostRevision }, options);
+      },
+      exportOverlay: async (storage, root, writer, options = {}) => {
+        if (closed) throw fail('SCENE_CLOSED');
+        if (!hostProjectId) throw fail('NATIVE_HOST_IDENTITY_REQUIRED');
+        return exportNativeSceneOverlay(storage, root,
+          { projectId: hostProjectId, revision: hostRevision }, writer, options);
+      },
+      importOverlay: async (storage, source, options = {}) => {
+        if (closed) throw fail('SCENE_CLOSED');
+        if (!hostProjectId) throw fail('NATIVE_HOST_IDENTITY_REQUIRED');
+        return importNativeSceneOverlay(storage, source,
+          { projectId: hostProjectId, revision: hostRevision }, options);
+      },
       importProject: unsupported('NATIVE_PROJECT_IMPORT_UNSUPPORTED'),
       importWorld: unsupported('NATIVE_PROJECT_IMPORT_UNSUPPORTED'),
       prepareWorld: unsupported('NATIVE_PROJECT_IMPORT_UNSUPPORTED'),
@@ -101,7 +143,8 @@ export async function attachNativeScene({
       native: { scene: nativeScene, renderer, camera, root: world.scene },
       capabilities: Object.freeze({ mode: 'native-scene', threeRevision: THREE.REVISION,
         sourceConversion: false, ownsRenderer: false, nativeProjectSave: false,
-        environmentColliders: colliders.length, navigationRegistered: Boolean(navigationRoot) }),
+        environmentColliders: environmentColliders.length, navigationRegistered: Boolean(environmentNavigation),
+        nativeOverlayPersistence: Boolean(hostProjectId) }),
     };
     // Runtime is exposed to the local Studio bridge, never serialized over MCP.
     return { scene: handle, world, close };

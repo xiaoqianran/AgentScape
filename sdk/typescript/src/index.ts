@@ -11,6 +11,7 @@ export { recipeSchema, assetPackageSchema } from '../../../modules/asset/model/A
 export { stylePackSchema, officialStylePacks } from '../../../modules/rendering/style/StylePack.js';
 export { WorldStorage, blobChunks } from '../../../application/scene/WorldStorage.js';
 export { WorldDirectory } from '../../../application/scene/WorldDirectory.js';
+export { createNativeOverlayCheckpoint, openNativeOverlayCheckpoint, MemoryNativeOverlayHeadStore, IndexedDBNativeOverlayHeadStore } from '../../../application/native-scene/NativeOverlayCheckpoint.js';
 
 export const AgentScape = {
   attach: attachNativeScene,

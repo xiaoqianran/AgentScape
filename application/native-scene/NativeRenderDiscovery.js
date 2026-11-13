@@ -10,10 +10,11 @@ export function observeNativeRenderer(renderer) {
   if (typeof original !== 'function') throw new TypeError('Renderer requires render()');
   const scenes = new WeakMap();
   const owned = new Set();
+  let released = false;
   function render(scene, camera, ...rest) {
     // Discovery must never swallow errors or change the original render result.
     const result = original.call(this, scene, camera, ...rest);
-    if (scene?.isScene && camera?.isCamera) {
+    if (!released && scene?.isScene && camera?.isCamera) {
       let candidate = scenes.get(scene);
       if (!candidate) {
         candidate = { id: `native-${++sequence}`, scene, camera, renderer, renders: 0 };
@@ -32,7 +33,6 @@ export function observeNativeRenderer(renderer) {
     return result;
   }
   renderer.render = render;
-  let released = false;
   const release = () => {
     if (released) return;
     released = true;

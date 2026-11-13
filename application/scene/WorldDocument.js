@@ -4,14 +4,17 @@ export const WORLD_SCHEMA = 'agentscape.world';
 export const WORLD_VERSION = 1;
 
 /** Only small metadata is in the root. Entity and asset pages are content-addressed chains. */
-export async function writeWorldDocument(runtime, storage, { name = 'Untitled World', signal } = {}) {
+export async function writeWorldDocument(runtime, storage, { name = 'Untitled World', signal, includeCamera = true, includeStyle = true, includeEnvironmentState = true } = {}) {
   if (runtime.mutationOwner) throw worldStorageError('WORLD_BUSY');
-  return runtime.exclusiveMutation('world:save', () => writeLocked(runtime, storage, { name, signal }));
+  return runtime.exclusiveMutation('world:save', () => writeLocked(runtime, storage, { name, signal, includeCamera, includeStyle, includeEnvironmentState }));
 }
 
-async function writeLocked(runtime, storage, { name, signal }) {
+async function writeLocked(runtime, storage, { name, signal, includeCamera, includeStyle, includeEnvironmentState }) {
   const header = runtime.serializer.serialize(runtime, { name, includeRelations: false, includeObjects: false });
   delete header.objects; delete header.assets;
+  if (!includeCamera) delete header.camera;
+  if (!includeStyle && header.metadata) delete header.metadata.stylePack;
+  if (!includeEnvironmentState && header.metadata) delete header.metadata.environmentState;
   const assets = new Set();
   async function* entities() {
     let ordinal = 0;

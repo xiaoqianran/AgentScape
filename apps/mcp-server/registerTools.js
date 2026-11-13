@@ -24,9 +24,9 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
   catch(e) { const code=e instanceof z.ZodError?'INVALID_ARGUMENTS':/^[A-Z_]+$/.test(e.code || '')?e.code:/^[A-Z_]+$/.test(e.message)?e.message:'RUNTIME_ERROR'; return {isError:true,content:[{type:'text',text:JSON.stringify({state:'failed',code})}]}; }
  });
  add('studio_pair_create','Create a short-lived one-time pairing code for an explicitly approved local Studio world. The bearer token is never delivered to the browser.',{},()=>studioBridge.pair(owner));
- add('studio_session_status','Check a Studio connection, or inspect the automatically connected local world without passing an ID.',sceneSession,a=>a.worldSessionId?studioBridge.status(owner,a.worldSessionId):studioBridge.currentSession());
+ add('studio_session_status','Check a Studio connection, or inspect the automatically connected local world without passing an ID.',sceneSession,a=>a.worldSessionId?studioBridge.status(owner,a.worldSessionId):studioBridge.currentSession(owner));
  add('session_attach','Attach the local current Studio automatically or resolve an explicit paired world.',sceneSession,a=>{
-  const state=a.worldSessionId?studioBridge.status(owner,a.worldSessionId):studioBridge.currentSession();
+  const state=a.worldSessionId?studioBridge.status(owner,a.worldSessionId):studioBridge.currentSession(owner);
   if(!state.connected)throw new Error('STUDIO_DISCONNECTED');
   return state;
  });
@@ -42,7 +42,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
  add('asset_list','List your published asset versions, paginated.',{offset:z.number().int().min(0).max(128).default(0),limit:z.number().int().min(1).max(20).default(20)},async a=>{const all=await assets.repository.list(owner);return {assets:all.slice(a.offset,a.offset+a.limit),total:all.length,nextOffset:a.offset+a.limit<all.length?a.offset+a.limit:null};});
  const run=(a,fn,extra)=>manager.run(owner,a.worldSessionId,fn,{signal:extra?.signal});
  const sceneRun=async(a,method,args,fn,extra)=>{
-  const target=a.worldSessionId || studioBridge.currentSession().worldSessionId;
+  const target=a.worldSessionId || studioBridge.currentSession(owner).worldSessionId;
   if(studioBridge?.isStudioSession(target)) {
    studioBridge.ownerSession(owner,target);
    const ref=args.model?.asset;

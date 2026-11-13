@@ -86,12 +86,25 @@ export interface SceneHandle {
 export interface NativeSceneOptions {
   scene: any; camera: any; renderer: any; three?: any; name?: string;
   environmentId?: string; colliders?: Record<string, unknown>[]; navigationRoot?: any;
+  staticMeshes?: any[]; walkableMesh?: any; hostProjectId?: string; hostRevision?: string;
   assetModule?: any; autoStart?: boolean; codeExecutor?: any; codeGLTFLoader?: any; assetBaseUrl?: string | null;
 }
+export interface NativeOverlayPrepared {
+  summary: unknown;
+  commit(): Promise<unknown>;
+  dispose(): void;
+}
+export interface NativeSceneHandle extends SceneHandle {
+  saveOverlay(storage: WorldStorage, options?: { name?: string; signal?: AbortSignal }): Promise<WorldBlockRef & {kind:'native-overlay'}>;
+  prepareOverlay(storage: WorldStorage, root: WorldBlockRef & {kind:'native-overlay'}, options?: {signal?:AbortSignal;active?:'saved'|'none'|'bounded';maxActiveEntities?:number}): Promise<NativeOverlayPrepared>;
+  restoreOverlay(storage: WorldStorage, root: WorldBlockRef & {kind:'native-overlay'}, options?: {signal?:AbortSignal;active?:'saved'|'none'|'bounded';maxActiveEntities?:number}): Promise<unknown>;
+  exportOverlay(storage: WorldStorage, root: WorldBlockRef & {kind:'native-overlay'}, writer: {write(bytes:Uint8Array):Promise<unknown>}, options?: {signal?:AbortSignal}): Promise<unknown>;
+  importOverlay(storage: WorldStorage, source: AsyncIterable<Uint8Array>, options?: {signal?:AbortSignal}): Promise<WorldBlockRef & {kind:'native-overlay'}>;
+}
 export interface NativeSceneSession {
-  scene: SceneHandle & { native: { scene: any; renderer: any; camera: any; root: any };
+  scene: NativeSceneHandle & { native: { scene: any; renderer: any; camera: any; root: any };
     capabilities: { mode: 'native-scene'; threeRevision: string; sourceConversion: false;
-      ownsRenderer: false; nativeProjectSave: false; environmentColliders: number; navigationRegistered: boolean } };
+      ownsRenderer: false; nativeProjectSave: false; nativeOverlayPersistence: boolean; environmentColliders: number; navigationRegistered: boolean } };
   world: any;
   close(): void;
 }
@@ -148,3 +161,25 @@ export declare class WorldDirectory implements WorldBlockBackend {
   write(hash:string,bytes:Uint8Array):Promise<void>;
 }
 export declare function blobChunks(blob:Blob,options?:{signal?:AbortSignal}):AsyncIterable<Uint8Array>;
+
+export interface NativeOverlayHeadStore {
+  read():Promise<WorldBlockRef | null>;
+  publish(expected:WorldBlockRef | null,root:WorldBlockRef):Promise<WorldBlockRef>;
+}
+export declare class MemoryNativeOverlayHeadStore implements NativeOverlayHeadStore {
+  constructor();
+  read():Promise<WorldBlockRef | null>;
+  publish(expected:WorldBlockRef | null,root:WorldBlockRef):Promise<WorldBlockRef>;
+}
+export declare class IndexedDBNativeOverlayHeadStore implements NativeOverlayHeadStore {
+  constructor(options:{key:string;databaseName?:string});
+  read():Promise<WorldBlockRef | null>;
+  publish(expected:WorldBlockRef | null,root:WorldBlockRef):Promise<WorldBlockRef>;
+}
+export interface NativeOverlayCheckpoint {
+  readLatest():Promise<WorldBlockRef | null>;
+  saveLatest(options?:{name?:string;signal?:AbortSignal}):Promise<WorldBlockRef>;
+  restoreLatest(options?:{signal?:AbortSignal;active?:'saved'|'none'|'bounded';maxActiveEntities?:number}):Promise<WorldBlockRef | null>;
+}
+export declare function createNativeOverlayCheckpoint(scene:NativeSceneHandle,storage:WorldStorage,heads:NativeOverlayHeadStore):NativeOverlayCheckpoint;
+export declare function openNativeOverlayCheckpoint(scene:NativeSceneHandle,storage:WorldStorage,heads:NativeOverlayHeadStore,options?:{restore?:boolean}):Promise<NativeOverlayCheckpoint>;
