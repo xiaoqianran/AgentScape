@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { WorldsPage } from '../../apps/studio/react/worlds/WorldsPage.tsx';
 import { worldPresentation } from '../../apps/studio/react/worlds/WorldPresentation.ts';
+import { ENVIRONMENTS } from '../../modules/world/content/environments.js';
 import { assetDisplayName, assetPreview, assetActions } from '../../apps/studio/react/shared/ResourcePresentation.ts';
 import { StudioIcon } from '../../apps/studio/react/shared/StudioIcon.tsx';
 import { PRODUCT_NAVIGATION } from '../../apps/studio/navigation/StudioNavigation.js';
@@ -16,10 +17,10 @@ describe('Studio presentation design contracts',()=>{
     expect(PRODUCT_NAVIGATION.map(item=>item.label)).toEqual(['世界','生成','资源库','智能体','实验室']);
     expect(PRODUCT_NAVIGATION.map(item=>item.page)).toEqual(['worlds','build','assets','agent','observatory']);
   });
-  it('references real local previews only for known built-in worlds',()=>{
-    for(const id of ['magic-cabin','woodland-workshop','monument-hall','ruined-courtyard','grand-urban-block']){
-      const view=worldPresentation({id});
-      expect(view.title).not.toBe(id);
+  it('provides generated local previews for every registered built-in world',()=>{
+    for(const world of ENVIRONMENTS){
+      const view=worldPresentation(world);
+      expect(view.preview).toBe(`/previews/worlds/${world.id}.webp`);
       expect(fs.existsSync('public'+view.preview)).toBe(true);
       expect(fs.statSync('public'+view.preview).size).toBeGreaterThan(1000);
     }

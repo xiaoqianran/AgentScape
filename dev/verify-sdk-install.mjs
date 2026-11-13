@@ -108,6 +108,37 @@ retained.material.dispose();
 console.log('Installed SDK native Three.js attach, physics, detach and instance identity passed');
 `);
   execFileSync(process.execPath, ['native.mjs'], { cwd: consumer, stdio: 'inherit' });
+  writeFileSync(join(consumer, 'portal-source.json'), readFileSync(join(root, 'public/code-projects/portal.json')));
+  writeFileSync(join(consumer, 'code-project-create.mjs'), `
+import {AgentScape,parseCodeProject} from 'agentscape3d';
+import {readFile,writeFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const project=await parseCodeProject(await readFile('portal-source.json','utf8'));
+const host=await AgentScape.openProject({project,authorized:true,autoStart:false});
+try {
+ const api=host.scene;
+ assert.equal(api.observe().project.total,2);
+ const job=api.interact({action:'custom',target:'portal',name:'teleport',args:{destination:'garden'}});
+ assert.equal((await api.waitJob(job.id)).result.verification.status,'verified');
+ await api.addModel({id:'table',asset:JSON.parse(await readFile('table.json','utf8')),level:'physical'});
+ await writeFile('code-project.json',JSON.stringify((await api.save()).value));
+} finally {host.close();}
+`);
+  writeFileSync(join(consumer, 'code-project-restore.mjs'), `
+import {AgentScape} from 'agentscape3d';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const host=await AgentScape.openProject({project:await readFile('code-project.json','utf8'),authorized:true,autoStart:false});
+try {
+ assert.equal(host.scene.inspect('traveller').state.zone,'garden');
+ assert.equal(host.scene.observe().objects[0].id,'table');
+ const job=host.scene.interact({action:'custom',target:'portal',name:'teleport',args:{destination:'entrance'}});
+ assert.equal((await host.scene.waitJob(job.id)).result.verification.status,'verified');
+ console.log('Installed SDK code project and fresh-process behavior/state/assets restore passed');
+} finally {host.close();}
+`);
+  execFileSync(process.execPath, ['code-project-create.mjs'], { cwd: consumer, stdio: 'inherit' });
+  execFileSync(process.execPath, ['code-project-restore.mjs'], { cwd: consumer, stdio: 'inherit' });
   const report = { version: packed.version, node: process.version, platform: process.platform,
     sha256: createHash('sha256').update(readFileSync(join(temporary, packed.filename))).digest('hex'),
     files: packed.files.map(file => file.path), installation, restoration: JSON.parse(restoration.trim()) };

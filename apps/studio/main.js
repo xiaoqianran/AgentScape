@@ -34,6 +34,7 @@ async function main() {
     ui,
     world:runtime.world,
     agentTools:runtime.agentTools,
+    codeProjects:runtime.codeProjects,
     runtimeTestTools:runtime.runtimeTestTools,
     capabilityStatus
   });
@@ -60,7 +61,8 @@ async function main() {
     worldSurface:runtime.worldSurface,
     taskPanel:agent.taskPanel,
     gateway:agent.gateway,
-    lifecycle
+    lifecycle,
+    codeProjects:runtime.codeProjects
   });
 
   window.addEventListener('pagehide',()=>{

@@ -11,6 +11,7 @@ import { SceneExplorerView } from '../scene/SceneExplorer';
 import { useStudioStore } from '../state/studioStore';
 import { TaskPanelView } from '../agent/TaskPanelView';
 import { CommandBar } from '../shell/ProductPages';
+import { CodeProjectEditor, CodeProjectActions, emptyCodeSubscribe, emptyCodeSnapshot } from './CodeProjectWorkbench';
 
 function AuthoringMenu({ controller }: { controller:any }) {
   const state:any = useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
@@ -125,6 +126,8 @@ export function WorldEditorWorkspace({
   active:boolean;
   notifyLayout:()=>void;
 }) {
+  const projects=bridgeState.codeProjects;
+  const projectState:any=useSyncExternalStore(projects?.subscribe || emptyCodeSubscribe, projects?.snapshot || emptyCodeSnapshot, projects?.snapshot || emptyCodeSnapshot);
   const interactionMode=useStudioStore(state=>state.editor.interactionMode);
   const contextOpen = useStudioStore((state)=>state.layout.contextOpen);
   const contextView = useStudioStore((state)=>state.layout.activeContextView);
@@ -148,14 +151,14 @@ export function WorldEditorWorkspace({
   };
 
   return (
-    <section className={'world-editor-workspace' + (active ? ' is-active' : ' is-background')} aria-label="World Editor" aria-hidden={!active}>
+    <section className={'world-editor-workspace' + (active ? ' is-active' : ' is-background') + (projectState.visible ? ' code-project-mode' : '')} aria-label="World Editor" aria-hidden={!active}>
       <section className="workspace">
         <aside className="scene-panel" aria-hidden={sceneCollapsed}>
-          {content ? <SceneExplorerView {...content.sceneExplorer} /> : null}
+          {projectState.visible ? <CodeProjectEditor controller={projects} /> : content ? <SceneExplorerView {...content.sceneExplorer} /> : null}
         </aside>
-        <SceneToolbar bridgeState={bridgeState} />
+        {projectState.visible ? <div className="editor-toolbar"><strong>{projectState.project?.name || '完整代码项目'}</strong><span>{projectState.active ? '代码世界运行中' : '编辑源码后运行'}</span></div> : <SceneToolbar bridgeState={bridgeState} />}
         <div id="viewport" className="viewport">
-          {active && content ? <SelectionActionDock {...content.inspector} openInspect={()=>commitLayoutChange(()=>openView('inspect'))} /> : null}
+          {active && content && !projectState.active ? <SelectionActionDock {...content.inspector} openInspect={()=>commitLayoutChange(()=>openView('inspect'))} /> : null}
 
         </div>
 
@@ -168,15 +171,16 @@ export function WorldEditorWorkspace({
           {contextView==='task' ? <div className="world-task-content">
             {active && bridgeState.agent ? <><TaskPanelView controller={bridgeState.agent.taskPanel} /><CommandBar taskPanel={bridgeState.agent.taskPanel} inputRef={commandInputRef} draft={bridgeState.commandDraft} /></> : <p role="status">任务面板启动中…</p>}
           </div> : <section className="inspector">
-            {active && contextOpen && content ? <ObjectInspectorView key={selection?.source+':'+selection?.id} {...content.inspector} /> : null}
+            {projectState.visible ? <CodeProjectActions controller={projects} /> : active && contextOpen && content ? <ObjectInspectorView key={selection?.source+':'+selection?.id} {...content.inspector} /> : null}
           </section>}
         </aside>
-        <div className="editor-statusbar"><span>{presentation.title}</span><span>{selection ? '已选中 '+selection.id : '点击画布或左侧列表选择对象'}</span><span className="editor-shortcuts">{interactionMode==='edit' ? 'W 移动 · E 旋转 · Del 删除' : '探索模式 · 选中后执行动作'}</span></div>
+        <div className="editor-statusbar"><span>{projectState.active ? projectState.project?.name : presentation.title}</span><span>{projectState.active ? '完整代码项目 · 动态动作可由 AI 调用' : selection ? '已选中 '+selection.id : '点击画布或左侧列表选择对象'}</span></div>
       </section>
 
-      <div className="artifact-tray-host world-artifact-tray">{content ? <ArtifactTrayView {...content.artifactTray} /> : null}</div>
+      <div className="artifact-tray-host world-artifact-tray">{content && !projectState.active ? <ArtifactTrayView {...content.artifactTray} /> : null}</div>
 
       <nav className="utility-rail" aria-label="World Editor utilities">
+        {projects ? <button type="button" onClick={()=>{projects.show();commitLayoutChange(()=>openView('inspect'));}}>代码世界</button> : null}
         {bridgeState.liveBridge ? <StudioMcpConnection controller={bridgeState.liveBridge} /> : null}
         <button id="open-world-task" type="button" aria-pressed={contextOpen && contextView==='task'} onClick={()=>commitLayoutChange(()=>openView('world-task'))}>任务</button>
         {WORLD_EDITOR_UTILITIES.map(({ view,label })=>{
@@ -197,8 +201,8 @@ export function WorldEditorWorkspace({
             </button>
           );
         })}
-        {bridgeState.dockActions.length ? <span className="utility-rail-divider" aria-hidden="true" /> : null}
-        {bridgeState.dockActions.map((action:any)=>(
+        {bridgeState.dockActions.length && !projectState.active ? <span className="utility-rail-divider" aria-hidden="true" /> : null}
+        {(projectState.active ? [] : bridgeState.dockActions).map((action:any)=>(
           <button
             key={action.id}
             id={action.id}

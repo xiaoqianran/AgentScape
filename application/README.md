@@ -1,5 +1,7 @@
 # Application
 
+自由代码世界入口：`native-scene/CodeProject.js`。它承载持续项目模块并通过既有 SceneFacade 暴露动态能力，复用 Runtime 与资产迁移；契约见 `docs/modules/code-project.md`，示例在 `examples/code-project/`。
+
 跨域工作现场：装配模块、注册产品 Skills、组装 Agent 观察，协调生成到资产再到世界的流程。
 
 入口：createSession.js、skills/registerCoreSkills.js、generation/GenerationRuntime.js。

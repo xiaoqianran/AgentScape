@@ -12,12 +12,14 @@ export function createStudioAgent({
   world,
   agentTools,
   runtimeTestTools,
-  capabilityStatus
+  capabilityStatus,
+  codeProjects = null
 }) {
   const runsPanel = new RunsPanel();
   let taskPanel = null;
   const scene=createSceneFacade(world);
-  Object.defineProperty(agentTools,'actor',{configurable:true,get:()=>scene.actors().selected});
+  if (!codeProjects) Object.defineProperty(agentTools,'actor',{configurable:true,get:()=>scene.actors().selected});
+  const activeScene = () => codeProjects?.scene || scene;
 
   const generatedPlacementDemo = new GeneratedPlacementDemoRunner({
     world,
@@ -34,8 +36,8 @@ export function createStudioAgent({
     onRun:(run)=>runsPanel.addRun(run),
     demoRunners:{ 'generated-placement':generatedPlacementDemo },
     runtimeTestRunner,
-    getActors:()=>scene.actors(),
-    onSelectActor:actor=>scene.selectActor(actor)
+    getActors:()=>activeScene().actors(),
+    onSelectActor:actor=>activeScene().selectActor(actor)
   });
 
   const gateway = new HttpLLMGateway({
@@ -52,12 +54,14 @@ export function createStudioAgent({
   taskPanel.setAvailability(capabilityStatus.agent.available);
   ui.attachAgent?.({ taskPanel, runsPanel });
   const actorEvents=['object.spawned','object.removed','scene.restored','scene.actor.selected'].map(name=>world.events.on(name,()=>{taskPanel.emit();ui.refreshInspector?.();}));
+  const stopProjects = codeProjects?.subscribe(()=>taskPanel.emit());
 
   return {
     taskPanel,
     runsPanel,
     gateway,
     dispose() {
+      stopProjects?.();
       actorEvents.forEach(off=>off());
       ui.attachAgent?.(null);
       taskPanel.dispose?.();

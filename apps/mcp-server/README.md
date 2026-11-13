@@ -1,5 +1,7 @@
 # AgentScape Remote MCP v0.3
 
+自由代码项目可通过同一 Scene 工具发现并调用 `action:'custom'`、任意项目动作名和 JSON 参数；无验证器也允许执行，证据单列为未验证。代码、Shader、持续逻辑和作品迁移见 [Code Project](../../docs/modules/code-project.md)，示例入口 `/examples/code-project/`。源码由本地项目入口显式运行，MCP 不自动执行远端源码。
+
 新增容器隔离的程序化资产构建/发布、不可变版本与文件存储、可信世界保存恢复。原有 33 个工具继续兼容；新增 4 个 Studio Live Bridge 配对/会话工具，使用同一个 `agentscape-world` 连接。契约、示例、隔离设施和保存边界见 [PROGRAMMATIC-ASSETS.md](./PROGRAMMATIC-ASSETS.md)。
 
 Scene 工具为 `scene_observe`、`scene_apply`、`scene_add_model`、`scene_interact`、`scene_job`、`scene_cancel`、`scene_verify`、`scene_save`、`scene_set_style`。它们使用与 SDK/Studio 相同的 Scene 应用服务和 Runtime。`scene_interact` 立即返回 JobRef，由宿主推进模拟，调用方轮询任务并分别检查执行状态与验证证据。Recipe 可以直接作为 scene_add_model 的 model.asset 输入，无需生成 JavaScript。

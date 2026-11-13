@@ -118,7 +118,7 @@
 }
 
 .human-views {
-  top: 14px;
+  top: 64px;
   left: auto;
   right: 14px;
   gap: 2px;
@@ -184,3 +184,5 @@
 .asset-placement-armed {
   cursor: crosshair;
 }
+
+.viewport.has-code-project > .human-views { display:none; }

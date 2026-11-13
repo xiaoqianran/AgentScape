@@ -1,5 +1,7 @@
 # AgentScape TypeScript SDK
 
+自由代码世界新增 `AgentScape.openProject({project,container,authorized:true})`，支持持续 Three.js 逻辑、Shader、自定义动作和项目代码/状态保存。生命周期与示例见 [Code Project](../../docs/modules/code-project.md)。本地示例为 `/examples/code-project/`。
+
 Beta package for the AgentScape 3D world engine. After publication, install with `npm install agentscape3d`. This first public prerelease is intentionally tagged `latest` so the unqualified installation command works; its `2.0.0-beta.1` version still signals pre-release stability. Before publication, build with `node dev/build-sdk.mjs`, then use the resulting `npm pack` tarball.
 
 ```js

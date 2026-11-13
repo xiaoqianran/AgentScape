@@ -14,7 +14,7 @@ export async function executeAgentRun(agent, text, { signal, actor = agent.tools
   // Preserve the public logger callback's original Agent receiver.
   const log = (...args) => agent.log(...args);
   log(`goal: ${text}`, 'goal');
-  const toolDefinitions=tools.definitions();
+  let toolDefinitions=tools.definitions();
   const messages = [
     { role:'system', content:buildAgentSystemPrompt(toolDefinitions) },
     { role:'user', content:text }
@@ -55,6 +55,8 @@ export async function executeAgentRun(agent, text, { signal, actor = agent.tools
 
   // OBSERVE -> PLAN: prepare fresh context, then ask the model for a decision.
   async function preparePlanningRound(step) {
+    toolDefinitions=tools.definitions();
+    messages[0]={role:'system',content:buildAgentSystemPrompt(toolDefinitions)};
     if (signal?.aborted) return { cancelled:cancelled(step) };
     const world = await tools.call('listObjects');
     if (signal?.aborted) return { cancelled:cancelled(step) };
@@ -130,9 +132,10 @@ export async function executeAgentRun(agent, text, { signal, actor = agent.tools
         const goal=sceneTaskPlan?.criteria.find(check=>check.id===call.args?.goalId);
         const satisfied=new Set((sceneGoalEvidence?.checks || []).filter(check=>check.verified).map(check=>check.id));
         const identity=mutationIdentity(call),previous=failedSceneAttempts.get(identity);
-        const fingerprint=scene ? stableValue({objects:scene.objects.map(object=>({id:object.id,state:object.state,transform:{...object.transform,position:object.transform.position.map(value=>Math.round(value*100)/100)}})),environment:scene.affordances.entities.filter(entry=>entry.source==='environment').map(entry=>({id:entry.id,state:entry.state}))}) : null;
+        const custom = call.args?.interaction?.action === 'custom';
+        const fingerprint=scene ? stableValue({objects:scene.objects.map(object=>({id:object.id,state:object.state,transform:{...object.transform,position:object.transform.position.map(value=>Math.round(value*100)/100)}})),environment:scene.affordances.entities.filter(entry=>entry.source==='environment').map(entry=>({id:entry.id,state:entry.state})),project:scene.project?.entities.map(entry=>({id:entry.id,state:entry.state,actions:entry.actions}))}) : null;
         const reason=call.name==='planSceneTask' ? sceneTaskPlan?'TASK_PLAN_IMMUTABLE':null
-          : !sceneTaskPlan?'TASK_PLAN_REQUIRED':!goal?'TASK_GOAL_UNKNOWN':!actor?'ACTOR_SELECTION_REQUIRED':call.args?.interaction?.actor!==actor?'TASK_ACTOR_MISMATCH'
+          : !sceneTaskPlan?'TASK_PLAN_REQUIRED':!goal?'TASK_GOAL_UNKNOWN':!custom&&!actor?'ACTOR_SELECTION_REQUIRED':!custom&&call.args?.interaction?.actor!==actor?'TASK_ACTOR_MISMATCH'
           : (sceneTaskPlan.dependencies[goal.id] || []).some(parent=>!satisfied.has(parent))?'TASK_DEPENDENCY_UNSATISFIED'
           : satisfied.has(goal.id)?'TASK_GOAL_ALREADY_VERIFIED'
           : previous?.fingerprint===fingerprint && previous.count>=maxUnchangedFailures?'UNCHANGED_FAILURE_LIMIT':null;

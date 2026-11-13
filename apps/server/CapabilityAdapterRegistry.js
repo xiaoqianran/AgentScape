@@ -1,5 +1,5 @@
 const SAFE_FORWARD_HEADERS = new Set(['accept', 'content-type']);
-export const INVOKE_TIMEOUT_MS = 120_000;
+export const INVOKE_TIMEOUT_MS = 185_000;
 export const HEALTH_TIMEOUT_MS = 3_000;
 export const HEALTH_SLOW_MS = 1_500;
 

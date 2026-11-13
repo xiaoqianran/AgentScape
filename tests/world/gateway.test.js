@@ -14,8 +14,8 @@ describe('LLM gateway', () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
-  it('defaults to a 90 second timeout while still allowing an explicit override', () => {
-    expect(new HttpLLMGateway({ endpoint: 'https://gateway.test/agent' }).timeoutMs).toBe(90000);
+  it('defaults to a 180 second timeout while still allowing an explicit override', () => {
+    expect(new HttpLLMGateway({ endpoint: 'https://gateway.test/agent' }).timeoutMs).toBe(180000);
     expect(new HttpLLMGateway({ endpoint: 'https://gateway.test/agent', timeoutMs: 1234 }).timeoutMs).toBe(1234);
   });
 

@@ -84,6 +84,7 @@ export function ProductPages({
 
   return (
     <section className="product-page-layer" aria-label="AgentScape product page">
+      {activePage === 'worlds' && bridgeState.codeProjects ? <button className="code-world-entry" onClick={()=>bridgeState.codeProjects.show()}>创建或打开代码世界</button> : null}
       {activePage === 'worlds' ? (
         <WorldsPage
           environments={environments}

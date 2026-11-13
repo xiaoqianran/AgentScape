@@ -1,0 +1,25 @@
+.studio-code-project-viewport { position:absolute; inset:0; z-index:2; background:#101827; }
+.studio-code-project-viewport[hidden] { display:none; }
+.viewport.has-code-project > canvas { visibility:hidden; pointer-events:none; }
+.code-project-editor,.code-project-actions { padding:16px; overflow:auto; height:100%; min-height:0; box-sizing:border-box; }
+.code-project-editor { display:flex; flex-direction:column; gap:10px; }
+.code-project-editor h2,.code-project-editor p { margin:0; }
+.code-project-editor label,.code-project-actions label { display:flex; flex-direction:column; gap:6px; }
+.code-project-editor input,.code-project-editor select,.code-project-editor textarea,.code-project-actions textarea { width:100%; box-sizing:border-box; padding:8px; color:inherit; background:var(--bg-panel,#172131); border:1px solid #526079; border-radius:6px; }
+.code-source-label { flex:1; min-height:240px; }
+.code-source-label textarea { flex:1; resize:vertical; min-height:240px; font:12px/1.5 monospace; tab-size:2; white-space:pre; }
+.code-project-buttons { display:flex; flex-wrap:wrap; gap:6px; }
+.code-project-note,.code-project-editor small { font-size:12px; opacity:.8; }
+.code-project-actions pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
+.code-project-actions section { border-bottom:1px solid #526079; padding-bottom:12px; }
+.code-project-actions details { margin:10px 0; }
+.code-project-action-fields { display:grid; gap:10px; margin:12px 0; }
+.code-project-action-fields label { display:flex; flex-direction:column; gap:4px; }
+.code-project-action-fields input,.code-project-action-fields select { width:100%; box-sizing:border-box; padding:8px; color:inherit; background:var(--bg-panel,#172131); border:1px solid #526079; border-radius:6px; }
+.code-project-action-fields small { opacity:.72; }
+.code-project-action-buttons { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0; }
+.code-project-action-result { margin:8px 0 0; }
+.code-project-action output { display:block; margin-top:6px; font-weight:600; }
+.code-world-entry { margin:16px 32px 0; padding:10px 18px; }
+.world-editor-workspace.code-project-mode { --studio-scene-w:360px; }
+.code-project-mode .scene-panel { display:block; }

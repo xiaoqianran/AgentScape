@@ -1,7 +1,7 @@
 import { JsonGateway } from '../../../foundation/JsonGateway.js';
 
 export class HttpLLMGateway extends JsonGateway {
-  constructor(options = {}) { super({ timeoutMs: 90000, label: 'agent capability adapter', ...options }); }
+  constructor(options = {}) { super({ timeoutMs: 180000, label: 'agent capability adapter', ...options }); }
   async complete(request, options) { return normalizeGatewayResponse(await this.post(request, options)); }
 }
 

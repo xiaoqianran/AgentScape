@@ -58,12 +58,17 @@ export function createSuzhouGardenEnvironment({renderer=null,quality='low'}={}) 
   root.add(navigationRoot);
   root.traverse(node=>{if(node.isMesh&&node!==surface.mesh)node.userData.navigationIgnore=true;});
   let time=0, hour=WORLD.sunDefaultHour,weather='clear';
+  let lastLodUpdate=0;
   sky.dome.onBeforeRender=(_renderer,_scene,activeCamera)=>{
     sky.update(time,activeCamera);
     water.setCamera(activeCamera);
     nature.update(time,activeCamera);
     lod.camera=activeCamera;
-    lod.update(0.3);
+    const now=performance.now();
+    if(now-lastLodUpdate>=250){
+      lod.update((now-lastLodUpdate)/1000);
+      lastLodUpdate=now;
+    }
   };
   return {
     id:SUZHOU_ID,root,floor:surface.mesh,navigationRoot,colliders:[surface.collider],

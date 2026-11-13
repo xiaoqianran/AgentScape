@@ -151,6 +151,19 @@ export class StudioLiveBridgeClient {
   }
   async execute(request){
     const {method,args={}}=request;
+    if (method === 'project') {
+      if (!this.codeProjects) throw failure('STUDIO_PROJECTS_UNAVAILABLE');
+      const { operation, ...input } = args;
+      if (operation === 'read') { await this.codeProjects.refresh(); return this.codeProjects.read(); }
+      if (operation === 'write') return this.codeProjects.write(input);
+      if (operation === 'patch') return this.codeProjects.patch(input);
+      if (operation === 'run') return this.codeProjects.run(input);
+      if (operation === 'save') return this.codeProjects.save();
+      if (operation === 'open') return this.codeProjects.load(input.id);
+      if (operation === 'close') return this.codeProjects.close();
+      throw failure('STUDIO_METHOD_FORBIDDEN');
+    }
+    if (this.codeProjects?.busy) throw failure('PROJECT_BUSY');
     switch(method){
       case 'observe':return args.target?this.scene.inspect(args.target,{actor:args.actor}):this.scene.observe({
         actor:args.actor,...(args.limit!=null?{limit:args.limit,offset:args.offset||0}:{})
@@ -170,7 +183,7 @@ export class StudioLiveBridgeClient {
         return args.mode==='prepare'?this.scene.prepareAsset(model.asset):this.scene.addModel(model);
       }
       case 'setStyle':return this.scene.setStyle(args.style,{fallback:args.fallback});
-      case 'save':return this.scene.save();
+      case 'save':return this.codeProjects?.session ? this.codeProjects.save() : this.scene.save();
       default:throw failure('STUDIO_METHOD_FORBIDDEN');
     }
   }

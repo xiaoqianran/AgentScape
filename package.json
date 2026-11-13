@@ -8,6 +8,7 @@
     "test:starter": "vitest run tests/integration/starter-scene.test.js",
     "test:browser:starter": "playwright test tests/browser/starter.spec.js",
     "dev": "vite",
+    "generate:world-previews": "node dev/generate-world-previews.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",

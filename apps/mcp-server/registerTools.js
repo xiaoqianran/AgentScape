@@ -66,6 +66,15 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
    }
   }
  };
+ add('studio_project','Create, edit, run, save and reopen complete trusted code worlds in the active Studio workbench. Read first for source, revision and createProject API guide. write saves a draft; patch applies a unique exact-fragment edit with expectedRevision; run activates it; save persists live state and assets. Not a sandbox. Use scene_observe/interact for dynamic actions.',{
+  ...sceneSession, operation:z.enum(['read','write','patch','run','save','open','close']), requestId:z.uuid().optional(),
+  create:z.boolean().optional(), source:z.string().min(1).optional(), name:z.string().min(1).optional(),
+  oldText:z.string().min(1).optional(), newText:z.string().optional(),
+  expectedRevision:z.number().int().nonnegative().optional(), id:z.string().optional(), project:z.record(z.string(),z.unknown()).optional()
+ },(a,e)=>{
+  const {worldSessionId,requestId,...args}=a;
+  return sceneRun(a,'project',args,()=>{throw new Error('STUDIO_PROJECTS_UNAVAILABLE');},e);
+ });
  const decodeModel=model=>{
   if(model?.asset?.kind!=='glb') return model;
   const source=z.object({kind:z.literal('glb'),name:z.string().min(1).max(128).optional(),bytesBase64:z.string().min(1).max(45*1024*1024),urdfBase64:z.string().min(1).max(2*1024*1024).optional(),review:z.record(z.string(),z.unknown()).optional()}).strict().parse(model.asset);

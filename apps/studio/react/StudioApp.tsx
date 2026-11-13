@@ -6,6 +6,7 @@ import { ProductPages } from './shell/ProductPages';
 import { useStudioProductRouter } from './routing/useStudioProductRouter';
 import { useStudioShellModel } from './shell/useStudioShellModel';
 import { PersistentGenerationHost } from './shell/PersistentGenerationHost';
+import { emptyCodeSubscribe, emptyCodeSnapshot } from './world/CodeProjectWorkbench';
 
 type EnvironmentDefinition = {
   id:string;
@@ -34,6 +35,7 @@ export function StudioApp({
   environments:EnvironmentDefinition[];
 }) {
   const bridgeState = useSyncExternalStore(bridge.subscribe,bridge.getSnapshot,bridge.getSnapshot);
+  const projectState:any=useSyncExternalStore(bridgeState.codeProjects?.subscribe || emptyCodeSubscribe,bridgeState.codeProjects?.snapshot || emptyCodeSnapshot,bridgeState.codeProjects?.snapshot || emptyCodeSnapshot);
   const commandInputRef = useRef<HTMLInputElement|null>(null);
   const { commitLayoutChange, choosePage, chooseAgentView } = useStudioProductRouter(bridge.notifyLayout);
   const {
@@ -72,6 +74,7 @@ export function StudioApp({
         cinematic={cinematic}
         setCinematic={(value)=>commitLayoutChange(()=>setCinematic(value))}
         openDeveloper={()=>bridgeState.developerOpenHandler?.()}
+        codeProjectName={projectState.active ? projectState.project?.name : null}
       />
 
       <WorldEditorWorkspace

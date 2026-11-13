@@ -11,6 +11,7 @@ import { CAPABILITY_API, LOCAL_ADAPTER_HOST } from '../config/capabilityEntry.js
 import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
 import { SCENE_LEGACY_SKILLS } from '../../../application/scene/SceneFacade.js';
 import { StudioLiveBridgeClient, defaultAutoMcpEnabled } from '../bridge/StudioLiveBridgeClient.js';
+import { StudioCodeProjects } from '../code-project/StudioCodeProjects.js';
 
 export async function createStudioRuntime({
   ui,
@@ -19,7 +20,7 @@ export async function createStudioRuntime({
   capabilityStatus
 }) {
   const environmentMaterializer = new StudioEnvironmentMaterializer({ parent:ui.shell });
-  const requestedRenderScale = Number(params.get('renderScale') ?? 1);
+  const requestedRenderScale = Number(params.get('renderScale') ?? (environmentDefinition.id === 'suzhou-garden' ? 0.75 : 1));
   const rendererPixelRatioScale = Number.isFinite(requestedRenderScale) && requestedRenderScale >= 0.5 && requestedRenderScale <= 1
     ? requestedRenderScale : 1;
   const { world, generation, authoring, promotion, scene } = createSession(ui.viewport, {
@@ -97,16 +98,39 @@ export async function createStudioRuntime({
     shouldRender:()=>ui.isWorldVisible?.() ?? true
   }).start();
 
+  const projectHost = document.createElement('div');
+  projectHost.className = 'studio-code-project-viewport';
+  projectHost.hidden = true;
+  ui.viewport.appendChild(projectHost);
+  const codeProjects = new StudioCodeProjects({
+    container:projectHost, baseScene:scene, baseWorld:world,
+    onShow:inspect=>{ ui.setPage('world'); if (inspect || ui.panel?.dataset.view !== 'task') ui.setView('inspect'); },
+    onActivate:session=>{
+      projectHost.hidden = !session;
+      ui.viewport.classList.toggle('has-code-project', Boolean(session));
+      if (session) runtimeDriver.stop(); else runtimeDriver.start();
+      liveBridge.scene = session?.scene || scene;
+      liveBridge.world = session?.world || world;
+      ui.setSelection?.(null);
+      ui.refreshInspector?.();
+    }
+  });
+  liveBridge.codeProjects = codeProjects;
+  ui.attachCodeProjects?.(codeProjects);
+
   return {
     world,
     authoringWorlds,
     studioTools,
-    agentTools,
+    agentTools:codeProjects.wrapTools(agentTools),
+    codeProjects,
     runtimeTestTools,
     environmentMaterializer,
     worldSurface,
     editor,
     dispose() {
+      codeProjects.dispose();
+      projectHost.remove();
       stopInteractionMode?.();
       liveBridge.dispose();
       worldSurface.dispose();

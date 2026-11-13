@@ -21,6 +21,14 @@ const emptySubscribe = () => () => {};
 const emptySnapshot = () => EMPTY_AUTHORING;
 type Collection = 'builtin'|'drafts'|'generated';
 
+function WorldPreview({ src, alt, iconSize, eager=false }: { src:string|null; alt:string; iconSize:number; eager?:boolean }) {
+  const [failed,setFailed]=useState(false);
+  useEffect(()=>setFailed(false),[src]);
+  return src && !failed
+    ? <img src={src} alt={alt} loading={eager?'eager':'lazy'} onError={()=>setFailed(true)} />
+    : <StudioIcon name="worlds" size={iconSize} />;
+}
+
 export function WorldsPage({ environments, presentation, resources=null, authoring=null, openBuiltinWorld, openGeneratedWorld, enterAuthoringEditor=()=>{}, enterCurrentWorld, openBuild }:Props) {
   const [resourceRevision,setResourceRevision] = useState(0);
   const [collection,setCollection] = useState<Collection>('builtin');
@@ -72,7 +80,7 @@ export function WorldsPage({ environments, presentation, resources=null, authori
         <button className="worlds-current-action" type="button" disabled={!!busyKey} onClick={()=>enterCurrentWorld ? enterCurrentWorld() : void run('current',()=>openBuiltinWorld(presentation.id))}>进入编辑器<StudioIcon name="arrow" /></button>
         <small>场景编辑 · 物理交互 · 智能体任务</small>
       </div>
-      <div className="worlds-current-preview">{current.preview ? <img src={current.preview} alt={current.title+'的场景预览'} fetchPriority="high" /> : <StudioIcon name="worlds" size={80} />}<span>场景预览</span></div>
+      <div className="worlds-current-preview"><WorldPreview src={current.preview} alt={current.title+'的场景预览'} iconSize={80} eager /><span>场景预览</span></div>
     </section>
     <div className="worlds-browser-heading"><div><h2>选择你的起点</h2><p>从现成场景开始，或继续自己的创作。</p></div></div>
     <div className="worlds-controls">
@@ -86,7 +94,7 @@ export function WorldsPage({ environments, presentation, resources=null, authori
       {collection==='builtin' ? <div className="worlds-grid">{visibleBuiltins.map(world=>{
         const view=worldPresentation(world);const isCurrent=!presentation?.generated && presentation?.id===world.id;
         return <article key={world.id} className={'world-card'+(isCurrent?' is-current':'')} data-world-card={world.id}>
-          <button className="world-card-preview" type="button" aria-label={'打开'+view.title} disabled={!!busyKey} onClick={()=>void run(world.id,()=>openBuiltinWorld(world.id))}>{view.preview ? <img src={view.preview} alt="" loading="lazy" /> : <StudioIcon name="worlds" size={48} />}<span>{view.category}</span>{isCurrent?<em>当前世界</em>:null}</button>
+          <button className="world-card-preview" type="button" aria-label={'打开'+view.title} disabled={!!busyKey} onClick={()=>void run(world.id,()=>openBuiltinWorld(world.id))}><WorldPreview src={view.preview} alt="" iconSize={48} /><span>{view.category}</span>{isCurrent?<em>当前世界</em>:null}</button>
           <div className="world-card-body"><h3>{view.title}</h3><p>{view.description}</p></div>
           <button className="world-card-open" type="button" disabled={!!busyKey} onClick={()=>void run(world.id,()=>openBuiltinWorld(world.id))}><span>{busyKey===world.id?'正在打开…':isCurrent?'回到当前世界':'打开场景'}</span><StudioIcon name="arrow" size={17} /></button>
         </article>;

@@ -20,7 +20,8 @@ export function ProductHeader({
   runtimeStatus,
   cinematic,
   setCinematic,
-  openDeveloper
+  openDeveloper,
+  codeProjectName = null
 }: {
   activePage:ProductPage;
   sceneCollapsed:boolean;
@@ -35,6 +36,7 @@ export function ProductHeader({
   cinematic:boolean;
   setCinematic:(value:boolean)=>void;
   openDeveloper:()=>void;
+  codeProjectName?:string|null;
 }) {
   const [opening,setOpening] = useState(false);
   const [openError,setOpenError] = useState('');
@@ -87,12 +89,13 @@ export function ProductHeader({
               id="world-select"
               className="world-select"
               aria-label="当前世界"
-              value={worldSelectValue}
+              value={codeProjectName ? 'runtime:code-project' : worldSelectValue}
               disabled={opening}
               onChange={(event)=>void switchWorld(event.target.value)}
             >
               {environments.map((item)=><option key={item.id} value={item.id}>{worldPresentation(item).title}</option>)}
               {generated ? <option value={worldSelectValue}>已生成 · {presentation.title}</option> : null}
+              {codeProjectName ? <option value="runtime:code-project">代码世界 · {codeProjectName}</option> : null}
             </select>
           </label>
         ) : null}

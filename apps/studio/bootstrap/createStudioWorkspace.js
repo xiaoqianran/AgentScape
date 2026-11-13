@@ -22,7 +22,8 @@ export async function createStudioWorkspace({
   worldSurface,
   taskPanel,
   gateway,
-  lifecycle
+  lifecycle,
+  codeProjects = null
 }) {
   const enterEditor = (url,{ replace=false }={}) => {
     ui.setPage?.('world');
@@ -31,6 +32,7 @@ export async function createStudioWorkspace({
   };
 
   const openBuiltinWorld = async (id,{ historyMode='push' }={}) => {
+    await codeProjects?.close();
     const definition = environments.find(item => item.id === id);
     // Classic WebGL shaders cannot run on the WebGPURenderer WebGL backend.
     // Preserve local world state, then reopen through the existing Studio route.
@@ -49,6 +51,7 @@ export async function createStudioWorkspace({
   };
 
   const openGeneratedWorld = async (artifactId,{ historyMode='push' }={}) => {
+    await codeProjects?.close();
     const result = await lifecycle.openGeneratedWorld(artifactId);
     if (historyMode !== 'none') {
       enterEditor(generatedArtifactWorldUrl(currentHref(),artifactId),{ replace:historyMode === 'replace' });
@@ -57,6 +60,7 @@ export async function createStudioWorkspace({
   };
 
   const openAuthoringWorld = async (id,{ historyMode='push' }={}) => {
+    await codeProjects?.close();
     const result = await lifecycle.worldOpener.open({ kind:'authoring', id });
     if (historyMode !== 'none') {
       enterEditor(authoringWorldUrl(currentHref(),id),{ replace:historyMode === 'replace' });
@@ -65,6 +69,7 @@ export async function createStudioWorkspace({
   };
 
   const newAuthoringWorld = async (options,{ historyMode='push' }={}) => {
+    await codeProjects?.close();
     const result = await lifecycle.worldOpener.open({ kind:'authoring-new', options });
     if (historyMode !== 'none') {
       enterEditor(authoringWorldUrl(currentHref(),null),{ replace:historyMode === 'replace' });

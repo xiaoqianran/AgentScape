@@ -26,11 +26,13 @@ export class AuthoringWorldStore {
   constructor({
     indexedDBImpl = globalThis.indexedDB,
     memory = new Map(),
-    now = () => new Date().toISOString()
+    now = () => new Date().toISOString(),
+    databaseName = DB_NAME
   } = {}) {
     this.indexedDB = indexedDBImpl;
     this.memory = memory;
     this.now = now;
+    this.databaseName = databaseName;
     this.dbPromise = null;
   }
 
@@ -39,7 +41,7 @@ export class AuthoringWorldStore {
     if (this.dbPromise) return this.dbPromise;
 
     this.dbPromise = new Promise((resolve, reject) => {
-      const request = this.indexedDB.open(DB_NAME, DB_VERSION);
+      const request = this.indexedDB.open(this.databaseName, DB_VERSION);
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains(STORE_NAME)) {

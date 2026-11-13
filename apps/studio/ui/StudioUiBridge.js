@@ -9,6 +9,7 @@ export function createStudioUiBridge() {
     sceneControls:null,
     authoring:null,
     liveBridge:null,
+    codeProjects:null,
     developerOpenHandler:null,
     commandDraft:null
   });
@@ -71,6 +72,7 @@ export function createStudioUiBridge() {
     attachLiveBridge(liveBridge) {
       emit({liveBridge});
     },
+    attachCodeProjects(codeProjects) { emit({codeProjects}); },
     attachAuthoring(authoring) {
       emit({ authoring });
     },
