@@ -23,7 +23,7 @@ export class ManifestPass {
       ...(parts ? { parts } : {}),
       physics: {
         ...(context.definition?.physics ? structuredClone(context.definition.physics) : {}),
-        body: physics.body || (actions.has('pickup') ? 'dynamic' : 'fixed'),
+        body: physics.body || 'fixed',
         mass: Number(physics.mass ?? (actions.has('pickup') ? 0.5 : 1)),
         friction: Number(physics.friction ?? 0.5),
         colliders: context.collision.colliders

@@ -10,7 +10,7 @@ const sizes = z.tuple([size, size, size]);
 const id = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
 export const packagePath = z.string().max(240).refine(value => value.startsWith('./') && value.slice(2).split('/').every(p => /^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(p) && !p.endsWith('.') && !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p)));
 const boxCollider = z.object({ shape: z.literal('box'), halfExtents: sizes, translation: vector.default(() => [0, 0, 0]) }).strict();
-const physics = z.object({ body: z.enum(['fixed', 'dynamic']), mass: size.default(1), friction: z.number().min(0).max(2).default(0.5), colliders: z.array(boxCollider).min(1).max(64) }).strict();
+const physics = z.object({ body: z.enum(['fixed', 'dynamic']), mass: size.default(1), friction: z.number().min(0).max(2).default(0.5), carryable:z.boolean().optional(), colliders: z.array(boxCollider).min(1).max(64) }).strict();
 const reviewedPhysics = z.object({ body:z.enum(['fixed','dynamic']), mass:size, friction:z.number().min(0).max(2),
   colliders:z.array(boxCollider).max(64).optional() }).strict();
 export const interactionReviewSchema = z.object({

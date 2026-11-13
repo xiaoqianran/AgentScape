@@ -1,4 +1,5 @@
 import { assetIdFromRef } from '../../asset/model/AssetRef.js';
+import { inferCarryCapability, isCarryOperation } from '../runtime/interaction/CarryCapability.js';
 import { compileBehaviorGraph } from '../runtime/behavior/BehaviorCompiler.js';
 import { compileRuleGraph } from '../runtime/behavior/RuleGraph.js';
 
@@ -41,7 +42,10 @@ export function admitWorldBehavior(bundle,{resolvedAssets=[],getManifest}={}){
     if(!target){issues.push({code:'BEHAVIOR_INTENT_TARGET_MISSING',targetId:intent.entityId});continue;}
     const assetId=assetIdFromRef(target.assetRef);
     if(!assetId){issues.push({code:'BEHAVIOR_INTENT_TARGET_UNRESOLVED',targetId:intent.entityId});continue;}
-    const actions=new Set((getManifest?.(assetId)?.actions||[]).map((action)=>String(action).toUpperCase()));
+    const manifest=getManifest?.(assetId);
+    const actions=new Set((manifest?.actions||[]).map((action)=>String(action).toUpperCase()));
+    if (inferCarryCapability(manifest).eligible) for (const name of ['PICKUP','DROP','PLACE']) actions.add(name);
+    else if (manifest?.physics?.carryable === false) for (const name of ['PICKUP','DROP','PLACE']) actions.delete(name);
     for(const capability of intent.capabilities){
       if(!actions.has(capability)) issues.push({code:'BEHAVIOR_CAPABILITY_INTENT_UNSUPPORTED',targetId:intent.entityId,capability,assetId});
     }
@@ -55,7 +59,9 @@ export function admitWorldBehavior(bundle,{resolvedAssets=[],getManifest}={}){
     if(['OPEN','CLOSE','PICKUP'].includes(command.capability)){
       const manifest=getManifest?.(assetId);
       const action=command.capability.toLowerCase();
-      if(!manifest?.actions?.includes(action)) issues.push({code:'BEHAVIOR_CAPABILITY_UNSUPPORTED',commandId:command.commandId,targetId,capability:command.capability,assetId});
+      const supported = (manifest?.actions?.includes(action) || (isCarryOperation(action) && inferCarryCapability(manifest).eligible))
+        && (!isCarryOperation(action) || manifest?.physics?.carryable !== false);
+      if(!supported) issues.push({code:'BEHAVIOR_CAPABILITY_UNSUPPORTED',commandId:command.commandId,targetId,capability:command.capability,assetId});
     }
   }
   return {status:issues.length?'rejected':'ready',issues};

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Errors } from '../../errors.js';
+import { inferCarryCapability } from './CarryCapability.js';
 
 export class CarryRuntime {
   constructor({ store, physics, spatial, events, assertSupports }) {
@@ -86,14 +87,13 @@ export class CarryRuntime {
 
   assertAgentCarryable(actorId, targetId) {
     this.holdAnchor(actorId);
-    const target = this.assertSupports(targetId, 'pickup');
-    if (!target.manifest.actions.includes('drop')) throw Errors.carryUnavailable(actorId, targetId, 'DROP_UNSUPPORTED');
-    if (target.manifest.physics?.body !== 'dynamic') throw Errors.carryUnavailable(actorId, targetId, 'TARGET_NOT_DYNAMIC');
-    if (Object.keys(target.manifest.parts || {}).length) throw Errors.carryUnavailable(actorId, targetId, 'ARTICULATED_TARGET_UNSUPPORTED');
-    const colliders = target.manifest.physics?.colliders || [];
-    if (!colliders.length || colliders.some((collider) => !['box','cylinder','capsule'].includes(collider.shape))) {
-      throw Errors.carryUnavailable(actorId, targetId, 'CARRY_COLLIDER_UNSUPPORTED');
-    }
+    const target = this.store.get(targetId);
+    const assessment = inferCarryCapability(target.manifest, { scale:target.physicsScale ?? target.object?.scale?.x ?? 1,
+      allowProvisional:target.state?.authoringPromotion?.usage === 'movable' });
+    if (!assessment.eligible) throw Errors.carryUnavailable(actorId, targetId, assessment.reason);
+    this.assertSupports(targetId, 'pickup');
+    this.assertSupports(targetId, 'drop');
+    const colliders = target.manifest.physics.colliders;
     const anchorRotation = target.id && (this.store.get(actorId).manifest.embodiment?.holdAnchor?.rotation || [0,0,0,1]);
     if (Math.abs(anchorRotation[0]) > 1e-6 || Math.abs(anchorRotation[2]) > 1e-6) throw Errors.carryUnavailable(actorId,targetId,'HOLD_ANCHOR_ROTATION_UNSUPPORTED');
     if (colliders.some((collider) => collider.rotation && (Math.abs(collider.rotation[0]) > 1e-6 || Math.abs(collider.rotation[2]) > 1e-6))) {

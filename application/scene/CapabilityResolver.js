@@ -15,6 +15,8 @@ export function describeCapabilities(inspection) {
       source: inspection.source,
       executor: action.execution,
       ...(action.partName ? { partName: action.partName } : {}),
+      ...(action.capabilitySource ? { capabilitySource: action.capabilitySource } : {}),
+      ...(action.graspVerified === false ? { graspVerified:false } : {}),
       description: action.description || '',
       parameters: structuredClone(action.parameters || {}),
       available: action.available ?? null,

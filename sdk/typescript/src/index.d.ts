@@ -45,12 +45,14 @@ export interface SemanticCapability {
   executor:'query'|'editor'|'interaction'|'world-action'|'project-action';
   description:string; parameters:Record<string,unknown>; available:boolean|null;
   partName?:string; reason?:string; canApproach?:boolean; verification:string;
+  capabilitySource?:'declared'|'physical-inference'; graspVerified?:false;
 }
 export interface ObjectAffordances {
   schema: 'agentscape.object-affordances'; schemaVersion: 1; id: string; source: 'asset' | 'environment';
   label: string; kind: string; position: Vec3; state: Record<string, unknown>;
   physics?: AffordancePhysics;
   actions: AffordanceAction[]; capabilities?:SemanticCapability[];
+  capabilityCandidates?:Array<{action:string;executable:false;reason:string;source:string}>;
   evidenceKind: string; physicsVerified: false; pending: boolean;
 }
 export interface AffordanceListing { schema: string; total: number; entities: ObjectAffordances[] }

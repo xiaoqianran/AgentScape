@@ -101,8 +101,16 @@ export class AssetCompiler {
       missing:['mass','friction',...['axis','parentAnchor','childAnchor','limits'].filter(field=>part.joint?.[field]==null).map(field=>`joint.${field}`),'review-confirmation','runtime-verification'] }));
     const proposal={schema:'agentscape.capability-proposal',schemaVersion:1,sourceHash,urdfHash,compilerVersion:this.version,
       physics:{body:null,mass:null,friction:null,colliders:output.manifest.physics.colliders},parts,
-      operations:[...['push','drag','rotate'].map(action=>({action,executable:false,physicsVerified:false,requires:'reviewed-dynamic-body'})),
-        ...parts.map(part=>({action:part.joint?.type==='prismatic'?'slide':'rotateJoint',part:part.id,executable:false,physicsVerified:false,requires:'reviewed-and-verified-joint'}))],
+      operations:[
+        ...(output.geometry.bounds.size.every(size=>Number.isFinite(size)&&size>0&&size<=1.25)
+          ? ['pickup','drop','place'].map(action=>({action,executable:false,physicsVerified:false,requires:'reviewed-dynamic-body-mass-and-carry-geometry'})) : []),
+        ...['push','drag','rotate'].map(action=>({action,executable:false,physicsVerified:false,requires:'reviewed-dynamic-body'})),
+        ...parts.filter(part=>['prismatic','revolute'].includes(part.joint?.type)).map(part=>({action:part.joint.type==='prismatic'?'slide':'rotateJoint',part:part.id,executable:false,physicsVerified:false,requires:'reviewed-and-verified-joint'})),
+        ...(output.articulation.candidates||[]).flatMap(candidate=>(candidate.suggestedActions||[])
+          .filter(action=>!['slide','rotateJoint'].includes(action))
+          .map(action=>({action,part:candidate.partId||candidate.node,executable:false,physicsVerified:false,
+            requires:'semantic-review-and-verified-joint-target'})))
+      ],
       missing:['physics.body','physics.mass','physics.friction','review-confirmation','runtime-verification'],
       evidence:{geometry:output.geometry.bounds,collisionStrategy:output.collision.strategy,articulationSource:output.partProposal?.source || output.articulation.source,
         confidenceScope:'name-or-source-metadata-only; not physical verification',

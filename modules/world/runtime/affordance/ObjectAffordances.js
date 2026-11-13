@@ -1,5 +1,6 @@
 import { compileInteractionContract } from '../interaction/InteractionContract.js';
 import { assetAdmission } from '../../../asset/model/admission.js';
+import { inferCarryCapability } from '../interaction/CarryCapability.js';
 
 const blocked = reason => ({ available: false, reason });
 const reasonOf = error => error.details?.reason || error.code || 'CAPABILITY_CHECK_FAILED';
@@ -34,18 +35,22 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
   add('setTransform', { transform: { type: 'object', required: true } }, {
     available: !held, reason: held ? 'OBJECT_HELD' : null, execution: 'editor'
   });
-  if (manifest.actions?.includes('pickup')) {
-    let check = {};
+  const carry = inferCarryCapability(manifest, { scale:record.physicsScale ?? record.object?.scale?.x ?? 1,
+    allowProvisional:record.state?.authoringPromotion?.usage === 'movable' });
+  if (manifest.actions?.includes('pickup') || carry.eligible) {
+    let check = carry.eligible ? {} : blocked(carry.reason);
     if (actorId && runtime.store.has(actorId)) {
       try { runtime.interactions.assertAgentCarryable(actorId, id); }
       catch (error) { check = blocked(reasonOf(error)); }
     }
-    add('pickup', {}, { execution: 'interaction', ...check });
+    add('pickup', {}, { execution: 'interaction',
+      capabilitySource:manifest.actions?.includes('pickup') ? 'declared' : 'physical-inference',
+      graspVerified:false, ...check });
   }
   if (manifest.surfaces?.length) {
     const held = actorId && runtime.interactions?.heldByAgent?.(actorId);
     add('place', { surfaceId: { type: 'string', enum: manifest.surfaces.map(surface => surface.id), required: false } }, {
-      execution: 'interaction', ...(!actorId ? {} : !held ? blocked('NOT_HOLDING_OBJECT') : !runtime.store.get(held).manifest.actions?.includes('place') ? blocked('ACTION_UNSUPPORTED') : {})
+      execution: 'interaction', ...(!actorId ? {} : !held ? blocked('NOT_HOLDING_OBJECT') : !runtime.interactions.supports(runtime.store.get(held), 'place') ? blocked('ACTION_UNSUPPORTED') : {})
     });
   }
   for (const contract of compileInteractionContract(manifest).contracts) {
@@ -94,7 +99,9 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
     physics: { registered, body: manifest.physics?.body || null, currentBody:runtime.physics?.manipulationBody?.(id)?.body ?? null,
       mass: manifest.physics?.mass ?? null, friction: manifest.physics?.friction ?? null,
       colliderCount: manifest.physics?.colliders?.length || 0 },
-    actions, evidenceKind: registered ? 'physics-state' : 'visual-state', physicsVerified: false,
+    actions,
+    ...(manifest.physics?.body === 'dynamic' && !carry.eligible ? { capabilityCandidates:[{ action:'pickup', executable:false, reason:carry.reason, source:'physical-geometry' }] } : {}),
+    evidenceKind: registered ? 'physics-state' : 'visual-state', physicsVerified: false,
     pending: Boolean(runtime.interactions?.physicalTasks?.has(id) || (runtime.interactions?.articulationTasks && [...runtime.interactions.articulationTasks.values()].some(task => task.id === id)))
   };
 }

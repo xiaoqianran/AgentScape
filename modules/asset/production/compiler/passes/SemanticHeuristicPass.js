@@ -2,9 +2,9 @@ const RULES = [
   { type: 'cabinet', words: ['cabinet','cupboard','wardrobe','柜','橱'], tags: ['storage','furniture'] },
   { type: 'drawer', words: ['drawer','抽屉'], tags: ['storage'] },
   { type: 'door', words: ['door','门'], tags: ['door'] },
-  { type: 'cup', words: ['cup','mug','杯'], tags: ['drinkware','graspable'], actions: ['move','pickup','drop','place'] },
-  { type: 'apple', words: ['apple','苹果'], tags: ['fruit','food','round','graspable'], actions: ['move','pickup','drop','place'] },
-  { type: 'vase', words: ['vase','flower vase','花瓶'], tags: ['decor','container','graspable'], actions: ['move','pickup','drop','place'] },
+  { type: 'cup', words: ['cup','mug','杯'], tags: ['drinkware','graspable'] },
+  { type: 'apple', words: ['apple','苹果'], tags: ['fruit','food','round','graspable'] },
+  { type: 'vase', words: ['vase','flower vase','花瓶'], tags: ['decor','container','graspable'] },
   { type: 'chair', words: ['chair','seat','椅'], tags: ['furniture','seat'] },
   { type: 'table', words: ['table','desk','桌'], tags: ['furniture','surface'] }
 ];

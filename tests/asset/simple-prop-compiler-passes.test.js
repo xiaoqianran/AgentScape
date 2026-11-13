@@ -8,7 +8,7 @@ describe('simple prop compiler passes',()=>{
       label:'Real Red Apple',sourceName:'artifact_opaque.glb',geometry:{namedNodes:['mesh_0']}
     });
     expect(result.semantics).toMatchObject({
-      type:'apple',tags:['fruit','food','round','graspable'],actions:['move','pickup','drop','place'],confidence:.65,source:'heuristic'
+      type:'apple',tags:['fruit','food','round','graspable'],actions:['move'],confidence:.65,source:'heuristic'
     });
   });
 

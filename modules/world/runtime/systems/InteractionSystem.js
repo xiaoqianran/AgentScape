@@ -7,6 +7,7 @@ import { InteractionApproach, DEFAULT_INTERACTION_DISTANCE, INTERACTION_APPROACH
 import { CarryRuntime } from '../interaction/CarryRuntime.js';
 import { RecoveryRuntime } from '../interaction/RecoveryRuntime.js';
 import { assetAdmission } from '../../../asset/model/admission.js';
+import { inferCarryCapability, isCarryOperation } from '../interaction/CarryCapability.js';
 
 export { DEFAULT_INTERACTION_DISTANCE };
 export class InteractionSystem {
@@ -158,7 +159,16 @@ export class InteractionSystem {
 
   notifyObjectTransform(id, reason) { return this.onObjectTransform?.(id, reason) ?? false; }
 
-  supports(record, action) { return record.manifest.actions.includes(action); }
+  supports(record, action) {
+    if (isCarryOperation(action)) {
+      if (record.manifest.physics?.carryable === false) return false;
+      return record.manifest.actions.includes(action) || inferCarryCapability(record.manifest, {
+        scale:record.physicsScale ?? record.object?.scale?.x ?? 1,
+        allowProvisional:record.state?.authoringPromotion?.usage === 'movable'
+      }).eligible;
+    }
+    return record.manifest.actions.includes(action);
+  }
   interactionContracts(record) { return compileInteractionContract(record.manifest); }
 
   assertSupports(id, action) {

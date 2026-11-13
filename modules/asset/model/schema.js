@@ -51,6 +51,7 @@ function validateEmbodiment(embodiment, context = {}) {
 export function validatePhysics(physics, context = {}) {
   if (!physics) return;
   if (physics.body && !BODY_TYPES.has(physics.body)) throw Errors.invalidManifest(`Unsupported physics body: ${physics.body}`, context);
+  if (physics.carryable != null && typeof physics.carryable !== 'boolean') throw Errors.invalidManifest('physics.carryable must be boolean', context);
   if (physics.navigationObstacle != null && typeof physics.navigationObstacle !== 'boolean') throw Errors.invalidManifest('physics.navigationObstacle must be boolean', context);
   if (physics.ccd != null && typeof physics.ccd !== 'boolean') throw Errors.invalidManifest('physics.ccd must be boolean', context);
   if (physics.sensor != null && typeof physics.sensor !== 'boolean') throw Errors.invalidManifest('physics.sensor must be boolean', context);
@@ -121,6 +122,7 @@ export function validateAssetManifest(manifest) {
       if (!part.joint?.limits || target < part.joint.limits[0] || target > part.joint.limits[1]) throw Errors.invalidManifest(`Part ${name} target ${action} must be within joint limits`, context);
     }
     for (const action of part.actions || []) {
+      if (Number.isFinite(part.targets?.[action]) && (!part.joint || part.joint.type === 'fixed' || !part.physics?.colliders?.length)) throw Errors.invalidManifest(`Part ${name} executable target ${action} requires a movable joint and colliders`, context);
       if (ARTICULATION_ACTIONS.has(action) && (!part.joint || !part.physics?.colliders?.length || !Number.isFinite(part.targets?.[action]))) throw Errors.invalidManifest(`Part ${name} action ${action} requires physics, joint and explicit target`, context);
     }
     validatePhysics(part.physics, context);

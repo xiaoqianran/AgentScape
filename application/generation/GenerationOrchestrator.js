@@ -622,7 +622,8 @@ export class GenerationOrchestrator {
     if (typeof this.produceAsset!=="function") {
       throw new GenerationOrchestrationError("ASSET_PRODUCER_UNAVAILABLE","Generation asset production is not configured");
     }
-    const produced=await this.produceAsset({artifactId:imported.artifact.id,assetId,label:request.label});
+    const produced=await this.produceAsset({artifactId:imported.artifact.id,assetId,label:request.label,
+      ...(request.authoringIntent ? {authoringIntent:request.authoringIntent} : {})});
     return {...produced,jobId:view.jobId,providerStatus:"provider-succeeded",artifactStatus:"artifact-imported",artifact:imported.artifact};
   }
 }

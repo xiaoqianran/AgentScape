@@ -35,7 +35,7 @@ async function setup({carryable=true}={}){
 
   const cup=cupVisual(); cup.position.set(-1,0,1.1); scene.add(cup); cup.updateMatrixWorld(true);
   const cupManifest=structuredClone(assetManifests.cup);
-  if(!carryable) cupManifest.actions=['move'];
+  if(!carryable) cupManifest.physics.carryable=false;
   store.add('generated_prop_01',{id:'generated_prop_01',assetId:'generated-test-prop',object:cup,manifest:cupManifest,state:{}}); physics.addObject('generated_prop_01',cupManifest,cup);
 
   const table=tableVisual(); table.position.set(1.5,0,-1.2); scene.add(table); table.updateMatrixWorld(true);

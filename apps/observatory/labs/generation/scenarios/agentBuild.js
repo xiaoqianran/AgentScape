@@ -26,6 +26,7 @@ export const generationAgentBuildScenario = {
           args: {
             assetId: FIXTURE_ASSET_ID,
             label: "Generated Red Apple",
+            authoringIntent:{usage:'movable'},
             provider: FIXTURE_PROVIDER_ID,
             operation: FIXTURE_OPERATION,
             inputs: { prompt: "a small red apple" },
