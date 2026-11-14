@@ -4,7 +4,7 @@
 
 新增容器隔离的程序化资产构建/发布、不可变版本与文件存储、可信世界保存恢复。原有 33 个工具继续兼容；新增 4 个 Studio Live Bridge 配对/会话工具，使用同一个 `agentscape-world` 连接。契约、示例、隔离设施和保存边界见 [PROGRAMMATIC-ASSETS.md](./PROGRAMMATIC-ASSETS.md)。
 
-Scene 工具为 `scene_observe`、`scene_apply`、`scene_add_model`、`scene_interact`、`scene_job`、`scene_cancel`、`scene_verify`、`scene_save`、`scene_set_style`。它们使用与 SDK/Studio 相同的 Scene 应用服务和 Runtime。`scene_interact` 立即返回 JobRef，由宿主推进模拟，调用方轮询任务并分别检查执行状态与验证证据。Recipe 可以直接作为 scene_add_model 的 model.asset 输入，无需生成 JavaScript。
+Scene 工具为 `scene_thermal`（Asset Forge 材料实验查询、热功率和真实时步）、`scene_observe`、`scene_apply`、`scene_add_model`、`scene_interact`、`scene_job`、`scene_cancel`、`scene_verify`、`scene_save`、`scene_set_style`。它们使用与 SDK/Studio 相同的 Scene 应用服务和 Runtime。`scene_interact` 立即返回 JobRef，由宿主推进模拟，调用方轮询任务并分别检查执行状态与验证证据。Recipe 可以直接作为 scene_add_model 的 model.asset 输入，无需生成 JavaScript。
 
 外部 GLB 可通过 `scene_add_model` 的 `mode: "prepare"` 生成能力候选（包含 `kinematics.hypotheses`）；若希望在不注册资产的情况下做隔离 Rapier 机械测试，可再次调用相同工具并设置 `mode: "screen"`、`model: {asset: 相同的 GLB source, proposalId: 上轮提案 ID, hypothesisIds?: 候选 ID[]}`。筛选逐方向返回 `trials` 和碰撞、稳定性报告，**即便机械测试通过也不会授权语义动作**。最后才使用默认 `mode: "add"`，附明确审核参数进行正式编译、物理验证和注册；配套 URDF 仍复用既有 Compiler Provider。接口、证据边界、Studio 审核入口和传输配额见 [资产交互化流程](../../docs/asset-interaction-pipeline.md)。
 

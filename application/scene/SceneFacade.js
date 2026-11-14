@@ -104,7 +104,53 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         },
         objects: world.store.list().map(([key, record]) => ({ ...world.observation.object(key), state: structuredClone(record.state),
           transform: { position: record.object.position.toArray(), quaternion: record.object.quaternion.toArray(), scale: record.object.scale.x },
-          physicsRegistered: Boolean(world.physics.getPosition(key)) })), relations: structuredClone(world.sceneGraph.list()) };
+          physicsRegistered: Boolean(world.physics.getPosition(key)),
+          ...(world.thermal.has(key)?{simulation:world.thermal.inspect(key)}:{}) })), relations: structuredClone(world.sceneGraph.list()) };
+    },
+    async thermalExperiment(input){
+      const runtimeId=z.string().min(1).max(256);
+      const experiment=z.discriminatedUnion('operation',[
+        z.object({operation:z.literal('list')}).strict(),
+        z.object({operation:z.literal('inspect'),targetId:runtimeId}).strict(),
+        z.object({operation:z.literal('series'),targetId:runtimeId,
+          nodeId:id.optional(),limit:z.number().int().min(1).max(600).default(240)}).strict(),
+        z.object({operation:z.literal('setPower'),targetId:runtimeId,
+          nodeId:id.optional(),powerW:z.number().finite().min(-1e9).max(1e9)}).strict(),
+        z.object({operation:z.literal('run'),durationSec:z.number().positive().max(10)}).strict()
+      ]).parse(input);
+      assertOpen();
+      const thermal=world.thermal;
+      if(!thermal)throw sceneError('THERMAL_SYSTEM_UNAVAILABLE');
+      if(experiment.operation==='list')return result('thermal.list',thermal.list());
+      if(experiment.operation==='inspect'){
+        const observation=thermal.inspect(experiment.targetId);
+        if(!observation)throw sceneError('THERMAL_ENTITY_NOT_FOUND');
+        return result('thermal.inspect',observation);
+      }
+      if(experiment.operation==='series')
+        return result('thermal.series',thermal.series(experiment.targetId,experiment));
+      return exclusive(async()=>{
+        if(experiment.operation==='setPower'){
+          const state=thermal.setHeatPower(experiment.targetId,experiment.powerW,{
+            nodeId:experiment.nodeId
+          });
+          revision++;
+          world.events.emit('thermal.experiment',{operation:'setPower',targetId:experiment.targetId});
+          return result('thermal.setPower',state);
+        }
+        if(!thermal.list().length)throw sceneError('THERMAL_ENTITIES_UNAVAILABLE');
+        const wasRunning=world.simulation.running;
+        world.simulation.pause();
+        const frames=Math.ceil(experiment.durationSec*60);
+        try {
+          for(let frame=0;frame<frames;frame++)world.simulation.step();
+        } finally {if(wasRunning)world.simulation.play();}
+        revision++;
+        world.events.emit('thermal.experiment',{operation:'run',frames});
+        return result('thermal.run',{
+          elapsedSec:frames/60,frames,entities:thermal.list()
+        });
+      });
     },
     apply: input => edit.apply(input),
     // Compatibility entry for audited legacy adapters; public SDK types expose

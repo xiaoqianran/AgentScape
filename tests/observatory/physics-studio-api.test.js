@@ -96,6 +96,9 @@ describe("Physics Studio workbench invocation", () => {
       const contacts = await invoke(ctx, "physics.contactObjectPairs", {objectIds:["probe"]});
       expect(contacts.error).toBeUndefined();
       expect(contacts.result).toEqual([]);
+      const partContacts = await invoke(ctx,"physics.contactPartPairs",{objectIds:["probe"]});
+      expect(partContacts.error).toBeUndefined();
+      expect(partContacts.result).toEqual([]);
 
       const snapshot = await invoke(ctx, "physics.debugSnapshot", {});
       expect(snapshot.result.metrics.bodyCount).toBeGreaterThan(0);

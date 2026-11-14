@@ -99,6 +99,12 @@ export function validateAssetManifest(manifest) {
   validateInteractionContract(manifest.interactionContract, { id: manifest.id });
   validatePhysics(manifest.physics, { id: manifest.id });
   validateSimulationProfile(manifest.simulation);
+  if(manifest.simulation?.schemaVersion===2){
+    for(const node of manifest.simulation.nodes){
+      if(node.partName!=='$root' && !Object.hasOwn(manifest.parts || {},node.partName))
+        throw Errors.invalidManifest('Thermal node references an unknown physical part: '+node.partName,{id:manifest.id});
+    }
+  }
   validateEmbodiment(manifest.embodiment, { id: manifest.id });
   validateReceptacles(manifest.receptacles, { id: manifest.id });
   for (const [name, part] of Object.entries(manifest.parts || {})) {

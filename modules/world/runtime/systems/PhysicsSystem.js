@@ -240,9 +240,9 @@ export class PhysicsSystem {
     };
   }
 
-  // Narrow-phase contacts for a bounded set of object IDs, without allocating
-  // a complete physics debug snapshot or exposing internal collider handles.
-  contactObjectPairs(objectIds) {
+  // Narrow-phase contact for each distinct physical part pair, not just objects.
+  // Keeps articulated body provenance; does not allocate a full debug snapshot.
+  contactPartPairs(objectIds) {
     if(!this.world||!this.backend.hasCapability('collision'))return [];
     const allowed=new Set(objectIds);
     const seen=new Set(),result=[];
@@ -252,18 +252,36 @@ export class PhysicsSystem {
       for(const body of [entry.body,...[...entry.parts.values()].map(part=>part.body)]) {
         if(!body)continue;
         for(const collider of this.backend.colliders(body)) {
+          const source=this.provenanceOfCollider(collider);
+          if(source?.kind!=='object')continue;
           for(const pair of this.backend.contactPairs(this.world,collider)) {
-            const other=this.provenanceOfCollider(pair.other);
-            const target=other?.kind==='object' ? other.objectId : null;
-            if(!target||target===id||!allowed.has(target))continue;
-            const [sourceId,targetId]=[id,target].sort();
-            const key=sourceId+'\\0'+targetId;
+            const target=this.provenanceOfCollider(pair.other);
+            if(target?.kind!=='object'||source.objectId===target.objectId
+              ||!allowed.has(target.objectId))continue;
+            const [left,right]=[source,target].sort((a,b)=>
+              a.objectId.localeCompare(b.objectId)||a.partName.localeCompare(b.partName));
+            const key=[left.objectId,left.partName,right.objectId,right.partName].join('|');
             if(seen.has(key))continue;
             seen.add(key);
-            result.push({sourceId,targetId,evidenceKind:'physics-contact'});
+            result.push({
+              sourceId:left.objectId,sourcePartName:left.partName,
+              targetId:right.objectId,targetPartName:right.partName,
+              evidenceKind:'physics-contact'
+            });
           }
         }
       }
+    }
+    return result;
+  }
+
+  contactObjectPairs(objectIds) {
+    const seen=new Set(),result=[];
+    for(const pair of this.contactPartPairs(objectIds)){
+      const key=pair.sourceId+'|'+pair.targetId;
+      if(seen.has(key))continue;
+      seen.add(key);
+      result.push({sourceId:pair.sourceId,targetId:pair.targetId,evidenceKind:'physics-contact'});
     }
     return result;
   }

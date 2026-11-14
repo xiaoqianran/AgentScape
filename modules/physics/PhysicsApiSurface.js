@@ -326,6 +326,12 @@ const definitions = [
   },
 
   {
+    name:'physics.contactPartPairs', group:'碰撞', readOnly:true,
+    description:'【碰撞】按物体实例与关节部件返回真实窄相位接触，用于多材料节点间的传热验证。',
+    parameters:obj({objectIds:IDS},['objectIds']),
+    invoke:(ctx,a)=>physicsOf(ctx).contactPartPairs(a.objectIds)
+  },
+  {
     name:'physics.contactObjectPairs', group:'碰撞', readOnly:true,
     description:'【碰撞】查询指定对象之间由物理求解器确认的接触对，用于热传递等跨物体状态计算。',
     parameters:obj({objectIds:IDS},['objectIds']),

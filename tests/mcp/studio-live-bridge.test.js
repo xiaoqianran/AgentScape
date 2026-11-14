@@ -69,6 +69,8 @@ describe('Studio Live Bridge through real MCP HTTP',()=>{
       expect((await requestJson(`http://127.0.0.1:${app.port}/studio-bridge/connect`,
         {pairCode:pair.pairCode})).status).toBe(400);
 
+      const thermalList=await call(client,'scene_thermal',{worldSessionId,operation:'list'});
+      expect(thermalList.value).toEqual([]);
       const initial=await call(client,'scene_observe',{worldSessionId});
       expect(initial.objects).toHaveLength(0);
       const added=await call(client,'scene_add_model',{worldSessionId,requestId:randomUUID(),

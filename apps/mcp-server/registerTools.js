@@ -124,6 +124,18 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
   const query={actor:a.actor,...(a.limit!=null?{limit:a.limit,offset:a.offset||0}:{})};
   return sceneRun(a,'observe',{target:a.target,...query},s=>a.target?s.host.scene.inspect(a.target,{actor:a.actor}):s.host.scene.observe(query),e);
  });
+ add('scene_thermal','Read or run real thermal simulation in the active Scene: list entities, inspect per-part temperatures, get measured time-series, set heat power or advance up to 10 seconds of WorldRuntime. Write operations require requestId; thermal simulation is a declared model, not real-world proof.',{
+  ...sceneSession,
+  operation:z.enum(['list','inspect','series','setPower','run']),
+  targetId:targetId.optional(),nodeId:id.optional(),limit:z.number().int().min(1).max(600).optional(),
+  powerW:z.number().finite().min(-1e9).max(1e9).optional(),
+  durationSec:z.number().positive().max(10).optional(),
+  requestId:z.uuid().optional()
+ },(a,e)=>{
+  if(['setPower','run'].includes(a.operation)&&!a.requestId)throw new Error('REQUEST_ID_REQUIRED');
+  const args=Object.fromEntries(Object.entries(a).filter(([key,value])=>!['worldSessionId','requestId'].includes(key)&&value!==undefined));
+  return sceneRun(a,'thermal',args,s=>s.host.scene.thermalExperiment(args),e);
+ });
  add('scene_apply','Apply structured scene edits with revision protection and explicit partial results.',{...sceneSession,requestId:z.uuid(),expectedRevision:z.number().int().nonnegative().optional(),operations:z.array(z.record(z.string(),z.unknown())).min(1).max(32)},(a,e)=>sceneRun(a,'apply',{requestId:a.requestId,expectedRevision:a.expectedRevision,operations:a.operations},async s=>{await attachSceneAssets(s,a.operations.map(op=>op.type==='add'?op.model?.asset:op.asset));return s.host.scene.apply({expectedRevision:a.expectedRevision,operations:a.operations});},e));
  add('scene_interact','Start a real action and return a queryable JobRef immediately.',{...sceneSession,requestId:z.uuid(),interaction:z.record(z.string(),z.unknown())},(a,e)=>sceneRun(a,'interact',{interaction:a.interaction},s=>s.host.startSceneInteraction(a.interaction),e));
  const job={...sceneSession,jobId:z.string().regex(/^job_[a-f0-9-]+$/)};

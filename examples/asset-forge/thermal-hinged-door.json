@@ -1,0 +1,138 @@
+{
+  "schema": "agentscape.mechanical-draft",
+  "schemaVersion": 1,
+  "name": "双材料可旋转门",
+  "type": "thermal_hinged_door",
+  "components": [
+    {
+      "id": "Frame",
+      "parent": null,
+      "shape": "box",
+      "position": [
+        0,
+        1,
+        -0.3
+      ],
+      "size": [
+        1.5,
+        1.5,
+        0.12
+      ],
+      "color": "#667d90",
+      "collision": true
+    },
+    {
+      "id": "DoorHinge",
+      "parent": null,
+      "shape": "group",
+      "position": [
+        -0.65,
+        1,
+        0.1
+      ],
+      "size": [
+        1,
+        1,
+        1
+      ],
+      "color": "#b57350",
+      "collision": false
+    },
+    {
+      "id": "DoorPanel",
+      "parent": "DoorHinge",
+      "shape": "box",
+      "position": [
+        0.65,
+        0,
+        0
+      ],
+      "size": [
+        1.25,
+        1.3,
+        0.06
+      ],
+      "color": "#b57350",
+      "collision": true
+    }
+  ],
+  "motions": [
+    {
+      "id": "door",
+      "node": "DoorHinge",
+      "type": "revolute",
+      "axis": [
+        0,
+        1,
+        0
+      ],
+      "limits": [
+        -1.4,
+        0
+      ],
+      "open": -1.2,
+      "mass": 3,
+      "friction": 0.6,
+      "stiffness": 80,
+      "damping": 12
+    }
+  ],
+  "simulation": {
+    "schema": "agentscape.simulation-profile",
+    "schemaVersion": 2,
+    "model": "thermal-network-v1",
+    "nodes": [
+      {
+        "id": "root",
+        "partName": "$root",
+        "material": {
+          "name": "声明钢质框架",
+          "densityKgM3": 7850,
+          "specificHeatJkgK": 490,
+          "conductivityWmK": 50,
+          "provenance": "authored"
+        },
+        "thermal": {
+          "mass": {
+            "mode": "explicit",
+            "massKg": 4
+          },
+          "initialTemperatureK": 340,
+          "heatPowerW": 0,
+          "ambientTemperatureK": 293.15,
+          "ambientConductanceWPerK": 0.5,
+          "contactConductanceWPerK": 10
+        }
+      },
+      {
+        "id": "door",
+        "partName": "door",
+        "material": {
+          "name": "声明木质门板",
+          "densityKgM3": 600,
+          "specificHeatJkgK": 1600,
+          "conductivityWmK": 0.15,
+          "provenance": "authored"
+        },
+        "thermal": {
+          "mass": {
+            "mode": "explicit",
+            "massKg": 3
+          },
+          "initialTemperatureK": 295,
+          "heatPowerW": 0,
+          "ambientTemperatureK": 293.15,
+          "ambientConductanceWPerK": 0.5,
+          "contactConductanceWPerK": 5
+        }
+      }
+    ],
+    "links": [
+      {
+        "from": "root",
+        "to": "door",
+        "conductanceWPerK": 8
+      }
+    ]
+  }
+}

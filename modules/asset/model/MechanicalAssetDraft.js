@@ -50,6 +50,13 @@ export const mechanicalDraftSchema = z.object({
   const ids=new Set();
   const nodes=new Set();
   if(draft.motions.length && draft.body==='dynamic') ctx.addIssue({code:'custom',message:'Articulated drafts require a fixed root body'});
+  if(draft.simulation?.schemaVersion===2){
+    const allowed=new Set(draft.motions.map(m=>m.id));
+    for(const node of draft.simulation.nodes){
+      if(node.partName!=='$root'&&!allowed.has(node.partName))
+        ctx.addIssue({code:'custom',message:'Thermal node must reference a declared mechanical joint: '+node.partName});
+    }
+  }
   for(const entry of draft.motions) {
     if(ids.has(entry.id)||nodes.has(entry.node))ctx.addIssue({code:'custom',message:'Joint id and node must be unique'});
     ids.add(entry.id);nodes.add(entry.node);

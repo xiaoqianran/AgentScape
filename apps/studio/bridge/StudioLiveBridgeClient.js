@@ -180,6 +180,7 @@ export class StudioLiveBridgeClient {
       case 'job':return this.scene.getJob(args.jobId);
       case 'cancel':return this.scene.cancelJob(args.jobId);
       case 'verify':return this.scene.verify(args.criteria);
+      case 'thermal':return this.scene.thermalExperiment(args);
       case 'addModel':{
         let model=args.model;
         if(['glb','compiled-code'].includes(model?.asset?.kind)){

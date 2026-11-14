@@ -1,4 +1,5 @@
 import { uniformScaleValue } from './ObjectTransform.js';
+import { thermalStateSchema,validateThermalStateForProfile } from '../../../foundation/simulation/SimulationProfile.js';
 import { compileRuleGraph } from './behavior/RuleGraph.js';
 import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
 
@@ -99,11 +100,7 @@ export class SceneSerializer {
       if (!object.id || !object.assetId) throw new Error('Scene object requires id and assetId');
       if (object.active != null && typeof object.active !== 'boolean') throw new Error('Invalid entity activation');
       if (object.simulation != null) {
-        const state=object.simulation;
-        if(state.schema!=='agentscape.thermal-state'||state.schemaVersion!==1
-          || !Number.isFinite(state.temperatureK)||state.temperatureK<0||state.temperatureK>1e6
-          || !Number.isFinite(state.heatPowerW)||Math.abs(state.heatPowerW)>1e9
-          || Object.keys(state).some(key=>!['schema','schemaVersion','temperatureK','heatPowerW'].includes(key)))
+        if(!thermalStateSchema.safeParse(object.simulation).success)
           throw new Error('Invalid entity thermal state');
       }
       if (object.articulation != null) {
@@ -149,6 +146,11 @@ export class SceneSerializer {
     for (const manifest of scene.assets) runtime.assetModule.assertCompatibleManifest(manifest);
     for (const item of scene.objects) {
       if (!runtime.assetModule.hasAsset(item.assetId)) throw new Error(`Scene references unknown asset: ${item.assetId}`);
+      if(item.simulation){
+        const profile=runtime.assetModule.getManifest(item.assetId).simulation;
+        if(!profile)throw new Error(`Scene has thermal state without a thermal asset: ${item.id}`);
+        validateThermalStateForProfile(profile,item.simulation);
+      }
     }
     if(scene.metadata?.environmentState)runtime.environment?.validateSnapshot?.(scene.metadata.environmentState);
 

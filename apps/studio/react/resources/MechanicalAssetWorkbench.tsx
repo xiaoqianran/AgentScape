@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { industrialCabinetDraft, mechanicalDraftSchema } from '../../../../modules/asset/model/MechanicalAssetDraft.js';
 import { MechanicalPreview } from './MechanicalPreview';
+import { ThermalMaterialEditor } from './ThermalMaterialEditor';
 import { simulationProfileSchema } from '../../../../foundation/simulation/SimulationProfile.js';
 import type { z } from 'zod/v4';
 import './MechanicalAssetWorkbench.css';
@@ -76,6 +77,24 @@ function VectorEditor({label,value,onChange,step=.05}:{label:string;value:[numbe
   </div>;
 }
 
+function syncThermalNodes(draft:Draft) {
+  if(draft.simulation?.schemaVersion!==2)return;
+  const profile=draft.simulation;
+  const root=profile.nodes.find(node=>node.id==='root');
+  if(!root)return;
+  const allowed=new Set(['$root',...draft.motions.map(motion=>motion.id)]);
+  profile.nodes=profile.nodes.filter(node=>allowed.has(node.partName));
+  for(const motion of draft.motions)if(!profile.nodes.some(node=>node.partName===motion.id)){
+    profile.nodes.push({id:motion.id,partName:motion.id,material:copy(root.material),
+      thermal:{...copy(root.thermal),mass:{mode:'explicit',massKg:motion.mass}}});
+  }
+  const ids=new Set(profile.nodes.map(node=>node.id));
+  profile.links=profile.links.filter(link=>ids.has(link.from)&&ids.has(link.to));
+  for(const motion of draft.motions)if(!profile.links.some(link=>
+    (link.from==='root'&&link.to===motion.id)||(link.to==='root'&&link.from===motion.id)))
+    profile.links.push({from:'root',to:motion.id,conductanceWPerK:5});
+}
+
 export function MechanicalAssetWorkbench({creator,navigate}:Props) {
   const [draft,setDraft]=useState<Draft>(load);
   const [selected,setSelected]=useState<string|null>(draft.components[0]?.id || null);
@@ -84,6 +103,7 @@ export function MechanicalAssetWorkbench({creator,navigate}:Props) {
   const [result,setResult]=useState<Result|null>(null);
   const [notice,setNotice]=useState<{error:boolean;text:string}|null>(null);
   const [json,setJson]=useState('');
+  const [thermalNodeId,setThermalNodeId]=useState('root');
   const jsonInput=useRef<HTMLInputElement>(null);
 
   const validation=useMemo(()=>mechanicalDraftSchema.safeParse(draft),[draft]);
@@ -99,8 +119,9 @@ export function MechanicalAssetWorkbench({creator,navigate}:Props) {
   },[draft,validation.success]);
 
   const edit=(updater:(next:Draft)=>void)=>{
+
     if(busy)return;
-    setDraft(previous=>{const next=copy(previous);updater(next);return next;});
+    setDraft(previous=>{const next=copy(previous);updater(next);syncThermalNodes(next);return next;});
     setResult(null);
     setNotice(null);
     setConfirmed(false);
@@ -112,9 +133,6 @@ export function MechanicalAssetWorkbench({creator,navigate}:Props) {
   const changeMotion=(updater:(joint:Joint)=>void)=>edit(d=>{
     const item=d.motions.find(part=>part.node===selected);
     if(item)updater(item);
-  });
-  const editThermal=(updater:(profile:SimulationProfile)=>void)=>edit(d=>{
-    if(d.simulation)updater(d.simulation);
   });
 
   const addPart=(shape:'box'|'sphere'|'cylinder')=>{
@@ -301,7 +319,7 @@ export function MechanicalAssetWorkbench({creator,navigate}:Props) {
 
     <section className="mechanical-edit-panel mechanical-science-panel" aria-label="科学材料与热学锻造">
       <fieldset disabled={busy}>
-        <div className="mechanical-panel-heading"><h3>科学材料与热学</h3><span>Asset Forge · 集中参数 v1</span></div>
+        <div className="mechanical-panel-heading"><h3>科学材料与热学</h3><span>Asset Forge · 可组合热学 v1 / v2</span></div>
         <div className="mechanical-field-row">
           <label>根刚体类型
             <select aria-label="根刚体类型" value={draft.body||'fixed'} disabled={draft.motions.length>0}
@@ -322,61 +340,60 @@ export function MechanicalAssetWorkbench({creator,navigate}:Props) {
             启用科学计算组件
           </label>
         </div>
-        {draft.simulation?<div className="mechanical-thermal-fields">
+        {draft.simulation ? <>
           <div className="mechanical-field-row">
-            <label>材料名称<input aria-label="科学材料名称" value={draft.simulation.material.name}
-              onChange={event=>editThermal(s=>{s.material.name=event.target.value;})}/></label>
-            <label>参数来源
-              <select aria-label="科学参数来源" value={draft.simulation.material.provenance}
-                onChange={event=>editThermal(s=>{s.material.provenance=event.target.value as SimulationProfile['material']['provenance'];})}>
-                <option value="authored">用户声明</option><option value="ai-estimated">AI 估计</option><option value="reference">参考资料</option>
+            <button type="button" disabled={draft.simulation.schemaVersion===2}
+              onClick={()=>edit(d=>{
+                if(!d.simulation||d.simulation.schemaVersion!==1)return;
+                const old=d.simulation;
+                d.simulation={
+                  schema:'agentscape.simulation-profile',schemaVersion:2,model:'thermal-network-v1',
+                  nodes:[{id:'root',partName:'$root',
+                    material:copy(old.material),thermal:copy(old.thermal)}],
+                  links:[]
+                };
+              })}>
+              {draft.simulation.schemaVersion===1?'升级为多部件独立热学网络':'已启用多部件热学网络'}
+            </button>
+            <span>v{draft.simulation.schemaVersion} · 每个物理部件独立储热</span>
+          </div>
+          {draft.simulation.schemaVersion===2 ? <>
+            <label>编辑热学部件
+              <select aria-label="编辑热学部件" value={draft.simulation.nodes.some(n=>n.id===thermalNodeId)?thermalNodeId:'root'}
+                onChange={e=>setThermalNodeId(e.target.value)}>
+                {draft.simulation.nodes.map(node=><option key={node.id} value={node.id}>
+                  {node.id==='root'?'根刚体':node.partName} · {node.material.name}
+                </option>)}
               </select>
             </label>
-            <label>密度 (kg/m³)<input aria-label="材料密度" type="number" min="0.001" step="10"
-              value={draft.simulation.material.densityKgM3}
-              onChange={event=>editThermal(s=>{s.material.densityKgM3=numeric(event.target.value);})}/></label>
-            <label>比热容 (J/kg/K)<input aria-label="材料比热容" type="number" min="0.001" step="10"
-              value={draft.simulation.material.specificHeatJkgK}
-              onChange={event=>editThermal(s=>{s.material.specificHeatJkgK=numeric(event.target.value);})}/></label>
-            <label>导热系数 (W/m/K)<input aria-label="材料导热系数" type="number" min="0" step="0.1"
-              value={draft.simulation.material.conductivityWmK??0}
-              onChange={event=>editThermal(s=>{s.material.conductivityWmK=numeric(event.target.value);})}/></label>
-          </div>
-          <div className="mechanical-field-row">
-            <label>热学质量来源
-              <select aria-label="热学质量来源" value={draft.simulation.thermal.mass.mode}
-                onChange={event=>editThermal(s=>{s.thermal.mass=event.target.value==='density-volume'
-                  ? {mode:'density-volume',volumeM3:0.001} : {mode:'explicit',massKg:1};})}>
-                <option value="explicit">显式质量</option><option value="density-volume">密度 × 实体体积</option>
-              </select>
-            </label>
-            {draft.simulation.thermal.mass.mode==='explicit'
-              ?<label>热学质量 (kg)<input aria-label="热学质量" type="number" min="0.001" step="0.1"
-                value={draft.simulation.thermal.mass.massKg}
-                onChange={event=>editThermal(s=>{if(s.thermal.mass.mode==='explicit')s.thermal.mass.massKg=numeric(event.target.value);})}/></label>
-              :<label>实体有效体积 (m³)<input aria-label="实体有效体积" type="number" min="0.000001" step="0.001"
-                value={draft.simulation.thermal.mass.volumeM3}
-                onChange={event=>editThermal(s=>{if(s.thermal.mass.mode==='density-volume')s.thermal.mass.volumeM3=numeric(event.target.value);})}/></label>}
-            <label>初始温度 (K)<input aria-label="初始温度" type="number" min="0" step="1"
-              value={draft.simulation.thermal.initialTemperatureK}
-              onChange={event=>editThermal(s=>{s.thermal.initialTemperatureK=numeric(event.target.value);})}/></label>
-            <label>外部热功率 (W)<input aria-label="外部热功率" type="number" step="10"
-              value={draft.simulation.thermal.heatPowerW}
-              onChange={event=>editThermal(s=>{s.thermal.heatPowerW=numeric(event.target.value);})}/></label>
-          </div>
-          <div className="mechanical-field-row">
-            <label>环境温度 (K)<input aria-label="环境温度" type="number" min="0" step="1"
-              value={draft.simulation.thermal.ambientTemperatureK}
-              onChange={event=>editThermal(s=>{s.thermal.ambientTemperatureK=numeric(event.target.value);})}/></label>
-            <label>环境换热系数 (W/K)<input aria-label="环境换热系数" type="number" min="0" step="0.1"
-              value={draft.simulation.thermal.ambientConductanceWPerK}
-              onChange={event=>editThermal(s=>{s.thermal.ambientConductanceWPerK=numeric(event.target.value);})}/></label>
-            <label>接触换热系数 (W/K)<input aria-label="接触换热系数" type="number" min="0" step="0.1"
-              value={draft.simulation.thermal.contactConductanceWPerK}
-              onChange={event=>editThermal(s=>{s.thermal.contactConductanceWPerK=numeric(event.target.value);})}/></label>
-          </div>
-          <p>质量可由真实声明的实体体积计算，不能直接将外包围盒当作体积。接触导热必须具有物理碰撞接触证据；导热系数暂作为材料元数据，不用于 v1 集中参数求解。结果仅代表自定义仿真模型。</p>
-        </div>:<p>不启用时继续按现有机械资产流程编译，不增加热学状态。</p>}
+            <div className="mechanical-thermal-links">
+              <strong>内部导热连接（W/K）</strong>
+              {draft.simulation.links.map(link=><label key={link.from+'|'+link.to}>
+                {link.from} ↔ {link.to}
+                <input type="number" min=".001" step="1" aria-label={'内部导热 '+link.to}
+                  value={link.conductanceWPerK} onChange={e=>edit(d=>{
+                    if(d.simulation?.schemaVersion!==2)return;
+                    const target=d.simulation.links.find(l=>l.from===link.from&&l.to===link.to);
+                    if(target)target.conductanceWPerK=numeric(e.target.value);
+                  })}/>
+              </label>)}
+              <p>每根铰链/滑轨对应独立热学节点；新增、删除关节时同步节点。内部导热连接仅是声明的模型参数，不自动从材料导热系数推算。</p>
+            </div>
+          </> : null}
+          <ThermalMaterialEditor
+            value={draft.simulation.schemaVersion===1
+              ?draft.simulation
+              :draft.simulation.nodes.find(n=>n.id===thermalNodeId)||draft.simulation.nodes[0]}
+            label={draft.simulation.schemaVersion===2?thermalNodeId:''}
+            onEdit={updater=>edit(d=>{
+              if(!d.simulation)return;
+              if(d.simulation.schemaVersion===1)updater(d.simulation);
+              else {
+                const node=d.simulation.nodes.find(n=>n.id===thermalNodeId)||d.simulation.nodes[0];
+                if(node)updater(node);
+              }
+            })}/>
+        </> : <p>不启用时继续按现有机械资产流程编译，不增加热学状态。</p>}
       </fieldset>
     </section>
 

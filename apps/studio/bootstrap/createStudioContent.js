@@ -131,6 +131,7 @@ export function createStudioContent({
     resourceLibrary:{
       resources,
       creator:mechanicalCreator,
+      experiment:input=>scene.thermalExperiment(input),
       placement,
       log,
       openEnvironment:openBuiltinWorld,
