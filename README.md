@@ -1,18 +1,18 @@
 # AgentScape
 
-The development workspace includes **code projects**: run multi-file Three.js with custom shaders and persistent logic, register new actions discoverable by AI, and save/reopen source, embedded resources and state. See the [Code Project contract](docs/modules/code-project.md) and local `/examples/code-project/` demo. This does not indicate a published npm release.
+> v2 已实现统一 Scene API、Recipe、完整项目包与三种 StylePack；`agentscape3d@2.0.0-beta.1` 正在准备公开发布，尚未上线 npm。最新能力与限制见 [v1 契约](planning/public-contracts-v1.md)和[发布清单](docs/v2-release.md)。
 
-**Build interactive 3D worlds that people and AI agents can operate.**
+**让人和 AI 能够操作同一个交互式 3D 世界。**
 
-Three.js rendering, Rapier physics and Recast navigation share one world state. Characters can walk to objects, pick them up and place them on surfaces. The runtime reports what actually happened, separately from what was requested.
+自由代码项目入口已加入开发工作区：运行多文件 Three.js、Shader 和持续逻辑，自定义可供 AI 发现的动作，保存代码与状态后重开。详见 [Code Project](docs/modules/code-project.md)，本地示例 `/examples/code-project/`；尚不表示已发布到 npm。
 
-[Live Studio](https://agentscape-virid.vercel.app/) · [Live Starter](https://agentscape-virid.vercel.app/starter/) · [简体中文](README.zh-CN.md) · [First world](apps/starter/README.md) · [MCP for AI agents](apps/mcp-server/README.md) · [Contribute](CONTRIBUTING.md)
+Three.js 渲染、Rapier 物理和 Recast 导航共享真实世界状态。人物能够走近物体、拾取和放置；请求成功与实际行为验证分开报告。
 
-![Starter after a verified pickup/place and a fresh-page restore](docs/evidence/starter-first-world.png)
+[在线 Studio](https://agentscape-virid.vercel.app/) · [在线入门世界](https://agentscape-virid.vercel.app/starter/) · [English](README.en.md) · [入门示例](apps/starter/README.md) · [MCP](apps/mcp-server/README.md) · [贡献指南](CONTRIBUTING.md)
 
-## Run your first world
+## 运行第一个世界
 
-Use Node.js 22.12+ (Node 22 is used in CI), npm and a browser with WebGL2 support.
+需要 Node.js 22.12+、npm 和支持 WebGL2 的浏览器。
 
 ```sh
 git clone https://github.com/xiaoqianran/AgentScape.git
@@ -21,67 +21,35 @@ npm ci
 npm run starter
 ```
 
-Open the `/starter/` URL printed by Vite, normally `http://127.0.0.1:5173/starter/`.
+打开终端显示的 `/starter/` 页面，通常为 `http://127.0.0.1:5173/starter/`。
 
-1. Click **Pick up the cup**, then **Place on the table**. Wait for each verified result.
-2. Add a chair and move it.
-3. Download the world, reload the page, and open the saved JSON file.
+1. 点击拾取杯子，再放到桌上，等待实际验证结果。
+2. 添加椅子并移动。
+3. 下载世界 JSON，刷新页面，再打开下载的文件。
 
-The starter uses bundled assets: **no model API key, generation service or Docker required**. Package installation needs internet access. A public static preview is available on Vercel: [Studio](https://agentscape-virid.vercel.app/), [Starter](https://agentscape-virid.vercel.app/starter/), [Home](https://agentscape-virid.vercel.app/home/) and [Observatory](https://agentscape-virid.vercel.app/observatory/). The preview does not expose the private MCP server or optional local generation services.
+这个示例使用内置物体，无需模型密钥、生成服务或 Docker。安装依赖仍需要网络。Vercel 已提供公开静态预览：[Studio](https://agentscape-virid.vercel.app/)、[入门世界](https://agentscape-virid.vercel.app/starter/)、[首页](https://agentscape-virid.vercel.app/home/)和[诊断台](https://agentscape-virid.vercel.app/observatory/)。该预览不提供私有 MCP 服务，也不包含依赖本地服务的可选生成能力。
 
-## Make it yours
+修改 `apps/starter/scene.json` 后刷新即可改变初始布局。支持 agent、cup、table、chair 四种内置物理资产；`main.js` 展示统一 SDK 的使用方式，包括浏览器帧循环。
 
-Edit [`apps/starter/scene.json`](apps/starter/scene.json) and reload. Your scene is a real, version-controlled file. The starter currently accepts `agent`, `cup`, `table` and `chair` assets.
+## 接入已有 Three.js 项目
 
-```json
-{ "id": "reading-chair", "asset": "chair", "position": [-4, 0, 3] }
-```
+原生集成示例位于 [examples/native-scene](examples/native-scene/)，详细接入步骤、同一 Three.js 实例、物理碰撞体和宿主渲染循环约束见 [原生 Three.js 集成指南](docs/native-threejs-integration.md)。此能力复用原来的 SceneFacade / Runtime，不接管宿主渲染器；原生项目保存/导出尚未实现。
 
-The `agentscape3d` SDK shares the Scene service with Studio and MCP. The `2.0.0-beta.1` package is being prepared for npm; until publication, [build a local tarball](sdk/typescript/README.md). After publication, install with `npm install agentscape3d`.
+## 当前边界
 
-```js
-import { AgentScape } from 'agentscape3d';
-const world = await AgentScape.open({ canvas: '#app' });
-await world.addModel({ id: 'seat', asset: 'builtin://chair', position: [-4, 0, 3] });
-await world.setStyle('builtin://toon');
-const saved = await world.save();
-```
+Starter 是最小学习入口；Studio 编辑器仍在 `/`，诊断台在 `/observatory/`。现有 MCP 的独立世界、程序化资产、真实交互与可信恢复继续保留。本机代码资产默认可通过受限 QuickJS Worker 运行，无须 Docker；公网不可信源码执行必须配置操作系统隔离后端，否则明确拒绝。
 
-Interactions return jobs. Browser rendering advances automatically; headless hosts step simulation. See [v1 contracts](planning/public-contracts-v1.md).
+SDK 已支持自包含 GLB Visual、受约束 Recipe、完整项目包和三种 StylePack；Starter 的按钮仍保持最小学习范围，Studio 提供风格切换。Scene Project 使用内置世界目录；SDK 默认纪念大厅，浏览器专属环境不支持 Headless。实体总数不固定为 32，激活、分页与存储有独立预算；YAML、任意 Shader 插件和通用压缩包上传不属于 v1。发布后可使用 `npm install agentscape3d` 和 `npx agentscape3d starter my-world`；发布前请参考 [SDK 本地打包说明](sdk/typescript/README.md)。
 
-## Choose an entry point
-
-| You want to… | Start here |
-| --- | --- |
-| Learn with a small physical scene | `/starter/` and the [starter guide](apps/starter/README.md) |
-| Use the editor | `/` with `npm run dev` |
-| Connect an external AI agent | [MCP setup](apps/mcp-server/README.md) |
-| Build procedural assets in isolation | [Programmatic assets](apps/mcp-server/PROGRAMMATIC-ASSETS.md) |
-| Diagnose physics/navigation | `/observatory/` |
-| Understand engine boundaries | [Architecture](docs/architecture.md) and [repository layout](docs/repository-layout.md) |
-
-The existing MCP supports isolated worlds, actions, verification, procedural asset builds and trusted save/restore. Local code assets use the constrained QuickJS Worker without Docker. Public untrusted code execution requires an OS-isolated backend or remains disabled. The local Studio live bridge also supports explicitly paired and loopback automatic sessions targeting the open Studio world; these remain distinct from isolated world sessions.
-
-## Development scope
-
-Implemented: Scene Project v1, bounded Asset Recipes, self-contained GLB Visual import, portable project bundles and three declarative StylePacks. Starter, Studio, SDK and MCP share business rules. MCP retains the legacy tool surface alongside Scene tools; isolated sessions remain separate from the opt-in Studio bridge.
-
-Scene Projects use the shared built-in environment catalog; the SDK defaults to monument-hall. Browser-only environments reject headless use. There is no fixed 32-entity cap; activation, paging and storage retain separate budgets. JSON is the only normative format. Generic archive/directory import, arbitrary shaders and YAML are outside v1. Other Studio environments retain explicitly labelled legacy snapshots. Asset admission, edits and physically verified actions remain distinct; restored actions must be verified again.
-
-See [release gates](docs/v2-release.md) for external acceptance still required before publication.
-
-## Develop and contribute
-
-Examples, documentation, reproduction projects and accessibility improvements are useful contributions alongside engine code. Start with [CONTRIBUTING.md](CONTRIBUTING.md); discuss public API changes before expanding the core.
+## 验证与贡献
 
 ```sh
-npm run test:starter       # Real physics and fresh-runtime restore
-npm run test:browser:starter # Production build + browser interaction/download/restore
-npm run check              # Architecture, assets, viability, types, tests and build
+npm run test:starter
+npx playwright install chromium
+npm run test:browser:starter
+npm run check
 ```
 
-Browser tests require `npx playwright install chromium` first. See the contribution guide for platform setup and optional Docker tests. The existing Python SDK targets generation connectors, not a general world-control API.
+欢迎提交示例、文档、翻译、可复现问题和代码改进。参与步骤见 [CONTRIBUTING.md](CONTRIBUTING.md)。底层六系统继续保留，不为入口简化复制世界状态。
 
-## License
-
-[MIT](LICENSE). Third-party dependencies and content have their own terms; see [THIRD_PARTY.md](THIRD_PARTY.md). Include provenance and license information when contributing assets or textures.
+代码采用 [MIT](LICENSE)；第三方模型、贴图和依赖的条款见 [THIRD_PARTY.md](THIRD_PARTY.md)，不能把代码许可证当成所有内容的许可证。
