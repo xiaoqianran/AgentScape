@@ -41,8 +41,16 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
   const edit = createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision: () => revision, result, codeExecutor, codeGLTFLoader });
   const jobController = createSceneJobController(world, { tools, assertOpen, assertIdle, setBusy: value => { busy = value; }, actors: () => facade.actors(), onProjectAction: () => { revision++; }, result });
   const persistence = createScenePersistence(world, { name, styles, assertIdle, exclusive, result });
-  const withListingCapabilities = listing => ({ ...listing,
-    entities:listing.entities.map(entry => ({ ...entry, capabilities:describeCapabilities(entry) })) });
+  const withListingCapabilities = (listing, actor) => ({ ...listing,
+    entities:listing.entities.map(entry => {
+      const combined = world.store.has(entry.id) && world.projectCapabilities.has(entry.id)
+        ? inspectCapabilities(world, entry.id, {actor}) : null;
+      return { ...entry, capabilities:combined?.capabilities || describeCapabilities(entry),
+        ...(combined?.providers ? {
+          providers:combined.providers, state:combined.state,
+          stateProviders:combined.stateProviders, stateConflicts:combined.stateConflicts
+        } : {}) };
+    }) });
   const facade = {
     captureProjectState(capture) { return exclusive(capture); },
     registerEntity(definition) { assertOpen(); return world.projectCapabilities.registerEntity(definition); },
@@ -83,8 +91,8 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       world.sceneGraph.update();
       const native = world.queries?.listEnvironmentInteractables?.({actorId:actor,radius:20});
       return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision,
-        style: styles.export(), actors:facade.actors(), affordances: withListingCapabilities(world.affordances.list({ actorId: actor, limit: 100 })),
-        project: withListingCapabilities(world.projectCapabilities.list({ actor })),
+        style: styles.export(), actors:facade.actors(), affordances: withListingCapabilities(world.affordances.list({ actorId: actor, limit: 100 }), actor),
+        project: withListingCapabilities(world.projectCapabilities.list({ actor }), actor),
         // Native interaction points are not Asset entities. Expose their stable
         // IDs and explicitly provisional evidence without claiming physics verification.
         nativeInteractions: {

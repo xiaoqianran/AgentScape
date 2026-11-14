@@ -43,3 +43,16 @@ it('can query evidence against an explicit candidate revision without changing R
   expect(getInteractionEvidence(world,'door_01','OPEN',{worldRevisionId:'rev-new'})).toBeNull();
   expect(world.currentWorldRevision.revision.id).toBe('rev-old');
 });
+
+it('keeps same-named action evidence isolated by execution source',()=>{
+  const world=runtime();
+  recordInteractionEvidence(world,{targetId:'machine',capability:'OPEN',verified:true,source:'project-defined'});
+  expect(getInteractionEvidence(world,'machine','OPEN',{source:'project-defined'})).toMatchObject({source:'project-defined'});
+  expect(getInteractionEvidence(world,'machine','OPEN',{source:'physical-articulation'})).toBeNull();
+  recordInteractionEvidence(world,{targetId:'machine',capability:'OPEN',verified:true,source:'physical-articulation'});
+  expect(getInteractionEvidence(world,'machine','OPEN',{source:'project-defined'})).toMatchObject({source:'project-defined'});
+  expect(getInteractionEvidence(world,'machine','OPEN',{source:'physical-articulation'})).toMatchObject({source:'physical-articulation'});
+  clearInteractionEvidenceForTarget(world,'machine');
+  expect(getInteractionEvidence(world,'machine','OPEN',{source:'project-defined'})).toBeNull();
+  expect(getInteractionEvidence(world,'machine','OPEN',{source:'physical-articulation'})).toBeNull();
+});

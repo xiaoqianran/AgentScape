@@ -75,7 +75,7 @@ Scene API 的 `inspect(target,{actor})` 与 `observe({actor})` 现在同时返�
 每项能力包含 `name`、`target`、`source`、`executor`、`partName`（可选）、`parameters`、`available` 与 `verification`。
 能力是实时投影，不存储第二份世界状态；只有正式注册且可执行的能力才能调用。
 
-所有来源可以统一通过 `scene.interact({action:'invoke',target,name,actor?,partName?,args?})` 调用：
+所有来源可以统一通过 `scene.interact({action:'invoke',target,name,actor?,partName?,source?,args?})` 调用：
 
 ```js
 const capabilities = scene.inspect('machine_01', {actor:'agent_01'}).capabilities;

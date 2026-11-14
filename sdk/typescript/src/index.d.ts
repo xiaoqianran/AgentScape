@@ -39,7 +39,7 @@ export interface AffordancePhysics { registered: boolean; body: 'fixed' | 'dynam
 export interface AffordanceJoint { type: 'fixed' | 'revolute' | 'prismatic'; axis?: Vec3; limits?: [number, number]; parentAnchor?: Vec3; childAnchor?: Vec3; [key: string]: unknown }
 export interface ArticulationState { id: string; partName: string; jointType: string; coordinate: number; target: number | null; error: number | null; tolerance: number; limits: [number, number] | null; localAxis: Vec3; coordinateReference: 'rest-zero-pose' }
 export interface AffordanceAction {
-  action: string; parameters: Record<string, unknown>; execution: 'query' | 'editor' | 'interaction' | 'world-action';
+  action: string; parameters: Record<string, unknown>; execution: 'query' | 'editor' | 'interaction' | 'world-action' | 'project-action';
   available: boolean | null; canApproach?:boolean; reason?: string | null; partName?: string; distance?: number; maxDistance?: number;
   targetPosition?: Vec3; blocker?: Record<string, unknown>; joint?: AffordanceJoint; state?: ArticulationState | null;
   contract?: { id: string; capability: string; action: string; target: { entityId: string; partName: string }; preconditions: unknown[]; effects: unknown[]; stateTransition: Record<string, unknown>; verifierTarget: Record<string, unknown> };
@@ -52,10 +52,11 @@ export interface SemanticCapability {
   capabilitySource?:'declared'|'physical-inference'; graspVerified?:false;
 }
 export interface ObjectAffordances {
-  schema: 'agentscape.object-affordances'; schemaVersion: 1; id: string; source: 'asset' | 'environment';
+  schema: 'agentscape.object-affordances'; schemaVersion: 1; id: string; source: 'asset' | 'environment' | 'composite';
   label: string; kind: string; position: Vec3; state: Record<string, unknown>;
   physics?: AffordancePhysics;
   actions: AffordanceAction[]; capabilities?:SemanticCapability[];
+  providers?:string[];stateProviders?:Record<string,Record<string,unknown>>;stateConflicts?:string[];
   capabilityCandidates?:Array<{action:string;executable:false;reason:string;source:string}>;
   evidenceKind: string; physicsVerified: false; pending: boolean;
 }
@@ -65,7 +66,7 @@ export type PhysicalInteraction = { action: 'push' | 'drag'; actor: string; targ
   | { action: 'rotate'; actor: string; target: string; args: { axis: Vec3; angle: number; maxTorque?: number } }
   | { action: 'slide'; actor: string; target: string; args: { part: string } & ({ target: number; distance?: never } | { distance: number; target?: never }) }
   | { action: 'rotateJoint'; actor: string; target: string; args: { part: string } & ({ target: number; angle?: never } | { angle: number; target?: never }) };
-export type Interaction = { action: 'invoke'; target: string; name: string; actor?: string; partName?: string; args?: Record<string, unknown> } | { action: 'custom'; target: string; name: string; args?: Record<string, unknown>; actor?: string } | PhysicalInteraction | { action: 'navigate'; actor: string; position: Vec3 } | { action: 'pickup'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string }
+export type Interaction = { action: 'invoke'; target: string; name: string; actor?: string; partName?: string; source?:'asset'|'environment'|'project'; args?: Record<string, unknown> } | { action: 'custom'; target: string; name: string; args?: Record<string, unknown>; actor?: string } | PhysicalInteraction | { action: 'navigate'; actor: string; position: Vec3 } | { action: 'pickup'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string }
   | { action: 'turn_on' | 'turn_off' | 'pull_out' | 'return'; actor: string; target: string }
   | { action: 'write'; actor: string; target: string; args: { text: string } };
 export interface SceneHandle {
@@ -131,7 +132,7 @@ export declare function listNativeScenes(): NativeSceneCandidate[];
 export declare function subscribeNativeScenes(listener: (candidate: NativeSceneCandidate) => void): () => void;
 export declare const AgentScape: { attach: typeof attachNativeScene; openProject: typeof openCodeProject; open(options?: { canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean; codeExecution?:CodeExecutionOptions }): Promise<SceneHandle> };
 
-export interface ProjectEntityDefinition { id: string; label?: string; description?: string; object?: any; read?: () => Record<string, unknown> }
+export interface ProjectEntityDefinition { id: string; label?: string; description?: string; object?: any; attachTo?:'runtime'; read?: () => Record<string, unknown> }
 export interface ProjectActionContext { actor?: string; target: string; object: any; signal?: AbortSignal }
 export interface ProjectActionDefinition {
   target: string; name: string; description?: string; parameters?: Record<string, unknown>;
@@ -153,7 +154,7 @@ export interface ProjectMachineTimer {
   field:string;rate:number;max:number;when?:MachineCondition[];onComplete?:string;
 }
 export interface ProjectStateMachineDefinition {
-  id:string;label?:string;description?:string;object?:any;
+  id:string;label?:string;description?:string;object?:any;attachTo?:'runtime';
   initialState:Record<string,MachineValue>;transitions:ProjectMachineTransition[];
   ranges?:Record<string,{min:number;max:number}>;timers?:ProjectMachineTimer[];
   onChange?(next:Record<string,MachineValue>,previous:Record<string,MachineValue>,meta:{kind:string;name?:string;seconds?:number;completed?:string[]}):void;
@@ -170,7 +171,7 @@ export interface CodeProjectMachineSnapshot {
 export interface ProjectEntityObservation {
   schema:'agentscape.project-entity';schemaVersion:1;source:'project';id:string;label:string;description:string;state:Record<string,unknown>;physicsVerified:false;
   actions:Array<{action:'custom';name:string;description:string;parameters:Record<string,unknown>;execution:'project-action';available:boolean;verification:'project-defined'|'unverified'}>;
-  capabilities?:SemanticCapability[];
+  capabilities?:SemanticCapability[];attachedTo?:'runtime';providers?:string[];stateProviders?:Record<string,Record<string,unknown>>;stateConflicts?:string[];
 }
 export interface CodeProject {
   schema:'agentscape.code-project';schemaVersion:1;id:string;name:string;source:string;

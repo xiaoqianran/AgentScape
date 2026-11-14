@@ -55,8 +55,8 @@ const rule=strict({id:text,event:text,condition:ruleCondition,effect:ruleEffect,
 const acceptance={oneOf:[
   strict({id:text,kind:{type:'string',enum:['world-valid']},description:{type:'string'}},['id','kind']),
   strict({id:text,kind:{type:'string',enum:['object-exists']},targetId:text,description:{type:'string'}},['id','kind','targetId']),
-  strict({id:text,kind:{type:'string',enum:['state-equals']},targetId:text,stateKey:text,value:scalar,description:{type:'string'}},['id','kind','targetId','stateKey','value']),
-  strict({id:text,kind:{type:'string',enum:['interaction-verified']},targetId:text,capability:text,description:{type:'string'}},['id','kind','targetId','capability']),
+  strict({id:text,kind:{type:'string',enum:['state-equals']},targetId:text,stateKey:text,value:scalar,source:text,description:{type:'string'}},['id','kind','targetId','stateKey','value']),
+  strict({id:text,kind:{type:'string',enum:['interaction-verified']},targetId:text,capability:text,source:text,description:{type:'string'}},['id','kind','targetId','capability']),
   strict({id:text,kind:{type:'string',enum:['relation-exists']},subject:text,predicate:{type:'string',enum:['ON','NEAR','INSIDE','CONTAINS','SUPPORTS']},object:text,surfaceId:text,description:{type:'string'}},['id','kind','subject','predicate','object']),
   strict({id:text,kind:{type:'string',enum:['no-unresolved']},description:{type:'string'}},['id','kind'])
 ]};

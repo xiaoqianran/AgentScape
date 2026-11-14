@@ -19,6 +19,10 @@ export function compileWorldAcceptance(criteria=[]){
     const check={id,kind};
     if(['object-exists','state-equals','interaction-verified'].includes(kind)) check.targetId=clean(item.targetId);
     if(kind==='state-equals'){ check.stateKey=clean(item.stateKey); check.value=item.value; if(!check.targetId||!check.stateKey||!Object.prototype.hasOwnProperty.call(item,'value')||!scalar(item.value)) throw new TypeError(`Acceptance[${index}] state-equals requires targetId/stateKey/scalar value`); }
+    if(['state-equals','interaction-verified'].includes(kind) && item.source != null) {
+      check.source=clean(item.source);
+      if(!check.source) throw new TypeError(`Acceptance[${index}] source must be non-empty`);
+    }
     if(kind==='interaction-verified'){ check.capability=clean(item.capability).toUpperCase(); if(!check.targetId||!check.capability) throw new TypeError(`Acceptance[${index}] interaction-verified requires targetId/capability`); }
     if(kind==='relation-exists'){
       check.subject=clean(item.subject); check.predicate=clean(item.predicate).toUpperCase(); check.object=clean(item.object);
@@ -51,16 +55,27 @@ export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undef
         ...(!entity.exists?{reason:entity.reason}:{})};
     }
     if(check.kind==='state-equals'){
-      const fact=facts.state(check.targetId,check.stateKey);
+      const fact=facts.state(check.targetId,check.stateKey,check.source ? {source:check.source} : {});
       const base={id:check.id,kind:check.kind,targetId:check.targetId,stateKey:check.stateKey,expected:check.value,source:fact.source};
       if(fact.status!=='known')return {...base,verified:false,truth:'unknown',reason:fact.reason};
       const verified=Object.is(fact.value,check.value);
       return {...base,verified,truth:verified?'true':'false',actual:fact.value,...(!verified?{reason:'STATE_MISMATCH'}:{})};
     }
     if(check.kind==='interaction-verified'){
-      const evidence=getInteractionEvidence(runtime,check.targetId,check.capability,{worldRevisionId});
+      const projectAction=runtime?.projectCapabilities?.hasAction?.(check.targetId,check.capability.toLowerCase());
+      const physicalAction=projectAction && runtime?.affordances?.inspect?.(check.targetId)?.actions?.some(action =>
+        action.action?.toUpperCase() === check.capability && ['interaction','world-action'].includes(action.execution));
+      if(!check.source && projectAction && physicalAction) {
+        return {id:check.id,kind:check.kind,verified:false,targetId:check.targetId,
+          expected:check.capability,reason:'INTERACTION_SOURCE_REQUIRED'};
+      }
+      const evidenceSource=check.source==='asset'?'physical-articulation'
+        :check.source==='project'?'project-defined':check.source || null;
+      const evidence=getInteractionEvidence(runtime,check.targetId,check.capability,
+        {worldRevisionId,...(evidenceSource?{source:evidenceSource}:{})});
       const verified=Boolean(evidence);
-      return {id:check.id,kind:check.kind,verified,targetId:check.targetId,expected:check.capability,...(evidence?{evidence}:{reason:'INTERACTION_NOT_VERIFIED'})};
+      return {id:check.id,kind:check.kind,verified,targetId:check.targetId,expected:check.capability,
+        ...(check.source?{source:check.source}:{}),...(evidence?{evidence}:{reason:'INTERACTION_NOT_VERIFIED'})};
     }
     if(check.kind==='relation-exists'){
       const fact=facts.relation(check);

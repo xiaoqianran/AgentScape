@@ -198,7 +198,7 @@ function ProjectAction({ controller, entity, action, refresh }:any) {
     try {
       const args = fields && !advanced ? actionArgumentsFromFields(fields,values) : JSON.parse(rawArgs);
       const api = controller.scene;
-      const job = api.interact({action:'invoke',target:entity.id,name:action.name,args});
+      const job = api.interact({action:'invoke',target:entity.id,name:action.name,source:'project',args});
       setJobId(job.id);
       const terminal = await api.waitJob(job.id);
       setResult(JSON.stringify(terminal.result,null,2));

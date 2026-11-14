@@ -18,7 +18,7 @@ export const applySchema = z.object({ requestId: z.union([id,z.uuid()]).optional
 const operationVector = sceneVector3Schema.refine(value => Math.hypot(...value) > 1e-6, 'Direction must be nonzero');
 const affordanceTarget = z.string().regex(/^[A-Za-z][A-Za-z0-9_:-]{0,255}$/);
 export const sceneInteractionSchema = z.discriminatedUnion('action', [
-  z.object({ action:z.literal('invoke'), target:z.string().min(1).max(256), name:z.string().min(1).max(256), actor:id.optional(), partName:id.optional(), args:z.record(z.string(),z.unknown()).default({}) }).strict(),
+  z.object({ action:z.literal('invoke'), target:z.string().min(1).max(256), name:z.string().min(1).max(256), actor:id.optional(), partName:id.optional(), source:z.enum(['asset','environment','project']).optional(), args:z.record(z.string(),z.unknown()).default({}) }).strict(),
   z.object({ action: z.literal('custom'), target: z.string().min(1).max(256), name: z.string().min(1).max(256), actor: id.optional(), args: z.record(z.string(), z.unknown()).default({}) }).strict(),
   z.object({ action: z.literal('navigate'), actor: id, position: sceneVector3Schema }).strict(),
   z.object({ action: z.literal('activate'), actor: id, target: affordanceTarget }).strict(),

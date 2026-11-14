@@ -3,7 +3,7 @@ export const INTERACTION_EVIDENCE_VERSION=1;
 
 const clean=(value)=>typeof value==='string'?value.trim():'';
 const clone=(value)=>structuredClone(value);
-const key=(revisionId,targetId,capability)=>`${revisionId}\u0000${targetId}\u0000${capability}`;
+const key=(revisionId,targetId,capability,source)=>`${revisionId}\u0000${targetId}\u0000${capability}\u0000${source}`;
 const store=(runtime)=>runtime.interactionEvidence ||= new Map();
 
 const summarizeResult=(result)=>{
@@ -47,16 +47,23 @@ export function recordInteractionEvidence(runtime,{targetId,capability,verified,
     ...(clean(commandId)?{commandId:clean(commandId)}:{}),
     ...(resultSummary?{result:resultSummary}:{})
   };
-  store(runtime).set(key(worldRevisionId,target,normalizedCapability),evidence);
+  store(runtime).set(key(worldRevisionId,target,normalizedCapability,source),evidence);
   runtime.trace?.emit?.('interaction.verified',{evidence:clone(evidence)},{actor:'runtime'});
   return clone(evidence);
 }
 
-export function getInteractionEvidence(runtime,targetId,capability,{worldRevisionId=null}={}){
+export function getInteractionEvidence(runtime,targetId,capability,{worldRevisionId=null,source=null}={}){
   const revisionId=clean(worldRevisionId)||clean(runtime?.currentWorldRevision?.revision?.id)
     || runtime?.interactionEvidenceScope;
   const target=clean(targetId),normalizedCapability=clean(capability).toUpperCase();
   if(!revisionId||!target||!normalizedCapability) return null;
-  const evidence=runtime?.interactionEvidence?.get?.(key(revisionId,target,normalizedCapability));
-  return evidence?.verified===true ? clone(evidence) : null;
+  if(source) {
+    const evidence=runtime?.interactionEvidence?.get?.(key(revisionId,target,normalizedCapability,source));
+    return evidence?.verified===true ? clone(evidence) : null;
+  }
+  // Legacy unscoped lookup remains supported when no provider is requested.
+  const matches=[...(runtime?.interactionEvidence?.values?.() || [])].filter(item=>
+    item?.verified===true && item.worldRevisionId===revisionId
+    && item.targetId===target && item.capability===normalizedCapability);
+  return matches.length ? clone(matches[matches.length - 1]) : null;
 }

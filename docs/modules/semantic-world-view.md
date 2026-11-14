@@ -42,6 +42,58 @@ const relation = world.semantic.relation({
 
 `scene.verify` 和 `scene_verify` 使用同一个验收路径；失败结果包含来源、真值状态和原因，不会将未经验证的关系当成已验收成功。
 
-## 下一阶段
+## P0 的边界
 
-P0 **不**自动使 Code Project Mesh 进入 `SpatialSystem`，也不允许 `ProjectCapabilities` 与 `ObjectStore` 注册同名对象。这需要 P1 的实体身份/Provider 组合与原生 Three.js 部件空间绑定。P0 的 `unknown` 是有意识的安全边界，而不是语义能力的最终完整实现。
+P0 未将 Code Project Mesh 自动纳入 `SpatialSystem`。P1 已支持给现有 Runtime 实体显式附加项目状态与行为，但尚未自动为任意原生 Three.js Mesh 建立空间与物理实体。缺少几何观测时的 `unknown` 仍是不可省略的证据边界。
+
+## P1：同一实体的多 Provider 语义能力
+
+Code Project 可以显式附加在一个**已经存在的 Runtime 实体**上，而不创建同名物理对象：
+
+```js
+// 要先通过 scene.addModel / 已保存世界恢复创建 device_01。
+scene.registerEntity({
+  id:'device_01',
+  attachTo:'runtime',
+  read:()=>({mode})
+});
+scene.registerAction({
+  target:'device_01',
+  name:'startProgram',
+  execute:()=>{ mode='running'; },
+  verify:({after})=>({verified:after.mode==='running'})
+});
+```
+
+声明式状态机也支持 `attachTo:'runtime'`，并仍通过原有 Code Project `machines` 快照自动保存和恢复。没有设置 `attachTo` 时，重复 ID 继续拒绝；不存在 Runtime 对象时不允许附加。运行中目标被删除或替换为新的物理实例，旧项目动作立即失效，需要重新注册绑定。
+
+`scene.inspect('device_01')` 现在可返回 `source:'composite'`、`providers:['asset','project']` 及两类 `capabilities`。本地 `state` 合并无冲突的字段；`stateProviders` 保留各所有者状态，`stateConflicts` 列出重名字段。**没有任何状态被写入另一 Provider。**
+
+同名语义动作必须明确来源：
+
+```js
+// project-defined，不代表物理验证
+scene.interact({action:'invoke',target:'device_01',name:'open',source:'project'});
+// 真实关节执行仍受物理准入和 actor 检查约束
+scene.interact({action:'invoke',target:'device_01',name:'open',
+  source:'asset',actor:'agent_01',partName:'lid'});
+```
+
+如果不同 Provider 同时声明 `open`，省略 `source` 会触发 `ACTION_SOURCE_REQUIRED`；单一 Provider 多关节同名动作仍需要 `partName`。Scene、SDK 与 MCP 共用同一规则。
+
+事实验证也可以按来源指定：
+
+```js
+scene.verify([
+  {id:'logical-mode',kind:'state-equals',targetId:'device_01',
+    stateKey:'mode',source:'project',value:'running'},
+  {id:'project-open',kind:'interaction-verified',targetId:'device_01',
+    capability:'OPEN',source:'project'},
+  {id:'physical-open',kind:'interaction-verified',targetId:'device_01',
+    capability:'OPEN',source:'asset'}
+]);
+```
+
+没有指明来源、且两个状态 Provider 对同一字段都有声明时，事实查询返回 `STATE_PROVIDER_CONFLICT` 和 `unknown`；不同来源声明同名动作时，未经来源限定的动作验证返回 `INTERACTION_SOURCE_REQUIRED`。交互验证记录按来源隔离，保存重开后不会继承历史动作验证。
+
+**边界**：P1 还没有把任意 Code Project Mesh 自动注册为独立的物理对象，也没有实现跨对象后置条件的通用 DSL。项目逻辑验证仍然是 `physicsVerified:false`，关节验证也不自动证明新的功能语义。
