@@ -28,6 +28,7 @@ import { WorldQueries } from './WorldQueries.js';
 import { WorldCommands } from './WorldCommands.js';
 import { WorldRecovery } from './WorldRecovery.js';
 import { ProjectCapabilities } from './ProjectCapabilities.js';
+import { SemanticWorldView } from './semantic/SemanticWorldView.js';
 import { RUNTIME_VERSION } from '../../../foundation/version.js';
 installThreeBvhRuntime();
 
@@ -94,6 +95,7 @@ export class WorldRuntime {
     this.rendering = null;
     this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null;
     this.projectCapabilities = new ProjectCapabilities(this);
+    this.semantic = new SemanticWorldView(this);
     this.simulation = new SimulationSession({
       fixedDt:1/60,
       executeStep:(dt)=>this.stepSimulation(dt),

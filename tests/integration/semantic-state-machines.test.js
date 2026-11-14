@@ -15,6 +15,7 @@ it('runs a real multi-file book and cooker as discoverable, guarded, visually ve
   try {
     const book=scene.inspect('book_01'),cooker=scene.inspect('cooker_01');
     expect(book.state).toMatchObject({cover:'closed',page:0,pages:5});
+    expect(session.world.semantic.state('book_01','cover')).toMatchObject({status:'known',source:'project',value:'closed'});
     expect(book.capabilities.find(c=>c.name==='turnPage')).toMatchObject({action:'invoke',source:'project',available:false,verification:'project-defined'});
     expect(cooker.capabilities.find(c=>c.name==='startCook').available).toBe(false);
     expect(cooker.capabilities.some(c=>c.name==='completeCook')).toBe(false);
@@ -68,6 +69,7 @@ it('automatically persists machine states, reopens with the actual visuals and r
     session.close();
     reopened=await openCodeProject({project:saved,authorized:true,autoStart:false});
     expect(reopened.scene.inspect('book_01').state).toMatchObject({page:2,cover:'open'});
+    expect(reopened.world.semantic.state('book_01','page')).toMatchObject({status:'known',source:'project',value:2});
     expect(reopened.scene.native.scene.getObjectByName('Page_2').rotation.y).toBeCloseTo(-Math.PI,5);
     expect(reopened.scene.native.scene.getObjectByName('CookerLidHinge').rotation.x).toBeCloseTo(0,5);
     expect(reopened.scene.native.scene.getObjectByName('RicePortion').position.x).toBeCloseTo(0,5);

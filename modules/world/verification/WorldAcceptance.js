@@ -1,15 +1,11 @@
 import { compileAcceptanceFindings } from './Finding.js';
 import { getInteractionEvidence } from './InteractionEvidence.js';
+import { SemanticWorldView } from '../runtime/semantic/SemanticWorldView.js';
 
 const SCHEMA='agentscape.world-acceptance';
 const VERSION=1;
 const scalar=v=>v===null||typeof v==='string'||typeof v==='number'||typeof v==='boolean';
 const clean=v=>typeof v==='string'?v.trim():'';
-
-const getRecord=(runtime,id)=>{
-  try { return runtime?.store?.get?.(id) || null; }
-  catch { return null; }
-};
 
 export function compileWorldAcceptance(criteria=[]){
   if(!Array.isArray(criteria)) throw new TypeError('Acceptance criteria must be an array');
@@ -43,20 +39,23 @@ export function compileWorldAcceptance(criteria=[]){
 
 export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undefined,worldRevisionId=null,validationEvidence=null}={}){
   if(graph?.schema!==SCHEMA||graph.schemaVersion!==VERSION) throw new TypeError('Unsupported WorldAcceptance graph');
+  const facts=runtime?.semantic || new SemanticWorldView(runtime);
   const evidence=graph.checks.map(check=>{
     if(check.kind==='world-valid'){
       const validation=validationEvidence || runtime?.validator?.run?.();
       return validation?.ok===true ? {id:check.id,kind:check.kind,verified:true,evidence:{validation:structuredClone(validation)}} : {id:check.id,kind:check.kind,verified:false,reason:'WORLD_VALIDATION_FAILED',evidence:validation?structuredClone(validation):null};
     }
     if(check.kind==='object-exists'){
-      const exists=Boolean(getRecord(runtime,check.targetId) || runtime?.projectCapabilities?.has(check.targetId));
-      return {id:check.id,kind:check.kind,verified:exists,targetId:check.targetId,...(!exists?{reason:'OBJECT_NOT_FOUND'}:{})};
+      const entity=facts.entity(check.targetId);
+      return {id:check.id,kind:check.kind,verified:entity.exists,targetId:check.targetId,source:entity.source,
+        ...(!entity.exists?{reason:entity.reason}:{})};
     }
     if(check.kind==='state-equals'){
-      const environment=runtime?.affordances?.get?.(check.targetId);
-      if(environment?.kind==='text')return {id:check.id,kind:check.kind,verified:false,reason:'ENVIRONMENT_TEXT_REQUIRES_ACTOR_READ'};
-      const value=(getRecord(runtime,check.targetId)?.state || environment?.read?.() || runtime?.projectCapabilities?.readState(check.targetId))?.[check.stateKey];
-      return {id:check.id,kind:check.kind,verified:Object.is(value,check.value),targetId:check.targetId,stateKey:check.stateKey,expected:check.value,actual:value,...(!Object.is(value,check.value)?{reason:'STATE_MISMATCH'}:{})};
+      const fact=facts.state(check.targetId,check.stateKey);
+      const base={id:check.id,kind:check.kind,targetId:check.targetId,stateKey:check.stateKey,expected:check.value,source:fact.source};
+      if(fact.status!=='known')return {...base,verified:false,truth:'unknown',reason:fact.reason};
+      const verified=Object.is(fact.value,check.value);
+      return {...base,verified,truth:verified?'true':'false',actual:fact.value,...(!verified?{reason:'STATE_MISMATCH'}:{})};
     }
     if(check.kind==='interaction-verified'){
       const evidence=getInteractionEvidence(runtime,check.targetId,check.capability,{worldRevisionId});
@@ -64,11 +63,11 @@ export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undef
       return {id:check.id,kind:check.kind,verified,targetId:check.targetId,expected:check.capability,...(evidence?{evidence}:{reason:'INTERACTION_NOT_VERIFIED'})};
     }
     if(check.kind==='relation-exists'){
-      if(!runtime?.sceneGraph?.list) return {id:check.id,kind:check.kind,verified:false,subject:check.subject,predicate:check.predicate,object:check.object,reason:'RELATION_GRAPH_UNAVAILABLE'};
-      runtime.sceneGraph.update?.();
-      const matches=runtime.sceneGraph.list({subject:check.subject,predicate:check.predicate,object:check.object});
-      const evidence=matches.find(edge=>(!check.objectAnyOf || check.objectAnyOf.includes(edge.object)) && (!check.surfaceId || edge.meta?.surfaceId===check.surfaceId));
-      return {id:check.id,kind:check.kind,verified:Boolean(evidence),subject:check.subject,predicate:check.predicate,...(check.objectAnyOf?{objectAnyOf:check.objectAnyOf}:{object:check.object}),...(check.surfaceId?{surfaceId:check.surfaceId}:{}),...(evidence?{evidence:structuredClone(evidence)}:{reason:'RELATION_NOT_FOUND'})};
+      const fact=facts.relation(check);
+      return {id:check.id,kind:check.kind,verified:fact.truth==='true',subject:check.subject,predicate:check.predicate,
+        ...(check.objectAnyOf?{objectAnyOf:check.objectAnyOf}:{object:check.object}),...(check.surfaceId?{surfaceId:check.surfaceId}:{}),
+        truth:fact.truth,source:fact.source,...(fact.evidenceKind?{evidenceKind:fact.evidenceKind}:{}),
+        ...(fact.evidence?{evidence:fact.evidence}:{reason:fact.reason})};
     }
     if (!Array.isArray(unresolvedMutations)) return {id:check.id,kind:check.kind,verified:false,reason:'EVIDENCE_MISSING'};
     const verified=unresolvedMutations.length===0;
