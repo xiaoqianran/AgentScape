@@ -74,6 +74,8 @@ export class HeadlessWorldHost {
   }
   let done=false,result,error;
   const pending=this.scene.executeSkill(skill,args).then(v=>{done=true;result=v;},e=>{done=true;error=e;});
+  // 资源替换是异步结构事务，不需要推进物理帧；避免回滚时并发更新 World。
+  if(skill==='replaceAsset') await pending;
   const start=performance.now();
   let steps=0;
   let termination=null,cleanupSteps=0;

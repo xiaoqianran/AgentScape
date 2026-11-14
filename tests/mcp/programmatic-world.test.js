@@ -60,8 +60,11 @@ it('builds box/table/house without Docker, executes physical tasks, restarts the
   const ensure=navigation.ensureCurrent;
   navigation.ensureCurrent=async()=>({success:false});
   try{
+   const tickBeforeReplace=runtime.simulation.tick;
    const failed=await client.callTool({name:'action_execute',arguments:{...base,skill:'replaceAsset',args:{id:'my_box',assetId:upgraded.assetId},requestId:randomUUID()}});
    expect(failed.isError).toBe(true);
+   // 异步结构事务必须等待完成，不能额外推进模拟帧。
+   expect(runtime.simulation.tick).toBe(tickBeforeReplace);
    expect(runtime.store.get('my_box').assetId).toBe(published[0].assetId);
    expect(runtime.physics.getPosition('my_box')).toBeTruthy();
   }finally{navigation.ensureCurrent=ensure;}
