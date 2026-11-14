@@ -118,6 +118,28 @@ describe('RuntimeDriver', () => {
     expect(world.simulation.pause).toHaveBeenCalledOnce();
   });
 
+  it('stops and reports a frame failure instead of leaving a stalled running driver', () => {
+    const world=createWorld();
+    const callbacks=[];
+    const cancelFrame=vi.fn();
+    const emitted=[];
+    world.events.emit=vi.fn((type,payload)=>emitted.push({type,...payload}));
+    world.rendering.render.mockImplementationOnce(()=>{throw new Error('GPU frame failed');});
+    const driver=new RuntimeDriver(world,{
+      requestFrame:(callback)=>{callbacks.push(callback);return callbacks.length;},
+      cancelFrame,
+      windowTarget:null
+    }).start();
+
+    callbacks[0](1000);
+
+    expect(driver.running).toBe(false);
+    expect(driver.frameId).toBe(null);
+    expect(world.simulation.pause).toHaveBeenCalledOnce();
+    expect(callbacks).toHaveLength(1);
+    expect(emitted).toEqual([{type:'RuntimeFrameError',message:'GPU frame failed'}]);
+    expect(driver.stop()).toBe(false);
+  });
   it('is idempotent across repeated start and stop calls', () => {
     const world=createWorld();
     const requestFrame=vi.fn(()=>3);

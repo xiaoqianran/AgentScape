@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useState, type DragEvent } from 'r
 import { ASSET_DRAG_MIME } from '../../editor/AssetPlacementController.js';
 import { collectStudioSceneProjection } from '../../scene/SceneObjectProjection.js';
 import { useStudioStore } from '../state/studioStore';
+import { subscribeSceneRefresh } from '../../scene/SceneRefreshScheduler.js';
 
 type EnvironmentDefinition = {
   id?: string;
@@ -99,19 +100,11 @@ export function SceneExplorerView({
     updateStyle(current?.startsWith('builtin/') ? `builtin://${current.slice(8)}` : current || '');
   }, [revision, getStyle]);
 
-  useLayoutEffect(() => {
-    const unsubscribers: Array<() => void> = [];
-    const refresh = () => setRevision((value) => value + 1);
-
-    for (const type of SCENE_REFRESH_EVENTS) {
-      const unsubscribe = world.events.on(type, refresh);
-      if (unsubscribe) unsubscribers.push(unsubscribe);
-    }
-
-    return () => {
-      for (const unsubscribe of unsubscribers) unsubscribe();
-    };
-  }, [world]);
+  useLayoutEffect(() => subscribeSceneRefresh(
+    world.events,
+    SCENE_REFRESH_EVENTS,
+    () => setRevision((value) => value + 1)
+  ), [world]);
 
   useEffect(() => resources.onChange(() => setResourceRevision((value) => value + 1)), [resources]);
 

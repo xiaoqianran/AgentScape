@@ -181,13 +181,39 @@ export class StudioCodeProjects {
       const project = live && live.id === this.draft.id
         ? { ...withoutIntegrity(this.draft), state:live.state, runtime:live.runtime } : this.draft;
       const next = await this.open({ project, container:this.container, authorized:true });
-      try { old?.close(); } catch (error) { next.close(); throw error; }
-      this.session = next; this.runningRevision = this.revision;
-      this.activeTools = new AgentTools(next.world, { profile:'builder', source:'agent' });
-      this.stopFrameError?.();
-      this.stopFrameError = next.world.events.on('project.frame.failed', ({ message }) => this.emit({ error:message }));
-      this.onActivate(next); this.emit();
-      return { status:'project-running', id:project.id, revision:this.revision, observation:next.scene.observe() };
+      let observation;
+      try {
+        // 新实例观察成功后再释放旧实例，防止失败时丢失运行状态。
+        observation = next.scene.observe();
+      } catch (error) {
+        next.close();
+        throw error;
+      }
+      const previousRevision = this.runningRevision;
+      const previousTools = this.activeTools;
+      const previousFrameError = this.stopFrameError;
+      let nextFrameError = null;
+      try {
+        nextFrameError = next.world.events.on('project.frame.failed', ({ message }) => this.emit({ error:message }));
+        this.session = next;
+        this.runningRevision = this.revision;
+        this.activeTools = new AgentTools(next.world, { profile:'builder', source:'agent' });
+        // 先切换外部视图，再释放旧会话；失败时仍可恢复旧 World。
+        this.onActivate(next);
+        old?.close();
+      } catch (error) {
+        this.session = old;
+        this.runningRevision = previousRevision;
+        this.activeTools = previousTools;
+        nextFrameError?.();
+        try { this.onActivate(old); } catch { /* 保留首次错误 */ }
+        try { next.close(); } catch { /* 保留首次错误 */ }
+        throw error;
+      }
+      previousFrameError?.();
+      this.stopFrameError = nextFrameError;
+      this.emit();
+      return { status:'project-running', id:project.id, revision:this.revision, observation };
     });
   }
   async save() {
@@ -219,8 +245,20 @@ export class StudioCodeProjects {
         // Preserve unrun edits and the last live state together on return to built-in worlds.
         const project = this.runningRevision === this.revision ? saved : { ...withoutIntegrity(this.draft), state:saved.state, runtime:saved.runtime };
         await this.persist(project); this.draft = project;
-        this.session.close(); this.session = null; this.runningRevision = null;
-        this.stopFrameError?.(); this.onActivate(null);
+        const previous = this.session;
+        // 返回内置 World 前先切换外部视图；回调失败仍保留原会话。
+        this.session = null;
+        try {
+          this.onActivate(null);
+          previous.close();
+        } catch (error) {
+          this.session = previous;
+          try { this.onActivate(previous); } catch { /* 保留首次错误 */ }
+          throw error;
+        }
+        this.runningRevision = null;
+        this.stopFrameError?.();
+        this.stopFrameError = null;
       }
       this.pendingBatch = null; this.lastBatch = null;
       this.visible = false; this.emit();

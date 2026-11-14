@@ -12,6 +12,7 @@ import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
 import { SCENE_LEGACY_SKILLS } from '../../../application/scene/SceneFacade.js';
 import { StudioLiveBridgeClient, defaultAutoMcpEnabled } from '../bridge/StudioLiveBridgeClient.js';
 import { StudioCodeProjects } from '../code-project/StudioCodeProjects.js';
+import { activateCodeProjectView } from './activateCodeProjectView.js';
 
 export async function createStudioRuntime({
   ui,
@@ -105,15 +106,10 @@ export async function createStudioRuntime({
   const codeProjects = new StudioCodeProjects({
     container:projectHost, baseScene:scene, baseWorld:world,
     onShow:inspect=>{ ui.setPage('world'); if (inspect || ui.panel?.dataset.view !== 'task') ui.setView('inspect'); },
-    onActivate:session=>{
-      projectHost.hidden = !session;
-      ui.viewport.classList.toggle('has-code-project', Boolean(session));
-      if (session) runtimeDriver.stop(); else runtimeDriver.start();
-      liveBridge.scene = session?.scene || scene;
-      liveBridge.world = session?.world || world;
-      ui.setSelection?.(null);
-      ui.refreshInspector?.();
-    }
+    onActivate:session=>activateCodeProjectView({
+      session, projectHost, viewport:ui.viewport, runtimeDriver, liveBridge,
+      baseScene:scene, baseWorld:world, ui
+    })
   });
   liveBridge.codeProjects = codeProjects;
   ui.attachCodeProjects?.(codeProjects);

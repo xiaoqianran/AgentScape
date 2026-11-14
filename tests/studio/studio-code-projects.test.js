@@ -60,6 +60,99 @@ describe('Studio complete code project ownership',()=>{
    expect((await f.controller.store.load(project.id)).document.project).toMatchObject({source:'syntax error !!!',state:{value:1}});
   }finally{f.close();}
  },30000);
+ it('preserves the previous session when replacement observation fails',async()=>{
+  const f=await fixture();
+  try {
+   await f.controller.write({create:true,project});
+   await f.controller.run();
+   const previous=f.controller.session;
+   f.controller.open=async options=>{
+    const next=await open(options);
+    next.scene.observe=()=>{throw new Error('observation failed');};
+    return next;
+   };
+   await expect(f.controller.run()).rejects.toThrow('observation failed');
+   expect(f.controller.session).toBe(previous);
+   expect(f.controller.snapshot().active).toBe(true);
+   expect(f.controller.busy).toBe(false);
+   expect(f.controller.scene.inspect('counter').state.value).toBe(1);
+  } finally {f.close();}
+ },30000); it('rolls back project runtime and tools if activation fails',async()=>{
+  const f=await fixture();
+  try {
+   await f.controller.write({create:true,project});
+   await f.controller.run();
+   const previous=f.controller.session, originalTools=f.controller.activeTools;
+   let visible=previous, failOnce=true;
+   f.controller.onActivate=session=>{
+    visible=session;
+    if(failOnce && session!==previous) {failOnce=false;throw new Error('view activation failed');}
+   };
+   await expect(f.controller.run()).rejects.toThrow('view activation failed');
+   expect(f.controller.session).toBe(previous);
+   expect(f.controller.activeTools).toBe(originalTools);
+   expect(f.tools.runtime).toBe(previous.world);
+   expect(visible).toBe(previous);
+   expect(f.controller.scene.inspect('counter').state.value).toBe(1);
+  }finally{f.close();}
+ },30000);
+
+ it('preserves the running project when closing the editor view fails',async()=>{
+  const f=await fixture();
+  try {
+   await f.controller.write({create:true,project});
+   await f.controller.run();
+   const previous=f.controller.session;
+   let visible=previous;
+   f.controller.onActivate=session=>{
+    visible=session;
+    if(session===null) throw new Error('close view failed');
+   };
+   await expect(f.controller.close()).rejects.toThrow('close view failed');
+   expect(f.controller.session).toBe(previous);
+   expect(f.controller.snapshot().active).toBe(true);
+   expect(f.controller.busy).toBe(false);
+   expect(visible).toBe(previous);
+   expect(f.controller.scene.inspect('counter').state.value).toBe(1);
+  }finally{f.close();}
+ },30000);
+ it('restores the old session if releasing it fails during replacement',async()=>{
+  const f=await fixture();
+  try {
+   await f.controller.write({create:true,project});
+   await f.controller.run();
+   const previous=f.controller.session;
+   const originalClose=previous.close;
+   let active=previous;
+   f.controller.onActivate=session=>{active=session;};
+   previous.close=()=>{throw new Error('old close failed');};
+   try {
+    await expect(f.controller.run()).rejects.toThrow('old close failed');
+    expect(f.controller.session).toBe(previous);
+    expect(active).toBe(previous);
+    expect(f.controller.scene.inspect('counter').state.value).toBe(1);
+   }finally{previous.close=originalClose;}
+  }finally{f.close();}
+ },30000);
+
+ it('restores the project view when closing its session fails',async()=>{
+  const f=await fixture();
+  try {
+   await f.controller.write({create:true,project});
+   await f.controller.run();
+   const previous=f.controller.session;
+   const originalClose=previous.close;
+   let active=previous;
+   f.controller.onActivate=session=>{active=session;};
+   previous.close=()=>{throw new Error('project close failed');};
+   try {
+    await expect(f.controller.close()).rejects.toThrow('project close failed');
+    expect(f.controller.session).toBe(previous);
+    expect(active).toBe(previous);
+    expect(f.controller.snapshot().active).toBe(true);
+   }finally{previous.close=originalClose;}
+  }finally{f.close();}
+ },30000);
  it('executes the actual AI loop to create, run, discover, invoke, edit, rerun and save a world',async()=>{
   const f=await fixture();let round=0;
   const steps=[

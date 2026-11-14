@@ -53,12 +53,22 @@ export class RuntimeDriver {
     const elapsed = Math.max(0, (frameTime - this.frameStartTime) / 1000);
     this.lastFrameTime = frameTime;
 
-    this.syncInput?.(frameTime);
-    this.world.simulation.pump(frameTime);
-    this.authoring?.update(delta, elapsed);
-    if (this.shouldRender()) {
-      this.world.rendering.update?.();
-      this.world.rendering.render?.(frameTime);
+    try {
+      this.syncInput?.(frameTime);
+      this.world.simulation.pump(frameTime);
+      this.authoring?.update(delta, elapsed);
+      if (this.shouldRender()) {
+        this.world.rendering.update?.();
+        this.world.rendering.render?.(frameTime);
+      }
+    } catch (error) {
+      // 帧处理失败后立即清理运行状态，避免界面显示为运行中却停止刷新。
+      this.stop();
+      this.world.events?.emit?.('renderer.error', {
+        type:'RuntimeFrameError',
+        message:error instanceof Error ? error.message : String(error)
+      });
+      return;
     }
     if (this.running) this.frameId = this.requestFrame(this.frame);
   };
