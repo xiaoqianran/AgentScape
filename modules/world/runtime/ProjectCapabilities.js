@@ -31,6 +31,23 @@ export class ProjectCapabilities {
       ? this.runtime.store.get(entry.id) : null;
     return current && current === entry.attachedRecord ? current : null;
   }
+  /** Remember only live attachments before a trusted scene restore replaces ObjectStore records. */
+  captureAttachments() {
+    return [...this.entities.values()].filter(entry => entry.attachedTo === 'runtime' && this.attachmentRecord(entry))
+      .map(entry => ({ entry, record:entry.attachedRecord, assetId:entry.attachedRecord.assetId }));
+  }
+  /** Rebind a preserved entity, never an already stale attachment or a different asset sharing its id. */
+  rebindAttachments(attachments) {
+    for (const { entry, record, assetId } of attachments) {
+      if (this.entities.get(entry.id) !== entry || entry.attachedRecord !== record) continue;
+      const current = this.runtime.store.get(entry.id);
+      if (!current || current.assetId !== assetId) continue;
+      if (entry.object === record.object) entry.object = current.object;
+      const machine = this.stateMachines.get(entry.id);
+      if (machine?.object === record.object) machine.object = current.object;
+      entry.attachedRecord = current;
+    }
+  }
   actionObject(entry) { return entry.object || this.attachmentRecord(entry)?.object || null; }
   registerEntity({ id, label = id, description = '', object = null, read = () => ({}), attachTo = null }) {
     this.assertOpen(); identifier.parse(id);

@@ -158,9 +158,16 @@ export class SceneSerializer {
     const previous = typeof runtime.snapshot === 'function' ? runtime.snapshot() : null;
     const previousAuthority = captureWorldAuthority(runtime);
     const previousPhysics = runtime.physics?.captureState?.();
-    if (!previous) return this.applyScene(runtime, scene);
+    const attachments = runtime.projectCapabilities?.captureAttachments?.() || [];
+    if (!previous) {
+      const applied = await this.applyScene(runtime, scene);
+      runtime.projectCapabilities?.rebindAttachments?.(attachments);
+      return applied;
+    }
     try {
-      return await this.applyScene(runtime, scene);
+      const applied = await this.applyScene(runtime, scene);
+      runtime.projectCapabilities?.rebindAttachments?.(attachments);
+      return applied;
     } catch (error) {
       try {
         await this.applyScene(runtime, previous);
@@ -169,6 +176,7 @@ export class SceneSerializer {
           runtime.sceneGraph?.invalidate?.();
         }
         restoreWorldAuthority(runtime, previousAuthority);
+        runtime.projectCapabilities?.rebindAttachments?.(attachments);
       } catch (rollbackError) {
         const failure = new AggregateError([error, rollbackError], 'Scene restore rollback failed', { cause:error });
         failure.code = 'SCENE_RESTORE_ROLLBACK_FAILED';
