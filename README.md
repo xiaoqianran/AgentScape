@@ -27,7 +27,7 @@ npm run starter
 2. 添加椅子并移动。
 3. 下载世界 JSON，刷新页面，再打开下载的文件。
 
-这个示例使用内置物体，无需模型密钥、生成服务或 Docker。安装依赖仍需要网络。Vercel 已提供公开静态预览：[Studio](https://agentscape-virid.vercel.app/)、[入门世界](https://agentscape-virid.vercel.app/starter/)、[首页](https://agentscape-virid.vercel.app/home/)和[诊断台](https://agentscape-virid.vercel.app/observatory/)。该预览不提供私有 MCP 服务，也不包含依赖本地服务的可选生成能力。
+这个示例使用内置物体，无需模型密钥、生成服务或 Docker。安装依赖仍需要网络。Vercel 已提供公开静态预览：[Studio](https://agentscape-virid.vercel.app/)、[入门世界](https://agentscape-virid.vercel.app/starter/)、[首页](https://agentscape-virid.vercel.app/home/)和[诊断台](https://agentscape-virid.vercel.app/observatory/)。另外开放[多文件代码世界](https://agentscape-virid.vercel.app/examples/code-project/)、[原生 Three.js 接入](https://agentscape-virid.vercel.app/examples/native-scene/)和[Three.js 代码资产示例](https://agentscape-virid.vercel.app/examples/three-code/)；部署配置及服务端适配器要求见[Vercel 部署说明](docs/deployment/vercel.md)。该预览不提供私有 MCP 服务，也不包含依赖本地服务的可选生成能力。
 
 修改 `apps/starter/scene.json` 后刷新即可改变初始布局。支持 agent、cup、table、chair 四种内置物理资产；`main.js` 展示统一 SDK 的使用方式，包括浏览器帧循环。
 

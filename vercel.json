@@ -18,6 +18,46 @@
       "source": "/starter",
       "destination": "/starter/",
       "permanent": true
+    },
+    {
+      "source": "/studio",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/code-project",
+      "destination": "/examples/code-project/",
+      "permanent": false
+    },
+    {
+      "source": "/native-scene",
+      "destination": "/examples/native-scene/",
+      "permanent": false
+    },
+    {
+      "source": "/three-code",
+      "destination": "/examples/three-code/",
+      "permanent": false
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/capabilities",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/api/capabilities/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
     }
   ]
 }

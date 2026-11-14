@@ -16,12 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify all public Vercel entry points
+      - name: Verify Studio, all published examples and capability API
         env:
           URL: https://agentscape-virid.vercel.app
         run: |
           set -euo pipefail
-          for entry in "/|AgentScape" "/home/|AgentScape Home" "/starter/|AgentScape · First world" "/observatory/|AgentScape Observatory"; do
+          for entry in "/|AgentScape" "/home/|AgentScape Home" "/starter/|AgentScape · First world" "/observatory/|AgentScape Observatory" "/examples/code-project/|自由代码世界 · AgentScape" "/examples/native-scene/|原生 Three.js · AgentScape" "/examples/three-code/|AgentScape code assets"; do
             path="${entry%%|*}"
             title="${entry#*|}"
             html="$(mktemp)"
@@ -32,5 +32,21 @@ jobs:
             curl --fail --location --silent --show-error --retry 4 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 30 "${URL}${asset}" -o /dev/null
             echo "Verified ${path} and ${asset}"
             rm -f "$html"
+          done
+          for endpoint in "/api/capabilities" "/api/capabilities/health"; do
+            payload="$(mktemp)"
+            curl --fail --location --silent --show-error --retry 4 --retry-delay 2 --retry-all-errors --connect-timeout 10 --max-time 30 "$URL$endpoint" -o "$payload"
+            node -e '
+              const fs=require("node:fs");
+              const json=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+              for(const capability of ["agent","asset.compile"]){
+                const value=json.capabilities?.[capability];
+                if(typeof value?.available!=="boolean")throw Error("Missing capability: "+capability);
+                if(process.argv[2].endsWith("/health") && !["unconfigured","ok","slow","down"].includes(value.state))
+                  throw Error("Invalid health state: "+capability);
+              }
+            ' "$payload" "$endpoint"
+            echo "Verified $endpoint (optional backends may be unconfigured)"
+            rm -f "$payload"
           done
           echo "Vercel production smoke passed: $URL"
