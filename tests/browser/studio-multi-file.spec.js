@@ -75,8 +75,12 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   await page.getByRole('button',{name:'新增文件',exact:true}).click();
   await page.getByLabel('文件内容 notes/readme.txt').fill('project notes');
   await page.getByRole('button',{name:'保存源码草稿',exact:true}).click();
+  // Browser actions only schedule an async write. Wait for its persisted revision
+  // before starting another batch or the next call can race with PROJECT_BUSY.
+  await expect(page.locator('.code-project-editor output').first()).toHaveText('源码草稿已保存');
   const resourceInput=page.locator('.code-project-editor input[type="file"]').last();
   await resourceInput.setInputFiles({name:'note.txt',mimeType:'text/plain',buffer:Buffer.from('embedded bytes')});
+  await expect(page.locator('.code-project-editor output').first()).toHaveText('资源文件已导入');
   await expect(page.locator('.code-project-resources')).toContainText('note.txt');
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
   await page.getByRole('button',{name:'保存世界状态',exact:true}).click();

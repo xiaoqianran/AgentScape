@@ -170,7 +170,7 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
         setActiveFile(inputs[inputs.length-1].webkitRelativePath || inputs[inputs.length-1].name);
       },'代码文件已导入');
     }} />
-    <input hidden ref={resourceInput} type="file" multiple onChange={event=>{
+    <input hidden ref={resourceInput} type="file" multiple disabled={busy} onChange={event=>{
       const inputs=[...(event.target.files || [])];event.target.value='';
       if(inputs.length) void run(async()=>{
         await apply();
