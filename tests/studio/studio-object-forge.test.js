@@ -4,7 +4,7 @@ import { createBlankWorld } from '../../modules/world/content/blankWorld.js';
 import { StudioLiveBridgeClient } from '../../apps/studio/bridge/StudioLiveBridgeClient.js';
 
 it('Studio bridge inspects and patches only one declared object',async()=>{
-  const session=createSession(null,{environmentFactory:()=>createBlankWorld({id:'forge-studio-test'})});
+  const session=createSession(null,{environmentFactory:()=>createBlankWorld({id:'industrial-cabinet-lab'})});
   await session.world.init();
   const bridge=new StudioLiveBridgeClient({
     scene:session.scene,world:session.world,instance:'a8b53160-85a2-42ec-89fb-f9bc0cf147bb'
@@ -39,6 +39,11 @@ it('Studio bridge inspects and patches only one declared object',async()=>{
     }});
     expect(first.definition.parts[0].geometry.size).toEqual([1,.3,1]);
     expect(second.definition.parts[0].geometry.size).toEqual([1,.2,1]);
+    const saved=await bridge.execute({method:'save'});
+    expect(saved.value.editable).toHaveLength(2);
+    expect(saved.value.editable.find(item=>item.id==='box_a')).toMatchObject({
+      revision:2,definition:{parts:[{geometry:{size:[1,.3,1]}}]}
+    });
   }finally{
     bridge.dispose();
     session.scene.close();

@@ -31,8 +31,8 @@
 - 三维代码资产的补丁仅能修正已有 definition 字段，不能通过该接口执行新 JS 代码。完整源码变动使用 studio_project 或原有受控资产构建入口。
 - 私有 MCP 会话现在向 SceneFacade 传入已有 worker-wasm 安全执行器。显式禁用代码执行时仍返回 CODE_EXECUTION_DISABLED。
 - 同一资产的其他实例不会自动改变。替换当前实例可能重置关节/物理状态，动作仍需重新验证。
-- **当前限制：可编辑原始定义仅保存在当前私有会话/Studio Bridge 的内存中。** scene_save/scene_import 恢复对象、资源和世界状态，但不会恢复可编辑定义；跨会话继续定点编辑需要重新提供源声明。
-- 对已经存在的第三方 GLB、内置资产、只读已发布资产，不反推不存在的原始可编辑代码。
+- **已实现：可编辑原始定义通过 scene_save/scene_import 持久保存并恢复，包含源定义与 revision。项目版本还可显式发布到用户全局库。** scene_save/scene_import 同时恢复对象、资源、世界状态和可编辑声明；跨会话可按原 revision 继续修正，历史动作仍需重新验证。
+- 对第三方 GLB 和内置资产不反推不存在的源码。对本身份通过 asset_publish_project 发布的全局版本，可以显式 fork 回当前项目，独立修改。
 - 原实例替换由 Runtime 事务保护，失败不修改原对象及其定义 revision；失败中产生的编译缓存可暂留会话内，不应被当成已发布版本。
 
 ## 测试
@@ -44,4 +44,4 @@
 
 ## 下一阶段
 
-将可编辑对象定义及其版本历史随世界包和 Studio Code Project 持久化，增加 GLB 部件原始来源绑定，并利用现有 KinematicEvidencePass、KinematicHypothesisScreen 自动生成更丰富的候选动作，仍以 Runtime 验证为最终事实。
+目前已保存可编辑对象定义和 revision；下一阶段保存完整修改历史并与 Studio Code Project 统一关联，增加 GLB 部件原始来源绑定，并利用现有 KinematicEvidencePass、KinematicHypothesisScreen 自动生成更丰富的候选动作，仍以 Runtime 验证为最终事实。

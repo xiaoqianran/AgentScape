@@ -205,9 +205,13 @@ export class StudioLiveBridgeClient {
         if(args.operation==='apply')return forge.apply(this.world,this.scene,args.objectId,args.expectedRevision,args.previewId);
         throw failure('STUDIO_METHOD_FORBIDDEN');
       }
-      case 'importProject':return this.scene.importProject(args.bundle);
+      case 'importProject':{
+        const imported=await this.scene.importProject(args.bundle);
+        this.objectForge.restore(this.world,imported.value.editable||[]);
+        return {...imported,value:{...imported.value,editableRestored:imported.value.editable?.length||0,editable:undefined}};
+      }
       case 'setStyle':return this.scene.setStyle(args.style,{fallback:args.fallback});
-      case 'save':return this.codeProjects?.session ? this.codeProjects.save() : this.scene.save();
+      case 'save':return this.codeProjects?.session ? this.codeProjects.save() : this.scene.save({editable:this.objectForge.export(this.world)});
       default:throw failure('STUDIO_METHOD_FORBIDDEN');
     }
   }

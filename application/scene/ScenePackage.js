@@ -6,6 +6,7 @@ import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { stylePackSchema } from '../../modules/rendering/style/StylePack.js';
 import { RUNTIME_VERSION } from '../../foundation/version.js';
 import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
+import { SceneObjectForge } from '../object-forge/SceneObjectForge.js';
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const descriptor = z.object({ id: z.string().min(1).max(100), sha256: hash, bytes: z.string().max(45 * 1024 * 1024), definition: z.record(z.string(), z.unknown()) }).strict();
@@ -13,6 +14,7 @@ const schema = z.object({ schema: z.literal('agentscape.project-bundle'), schema
   project: z.unknown(), snapshot: z.unknown(),
   lock: z.object({ engine: z.enum(['1.34.2', RUNTIME_VERSION]), builtins: hash, content: hash }).strict(),
   assets: z.array(descriptor).max(32),
+  editable: z.array(z.object({id:z.string(),assetId:z.string(),revision:z.number().int(),definition:z.unknown(),originAssetId:z.string().optional()}).strict()).max(64).optional(),
   style: stylePackSchema.optional()
 }).strict();
 const builtinHash = () => assetDigest(new TextEncoder().encode(canonicalAssetJson(assetManifests)));
@@ -29,7 +31,7 @@ const definitionOf = manifest => Object.fromEntries(['type', 'label', 'actions',
  */
 export async function exportRuntimeState(world, { name = 'Untitled World', readResource = null } = {}) {
   if (world.mutationOwner) throw new Error('SCENE_BUSY');
-  const snapshot = world.serialize({ name }), assets = [];
+  const snapshot = world.serialize({ name }), assets = [], assetAliases = {};
   let total = 0;
   for (const manifest of snapshot.assets) {
     let bytes;
@@ -39,11 +41,19 @@ export async function exportRuntimeState(world, { name = 'Untitled World', readR
     if (!(bytes instanceof Uint8Array)) throw new Error('RESOURCE_UNAVAILABLE');
     bytes = bytes.slice(); assertEmbeddedGLB(bytes);
     total += bytes.length; if (total > 64 * 1024 * 1024) throw new Error('RESOURCE_LIMIT');
-    assets.push({ id: manifest.id, sha256: await assetDigest(bytes), bytes: encode(bytes), definition: definitionOf(manifest) });
+    const sha256=await assetDigest(bytes),definition=definitionOf(manifest);
+    // Portable bundles own the compiled bytes; never write into immutable owner-global pa_ storage.
+    const portableId=/^pa_[a-f0-9]{64}$/.test(manifest.id)
+      ? 'asset_'+await assetDigest(new TextEncoder().encode(canonicalAssetJson({globalId:manifest.id,sha256,definition})))
+      : manifest.id;
+    assetAliases[manifest.id]=portableId;
+    assets.push({ id:portableId, sha256, bytes: encode(bytes), definition });
   }
-  // Source URLs, historical compiler evidence and host paths never enter transport.
+  snapshot.objects=snapshot.objects.map(object=>({
+    ...object,assetId:assetAliases[object.assetId]||object.assetId
+  }));
   snapshot.assets = [];
-  return { snapshot, assets };
+  return { snapshot, assets, assetAliases };
 }
 
 /** Restore into a newly created code-project Runtime, retaining its native environment. */
@@ -62,16 +72,20 @@ export async function restoreRuntimeState(world, { snapshot, assets }) {
   await world.restore(snapshot);
 }
 
-export async function exportScenePackage(world, { name = 'Untitled World', readResource = null, style = null } = {}) {
-  const { snapshot, assets } = await exportRuntimeState(world, { name, readResource });
+export async function exportScenePackage(world, { name = 'Untitled World', readResource = null, style = null, editable = undefined } = {}) {
+  const { snapshot, assets, assetAliases } = await exportRuntimeState(world, { name, readResource });
   const project = parseSceneProject({ schema: 'agentscape.scene-project', schemaVersion: 1, name,
     environment: { type: 'builtin', id: world.environment.id },
     ...(style ? { style: './styles/current/style.json' } : {}),
     objects: snapshot.objects.map(object => ({ id: object.id,
-      asset: world.assetModule.getManifest(object.assetId).source.kind === 'builtin' ? `builtin://${object.assetId}` : `./assets/${assets.findIndex(a => a.id === object.assetId)}/model.glb`,
-      level: world.assetModule.getManifest(object.assetId).capabilityLevel || 'physical',
+      asset: assets.some(a=>a.id===object.assetId) ? `./assets/${assets.findIndex(a => a.id === object.assetId)}/model.glb` : `builtin://${object.assetId}`,
+      level: assets.find(a=>a.id===object.assetId)?.definition.capabilityLevel
+        || (assets.some(a=>a.id===object.assetId) ? 'physical' : world.assetModule.getManifest(object.assetId).capabilityLevel || 'physical'),
       transform: { ...object.transform, scale: object.transform.scale[0] } })) });
-  const payload = { project, snapshot, assets, ...(style ? { style: stylePackSchema.parse(style) } : {}) };
+  const localEditable=editable?.map(entry=>({...entry,assetId:assetAliases[entry.assetId]||entry.assetId}));
+  const checked = editable === undefined ? undefined : SceneObjectForge.validateTransfer(snapshot,localEditable);
+  const payload = { project, snapshot, assets, ...(style ? { style: stylePackSchema.parse(style) } : {}),
+    ...(checked !== undefined ? { editable:checked } : {}) };
   const content = await digestContent(payload);
   return { schema: 'agentscape.project-bundle', schemaVersion: 1, ...payload,
     lock: { engine: RUNTIME_VERSION, builtins: await builtinHash(), content } };
@@ -85,7 +99,7 @@ export async function openScenePackage(input, { container = null, assetModule = 
     input = JSON.parse(input);
   }
   const bundle = schema.parse(structuredClone(input)), project = parseSceneProject(bundle.project);
-  if (bundle.lock.builtins !== await builtinHash() || bundle.lock.content !== await digestContent({ project: bundle.project, snapshot: bundle.snapshot, assets: bundle.assets, ...(bundle.style ? { style: bundle.style } : {}) })) throw new Error('PROJECT_INTEGRITY_MISMATCH');
+  if (bundle.lock.builtins !== await builtinHash() || bundle.lock.content !== await digestContent({ project: bundle.project, snapshot: bundle.snapshot, assets: bundle.assets, ...(bundle.style ? { style: bundle.style } : {}),...(bundle.editable !== undefined ? {editable:bundle.editable}: {}) })) throw new Error('PROJECT_INTEGRITY_MISMATCH');
   if (Boolean(project.style) !== Boolean(bundle.style)) throw new Error('STYLE_DEPENDENCY_MISSING');
   if (bundle.snapshot?.metadata?.stylePack && canonicalAssetJson(bundle.snapshot.metadata.stylePack) !== canonicalAssetJson(bundle.style)) throw new Error('STYLE_DEPENDENCY_MISMATCH');
   if (!Array.isArray(bundle.snapshot?.objects) || bundle.snapshot.objects.length !== project.objects.length) throw new Error('PROJECT_SNAPSHOT_MISMATCH');
@@ -95,6 +109,7 @@ export async function openScenePackage(input, { container = null, assetModule = 
     const reference = assetIndex < 0 ? `builtin://${saved.assetId}` : `./assets/${assetIndex}/model.glb`;
     if (object.id !== saved.id || object.asset !== reference || canonicalAssetJson(object.transform) !== canonicalAssetJson({ ...saved.transform, scale: saved.transform?.scale?.[0] })) throw new Error('PROJECT_SNAPSHOT_MISMATCH');
   }
+  SceneObjectForge.validateTransfer(bundle.snapshot,bundle.editable || []);
   const ids = new Set(); let total = 0;
   const prepared = [];
   for (const item of bundle.assets) {
@@ -125,6 +140,7 @@ export async function importScenePackageInto(world, input, { applyStyle, getStyl
   try {
     staged = await openScenePackage(bundle, { assetModule: assets });
     if (bundle.project.environment.id !== world.environment.id) throw new Error('ENVIRONMENT_MISMATCH');
+    SceneObjectForge.validateTransfer(bundle.snapshot,bundle.editable||[]);
     const snapshot = staged.snapshot(), entries = [];
     if (bundle.snapshot.camera) snapshot.camera = structuredClone(bundle.snapshot.camera);
     for (const asset of bundle.assets) {
@@ -138,7 +154,7 @@ export async function importScenePackageInto(world, input, { applyStyle, getStyl
         return await world.mutate('scene:import-project', async () => {
           await world.restoreSnapshot(snapshot);
           await applyStyle?.(bundle.style || null);
-          return { status: 'project-imported', objects: snapshot.objects.length };
+          return { status: 'project-imported', objects: snapshot.objects.length, editable:bundle.editable||[] };
         });
       } catch (error) { await applyStyle?.(previousStyle); throw error; }
     });

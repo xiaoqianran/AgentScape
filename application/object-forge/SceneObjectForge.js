@@ -97,11 +97,19 @@ function runtimeGeometry(object) {
  */
 export class SceneObjectForge {
   constructor(){this.entries=new Map();}
-  record(id,source,assetId,world){
+  record(id,source,assetId,world,{originAssetId=null}={}){
     if(!['agentscape.mechanical-draft','agentscape.asset-recipe'].includes(source?.schema)
       && source?.kind!=='three-code') return;
     const definition=parse(source);
-    this.entries.set(id,{definition,assetId,world,revision:1,preview:null});
+    this.entries.set(id,{definition,assetId,world,originAssetId,revision:1,preview:null});
+  }
+  fork(world,id,source,originAssetId){
+    if(this.entries.has(id)) throw fail('OBJECT_DEFINITION_ALREADY_TRACKED');
+    if(!world.store.has(id) || world.store.get(id).assetId!==originAssetId
+      || !/^pa_[a-f0-9]{64}$/.test(originAssetId))throw fail('OBJECT_DEFINITION_UNAVAILABLE');
+    this.record(id,source,originAssetId,world,{originAssetId});
+    return {status:'object-project-forked',id,originAssetId,revision:1,
+      globalVersionUnchanged:true,scope:'project-instance'};
   }
   get(world,id){
     const entry=this.entries.get(id);
@@ -127,7 +135,7 @@ export class SceneObjectForge {
     const e=this.get(world,id);
     return {
       schema:'agentscape.object-definition',schemaVersion:1,id,
-      revision:e.revision,assetId:e.assetId,
+      revision:e.revision,assetId:e.assetId,originAssetId:e.originAssetId||null,
       definition:clone(e.definition),analysis:this.analyze(world,id,e.definition),
       provenance:{definition:'ai-declared',geometry:'runtime-observed',
         motions:'candidate-unless-verified-by-runtime'}
@@ -177,6 +185,48 @@ export class SceneObjectForge {
       assetId,changes:pending.changes,
       verification:{status:'compiled-and-admitted',admission,
         runtimeActionVerification:'not-run'},replace:replaced.status};
+  }
+
+  /** Export editable source only for objects still bound to their original immutable asset. */
+  export(world) {
+    const entries = [];
+    for (const [id, entry] of this.entries) {
+      if (entry.world !== world || !world.store.has(id) || world.store.get(id).assetId !== entry.assetId) continue;
+      entries.push({id,assetId:entry.assetId,revision:entry.revision,definition:clone(entry.definition),
+        ...(entry.originAssetId?{originAssetId:entry.originAssetId}:{})});
+    }
+    return entries;
+  }
+  /** Validate complete source catalog before altering the live editor registry. */
+  static validateTransfer(snapshot, input = []) {
+    if (!Array.isArray(input) || input.length > 64 || JSON.stringify(input).length > 262144)
+      throw fail('OBJECT_DEFINITION_TRANSFER_LIMIT');
+    const objects = new Map(snapshot.objects.map(object => [object.id,object.assetId]));
+    const ids = new Set();
+    return input.map(item => {
+      if (!item || typeof item !== 'object' || Array.isArray(item) || typeof item.id !== 'string'
+        || !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(item.id)
+        || !(/^(asset_|pa_)[a-f0-9]{64}$/.test(item.assetId))
+        || !Number.isSafeInteger(item.revision) || item.revision < 1 || item.revision > 1000000
+        || ids.has(item.id) || objects.get(item.id) !== item.assetId
+        || (item.originAssetId != null && !/^pa_[a-f0-9]{64}$/.test(item.originAssetId)))
+        throw fail('OBJECT_DEFINITION_TRANSFER_INVALID');
+      ids.add(item.id);
+      const definition=parse(item.definition);
+      return {id:item.id,assetId:item.assetId,revision:item.revision,definition,
+        ...(item.originAssetId?{originAssetId:item.originAssetId}:{})};
+    });
+  }
+  restore(world, input) {
+    const ready=SceneObjectForge.validateTransfer({
+      objects:world.store.list().map(([id,record])=>({id,assetId:record.assetId}))
+    },input);
+    const next=new Map(ready.map(item=>[
+      item.id,{assetId:item.assetId,definition:clone(item.definition),revision:item.revision,preview:null,world,
+        originAssetId:item.originAssetId||null}
+    ]));
+    this.entries=next;
+    return {restored:next.size};
   }
   clear(){this.entries.clear();}
 }

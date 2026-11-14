@@ -4,9 +4,9 @@
 
 新增容器隔离的程序化资产构建/发布、不可变版本与文件存储、可信世界保存恢复。原有 33 个工具继续兼容；新增 4 个 Studio Live Bridge 配对/会话工具，使用同一个 `agentscape-world` 连接。契约、示例、隔离设施和保存边界见 [PROGRAMMATIC-ASSETS.md](./PROGRAMMATIC-ASSETS.md)。
 
-新增 scene_object_definition：将 AI 声明与真实 Three.js 节点结构分析结合，并通过 inspect/preview/apply 对单实例进行版本化定点修正。详见 docs/modules/object-forge-refinement.md。当前 MCP 共 41 个工具。
+新增 scene_object_definition：将 AI 声明与真实 Three.js 节点结构分析结合，并通过 inspect/preview/apply/fork 对单实例进行版本化定点修正。详见 docs/modules/object-forge-refinement.md。当前 MCP 共 42 个工具。
 
-Scene 工具为 `scene_thermal`（Asset Forge 材料实验查询、热功率和真实时步）、`scene_observe`、`scene_apply`、`scene_add_model`、`scene_interact`、`scene_job`、`scene_cancel`、`scene_verify`、`scene_save`、`scene_set_style`。它们使用与 SDK/Studio 相同的 Scene 应用服务和 Runtime。`scene_interact` 立即返回 JobRef，由宿主推进模拟，调用方轮询任务并分别检查执行状态与验证证据。Recipe 可以直接作为 scene_add_model 的 model.asset 输入，无需生成 JavaScript。
+Scene 工具为 `scene_thermal`（Asset Forge 材料实验查询、热功率和真实时步）、`scene_observe`、`scene_apply`、`scene_add_model`、`scene_interact`、`scene_job`、`scene_cancel`、`scene_verify`、`scene_save`、`scene_import`、`scene_object_definition`、`scene_set_style`。它们使用与 SDK/Studio 相同的 Scene 应用服务和 Runtime。`scene_interact` 立即返回 JobRef，由宿主推进模拟，调用方轮询任务并分别检查执行状态与验证证据。Recipe 可以直接作为 scene_add_model 的 model.asset 输入，无需生成 JavaScript。
 
 外部 GLB 可通过 `scene_add_model` 的 `mode: "prepare"` 生成能力候选（包含 `kinematics.hypotheses`）；若希望在不注册资产的情况下做隔离 Rapier 机械测试，可再次调用相同工具并设置 `mode: "screen"`、`model: {asset: 相同的 GLB source, proposalId: 上轮提案 ID, hypothesisIds?: 候选 ID[]}`。筛选逐方向返回 `trials` 和碰撞、稳定性报告，**即便机械测试通过也不会授权语义动作**。最后才使用默认 `mode: "add"`，附明确审核参数进行正式编译、物理验证和注册；配套 URDF 仍复用既有 Compiler Provider。接口、证据边界、Studio 审核入口和传输配额见 [资产交互化流程](../../docs/asset-interaction-pipeline.md)。
 
@@ -146,3 +146,5 @@ npm run check
 Studio Live Bridge：调用 studio_pair_create 取得一次性配对码，然后在本机 Studio 的「MCP 连接」中明确授权；通过返回的 worldSessionId 使用既有 Scene 工具操作浏览器当前世界。切换世界自动撤销连接。完整说明见 [Studio Live Bridge](../../docs/mcp-studio-live-bridge.md)。
 
 本机 Studio MCP 自动连接默认开启：打开 Studio 后由浏览器自动注册当前世界，认证 MCP 客户端可省略 Scene 工具的 worldSessionId；手动配对仍可在高级设置中使用。见 [自动连接说明](../../docs/mcp-studio-auto-connect.md)。
+
+项目与全局资产：scene_save/scene_import 保存 Object Forge 可编辑声明和 revision；asset_publish_project 发布当前用户全局不可变版本；scene_object_definition 的 fork 从全局资产复制当前项目可编辑定义。详见 docs/modules/project-global-assets.md。

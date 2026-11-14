@@ -40,6 +40,20 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
  add('asset_build_cancel','Cancel your build and terminate its execution Worker or container.',{buildId:z.uuid()},a=>assets.cancel(owner,a.buildId));
  add('asset_publish','Publish a successful immutable asset for your worlds. Provisional requires explicit editing-state opt-in.',{buildId:z.uuid(),allowProvisional:z.boolean().default(false)},a=>assets.publish(owner,a.buildId,a.allowProvisional));
  add('asset_inspect','Inspect your asset, original source (optional), hashes, Manifest and runtime verification evidence.',{assetId:id,includeSource:z.boolean().default(false)},a=>assets.inspect(owner,a.assetId,a.includeSource));
+ add('asset_publish_project','Explicitly publish one ready local Object Forge instance to the owner-scoped immutable global library. Publishing does not mutate the project or automatically upgrade any instance.',{
+  ...session,objectId:id,requestId:z.uuid()
+ },(a,e)=>manager.run(owner,a.worldSessionId,async s=>{
+  if(!manager.repository)throw new Error('PERSISTENCE_UNAVAILABLE');
+  const entry=s.forge.get(s.host.world,a.objectId);
+  const module=s.host.world.assetModule;
+  const manifest=module.getManifest(entry.assetId);
+  const bytes=await module.readAssetBytes(entry.assetId);
+  const prepared=await manager.repository.saveProjectAsset(owner,{definition:entry.definition,manifest,bytes});
+  await manager.repository.publish(owner,prepared.manifest.id);
+  return {published:true,scope:'owner-global',assetId:prepared.manifest.id,version:prepared.build.version,
+    reference:'asset://sha256/'+prepared.build.version,sourceObjectId:a.objectId,
+    sourceRevision:entry.revision,admission:prepared.build.admission};
+ },{signal:e?.signal,requestId:a.requestId,fingerprint:JSON.stringify(['asset_publish_project',a.objectId])}));
  add('asset_list','List your published asset versions, paginated.',{offset:z.number().int().min(0).max(128).default(0),limit:z.number().int().min(1).max(20).default(20)},async a=>{const all=await assets.repository.list(owner);return {assets:all.slice(a.offset,a.offset+a.limit),total:all.length,nextOffset:a.offset+a.limit<all.length?a.offset+a.limit:null};});
  const run=(a,fn,extra)=>manager.run(owner,a.worldSessionId,fn,{signal:extra?.signal});
  const sceneRun=async(a,method,args,fn,extra)=>{
@@ -156,11 +170,23 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
   return added;
  },e));
  add('scene_object_definition','Inspect source evidence, preview precise field changes, or apply a single instance revision after asset compilation and runtime admission. Session-scoped AI-declared mechanical drafts, recipes and three-code definitions only.',{
-  ...sceneSession,objectId:id,operation:z.enum(['inspect','preview','apply']),expectedRevision:z.number().int().positive().optional(),
+  ...sceneSession,objectId:id,operation:z.enum(['inspect','preview','apply','fork']),expectedRevision:z.number().int().positive().optional(),
   changes:z.array(z.object({path:z.string().min(1).max(192),value:z.unknown()}).strict()).min(1).max(8).optional(),
   previewId:z.uuid().optional(),requestId:z.uuid().optional()
  },(a,e)=>{
   if(a.operation!=='inspect' && !a.requestId)throw new Error('REQUEST_ID_REQUIRED');
+  if(a.operation==='fork'){
+    if(!a.worldSessionId)throw new Error('FORK_REQUIRES_PRIVATE_WORLD');
+    return manager.run(owner,a.worldSessionId,async session=>{
+      const record=session.host.world.store.get(a.objectId);
+      if(!record || !/^pa_[a-f0-9]{64}$/.test(record.assetId))
+        throw new Error('OBJECT_DEFINITION_UNAVAILABLE');
+      const published=await manager.repository.get(owner,record.assetId,{published:true});
+      if(published.build.schema!=='agentscape.project-asset.v1')
+        throw new Error('OBJECT_DEFINITION_UNAVAILABLE');
+      return session.forge.fork(session.host.world,a.objectId,published.build.definition,record.assetId);
+    },{signal:e?.signal,requestId:a.requestId,fingerprint:JSON.stringify(['object-fork',a.objectId])});
+  }
   const args={operation:a.operation,objectId:a.objectId,expectedRevision:a.expectedRevision,changes:a.changes,previewId:a.previewId};
   return sceneRun(a,'objectDefinition',args,async s=>{
     if(a.operation==='inspect')return s.forge.inspect(s.host.world,a.objectId);
@@ -170,10 +196,14 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
  });
  add('scene_import','Import a previously exported scene_save project bundle into the active Scene. Validates embedded hashes, assets and environment in a staging world; historical interaction evidence is not reused.',{...sceneSession,requestId:z.uuid(),bundle:z.record(z.string(),z.unknown())},(a,e)=>{
   if(Buffer.byteLength(JSON.stringify(a.bundle))>manager.maxExportBytes)throw new Error('IMPORT_LIMIT');
-  return sceneRun(a,'importProject',{bundle:a.bundle},s=>s.host.scene.importProject(a.bundle),e);
+  return sceneRun(a,'importProject',{bundle:a.bundle},async s=>{
+    const result=await s.host.scene.importProject(a.bundle);
+    s.forge.restore(s.host.world,result.value.editable||[]);
+    return {...result,value:{status:result.value.status,objects:result.value.objects,editableRestored:result.value.editable?.length||0}};
+  },e);
  });
  add('scene_save','Export a complete portable project with bounded embedded dependencies.',sceneSession,(a,e)=>sceneRun(a,'save',{},async s=>{
-  const result=await s.host.scene.save({readResource:async url=>{
+  const result=await s.host.scene.save({editable:s.forge.export(s.host.world),readResource:async url=>{
    const prefix='data:model/gltf-binary;base64,';
    if(!url?.startsWith(prefix)) throw new Error('RESOURCE_UNAVAILABLE');
    return new Uint8Array(Buffer.from(url.slice(prefix.length),'base64'));
