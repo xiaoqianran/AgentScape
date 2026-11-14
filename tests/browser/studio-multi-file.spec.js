@@ -17,6 +17,14 @@ const helper = `import { Color } from 'three';
 export const motionRate = 1;
 export const hue = new Color('#ff0000').getHexString();`;
 
+// The button schedules an async save; wait for its persisted completion before MCP reads or reload.
+async function saveWorldAndWait(page) {
+  const button=page.getByRole('button',{name:'保存世界状态',exact:true});
+  await button.click();
+  await expect(page.locator('.code-project-editor output').first()).toHaveText('世界状态已保存到本机');
+  await expect(button).toBeEnabled();
+}
+
 test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover the saved world',async({page})=>{
  const root=await mkdtemp(path.join(tmpdir(),'studio-multi-file-'));
  const token=randomBytes(32).toString('hex');
@@ -83,7 +91,7 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   await expect(page.locator('.code-project-editor output').first()).toHaveText('资源文件已导入');
   await expect(page.locator('.code-project-resources')).toContainText('note.txt');
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
-  await page.getByRole('button',{name:'保存世界状态',exact:true}).click();
+  await saveWorldAndWait(page);
   const saved=await call('save');
   expect(saved.value.files['lib/motion.js']).toContain('motionRate = 2');
   expect(saved.value.files['notes/readme.txt']).toBe('project notes');
@@ -119,7 +127,7 @@ test('Studio imports the distributable multi-file ShaderMaterial example and res
  await page.getByLabel('动作参数 speed').fill('2');
  await page.getByRole('button',{name:'执行 setSpeed',exact:true}).click();
  await expect(page.locator('.code-project-action output')).toHaveText('已验证');
- await page.getByRole('button',{name:'保存世界状态',exact:true}).click();
+ await saveWorldAndWait(page);
  await page.reload();await expect(page.locator('#runtime-status')).toHaveAttribute('data-state','ready',{timeout:60000});
  await page.getByRole('button',{name:'代码世界',exact:true}).click();
  await page.getByLabel('本机代码项目').selectOption({label:'多文件发光雕塑'});

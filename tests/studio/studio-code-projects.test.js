@@ -220,4 +220,24 @@ describe('Studio complete code project ownership',()=>{
    f.controller.store.save=original;
   }finally{f.close();}
  });
+ it('keeps the save lock through persistence and accepts the next save only after completion',async()=>{
+  const f=await fixture();
+  try {
+   await f.controller.write({create:true,project});
+   await f.controller.run();
+   const store=f.controller.store,save=store.save.bind(store);
+   let release;
+   const pending=new Promise(resolve=>{release=resolve;});
+   store.save=async args=>{await pending;return save(args);};
+   const first=f.controller.save();
+   await expect(f.controller.save()).rejects.toThrow('PROJECT_BUSY');
+   expect(f.controller.busy).toBe(true);
+   release();
+   const result=await first;
+   expect(result.value.id).toBe(project.id);
+   expect(f.controller.busy).toBe(false);
+   expect((await f.controller.save()).value.id).toBe(project.id);
+  }finally{f.close();}
+ },30000);
+
 });
