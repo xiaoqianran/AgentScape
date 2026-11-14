@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile, readFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { HeadlessWorldHost } from './HeadlessWorldHost.js';
+import { SceneObjectForge } from '../../application/object-forge/SceneObjectForge.js';
 export class SessionManager {
  constructor({root,maxSessions=4,ttlMs=900000,maxExportBytes=4194304,hostOptions={},repository=null}={}) {
   this.root=path.resolve(root); this.maxSessions=maxSessions; this.ttlMs=ttlMs; this.maxExportBytes=maxExportBytes; this.hostOptions=hostOptions; this.sessions=new Map(); this.pending=0;
@@ -17,7 +18,7 @@ export class SessionManager {
    host=await HeadlessWorldHost.create({...this.hostOptions,owner,repository:this.repository,assetIds});
    if(this.disposed) throw new Error('MANAGER_CLOSED');
    const id=randomUUID(),directory=path.join(this.root,id); await mkdir(directory,{recursive:true});
-   this.sessions.set(id,{id,owner,host,directory,lastUsed:Date.now(),active:null,closing:false,requests:new Map()});
+   this.sessions.set(id,{id,owner,host,forge:new SceneObjectForge(),directory,lastUsed:Date.now(),active:null,closing:false,requests:new Map()});
    return this.status(owner,id);
   } catch(e) { host?.close(); throw e; } finally { this.pending--; }
  }

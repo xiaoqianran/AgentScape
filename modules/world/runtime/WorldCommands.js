@@ -1,5 +1,6 @@
 import { assetAdmission } from '../../asset/model/admission.js';
 import { physicsManifestForUniformScale } from './ObjectTransform.js';
+import { samePhysicalGeometry } from './WorldCollisionSignature.js';
 
 const round3 = (value) => Number(value.toFixed(3));
 const vec3Round = (value) => Array.isArray(value) ? value.map(round3) : value;
@@ -47,10 +48,8 @@ export class WorldCommands {
     const pose={id,position:record.object.position.toArray(),quaternion:record.object.quaternion.toArray(),scale:record.object.scale.x};
     const previousAssetId=record.assetId;
     return this.runtime.mutate('asset:replace',async()=>{
-      // A material-only upgrade must preserve legitimate resting contacts, including solver tolerance.
-      const sameCollision=!Object.keys(manifest.parts||{}).length&&!Object.keys(record.manifest.parts||{}).length
-        && manifest.physics?.body===record.manifest.physics?.body
-        && JSON.stringify(manifest.physics?.colliders)===JSON.stringify(record.manifest.physics?.colliders);
+      // An identical collider/joint layout preserves legitimate resting contacts; new physics is still registered.
+      const sameCollision=samePhysicalGeometry(manifest,record.manifest);
       const check=sameCollision || manifest.capabilityLevel==='visual'?{checked:true,clear:true}:this.runtime.physics.checkManifestPose(physicsManifestForUniformScale(manifest,pose.scale),pose.position,{quaternion:pose.quaternion,excludeIds:[id]});
       if(!check.checked||!check.clear)throw Object.assign(new Error('New asset does not fit at the current pose'),{code:'ASSET_UPGRADE_PLACEMENT_BLOCKED'});
       this.remove(id);await this.spawn(assetId,pose);

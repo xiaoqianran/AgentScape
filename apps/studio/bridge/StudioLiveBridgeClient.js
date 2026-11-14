@@ -1,3 +1,4 @@
+import { SceneObjectForge } from '../../../application/object-forge/SceneObjectForge.js';
 const localHost=host=>host==='127.0.0.1'||host==='localhost';
 const failure=code=>Object.assign(new Error(code),{code});
 const decode=bytes=>Uint8Array.from(atob(bytes),char=>char.charCodeAt(0));
@@ -29,6 +30,7 @@ export class StudioLiveBridgeClient {
     this.fetch=fetchImpl.bind(globalThis);
     this.scene=scene;
     this.world=world;
+    this.objectForge=new SceneObjectForge();
     this.instance=instance;
     this.session=null;
     this.abort=null;
@@ -191,7 +193,17 @@ export class StudioLiveBridgeClient {
         if(args.mode==='prepare')return this.scene.prepareAsset(model.asset);
         if(args.mode==='screen')return this.scene.screenAsset({...model.asset,
           proposalId:model.proposalId,hypothesisIds:model.hypothesisIds});
-        return this.scene.addModel(model);
+        const added=await this.scene.addModel(model);
+        if(added.status==='succeeded' && model.asset && typeof model.asset==='object' && this.world.store?.has(model.id))
+          this.objectForge.record(model.id,model.asset,this.world.store.get(model.id).assetId,this.world);
+        return added;
+      }
+      case 'objectDefinition':{
+        const forge=this.objectForge;
+        if(args.operation==='inspect')return forge.inspect(this.world,args.objectId);
+        if(args.operation==='preview')return forge.preview(this.world,args.objectId,args.expectedRevision,args.changes);
+        if(args.operation==='apply')return forge.apply(this.world,this.scene,args.objectId,args.expectedRevision,args.previewId);
+        throw failure('STUDIO_METHOD_FORBIDDEN');
       }
       case 'importProject':return this.scene.importProject(args.bundle);
       case 'setStyle':return this.scene.setStyle(args.style,{fallback:args.fallback});

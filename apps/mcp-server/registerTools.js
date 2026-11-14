@@ -150,8 +150,24 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
   if(a.mode==='prepare')return s.host.scene.prepareAsset(model.asset);
   if(a.mode==='screen')return s.host.scene.screenAsset({...model.asset,proposalId:model.proposalId,hypothesisIds:model.hypothesisIds});
   await attachSceneAssets(s,[model.asset]);
-  return s.host.scene.addModel(model);
+  const added=await s.host.scene.addModel(model);
+  if(a.mode==='add' && added.status==='succeeded' && (['agentscape.mechanical-draft','agentscape.asset-recipe'].includes(model.asset?.schema) || model.asset?.kind==='three-code'))
+    s.forge.record(model.id,model.asset,s.host.world.store.get(model.id).assetId,s.host.world);
+  return added;
  },e));
+ add('scene_object_definition','Inspect source evidence, preview precise field changes, or apply a single instance revision after asset compilation and runtime admission. Session-scoped AI-declared mechanical drafts, recipes and three-code definitions only.',{
+  ...sceneSession,objectId:id,operation:z.enum(['inspect','preview','apply']),expectedRevision:z.number().int().positive().optional(),
+  changes:z.array(z.object({path:z.string().min(1).max(192),value:z.unknown()}).strict()).min(1).max(8).optional(),
+  previewId:z.uuid().optional(),requestId:z.uuid().optional()
+ },(a,e)=>{
+  if(a.operation!=='inspect' && !a.requestId)throw new Error('REQUEST_ID_REQUIRED');
+  const args={operation:a.operation,objectId:a.objectId,expectedRevision:a.expectedRevision,changes:a.changes,previewId:a.previewId};
+  return sceneRun(a,'objectDefinition',args,async s=>{
+    if(a.operation==='inspect')return s.forge.inspect(s.host.world,a.objectId);
+    if(a.operation==='preview')return s.forge.preview(s.host.world,a.objectId,a.expectedRevision,a.changes);
+    return s.forge.apply(s.host.world,s.host.scene,a.objectId,a.expectedRevision,a.previewId,{executor:s.host.executor});
+  },e);
+ });
  add('scene_import','Import a previously exported scene_save project bundle into the active Scene. Validates embedded hashes, assets and environment in a staging world; historical interaction evidence is not reused.',{...sceneSession,requestId:z.uuid(),bundle:z.record(z.string(),z.unknown())},(a,e)=>{
   if(Buffer.byteLength(JSON.stringify(a.bundle))>manager.maxExportBytes)throw new Error('IMPORT_LIMIT');
   return sceneRun(a,'importProject',{bundle:a.bundle},s=>s.host.scene.importProject(a.bundle),e);

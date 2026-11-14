@@ -28,7 +28,7 @@ export class HeadlessWorldHost {
   // Start with trusted template assets; later assets are compiled within this session.
   const local=Object.fromEntries(['agent','cabinet','cup','table'].map(id=>[id,manifests[id]]));
   const executor=options.executorFactory ? options.executorFactory() : createCodeExecutor({...options.codeExecution,configPath:options.sandboxConfig || 'D:/AgentScapeData/mcp-assets/sandbox.json'});
-  const session=createSession(null,{authoringOptions:{executeCode:request=>executor.execute(request)},assetModule:createAssetModule({manifests:local,compiledStore:options.repository?.compiledStore(options.owner),manifestStore:null,libraryStore:null,gltfLoader:createHeadlessGLTFLoader()}),environmentFactory:o=>createMonumentHall({...o,loadAssets:false})});
+  const session=createSession(null,{codeExecutor:executor,codeGLTFLoader:createHeadlessGLTFLoader(),authoringOptions:{executeCode:request=>executor.execute(request)},assetModule:createAssetModule({manifests:local,compiledStore:options.repository?.compiledStore(options.owner),manifestStore:null,libraryStore:null,gltfLoader:createHeadlessGLTFLoader()}),environmentFactory:o=>createMonumentHall({...o,loadAssets:false})});
   const {world}=session;
   const host=new HeadlessWorldHost(world,{...options,session,executor});
   try { if(options.repository&&options.assetIds?.length)await options.repository.attach(options.owner,world.assetModule,options.assetIds);await world.init(); await host.prepare(); return host; }
