@@ -1,5 +1,6 @@
 import { Errors } from './errors.js';
 import { orderParts, ROOT_PART } from './parts.js';
+import { validateSimulationProfile } from '../../../foundation/simulation/SimulationProfile.js';
 
 const BODY_TYPES = new Set(['fixed', 'dynamic', 'kinematic']);
 const SHAPES = new Set(['box', 'cylinder', 'capsule', 'convexHull']);
@@ -97,6 +98,7 @@ export function validateAssetManifest(manifest) {
   if (manifest.source.kind === 'compiled' && !manifest.source.key) throw Errors.invalidManifest('Compiled source requires key', { id: manifest.id });
   validateInteractionContract(manifest.interactionContract, { id: manifest.id });
   validatePhysics(manifest.physics, { id: manifest.id });
+  validateSimulationProfile(manifest.simulation);
   validateEmbodiment(manifest.embodiment, { id: manifest.id });
   validateReceptacles(manifest.receptacles, { id: manifest.id });
   for (const [name, part] of Object.entries(manifest.parts || {})) {

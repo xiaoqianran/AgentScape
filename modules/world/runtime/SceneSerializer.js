@@ -15,7 +15,8 @@ export class SceneSerializer {
       const articulation = runtime.physics?.captureArticulationPose?.(id) || [];
       yield { id, assetId: record.assetId,
         transform: { position: object.position.toArray(), quaternion: object.quaternion.toArray(), scale: object.scale.toArray() },
-        state: clone(record.state || {}), ...(record.active === false ? { active: false } : {}),
+        state: clone(record.state || {}), ...(runtime.thermal?.capture?.(id) ? { simulation:runtime.thermal.capture(id) } : {}),
+        ...(record.active === false ? { active: false } : {}),
         ...(articulation.length ? { articulation } : record.dormantArticulation?.length ? { articulation: clone(record.dormantArticulation) } : {}) };
     }
   }
@@ -97,6 +98,14 @@ export class SceneSerializer {
     for (const object of scene.objects) {
       if (!object.id || !object.assetId) throw new Error('Scene object requires id and assetId');
       if (object.active != null && typeof object.active !== 'boolean') throw new Error('Invalid entity activation');
+      if (object.simulation != null) {
+        const state=object.simulation;
+        if(state.schema!=='agentscape.thermal-state'||state.schemaVersion!==1
+          || !Number.isFinite(state.temperatureK)||state.temperatureK<0||state.temperatureK>1e6
+          || !Number.isFinite(state.heatPowerW)||Math.abs(state.heatPowerW)>1e9
+          || Object.keys(state).some(key=>!['schema','schemaVersion','temperatureK','heatPowerW'].includes(key)))
+          throw new Error('Invalid entity thermal state');
+      }
       if (object.articulation != null) {
         if (!Array.isArray(object.articulation) || object.articulation.length > 128) throw new Error('Invalid articulation poses');
         const names = new Set();
@@ -198,6 +207,7 @@ export class SceneSerializer {
           active: item.active !== false
         });
         const record = runtime.store.get(item.id);
+        if(item.simulation)runtime.thermal.restore(item.id,item.simulation);
         record.state = clone(item.state || {});
         runtime.restoreObjectState(item.id, record.state);
         if (item.articulation?.length) {

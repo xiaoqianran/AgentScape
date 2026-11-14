@@ -16,7 +16,8 @@ export class SemanticWorldView {
     const runtime = this.runtime;
     const physical = recordFor(runtime, id);
     const project = Boolean(runtime?.projectCapabilities?.has?.(id));
-    if (physical) return { exists:true, source:'runtime', ...(project ? {providers:['runtime','project']} : {}) };
+    if (physical) { const providers=['runtime',...(project?['project']:[]),...(runtime?.thermal?.has?.(id)?['simulation']:[])];
+      return { exists:true,source:'runtime',...(providers.length>1?{providers}:{}) }; }
     if (runtime?.affordances?.get?.(id)) return { exists:true, source:'environment' };
     if (project && runtime.projectCapabilities.attachmentOf?.(id) === 'runtime') {
       return { exists:false, source:'none', reason:'PROJECT_ATTACHMENT_TARGET_MISSING' };
@@ -45,6 +46,7 @@ export class SemanticWorldView {
     if (runtime?.projectCapabilities?.has?.(targetId)) {
       readers.push(['project', () => runtime.projectCapabilities.readState(targetId)]);
     }
+    if (runtime?.thermal?.has?.(targetId)) readers.push(['simulation',()=>runtime.thermal.readState(targetId)]);
     const selected = readers.filter(([provider]) => source == null || provider === source);
     if (!selected.length) return unknown(base, 'STATE_PROVIDER_UNAVAILABLE');
 

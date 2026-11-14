@@ -21,6 +21,7 @@ import { RuleRuntime } from './behavior/RuleRuntime.js';
 import { clearInteractionEvidenceForTarget } from '../verification/InteractionEvidence.js';
 import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
 import { SimulationSession } from './simulation/SimulationSession.js';
+import { ThermalSystem } from './simulation/ThermalSystem.js';
 import { WorldAffordances } from './affordance/WorldAffordances.js';
 import { physicsManifestForUniformScale, scalesEqual, uniformScaleValue } from './ObjectTransform.js';
 import { WorldObservation } from './WorldObservation.js';
@@ -96,6 +97,8 @@ export class WorldRuntime {
     this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null;
     this.projectCapabilities = new ProjectCapabilities(this);
     this.semantic = new SemanticWorldView(this);
+    this.thermal = new ThermalSystem({physics:this.physics,
+      isActive:id=>this.store.has(id) && this.store.get(id).active!==false});
     this.simulation = new SimulationSession({
       fixedDt:1/60,
       executeStep:(dt)=>this.stepSimulation(dt),
@@ -273,6 +276,7 @@ export class WorldRuntime {
         this.physics.addObject(id, physicsManifest, object);
         attached = true;
       }
+      this.thermal?.register?.(id,manifest.simulation,{scale:uniformScale});
       clearInteractionEvidenceForTarget(this,id);
       if (initialState && Object.keys(initialState).length) this.restoreObjectState(id, initialState);
       this.invalidateNavigationForObject(id, 'object.spawned');
@@ -282,6 +286,7 @@ export class WorldRuntime {
     } catch (error) {
       // 只撤销本次调用取得的资源：attach 未成功时不得触碰同名旧对象的物理实体。
       if (attached) this.physics.removeObject(id);
+      this.thermal?.remove?.(id);
       if (stored) this.store.delete(id);
       this.scene.remove(object);
       disposeObject3D(object);
@@ -347,6 +352,7 @@ export class WorldRuntime {
       nextQuaternion=new THREE.Quaternion().setFromEuler(euler).toArray();
     }
     const nextScale=scale==null?previous.scale:uniformScaleValue(scale);
+    this.thermal?.assertScale?.(id,nextScale);
     const scaleChanged=record.manifest.capabilityLevel !== 'visual' && !scalesEqual(nextScale,previous.physicsScale);
     if (scaleChanged && record.state?.heldBy) {
       const error=new Error(`Cannot scale held object: ${id}`); error.code='OBJECT_SCALE_HELD_UNSUPPORTED'; throw error;
@@ -377,6 +383,7 @@ export class WorldRuntime {
       } else this.physics.syncTransform(id,object);
       throw error;
     }
+    this.thermal?.setScale?.(id,nextScale);
     this.invalidateNavigationForObject(id,'object.transformed');
     this.sceneGraph?.invalidate?.();
     this.events.emit('object.transformed',{
@@ -577,6 +584,7 @@ export class WorldRuntime {
     this.locomotion?.cancel(id, 'OBJECT_REMOVED');
     this.interactions?.beforeRemove(id,{silent});
     this.invalidateNavigationForObject(id, 'object.removed');
+    this.thermal?.remove?.(id);
     this.physics.removeObject(id);
     this.scene.remove(record.object);
     disposeObject3D(record.object);
@@ -607,12 +615,14 @@ export class WorldRuntime {
     this.affordances?.update(dt);
     this.locomotion?.update(dt);
     if (this.physics.step(dt, this.store)) this.sceneGraph.invalidate();
+    this.thermal?.step?.(dt);
     this.interactions?.update(dt);
   }
   dispose() {
     this.ready = false;
     this.events?.emit?.('world.disposing');
     this.projectCapabilities?.dispose();
+    this.thermal?.clear?.();
     this.ruleRuntime?.stop();
     this.affordances?.cancel('RUNTIME_DISPOSED');
     this.interactions?.cancelPending('RUNTIME_DISPOSED');

@@ -35,7 +35,8 @@ export function inspectCapabilities(world, target, { actor } = {}) {
   if (!physical && !project) return null;
   if (!physical || !project) {
     const inspection = physical || project;
-    return { ...inspection, capabilities:describeCapabilities(inspection) };
+    return { ...inspection, capabilities:describeCapabilities(inspection),
+      ...(world.thermal?.inspect?.(target)?{simulation:world.thermal.inspect(target)}:{}) };
   }
 
   // A single logical entity can expose independent physical and project state.
@@ -56,7 +57,7 @@ export function inspectCapabilities(world, target, { actor } = {}) {
   return { ...physical, source:'composite', providers:[physical.source,'project'],
     state, stateProviders, stateConflicts:collisions,
     actions:[...(physical.actions || []),...(project.actions || []).map(action => ({...action,source:'project'}))],
-    capabilities };
+    capabilities, ...(world.thermal?.inspect?.(target)?{simulation:world.thermal.inspect(target)}:{}) };
 }
 
 /** Resolve a registered action without ever inferring permission from its name. */

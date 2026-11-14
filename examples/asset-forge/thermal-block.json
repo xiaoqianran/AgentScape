@@ -1,0 +1,39 @@
+{
+  "schema": "agentscape.mechanical-draft",
+  "schemaVersion": 1,
+  "name": "AI 锻造热学实验方块",
+  "type": "forge_thermal_block",
+  "body": "dynamic",
+  "components": [
+    {
+      "id": "Body",
+      "parent": null,
+      "shape": "box",
+      "position": [0, 0.05, 0],
+      "size": [0.1, 0.1, 0.1],
+      "color": "#d8783a",
+      "collision": true
+    }
+  ],
+  "motions": [],
+  "simulation": {
+    "schema": "agentscape.simulation-profile",
+    "schemaVersion": 1,
+    "model": "lumped-thermal-v1",
+    "material": {
+      "name": "用户声明铜样材料",
+      "densityKgM3": 8960,
+      "specificHeatJkgK": 385,
+      "conductivityWmK": 401,
+      "provenance": "authored"
+    },
+    "thermal": {
+      "mass": {"mode": "density-volume", "volumeM3": 0.001},
+      "initialTemperatureK": 293.15,
+      "heatPowerW": 100,
+      "ambientTemperatureK": 293.15,
+      "ambientConductanceWPerK": 0,
+      "contactConductanceWPerK": 12
+    }
+  }
+}

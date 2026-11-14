@@ -93,6 +93,10 @@ describe("Physics Studio workbench invocation", () => {
       expect(impulse.result).toBe(true);
       expect((await invoke(ctx, "physics.getMotion", { id:"probe" })).result.linearVelocity[0]).toBeGreaterThan(0);
 
+      const contacts = await invoke(ctx, "physics.contactObjectPairs", {objectIds:["probe"]});
+      expect(contacts.error).toBeUndefined();
+      expect(contacts.result).toEqual([]);
+
       const snapshot = await invoke(ctx, "physics.debugSnapshot", {});
       expect(snapshot.result.metrics.bodyCount).toBeGreaterThan(0);
       expect(snapshot.result.nativeGeometry).toBeNull();

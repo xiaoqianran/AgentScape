@@ -240,6 +240,34 @@ export class PhysicsSystem {
     };
   }
 
+  // Narrow-phase contacts for a bounded set of object IDs, without allocating
+  // a complete physics debug snapshot or exposing internal collider handles.
+  contactObjectPairs(objectIds) {
+    if(!this.world||!this.backend.hasCapability('collision'))return [];
+    const allowed=new Set(objectIds);
+    const seen=new Set(),result=[];
+    for(const id of allowed) {
+      const entry=this.entries.get(id);
+      if(!entry)continue;
+      for(const body of [entry.body,...[...entry.parts.values()].map(part=>part.body)]) {
+        if(!body)continue;
+        for(const collider of this.backend.colliders(body)) {
+          for(const pair of this.backend.contactPairs(this.world,collider)) {
+            const other=this.provenanceOfCollider(pair.other);
+            const target=other?.kind==='object' ? other.objectId : null;
+            if(!target||target===id||!allowed.has(target))continue;
+            const [sourceId,targetId]=[id,target].sort();
+            const key=sourceId+'\\0'+targetId;
+            if(seen.has(key))continue;
+            seen.add(key);
+            result.push({sourceId,targetId,evidenceKind:'physics-contact'});
+          }
+        }
+      }
+    }
+    return result;
+  }
+
   addEnvironment(colliders = [], { id = '$environment', collision = null, sensor = false, collisionEvents = false } = {}) {
     if (!this.solverEnabled) return null;
     const body=this.backend.createBody(this.world,{type:'fixed'});

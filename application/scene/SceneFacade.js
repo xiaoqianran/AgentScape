@@ -49,7 +49,8 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         ...(combined?.providers ? {
           providers:combined.providers, state:combined.state,
           stateProviders:combined.stateProviders, stateConflicts:combined.stateConflicts
-        } : {}) };
+        } : {}),
+        ...(world.thermal.has(entry.id) ? {simulation:world.thermal.inspect(entry.id)} : {}) };
     }) });
   const facade = {
     captureProjectState(capture) { return exclusive(capture); },
@@ -85,7 +86,8 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
           total: world.store.size, offset, nextOffset: page.nextOffset,
           objects: page.entries.map(([key, record]) => ({ ...world.observation.object(key), state: structuredClone(record.state),
             transform: { position: record.object.position.toArray(), quaternion: record.object.quaternion.toArray(), scale: record.object.scale.x },
-            physicsRegistered: Boolean(world.physics.getPosition(key)) })) };
+            physicsRegistered: Boolean(world.physics.getPosition(key)),
+            ...(world.thermal.has(key) ? {simulation:world.thermal.inspect(key)} : {}) })) };
       }
       if (offset) throw sceneError('PAGE_LIMIT_REQUIRED');
       world.sceneGraph.update();

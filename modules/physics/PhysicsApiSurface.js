@@ -325,6 +325,13 @@ const definitions = [
     invoke:(ctx) => physicsOf(ctx).getNavigationObstacles()
   },
 
+  {
+    name:'physics.contactObjectPairs', group:'碰撞', readOnly:true,
+    description:'【碰撞】查询指定对象之间由物理求解器确认的接触对，用于热传递等跨物体状态计算。',
+    parameters:obj({objectIds:IDS},['objectIds']),
+    invoke:(ctx,a)=>physicsOf(ctx).contactObjectPairs(a.objectIds)
+  },
+
   // ---------------------------------------------------------------- 位姿检查与查询
   {
     name:'physics.checkBodyPose', group:'位姿检查与查询', readOnly:true,

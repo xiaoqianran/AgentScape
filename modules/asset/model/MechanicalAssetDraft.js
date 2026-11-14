@@ -1,5 +1,6 @@
 import * as z from 'zod/v4';
 import { recipeSchema } from './AssetInputContracts.js';
+import { simulationProfileSchema, thermalProperties } from '../../../foundation/simulation/SimulationProfile.js';
 
 // Declarative, bounded source of truth for user-authored mechanical assets.
 // It is not a JavaScript execution surface and never accepts runtime verification claims.
@@ -40,12 +41,15 @@ export const mechanicalDraftSchema = z.object({
   name:z.string().trim().min(2).max(80),
   type:componentId.default('mechanism'),
   components:z.array(component).min(1).max(64),
-  motions:z.array(motion).max(12)
+  motions:z.array(motion).max(12),
+  body:z.enum(['fixed','dynamic']).optional(),
+  simulation:simulationProfileSchema.optional()
 }).strict().superRefine((draft,ctx)=>{
   const components=new Map(draft.components.map(node=>[node.id,node]));
   if(components.size!==draft.components.length)ctx.addIssue({code:'custom',message:'Component names must be unique'});
   const ids=new Set();
   const nodes=new Set();
+  if(draft.motions.length && draft.body==='dynamic') ctx.addIssue({code:'custom',message:'Articulated drafts require a fixed root body'});
   for(const entry of draft.motions) {
     if(ids.has(entry.id)||nodes.has(entry.node))ctx.addIssue({code:'custom',message:'Joint id and node must be unique'});
     ids.add(entry.id);nodes.add(entry.node);
@@ -115,7 +119,10 @@ export function mechanicalDraftToManifest(input) {
     capabilityLevel:draft.motions.length?'interactive':'physical',
     actions:draft.motions.length?['open','close']:['move'],
     requiredNodes:draft.motions.map(m=>m.node),
-    physics:{body:'fixed',mass:1,friction:.6,colliders:rootColliders},
+    physics:{body:draft.body || 'fixed',mass:draft.motions.length ? 1
+      : draft.simulation ? thermalProperties(draft.simulation).massKg : 1,
+      friction:.6,colliders:rootColliders},
+    ...(draft.simulation ? {simulation:structuredClone(draft.simulation)} : {}),
     ...(draft.motions.length?{parts}:{})
   };
 }
