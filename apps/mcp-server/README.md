@@ -30,6 +30,8 @@ Scene 工具为 `scene_thermal`（Asset Forge 材料实验查询、热功率和�
 
 注意：Headless MCP 没有渲染画布。调用 `scene_set_style` 成功后，返回的 `status=deferred`、`rendered=false`、`applied=null` 表示 StylePack 已记录到场景配置，**不表示实际画面已经切换或视觉渲染通过验收**。请在 Studio 或带图形渲染器的 SDK 客户端另行验证视觉效果；不要把无渲染器时的 deferred 状态误报为已应用。
 
+`scene_import` 接受此前 `scene_save` 导出的完整 `bundle`，在当前私有世界或已连接 Studio 中导入，复用 Scene 的隔离校验、资源哈希和失败回滚；MCP 单次请求受 4 MiB 配额约束。仅导入世界资产与状态，不恢复历史动作已验证证据。`world_save/world_restore` 仍只接受内置资产与同身份已发布的不可变资产；临时 `scene_add_model` 编译资产须使用 `scene_save/scene_import` 完成跨会话恢复。
+
 `scene_save` 返回有资源字节和锁定哈希的完整项目包，仍受服务端导出配额限制。旧 world_export 的 JSON-only 语义保留。新版资产引用 `asset://sha256/<版本摘要>` 可以引用同一身份已发布的 pa_ 资产；未发布或其他身份的资产不能借此接入世界。
 
 v0.2 的七个草稿接口和参数化 `world_verify` 保留；远程源码执行现已要求同一受限容器，不再仅依赖 Worker/WASM。原草稿工作流见 [AUTHORING.md](./AUTHORING.md)。

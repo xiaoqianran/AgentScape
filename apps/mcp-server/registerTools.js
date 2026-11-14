@@ -3,6 +3,7 @@ import { allowedSkills } from './HeadlessWorldHost.js';
 import { compileWorldAcceptance } from '../../modules/world/verification/WorldAcceptance.js';
 import { definitionSchema, proceduralContract } from '../../application/programmatic-assets/ProgrammaticAssetContract.js';
 import { assetAdmission } from '../../modules/asset/model/admission.js';
+import { publicMcpError } from './errorDiagnostics.js';
 const id=z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
 const targetId=z.string().min(1).max(256);
 const vec=z.array(z.number().finite().min(-100).max(100)).length(3);
@@ -21,7 +22,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
  const sceneSession={worldSessionId:z.uuid().optional()};
  const add=(name,description,shape,fn)=>server.registerTool(name,{description,inputSchema:z.object(shape).strict()},async(a,extra)=>{
   try { const result=await fn(a,extra); return {content:[{type:'text',text:JSON.stringify(result)}]}; }
-  catch(e) { const code=e instanceof z.ZodError?'INVALID_ARGUMENTS':/^[A-Z_]+$/.test(e.code || '')?e.code:/^[A-Z_]+$/.test(e.message)?e.message:'RUNTIME_ERROR'; return {isError:true,content:[{type:'text',text:JSON.stringify({state:'failed',code})}]}; }
+  catch(e) { return {isError:true,content:[{type:'text',text:JSON.stringify(publicMcpError(e))}]}; }
  });
  add('studio_pair_create','Create a short-lived one-time pairing code for an explicitly approved local Studio world. The bearer token is never delivered to the browser.',{},()=>studioBridge.pair(owner));
  add('studio_session_status','Check a Studio connection, or inspect the automatically connected local world without passing an ID.',sceneSession,a=>a.worldSessionId?studioBridge.status(owner,a.worldSessionId):studioBridge.currentSession(owner));
@@ -151,6 +152,10 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
   await attachSceneAssets(s,[model.asset]);
   return s.host.scene.addModel(model);
  },e));
+ add('scene_import','Import a previously exported scene_save project bundle into the active Scene. Validates embedded hashes, assets and environment in a staging world; historical interaction evidence is not reused.',{...sceneSession,requestId:z.uuid(),bundle:z.record(z.string(),z.unknown())},(a,e)=>{
+  if(Buffer.byteLength(JSON.stringify(a.bundle))>manager.maxExportBytes)throw new Error('IMPORT_LIMIT');
+  return sceneRun(a,'importProject',{bundle:a.bundle},s=>s.host.scene.importProject(a.bundle),e);
+ });
  add('scene_save','Export a complete portable project with bounded embedded dependencies.',sceneSession,(a,e)=>sceneRun(a,'save',{},async s=>{
   const result=await s.host.scene.save({readResource:async url=>{
    const prefix='data:model/gltf-binary;base64,';

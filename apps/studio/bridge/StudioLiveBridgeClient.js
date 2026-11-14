@@ -193,6 +193,7 @@ export class StudioLiveBridgeClient {
           proposalId:model.proposalId,hypothesisIds:model.hypothesisIds});
         return this.scene.addModel(model);
       }
+      case 'importProject':return this.scene.importProject(args.bundle);
       case 'setStyle':return this.scene.setStyle(args.style,{fallback:args.fallback});
       case 'save':return this.codeProjects?.session ? this.codeProjects.save() : this.scene.save();
       default:throw failure('STUDIO_METHOD_FORBIDDEN');
