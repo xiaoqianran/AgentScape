@@ -21,7 +21,7 @@ jobs:
           URL: https://agentscape-virid.vercel.app
         run: |
           set -euo pipefail
-          for entry in "/|AgentScape Home" "/studio/|AgentScape" "/home/|AgentScape Home" "/starter/|AgentScape · First world" "/observatory/|AgentScape Observatory" "/examples/code-project/|自由代码世界 · AgentScape" "/examples/native-scene/|原生 Three.js · AgentScape" "/examples/three-code/|AgentScape code assets"; do
+          for entry in "/|AgentScape" "/studio/|AgentScape" "/home/|AgentScape Home" "/starter/|AgentScape · First world" "/observatory/|AgentScape Observatory" "/examples/code-project/|自由代码世界 · AgentScape" "/examples/native-scene/|原生 Three.js · AgentScape" "/examples/three-code/|AgentScape code assets"; do
             path="${entry%%|*}"
             title="${entry#*|}"
             html="$(mktemp)"

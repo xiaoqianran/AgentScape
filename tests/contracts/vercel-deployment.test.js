@@ -8,6 +8,7 @@ const smoke=read('.github/workflows/production-smoke.yml');
 
 const entries=[
   ['/', 'index.html', '<title>AgentScape</title>'],
+  ['/studio/', 'index.html', '<title>AgentScape</title>'],
   ['/home/', 'apps/spline-home/index.html', '<title>AgentScape Home</title>'],
   ['/starter/', 'apps/starter/index.html', '<title>AgentScape · First world</title>'],
   ['/observatory/', 'apps/observatory/index.html', '<title>AgentScape Observatory</title>'],
@@ -30,12 +31,12 @@ describe('Vercel deployment matches current Studio multi-page environment',()=>{
 
   it('has stable redirect aliases and does not rewrite API functions to static HTML',()=>{
     for(const [source,destination] of Object.entries({
-      '/studio':'/',
+      '/studio':'/studio/',
       '/code-project':'/examples/code-project/',
       '/native-scene':'/examples/native-scene/',
       '/three-code':'/examples/three-code/'
     })){
-      expect(config.redirects).toContainEqual({source,destination,permanent:false});
+      expect(config.redirects).toContainEqual({source,destination,permanent:source==='/studio'});
     }
     expect(config.rewrites||[]).toEqual([]);
     expect(read('api/capabilities/index.js')).toContain('sendCapabilityStatus');

@@ -43,7 +43,7 @@ test('starter canvas follows narrow and wide viewport after runtime startup and 
     await expect.poll(async () => page.locator('#viewport canvas').evaluate(canvas => {
       const parentWidth = document.querySelector('#viewport').clientWidth;
       return {
-        resized: canvas.width === parentWidth && canvas.clientWidth === parentWidth,
+        resized: canvas.clientWidth === parentWidth && Math.abs(canvas.width - Math.floor(parentWidth * Math.min(window.devicePixelRatio || 1, 2) * 0.75)) <= 1,
         documentWidth: document.documentElement.scrollWidth,
         windowWidth: window.innerWidth,
         webglLost: canvas.getContext('webgl2')?.isContextLost()
