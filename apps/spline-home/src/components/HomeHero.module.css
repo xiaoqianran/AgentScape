@@ -1,12 +1,30 @@
 .hero {
-  margin-top: auto;
-  padding: 20px 0 24px;
+  margin: 0 auto;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
   max-width: 640px;
   width: 100%;
   align-self: center;
+}
+
+.heroHeading {
+  margin: 0 0 18px;
+}
+
+.heroHeading h2 {
+  margin: 0 0 6px;
+  color: var(--color-text);
+  font-size: 20px;
+  line-height: 1.25;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.heroHeading p {
+  color: var(--color-text-3);
+  font-size: var(--type-nav);
 }
 
 .exampleChips {

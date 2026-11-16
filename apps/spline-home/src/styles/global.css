@@ -79,6 +79,11 @@ button {
   cursor: pointer;
 }
 
+:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 a {
   color: inherit;
   text-decoration: none;

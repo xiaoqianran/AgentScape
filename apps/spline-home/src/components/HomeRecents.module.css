@@ -3,16 +3,36 @@
   max-width: 664px;
   margin: 0 auto;
   padding: 0 12px;
+  margin-top: 34px;
+}
+
+.sectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .label {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: var(--type-label);
   font-weight: 500;
   color: var(--color-text-3);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   max-width: 640px;
+}
+
+.viewAll {
+  color: var(--color-text-3);
+  font-size: var(--type-nav);
+  padding: 4px 7px;
+  border-radius: var(--radius-0);
+}
+
+.viewAll:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover);
 }
 
 .list {

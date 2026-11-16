@@ -14,10 +14,13 @@ function Thumb({ art }) {
   );
 }
 
-export default function HomeRecents({ onOpen }) {
+export default function HomeRecents({ onOpen, onViewAll }) {
   return (
     <section className={styles.section} aria-label="Recent files">
-      <h2 className={styles.label}>Recents</h2>
+      <div className={styles.sectionHead}>
+        <h2 className={styles.label}>Recents</h2>
+        {onViewAll ? <button type="button" className={styles.viewAll} onClick={onViewAll}>View all</button> : null}
+      </div>
       <ul className={styles.list}>
         {recents.map((file) => (
           <li key={file.id}>

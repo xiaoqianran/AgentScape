@@ -7,7 +7,7 @@ import ConceptDesign from "./components/ConceptDesign.jsx";
 import GeneratePage from "./components/GeneratePage.jsx";
 import SceneEditor from "./components/SceneEditor.jsx";
 import DesignEditor from "./components/DesignEditor.jsx";
-import { workspace, routeTitles, importAccept } from "./data/home.js";
+import { workspace, recents, routeTitles, importAccept } from "./data/home.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const ROUTES = ["home", "scene", "design", "generate", "files", "templates", "community", "academy"];
@@ -35,6 +35,8 @@ export default function App() {
   const [mcpVisible, setMcpVisible] = useState(true);
   const [toast, setToast] = useState("");
   const [toastOn, setToastOn] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [sceneFile, setSceneFile] = useState("Spline 3D Starter File");
   const [designFile, setDesignFile] = useState("Hana starter file");
   const importRef = useRef(null);
@@ -73,6 +75,18 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const onShortcut = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+      if (event.key === "Escape") setSearchOpen(false);
+    };
+    window.addEventListener("keydown", onShortcut);
+    return () => window.removeEventListener("keydown", onShortcut);
+  }, []);
+
   const onCreate = (action) => {
     if (action === "scene") {
       setSceneFile("Spline 3D Starter File");
@@ -105,6 +119,10 @@ export default function App() {
           route={route}
           onRoute={onRoute}
           onToast={showToast}
+          onSearch={() => {
+            setSearchQuery("");
+            setSearchOpen(true);
+          }}
           mcpVisible={mcpVisible}
           onDismissMcp={() => {
             setMcpVisible(false);
@@ -126,11 +144,16 @@ export default function App() {
                 <>
                   <div className={styles.heroWrap}>
                     <h1 className={styles.welcome}>Welcome back, {workspace.user}</h1>
-                    <HomeRecents onOpen={openFile} />
+                    <HomeHero onToast={showToast} />
+                    <HomeRecents onOpen={openFile} onViewAll={() => onRoute("files")} />
                   </div>
-                  <HomeHero onToast={showToast} />
                   <ConceptDesign />
                 </>
+              ) : route === "files" ? (
+                <div className={styles.heroWrap}>
+                  <h1 className={styles.welcome}>Your recent projects</h1>
+                  <HomeRecents onOpen={openFile} />
+                </div>
               ) : (
                 <div className={styles.placeholder}>{routeTitles[route]} — coming soon in this clone</div>
               )}
@@ -165,6 +188,41 @@ export default function App() {
           e.target.value = "";
         }}
       />
+
+      {searchOpen ? (
+        <div className={styles.searchBackdrop} onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setSearchOpen(false);
+        }}>
+          <section className={styles.searchDialog} role="dialog" aria-modal="true" aria-labelledby="searchTitle">
+            <h2 id="searchTitle" className={styles.searchTitle}>Search your files</h2>
+            <input
+              autoFocus
+              className={styles.searchInput}
+              type="search"
+              placeholder="Search recent projects…"
+              aria-label="Search recent projects"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+            <div className={styles.searchResults}>
+              {recents
+                .filter((file) => file.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+                .map((file) => (
+                  <button key={file.id} type="button" className={styles.searchResult} onClick={() => {
+                    setSearchOpen(false);
+                    openFile(file.name);
+                  }}>
+                    <span>{file.name}</span><span>{file.time}</span>
+                  </button>
+                ))}
+              {recents.filter((file) => file.name.toLowerCase().includes(searchQuery.trim().toLowerCase())).length === 0 ? (
+                <p className={styles.searchEmpty}>No recent projects match “{searchQuery}”.</p>
+              ) : null}
+            </div>
+            <p className={styles.searchHint}>Press Esc to close · Ctrl/⌘ K to search</p>
+          </section>
+        </div>
+      ) : null}
 
       <div className={`${styles.toast} ${toastOn ? styles.toastShow : ""}`} role="status" aria-live="polite">
         {toast}

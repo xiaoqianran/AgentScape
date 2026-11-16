@@ -26,17 +26,11 @@ export const modeOptions = [
   { id: "generate", label: "Generate", description: "AI images and starter assets" },
 ];
 
-/** Quality tiers scraped from app.spline.design/home */
+/** Generic preview controls; generation models are not wired to this local UI. */
 export const qualityOptions = [
-  { id: "fast", label: "Fast", description: "Huge speed at less detail", model: "Gemini 3.8 Flash" },
-  { id: "basic", label: "Basic", description: "Good quality with medium speed", model: "Gemini 3.1 Pro" },
-  { id: "luna", label: "Luna", description: "Light and inexpensive", model: "GPT-5.6 Luna" },
-  { id: "medium", label: "Medium", description: "Balanced quality and speed", model: "Claude Sonnet 5" },
-  { id: "high", label: "High", description: "Solid quality at mid cost", model: "GPT-5.6 Terra" },
-  { id: "max", label: "Max", description: "High quality but slow", model: "GPT-5.5" },
-  { id: "max-pro", label: "Max Pro", description: "High quality but slow", model: "GPT-5.6 Sol" },
-  { id: "ultra", label: "Ultra", description: "Superior quality but slow", model: "Claude Opus 5" },
-  { id: "ultra-max", label: "Ultra Max", description: "Best quality, highest cost", model: "Claude Fable 5.1" },
+  { id: "fast", label: "Fast", description: "Quick drafts with lighter detail" },
+  { id: "balanced", label: "Balanced", description: "A balance of speed and detail" },
+  { id: "high", label: "High detail", description: "More detail, with a longer wait" },
 ];
 
 export const effortOptions = [

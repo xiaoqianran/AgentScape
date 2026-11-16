@@ -16,6 +16,8 @@ export default function CreateActions({ onAction }) {
           key={id}
           type="button"
           className={`${styles.action} ${styles[id]}`}
+          aria-label={label}
+          title={label}
           onClick={() => onAction(id)}
         >
           <span className={styles.icon}>

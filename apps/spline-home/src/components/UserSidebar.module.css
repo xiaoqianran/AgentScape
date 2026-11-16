@@ -301,3 +301,58 @@
 .referBtn:active {
   transform: scale(0.98);
 }
+
+@media (max-width: 640px) {
+  .sidebar {
+    width: 64px;
+    min-width: 64px;
+  }
+
+  .headerRow {
+    padding: 0 8px;
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--header-h);
+    justify-content: center;
+  }
+
+  .workspaceBtn {
+    flex: 0 0 32px;
+    width: 32px;
+    padding: 6px;
+  }
+
+  .workspaceName,
+  .chevron,
+  .projectsHead,
+  .newProjectBtn,
+  .menuBottomContainer {
+    display: none;
+  }
+
+  .scrollableArea {
+    padding: 0 8px 12px;
+  }
+
+  .navItem {
+    justify-content: center;
+    gap: 0;
+    overflow: hidden;
+    font-size: 0;
+    padding: 0;
+  }
+
+  .navIcon {
+    flex: 0 0 16px;
+  }
+
+  .appNav .navItem {
+    min-height: 34px;
+    height: auto;
+    padding: 4px 2px;
+    font-size: 9px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+  }
+}

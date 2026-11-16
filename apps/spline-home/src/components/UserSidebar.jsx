@@ -23,7 +23,7 @@ const NAV = [
   { id: "academy", label: routeTitles.academy, Icon: IconAcademy },
 ];
 
-export default function UserSidebar({ route, onRoute, onToast, mcpVisible, onDismissMcp }) {
+export default function UserSidebar({ route, onRoute, onToast, onSearch, mcpVisible, onDismissMcp }) {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.headerRow}>
@@ -34,7 +34,7 @@ export default function UserSidebar({ route, onRoute, onToast, mcpVisible, onDis
             <IconChevron />
           </span>
         </button>
-        <button type="button" className={styles.iconBtn} title="Search" aria-label="Search" onClick={() => onToast("Search — Cmd/Ctrl K")}>
+        <button type="button" className={styles.iconBtn} title="Search files (Ctrl/⌘ K)" aria-label="Search files" onClick={onSearch}>
           <IconSearch />
         </button>
         <button type="button" className={styles.iconBtn} title="Inbox" aria-label="Inbox" onClick={() => onToast("Inbox — 1 unread")}>
@@ -51,6 +51,7 @@ export default function UserSidebar({ route, onRoute, onToast, mcpVisible, onDis
                 <a
                   href={`#/${id}`}
                   className={`${styles.navItem} ${route === id ? styles.navItemActive : ""}`}
+                  aria-current={route === id ? "page" : undefined}
                   onClick={(e) => {
                     e.preventDefault();
                     onRoute(id);
@@ -66,7 +67,7 @@ export default function UserSidebar({ route, onRoute, onToast, mcpVisible, onDis
           </ul>
         </nav>
 
-        <nav className={styles.nav} aria-label="AgentScape applications">
+        <nav className={`${styles.nav} ${styles.appNav}`} aria-label="AgentScape applications">
           <ul>
             <li><a className={styles.navItem} href="/">World Studio ↗</a></li>
             <li><a className={styles.navItem} href="/observatory/">Observatory ↗</a></li>

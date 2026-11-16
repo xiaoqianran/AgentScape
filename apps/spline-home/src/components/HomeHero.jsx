@@ -7,7 +7,7 @@ import { examples, modeOptions, qualityOptions, effortOptions } from "../data/ho
 export default function HomeHero({ onToast }) {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState("3D Scene");
-  const [quality, setQuality] = useState("Medium");
+  const [quality, setQuality] = useState("Balanced");
   const [effort, setEffort] = useState("High");
   const [openMenu, setOpenMenu] = useState(null);
 
@@ -19,9 +19,7 @@ export default function HomeHero({ onToast }) {
   const submit = () => {
     const text = prompt.trim();
     if (!text) return;
-    onToast(`Queued (${mode} · ${quality} · ${effort}): ${text.slice(0, 42)}${text.length > 42 ? "…" : ""}`);
-    setPrompt("");
-    if (taRef.current) taRef.current.style.height = "auto";
+    onToast("Generation is not connected in this preview; your prompt has not been sent.");
   };
 
   const autosize = (el) => {
@@ -68,7 +66,11 @@ export default function HomeHero({ onToast }) {
   };
 
   return (
-    <section className={styles.hero} aria-label="Generate">
+    <section className={styles.hero} aria-labelledby="createTitle">
+      <div className={styles.heroHeading}>
+        <h2 id="createTitle">What do you want to create?</h2>
+        <p>Start with a prompt or open a project you were working on.</p>
+      </div>
       <div className={styles.exampleChips}>
         {examples.map((text) => (
           <button
@@ -108,7 +110,7 @@ export default function HomeHero({ onToast }) {
           }}
         />
         <div className={styles.toolbar}>
-          <button type="button" className={styles.toolIcon} title="Attach files" aria-label="Attach files" onClick={() => onToast("Attach files")}>
+          <button type="button" className={styles.toolIcon} title="File attachments are not connected in this preview" aria-label="File attachments are not connected in this preview" onClick={() => onToast("File attachments are not connected in this preview.")}>
             <IconAttach />
           </button>
 
