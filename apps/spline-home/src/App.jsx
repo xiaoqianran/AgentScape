@@ -3,6 +3,7 @@ import UserSidebar from "./components/UserSidebar.jsx";
 import CreateActions from "./components/CreateActions.jsx";
 import HomeRecents from "./components/HomeRecents.jsx";
 import HomeHero from "./components/HomeHero.jsx";
+import ConceptDesign from "./components/ConceptDesign.jsx";
 import GeneratePage from "./components/GeneratePage.jsx";
 import SceneEditor from "./components/SceneEditor.jsx";
 import DesignEditor from "./components/DesignEditor.jsx";
@@ -128,6 +129,7 @@ export default function App() {
                     <HomeRecents onOpen={openFile} />
                   </div>
                   <HomeHero onToast={showToast} />
+                  <ConceptDesign />
                 </>
               ) : (
                 <div className={styles.placeholder}>{routeTitles[route]} — coming soon in this clone</div>

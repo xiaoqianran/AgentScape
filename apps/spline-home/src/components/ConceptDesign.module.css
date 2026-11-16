@@ -1,0 +1,59 @@
+.concept {
+  width: 100%;
+  max-width: 664px;
+  margin: 56px auto 64px;
+  padding: 28px 12px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.badge {
+  display: inline-block;
+  font-size: var(--type-label);
+  letter-spacing: 0.08em;
+  color: var(--color-accent-text);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  margin-bottom: 14px;
+}
+
+.title {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+}
+
+.note {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-text-2);
+}
+
+.note strong {
+  color: var(--color-text);
+}
+
+.noteEn {
+  margin: 0 0 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-3);
+}
+
+.video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-2);
+  background: #000;
+}
+
+.caption {
+  margin: 10px 0 0;
+  font-size: var(--type-meta);
+  color: var(--color-text-4);
+}
