@@ -65,8 +65,8 @@ export class AssetCatalog {
       return { status:'found', query, assets:[this.summary(this.get(assetId))] };
     }
     const assets = this.search(query, { limit });
-    return assets.length
-      ? { status:'found', query, assets }
-      : { status:'missing', query, assets:[] };
+    if (!assets.length) return { status:'missing', query, assets:[] };
+    if (assets.length > 1) return { status:'ambiguous', query, assets };
+    return { status:'found', query, assets };
   }
 }

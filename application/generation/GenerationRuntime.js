@@ -186,7 +186,7 @@ export class GenerationRuntime extends GenerationOrchestrator {
   async resolveAssetRequest(request={}) {
     const query=request.query || request.type || request.assetId || '';
     const found=this.assetCatalog.resolveExisting(query,{assetId:request.assetId || null,limit:request.limit ?? 5});
-    if (found.status==='found') return found;
+    if (found.status==='found' || found.status==='ambiguous') return found;
     if (!request.generate) return found;
     const generated=await this.generateAsset(query,request);
     if (generated.status==='image_input_required') return {status:generated.status,query,assets:[],hint:generated.hint};

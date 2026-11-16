@@ -56,4 +56,19 @@ describe('AssetCatalog', () => {
       assets: [{ id: 'asset_ref_fixture' }]
     });
   });
+
+  it('reports ambiguity instead of a unique resolution when several assets match', () => {
+    const assets = new AssetRegistry({ manifests: {} });
+    assets.registerManifest(manifest({ id: 'red_apple', label: 'Red Apple', tags: ['apple'] }));
+    assets.registerManifest(manifest({ id: 'green_apple', label: 'Green Apple', tags: ['apple'] }));
+    const catalog = new AssetCatalog({ registry: assets });
+
+    const result = catalog.resolveExisting('apple');
+    expect(result.status).toBe('ambiguous');
+    expect(result.assets.map((asset) => asset.id)).toEqual(['green_apple', 'red_apple']);
+    expect(catalog.resolveExisting('apple', { assetId: 'red_apple' })).toMatchObject({
+      status: 'found',
+      assets: [{ id: 'red_apple' }]
+    });
+  });
 });

@@ -52,6 +52,17 @@ describe('WorldRuntime generation boundary',()=>{
     expect(typeof generation.generateTextWorldArtifacts).toBe('function');
   });
 
+  it('returns ambiguous candidates without generating when several assets match',async()=>{
+    const runtime=createRuntime();
+    const manifest=(id,label)=>({id,type:'object',label,description:'',tags:['apple'],aliases:[],source:{kind:'builtin'},actions:['move'],physics:{body:'fixed',colliders:[]}});
+    runtime.assetModule.registry.registerManifest(manifest('red_apple','Red Apple'));
+    runtime.assetModule.registry.registerManifest(manifest('green_apple','Green Apple'));
+    const generation=attachGenerationRuntime(runtime,{connectorClient:null});
+    const resolved=await generation.resolveAssetRequest({query:'apple',generate:true});
+    expect(resolved.status).toBe('ambiguous');
+    expect(resolved.assets.map((asset)=>asset.id)).toEqual(['green_apple','red_apple']);
+  });
+
   it('enforces approved-image at the legacy text-asset boundary without disabling the Generation runtime',async()=>{
     const runtime=createRuntime();
     const generation=attachGenerationRuntime(runtime,{connectorClient:null,assetInputPolicy:'approved-image'});
