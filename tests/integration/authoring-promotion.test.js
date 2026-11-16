@@ -85,6 +85,31 @@ describe('Authoring promotion into a real World', () => {
     expect(world.snapshot().objects[0].state.authoringPromotion.nodeId).toBe('draft');
   });
 
+  it('lifts a movable placement that only touches the environment ground and records the lift', async () => {
+    const { world, authoring, promotion } = await fixture();
+    addAsset(authoring);
+    vi.spyOn(world.physics, 'checkManifestPose').mockImplementation((manifest, position) =>
+      position[0] === 3 && position[2] === 1 && position[1] < 1.04
+        ? { checked:true, clear:false, blockedBy:['environment:promotion-test'], coverage:'full-root' }
+        : { checked:true, clear:true, blockedBy:[], coverage:'full-root' });
+    const result = await promotion.promote('draft', { usage:'movable' });
+    expect(result.status).toBe('authoring-promoted');
+    expect(world.store.get(result.entityId).object.position.toArray()).toEqual([3, 1.05, 1]);
+    expect(result.verification.physics.placement.groundLift).toBe(0.05);
+  });
+
+  it('keeps placement blocked by another entity an error and exposes blockedBy as error details', async () => {
+    const { world, authoring, promotion } = await fixture();
+    addAsset(authoring);
+    vi.spyOn(world.physics, 'checkManifestPose').mockImplementation((manifest, position) =>
+      position[0] === 3 && position[2] === 1
+        ? { checked:true, clear:false, blockedBy:['entity_other'], coverage:'full-root' }
+        : { checked:true, clear:true, blockedBy:[], coverage:'full-root' });
+    const failure = await promotion.promote('draft', { usage:'movable' }).catch(error => error);
+    expect(failure.code).toBe('AUTHORING_PLACEMENT_BLOCKED');
+    expect(failure.details).toEqual({ blockedBy:['entity_other'] });
+  });
+
   it('rejects nonuniform transforms, usage mismatch, missing references, overlap and nested promotions', async () => {
     const { authoring, promotion } = await fixture();
     const object = addAsset(authoring);

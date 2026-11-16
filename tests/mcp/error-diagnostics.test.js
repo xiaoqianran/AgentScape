@@ -22,3 +22,15 @@ it('returns bounded actionable part-collision diagnostics without exposing stack
     state:'failed',code:'ASSET_NOT_FOUND'
   });
 });
+
+it('returns bounded blockedBy diagnostics for placement failures without exposing the message', () => {
+  const error=Object.assign(new Error('放置位置发生碰撞：environment:monument-hall'),{
+    code:'AUTHORING_PLACEMENT_BLOCKED',
+    details:{blockedBy:['environment:monument-hall','entity_x']}
+  });
+  expect(publicMcpError(error)).toEqual({
+    state:'failed',code:'AUTHORING_PLACEMENT_BLOCKED',
+    diagnostics:{blockedBy:['environment:monument-hall','entity_x']}
+  });
+  expect(JSON.stringify(publicMcpError(error))).not.toContain('放置位置发生碰撞');
+});

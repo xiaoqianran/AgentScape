@@ -238,10 +238,28 @@ export class AuthoringPromotionController {
       if (entry.worldId !== (this.world.environment?.id || null)) throw promotionError('AUTHORING_WORLD_MISMATCH', '晋升的目标世界不匹配');
       if (source) this.assertSource(source, entry.worldId);
       const scaled = physicsManifestForUniformScale(manifest, entry.instance.scale);
-      const pose = this.world.physics.checkManifestPose(scaled, entry.instance.position, {
+      let pose = this.world.physics.checkManifestPose(scaled, entry.instance.position, {
         quaternion:entry.instance.quaternion, excludeIds:old ? [entry.entityId] : []
       });
-      if (pose.checked && !pose.clear) throw promotionError('AUTHORING_PLACEMENT_BLOCKED', `放置位置发生碰撞：${pose.blockedBy?.join(', ')}`);
+      // A dynamic body authored flush with the ground is routinely reported
+      // as blocked by the environment collider alone (touching counts as a
+      // collision, and built-in objects spawn slightly above the floor).
+      // Retry once with a small lift; physics settles the body onto the
+      // ground. Static placements keep the strict check.
+      let groundLift = 0;
+      if (pose.checked && !pose.clear && entry.usage === 'movable'
+        && pose.blockedBy?.length && pose.blockedBy.every(id => String(id).startsWith('environment:'))) {
+        const lifted = [entry.instance.position[0], entry.instance.position[1] + 0.05, entry.instance.position[2]];
+        const retry = this.world.physics.checkManifestPose(scaled, lifted, {
+          quaternion:entry.instance.quaternion, excludeIds:old ? [entry.entityId] : []
+        });
+        if (retry.checked && retry.clear) { pose = retry; groundLift = 0.05; entry.instance.position = lifted; }
+      }
+      if (pose.checked && !pose.clear) {
+        const error = promotionError('AUTHORING_PLACEMENT_BLOCKED', `放置位置发生碰撞：${pose.blockedBy?.join(', ')}`);
+        error.details = { blockedBy:(pose.blockedBy || []).slice(0, 8).map(id => String(id).slice(0, 64)) };
+        throw error;
+      }
       if (!pose.checked && !allowProvisional) throw promotionError('AUTHORING_PLACEMENT_UNVERIFIED', '当前物理后端无法验证该位置');
       if (old) this.world.commands.remove(entry.entityId);
       const spawned = await this.world.commands.spawn(entry.assetId, { id:entry.entityId, ...entry.instance });
@@ -251,7 +269,7 @@ export class AuthoringPromotionController {
       if (!physicsPosition) throw promotionError('AUTHORING_PHYSICS_FAILED', '世界实体没有物理刚体');
       const navigation = this.world.navigation?.ensureCurrent
         ? await this.world.navigation.ensureCurrent() : { success:false, code:'NAVIGATION_UNAVAILABLE' };
-      entry.verification = { physics:{ registered:true, placement:clone(pose) },
+      entry.verification = { physics:{ registered:true, placement:{ ...clone(pose), ...(groundLift ? { groundLift } : {}) } },
         navigation:clone(navigation), interaction:{ status:'not-exercised', actions:manifest.actions.filter(action => ACTIONS.includes(action)) },
         admission:clone(admission), checkedAt:new Date().toISOString() };
       if (this.verify) {

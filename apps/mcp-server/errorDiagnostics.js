@@ -5,6 +5,11 @@ export function publicMcpError(error) {
   const code=error instanceof z.ZodError ? 'INVALID_ARGUMENTS'
     : /^[A-Z_]+$/.test(error?.code || '') ? error.code
     : /^[A-Z_]+$/.test(error?.message || '') ? error.message : 'RUNTIME_ERROR';
+  if (code === 'AUTHORING_PLACEMENT_BLOCKED' && Array.isArray(error?.details?.blockedBy)) {
+    return {state:'failed',code,diagnostics:{
+      blockedBy:error.details.blockedBy.slice(0,8).map(id => String(id || '').slice(0,64))
+    }};
+  }
   if (code !== 'ASSET_PHYSICS_VERIFICATION_FAILED' || !Array.isArray(error?.details?.parts)) {
     return {state:'failed',code};
   }
