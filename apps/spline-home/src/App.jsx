@@ -193,7 +193,7 @@ export default function App() {
               <h2 className={styles.pageTitle}>{routeTitles[route] || routeTitles.home}</h2>
               <CreateActions onAction={onCreate} />
             </header>
-            <div className={styles.page}>
+            <div className={styles.page} data-shell-content>
               {route === "home" ? (
                 <>
                   <div className={styles.homeCol}>

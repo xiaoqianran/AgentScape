@@ -87,3 +87,7 @@
     margin-right: 0;
   }
 }
+
+@media (max-width: 640px) {
+  .actions { gap: 4px; }
+}

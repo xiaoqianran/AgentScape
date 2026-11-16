@@ -322,6 +322,20 @@
 }
 
 @media (max-width: 620px) {
+  .tabs,
+  .resTabs {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .resRow {
+    flex-wrap: wrap;
+  }
+
+  .sectionHead h2 {
+    flex-wrap: wrap;
+  }
+
   .grid {
     grid-template-columns: 1fr;
   }

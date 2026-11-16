@@ -128,5 +128,16 @@
   .toolLabel {
     display: none;
   }
+
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
+  .exampleChip {
+    max-width: 100%;
+    height: auto;
+    white-space: normal;
+    text-align: left;
+  }
 }
 

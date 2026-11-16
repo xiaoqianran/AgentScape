@@ -89,7 +89,7 @@
 .page {
   max-width: 840px;
   width: 100%;
-  margin: 0;
+  margin: 0 auto;
   padding: 28px 32px 56px;
   display: flex;
   flex-direction: column;
@@ -100,6 +100,7 @@
 .homeCol {
   width: 100%;
   max-width: 664px;
+  margin-inline: auto;
 }
 
 .welcome {
@@ -115,7 +116,7 @@
   bottom: 16px;
   width: 100%;
   max-width: 664px;
-  margin-top: 30px;
+  margin: 30px auto 0;
   z-index: 3;
 }
 
@@ -327,6 +328,14 @@
   .pageHeader {
     padding-left: 14px;
     padding-right: 14px;
+    gap: 8px;
+  }
+
+  .pageTitle {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .page {

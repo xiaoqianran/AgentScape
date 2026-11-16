@@ -125,7 +125,6 @@ export class SceneGraph {
     const cellSize = 4;
     const cellKey = (x, y, z) => `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)},${Math.floor(z / cellSize)}`;
     const relationGrid = new Map();
-    const centerGrid = new Map();
     const addRelationBound = (id, box) => {
       if (!box) return;
       const bounds = relationBounds.get(id) || [];
@@ -143,11 +142,6 @@ export class SceneGraph {
     };
 
     for (const [id, record] of records) {
-      const center = spatialSnapshot.get(id).center;
-      const centerKey = cellKey(center.x, center.y, center.z);
-      let centerBucket = centerGrid.get(centerKey);
-      if (!centerBucket) centerGrid.set(centerKey, centerBucket = []);
-      centerBucket.push(id);
       surfaces.set(id, (record.manifest.surfaces || [])
         .map((surface) => this.spatial.getSupportSurface(id, surface.id, spatialSnapshot))
         .filter(Boolean));
@@ -199,12 +193,6 @@ export class SceneGraph {
           const pair = `${id}\0${otherId}`;
           candidates.add(pair);
           nearDistances.set(pair, distance);
-        }
-      }
-      const cx = Math.floor(a.center.x / cellSize), cy = Math.floor(a.center.y / cellSize), cz = Math.floor(a.center.z / cellSize);
-      for (let x = cx - 1; x <= cx + 1; x++) for (let y = cy - 1; y <= cy + 1; y++) for (let z = cz - 1; z <= cz + 1; z++) {
-        for (const otherId of centerGrid.get(cellKey(x * cellSize, y * cellSize, z * cellSize)) || []) {
-          if (id >= otherId) continue;
         }
       }
       const seenTargets = new Set();
