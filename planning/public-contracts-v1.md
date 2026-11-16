@@ -8,6 +8,7 @@
 | Asset Package | agentscape.asset-package v1；modules/asset/model/AssetInputContracts.js |
 | Asset Recipe | agentscape.asset-recipe v1；同上 |
 | StylePack | agentscape.style-pack v1；modules/rendering/style/StylePack.js |
+| Code Project | agentscape.code-project v1；application/native-scene/CodeProject.js |
 
 AgentScape.open() 返回 SceneHandle。SceneFacade 复用唯一 Runtime、ObjectStore、AssetModule、WorldCommands 和 SkillRegistry，不复制对象列表。
 
@@ -18,6 +19,14 @@ Scene Project 包含 name、environment、objects、可选 style。当前 enviro
 引用支持 builtin://name、asset://sha256/<64位小写hash> 和安全 ./ 包内路径。解析器接收已提取的 resources Map，不读取主机文件或下载 URL。拒绝路径越界、Windows 特殊路径、大小写冲突。项目 JSON 文本限 256 KiB；资源最多 128 项、单项 32 MiB、合计 64 MiB。目录/压缩适配器仍需独立实现提取和符号链接安全边界。
 
 save() 返回 agentscape.project-bundle v1 JSON 完整传输包，包含项目、锁、快照、必要资产字节和风格声明。内容 hash 保障完整性，不代表发布者签名。导入先校验版本、hash、依赖和能力，在新会话重新编译声明后安装；失败回滚，不执行存档源码。当前环境版本必须兼容。SceneSerializer 保留运行快照职责。
+
+## 代码项目（原生）
+
+Code Project 是独立文档契约，不随 project-bundle v1 传输。保存经项目会话 scene.save() 完成：文档含 source/files、嵌入 resources、serialize() 的 JSON 状态、Runtime 实体/资产、声明式状态机快照与 integrity 内容 hash（默认输入额度 64 MiB）。重开时重建行为并恢复状态；历史动作结果不充当新验证。
+
+导入与检查不执行存档源码：parseCodeProject() 只解析与校验；openCodeProject() / AgentScape.openProject() 必须显式 authorized:true 才执行，沿用本地受信任执行语义，不承诺公网不可信源码隔离。integrity 只证明内容一致性，不证明作者身份。
+
+明确不支持：网络依赖、DOM 与任意闭包不自动存档（省略 serialize 时自定义状态为 null、重建用默认值）；直接 attach 的宿主原生场景保持原有保存边界，不按作品包保存 / 导入。
 
 ## 编辑与交互
 

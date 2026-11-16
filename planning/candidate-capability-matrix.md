@@ -30,12 +30,13 @@
 | Python Connector SDK | 支持（连接器用途不变） | 不承载运行时 |
 | Observatory（`/observatory/`） | 诊断工具 | 可依赖产品内部做诊断；产品不反向依赖它 |
 | 原生 Three.js 接入（`AgentScape.attach`） | 部分支持 | 宿主保留 renderer / camera / 原始资源所有权；仅显式注册的碰撞、导航与实体获得能力；**原生项目的保存 / 导入不支持**，不按完整作品包承诺 |
+| 代码项目（`agentscape.code-project v1`） | 部分支持 | 经自身文档保存 / 重开（源码、嵌入资源、serialize 状态、Runtime 实体 / 资产、状态机快照 + integrity hash）；执行须显式 authorized:true，解析 / 检查不执行源码；不随 project-bundle 传输，网络依赖 / DOM / 闭包不存档 |
 
 ## Scene API（经 SceneFacade，三入口同一语义）
 
 observe / addModel / setTransform / remove / replaceAsset / interact / verify / apply / setStyle / save / close 均可用。interact 返回 JobRef，由宿主推进真实模拟，getJob / waitJob / cancelJob 跟踪；apply 先全批校验再逐项事务，遇错停止，已成功项保留，不保证全批原子性。SceneResult 分开记录执行状态、准入、验证与诊断：**添加成功不等于动作验证成功，Visual 不自动升级为 Physical**。
 
-保存返回 `agentscape.project-bundle v1` 完整传输包（项目、锁、快照、必要资产字节、风格声明），hash 保完整性、不代表发布者签名；导入先校验版本 / hash / 依赖 / 能力并在新会话重新编译声明后安装，失败回滚，不执行存档源码。资源上限：项目 JSON 256 KiB、资源最多 128 项、单项 32 MiB、合计 64 MiB；实体总数不固定，激活 / 分页 / 存储有独立预算。
+保存返回 `agentscape.project-bundle v1` 完整传输包（项目、锁、快照、必要资产字节、风格声明），hash 保完整性、不代表发布者签名；导入先校验版本 / hash / 依赖 / 能力并在新会话重新编译声明后安装，失败回滚，不执行存档源码。Code Project 不包含在该传输包内，走独立文档契约（见公共契约「代码项目（原生）」）。资源上限：项目 JSON 256 KiB、资源最多 128 项、单项 32 MiB、合计 64 MiB；实体总数不固定，激活 / 分页 / 存储有独立预算。
 
 ## 资产输入
 
