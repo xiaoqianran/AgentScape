@@ -34,3 +34,41 @@ test('standard scene prepares through the UI and a missing cup blocks the model 
   await expectSameCanvas(page,canvas);
   await expect(page.locator('#viewport canvas')).toBeVisible();
 });
+
+test('standard task runs to verified completion through the UI',async({page,gateway},testInfo)=>{
+  const criteria=[
+    {id:'world-valid',kind:'world-valid'},
+    {id:'cabinet-open',kind:'interaction-verified',targetId:'cabinet_01',capability:'OPEN'},
+    {id:'cup-picked-up',kind:'interaction-verified',targetId:'cup_01',capability:'PICKUP'},
+    {id:'cup-placed',kind:'interaction-verified',targetId:'table_01',capability:'PLACE'},
+    {id:'cup-on-table',kind:'relation-exists',subject:'cup_01',predicate:'ON',object:'table_01',surfaceId:'top'},
+    {id:'no-unresolved',kind:'no-unresolved'}
+  ];
+  const steps=[
+    ['planSceneTask',{criteria}],
+    ['interactScene',{goalId:'cabinet-open',interaction:{action:'open',actor:'agent_01',target:'cabinet_01'}}],
+    ['interactScene',{goalId:'cup-picked-up',interaction:{action:'pickup',actor:'agent_01',target:'cup_01'}}],
+    ['interactScene',{goalId:'cup-placed',interaction:{action:'place',actor:'agent_01',target:'table_01',surfaceId:'top'}}]
+  ];
+  let round=0;
+  gateway.respondWith(()=>{
+    const step=steps[round++];
+    return step
+      ? {message:'',toolCalls:[{id:'journey-'+round,name:step[0],args:step[1]}]}
+      : {message:'标准任务已完成：杯子已放到桌面。',toolCalls:[]};
+  });
+  await enterWorld(page);
+  await page.getByRole('button',{name:'编辑',exact:true}).click();
+  await verifyRenderedWorld(page,testInfo);
+  await page.locator('#open-world-task').click();
+  await page.locator('#prepare-standard-task').click();
+  await expect(page.locator('#task-state-label')).toHaveText('标准场景已准备');
+  await page.locator('#check-standard-task').click();
+  await expect(page.locator('#run-standard-task')).toBeEnabled();
+  await page.locator('#run-standard-task').click();
+  await expect(page.locator('#task-state-label')).toHaveText('任务已完成',{timeout:150_000});
+  expect(round).toBe(5);
+  expect(gateway.requests).toHaveLength(5);
+  await expect(page.locator('#scene-object-list [data-object-id]')).toHaveCount(4);
+});
+
