@@ -12,7 +12,7 @@ test('selection is light, modes gate editing, and Escape closes menu before insp
  await page.keyboard.press('Escape');await expect(page.locator('#affordance-choice')).toHaveCount(0);
 });
 test('environment references and world changes use the shared dock',async({page,gateway})=>{
- await page.goto('/?page=world&world=magic-cabin&renderer=webgl');await waitForRuntimeReady(page);
+ await page.goto('/studio/?page=world&world=magic-cabin&renderer=webgl');await waitForRuntimeReady(page);
  await page.locator('.cabin-catalog summary').click();await page.locator('.cabin-catalog button').filter({hasText:'木灯'}).click();
  const dock=page.locator('.selection-action-dock');await expect(dock).toBeVisible();await expect(page.locator('.cabin-interact')).toHaveCount(0);
  const nativeRow=page.locator('.scene-object-list[data-source="environment"] [data-object-id="cabin:table-lamp"]');

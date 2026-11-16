@@ -35,7 +35,7 @@ function localAgentGatewayPlugin(env) {
 function observatoryRoutePlugin() {
   const redirect = (req, res, next) => {
     const path = req.url?.split("?", 1)[0];
-    if (path !== "/observatory" && path !== "/home" && path !== "/starter") return next();
+    if (path !== "/observatory" && path !== "/home" && path !== "/starter" && path !== "/studio") return next();
     const query = req.url?.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
     res.statusCode = 308;
     res.setHeader("Location", `${path}/${query}`);
@@ -56,6 +56,12 @@ function observatoryRoutePlugin() {
         if (pathname === "/observatory/" || pathname === "/observatory/index.html") {
           req.url = req.url.replace(pathname, "/apps/observatory/index.html");
         }
+        if (pathname === "/studio/" || pathname === "/studio/index.html") {
+          req.url = req.url.replace(pathname, "/index.html");
+        }
+        if (pathname === "/" || pathname === "/index.html") {
+          req.url = req.url.replace(pathname, "/apps/spline-home/index.html");
+        }
         redirect(req, res, next);
       });
     },
@@ -68,10 +74,16 @@ function observatoryRoutePlugin() {
           delete bundle["apps/starter/index.html"];
           this.emitFile({ type: "asset", fileName: "starter/index.html", source: starter.source });
         }
+        const studio = bundle["index.html"];
+        if (studio) {
+          delete bundle["index.html"];
+          this.emitFile({ type: "asset", fileName: "studio/index.html", source: studio.source });
+        }
         const home = bundle["apps/spline-home/index.html"];
         if (home) {
           delete bundle["apps/spline-home/index.html"];
           this.emitFile({ type: "asset", fileName: "home/index.html", source: home.source });
+          this.emitFile({ type: "asset", fileName: "index.html", source: home.source });
         }
         const entry = bundle["apps/observatory/index.html"];
         if (entry) {

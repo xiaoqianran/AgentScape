@@ -52,7 +52,7 @@ export async function waitForRuntimeReady(page) {
 
 export async function enterWorld(page) {
   const started = Date.now();
-  await page.goto('/');
+  await page.goto('/studio/');
   await waitForRuntimeReady(page);
   const readyMs = Date.now() - started;
   await page.locator('[data-world-card="monument-hall"] .world-card-open').click();

@@ -5,7 +5,7 @@ test('Asset Forge P1 imports multi-material hinges and plots real runtime temper
     capabilities:{agent:{available:false},'asset.compile':{available:false}}
   }}));
   await page.route('http://127.0.0.1:48123/**',route=>route.abort('connectionrefused'));
-  await page.goto('/?world=monument-hall');
+  await page.goto('/studio/?world=monument-hall');
   await waitForRuntimeReady(page);
   await page.locator('[data-product-nav="assets"]').click();
   await page.locator('[data-resource-kind="create"]').click();

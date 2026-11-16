@@ -14,6 +14,7 @@ import {
   IconMcp,
   IconBolt,
   IconGear,
+  IconCube,
 } from "./icons.jsx";
 import { workspace, routeTitles } from "../data/home.js";
 
@@ -82,7 +83,7 @@ export default function UserSidebar({
 
         <nav className={`${styles.nav} ${styles.appNav}`} aria-label="AgentScape applications">
           <ul>
-            <li><a className={styles.navItem} href="/">World Studio ↗</a></li>
+            <li><a className={styles.navItem} href="/studio/"><span className={styles.navIcon}><IconCube /></span>AgentScape Studio ↗</a></li>
             <li><a className={styles.navItem} href="/observatory/">Observatory ↗</a></li>
           </ul>
         </nav>

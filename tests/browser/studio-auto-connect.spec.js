@@ -20,7 +20,7 @@ test('local Studio automatically connects and follows the active world without p
   };
   try{
     await client.connect(transport);
-    await page.goto('/?page=world&world=monument-hall&mcpPort='+app.port);
+    await page.goto('/studio/?page=world&world=monument-hall&mcpPort='+app.port);
     await waitForRuntimeReady(page);
     await expect(page.locator('.studio-mcp-connection')).toHaveAttribute('data-auto-enabled','true');
     await expect(page.locator('.studio-mcp-connection')).toHaveAttribute('data-bridge-state','connected',{timeout:15000});
@@ -63,7 +63,7 @@ test('local Studio automatically connects and follows the active world without p
 
 test('offline MCP shows a recoverable, explicit state and distinguishes native Three.js SDK setup',async({page})=>{
   // No MCP server is listening on this port; do not start one for this test.
-  await page.goto('/?page=world&world=monument-hall&mcpPort=49199');
+  await page.goto('/studio/?page=world&world=monument-hall&mcpPort=49199');
   await waitForRuntimeReady(page);
   await expect(page.locator('.studio-mcp-connection')).toHaveAttribute('data-auto-enabled','true');
   await expect(page.locator('.studio-mcp-connection')).toHaveAttribute('data-bridge-state','disconnected',{timeout:18000});

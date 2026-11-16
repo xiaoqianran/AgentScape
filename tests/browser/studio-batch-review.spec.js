@@ -24,7 +24,7 @@ test('MCP stages coordinated changes, Studio reviews and applies them, then undo
    expect(response.isError,JSON.stringify(value)).toBeFalsy();
    return value;
   };
-  await page.goto(`/?page=world&mcpPort=${server.port}`);
+  await page.goto(`/studio/?page=world&mcpPort=${server.port}`);
   await expect(page.locator('#runtime-status')).toHaveAttribute('data-state','ready',{timeout:60000});
   await expect.poll(async()=>{try{
    const response=await client.callTool({name:'session_attach',arguments:{}});

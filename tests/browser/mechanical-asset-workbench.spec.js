@@ -4,7 +4,7 @@ test('mechanical workbench edits a multi-joint cabinet, compiles and publishes i
   await page.route('**/api/capabilities',route=>route.fulfill({json:{capabilities:{agent:{available:false},'asset.compile':{available:false}}}}));
   await page.route('http://127.0.0.1:48123/**',route=>route.abort('connectionrefused'));
   // This fixture expects the four starter entities, independent of the gallery default.
-  await page.goto('/?world=monument-hall');
+  await page.goto('/studio/?world=monument-hall');
   await waitForRuntimeReady(page);
   await page.locator('[data-product-nav="assets"]').click();
   await page.locator('[data-resource-kind="create"]').click();

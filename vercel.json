@@ -21,8 +21,8 @@
     },
     {
       "source": "/studio",
-      "destination": "/",
-      "permanent": false
+      "destination": "/studio/",
+      "permanent": true
     },
     {
       "source": "/code-project",

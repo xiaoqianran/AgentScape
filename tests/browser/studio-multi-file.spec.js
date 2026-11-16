@@ -42,7 +42,7 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
    expect(response.isError,JSON.stringify(value)).toBeFalsy();
    return value;
   };
-  await page.goto(`/?page=world&mcpPort=${server.port}`);
+  await page.goto(`/studio/?page=world&mcpPort=${server.port}`);
   await expect(page.locator('#runtime-status')).toHaveAttribute('data-state','ready',{timeout:60000});
   await expect.poll(async()=>{
    try { const response=await client.callTool({name:'session_attach',arguments:{}});return !response.isError; }
@@ -111,7 +111,7 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
 
 test('Studio imports the distributable multi-file ShaderMaterial example and restores custom actions',async({page},testInfo)=>{
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
- await page.goto('/?page=world');
+ await page.goto('/studio/?page=world');
  await expect(page.locator('#runtime-status')).toHaveAttribute('data-state','ready',{timeout:60000});
  await page.getByRole('button',{name:'代码世界',exact:true}).click();
  await page.locator('.code-project-editor input[type="file"]').first()

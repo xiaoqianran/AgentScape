@@ -29,7 +29,7 @@ async function withPairedStudio(page, run) {
       await client.connect(transport);
       pair=await call('studio_pair_create');
       expect(pair.pairCode).toHaveLength(64);
-      await page.goto(`/?page=world&world=monument-hall&mcpPort=${app.port}`);
+      await page.goto(`/studio/?page=world&world=monument-hall&mcpPort=${app.port}`);
       await waitForRuntimeReady(page);
       await page.locator('#studio-mcp-toggle').click();
       await page.locator('#studio-mcp-auto-enabled').uncheck();

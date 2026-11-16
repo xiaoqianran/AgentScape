@@ -16,7 +16,7 @@ test('Studio MCP creates a visible world; UI edits, fails safely, saves and reop
   client=new Client({name:'studio-project-test',version:'1'});
   await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${server.port}/mcp`),{requestInit:{headers:{Authorization:'Bearer '+token}}}));
   const call=async(name,args={})=>{const response=await client.callTool({name,arguments:args});const value=JSON.parse(response.content[0].text);expect(response.isError,JSON.stringify(value)).toBeFalsy();return value;};
-  await page.goto(`/?page=world&mcpPort=${server.port}`);
+  await page.goto(`/studio/?page=world&mcpPort=${server.port}`);
   await expect(page.locator('#runtime-status')).toHaveAttribute('data-state','ready',{timeout:60000});
   await expect.poll(async()=>{try{return (await call('session_attach')).connected;}catch{return false;}}).toBe(true);
   const guide=await call('studio_project',{operation:'read'});expect(guide.guide).toContain('createProject');
@@ -85,7 +85,7 @@ test('Studio task AI creates, runs, changes a dynamic action state, edits source
   const step=steps[round++];
   await route.fulfill({json:step?{toolCalls:[{id:'step'+round,name:step[0],args:step[1]}]}:{message:'代码世界已创建、修改并保存。',toolCalls:[]}});
  });
- await page.goto('/?page=world');
+ await page.goto('/studio/?page=world');
  await expect(page.locator('#runtime-status')).toHaveAttribute('data-state','ready',{timeout:60000});
  await page.locator('#open-world-task').click();
  await page.locator('#input').fill('创建一个完整代码世界，运行并改变旋转速度，修改源码然后保存');await page.locator('#send').click();
