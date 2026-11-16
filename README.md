@@ -1,5 +1,7 @@
 # AgentScape
 
+![AgentScape — A Shared 3D World for Humans & AI](docs/assets/agentscape-hero.png)
+
 > v2 已实现统一 Scene API、Recipe、完整项目包与三种 StylePack；`agentscape3d@1.0.0-beta.1` 正在准备公开发布，尚未上线 npm。最新能力与限制见 [v1 契约](planning/public-contracts-v1.md)和[发布清单](docs/v2-release.md)。
 
 **让人和 AI 能够操作同一个交互式 3D 世界。**
