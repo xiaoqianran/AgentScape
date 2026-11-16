@@ -87,6 +87,6 @@ observe / addModel / setTransform / remove / replaceAsset / interact / verify / 
 |---|---|
 | 本地工程验收（V2-PR-09） | 已通过（本地记录） |
 | 独立首次使用（非开发者独立完成拾取 / 放置 / 保存 / 重开） | **未执行**（docs/first-use-check.md 仍为 not performed） |
-| 候选提交托管 CI | 待本基线提交推送后运行并留存 artifacts |
+| 候选提交托管 CI | 已通过（2026-11-16，提交 087da89）：AgentScape Check 运行 43807884100 全部 job 成功（含新分组 Tests core/ui/world），artifacts 已留存；后续候选提交仍须逐个通过 |
 | 真实 GPU / 移动端性能测量 | 未执行；软件渲染结果不作为替代 |
 | npm 发布 / 发布标签 | 未获授权，不执行 |
