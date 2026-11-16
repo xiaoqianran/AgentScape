@@ -188,7 +188,12 @@ export class PromptHybridWorldOrchestrator {
   async run(request={}) {
     const environmentPrompt=clean(request.environmentPrompt);
     if(!environmentPrompt){const error=new TypeError('Generated Hybrid World requires environmentPrompt');error.code='GENERATION_PROMPT_REQUIRED';throw error;}
-    if(!request.proposal || typeof request.proposal!=='object' || Array.isArray(request.proposal)) throw new TypeError('Generated Hybrid World requires proposal');
+    const proposeFn=typeof request.propose==='function'?request.propose:null;
+    if(proposeFn && request.proposal!==undefined){const error=new TypeError('Generated Hybrid World accepts either proposal or propose, not both');error.code='WORLD_PROPOSAL_SOURCE_AMBIGUOUS';throw error;}
+    if(!proposeFn && (!request.proposal || typeof request.proposal!=='object' || Array.isArray(request.proposal))) throw new TypeError('Generated Hybrid World requires proposal');
+    const maxAttemptsRaw=request.maxProposalAttempts===undefined?1:request.maxProposalAttempts;
+    if(!Number.isInteger(maxAttemptsRaw) || maxAttemptsRaw<1 || maxAttemptsRaw>3){const error=new TypeError('maxProposalAttempts must be an integer between 1 and 3');error.code='WORLD_PROPOSAL_ATTEMPTS_INVALID';throw error;}
+    const maxAttempts=proposeFn?maxAttemptsRaw:1;
 
     const generation=await this.generateWorldArtifacts({
       prompt:environmentPrompt,
@@ -203,9 +208,18 @@ export class PromptHybridWorldOrchestrator {
     const nextEnvironment=await this.materializeEnvironment(this.runtime,generation,{byteStore:this.artifactByteStore});
     const runtime=this.runtime;
     let transactionStarted=false;
-    try {
-      return await runtime.exclusiveMutation('prompt-hybrid-world',async()=>{
-        transactionStarted=true;
+    let feedback=null;
+    for(let attempt=1;attempt<=maxAttempts;attempt++){
+      let proposalInput;
+      try {
+        proposalInput=proposeFn?await proposeFn({attempt,feedback:clone(feedback)}):request.proposal;
+        if(!proposalInput || typeof proposalInput!=='object' || Array.isArray(proposalInput)) throw new TypeError('Generated Hybrid World requires proposal');
+      } catch(error){ nextEnvironment.dispose?.(); throw error; }
+      transactionStarted=false;
+      let outcome;
+      try {
+        outcome=await runtime.exclusiveMutation('prompt-hybrid-world',async()=>{
+          transactionStarted=true;
       const beforeScene=runtime.snapshot();
       const authorityBefore=captureWorldAuthority(runtime);
       const previousEnvironment=runtime.environment || null;
@@ -223,7 +237,7 @@ export class PromptHybridWorldOrchestrator {
         await runtime.replaceEnvironment(nextEnvironment,{disposePrevious:false,reason:'prompt-hybrid-world'});
         environmentInstalled=true;
         const artifactRefs=Object.values(generation.artifacts||{}).map((item)=>item?.artifact?.id).filter(Boolean).sort();
-        const proposed=buildWorldProposal(request.proposal,{
+        const proposed=buildWorldProposal(proposalInput,{
           revisionId:this.revisionIdFactory(),
           source:'prompt-hybrid-world',
           sourceId:generation.jobs?.world || null,
@@ -233,11 +247,12 @@ export class PromptHybridWorldOrchestrator {
         const built=await this.worldBuilder.run(proposed.worldIR);
         if(built.status==='world-rejected') {
           await rollback();
+          if(attempt<maxAttempts) return {repair:true,reason:built.reason || built.admission?.reasons?.[0] || 'WORLD_REJECTED',admission:clone(built.admission),attempts:clone(built.attempts)};
           nextEnvironment.dispose?.();
           return {
             status:'world-rejected',reason:built.reason || built.admission?.reasons?.[0] || 'WORLD_REJECTED',rolledBack:true,
             generation:generationEvidence(generation),environment:environmentEvidence(nextEnvironment),proposal:proposed.summary,
-            admission:clone(built.admission),attempts:clone(built.attempts)
+            admission:clone(built.admission),attempts:clone(built.attempts),proposalAttempts:attempt
           };
         }
         previousEnvironment?.dispose?.();
@@ -245,7 +260,7 @@ export class PromptHybridWorldOrchestrator {
           status:built.status,
           generation:generationEvidence(generation),environment:environmentEvidence(nextEnvironment),proposal:proposed.summary,
           worldRevisionId:proposed.summary.worldRevisionId,
-          admission:clone(built.admission),attempts:clone(built.attempts),objects:runtime.queries.listObjects()
+          admission:clone(built.admission),attempts:clone(built.attempts),proposalAttempts:attempt,objects:runtime.queries.listObjects()
         };
       } catch(error) {
         try { await rollback(); }
@@ -258,10 +273,13 @@ export class PromptHybridWorldOrchestrator {
         if(environmentInstalled || runtime.environment!==nextEnvironment) nextEnvironment.dispose?.();
         throw error;
       }
-      });
-    } catch(error) {
-      if(!transactionStarted) nextEnvironment.dispose?.();
-      throw error;
+        });
+      } catch(error) {
+        if(!transactionStarted) nextEnvironment.dispose?.();
+        throw error;
+      }
+      if(outcome?.repair){ feedback={reason:outcome.reason,admission:outcome.admission,attempts:outcome.attempts}; continue; }
+      return outcome;
     }
   }
 }
