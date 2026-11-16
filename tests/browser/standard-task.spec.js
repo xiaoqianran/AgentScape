@@ -36,19 +36,18 @@ test('standard scene prepares through the UI and a missing cup blocks the model 
 });
 
 test('standard task runs to verified completion through the UI',async({page,gateway},testInfo)=>{
+  // planSceneTask only accepts live relation-exists / state-equals criteria
+  // (TASK_GOAL_KIND_UNSUPPORTED otherwise); the CabinetCup interaction
+  // criteria are tracked as verified mutations, and the plan carries the
+  // final live postcondition: cup ON table top.
   const criteria=[
-    {id:'world-valid',kind:'world-valid'},
-    {id:'cabinet-open',kind:'interaction-verified',targetId:'cabinet_01',capability:'OPEN'},
-    {id:'cup-picked-up',kind:'interaction-verified',targetId:'cup_01',capability:'PICKUP'},
-    {id:'cup-placed',kind:'interaction-verified',targetId:'table_01',capability:'PLACE'},
-    {id:'cup-on-table',kind:'relation-exists',subject:'cup_01',predicate:'ON',object:'table_01',surfaceId:'top'},
-    {id:'no-unresolved',kind:'no-unresolved'}
+    {id:'cup-on-table',kind:'relation-exists',subject:'cup_01',predicate:'ON',object:'table_01',surfaceId:'top'}
   ];
   const steps=[
     ['planSceneTask',{criteria}],
-    ['interactScene',{goalId:'cabinet-open',interaction:{action:'open',actor:'agent_01',target:'cabinet_01'}}],
-    ['interactScene',{goalId:'cup-picked-up',interaction:{action:'pickup',actor:'agent_01',target:'cup_01'}}],
-    ['interactScene',{goalId:'cup-placed',interaction:{action:'place',actor:'agent_01',target:'table_01',surfaceId:'top'}}]
+    ['interactScene',{goalId:'cup-on-table',interaction:{action:'open',actor:'agent_01',target:'cabinet_01'}}],
+    ['interactScene',{goalId:'cup-on-table',interaction:{action:'pickup',actor:'agent_01',target:'cup_01'}}],
+    ['interactScene',{goalId:'cup-on-table',interaction:{action:'place',actor:'agent_01',target:'table_01',surfaceId:'top'}}]
   ];
   let round=0;
   gateway.respondWith(()=>{

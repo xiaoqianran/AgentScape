@@ -3,12 +3,32 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, cp, symlink, writeFile, rm } from 'node:fs/promises';
 import { resolve, dirname, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { openScene } from '../../application/scene/SceneFacade.js';
+import { createAssetModule } from '../../modules/asset/AssetModule.js';
+import { createHeadlessGLTFLoader } from '../../apps/mcp-server/HeadlessGLTFLoader.js';
+import { installHeadlessAssetIO } from '../../apps/mcp-server/HeadlessAssetIO.js';
 
-// APP-JOURNEY-003: the CabinetCup standard journey driven only through the
-// published TypeScript SDK surface (built dist in a clean directory, no
-// repository sources), asserting the same postconditions as the canonical
-// journey: verified OPEN, verified PICKUP, verified PLACE, cup ON table top.
+// APP-JOURNEY-003: the CabinetCup standard journey. The task world is arranged
+// with repository internals and exported as a project bundle (the SDK's own
+// starter manifest set has no cabinet); the journey itself is then driven
+// only through the published TypeScript SDK surface (built dist in a clean
+// directory): open({bundle}) -> interact open/pickup/place -> observe.
 it('executes the CabinetCup journey through the TypeScript SDK', async () => {
+  installHeadlessAssetIO();
+  const sourceAssets = createAssetModule({ gltfLoader: createHeadlessGLTFLoader(), manifestStore: null, libraryStore: null });
+  const source = await openScene({ assetModule: sourceAssets, project: {
+    schema: 'agentscape.scene-project', schemaVersion: 1, name: 'CabinetCup via SDK',
+    environment: { type: 'builtin', id: 'monument-hall' },
+    objects: [
+      { id: 'agent_01', asset: 'builtin://agent', level: 'physical', transform: { position: [0, 0, 9] } },
+        { id: 'cabinet_01', asset: 'builtin://cabinet', level: 'physical', transform: { position: [-5.2, 0, 3.9] } },
+        { id: 'cup_01', asset: 'builtin://cup', level: 'physical', transform: { position: [-5.2, 0.17, 3.89] } },
+        { id: 'table_01', asset: 'builtin://table', level: 'physical', transform: { position: [5.2, 0, 4.2] } }
+    ]
+  } });
+  let bundle;
+  try { bundle = (await source.save()).value; } finally { source.close(); }
+
   execFileSync(process.execPath, ['dev/build-sdk.mjs'], { stdio: 'pipe' });
   const directory = await mkdtemp(resolve('.tmp-sdk-journey-'));
   try {
@@ -16,16 +36,7 @@ it('executes the CabinetCup journey through the TypeScript SDK', async () => {
     await symlink(resolve('node_modules'), resolve(directory, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
     await writeFile(resolve(directory, 'package.json'), '{"type":"module"}');
     const { AgentScape } = await import(pathToFileURL(resolve(directory, 'dist/index.js')).href);
-    const scene = await AgentScape.open({ autoStart: false, project: {
-      schema: 'agentscape.scene-project', schemaVersion: 1, name: 'CabinetCup via SDK',
-      environment: { type: 'builtin', id: 'monument-hall' },
-      objects: [
-        { id: 'agent_01', asset: 'builtin://agent', level: 'physical', transform: { position: [0, 0, 9] } },
-        { id: 'cabinet_01', asset: 'builtin://cabinet', level: 'physical', transform: { position: [-5.2, 0, 3.9] } },
-        { id: 'cup_01', asset: 'builtin://cup', level: 'physical', transform: { position: [-5.2, 0.17, 3.89] } },
-        { id: 'table_01', asset: 'builtin://table', level: 'physical', transform: { position: [5.2, 0, 4.2] } }
-      ]
-    } });
+    const scene = await AgentScape.open({ bundle, autoStart: false });
     try {
       const finish = async (job, limit = 4000) => {
         for (let frame = 0; frame < limit && scene.getJob(job.id).status === 'running'; frame++) {
