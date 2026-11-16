@@ -5,7 +5,7 @@
   --font-sans: "Spline Sans", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: "Spline Sans Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
 
-  --color-bg: #1e1e1e;
+  --color-bg: #121212;
   --color-text: #ffffffeb;
   --color-text-2: #ffffffb3;
   --color-text-3: #ffffff85;
@@ -52,7 +52,7 @@
   --t-base: 0.12s ease;
   --t-row: 0.15s ease;
 
-  --sidebar-w: 252px;
+  --sidebar-w: 232px;
   --header-h: 64px;
   --row-h: 48px;
 
@@ -62,6 +62,6 @@
   --type-label: 11px;
   --type-name: 14px;
   --type-chip: 13px;
-  --type-title: 24px;
+  --type-title: 28px;
   --type-page: 14px;
 }

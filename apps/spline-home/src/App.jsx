@@ -7,10 +7,17 @@ import ConceptDesign from "./components/ConceptDesign.jsx";
 import GeneratePage from "./components/GeneratePage.jsx";
 import SceneEditor from "./components/SceneEditor.jsx";
 import DesignEditor from "./components/DesignEditor.jsx";
-import { workspace, recents, routeTitles, importAccept } from "./data/home.js";
+import FilesPage from "./components/FilesPage.jsx";
+import TemplatesPage from "./components/TemplatesPage.jsx";
+import CommunityPage from "./components/CommunityPage.jsx";
+import AcademyPage from "./components/AcademyPage.jsx";
+import ArenaPage from "./components/ArenaPage.jsx";
+import { WorkspaceMenu, InboxPanel, NewProjectModal, ImportModal } from "./components/Dialogs.jsx";
+import { IconSearch, IconClose } from "./components/icons.jsx";
+import { workspace, recents, routeTitles, importAccept, paintThumb } from "./data/home.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const ROUTES = ["home", "scene", "design", "generate", "files", "templates", "community", "academy"];
+const ROUTES = ["home", "scene", "design", "generate", "files", "templates", "community", "academy", "arena"];
 
 function readRoute() {
   const raw = (typeof location !== "undefined" && location.hash.replace(/^#\/?/, "")) || "home";
@@ -30,6 +37,18 @@ function View({ active, children, label }) {
   );
 }
 
+function SearchThumb({ art }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) paintThumb(ref.current, art);
+  }, [art]);
+  return (
+    <span className={styles.searchThumb}>
+      <canvas ref={ref} className={styles.searchThumbArt} aria-hidden="true" />
+    </span>
+  );
+}
+
 export default function App() {
   const [route, setRoute] = useState(readRoute);
   const [mcpVisible, setMcpVisible] = useState(true);
@@ -37,6 +56,9 @@ export default function App() {
   const [toastOn, setToastOn] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [panel, setPanel] = useState(null);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [sceneFile, setSceneFile] = useState("Spline 3D Starter File");
   const [designFile, setDesignFile] = useState("Hana starter file");
   const importRef = useRef(null);
@@ -51,6 +73,7 @@ export default function App() {
 
   const onRoute = useCallback((next) => {
     if (!ROUTES.includes(next)) next = "home";
+    setPanel(null);
     skipHashSync.current = true;
     if (location.hash !== `#/${next}`) {
       window.history.pushState(null, "", `#/${next}`);
@@ -79,12 +102,27 @@ export default function App() {
     const onShortcut = (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        setSearchQuery("");
         setSearchOpen(true);
       }
-      if (event.key === "Escape") setSearchOpen(false);
+      if (event.key === "Escape") {
+        setSearchOpen(false);
+        setPanel(null);
+        setNewProjectOpen(false);
+        setImportOpen(false);
+      }
     };
     window.addEventListener("keydown", onShortcut);
     return () => window.removeEventListener("keydown", onShortcut);
+  }, []);
+
+  const openSearch = useCallback(() => {
+    setSearchQuery("");
+    setSearchOpen(true);
+  }, []);
+
+  const togglePanel = useCallback((name) => {
+    setPanel((cur) => (cur === name ? null : name));
   }, []);
 
   const onCreate = (action) => {
@@ -95,7 +133,14 @@ export default function App() {
       setDesignFile("Hana starter file");
       onRoute("design");
     } else if (action === "generate") onRoute("generate");
-    else if (action === "import") importRef.current?.click();
+    else if (action === "import") setImportOpen(true);
+  };
+
+  const createProject = (name) => {
+    setNewProjectOpen(false);
+    setSceneFile(name);
+    onRoute("scene");
+    showToast(`Created “${name}”`);
   };
 
   const openFile = (name) => {
@@ -112,6 +157,15 @@ export default function App() {
 
   const isShell = route === "home" || route === "files" || route === "templates" || route === "community" || route === "academy";
 
+  const query = searchQuery.trim().toLowerCase();
+  const matches = recents.filter((file) => !query || file.name.toLowerCase().includes(query));
+  const searchGroups = query
+    ? [{ id: "results", label: "RESULTS", items: matches }]
+    : [
+        { id: "previous", label: "PREVIOUS 30 DAYS", items: matches.filter((f) => f.group === "previous") },
+        { id: "older", label: "OLDER", items: matches.filter((f) => f.group === "older") },
+      ].filter((g) => g.items.length > 0);
+
   return (
     <div className={styles.pageContainer}>
       <div className={`${styles.sidebarHost} ${isShell ? "" : styles.sidebarHidden}`}>
@@ -119,15 +173,15 @@ export default function App() {
           route={route}
           onRoute={onRoute}
           onToast={showToast}
-          onSearch={() => {
-            setSearchQuery("");
-            setSearchOpen(true);
-          }}
+          onSearch={openSearch}
           mcpVisible={mcpVisible}
           onDismissMcp={() => {
             setMcpVisible(false);
             showToast("Dismissed MCP card");
           }}
+          onWorkspaceClick={() => togglePanel("workspace")}
+          onInbox={() => togglePanel("inbox")}
+          onNewProject={() => setNewProjectOpen(true)}
         />
       </div>
 
@@ -142,21 +196,32 @@ export default function App() {
             <div className={styles.page}>
               {route === "home" ? (
                 <>
-                  <div className={styles.heroWrap}>
+                  <div className={styles.homeCol}>
                     <h1 className={styles.welcome}>Welcome back, {workspace.user}</h1>
-                    <HomeHero onToast={showToast} />
-                    <HomeRecents onOpen={openFile} onViewAll={() => onRoute("files")} />
+                    <HomeRecents
+                      onOpen={openFile}
+                      onViewAll={() => onRoute("files")}
+                      onTrash={() => showToast("Trash — 2 files")}
+                    />
+                    <ConceptDesign />
                   </div>
-                  <ConceptDesign />
+                  <div className={styles.aiDock}>
+                    <HomeHero onToast={showToast} />
+                  </div>
                 </>
               ) : route === "files" ? (
-                <div className={styles.heroWrap}>
-                  <h1 className={styles.welcome}>Your recent projects</h1>
-                  <HomeRecents onOpen={openFile} />
-                </div>
-              ) : (
-                <div className={styles.placeholder}>{routeTitles[route]} — coming soon in this clone</div>
-              )}
+                <FilesPage
+                  onOpen={openFile}
+                  onToast={showToast}
+                  onNewProject={() => setNewProjectOpen(true)}
+                />
+              ) : route === "templates" ? (
+                <TemplatesPage onToast={showToast} />
+              ) : route === "community" ? (
+                <CommunityPage onToast={showToast} />
+              ) : route === "academy" ? (
+                <AcademyPage onToast={showToast} />
+              ) : null}
             </div>
           </div>
         </View>
@@ -171,6 +236,10 @@ export default function App() {
 
         <View active={route === "generate"} label="generate">
           <GeneratePage onBack={() => onRoute("home")} onToast={showToast} />
+        </View>
+
+        <View active={route === "arena"} label="arena">
+          <ArenaPage onRoute={onRoute} onSearch={openSearch} onToast={showToast} />
         </View>
       </div>
 
@@ -189,37 +258,78 @@ export default function App() {
         }}
       />
 
+      {panel === "workspace" ? (
+        <WorkspaceMenu onClose={() => setPanel(null)} onToast={showToast} />
+      ) : null}
+      {panel === "inbox" ? <InboxPanel onClose={() => setPanel(null)} /> : null}
+      {newProjectOpen ? (
+        <NewProjectModal onClose={() => setNewProjectOpen(false)} onCreate={createProject} />
+      ) : null}
+      {importOpen ? (
+        <ImportModal
+          onClose={() => setImportOpen(false)}
+          onPickFiles={() => {
+            setImportOpen(false);
+            importRef.current?.click();
+          }}
+          onGenerate={() => {
+            setImportOpen(false);
+            onRoute("generate");
+          }}
+          onToast={showToast}
+        />
+      ) : null}
+
       {searchOpen ? (
         <div className={styles.searchBackdrop} onMouseDown={(event) => {
           if (event.target === event.currentTarget) setSearchOpen(false);
         }}>
-          <section className={styles.searchDialog} role="dialog" aria-modal="true" aria-labelledby="searchTitle">
-            <h2 id="searchTitle" className={styles.searchTitle}>Search your files</h2>
-            <input
-              autoFocus
-              className={styles.searchInput}
-              type="search"
-              placeholder="Search recent projects…"
-              aria-label="Search recent projects"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
+          <section className={styles.searchDialog} role="dialog" aria-modal="true" aria-label="Search files">
+            <div className={styles.searchInputRow}>
+              <IconSearch />
+              <input
+                autoFocus
+                className={styles.searchInput}
+                type="search"
+                placeholder="Search files in this workspace"
+                aria-label="Search files in this workspace"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+              {searchQuery ? (
+                <button type="button" className={styles.searchClear} aria-label="Clear search" onClick={() => setSearchQuery("")}>
+                  <IconClose />
+                </button>
+              ) : null}
+              <button type="button" className={styles.searchCloseBtn} onClick={() => setSearchOpen(false)}>
+                Close search
+              </button>
+            </div>
             <div className={styles.searchResults}>
-              {recents
-                .filter((file) => file.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
-                .map((file) => (
-                  <button key={file.id} type="button" className={styles.searchResult} onClick={() => {
-                    setSearchOpen(false);
-                    openFile(file.name);
-                  }}>
-                    <span>{file.name}</span><span>{file.time}</span>
-                  </button>
-                ))}
-              {recents.filter((file) => file.name.toLowerCase().includes(searchQuery.trim().toLowerCase())).length === 0 ? (
-                <p className={styles.searchEmpty}>No recent projects match “{searchQuery}”.</p>
+              {searchGroups.map((group) => (
+                <div key={group.id}>
+                  <p className={styles.searchGroup}>{group.label}</p>
+                  {group.items.map((file) => (
+                    <button
+                      key={file.id}
+                      type="button"
+                      className={styles.searchResult}
+                      onClick={() => {
+                        setSearchOpen(false);
+                        openFile(file.name);
+                      }}
+                    >
+                      <SearchThumb art={file.art} />
+                      <span className={styles.searchName}>{file.name}</span>
+                      {query ? <span className={styles.searchLoc}>My Files</span> : null}
+                    </button>
+                  ))}
+                </div>
+              ))}
+              {matches.length === 0 ? (
+                <p className={styles.searchEmpty}>No files match “{searchQuery}”.</p>
               ) : null}
             </div>
-            <p className={styles.searchHint}>Press Esc to close · Ctrl/⌘ K to search</p>
           </section>
         </div>
       ) : null}
@@ -230,3 +340,4 @@ export default function App() {
     </div>
   );
 }
+

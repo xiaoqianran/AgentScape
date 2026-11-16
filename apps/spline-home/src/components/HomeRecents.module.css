@@ -1,9 +1,6 @@
 .section {
   width: 100%;
-  max-width: 664px;
-  margin: 0 auto;
-  padding: 0 12px;
-  margin-top: 34px;
+  margin-top: 26px;
 }
 
 .sectionHead {
@@ -20,7 +17,6 @@
   color: var(--color-text-3);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  max-width: 640px;
 }
 
 .viewAll {
@@ -47,15 +43,15 @@
   align-items: center;
   gap: 16px;
   width: 100%;
-  height: var(--row-h);
-  padding: 10px 12px;
+  height: 64px;
+  padding: 8px 12px;
   border-radius: var(--radius-row);
   text-align: left;
   transition: background var(--t-row);
 }
 
 .row:hover {
-  background: var(--color-bg-hover);
+  background: #2a2a2a;
 }
 
 .row:active {
@@ -63,18 +59,23 @@
 }
 
 .thumb {
-  width: 44px;
-  height: 28px;
-  border-radius: var(--radius-button-small);
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-1);
   background: #292929;
   overflow: hidden;
   flex-shrink: 0;
   display: block;
+  position: relative;
 }
 
 .thumbArt {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 48px;
+  width: auto;
+  transform: translate(-50%, -50%);
   display: block;
 }
 
@@ -93,3 +94,17 @@
   color: var(--color-text-3);
   flex-shrink: 0;
 }
+
+.trashLink {
+  margin-top: 12px;
+  color: var(--color-text-3);
+  font-size: var(--type-nav);
+  padding: 4px 0;
+  transition: color var(--t-base);
+}
+
+.trashLink:hover {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+

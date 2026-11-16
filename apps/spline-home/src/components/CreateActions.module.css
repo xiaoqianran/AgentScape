@@ -8,7 +8,7 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  height: 32px;
+  height: 36px;
   padding: 0 12px;
   border-radius: var(--radius-1);
   font-size: var(--type-body);
@@ -24,37 +24,43 @@
 }
 
 .scene {
-  background: var(--color-blue-soft);
+  background: transparent;
   color: var(--color-blue);
   border-color: var(--color-blue-border);
 }
 
 .design {
-  background: var(--color-accent-soft);
+  background: transparent;
   color: var(--color-accent-text);
   border-color: var(--color-accent-border);
 }
 
 .generate {
-  background: var(--color-green-soft);
+  background: transparent;
   color: var(--color-green);
   border-color: var(--color-green-border);
 }
 
 .import {
-  background: var(--color-bg-elevated);
-  color: var(--color-text-2);
+  background: #262626;
+  color: var(--color-text);
   border-color: transparent;
 }
 
-.scene:hover,
-.design:hover,
+.scene:hover {
+  background: var(--color-blue-soft);
+}
+
+.design:hover {
+  background: var(--color-accent-soft);
+}
+
 .generate:hover {
-  filter: brightness(1.12);
+  background: var(--color-green-soft);
 }
 
 .import:hover {
-  background: var(--color-bg-hover);
+  background: #303030;
   color: var(--color-text);
   filter: none;
 }

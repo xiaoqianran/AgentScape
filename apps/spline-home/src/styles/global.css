@@ -50,7 +50,7 @@ body,
 }
 
 body {
-  background: #1e1e1e;
+  background: #121212;
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: var(--type-body);

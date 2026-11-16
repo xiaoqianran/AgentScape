@@ -165,3 +165,107 @@ export function IconCaret(props) {
     </svg>
   );
 }
+
+export function IconArena(props) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" {...props}>
+      <path d="M4.5 2.5h7V5a3.5 3.5 0 01-7 0V2.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M4.5 3.5H2.8a2.2 2.2 0 002.2 2.7M11.5 3.5h1.7A2.2 2.2 0 0111 6.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M8 9.5v2M5.8 13.5h4.4M8 11.5l-1 2h2l-1-2z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconGear(props) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" {...props}>
+      <circle cx="8" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8 2v2M8 12v2M2 8h2M12 8h2M3.8 3.8l1.4 1.4M10.8 10.8l1.4 1.4M12.2 3.8l-1.4 1.4M5.2 10.8l-1.4 1.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconGrid(props) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" {...props}>
+      <rect x="2" y="2" width="4" height="4" rx="1" fill="currentColor" />
+      <rect x="8" y="2" width="4" height="4" rx="1" fill="currentColor" opacity="0.55" />
+      <rect x="2" y="8" width="4" height="4" rx="1" fill="currentColor" opacity="0.55" />
+      <rect x="8" y="8" width="4" height="4" rx="1" fill="currentColor" opacity="0.55" />
+    </svg>
+  );
+}
+
+export function IconList(props) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" {...props}>
+      <path d="M4.5 3.5h8M4.5 7h8M4.5 10.5h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <circle cx="2" cy="3.5" r="0.9" fill="currentColor" />
+      <circle cx="2" cy="7" r="0.9" fill="currentColor" />
+      <circle cx="2" cy="10.5" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function IconDots(props) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" {...props}>
+      <circle cx="3" cy="8" r="1.3" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.3" fill="currentColor" />
+      <circle cx="13" cy="8" r="1.3" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function IconSparkle(props) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" {...props}>
+      <path d="M8 1.8l1.7 4.5L14.2 8l-4.5 1.7L8 14.2 6.3 9.7 1.8 8l4.5-1.7L8 1.8z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function IconCube(props) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" {...props}>
+      <path d="M8 2l5.5 3v6L8 14l-5.5-3V5L8 2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M2.5 5L8 8l5.5-3M8 8v6" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconImage(props) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" {...props}>
+      <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="5.5" cy="6.5" r="1.2" fill="currentColor" />
+      <path d="M2.5 12l3.5-3 2.5 2 2-1.5 3 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconSliders(props) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" {...props}>
+      <path d="M2.5 5h7M12.5 5h1M2.5 11h3M8.5 11h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <circle cx="11" cy="5" r="1.8" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="7" cy="11" r="1.8" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+export function IconArrowLeft(props) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" {...props}>
+      <path d="M12 7H2M5.5 3.5L2 7l3.5 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconExpand(props) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" {...props}>
+      <path d="M8.5 2h3.5v3.5M12 2L8.8 5.2M5.5 12H2V8.5M2 12l3.2-3.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

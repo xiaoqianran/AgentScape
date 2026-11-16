@@ -14,7 +14,7 @@ function Thumb({ art }) {
   );
 }
 
-export default function HomeRecents({ onOpen, onViewAll }) {
+export default function HomeRecents({ onOpen, onViewAll, onTrash }) {
   return (
     <section className={styles.section} aria-label="Recent files">
       <div className={styles.sectionHead}>
@@ -32,6 +32,11 @@ export default function HomeRecents({ onOpen, onViewAll }) {
           </li>
         ))}
       </ul>
+      {onTrash ? (
+        <button type="button" className={styles.trashLink} onClick={onTrash}>
+          2 files in Trash
+        </button>
+      ) : null}
     </section>
   );
 }

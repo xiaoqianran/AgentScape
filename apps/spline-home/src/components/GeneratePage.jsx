@@ -1,6 +1,15 @@
 import { useMemo, useRef, useState } from "react";
 import styles from "./GeneratePage.module.css";
 import DropdownMenu from "./DropdownMenu.jsx";
+import Art from "./Art.jsx";
+import {
+  IconArrowLeft,
+  IconSparkle,
+  IconCube,
+  IconImage,
+  IconTemplates,
+  IconSliders,
+} from "./icons.jsx";
 import {
   generateNav,
   generateCategories,
@@ -8,6 +17,18 @@ import {
   modelEngineOptions,
   discoverCards,
 } from "../data/home.js";
+
+const CAT_HUES = {
+  Characters: [280, 330],
+  Furniture: [30, 18],
+  Architecture: [205, 232],
+  Props: [150, 185],
+  Creatures: [350, 22],
+  Objects: [220, 252],
+  Nature: [190, 150],
+  Vehicles: [95, 125],
+  "Food & drink": [42, 18],
+};
 
 export default function GeneratePage({ onBack, onToast }) {
   const [tab, setTab] = useState("discover");
@@ -34,33 +55,60 @@ export default function GeneratePage({ onBack, onToast }) {
 
   const canGenerate = prompt.trim().length > 0;
 
+  const queue = () => {
+    onToast(`Queued ${outputType} · ${engine}: ${prompt.slice(0, 40)}…`);
+    setPrompt("");
+  };
+
   return (
     <div className={styles.root}>
-      <aside className={styles.nav} aria-label="Generate navigation">
-        <button type="button" className={styles.backBtn} onClick={onBack}>
-          ← Back
+      <aside className={styles.rail} aria-label="Generate tools">
+        <button type="button" className={styles.railBtn} title="Back" aria-label="Back" onClick={onBack}>
+          <IconArrowLeft />
         </button>
-        <div className={styles.navList}>
+        <button type="button" className={`${styles.railBtn} ${styles.railActive}`} title="3D Generate" aria-label="3D Generate" onClick={() => setTab("3d")}>
+          <span className={styles.sparkle}>
+            <IconSparkle />
+          </span>
+        </button>
+        <button type="button" className={styles.railBtn} title="Scenes" aria-label="Scenes" onClick={() => onToast("Scenes")}>
+          <IconCube />
+        </button>
+        <button type="button" className={styles.railBtn} title="Image Generate" aria-label="Image Generate" onClick={() => setTab("image")}>
+          <IconImage />
+        </button>
+        <button type="button" className={styles.railBtn} title="Assets" aria-label="Assets" onClick={() => setTab("assets")}>
+          <IconTemplates />
+        </button>
+        <span className={styles.railSpacer} />
+        <button type="button" className={styles.railBtn} title="Settings" aria-label="Settings" onClick={() => setTab("settings")}>
+          <IconSliders />
+        </button>
+      </aside>
+
+      <div className={styles.main}>
+        <nav className={styles.topTabs} aria-label="Generate navigation">
+          <button type="button" className={styles.backLink} onClick={onBack}>
+            ← Back
+          </button>
           {generateNav.map((item) => (
             <button
               key={item.id}
               type="button"
-              className={`${styles.navItem} ${tab === item.id ? styles.navItemActive : ""}`}
+              className={`${styles.tabBtn} ${tab === item.id ? styles.tabActive : ""}`}
               onClick={() => setTab(item.id)}
             >
               {item.label}
             </button>
           ))}
-        </div>
-      </aside>
+        </nav>
 
-      <div className={styles.main}>
         <div className={styles.hero}>
           <h2 className={styles.heading}>What do you want to create?</h2>
           <div className={styles.promptBox}>
             <textarea
               className={styles.textarea}
-              rows={2}
+              rows={3}
               placeholder={
                 outputType === "Image"
                   ? "Describe an image to generate"
@@ -73,8 +121,7 @@ export default function GeneratePage({ onBack, onToast }) {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey && canGenerate) {
                   e.preventDefault();
-                  onToast(`Queued ${outputType} · ${engine}: ${prompt.slice(0, 40)}…`);
-                  setPrompt("");
+                  queue();
                 }
               }}
             />
@@ -85,7 +132,7 @@ export default function GeneratePage({ onBack, onToast }) {
                 title="Add reference image"
                 onClick={() => fileRef.current?.click()}
               >
-                {refImage ? refImage : "＋ Reference"}
+                + {refImage ? refImage : "Add reference image"}
               </button>
               <input
                 ref={fileRef}
@@ -108,7 +155,7 @@ export default function GeneratePage({ onBack, onToast }) {
                 aria-label="Output type"
                 onClick={() => setOpenMenu(openMenu === "output" ? null : "output")}
               >
-                {outputType}
+                <span className={styles.selectLabel}>Output type</span> {outputType}
               </button>
               <button
                 ref={engineRef}
@@ -117,19 +164,11 @@ export default function GeneratePage({ onBack, onToast }) {
                 aria-label="3D model engine"
                 onClick={() => setOpenMenu(openMenu === "engine" ? null : "engine")}
               >
-                {engine}
+                <span className={styles.selectLabel}>3D model engine</span> {engine}
               </button>
 
               <span className={styles.spacer} />
-              <button
-                type="button"
-                className={styles.generateBtn}
-                disabled={!canGenerate}
-                onClick={() => {
-                  onToast(`Queued ${outputType} · ${engine}: ${prompt.slice(0, 40)}…`);
-                  setPrompt("");
-                }}
-              >
+              <button type="button" className={styles.generateBtn} disabled={!canGenerate} onClick={queue}>
                 Generate
               </button>
             </div>
@@ -153,6 +192,7 @@ export default function GeneratePage({ onBack, onToast }) {
             className={styles.search}
             type="search"
             placeholder="Search models"
+            aria-label="Search models"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -169,11 +209,11 @@ export default function GeneratePage({ onBack, onToast }) {
                 onToast(`Loaded prompt: ${card.title}`);
               }}
             >
-              <span className={styles.cardArt} data-cat={card.category} />
-              <span className={styles.cardBody}>
-                <span className={styles.cardTitle}>{card.title}</span>
+              <span className={styles.cardArt}>
+                <Art hues={CAT_HUES[card.category] || [222, 262]} seed={Number(card.id.slice(1)) % 4} />
                 <span className={styles.cardPrompt}>{card.prompt}</span>
               </span>
+              <span className={styles.cardTitle}>{card.title}</span>
             </button>
           ))}
           {cards.length === 0 ? <div className={styles.empty}>No models match</div> : null}
@@ -205,3 +245,4 @@ export default function GeneratePage({ onBack, onToast }) {
     </div>
   );
 }
+

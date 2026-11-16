@@ -5,13 +5,13 @@ export const workspace = {
 };
 
 export const recents = [
-  { id: "f1", name: "Mini Room - Art - Copy", time: "1 day ago", art: "mini-room" },
-  { id: "f2", name: "Spline 3D Starter File", time: "1 day ago", art: "starter" },
-  { id: "f3", name: "Untitled", time: "1 day ago", art: "empty" },
-  { id: "f4", name: "Hana starter file", time: "3 days ago", art: "hana" },
-  { id: "f5", name: "Hana starter file", time: "3 days ago", art: "hana-light" },
-  { id: "f6", name: "Hana starter file", time: "3 days ago", art: "empty" },
-  { id: "f7", name: "Untitled", time: "3 days ago", art: "empty" },
+  { id: "f1", name: "Spline 3D Starter File", time: "12 days ago", group: "previous", art: "starter" },
+  { id: "f2", name: "Hana starter file", time: "2 months ago", group: "older", art: "hana" },
+  { id: "f3", name: "Mini Room - Art - Copy", time: "2 months ago", group: "older", art: "mini-room" },
+  { id: "f4", name: "Untitled", time: "2 months ago", group: "older", art: "empty" },
+  { id: "f5", name: "Hana starter file", time: "2 months ago", group: "older", art: "hana-light" },
+  { id: "f6", name: "Hana starter file", time: "2 months ago", group: "older", art: "hana" },
+  { id: "f7", name: "Untitled", time: "2 months ago", group: "older", art: "empty" },
 ];
 
 export const examples = [
@@ -23,21 +23,20 @@ export const examples = [
 export const modeOptions = [
   { id: "scene", label: "3D Scene", description: "Interactive 3D objects and scenes" },
   { id: "design", label: "Design", description: "2D vectors, UI, and layouts" },
-  { id: "generate", label: "Generate", description: "AI images and starter assets" },
+  { id: "model", label: "3D Model", description: "Single generated mesh assets" },
 ];
 
 /** Generic preview controls; generation models are not wired to this local UI. */
 export const qualityOptions = [
-  { id: "fast", label: "Fast", description: "Quick drafts with lighter detail" },
-  { id: "balanced", label: "Balanced", description: "A balance of speed and detail" },
-  { id: "high", label: "High detail", description: "More detail, with a longer wait" },
+  { id: "high", label: "High", description: "Solid quality at mid cost" },
+  { id: "standard", label: "Standard", description: "Lower quality, cheaper cost" },
+  { id: "premium", label: "Premium", description: "Best quality at highest cost" },
 ];
 
 export const effortOptions = [
-  { id: "low", label: "Low", description: "Light thinking" },
-  { id: "medium", label: "Medium", description: "Balanced speed / quality" },
   { id: "high", label: "High", description: "More thorough" },
-  { id: "max", label: "Max", description: "Maximum reasoning" },
+  { id: "medium", label: "Medium", description: "Balanced" },
+  { id: "low", label: "Low", description: "Faster and cheaper" },
 ];
 
 export const routeTitles = {
@@ -46,6 +45,7 @@ export const routeTitles = {
   templates: "Templates",
   community: "Community",
   academy: "Academy",
+  arena: "Spline Arena",
   generate: "Generate",
   scene: "Spline 3D Starter File",
   sceneFile: "Spline 3D Starter File",

@@ -4,10 +4,11 @@ import DropdownMenu from "./DropdownMenu.jsx";
 import { IconAttach, IconOrbit, IconCaret, IconSend } from "./icons.jsx";
 import { examples, modeOptions, qualityOptions, effortOptions } from "../data/home.js";
 
+/** Sticky bottom AI bar on Home (mirrors app.spline.design/home). */
 export default function HomeHero({ onToast }) {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState("3D Scene");
-  const [quality, setQuality] = useState("Balanced");
+  const [quality, setQuality] = useState("High");
   const [effort, setEffort] = useState("High");
   const [openMenu, setOpenMenu] = useState(null);
 
@@ -24,7 +25,7 @@ export default function HomeHero({ onToast }) {
 
   const autosize = (el) => {
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   };
 
   const toggle = (name) => setOpenMenu((cur) => (cur === name ? null : name));
@@ -66,11 +67,7 @@ export default function HomeHero({ onToast }) {
   };
 
   return (
-    <section className={styles.hero} aria-labelledby="createTitle">
-      <div className={styles.heroHeading}>
-        <h2 id="createTitle">What do you want to create?</h2>
-        <p>Start with a prompt or open a project you were working on.</p>
-      </div>
+    <section className={styles.bar} aria-label="Generate with AI">
       <div className={styles.exampleChips}>
         {examples.map((text) => (
           <button
@@ -90,57 +87,58 @@ export default function HomeHero({ onToast }) {
         ))}
       </div>
 
-      <div className={styles.promptContainer}>
-        <textarea
-          ref={taRef}
-          className={styles.textarea}
-          rows={1}
-          placeholder="Describe or type / for commands"
-          aria-label="Describe or type / for commands"
-          value={prompt}
-          onChange={(e) => {
-            setPrompt(e.target.value);
-            autosize(e.target);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-        />
-        <div className={styles.toolbar}>
-          <button type="button" className={styles.toolIcon} title="File attachments are not connected in this preview" aria-label="File attachments are not connected in this preview" onClick={() => onToast("File attachments are not connected in this preview.")}>
-            <IconAttach />
-          </button>
+      <textarea
+        ref={taRef}
+        className={styles.textarea}
+        rows={1}
+        placeholder="Describe or type / for commands"
+        aria-label="Describe or type / for commands"
+        value={prompt}
+        onChange={(e) => {
+          setPrompt(e.target.value);
+          autosize(e.target);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            submit();
+          }
+        }}
+      />
 
-          <button ref={modeRef} type="button" className={styles.toolBtn} onClick={() => toggle("mode")}>
-            <IconOrbit width="14" height="14" />
-            <span>{mode}</span>
-            <IconCaret />
-          </button>
-          <button ref={qualityRef} type="button" className={styles.toolBtn} title="Quality" onClick={() => toggle("quality")}>
-            <span>{quality}</span>
-            <IconCaret />
-          </button>
-          <button ref={effortRef} type="button" className={styles.toolBtn} title="Thinking effort" onClick={() => toggle("effort")}>
-            <span>{effort}</span>
-            <IconCaret />
-          </button>
+      <div className={styles.toolbar}>
+        <button type="button" className={styles.toolIcon} title="Attach files" aria-label="Attach files" onClick={() => onToast("File attachments are not connected in this preview.")}>
+          <IconAttach />
+        </button>
 
-          <span className={styles.spacer} />
+        <button ref={modeRef} type="button" className={styles.toolBtn} title="What to generate" onClick={() => toggle("mode")}>
+          <IconOrbit width="14" height="14" />
+          <span>{mode}</span>
+          <IconCaret />
+        </button>
+        <button ref={qualityRef} type="button" className={styles.toolBtn} title="Quality" onClick={() => toggle("quality")}>
+          <span className={styles.toolLabel}>Quality</span>
+          <span>{quality}</span>
+          <IconCaret />
+        </button>
+        <button ref={effortRef} type="button" className={styles.toolBtn} title="Thinking effort" onClick={() => toggle("effort")}>
+          <span className={styles.toolLabel}>Thinking effort</span>
+          <span>{effort}</span>
+          <IconCaret />
+        </button>
 
-          <button
-            type="button"
-            className={styles.sendBtn}
-            disabled={!prompt.trim()}
-            title="Send"
-            aria-label="Send"
-            onClick={submit}
-          >
-            <IconSend />
-          </button>
-        </div>
+        <span className={styles.spacer} />
+
+        <button
+          type="button"
+          className={styles.sendBtn}
+          disabled={!prompt.trim()}
+          title="Send"
+          aria-label="Send"
+          onClick={submit}
+        >
+          <IconSend />
+        </button>
       </div>
 
       <DropdownMenu {...menuProps.mode} />
@@ -149,3 +147,4 @@ export default function HomeHero({ onToast }) {
     </section>
   );
 }
+
