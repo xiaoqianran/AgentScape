@@ -37,7 +37,7 @@ Edit [`apps/starter/scene.json`](apps/starter/scene.json) and reload. Your scene
 { "id": "reading-chair", "asset": "chair", "position": [-4, 0, 3] }
 ```
 
-The `agentscape3d` SDK shares the Scene service with Studio and MCP. The `2.0.0-beta.1` package is being prepared for npm; until publication, [build a local tarball](sdk/typescript/README.md). After publication, install with `npm install agentscape3d`.
+The `agentscape3d` SDK shares the Scene service with Studio and MCP. The `1.0.0-beta.1` package is being prepared for npm; until publication, [build a local tarball](sdk/typescript/README.md). After publication, install with `npm install agentscape3d`.
 
 ```js
 import { AgentScape } from 'agentscape3d';
