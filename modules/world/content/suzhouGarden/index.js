@@ -23,6 +23,39 @@ function createGround() {
   mesh.name='SuzhouGardenNavigationSurface';
   return {mesh,collider:{shape:'trimesh',vertices:Array.from(pos.array),indices:Array.from(geo.getIndex().array)}};
 }
+// CONTENT-015: the entrance-axis region (景区 1 · 澄观门庭, Z 110 -> 40) is the
+// garden's interactive region. Its structures get real physics colliders and
+// navmesh blockers derived from the same footprint list, matching the visual
+// builders in src/buildings.js (shadow walls, brick gate with a real 3.6 m
+// doorway, sedan hall, side corridors, 澄观堂). Every other region of the
+// garden stays display-only: terrain collision and navigation only.
+const boxCollider=(halfExtents,translation,rotY=0)=>rotY
+  ? {shape:'box',halfExtents,translation,rotation:[0,Math.sin(rotY/2),0,Math.cos(rotY/2)]}
+  : {shape:'box',halfExtents,translation};
+const span=(top)=>[(top+0.5)/2,(top-0.5)/2]; // [halfHeight, centerY] reaching 0.5 below grade
+export const SUZHOU_ENTRANCE_STRUCTURES=Object.freeze([
+  {name:'shadow-wall-west',collider:boxCollider([2.92,span(3.8)[0],0.3],[-11.5,span(3.8)[1],106.5],0.540),nav:true},
+  {name:'shadow-wall-east',collider:boxCollider([2.92,span(3.8)[0],0.3],[11.5,span(3.8)[1],106.5],-0.540),nav:true},
+  {name:'stone-screen',collider:boxCollider([4.5,span(0.82)[0],0.35],[0,span(0.82)[1],104]),nav:true},
+  {name:'gate-west',collider:boxCollider([2.6,span(5.6)[0],0.45],[-4.4,span(5.6)[1],92]),nav:true},
+  {name:'gate-east',collider:boxCollider([2.6,span(5.6)[0],0.45],[4.4,span(5.6)[1],92]),nav:true},
+  {name:'gate-lintel',collider:boxCollider([1.8,0.99,0.45],[0,4.61,92]),nav:false},
+  {name:'sedan-hall',collider:boxCollider([10,span(5.2)[0],4],[0,span(5.2)[1],80]),nav:true},
+  {name:'chengguan-hall',collider:boxCollider([14,span(8.4)[0],6],[0,span(8.4)[1],58]),nav:true},
+  ...[-24,24].flatMap((x)=>[59,63,67,71].map((z)=>({name:`corridor-column-${x}-${z}`,collider:{shape:'cylinder',radius:0.18,halfHeight:1.9,translation:[x,1.4,z]},nav:false})))
+]);
+function createEntranceBlockers() {
+  return SUZHOU_ENTRANCE_STRUCTURES.filter((item)=>item.nav).map((item)=>{
+    const c=item.collider;
+    const mesh=new THREE.Mesh(
+      new THREE.BoxGeometry(c.halfExtents[0]*2,c.halfExtents[1]*2,c.halfExtents[2]*2),
+      new THREE.MeshBasicMaterial({visible:false}));
+    mesh.position.set(...c.translation);
+    if(c.rotation) mesh.quaternion.set(...c.rotation);
+    mesh.name=`SuzhouEntranceBlocker:${item.name}`;
+    return mesh;
+  });
+}
 export function createSuzhouGardenEnvironment({renderer=null,quality='low'}={}) {
   const q=QUALITY[quality]||QUALITY.low;
   const root=new THREE.Group();
@@ -55,8 +88,11 @@ export function createSuzhouGardenEnvironment({renderer=null,quality='low'}={}) 
   const navigationRoot=new THREE.Group();
   navigationRoot.name='SuzhouGardenNavigation';
   navigationRoot.add(surface.mesh);
+  const entranceBlockers=createEntranceBlockers();
+  for(const blocker of entranceBlockers) navigationRoot.add(blocker);
   root.add(navigationRoot);
   root.traverse(node=>{if(node.isMesh&&node!==surface.mesh)node.userData.navigationIgnore=true;});
+  for(const blocker of entranceBlockers) delete blocker.userData.navigationIgnore;
   let time=0, hour=WORLD.sunDefaultHour,weather='clear';
   let lastLodUpdate=0;
   sky.dome.onBeforeRender=(_renderer,_scene,activeCamera)=>{
@@ -71,7 +107,7 @@ export function createSuzhouGardenEnvironment({renderer=null,quality='low'}={}) 
     }
   };
   return {
-    id:SUZHOU_ID,root,floor:surface.mesh,navigationRoot,colliders:[surface.collider],
+    id:SUZHOU_ID,root,floor:surface.mesh,navigationRoot,colliders:[surface.collider,...SUZHOU_ENTRANCE_STRUCTURES.map((item)=>item.collider)],
     layout:{bounds:{min:[-150,-140],max:[150,160]},groundY:0,margin:2},
     camera:{position:POIS[0].pos,target:POIS[0].target,far:3200},
     rendering:{background:0x91a9c3,exposure:1.08,fog:root.fog},

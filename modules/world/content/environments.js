@@ -6,7 +6,7 @@ export const ENVIRONMENTS = Object.freeze([
     facts:['苏州园林','程序化建筑与山水','原生 Three.js Environment'],
     worldFirst:true,rendererMode:'webgl-legacy',
     load:()=>import('./suzhouGarden/index.js').then(module=>module.createSuzhouGardenEnvironment),
-    bootstrap:{agent:[0,0,65]},coffeeCorner:{}
+    bootstrap:{agent:[0,0,65],table:[5,0,68],cup:[5.35,1.05,68]},coffeeCorner:{table:[5,0,68]}
   }),
   Object.freeze({
     id:'yuanmingyuan-western-mansions',number:'世界 06',title:'圆明园 · 西洋楼',rendererMode:'webgl-legacy',

@@ -69,7 +69,7 @@ observe / addModel / setTransform / remove / replaceAsset / interact / verify / 
 | magic-cabin | 魔女小屋 | 内容最丰富；浏览器专属（依赖 DOM），Node / Headless 不支持 |
 | woodland-workshop | 林间工坊 | 开放式工坊，含真实物理资产与原地文字编辑 |
 | yuanmingyuan-western-mansions | 圆明园 · 西洋楼 | 大型程序化世界，含地形碰撞；以探索与展示为主 |
-| suzhou-garden | 苏州园林 | Studio 默认环境；高精度视觉 + 简化地面代理，**逐建筑碰撞 / 导航 / 交互语义未完成** |
+| suzhou-garden | 苏州园林 | Studio 默认环境；**澄观门庭区域（入口礼序中轴，Z 110→40）已补齐建筑碰撞、导航阻挡与可交互物体（CONTENT-015）**；其余景区仍为展示状态（仅地形碰撞与导航），逐建筑语义未完成 |
 | ruined-courtyard | 遗迹庭院 | 视觉与探索为主 |
 | grand-urban-block | 大型城市街区 | 视觉与探索为主，大世界可交互化在阶段 5 分区域推进 |
 
