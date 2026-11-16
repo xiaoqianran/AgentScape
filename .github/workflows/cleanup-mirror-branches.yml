@@ -1,0 +1,38 @@
+name: Cleanup Mirror Branches (one-off)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Delete non-main branches on mirrors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete non-main branches on CNB1, CNB2 and GitCode
+        env:
+          CNB1_TOKEN: ${{ secrets.CNB1_TOKEN }}
+          CNB2_TOKEN: ${{ secrets.CNB2_TOKEN }}
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+        run: |
+          set -uo pipefail
+          git init -q repo && cd repo
+          git remote add cnb1 "https://cnb:${CNB1_TOKEN}@cnb.cool/xiaoqianran/AgentScape.git"
+          git remote add cnb2 "https://cnb:${CNB2_TOKEN}@cnb.cool/chutianqiuer/AgentScape.git"
+          git remote add gitcode "https://xiaoqianran:${GITCODE_TOKEN}@gitcode.com/xiaoqianran/AgentScape.git"
+          fail=0
+          for remote in cnb1 cnb2 gitcode; do
+            echo "=== $remote ==="
+            branches=$(git ls-remote --heads "$remote" | awk "{print \$2}" | sed "s#refs/heads/##")
+            for b in $branches; do
+              if [ "$b" != "main" ]; then
+                echo "deleting $remote $b"
+                git push "$remote" --delete "$b" || fail=1
+              fi
+            done
+            echo "remaining on $remote:"
+            git ls-remote --heads "$remote"
+          done
+          exit $fail
