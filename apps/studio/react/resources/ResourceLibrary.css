@@ -298,6 +298,11 @@
   .resource-kind-tabs button {
     flex: 1;
     justify-content: center;
+    padding-inline: 8px;
+  }
+
+  .resource-kind-tabs {
+    flex-wrap: wrap;
   }
 
   .resource-list {

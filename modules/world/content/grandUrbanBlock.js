@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 
 export const GRAND_URBAN_BLOCK_ASSETS = Object.freeze({
-  hdri:'assets/grand-urban-block/urban_street_01_1k.hdr',
-  asphaltDiffuse:'assets/grand-urban-block/clean_asphalt_diff_1k.jpg',
-  asphaltNormal:'assets/grand-urban-block/clean_asphalt_nor_gl_1k.jpg',
-  pavementDiffuse:'assets/grand-urban-block/concrete_pavement_diff_1k.jpg'
+  hdri:'/assets/grand-urban-block/urban_street_01_1k.hdr',
+  asphaltDiffuse:'/assets/grand-urban-block/clean_asphalt_diff_1k.jpg',
+  asphaltNormal:'/assets/grand-urban-block/clean_asphalt_nor_gl_1k.jpg',
+  pavementDiffuse:'/assets/grand-urban-block/concrete_pavement_diff_1k.jpg'
 });
 
 const box = (halfExtents, translation) => ({ shape:'box', halfExtents, translation });

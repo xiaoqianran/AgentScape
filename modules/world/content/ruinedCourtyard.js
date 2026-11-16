@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 
 export const RUINED_COURTYARD_ASSETS = Object.freeze({
-  hdri: 'assets/ruined-courtyard/courtyard_1k.hdr',
-  groundDiffuse: 'assets/ruined-courtyard/mossy_cobblestone_diff_1k.jpg',
-  groundNormal: 'assets/ruined-courtyard/mossy_cobblestone_nor_gl_1k.jpg',
-  wallDiffuse: 'assets/ruined-courtyard/mossy_sandstone_diff_1k.jpg'
+  hdri: '/assets/ruined-courtyard/courtyard_1k.hdr',
+  groundDiffuse: '/assets/ruined-courtyard/mossy_cobblestone_diff_1k.jpg',
+  groundNormal: '/assets/ruined-courtyard/mossy_cobblestone_nor_gl_1k.jpg',
+  wallDiffuse: '/assets/ruined-courtyard/mossy_sandstone_diff_1k.jpg'
 });
 
 const box = (halfExtents, translation, rotation = null) => ({ shape:'box', halfExtents, translation, ...(rotation ? { rotation } : {}) });

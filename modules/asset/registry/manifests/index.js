@@ -139,7 +139,7 @@ export const assetManifests = {
     }
   },
   cabinet: {
-    id: 'cabinet', type: 'cabinet', label: 'Cabinet', tags: ['cabinet', 'storage', 'furniture', '柜子'], aliases: ['cupboard'], source: { kind: 'glb', url: 'assets/cabinet.glb' },
+    id: 'cabinet', type: 'cabinet', label: 'Cabinet', tags: ['cabinet', 'storage', 'furniture', '柜子'], aliases: ['cupboard'], source: { kind: 'glb', url: '/assets/cabinet.glb' },
     requiredNodes: ['Body', 'doorHinge', 'Door'],
     actions: ['open', 'close', 'move'],
     physics: {

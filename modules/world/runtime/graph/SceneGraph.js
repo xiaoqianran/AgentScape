@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 // Broad-phase only: the SpatialSystem remains the source of truth for exact
 // ON / INSIDE geometry. Reject only pairs that cannot possibly match.
 const mayRestOn = (subjectBox, surface) => {
@@ -9,6 +11,36 @@ const mayRestOn = (subjectBox, surface) => {
     subjectBox.max.z >= surface.center.z-halfZ &&
     subjectBox.min.y >= surface.center.y-0.03 &&
     subjectBox.min.y <= surface.center.y+0.12;
+};
+
+const intersectsExpanded = (left, right, margin = 0) =>
+  left.min.x <= right.max.x + margin && left.max.x >= right.min.x - margin &&
+  left.min.y <= right.max.y + margin && left.max.y >= right.min.y - margin &&
+  left.min.z <= right.max.z + margin && left.max.z >= right.min.z - margin;
+
+const sameValue = (left, right) => {
+  if (Object.is(left, right)) return true;
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => sameValue(value, right[index]));
+  }
+  const leftKeys = Object.keys(left), rightKeys = Object.keys(right);
+  return leftKeys.length === rightKeys.length && leftKeys.every((key) => Object.hasOwn(right, key) && sameValue(left[key], right[key]));
+};
+
+const sameEdges = (left, right) => {
+  if (left.size !== right.size) return false;
+  const iterator = right.entries();
+  for (const [key, edge] of left) {
+    const next = iterator.next().value;
+    if (!next || key !== next[0]) return false;
+    const other = next[1];
+    if (edge.subject !== other.subject || edge.predicate !== other.predicate || edge.object !== other.object) return false;
+    const a = edge.meta || {}, b = other.meta || {};
+    const aKeys = Object.keys(a), bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length || aKeys.some((name) => !sameValue(a[name], b[name]))) return false;
+  }
+  return true;
 };
 
 export class SceneGraph {
@@ -78,15 +110,44 @@ export class SceneGraph {
   }
 
   rebuild(snapshot = null) {
-    const previous = JSON.stringify([...this.edges.values()]);
+    const previous = new Map(this.edges);
     this.clear();
     for (const fact of this.environmentFacts) this.set(fact.subject, fact.predicate, fact.object, fact.meta);
     const records = this.store.list().filter(([, record]) => record.active !== false);
     const spatialSnapshot = snapshot || this.spatial.snapshot();
     const surfaces = new Map();
     const containmentBounds = new Map();
+    const relationBounds = new Map();
+
+    // Keep the expensive exact geometry checks out of unrelated pairs. A target
+    // can expose surfaces/receptacles outside its visual bounds, so index those
+    // world-space regions as well as the object bounds.
+    const cellSize = 4;
+    const cellKey = (x, y, z) => `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)},${Math.floor(z / cellSize)}`;
+    const relationGrid = new Map();
+    const centerGrid = new Map();
+    const addRelationBound = (id, box) => {
+      if (!box) return;
+      const bounds = relationBounds.get(id) || [];
+      bounds.push(box);
+      relationBounds.set(id, bounds);
+      const minX = Math.floor(box.min.x / cellSize), maxX = Math.floor(box.max.x / cellSize);
+      const minY = Math.floor(box.min.y / cellSize), maxY = Math.floor(box.max.y / cellSize);
+      const minZ = Math.floor(box.min.z / cellSize), maxZ = Math.floor(box.max.z / cellSize);
+      for (let x = minX; x <= maxX; x++) for (let y = minY; y <= maxY; y++) for (let z = minZ; z <= maxZ; z++) {
+        const key = cellKey(x * cellSize, y * cellSize, z * cellSize);
+        let bucket = relationGrid.get(key);
+        if (!bucket) relationGrid.set(key, bucket = new Set());
+        bucket.add(id);
+      }
+    };
 
     for (const [id, record] of records) {
+      const center = spatialSnapshot.get(id).center;
+      const centerKey = cellKey(center.x, center.y, center.z);
+      let centerBucket = centerGrid.get(centerKey);
+      if (!centerBucket) centerGrid.set(centerKey, centerBucket = []);
+      centerBucket.push(id);
       surfaces.set(id, (record.manifest.surfaces || [])
         .map((surface) => this.spatial.getSupportSurface(id, surface.id, spatialSnapshot))
         .filter(Boolean));
@@ -95,6 +156,14 @@ export class SceneGraph {
         ? receptacles.map((entry)=>this.spatial.getReceptacle(id,entry.id,spatialSnapshot)?.box)
         : [spatialSnapshot.get(id).box];
       containmentBounds.set(id,zones.filter(Boolean).map((box)=>box.clone().expandByScalar(0.02)));
+      addRelationBound(id, spatialSnapshot.get(id).box);
+      for (const surface of surfaces.get(id)) {
+        addRelationBound(id, new THREE.Box3(
+          new THREE.Vector3(surface.center.x - surface.size[0] / 2, surface.center.y - 0.12, surface.center.z - surface.size[1] / 2),
+          new THREE.Vector3(surface.center.x + surface.size[0] / 2, surface.center.y + 0.12, surface.center.z + surface.size[1] / 2)
+        ));
+      }
+      for (const box of zones) if (box) addRelationBound(id, box);
     }
 
     const deriveDirected = (subjectId, subject, targetId, target) => {
@@ -117,26 +186,58 @@ export class SceneGraph {
       }
     };
 
+    const candidates = new Set();
+    const nearDistances = new Map();
     for (let i = 0; i < records.length; i++) {
-      const [id] = records[i];
-      const a = spatialSnapshot.get(id);
+      const [id] = records[i], a = spatialSnapshot.get(id);
+      // Keep the single pairwise distance pass used for NEAR semantics. The
+      // spatial index below limits the much more expensive geometry checks.
       for (let j = i + 1; j < records.length; j++) {
-        const [otherId] = records[j];
-        const b = spatialSnapshot.get(otherId);
+        const [otherId] = records[j], b = spatialSnapshot.get(otherId);
         const distance = a.center.distanceTo(b.center);
         if (distance <= 2) {
-          const meta = { distance: Number(distance.toFixed(3)) };
-          this.set(id, 'NEAR', otherId, meta);
-          this.set(otherId, 'NEAR', id, meta);
+          const pair = `${id}\0${otherId}`;
+          candidates.add(pair);
+          nearDistances.set(pair, distance);
         }
-        deriveDirected(id, a, otherId, b);
-        deriveDirected(otherId, b, id, a);
       }
+      const cx = Math.floor(a.center.x / cellSize), cy = Math.floor(a.center.y / cellSize), cz = Math.floor(a.center.z / cellSize);
+      for (let x = cx - 1; x <= cx + 1; x++) for (let y = cy - 1; y <= cy + 1; y++) for (let z = cz - 1; z <= cz + 1; z++) {
+        for (const otherId of centerGrid.get(cellKey(x * cellSize, y * cellSize, z * cellSize)) || []) {
+          if (id >= otherId) continue;
+        }
+      }
+      const seenTargets = new Set();
+      const box = a.box;
+      const minX = Math.floor((box.min.x - 0.12) / cellSize), maxX = Math.floor((box.max.x + 0.12) / cellSize);
+      const minY = Math.floor((box.min.y - 0.12) / cellSize), maxY = Math.floor((box.max.y + 0.12) / cellSize);
+      const minZ = Math.floor((box.min.z - 0.12) / cellSize), maxZ = Math.floor((box.max.z + 0.12) / cellSize);
+      for (let x = minX; x <= maxX; x++) for (let y = minY; y <= maxY; y++) for (let z = minZ; z <= maxZ; z++) {
+        for (const targetId of relationGrid.get(cellKey(x * cellSize, y * cellSize, z * cellSize)) || []) {
+          if (targetId === id || seenTargets.has(targetId)) continue;
+          seenTargets.add(targetId);
+          if (relationBounds.get(targetId)?.some((bound) => intersectsExpanded(box, bound, 0.12))) {
+            const pair = id < targetId ? `${id}\0${targetId}` : `${targetId}\0${id}`;
+            candidates.add(pair);
+          }
+        }
+      }
+    }
+    for (const pair of candidates) {
+      const [id, otherId] = pair.split('\0');
+      const a = spatialSnapshot.get(id), b = spatialSnapshot.get(otherId);
+      const nearDistance = nearDistances.get(pair);
+      if (nearDistance !== undefined) {
+        const meta = { distance: Number(nearDistance.toFixed(3)) };
+        this.set(id, 'NEAR', otherId, meta);
+        this.set(otherId, 'NEAR', id, meta);
+      }
+      deriveDirected(id, a, otherId, b);
+      deriveDirected(otherId, b, id, a);
     }
 
     this.dirty = false;
-    const next = JSON.stringify([...this.edges.values()]);
-    if (next !== previous) this.events?.emit('sceneGraph.updated', { edges: this.edges.size });
+    if (!sameEdges(previous, this.edges)) this.events?.emit('sceneGraph.updated', { edges: this.edges.size });
   }
 
   describe(id) {

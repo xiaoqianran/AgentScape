@@ -319,6 +319,11 @@
     min-width: 64px;
   }
 
+  .sidebarHost.sidebarHidden {
+    width: 0;
+    min-width: 0;
+  }
+
   .pageHeader {
     padding-left: 14px;
     padding-right: 14px;

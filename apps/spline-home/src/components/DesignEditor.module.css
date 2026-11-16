@@ -8,6 +8,8 @@
   overflow: hidden;
 }
 
+.mobileNav { display: none; }
+
 /* ── Left ─────────────────────────────────── */
 
 .left {
@@ -672,4 +674,32 @@
   padding: 0 6px;
   font-size: 11px;
   text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .root { flex-direction: column; }
+  .mobileNav {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4px;
+    padding: 8px;
+    overflow-x: auto;
+    background: #1e1e1e;
+    border-bottom: 1px solid var(--color-border-soft);
+  }
+  .mobileNav button {
+    flex: 1 0 auto;
+    min-height: 40px;
+    padding: 0 10px;
+    border-radius: 6px;
+    color: var(--color-text-2);
+    white-space: nowrap;
+  }
+  .mobileNav button[aria-pressed="true"] { background: var(--color-accent-soft); color: var(--color-text); }
+  .left, .stage, .right { display: none; width: 100%; min-width: 0; height: auto; min-height: 0; flex: 1; }
+  .left.mobilePanelActive { display: flex; }
+  .stage.mobilePanelActive, .right.mobilePanelActive { display: block; }
+  .leftHead .backBtn { display: none; }
+  .agentPane { overflow-y: auto; }
+  .floatTools { max-height: calc(100% - 24px); overflow-y: auto; }
 }

@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 
 export const MONUMENT_HALL_ASSETS = Object.freeze({
-  hdri: 'assets/monument-hall/solitude_interior_1k.hdr',
-  marbleDiffuse: 'assets/monument-hall/marble_diff_1k.jpg',
-  marbleNormal: 'assets/monument-hall/marble_nor_gl_1k.jpg',
-  marbleRoughness: 'assets/monument-hall/marble_rough_1k.jpg'
+  hdri: '/assets/monument-hall/solitude_interior_1k.hdr',
+  marbleDiffuse: '/assets/monument-hall/marble_diff_1k.jpg',
+  marbleNormal: '/assets/monument-hall/marble_nor_gl_1k.jpg',
+  marbleRoughness: '/assets/monument-hall/marble_rough_1k.jpg'
 });
 
 const COLUMN_Z = [-8, -4, 0, 4, 8];

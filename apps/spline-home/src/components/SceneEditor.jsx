@@ -11,6 +11,7 @@ export default function SceneEditor({ title = "Spline 3D Starter File", onBack, 
   const [zoom, setZoom] = useState("100%");
   const [autoZoom, setAutoZoom] = useState("Yes");
   const [snapping, setSnapping] = useState("Off");
+  const [mobilePanel, setMobilePanel] = useState("canvas");
 
   const tree = useMemo(() => sceneTree, []);
 
@@ -18,8 +19,14 @@ export default function SceneEditor({ title = "Spline 3D Starter File", onBack, 
 
   return (
     <div className={styles.root}>
+      <nav className={styles.mobileNav} aria-label="Scene editor panels">
+        <button type="button" onClick={onBack}>← Back</button>
+        {[["left", "Objects"], ["canvas", "Canvas"], ["right", "Inspector"]].map(([id, label]) => (
+          <button key={id} type="button" aria-pressed={mobilePanel === id} onClick={() => setMobilePanel(id)}>{label}</button>
+        ))}
+      </nav>
       {/* Left sidebar */}
-      <aside className={styles.left}>
+      <aside className={`${styles.left} ${mobilePanel === "left" ? styles.mobilePanelActive : ""}`}>
         <div className={styles.leftHead}>
           <button type="button" className={styles.backBtn} onClick={onBack}>
             ← Back
@@ -126,7 +133,7 @@ export default function SceneEditor({ title = "Spline 3D Starter File", onBack, 
       </aside>
 
       {/* Center */}
-      <div className={styles.center}>
+      <div className={`${styles.center} ${mobilePanel === "canvas" ? styles.mobilePanelActive : ""}`}>
         <div className={styles.centerTop}>
           <div className={styles.modeGroup}>
             {["preview", "edit", "code"].map((m) => (
@@ -183,7 +190,7 @@ export default function SceneEditor({ title = "Spline 3D Starter File", onBack, 
       </div>
 
       {/* Right inspector */}
-      <aside className={styles.right}>
+      <aside className={`${styles.right} ${mobilePanel === "right" ? styles.mobilePanelActive : ""}`}>
         <div className={styles.rightHead}>
           <button type="button" className={styles.iconBtn} onClick={() => onToast("Hide inspector")}>
             ⟩

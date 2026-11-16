@@ -58,6 +58,7 @@ export default function DesignEditor({ title = "Hana starter file", onBack, onTo
   const [effort, setEffort] = useState("High");
   const [review, setReview] = useState("Review 1x");
   const [mcpVisible, setMcpVisible] = useState(true);
+  const [mobilePanel, setMobilePanel] = useState("canvas");
   const canvasRef = useRef(null);
 
   const selectedName = useMemo(
@@ -67,8 +68,14 @@ export default function DesignEditor({ title = "Hana starter file", onBack, onTo
 
   return (
     <div className={styles.root}>
+      <nav className={styles.mobileNav} aria-label="Design editor panels">
+        <button type="button" onClick={onBack}>← Back</button>
+        {[["left", "Layers & agent"], ["canvas", "Canvas"], ["right", "Inspector"]].map(([id, label]) => (
+          <button key={id} type="button" aria-pressed={mobilePanel === id} onClick={() => setMobilePanel(id)}>{label}</button>
+        ))}
+      </nav>
       {/* Left sidebar */}
-      <aside className={styles.left}>
+      <aside className={`${styles.left} ${mobilePanel === "left" ? styles.mobilePanelActive : ""}`}>
         <div className={styles.leftHead}>
           <button type="button" className={styles.backBtn} onClick={onBack}>
             ← Back
@@ -193,7 +200,7 @@ export default function DesignEditor({ title = "Hana starter file", onBack, onTo
       </aside>
 
       {/* Canvas stage */}
-      <div className={styles.stage}>
+      <div className={`${styles.stage} ${mobilePanel === "canvas" ? styles.mobilePanelActive : ""}`}>
         <div className={styles.floatTools} role="toolbar" aria-label="Tools">
           {designTools.map((t, i) => (
             <span key={t.id} className={styles.toolWrap}>
@@ -240,7 +247,7 @@ export default function DesignEditor({ title = "Hana starter file", onBack, onTo
       </div>
 
       {/* Right inspector */}
-      <aside className={styles.right}>
+      <aside className={`${styles.right} ${mobilePanel === "right" ? styles.mobilePanelActive : ""}`}>
         <div className={styles.rightHead}>
           <div className={styles.avatars}>
             <span className={styles.avatar}>X</span>

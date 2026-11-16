@@ -8,6 +8,8 @@
   overflow: hidden;
 }
 
+.mobileNav { display: none; }
+
 /* ── Left ─────────────────────────────────── */
 
 .left {
@@ -517,4 +519,35 @@
 .segActive {
   background: #ffffff0d;
   color: var(--color-text);
+}
+
+@media (max-width: 900px) {
+  .root { flex-direction: column; }
+  .mobileNav {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4px;
+    padding: 8px;
+    overflow-x: auto;
+    background: #1e1e1e;
+    border-bottom: 1px solid var(--color-border-soft);
+  }
+  .mobileNav button {
+    flex: 1 0 auto;
+    min-height: 40px;
+    padding: 0 10px;
+    border-radius: 6px;
+    color: var(--color-text-2);
+    white-space: nowrap;
+  }
+  .mobileNav button[aria-pressed="true"] { background: var(--color-accent-soft); color: var(--color-text); }
+  .left, .center, .right { display: none; width: 100%; min-width: 0; height: auto; min-height: 0; flex: 1; }
+  .left.mobilePanelActive, .center.mobilePanelActive { display: flex; }
+  .right.mobilePanelActive { display: block; }
+  .leftHead .backBtn { display: none; }
+  .center { padding: 8px; }
+  .centerTop { flex: 0 0 auto; overflow-x: auto; }
+  .centerTop > * { flex-shrink: 0; }
+  .centerActions { margin-left: 0; }
+  .viewHud { right: 16px; bottom: 16px; }
 }
