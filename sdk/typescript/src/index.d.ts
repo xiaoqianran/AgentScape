@@ -130,7 +130,7 @@ export interface NativeSceneCandidate { id: string; scene: any; camera: any; ren
 export declare function observeNativeRenderer(renderer: any): () => void;
 export declare function listNativeScenes(): NativeSceneCandidate[];
 export declare function subscribeNativeScenes(listener: (candidate: NativeSceneCandidate) => void): () => void;
-export declare const AgentScape: { attach: typeof attachNativeScene; openProject: typeof openCodeProject; open(options?: { canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean; codeExecution?:CodeExecutionOptions }): Promise<SceneHandle> };
+export declare const AgentScape: { attach: typeof attachNativeScene; openProject: typeof openCodeProject; open(options?: { canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean; rendererMode?: 'auto' | 'webgpu' | 'webgl2' | 'webgl-legacy'; pixelRatioScale?: number; codeExecution?:CodeExecutionOptions }): Promise<SceneHandle> };
 
 export interface ProjectEntityDefinition { id: string; label?: string; description?: string; object?: any; attachTo?:'runtime'; read?: () => Record<string, unknown> }
 export interface ProjectActionContext { actor?: string; target: string; object: any; signal?: AbortSignal }

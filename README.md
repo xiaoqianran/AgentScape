@@ -16,16 +16,26 @@ Three.js 渲染、Rapier 物理和 Recast 导航共享真实世界状态。人�
 
 长期定位是面向智能体的世界编译器与运行时：把对三维世界的描述，变成一个人和 AI 都能操作、系统能够验证行为结果、能够保存和继续使用的交互式世界。近期产品是可接入 AI 工具的浏览器 3D 世界创作与运行工具，第一批服务对象是希望用 AI 创建交互场景、接入自己的 Agent、调试空间任务的开发者和技术创作者。
 
-唯一推荐的首次使用路径就是下一节的“运行第一个世界”（Starter）：先用内置物体完成拾取、放置、保存与重开，再进入 Studio、SDK 或 MCP。当前能力与限制以 [v1 契约](planning/public-contracts-v1.md) 与 [候选版本能力矩阵](planning/candidate-capability-matrix.md) 为准；矩阵之外的世界与输入不承诺同等支持。
+AgentScape Studio 是面向用户的默认工作台；SDK Starter 是学习和验证 SDK 的精简示例。运行能力与限制以 [v1 契约](planning/public-contracts-v1.md) 与 [候选版本能力矩阵](planning/candidate-capability-matrix.md) 为准；矩阵之外的世界与输入不承诺同等支持。
 
-## 运行第一个世界
+## 打开 AgentScape Studio
 
-需要 Node.js 22.12+、npm 和支持 WebGL2 的浏览器。
+需要 Node.js 22.12+、npm 和现代浏览器（Studio 会自动选择可用渲染后端）。
 
 ```sh
 git clone https://github.com/xiaoqianran/AgentScape.git
 cd AgentScape
 npm ci
+npm run dev
+```
+
+Vite 会打开根路径 `/`，即完整的 Studio 世界工作台。Starter 教学页面仍可通过 `npm run starter` 在 `/starter/` 打开。
+
+## 学习 SDK Starter
+
+Starter 是独立的最小运行时示例，不包含 Studio 编辑器界面。它适合学习场景初始化、拾取、放置、保存与重开：
+
+```sh
 npm run starter
 ```
 
@@ -45,7 +55,7 @@ npm run starter
 
 ## 当前边界
 
-Starter 是最小学习入口；Studio 编辑器仍在 `/`，诊断台在 `/observatory/`。现有 MCP 的独立世界、程序化资产、真实交互与可信恢复继续保留。本机代码资产默认可通过受限 QuickJS Worker 运行，无须 Docker；公网不可信源码执行必须配置操作系统隔离后端，否则明确拒绝。
+Studio 在 `/`，Starter 教学页在 `/starter/`，诊断台在 `/observatory/`。npm Starter CLI 生成的是独立 SDK 示例工程，并不包含 Studio 工作台。现有 MCP 的独立世界、程序化资产、真实交互与可信恢复继续保留。本机代码资产默认可通过受限 QuickJS Worker 运行，无须 Docker；公网不可信源码执行必须配置操作系统隔离后端，否则明确拒绝。
 
 SDK 已支持自包含 GLB Visual、受约束 Recipe、完整项目包和三种 StylePack；Starter 的按钮仍保持最小学习范围，Studio 提供风格切换。Scene Project 使用内置世界目录；SDK 默认纪念大厅，浏览器专属环境不支持 Headless。实体总数不固定为 32，激活、分页与存储有独立预算；YAML、任意 Shader 插件和通用压缩包上传不属于 v1。发布后可使用 `npm install agentscape3d` 和 `npx agentscape3d starter my-world`；发布前请参考 [SDK 本地打包说明](sdk/typescript/README.md)。
 

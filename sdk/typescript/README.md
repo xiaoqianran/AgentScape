@@ -16,13 +16,15 @@ world.close();
 
 `#app` is an HTML container with an explicit width and height. Rendering schedules automatically when a container is supplied. Headless hosts advance `step()` themselves. Interactions return jobs; query or await them with `getJob` / `waitJob`, and inspect their verification evidence separately.
 
+Browser rendering defaults to automatic WebGPU/WebGL renderer selection and a `pixelRatioScale` of `0.75` to reduce GPU load on high-DPI displays. Pass `rendererMode` (`auto`, `webgpu`, `webgl2` or `webgl-legacy`) and `pixelRatioScale` (`0.5`–`1`) to `AgentScape.open()` to tune it for a host. These settings affect rendering cost; actual frame rate still depends on the scene and device.
+
 ## Embedding in an existing Three.js scene
 
 Use `AgentScape.attach({scene,camera,renderer,walkableMesh,hostProjectId,hostRevision})` to mount a self-owned Runtime subtree without taking over the host renderer or loop. Call `session.scene.frame(timestamp)` in the host frame callback and `session.close()` to detach. Save only the AgentScape overlay with `session.scene.saveOverlay(storage)`; prepare and commit it with `prepareOverlay(storage,root)`. Use `WorldStorage` with `WorldDirectory` for durable content-addressed blocks. The host project remains responsible for its own source and rendering state. For reload-safe browser checkpoints, pair `WorldStorage(new WorldDirectory(await navigator.storage.getDirectory()))` with `IndexedDBNativeOverlayHeadStore({key})`; then `await openNativeOverlayCheckpoint(session.scene, storage, heads)` restores the latest verified overlay automatically, and `await checkpoint.saveLatest()` publishes a new head only after validation. See [the native integration guide](../../docs/native-threejs-integration.md).
 
 The SDK defaults to `monument-hall`; other built-in IDs are resolved through the shared Studio catalog. Some environments require a browser DOM and reject headless Node. Studio preset furniture is not implicitly inserted into Scene Projects. Bundled assets include agent, cup, table and chair. Use await world.setStyle(ref) with builtin://realistic, builtin://toon or builtin://low-poly. Headless hosts validate and defer rendering. This SDK shares the application Scene service and does not maintain another object store.
 
-`npx agentscape3d starter new-directory` (or `agentscape starter new-directory`) scaffolds an empty destination. Install this SDK tarball and Vite in that directory, then `npm run dev`. No provider key or paid service is needed for built-in worlds. Python Connector SDK usage is unchanged.
+`npx agentscape3d starter new-directory` (or `agentscape starter new-directory`) scaffolds an empty destination containing a minimal SDK example, not the Studio editor. Install this SDK tarball and Vite in that directory, then `npm run dev`. Open the repository root with `npm run dev` to use the full Studio workspace. No provider key or paid service is needed for built-in worlds. Python Connector SDK usage is unchanged.
 
 Code assets require an explicit execution configuration. Node selects the Node entry automatically; `agentscape3d/node` is also available. Docker is not an installation prerequisite.
 

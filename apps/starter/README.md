@@ -1,5 +1,7 @@
 # Your first interactive world
 
+This `/starter/` page is a minimal SDK/runtime tutorial, not the AgentScape Studio workspace. Run `npm run dev` from the repository root to open Studio at `/`.
+
 Use Node.js 22.12+, npm and a WebGL2 browser. From the repository root:
 
 ```sh

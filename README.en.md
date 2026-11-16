@@ -12,7 +12,7 @@ Three.js rendering, Rapier physics and Recast navigation share one world state. 
 
 ![Starter after a verified pickup/place and a fresh-page restore](docs/evidence/starter-first-world.png)
 
-## Run your first world
+## Open AgentScape Studio
 
 Use Node.js 22.12+ (Node 22 is used in CI), npm and a browser with WebGL2 support.
 
@@ -20,6 +20,16 @@ Use Node.js 22.12+ (Node 22 is used in CI), npm and a browser with WebGL2 suppor
 git clone https://github.com/xiaoqianran/AgentScape.git
 cd AgentScape
 npm ci
+npm run dev
+```
+
+Vite opens the root path `/`, the full Studio workspace. The SDK learning Starter remains available at `/starter/` with `npm run starter`.
+
+## Learn with the SDK Starter
+
+The Starter is a minimal standalone runtime example. It does not include the Studio editor. Use it to learn scene setup, pickup, placement, save and restore:
+
+```sh
 npm run starter
 ```
 
@@ -39,7 +49,7 @@ Edit [`apps/starter/scene.json`](apps/starter/scene.json) and reload. Your scene
 { "id": "reading-chair", "asset": "chair", "position": [-4, 0, 3] }
 ```
 
-The `agentscape3d` SDK shares the Scene service with Studio and MCP. The `1.0.0-beta.1` package is being prepared for npm; until publication, [build a local tarball](sdk/typescript/README.md). After publication, install with `npm install agentscape3d`.
+The `agentscape3d` SDK shares the Scene service with Studio and MCP. Its generated Starter is a developer example, not the Studio interface. The `1.0.0-beta.1` package is being prepared for npm; until publication, [build a local tarball](sdk/typescript/README.md). After publication, install with `npm install agentscape3d`.
 
 ```js
 import { AgentScape } from 'agentscape3d';

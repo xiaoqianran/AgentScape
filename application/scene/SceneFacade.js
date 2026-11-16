@@ -232,8 +232,8 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
   return facade;
 }
 
-/** @param {{project?: any, container?: HTMLElement|null, assetModule?: any, codeExecutor?: any, codeGLTFLoader?: any}} options */
-export async function openScene({ project, container = null, assetModule = null, codeExecutor = null, codeGLTFLoader } = {}) {
+/** @param {{project?: any, container?: HTMLElement|null, assetModule?: any, codeExecutor?: any, codeGLTFLoader?: any, rendererMode?: 'auto'|'webgpu'|'webgl2'|'webgl-legacy', pixelRatioScale?: number}} options */
+export async function openScene({ project, container = null, assetModule = null, codeExecutor = null, codeGLTFLoader, rendererMode = 'auto', pixelRatioScale = 0.75 } = {}) {
   const definition = parseSceneProject(project);
   const assets = assetModule || createAssetModule({ volatile: true, manifests: Object.fromEntries(['agent', 'cup', 'table', 'chair'].map(key => [key, structuredClone(assetManifests[key])])), manifestStore: null, libraryStore: null });
   const environment = findEnvironment(definition.environment.id);
@@ -244,7 +244,7 @@ export async function openScene({ project, container = null, assetModule = null,
   const environmentFactory = (options) => factory({ loadAssets: false, ...options });
   const world = new WorldRuntime({ assetModule: assets, environmentFactory });
   assets.configureVerification({articulationVerifier:new ArticulationVerifier({assetRegistry:assets.registry,assetLoader:assets.loader})});
-  if (container) world.attachRendering(new RenderingSystem({ container, scene: world.scene, events: world.events, rendererMode: 'webgl' }));
+  if (container) world.attachRendering(new RenderingSystem({ container, scene: world.scene, events: world.events, rendererMode, pixelRatioScale }));
   world.skills = new SkillRegistry({ policy: world.policy, trace: world.trace, runtime: world });
   const add = (name, options, handler) => world.skills.register({ name, ...options, handler });
   registerSceneSkills(add, world); registerSpatialSkills(add, world); registerInteractionSkills(add, world);

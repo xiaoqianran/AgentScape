@@ -16,8 +16,8 @@ export { createNativeOverlayCheckpoint, openNativeOverlayCheckpoint, MemoryNativ
 export const AgentScape = {
   attach: attachNativeScene,
   openProject: openCodeProject,
-  async open({ canvas, project, bundle, environment = 'monument-hall', autoStart = true, codeExecution, codeExecutor = null, codeGLTFLoader, assetModule = null }: {
-    canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean;
+  async open({ canvas, project, bundle, environment = 'monument-hall', autoStart = true, rendererMode = 'auto', pixelRatioScale = 0.75, codeExecution, codeExecutor = null, codeGLTFLoader, assetModule = null }: {
+    canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean; rendererMode?: 'auto' | 'webgpu' | 'webgl2' | 'webgl-legacy'; pixelRatioScale?: number;
     codeExecution?: {mode?:string;authorized?:boolean;wallTimeoutMs?:number}; codeExecutor?: any; codeGLTFLoader?: any; assetModule?: any;
   } = {}) {
     if (bundle && project) throw Object.assign(new Error('Use project or bundle'), { code: 'INVALID_OPTIONS' });
@@ -27,7 +27,7 @@ export const AgentScape = {
       environment: { type: 'builtin', id: environment }, objects: [] };
     const executor = codeExecutor || createBrowserCodeExecutor(codeExecution);
     let scene;
-    try { scene = bundle ? await openScenePackage(bundle, { container, codeExecutor:executor, codeGLTFLoader, assetModule }) : await openScene({ project: definition, container, codeExecutor:executor, codeGLTFLoader, assetModule }); }
+    try { scene = bundle ? await openScenePackage(bundle, { container, codeExecutor:executor, codeGLTFLoader, assetModule, rendererMode, pixelRatioScale }) : await openScene({ project: definition, container, codeExecutor:executor, codeGLTFLoader, assetModule, rendererMode, pixelRatioScale }); }
     catch(error) { executor?.close(); throw error; }
     let frameId: number | undefined;
     if (container && autoStart) {
