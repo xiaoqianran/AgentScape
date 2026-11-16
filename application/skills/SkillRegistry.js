@@ -97,6 +97,8 @@ export class SkillRegistry {
     return this;
   }
 
+  unregister(name) { return this.skills.delete(name); }
+
   get(name) { return this.skills.get(name); }
 
   definitions() {

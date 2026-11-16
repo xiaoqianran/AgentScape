@@ -100,6 +100,26 @@ describe('single Scene application service', () => {
       expect(session.scene.observe().objects).toHaveLength(1);
     } finally { session.scene.close(); session.world.dispose(); }
   });
+  it('does not reuse a closed facade when its externally owned Runtime is still alive', async () => {
+    const session = createSession(null, { environmentFactory: () => createMonumentHall({ loadAssets:false }) });
+    await session.world.init();
+    let reopened;
+    try {
+      const original = session.scene;
+      expect(session.world.skills.get('verifyScene')).toBeTruthy();
+      original.close();
+      expect(session.world.skills.get('verifyScene')).toBeUndefined();
+      reopened = createSceneFacade(session.world);
+      expect(session.world.skills.get('verifyScene')).toBeTruthy();
+      expect(reopened).not.toBe(original);
+      expect(reopened.observe().objects).toEqual([]);
+      expect(() => original.observe()).toThrow('SCENE_CLOSED');
+    } finally {
+      reopened?.close();
+      session.world.dispose();
+    }
+  });
+
   it('enforces revision, idempotency, transform and explicit partial batch results', async () => {
     const scene = await openScene({ project });
     try {

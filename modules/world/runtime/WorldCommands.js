@@ -197,6 +197,26 @@ export class WorldCommands {
       return null;
     })();
 
+    // Formally declared actions use the contract's own reach and postcondition checks.
+    // Native object pivots are not authoritative interaction target positions.
+    if (item.contractId) {
+      const contract = runtime.affordances?.get?.(item.contractId);
+      if (contract) {
+        const state = contract.read?.() || {};
+        let action = null;
+        if (contract.kind === 'book') action = state.out ? 'return' : 'pull_out';
+        else if (contract.kind === 'switch') action = state.on ? 'turn_off' : 'turn_on';
+        else if (state.requestedOpen === true || state.out === true) action = 'close';
+        else if (state.requestedOpen === false || state.out === false) action = 'open';
+        if (action && contract.actions?.includes(action)) {
+          const response = runtime.affordances.execute({ targetId:item.contractId, action, actorId }, {});
+          const withNativeId = value => value?.status === 'world-action-blocked'
+            ? { ...value, interactionId } : value;
+          return response?.then ? response.then(withNativeId) : withNativeId(response);
+        }
+      }
+    }
+
     if (requireReach && actorId) {
       const feet = runtime.physics?.getPosition?.(actorId);
       if (!feet) {
@@ -221,31 +241,6 @@ export class WorldCommands {
             actorId, blocker:hit.provenance || { id:hit.id }, distance:round3(distance)
           };
         }
-      }
-    }
-
-    // 有 formal contract 的原生物件：走 WorldAffordances 验证路径
-    if (item.contractId) {
-      const contract = runtime.affordances?.get?.(item.contractId);
-      if (contract) {
-        const state = contract.read?.() || {};
-        let action = null;
-        if (contract.kind === 'book') action = state.out ? 'return' : 'pull_out';
-        else if (contract.kind === 'switch') action = state.on ? 'turn_off' : 'turn_on';
-        else if (state.requestedOpen === true || state.out === true) action = 'close';
-        else if (state.requestedOpen === false || state.out === false) action = contract.kind === 'book' ? 'pull_out' : 'open';
-        if (action && contract.actions?.includes(action)) {
-          return runtime.affordances.execute({ targetId:item.contractId, action, actorId }, {});
-        }
-        item.activate();
-        return {
-          status:'environment-interaction-activated',
-          interactionId, label:item.label || null,
-          contractId:item.contractId,
-          via:'native-activate',
-          provisional:false,
-          verification:'runtime-contract'
-        };
       }
     }
 

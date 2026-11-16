@@ -24,6 +24,7 @@ export { sceneError, sceneAgentModelSchema, sceneInteractionSchema } from './Sce
 export { SCENE_LEGACY_SKILLS } from './SceneSkillNames.js';
 
 const services = new WeakMap();
+const facadeSkills = ['verifyScene', 'observeScene', 'interactScene', 'planSceneTask'];
 
 /** One application service per existing Runtime. No entity or asset cache. */
 export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', codeExecutor = null, codeGLTFLoader = undefined } = {}) {
@@ -183,7 +184,19 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     importProject: input => persistence.importProject(input),
     frame(timestamp) { assertOpen(); jobController.cancelPending(); world.simulation.pump(timestamp); world.rendering?.render(timestamp); },
     step() { assertOpen(); jobController.cancelPending(); return world.simulation.step(); },
-    close() { if (closed) return; assertIdle(); closed = true; codeExecutor?.close(); unsubscribe.forEach(fn => fn()); edit.dispose(); if (ownsWorld) world.dispose(); }
+    close() {
+      if (closed) return;
+      assertIdle();
+      closed = true;
+      services.delete(world);
+      for (const name of facadeSkills) world.skills?.unregister?.(name);
+      unsubscribe.forEach(fn => fn());
+      edit.dispose();
+      styles.dispose();
+      if (world.rendering?.styleSystem === styles) world.rendering.attachStyleSystem(null);
+      codeExecutor?.close();
+      if (ownsWorld) world.dispose();
+    }
   };
   services.set(world, facade);
   world.skills?.register({name:'verifyScene',description:'Verify explicit postconditions against the live Runtime, including current relations and environment device states.',permissions:['world.read','physics.read'],required:['criteria'],properties:{criteria:{type:'array',minItems:1,maxItems:32}},

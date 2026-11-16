@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import * as THREE from 'three';
 import { WorldCommands } from '../../modules/world/runtime/WorldCommands.js';
 
 const manifest = (id, status = 'ready') => ({
@@ -126,5 +127,68 @@ describe('WorldCommands', () => {
       expect.objectContaining({ code:'WORLD_COMMAND_NOT_READY', command:'transform' })
     );
     expect(runtime.applyObjectTransform).not.toHaveBeenCalled();
+  });
+});
+describe('native interaction contract routing', () => {
+  function contractFixture({ contract, position = [0, 0, 0] }) {
+    const runtime = runtimeFixture();
+    const object = new THREE.Object3D();
+    object.position.fromArray(position);
+    const native = { id:'native:test', contractId:'contract:test', object, activate:vi.fn() };
+    runtime.environment = { id:'test', interactions:[native] };
+    runtime.physics = {
+      getPosition:vi.fn(() => [0, 0, 0]),
+      hasCapability:vi.fn(() => true),
+      raycast:vi.fn(() => null)
+    };
+    runtime.affordances.get = vi.fn(() => contract);
+    return { runtime, native, commands:new WorldCommands(runtime) };
+  }
+
+  it('delegates a known contract action to the contract reach check rather than native foot distance', () => {
+    // A switch can be within hand reach while > 1.5 m from the agent's feet.
+    const contract = { kind:'switch', actions:['turn_on'], read:() => ({ on:false }) };
+    const { runtime, native, commands } = contractFixture({ contract, position:[1, 1.8, 0] });
+
+    const result = commands.activateEnvironmentInteraction(native.id, { actorId:'agent_01' });
+
+    expect(result).toEqual({ verified:true });
+    expect(runtime.affordances.execute).toHaveBeenCalledWith({
+      targetId:native.contractId, action:'turn_on', actorId:'agent_01'
+    }, {});
+    expect(native.activate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['sync', result => result],
+    ['async', result => Promise.resolve(result)]
+  ])('retains the native interaction ID for %s contract rejection', async (_mode, wrap) => {
+    const contract = { kind:'switch', actions:['turn_on'], read:() => ({ on:false }) };
+    const { runtime, native, commands } = contractFixture({ contract });
+    runtime.affordances.execute.mockReturnValue(wrap({
+      status:'world-action-blocked', targetId:native.contractId,
+      reason:'OUT_OF_REACH', verified:false
+    }));
+
+    const result = await commands.activateEnvironmentInteraction(native.id, { actorId:'agent_01' });
+
+    expect(result).toMatchObject({
+      status:'world-action-blocked',
+      interactionId:native.id, targetId:native.contractId,
+      reason:'OUT_OF_REACH', verified:false
+    });
+  });
+
+  it('labels an unresolved contract action as provisional instead of claiming runtime verification', () => {
+    const contract = { kind:'custom', actions:['inspect'], read:() => ({ ready:true }) };
+    const { native, commands } = contractFixture({ contract });
+
+    const result = commands.activateEnvironmentInteraction(native.id, { actorId:'agent_01' });
+
+    expect(native.activate).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      status:'environment-interaction-activated',
+      provisional:true, verification:'native-provisional', physicsVerified:false
+    });
   });
 });

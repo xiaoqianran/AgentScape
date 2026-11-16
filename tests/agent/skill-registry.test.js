@@ -120,6 +120,20 @@ describe('SkillRegistry', () => {
     expect(registry.get('dup').handler).toBe(original);
   });
 
+  it('unregisters a closed service skill without affecting other skills', async () => {
+    const { registry } = setup();
+    registry.register({ name:'scene-skill', handler:() => 'old' });
+    registry.register({ name:'regular-skill', handler:() => 'available' });
+
+    expect(registry.unregister('scene-skill')).toBe(true);
+    expect(registry.unregister('scene-skill')).toBe(false);
+    expect(registry.get('scene-skill')).toBeUndefined();
+    expect(registry.authorization('scene-skill')).toMatchObject({ allow:false, reason:'SKILL_NOT_FOUND' });
+    expect((await registry.invoke('regular-skill')).result).toBe('available');
+    registry.register({ name:'scene-skill', handler:() => 'new' });
+    expect((await registry.invoke('scene-skill')).result).toBe('new');
+  });
+
   it('pins the default skill contract snapshot', () => {
     const { registry } = setup();
     registry.register({ name: 'bare', description: 'bare', handler: () => {} });
