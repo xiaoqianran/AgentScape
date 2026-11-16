@@ -34,7 +34,11 @@ export const test = base.extend({
     // Never connect to a user's paired service during ordinary browser acceptance.
     await page.route('http://127.0.0.1:48123/**', route => route.abort('connectionrefused'));
     await use({ requests, respondWith: next => { handler = next; } });
-    await testInfo.attach('fixed-protocol-requests.json', { body: JSON.stringify(requests.map((request, index) => ({ round: index + 1, observedObjectIds: request.context?.world?.map(object => object.id), toolNames: request.tools?.map(tool => tool.name) })), null, 2), contentType: 'application/json' });
+    await testInfo.attach('fixed-protocol-requests.json', { body: JSON.stringify(requests.map((request, index) => {
+      const worldContext = request.context?.world;
+      const worldObjects = Array.isArray(worldContext) ? worldContext : (worldContext?.objects ?? []);
+      return { round: index + 1, observedObjectIds: worldObjects.map(object => object.id), toolNames: request.tools?.map(tool => tool.name) };
+    }), null, 2), contentType: 'application/json' });
   }
 });
 export { expect };

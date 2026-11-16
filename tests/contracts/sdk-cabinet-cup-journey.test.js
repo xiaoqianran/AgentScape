@@ -3,9 +3,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, cp, symlink, writeFile, rm } from 'node:fs/promises';
 import { resolve, dirname, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { readFile } from 'node:fs/promises';
 import { openScene } from '../../application/scene/SceneFacade.js';
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
-import { createHeadlessGLTFLoader } from '../../apps/mcp-server/HeadlessGLTFLoader.js';
+import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { installHeadlessAssetIO } from '../../apps/mcp-server/HeadlessAssetIO.js';
 
 // APP-JOURNEY-003: the CabinetCup standard journey. The task world is arranged
@@ -15,7 +16,12 @@ import { installHeadlessAssetIO } from '../../apps/mcp-server/HeadlessAssetIO.js
 // directory): open({bundle}) -> interact open/pickup/place -> observe.
 it('executes the CabinetCup journey through the TypeScript SDK', async () => {
   installHeadlessAssetIO();
-  const sourceAssets = createAssetModule({ gltfLoader: createHeadlessGLTFLoader(), manifestStore: null, libraryStore: null });
+  // Mirror dev/acceptance/worldHarness.mjs: the cabinet is a GLB asset, so
+  // its manifest source is rewritten to a data URL for headless loading.
+  const manifests = structuredClone(assetManifests);
+  const cabinetBytes = await readFile(new URL('../../public/assets/cabinet.glb', import.meta.url));
+  manifests.cabinet.source = { kind: 'glb', url: `data:model/gltf-binary;base64,${cabinetBytes.toString('base64')}` };
+  const sourceAssets = createAssetModule({ manifests, manifestStore: null, libraryStore: null });
   const source = await openScene({ assetModule: sourceAssets, project: {
     schema: 'agentscape.scene-project', schemaVersion: 1, name: 'CabinetCup via SDK',
     environment: { type: 'builtin', id: 'monument-hall' },
