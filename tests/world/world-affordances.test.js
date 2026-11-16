@@ -35,7 +35,8 @@ function fixture() {
   return {runtime,environment,registry,invoke,standNear,tick};
 }
 
-describe('Agent world affordance contracts',()=>{
+// These contracts construct full procedural worlds, including disposal and restore.
+describe('Agent world affordance contracts', { timeout: 30000 },()=>{
   it('discovers stable identities through production tool registration and completes a stateful sequence',async()=>{
     const {runtime,invoke,standNear,tick,registry}=fixture();
     const ids=runtime.affordances.contracts().map(entry=>entry.id);

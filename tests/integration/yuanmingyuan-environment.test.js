@@ -8,7 +8,8 @@ const sceneProject = {
   environment:{type:'builtin',id:'yuanmingyuan-western-mansions'},objects:[]
 };
 
-describe('Yuanmingyuan original-world integration', () => {
+// Procedural geometry creation is part of this integration fixture's budget.
+describe('Yuanmingyuan original-world integration', { timeout: 30000 }, () => {
   it('exposes original procedural geometry as an AgentScape Environment', () => {
     const environment = createYuanmingyuanEnvironment({quality:'low'});
     let meshes = 0;

@@ -57,3 +57,23 @@ Treat contributors respectfully: critique the change, explain the reasoning, and
 ## Assets and attribution
 
 Only submit content you have permission to distribute. Provide the source, license and attribution for models, textures and fonts. The repository's MIT code license does not automatically cover third-party assets. See [THIRD_PARTY.md](THIRD_PARTY.md).
+
+# Test groups
+
+`npm test` retains the full provider-free suite. CI runs disjoint groups:
+
+| Command | Directories | Workers |
+| --- | --- | --- |
+| `npm run test:core` | agent, artifact, asset, contracts, generation, mcp | 4 |
+| `npm run test:ui` | studio, observatory, rendering | 4 |
+| `npm run test:simulation` | world, integration, e2e | 1 |
+
+The Modal-backed generated-cup test remains opt-in via `npm run test:modal-e2e`.
+Browser acceptance remains `npm run test:browser`; Python SDK and asset compiler
+tests retain separate CI jobs. CI stores JUnit results per JavaScript group.
+Use `npm run test:simulation -- tests/world/world-affordances.test.js` to reproduce
+a failure without competing world fixtures. When adding a test directory, update
+the group mapping in `vitest.config.js` so it is included in CI.
+
+Vitest uses its own config and does not load `.env.local` or start development
+gateway plugins. Explicit environment variables remain available to opt-in tests.
