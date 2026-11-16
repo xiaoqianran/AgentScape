@@ -2,7 +2,7 @@
 
 自由代码世界新增 `AgentScape.openProject({project,container,authorized:true})`，支持持续 Three.js 逻辑、Shader、自定义动作和项目代码/状态保存。生命周期与示例见 [Code Project](../../docs/modules/code-project.md)。本地示例为 `/examples/code-project/`，可直接导入 [多文件代码世界 JSON](../../examples/code-project/multifile-studio.json)。多文件项目使用 `entry` 指定入口，`source` 保存入口源码，`files` 保存其他 JS/GLSL/JSON/TXT 源码；相对 ESM 导入会在浏览器与 Node 中解析，`three` 导入共享宿主实例。动态 import 和 npm 裸导入请使用原有外部打包工具。
 
-Beta package for the AgentScape 3D world engine. After publication, install with `npm install agentscape3d`. This first public prerelease is intentionally tagged `latest` so the unqualified installation command works; its `2.0.0-beta.1` version still signals pre-release stability. Before publication, build with `node dev/build-sdk.mjs`, then use the resulting `npm pack` tarball.
+Beta package for the AgentScape 3D world engine. After publication, install with `npm install agentscape3d@beta`. This prerelease is published under the `beta` dist-tag, so the unqualified installation command is reserved for future stable releases. Before publication, build with `node dev/build-sdk.mjs`, then verify the resulting `npm pack` tarball.
 
 ```js
 import { AgentScape } from 'agentscape3d';
@@ -52,4 +52,4 @@ Use `addModel(input,{signal})` to cancel. Saved bundles embed versioned compiled
 
 当前准备发布 `2.0.0-beta.1`，发布前不得假定 npm 已上线。正式发布前必须在项目根目录通过 `npm run check`、`npm run test:browser` 和 `npm run sdk:verify`，并确认 `git status` 干净、发布版本号未被占用、许可证及依赖清单完整。浏览器测试必须覆盖自动 Studio MCP 连接、手动配对、复杂物理资产创建和跨进程保存/恢复。
 
-发布目标固定为官方 npm Registry (`https://registry.npmjs.org/`) 的公开 npm 包，避免将镜像缓存结果当作发布状态。维护者需拥有 `agentscape3d` 的发布权限，通过 `npm whoami --registry=https://registry.npmjs.org/` 检查认证，再从 `sdk/typescript` 目录使用 `npm pack --dry-run` 审阅归档。`npm publish --tag latest --access public --registry=https://registry.npmjs.org/` 仅在版本确定、全部验收通过且获得发布授权后执行；不要在自动测试中发布。初次发布后验证 `npm view agentscape3d dist-tags --json --registry=https://registry.npmjs.org/`，确认 `latest` 指向 `2.0.0-beta.1`，再在全新项目验证不带标签的安装方式。
+发布目标固定为官方 npm Registry (`https://registry.npmjs.org/`) 的公开 npm 包，避免将镜像缓存结果当作发布状态。维护者需拥有 `agentscape3d` 的发布权限，通过 `npm whoami --registry=https://registry.npmjs.org/` 检查认证，再从 `sdk/typescript` 目录使用 `npm pack --dry-run` 审阅归档。`npm publish --tag beta --access public --registry=https://registry.npmjs.org/` 仅在版本确定、全部验收通过且获得发布授权后执行；不要在自动测试中发布。初次发布后验证 `npm view agentscape3d dist-tags --json --registry=https://registry.npmjs.org/`，确认 `beta` 指向 `2.0.0-beta.1`，再在全新项目验证 `npm install agentscape3d@beta`。
