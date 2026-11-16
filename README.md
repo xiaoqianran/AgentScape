@@ -10,6 +10,12 @@ Three.js 渲染、Rapier 物理和 Recast 导航共享真实世界状态。人�
 
 [在线 Studio](https://agentscape-virid.vercel.app/) · [在线入门世界](https://agentscape-virid.vercel.app/starter/) · [English](README.en.md) · [入门示例](apps/starter/README.md) · [MCP](apps/mcp-server/README.md) · [贡献指南](CONTRIBUTING.md)
 
+## 定位与当前产品
+
+长期定位是面向智能体的世界编译器与运行时：把对三维世界的描述，变成一个人和 AI 都能操作、系统能够验证行为结果、能够保存和继续使用的交互式世界。近期产品是可接入 AI 工具的浏览器 3D 世界创作与运行工具，第一批服务对象是希望用 AI 创建交互场景、接入自己的 Agent、调试空间任务的开发者和技术创作者。
+
+唯一推荐的首次使用路径就是下一节的“运行第一个世界”（Starter）：先用内置物体完成拾取、放置、保存与重开，再进入 Studio、SDK 或 MCP。当前能力与限制以 [v1 契约](planning/public-contracts-v1.md) 与 [候选版本能力矩阵](planning/candidate-capability-matrix.md) 为准；矩阵之外的世界与输入不承诺同等支持。
+
 ## 运行第一个世界
 
 需要 Node.js 22.12+、npm 和支持 WebGL2 的浏览器。

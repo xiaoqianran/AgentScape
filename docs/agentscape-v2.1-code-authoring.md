@@ -30,7 +30,7 @@
 
 ## 阶段四：npm SDK
 
-- 保留一个 `@agentscape/sdk` 包；Node 条件入口、`/node`、`/mcp` 与 `agentscape mcp` CLI。
+- 保留一个 `agentscape3d` 包（发布候选版本 2.0.0-beta.1）；Node 条件入口、`/node`、`/mcp` 与 `agentscape3d mcp` CLI（`agentscape` 为同一 CLI 的别名 bin）。
 - 浏览器入口不引入 Node 执行器；浏览器 trusted-local 使用独立模块 Worker。浏览器暂不支持 worker-wasm/os-isolated，显式请求时拒绝。
 - 包内包含 Node 运行所需资源和 Worker/QuickJS 构建依赖，安装后不读取仓库源码。
 - `sdk:verify` 实际 npm pack、在临时空项目安装、运行代码资产构建、保存恢复、启动关闭 MCP；另一个新进程验证 Recipe 与 StylePack 恢复。
