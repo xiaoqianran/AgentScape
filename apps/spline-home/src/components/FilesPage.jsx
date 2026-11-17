@@ -108,13 +108,15 @@ export default function FilesPage({ onOpen, onToast, onNewProject }) {
         </div>
       ) : view === "grid" ? (
         <div className={styles.grid}>
-          {recents.map((file) => (
+          {recents.filter((file) => chip !== "Recent Files" || file.group === "previous").map((file) => (
             <div key={file.id} className={styles.card}>
-              <button type="button" className={styles.thumbWrap} onClick={() => onOpen(file.name)} aria-label={`Open ${file.name}`}>
-                <Art hues={ART_HUES[file.art] || [222, 262]} seed={Number(file.id.slice(1)) % 4} light={file.art.startsWith("hana")} />
-                <span
+              <div className={styles.thumbWrap}>
+                <button type="button" className={styles.thumbOpen} onClick={() => onOpen(file.name)} aria-label={`Open ${file.name}`}>
+                  <Art hues={ART_HUES[file.art] || [222, 262]} seed={Number(file.id.slice(1)) % 4} light={file.art.startsWith("hana")} />
+                </button>
+                <button
+                  type="button"
                   className={styles.dots}
-                  role="button"
                   aria-label={`More actions for ${file.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -122,8 +124,8 @@ export default function FilesPage({ onOpen, onToast, onNewProject }) {
                   }}
                 >
                   <IconDots />
-                </span>
-              </button>
+                </button>
+              </div>
               <button type="button" className={styles.cardName} onClick={() => onOpen(file.name)}>
                 {file.name}
               </button>
@@ -133,7 +135,7 @@ export default function FilesPage({ onOpen, onToast, onNewProject }) {
         </div>
       ) : (
         <ul className={styles.listView}>
-          {recents.map((file) => (
+          {recents.filter((file) => chip !== "Recent Files" || file.group === "previous").map((file) => (
             <li key={file.id}>
               <button type="button" className={styles.listRow} onClick={() => onOpen(file.name)}>
                 <span className={styles.listThumb}>

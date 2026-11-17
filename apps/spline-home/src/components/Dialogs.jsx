@@ -1,13 +1,49 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./Dialogs.module.css";
 import Art from "./Art.jsx";
 import { IconClose } from "./icons.jsx";
 import { workspace } from "../data/home.js";
 import { importTiles } from "../data/pages.js";
 
-function Backdrop({ children, onClose, dim = true }) {
+function Backdrop({ children, onClose, dim = true, modal = false }) {
+  const backdropRef = useRef(null);
+
+  useEffect(() => {
+    if (!modal) return undefined;
+    const previousFocus = document.activeElement;
+    const focusable = () => [...(backdropRef.current?.querySelectorAll(
+      'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+    ) || [])];
+    focusable()[0]?.focus();
+
+    const keepFocusInside = (event) => {
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) {
+        event.preventDefault();
+        backdropRef.current?.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !backdropRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !backdropRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", keepFocusInside);
+    return () => {
+      document.removeEventListener("keydown", keepFocusInside);
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, [modal]);
+
   return (
     <div
+      ref={backdropRef}
       className={`${styles.backdrop} ${dim ? "" : styles.backdropClear}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -141,14 +177,13 @@ export function InboxPanel({ onClose }) {
 export function NewProjectModal({ onClose, onCreate }) {
   const [name, setName] = useState("Workspace Project");
   return (
-    <Backdrop onClose={onClose}>
+    <Backdrop onClose={onClose} modal>
       <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="newProjectTitle">
         <h2 id="newProjectTitle" className={styles.modalTitle}>Create new project</h2>
         <label className={styles.fieldLabel} htmlFor="newProjectName">Project name</label>
         <input
           id="newProjectName"
           className={styles.fieldInput}
-          autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
@@ -167,7 +202,7 @@ export function NewProjectModal({ onClose, onCreate }) {
 /** "Import or Drag & Drop" modal with format tiles. */
 export function ImportModal({ onClose, onPickFiles, onGenerate, onToast }) {
   return (
-    <Backdrop onClose={onClose}>
+    <Backdrop onClose={onClose} modal>
       <div className={`${styles.modal} ${styles.importModal}`} role="dialog" aria-modal="true" aria-labelledby="importTitle">
         <div className={styles.modalHead}>
           <h2 id="importTitle" className={styles.modalTitle}>Import or Drag &amp; Drop</h2>

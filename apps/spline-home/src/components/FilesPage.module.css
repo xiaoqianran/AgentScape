@@ -181,6 +181,16 @@
   transition: transform var(--t-fast);
 }
 
+.thumbOpen {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+}
+
 .thumbWrap:hover {
   transform: translateY(-1px);
 }
