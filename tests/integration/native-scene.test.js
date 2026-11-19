@@ -387,3 +387,36 @@ it('registers and removes explicit host component actions through the scene API'
     host.close();
   }
 });
+
+
+it('keeps native component resources until an asynchronous action settles', async () => {
+  const scene = new THREE.Scene();
+  const object = new THREE.Group();
+  scene.add(object);
+  const host = await attachNativeScene({ scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false });
+  let release;
+  let markStarted;
+  const pending = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { markStarted = resolve; });
+  try {
+    const component = host.scene.native.bindComponent({ id: 'busy-object', object,
+      physics: { body: 'dynamic', colliders: [{ shape: 'box', halfExtents: [0.5, 0.5, 0.5] }] },
+      actions: [{ name: 'wait', execute: async () => { markStarted(); await pending; } }] });
+    const job = host.scene.interact({ action: 'custom', target: 'busy-object', name: 'wait' });
+    await started;
+    host.scene.cancelJob(job.id);
+    expect(() => component.remove()).toThrow('SCENE_BUSY');
+    expect(() => host.scene.native.bindComponent({ id: 'other', object: new THREE.Group() })).toThrow('SCENE_BUSY');
+    expect(host.world.physics.entries.has('busy-object')).toBe(true);
+    expect(host.world.projectCapabilities.has('busy-object')).toBe(true);
+    release();
+    expect(await host.scene.waitJob(job.id)).toMatchObject({ status: 'cancelled' });
+    expect(component.remove()).toBe(true);
+    expect(host.world.physics.entries.has('busy-object')).toBe(false);
+    expect(object.parent).toBe(scene);
+  } finally {
+    release();
+    host.close();
+  }
+});

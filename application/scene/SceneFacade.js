@@ -28,9 +28,9 @@ const services = new WeakMap();
 const facadeSkills = ['verifyScene', 'observeScene', 'interactScene', 'planSceneTask'];
 
 /** One application service per existing Runtime. No entity or asset cache. */
-export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', codeExecutor = null, codeGLTFLoader = undefined } = {}) {
+export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', codeExecutor = null, codeGLTFLoader = undefined, lifecycle = null } = {}) {
   if (services.has(world)) return services.get(world);
-  const lifecycle = createSceneLifecycle(world);
+  lifecycle ||= createSceneLifecycle(world);
   let selectedActor = null;
   const tools = new AgentTools(world, { profile: 'builder', source: 'scene-api' });
   const styles = new StyleSystem({ scene: world.scene, events: world.events, getRenderer: () => world.rendering?.renderer, getCamera: () => world.rendering?.camera });

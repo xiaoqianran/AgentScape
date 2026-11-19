@@ -244,13 +244,27 @@ test('simulates a host-imported GLB and keeps it in the native scene after detac
     object.position.set(2, 3, 0);
     host.scene.native.scene.add(object);
     const binding = host.scene.native.bindComponent({ id: 'host-glb', object,
-      semantic: { label: 'Host GLB' },
+      semantic: { label: 'Host GLB', read: () => ({ pushes: object.userData.pushes || 0 }) },
       physics: { body: 'dynamic', mass: 1, colliders: [{ shape: 'box', halfExtents: [.2, .2, .2] }] },
+      actions: [{ name: 'push', execute: () => {
+        if (!host.world.physics.applyImpulse('host-glb', [2, 0, 0])) throw new Error('IMPULSE_FAILED');
+        object.userData.pushes = (object.userData.pushes || 0) + 1;
+      }, verify: ({ before, after }) => after.pushes === before.pushes + 1 }],
     });
     window.nativePhysicalTest = { object, binding, scene: host.scene.native.scene };
   });
   await expect.poll(() => page.evaluate(() => window.nativePhysicalTest.object.position.y), { timeout: 15000 }).toBeLessThan(.35);
   expect(await page.evaluate(() => window.nativePhysicalTest.object.position.y)).toBeGreaterThan(.15);
+  const initialX = await page.evaluate(() => window.nativePhysicalTest.object.position.x);
+  const action = await page.evaluate(async () => {
+    const scene = window.nativeDemo.session.scene;
+    const discovered = scene.inspect('host-glb').actions.some(item => item.name === 'push');
+    const job = scene.interact({ action: 'custom', target: 'host-glb', name: 'push' });
+    const result = await scene.waitJob(job.id);
+    return { discovered, status: result.status, verification: result.result.verification.status };
+  });
+  expect(action).toEqual({ discovered: true, status: 'succeeded', verification: 'verified' });
+  await expect.poll(() => page.evaluate(() => window.nativePhysicalTest.object.position.x)).toBeGreaterThan(initialX + .1);
   await page.getByRole('button', { name: '移除注入层' }).click();
   expect(await page.evaluate(() => window.nativePhysicalTest.object.parent === window.nativePhysicalTest.scene)).toBe(true);
 });

@@ -5,6 +5,7 @@ import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
 import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
 import { createSceneFacade } from '../scene/SceneFacade.js';
+import { createSceneLifecycle } from '../scene/SceneLifecycle.js';
 import { SkillRegistry } from '../skills/SkillRegistry.js';
 import { registerSceneSkills } from '../skills/packs/sceneSkills.js';
 import { registerSpatialSkills } from '../skills/packs/spatialSkills.js';
@@ -75,7 +76,8 @@ export async function attachNativeScene({
     registerSpatialSkills(add, world);
     registerInteractionSkills(add, world);
     await world.init();
-    facade = createSceneFacade(world, { name, codeExecutor, codeGLTFLoader });
+    const lifecycle = createSceneLifecycle(world);
+    facade = createSceneFacade(world, { name, codeExecutor, codeGLTFLoader, lifecycle });
     nativeScene.add(world.scene);
     const frame = timestamp => {
       if (closed) throw fail('SCENE_CLOSED');
@@ -93,6 +95,7 @@ export async function attachNativeScene({
     };
     const removeComponent = component => {
       if (!component || injectedComponents.get(component.id) !== component) return false;
+      if (!closed) lifecycle.assertIdle();
       injectedComponents.delete(component.id);
       world.audio?.unregisterEmitter(component.id);
       if (component.physics) world.physics.removeObject(component.id);
@@ -103,6 +106,7 @@ export async function attachNativeScene({
     };
     const registerComponent = ({ id, object, parent = world.scene, semantic = null, audio = false, audioOptions = {}, physics = null, actions = [] } = {}, mounted = true) => {
       if (closed) throw fail('SCENE_CLOSED');
+      lifecycle.assertIdle();
       if (!componentId(id)) throw fail('NATIVE_COMPONENT_ID_INVALID');
       if (!(object instanceof THREE.Object3D) || !object.isObject3D) throw fail('NATIVE_COMPONENT_OBJECT_INVALID');
       if (!(parent instanceof THREE.Object3D) || !parent.isObject3D) throw fail('NATIVE_COMPONENT_PARENT_INVALID');
