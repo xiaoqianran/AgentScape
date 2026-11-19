@@ -53,7 +53,7 @@ npm run starter
 
 原生集成示例位于 [examples/native-scene](examples/native-scene/)，详细接入步骤、同一 Three.js 实例、物理碰撞体和宿主渲染循环约束见 [原生 Three.js 集成指南](docs/native-threejs-integration.md)和[原生注入架构契约](docs/native-threejs-architecture.md)。此能力复用原来的 SceneFacade / Runtime，不接管宿主渲染器；原生项目保存/导出尚未实现。
 
-实体交互、GLB 物理、乐器音频和实时生成的长期架构见[交互式世界运行时架构](docs/interactive-world-runtime-architecture.md)，并可继续阅读[实体能力契约](docs/entity-capability-contract.md)、[GLB 交互物理管线](docs/glb-interactive-physics-pipeline.md)、[音频运行时与自适配音乐](docs/audio-runtime-and-adaptive-music.md)和[实时交互生成](docs/realtime-interactive-spawn.md)。
+实体交互、GLB 物理、乐器音频和实时生成的长期架构见[交互式世界运行时架构](docs/interactive-world-runtime-architecture.md)，后续安排见[七阶段路线](docs/interactive-world-runtime-architecture.md#后续阶段路线)，并可继续阅读[实体能力契约](docs/entity-capability-contract.md)、[GLB 交互物理管线](docs/glb-interactive-physics-pipeline.md)、[音频运行时与自适配音乐](docs/audio-runtime-and-adaptive-music.md)和[实时交互生成](docs/realtime-interactive-spawn.md)。
 
 ## 当前边界
 
