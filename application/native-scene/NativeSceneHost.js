@@ -92,19 +92,25 @@ export async function attachNativeScene({
       world.audio?.unregisterEmitter(component.id);
       component.unregister?.();
       world.entities.unregister(component.id, { reason:'native-component-removed' });
-      component.object.removeFromParent();
+      if (component.mounted) component.object.removeFromParent();
       return true;
     };
-    const addComponent = ({ id, object, parent = world.scene, semantic = null, audio = false, audioOptions = {} } = {}) => {
+    const registerComponent = ({ id, object, parent = world.scene, semantic = null, audio = false, audioOptions = {} } = {}, mounted = true) => {
+      if (closed) throw fail('SCENE_CLOSED');
       if (!componentId(id)) throw fail('NATIVE_COMPONENT_ID_INVALID');
       if (!(object instanceof THREE.Object3D) || !object.isObject3D) throw fail('NATIVE_COMPONENT_OBJECT_INVALID');
       if (!(parent instanceof THREE.Object3D) || !parent.isObject3D) throw fail('NATIVE_COMPONENT_PARENT_INVALID');
-      if (injectedComponents.has(id)) throw fail('NATIVE_COMPONENT_CONFLICT');
+      if (injectedComponents.has(id) || [...injectedComponents.values()].some(component => component.object === object)) throw fail('NATIVE_COMPONENT_CONFLICT');
+      if (!mounted) {
+        let ancestor = object.parent;
+        while (ancestor && ancestor !== nativeScene && ancestor !== world.scene) ancestor = ancestor.parent;
+        if (ancestor !== nativeScene) throw fail('NATIVE_COMPONENT_NOT_IN_HOST_SCENE');
+      }
       if (semantic != null && (typeof semantic !== 'object' || Array.isArray(semantic))) throw fail('NATIVE_COMPONENT_SEMANTIC_INVALID');
       if (world.entities.has(id) || world.store.has(id)) throw fail('NATIVE_COMPONENT_CONFLICT');
-      const component = { id, object, parent, unregister: null, remove: () => removeComponent(component) };
+      const component = { id, object, parent, mounted, unregister: null, remove: () => removeComponent(component) };
       try {
-        parent.add(object);
+        if (mounted) parent.add(object);
         world.entities.register({ id, object, source:'native', phase:'visual-mounted', transformAuthority:'host',
           capabilities:['semantic', ...(semantic?.capabilities || [])], metadata:{ label:semantic?.label ?? id } });
         if (audio) {
@@ -123,11 +129,13 @@ export async function attachNativeScene({
         component.unregister?.();
         world.audio?.unregisterEmitter(id);
         world.entities.unregister(id, { reason:'native-injection-failed' });
-        object.removeFromParent();
+        if (mounted) object.removeFromParent();
         throw error;
       }
     };
-    const native = { scene: nativeScene, renderer, camera, root: world.scene, addComponent, audio: world.audio };
+    const addComponent = options => registerComponent(options);
+    const bindComponent = options => registerComponent(options, false);
+    const native = { scene: nativeScene, renderer, camera, root: world.scene, addComponent, bindComponent, audio: world.audio };
     const close = () => {
       if (closed) return;
       facade.close(); // Reject a close during a mutation before detaching anything.
@@ -202,7 +210,7 @@ export async function attachNativeScene({
       component.unregister?.();
       world.audio?.unregisterEmitter(component.id);
       world.entities.unregister(component.id, { reason:'native-scene-attach-failed' });
-      component.object.removeFromParent();
+      if (component.mounted) component.object.removeFromParent();
     }
     injectedComponents.clear();
     world?.scene.removeFromParent();

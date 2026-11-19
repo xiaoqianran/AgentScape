@@ -68,7 +68,7 @@ GLB 节点名称只作为编译输入，不能直接作为长期身份。编译�
 
 ## Three.js 原生兼容
 
-AgentScape 默认将自己的根节点挂到宿主 Scene，宿主继续管理 renderer、composer 和渲染循环。宿主的原生材质、灯光、阴影、Shader、动画回调和后处理继续由宿主控制。宿主对象通过 `native.addComponent()` 接入身份和语义索引，默认变换权威为 `host`。当前接口会将对象加入指定父节点，移除时将其从父节点摘除。接入已经处于宿主场景的对象需要专门的原位绑定能力，见后续阶段路线。
+AgentScape 默认将自己的根节点挂到宿主 Scene，宿主继续管理 renderer、composer 和渲染循环。宿主的原生材质、灯光、阴影、Shader、动画回调和后处理继续由宿主控制。宿主已有对象通过 `native.bindComponent({ id, object, semantic })` 原位接入身份和语义索引，默认变换权威为 `host`。对象必须位于宿主场景中，绑定、解绑和关闭均保留其父子关系。`native.addComponent()` 用于将对象加入指定父节点，移除时将其摘除。
 
 音频能力可以通过 `addComponent({ audio: true })` 显式注册。原生对象的物理和专用交互能力仍需接入方案。能力注册不会自动改变材质，也不会自动释放宿主资源。
 
@@ -111,7 +111,7 @@ AgentScape 默认将自己的根节点挂到宿主 Scene，宿主继续管理 re
 以下状态以代码和测试为准。不同接入路径的能力范围可能不同。
 
 - `EntityCapabilityRegistry` 已记录 Runtime 与 Native 实体身份、阶段和能力。`ObjectStore` 与实体注册表暂时并存。
-- `WorldRuntime.spawn/remove/dispose` 和 `NativeSceneHost.addComponent()` 已接入实体注册和基础清理。当前原生组件接口会调整对象的父子关系。
+- `WorldRuntime.spawn/remove/dispose` 和原生组件接口已接入实体注册和基础清理。`native.bindComponent()` 原位绑定宿主对象，`native.addComponent()` 管理新加入的对象。
 - Runtime 资产已有 GLB 编译、manifest、物理和部分交互流程。把已存在的宿主 GLB 对象接入同一套物理与交互能力仍需补齐。
 - 已有 `AudioSystem` 空间单音调度和 `Instrument` 显式音符触发。当前乐器使用振荡器合成，音频交互的真实浏览器闭环和环境音乐尚待建设。
 - `GenerationOrchestrator` 已有生成任务、取消、结果导入和资产编译等能力。根据场景命中位置预览并提交可交互物体的完整闭环仍需建设。

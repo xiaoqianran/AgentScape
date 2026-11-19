@@ -207,3 +207,29 @@ test('guided native restore failure remains visible and preserves the current wo
   expect(await page.evaluate(()=>window.nativeDemo.session.scene.observe().objects.length)).toBe(3);
   await expect(page.getByRole('button',{name:'保存注入层'})).toBeEnabled();
 });
+
+test('binds an existing animated native object in place and preserves it after detach', async ({ page }) => {
+  await page.goto('/examples/native-scene/');
+  await page.getByRole('button', { name: '连接场景', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已连接');
+  expect(await page.evaluate(() => {
+    const native = window.nativeDemo.session.scene.native;
+    const object = native.scene.getObjectByName('NativeShader');
+    const parent = object.parent;
+    const material = object.material;
+    const position = object.position.toArray();
+    const binding = native.bindComponent({ id: 'host-ring', object, semantic: { label: 'Ring' } });
+    const observed = window.nativeDemo.session.scene.observe().project.entities.some(entity => entity.id === 'host-ring');
+    const retained = object.parent === parent && object.material === material && object.position.toArray().every((value, index) => value === position[index]);
+    binding.remove();
+    native.bindComponent({ id: 'host-ring', object });
+    window.nativeBindingTest = { object, parent, material };
+    return observed && retained && object.parent === parent;
+  })).toBe(true);
+  await page.getByRole('button', { name: '移除注入层' }).click();
+  await expect(page.getByRole('status')).toContainText('原生场景继续运行');
+  const calls = await page.evaluate(() => window.nativeBindingTest.object.userData.renderCalls);
+  await expect.poll(() => page.evaluate(() => window.nativeBindingTest.object.userData.renderCalls)).toBeGreaterThan(calls);
+  expect(await page.evaluate(() => window.nativeBindingTest.object.parent === window.nativeBindingTest.parent &&
+    window.nativeBindingTest.object.material === window.nativeBindingTest.material)).toBe(true);
+});

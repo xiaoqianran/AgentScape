@@ -235,3 +235,56 @@ it('registers native components as spatial audio emitters only when host audio d
   host.close();
   expect(listener.context.close).not.toHaveBeenCalled();
 });
+
+it('binds existing nested host objects without taking ownership of their hierarchy', async () => {
+  const scene = new THREE.Scene();
+  const parent = new THREE.Group();
+  const object = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+  parent.position.set(2, 3, 4);
+  object.position.set(1, 2, 3);
+  parent.add(object);
+  scene.add(parent);
+  const host = await attachNativeScene({ scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false });
+  try {
+    const bind = host.scene.native.bindComponent;
+    const component = bind({ id: 'existing', object, semantic: { label: 'Existing' } });
+    expect(object.parent).toBe(parent);
+    expect(object.position.toArray()).toEqual([1, 2, 3]);
+    expect(host.scene.observe().project.entities).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'existing' })]));
+    expect(() => bind({ id: 'duplicate', object })).toThrow('NATIVE_COMPONENT_CONFLICT');
+    expect(component.remove()).toBe(true);
+    expect(component.remove()).toBe(false);
+    expect(object.parent).toBe(parent);
+    expect(host.world.entities.has('existing')).toBe(false);
+    expect(() => bind({ id: 'failure', object, audio: true })).toThrow('NATIVE_AUDIO_UNAVAILABLE');
+    expect(object.parent).toBe(parent);
+    expect(host.world.entities.has('failure')).toBe(false);
+    expect(() => bind({ id: 'outside', object: new THREE.Group() })).toThrow('NATIVE_COMPONENT_NOT_IN_HOST_SCENE');
+    bind({ id: 'existing', object });
+  } finally {
+    host.close();
+  }
+  expect(object.parent).toBe(parent);
+  expect(scene.children).toContain(parent);
+  expect(() => host.scene.native.bindComponent({ id: 'closed', object })).toThrow('SCENE_CLOSED');
+  object.geometry.dispose();
+  object.material.dispose();
+});
+
+it('keeps host objects in place when the attach hook fails', async () => {
+  const scene = new THREE.Scene();
+  const parent = new THREE.Group();
+  const object = new THREE.Group();
+  parent.add(object);
+  scene.add(parent);
+  await expect(attachNativeScene({ scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false,
+    onAttach({ native }) {
+      native.bindComponent({ id: 'existing', object, semantic: { label: 'Existing' } });
+      throw new Error('hook failure');
+    },
+  })).rejects.toThrow('hook failure');
+  expect(object.parent).toBe(parent);
+  expect(scene.children).toEqual([parent]);
+});
