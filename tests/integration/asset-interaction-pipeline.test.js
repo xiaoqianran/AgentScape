@@ -42,6 +42,7 @@ it.each(['box','drawer','valve'])('imports a new %s GLB through proposal, review
     await expect(scene.addModel({id:'unreviewed',asset:source,level:'physical'})).rejects.toMatchObject({code:'CAPABILITY_UNAVAILABLE'});
     const imported=await scene.addModel({id:'imported',asset:{...source,review:reviewOf(proposal,type)},position:[.65,0,0]});
     expect(imported.admission.layers.runtime.status).toBe('ready');
+    expect(world.entities.describe('imported')).toMatchObject({ source:'runtime', phase:'active', capabilities:expect.arrayContaining(['semantic','interaction','physics']) });
     const action=type==='box'?'push':type==='drawer'?'slide':'rotateJoint';
     const inspection=scene.inspect('imported',{actor:'actor'});
     expect(inspection.actions.find(entry=>entry.action===action),JSON.stringify(inspection)).toMatchObject({available:true});

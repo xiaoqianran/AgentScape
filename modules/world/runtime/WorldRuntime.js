@@ -278,9 +278,11 @@ export class WorldRuntime {
         source:'runtime', phase:'visual-mounted', transformAuthority:manifest.physics?.body === 'dynamic' ? 'physics' : 'static',
         capabilities:['semantic', ...(manifest.capabilityLevel !== 'visual' ? ['interaction'] : []), ...(manifest.capabilityLevel !== 'visual' && manifest.physics ? ['physics'] : []), ...(manifest.actions?.length ? ['articulation'] : [])] });
       entityRegistered = Boolean(this.entities);
+      if (entityRegistered) this.entities.setPhase(id, 'semantic-registered');
       if (active && manifest.capabilityLevel !== 'visual') {
         this.physics.addObject(id, physicsManifest, object);
         attached = true;
+        if (entityRegistered) this.entities.setPhase(id, 'physics-registered');
       }
       this.thermal?.register?.(id,manifest.simulation,{scale:uniformScale});
       clearInteractionEvidenceForTarget(this,id);
