@@ -5,11 +5,11 @@ import { GeneratedPlacementDemoRunner } from '../demos/generated-placement/Gener
 import { RunsPanel } from '../ui/runs/RunsPanel.js';
 import { TaskPanel } from '../ui/task/TaskPanel.js';
 import { CAPABILITY_API } from '../config/capabilityEntry.js';
-import { createSceneFacade } from '../../../application/scene/SceneFacade.js';
 
 export function createStudioAgent({
   ui,
   world,
+  scene,
   agentTools,
   runtimeTestTools,
   capabilityStatus,
@@ -17,7 +17,6 @@ export function createStudioAgent({
 }) {
   const runsPanel = new RunsPanel();
   let taskPanel = null;
-  const scene=createSceneFacade(world);
   if (!codeProjects) Object.defineProperty(agentTools,'actor',{configurable:true,get:()=>scene.actors().selected});
   const activeScene = () => codeProjects?.scene || scene;
 

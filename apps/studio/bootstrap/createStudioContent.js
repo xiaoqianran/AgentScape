@@ -6,13 +6,13 @@ import { StudioBuildController } from '../build/StudioBuildController.js';
 import { AssetAgentVerifier } from '../agent/AssetAgentVerifier.js';
 import { EditorCommandQueue } from '../editor/EditorCommandQueue.js';
 import { InspectorProjection } from '../inspect/InspectorProjection.js';
-import { createSceneFacade } from '../../../application/scene/SceneFacade.js';
 
 export function createStudioContent({
   ui,
   environmentDefinition,
   environments,
   world,
+  scene,
   authoring = null,
   studioTools,
   editor,
@@ -75,7 +75,6 @@ export function createStudioContent({
     log
   });
 
-  const scene = createSceneFacade(world);
   const inspectorProjection = new InspectorProjection({ world, authoring, scene });
   const editorCommands = new EditorCommandQueue({
     tools:studioTools,
@@ -113,10 +112,10 @@ export function createStudioContent({
       resources,
       placement,
       setStyle: async reference => {
-        try { return await createSceneFacade(world).setStyle(reference); }
+        try { return await scene.setStyle(reference); }
         catch(error) { log(`风格错误：${error.code || error.message} ${error.cause?.message || ''}`,'error'); throw error; }
       },
-      getStyle: () => createSceneFacade(world).observe().style?.id || null,
+      getStyle: () => scene.observe().style?.id || null,
       openLibrary:()=>ui.setView('resources'),
       openCreate:()=>ui.setView('create'),
       openInspect:()=>ui.setView('inspect')

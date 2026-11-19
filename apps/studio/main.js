@@ -33,6 +33,7 @@ async function main() {
   const agent = createStudioAgent({
     ui,
     world:runtime.world,
+    scene:runtime.scene,
     agentTools:runtime.agentTools,
     codeProjects:runtime.codeProjects,
     runtimeTestTools:runtime.runtimeTestTools,
@@ -55,6 +56,7 @@ async function main() {
     environments:ENVIRONMENTS,
     capabilityStatus,
     world:runtime.world,
+    scene:runtime.scene,
     authoringWorlds:runtime.authoringWorlds,
     studioTools:runtime.studioTools,
     editor:runtime.editor,

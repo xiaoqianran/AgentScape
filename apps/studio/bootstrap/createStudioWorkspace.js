@@ -16,6 +16,7 @@ export async function createStudioWorkspace({
   environments,
   capabilityStatus,
   world,
+  scene,
   authoringWorlds,
   studioTools,
   editor,
@@ -87,6 +88,7 @@ export async function createStudioWorkspace({
     environmentDefinition,
     environments,
     world,
+    scene,
     authoring:authoringWorlds?.authoring || null,
     studioTools,
     editor,
@@ -108,6 +110,7 @@ export async function createStudioWorkspace({
   const activation = await activateStudioWorld({
     ui,
     world,
+    scene,
     authoringWorlds,
     editor,
     worldSurface,

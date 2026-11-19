@@ -6,6 +6,7 @@ import { bindAuthoringWorldControls } from '../authoring/bindAuthoringWorldContr
 export async function activateStudioWorld({
   ui,
   world,
+  scene,
   authoringWorlds,
   editor,
   worldSurface,
@@ -29,6 +30,7 @@ export async function activateStudioWorld({
 
   const sceneControls=bindSceneControls({
     world,
+    scene,
     editor,
     sceneStore:lifecycle.sceneStore,
     worldSession:lifecycle.worldSession,

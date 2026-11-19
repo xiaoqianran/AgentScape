@@ -4,6 +4,7 @@ import { exportWorldFile, importWorldFile } from './WorldFileUI.js';
 
 export function bindSceneControls({
   world,
+  scene = null,
   editor,
   sceneStore,
   worldSession = null,
@@ -13,6 +14,7 @@ export function bindSceneControls({
   log = () => {},
   setTaskState = () => {}
 }) {
+  const sceneFacade = scene || createSceneFacade(world);
   const assertWorldIdle = () => {
     if (!world.mutationOwner && !world.history?.pending && !world.history?.suspended) return;
     const error = new Error('World mutation already in progress');
@@ -157,7 +159,7 @@ export function bindSceneControls({
   const exportScene=async()=>{
     try {
       const portable = world.environment?.id === 'monument-hall';
-      const scene = portable ? (await createSceneFacade(world).save({readResource:(_url,id)=>world.assetModule.readAssetBytes(id)})).value : world.serialize({name:'AgentScape World'});
+      const scene = portable ? (await sceneFacade.save({readResource:(_url,id)=>world.assetModule.readAssetBytes(id)})).value : world.serialize({name:'AgentScape World'});
       downloadJson(`agentscape-${currentEnvironmentDefinition().id}.json`,scene);
       log(portable ? `完整项目已导出 · schema v${scene.schemaVersion}` : '当前环境已导出运行快照（不包含资源包）','result');
       return scene;
@@ -172,7 +174,7 @@ export function bindSceneControls({
       const scene=JSON.parse(await file.text());
       assertWorldIdle();
       editor.select(null);
-      if(scene.schema==='agentscape.project-bundle') await createSceneFacade(world).importProject(scene);
+      if(scene.schema==='agentscape.project-bundle') await sceneFacade.importProject(scene);
       else await world.restore(scene);
       sceneStore.save(world.serialize({name:'AgentScape World'}));
       fileStatus='项目已导入'; emit();
