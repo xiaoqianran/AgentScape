@@ -1,4 +1,5 @@
 import { rolldown } from 'rolldown';
+import { build as buildVite } from 'vite';
 import { readFile, writeFile, mkdir, copyFile, rm, lstat, cp } from 'node:fs/promises';
 import { isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +37,8 @@ await writeFile(new URL('dist/mcp.js', source), "export { startServer } from './
 const worker = await rolldown({input:fileURLToPath(new URL('application/code-execution/BrowserCodeWorker.js',root))});
 try { await worker.write({file:fileURLToPath(new URL('dist/BrowserCodeWorker.js',source)),format:'es'}); } finally { await worker.close(); }
 sdk.dependencies = {...pkg.dependencies};
+delete sdk.dependencies.three;
+sdk.peerDependencies = { ...sdk.peerDependencies, three: '^0.187.0' };
 sdk.exports['.'] = {types:'./dist/index.d.ts',browser:'./dist/index.js',node:'./dist/node.js',import:'./dist/index.js'};
 sdk.exports['./node'] = {types:'./dist/node.d.ts',import:'./dist/node.js'};
 sdk.exports['./mcp'] = {types:'./dist/mcp.d.ts',import:'./dist/mcp.js'};
@@ -44,4 +47,15 @@ await copyFile(new URL('src/index.d.ts', source), new URL('dist/index.d.ts', sou
 await copyFile(new URL('src/node.d.ts', source), new URL('dist/node.d.ts', source));
 await copyFile(new URL('src/mcp.d.ts', source), new URL('dist/mcp.d.ts', source));
 await copyFile(new URL('LICENSE', root), new URL('LICENSE', source));
-console.log('Standalone SDK build complete');
+
+// Ship the same multi-page website used by the hosted deployment so `agentscape3d web`
+// can serve the Spline homepage at / and Studio at /studio/ from an npm installation.
+await buildVite({ root: fileURLToPath(root), configFile: fileURLToPath(new URL('vite.config.js', root)) });
+const site = new URL('site/', source);
+const sitePath = resolve(fileURLToPath(site));
+if (dirname(sitePath) !== resolve(fileURLToPath(source))) throw new Error('Unsafe SDK site output path');
+const existingSite = await lstat(sitePath).catch(error => { if (error.code !== 'ENOENT') throw error; return null; });
+if (existingSite?.isSymbolicLink()) throw new Error('SDK site output must not be a link');
+await rm(site, { recursive: true, force: true });
+await cp(new URL('dist/', root), site, { recursive: true });
+console.log('Standalone SDK and website build complete');

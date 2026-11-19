@@ -26,6 +26,10 @@ The SDK defaults to `monument-hall`; other built-in IDs are resolved through the
 
 `npx agentscape3d starter new-directory` (or `agentscape starter new-directory`) scaffolds an empty destination containing a minimal SDK example, not the Studio editor. Install this SDK tarball and Vite in that directory, then `npm run dev`. Open the repository root with `npm run dev` to use the full Studio workspace. No provider key or paid service is needed for built-in worlds. Python Connector SDK usage is unchanged.
 
+The package also includes the production multi-page website. Run `npx agentscape3d web` to serve the Spline-style homepage at `/` and Studio at `/studio/` on `http://127.0.0.1:4173`. Choose another port with `--port 8080`; choose a network interface explicitly with `--host 0.0.0.0` when access from other devices is intended. The website build is generated from the repository's root Vite configuration during package build.
+
+For native Three.js integration, the package declares `three` as a peer dependency so the host application supplies the shared runtime instance. Install a compatible Three.js version in the host project. See the [native integration guide](../../docs/native-threejs-integration.md) and [architecture contract](../../docs/native-threejs-architecture.md).
+
 Code assets require an explicit execution configuration. Node selects the Node entry automatically; `agentscape3d/node` is also available. Docker is not an installation prerequisite.
 
 ```js

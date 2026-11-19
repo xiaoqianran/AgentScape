@@ -33,6 +33,7 @@ L0 只描述“现在是什么”，不保存演进故事。
 - [`architecture/world-runtime.md`](architecture/world-runtime.md) — Physics / Spatial / Navigation / Locomotion / Interaction / Rendering 的系统边界。
 - [`architecture/multi-repository.md`](architecture/multi-repository.md) — 多仓库职责边界。
 - [`architecture/observability.md`](architecture/observability.md) — Observatory / developer runtime observability。
+- [`native-threejs-architecture.md`](native-threejs-architecture.md) — 原生 Three.js 注入层的 ownership、兼容等级、版本策略和验收矩阵。
 
 L1 描述系统 ownership 和依赖方向，不承担字段级 API 说明。
 

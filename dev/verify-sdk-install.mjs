@@ -20,9 +20,44 @@ try {
   const packedResult = JSON.parse(packOutput.slice(jsonStart + 1));
   const packed = Array.isArray(packedResult) ? packedResult[0] : packedResult['agentscape3d'];
   if (!packed?.filename) throw new Error('SDK package metadata missing');
+  const sdkManifest = JSON.parse(readFileSync(join(root, 'sdk/typescript/package.json'), 'utf8'));
+  if (!sdkManifest.peerDependencies?.three || sdkManifest.dependencies?.three) throw new Error('Three.js must be a host-provided SDK peer dependency');
   const consumer = join(temporary, 'consumer'); mkdirSync(consumer);
   writeFileSync(join(consumer, 'package.json'), JSON.stringify({ name: 'agentscape-clean-consumer', private: true, type: 'module' }));
   const installation = npm(['install', '--ignore-scripts', join(temporary, packed.filename)], consumer);
+  for (const path of ['site/index.html', 'site/studio/index.html']) {
+    if (!packed.files.some(file => file.path === path)) throw new Error(`npm archive is missing the packaged website entry: ${path}`);
+  }
+  writeFileSync(join(consumer, 'web.mjs'), `
+import { spawn } from 'node:child_process';
+import assert from 'node:assert/strict';
+const server=spawn(process.execPath,['node_modules/agentscape3d/cli.mjs','web','--port','0'],{stdio:['ignore','pipe','inherit']});
+let output='';
+try {
+ const address=await new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>reject(new Error('Web CLI did not start')),10000);
+  server.stdout.on('data',chunk=>{
+   output+=chunk;
+   const match=output.match(/127[.]0[.]0[.]1:(\\d+)/);
+   if(match){clearTimeout(timer);resolve('http://127.0.0.1:'+match[1]);}
+  });
+  server.once('exit',code=>{clearTimeout(timer);reject(new Error('Web CLI exited early: '+code+' '+output));});
+ });
+ const home=await fetch(address+'/');
+ assert.equal(home.status,200);
+ const homeHtml=await home.text();
+ assert.match(homeHtml,/AgentScape Home/);
+ const studio=await fetch(address+'/studio/');
+ assert.equal(studio.status,200);
+ assert.match(await studio.text(),/AgentScape/);
+ const assetPath=homeHtml.match(/src="([^\"]+home-[^\"]+\\.js)"/)?.[1];
+ assert.ok(assetPath,'homepage JS asset reference exists');
+ assert.equal((await fetch(address+assetPath)).status,200);
+ assert.equal((await fetch(address+'/missing-page')).status,404);
+ console.log('Installed npm web CLI serves homepage, Studio and bundled assets');
+} finally { server.kill('SIGTERM'); }
+`);
+  execFileSync(process.execPath, ['web.mjs'], { cwd: consumer, stdio: 'inherit' });
   writeFileSync(join(consumer, 'table.json'), readFileSync(join(root, 'examples/recipes/table.json')));
   writeFileSync(join(consumer, 'create.mjs'), `
 import { AgentScape } from 'agentscape3d';
