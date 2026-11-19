@@ -453,3 +453,45 @@ it('restores the original host hierarchy when mounting fails', async () => {
   const reopened = await attachNativeScene(options);
   reopened.close();
 });
+
+
+it('syncs a host-driven kinematic collider without taking ownership of its transform', async () => {
+  const scene = new THREE.Scene();
+  const parent = new THREE.Group();
+  parent.position.set(2, 1, -1);
+  parent.rotation.y = Math.PI / 4;
+  const platform = new THREE.Group();
+  parent.add(platform);
+  scene.add(parent);
+  const host = await attachNativeScene({ scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false });
+  try {
+    const component = host.scene.native.bindComponent({ id: 'moving-platform', object: platform,
+      physics: { body: 'kinematic', colliders: [{ shape: 'box', halfExtents: [1, .1, 1] }] } });
+    expect(host.world.entities.describe('moving-platform').transformAuthority).toBe('host');
+    host.scene.frame(0);
+    platform.position.set(1, 0, 0);
+    platform.rotation.y = .5;
+    host.scene.frame(1000 / 60);
+    host.scene.frame(2000 / 60);
+    const expectedPosition = platform.getWorldPosition(new THREE.Vector3());
+    const expectedRotation = platform.getWorldQuaternion(new THREE.Quaternion());
+    expect(new THREE.Vector3(...host.world.physics.getPosition('moving-platform')).distanceTo(expectedPosition)).toBeLessThan(1e-5);
+    expect(1 - Math.abs(new THREE.Quaternion(...host.world.physics.getRotation('moving-platform')).dot(expectedRotation))).toBeLessThan(1e-5);
+    expect(platform.position.toArray()).toEqual([1, 0, 0]);
+    const falling = new THREE.Group();
+    falling.position.copy(expectedPosition).add(new THREE.Vector3(0, 2, 0));
+    scene.add(falling);
+    host.scene.native.bindComponent({ id: 'kinematic-falling', object: falling,
+      physics: { body: 'dynamic', colliders: [{ shape: 'box', halfExtents: [.2, .2, .2] }] } });
+    for (let i = 0; i < 180; i++) host.scene.step();
+    expect(falling.position.y).toBeGreaterThan(expectedPosition.y + .25);
+    expect(falling.position.y).toBeLessThan(expectedPosition.y + .35);
+    platform.position.x += 4;
+    for (let i = 0; i < 120; i++) host.scene.step();
+    expect(falling.position.y).toBeLessThan(expectedPosition.y);
+    expect(component.remove()).toBe(true);
+    expect(host.world.physics.entries.has('moving-platform')).toBe(false);
+    expect(platform.parent).toBe(parent);
+  } finally { host.close(); }
+});

@@ -268,3 +268,37 @@ test('simulates a host-imported GLB and keeps it in the native scene after detac
   await page.getByRole('button', { name: '移除注入层' }).click();
   expect(await page.evaluate(() => window.nativePhysicalTest.object.parent === window.nativePhysicalTest.scene)).toBe(true);
 });
+
+test('host-driven kinematic platform interacts with a dynamic native object', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/examples/native-scene/');
+  await page.getByRole('button', { name: '连接场景', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已连接');
+  await page.evaluate(() => {
+    const host = window.nativeDemo.session;
+    const scene = host.scene.native.scene;
+    const platform = new scene.constructor();
+    const box = new scene.constructor();
+    platform.position.set(20, 5, 0);
+    box.position.set(20, 7, 0);
+    scene.add(platform, box);
+    const platformBinding = host.scene.native.bindComponent({ id: 'browser-platform', object: platform,
+      physics: { body: 'kinematic', colliders: [{ shape: 'box', halfExtents: [1, .1, 1] }] } });
+    const boxBinding = host.scene.native.bindComponent({ id: 'browser-box', object: box,
+      physics: { body: 'dynamic', colliders: [{ shape: 'box', halfExtents: [.2, .2, .2] }] } });
+    window.kinematicTest = { platform, box, platformBinding, boxBinding };
+  });
+  await expect.poll(() => page.evaluate(() => window.kinematicTest.box.position.y), { timeout: 10000 }).toBeLessThan(5.4);
+  expect(await page.evaluate(() => window.kinematicTest.box.position.y)).toBeGreaterThan(5.2);
+  await page.evaluate(() => { window.kinematicTest.platform.position.x += 5; });
+  await expect.poll(() => page.evaluate(() => window.kinematicTest.box.position.y), { timeout: 10000 }).toBeLessThan(4.5);
+  expect(await page.evaluate(() => {
+    const { platform, platformBinding, boxBinding } = window.kinematicTest;
+    const scene = window.nativeDemo.session.scene.native.scene;
+    platformBinding.remove();
+    boxBinding.remove();
+    return platform.parent === scene;
+  })).toBe(true);
+  expect(errors).toEqual([]);
+});

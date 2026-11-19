@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as z from 'zod/v4';
 import { assetPhysicsSchema } from '../../modules/asset/model/AssetInputContracts.js';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
@@ -15,6 +16,7 @@ import { writeNativeSceneOverlay, prepareNativeSceneOverlay, restoreNativeSceneO
 
 const bindings = new WeakMap();
 const fail = code => Object.assign(new Error(code), { code });
+const nativePhysicsSchema = assetPhysicsSchema.extend({ body: z.enum(['fixed', 'dynamic', 'kinematic']) });
 
 /** Attach to a trusted, already running native Scene. Never own its renderer or loop.
  * Colliders/navigationRoot are explicit world-space environment registration.
@@ -88,14 +90,31 @@ export async function attachNativeScene({
     const lifecycle = createSceneLifecycle(world);
     facade = createSceneFacade(world, { name, codeExecutor, codeGLTFLoader, lifecycle });
     nativeScene.add(world.scene);
+    const syncKinematicComponents = () => {
+      for (const component of injectedComponents.values()) {
+        if (component.bodyType !== 'kinematic') continue;
+        const position = component.object.getWorldPosition(new THREE.Vector3());
+        const rotation = component.object.getWorldQuaternion(new THREE.Quaternion());
+        world.physics.setHeldTarget(component.id, position.toArray(), rotation.toArray());
+      }
+    };
+    const writebackPhysicsComponents = () => world.physics.writeback({
+      has: id => Boolean(injectedComponents.get(id)?.physics) && injectedComponents.get(id)?.bodyType !== 'kinematic',
+      get: id => injectedComponents.get(id),
+    });
     const frame = timestamp => {
       if (closed) throw fail('SCENE_CLOSED');
       // Do not call renderer.render: the original project owns every render pass.
+      syncKinematicComponents();
       facade.frame(timestamp);
-      world.physics.writeback({
-        has: id => Boolean(injectedComponents.get(id)?.physics),
-        get: id => injectedComponents.get(id),
-      });
+      writebackPhysicsComponents();
+    };
+    const step = () => {
+      if (closed) throw fail('SCENE_CLOSED');
+      syncKinematicComponents();
+      const result = facade.step();
+      writebackPhysicsComponents();
+      return result;
     };
     const tick = timestamp => {
       if (closed) return;
@@ -135,7 +154,7 @@ export async function attachNativeScene({
       if (world.entities.has(id) || world.store.has(id) || world.physics.entries.has(id)) throw fail('NATIVE_COMPONENT_CONFLICT');
       let physicsSpec = null;
       if (physics != null) {
-        const parsed = assetPhysicsSchema.safeParse(physics);
+        const parsed = nativePhysicsSchema.safeParse(physics);
         if (!parsed.success) throw fail('NATIVE_PHYSICS_INVALID');
         if (!object.matrixAutoUpdate) throw fail('NATIVE_PHYSICS_MATRIX_AUTO_UPDATE_REQUIRED');
         if (object.matrixAutoUpdate) object.updateMatrix();
@@ -160,10 +179,10 @@ export async function attachNativeScene({
       }
       const component = { id, object, parent, mounted, originalParent: object.parent,
         originalIndex: object.parent?.children.indexOf(object) ?? -1,
-        physics: false, unregister: null, remove: () => removeComponent(component) };
+        physics: false, bodyType: physicsSpec?.body ?? null, unregister: null, remove: () => removeComponent(component) };
       try {
         if (mounted) parent.add(object);
-        world.entities.register({ id, object, source:'native', phase:'visual-mounted', transformAuthority:physicsSpec ? 'physics' : 'host',
+        world.entities.register({ id, object, source:'native', phase:'visual-mounted', transformAuthority:physicsSpec ? physicsSpec.body === 'kinematic' ? 'host' : 'physics' : 'host',
           capabilities:['semantic', ...(physicsSpec ? ['physics'] : []), ...(actions.length ? ['interaction'] : []), ...(semantic?.capabilities || [])], metadata:{ label:semantic?.label ?? id } });
         if (physicsSpec) {
           world.physics.addObject(id, { physics: physicsSpec }, object);
@@ -212,6 +231,7 @@ export async function attachNativeScene({
     const handle = {
       ...facade,
       frame,
+      step,
       close,
       // Never export a native project as a misleading built-in Scene Project.
       save: unsupported('NATIVE_PROJECT_SAVE_UNSUPPORTED'),
