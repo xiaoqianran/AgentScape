@@ -1,6 +1,6 @@
 import { RESOURCE_BUDGET } from '../../../../modules/asset/model/resourceBudget.js';
 import '../../react/developer/DeveloperSettings.css';
-import { readCapabilityStatus, unavailableCapabilityStatus } from '../../config/capabilityEntry.js';
+import { readCapabilityHealth, readCapabilityStatus, unavailableCapabilityStatus } from '../../config/capabilityEntry.js';
 
 export class DeveloperSettings {
   constructor({ dialog, world, tools, gateway, initialCapabilityStatus = unavailableCapabilityStatus(), log = () => {}, onCapabilityStatusChange = () => {} }) {
@@ -93,7 +93,8 @@ export class DeveloperSettings {
   async refreshCapabilityStatus() {
     this.refreshCapabilitiesButton.disabled = true;
     this.refreshCapabilitiesButton.textContent = '检查中…';
-    const status = await readCapabilityStatus();
+    const [status, health] = await Promise.all([readCapabilityStatus(), readCapabilityHealth()]);
+    this.capabilityHealth = health;
     this.capabilityStatus = status;
     this.renderCapabilityStatus(status);
     this.onCapabilityStatusChange(status);
@@ -105,11 +106,12 @@ export class DeveloperSettings {
     for (const key of ['agent', 'assetCompile']) {
       const configured = Boolean(status?.[key]?.available);
       const row = this.capabilityRows[key];
-      row.textContent = configured ? '可用' : '不可用';
+      const health = this.capabilityHealth?.[key];
+      row.textContent = !configured ? '未配置' : ({ ok:'正常', slow:'响应缓慢', down:'无法连接' }[health] || '已配置');
       row.dataset.available = configured ? 'true' : 'false';
     }
     this.capabilityHelp.textContent = status?.source === 'server'
-      ? '能力由部署适配器提供；浏览器不保存适配器地址或凭据。'
+      ? '能力由部署适配器提供；健康状态仅反映适配器检查，不保证上游服务可用。'
       : `无法读取能力状态：${status?.reason || '未知错误'}`;
   }
 

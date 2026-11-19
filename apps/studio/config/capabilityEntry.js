@@ -39,6 +39,26 @@ export async function readCapabilityStatus({ fetchImpl = fetch, timeoutMs = 5000
   }
 }
 
+export async function readCapabilityHealth({ fetchImpl = fetch, timeoutMs = 5000 } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl('/api/capabilities/health', {
+      method: 'GET', headers: { accept: 'application/json' }, signal: controller.signal
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const capabilities = payload?.capabilities;
+    if (!capabilities || typeof capabilities !== 'object') return null;
+    const normalize = value => ['unconfigured', 'ok', 'slow', 'down'].includes(value?.state) ? value.state : null;
+    return { agent: normalize(capabilities.agent), assetCompile: normalize(capabilities['asset.compile']) };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function applyCapabilityStatus({ gateway, generation } = {}, status = unavailableCapabilityStatus()) {
   gateway?.setEndpoint?.(status.agent?.available ? CAPABILITY_API.agent : '');
   generation?.setCompilerEndpoint?.(status.assetCompile?.available ? CAPABILITY_API.assetCompile : '');

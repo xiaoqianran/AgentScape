@@ -11,6 +11,7 @@ export async function createStudioDeveloperTools({
   capabilityStatus
 }) {
   const log = (text,kind)=>taskPanel.log(text,kind);
+  let disposed = false;
   const developer = new DeveloperSettings({
     dialog:ui.developerDialog,
     world,
@@ -19,6 +20,7 @@ export async function createStudioDeveloperTools({
     initialCapabilityStatus:capabilityStatus,
     log,
     onCapabilityStatusChange:(status)=>{
+      if (disposed) return;
       applyCapabilityStatus({ gateway, generation:world.generation },status);
       taskPanel.setAvailability(status.agent.available);
     }
@@ -37,10 +39,25 @@ export async function createStudioDeveloperTools({
     log
   }).init();
 
+  let refreshing = false;
+  const refreshCapabilities = async () => {
+    if (disposed || refreshing || globalThis.document?.visibilityState === 'hidden') return;
+    refreshing = true;
+    try { await developer.refreshCapabilityStatus(); }
+    finally { refreshing = false; }
+  };
+  const timer = setInterval(() => { void refreshCapabilities(); }, 30000);
+  const onVisibilityChange = () => { void refreshCapabilities(); };
+  globalThis.document?.addEventListener?.('visibilitychange', onVisibilityChange);
+  void refreshCapabilities();
+
   return {
     developer,
     generationJobCenter,
     dispose() {
+      disposed = true;
+      clearInterval(timer);
+      globalThis.document?.removeEventListener?.('visibilitychange', onVisibilityChange);
       ui.setDeveloperOpenHandler?.(null);
       generationJobCenter.destroy();
     }

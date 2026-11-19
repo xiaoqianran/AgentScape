@@ -6,6 +6,7 @@ import {
   applyCapabilityStatus,
   clearLegacyEndpointOverrides,
   normalizeCapabilityStatus,
+  readCapabilityHealth,
   readCapabilityStatus
 } from '../../apps/studio/config/capabilityEntry.js';
 
@@ -44,6 +45,13 @@ describe('AgentScape capability entry', () => {
   it('fails closed when capability status cannot be read', async () => {
     const status=await readCapabilityStatus({fetchImpl:vi.fn(async()=>{throw new Error('offline');})});
     expect(status).toMatchObject({source:'unavailable',agent:{available:false},assetCompile:{available:false}});
+  });
+
+  it('reads sanitized adapter health without changing capability availability', async () => {
+    const fetchImpl=vi.fn(async()=>new Response(JSON.stringify({capabilities:{agent:{state:'ok'},'asset.compile':{state:'down'}}}),{status:200}));
+    expect(await readCapabilityHealth({fetchImpl})).toEqual({agent:'ok',assetCompile:'down'});
+    expect(fetchImpl.mock.calls[0][0]).toBe('/api/capabilities/health');
+    expect(await readCapabilityHealth({fetchImpl:vi.fn(async()=>{throw new Error('offline');})})).toBeNull();
   });
 
   it('applies deployment truth only to the LLM gateway and Generation compiler boundary', () => {

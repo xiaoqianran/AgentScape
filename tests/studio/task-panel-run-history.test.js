@@ -3,6 +3,18 @@ import { TaskPanel } from '../../apps/studio/ui/task/TaskPanel.js';
 import { createAgentJourney } from '../../apps/studio/agent/AgentJourney.js';
 
 describe('TaskPanel run history isolation', () => {
+  it('preserves task results when availability is unchanged and updates on transitions', () => {
+    const panel = Object.create(TaskPanel.prototype);
+    panel.available = true;
+    panel.busy = false;
+    panel.setState = vi.fn();
+    panel.setAvailability(true);
+    expect(panel.setState).not.toHaveBeenCalled();
+    panel.setAvailability(false);
+    expect(panel.setState).toHaveBeenLastCalledWith('offline', expect.any(String), expect.any(String), expect.any(Object));
+    panel.setAvailability(true);
+    expect(panel.setState).toHaveBeenLastCalledWith('ready', expect.any(String), expect.any(String));
+  });
   it('records run history without changing task execution semantics', () => {
     const panel = Object.create(TaskPanel.prototype);
     panel.onRun = vi.fn();

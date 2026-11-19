@@ -87,7 +87,9 @@ export class TaskPanel {
   }
 
   setAvailability(available) {
-    this.available = Boolean(available);
+    available = Boolean(available);
+    if (this.available === available) return;
+    this.available = available;
     if (!this.busy) {
       if (this.available) this.setState('ready','就绪','选择常用任务，或在下方描述你自己的目标。');
       else this.setState('offline','LLM Agent 未连接','Runtime 验收仍可直接运行；自然语言任务需要配置 Agent Gateway。',{ action:'配置' });
