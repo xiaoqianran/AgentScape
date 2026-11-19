@@ -116,6 +116,7 @@ export async function createStudioRuntime({
 
   return {
     world,
+    scene,
     authoringWorlds,
     studioTools,
     agentTools:codeProjects.wrapTools(agentTools),
