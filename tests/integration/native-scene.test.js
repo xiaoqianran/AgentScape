@@ -141,3 +141,40 @@ it('runs verified Agent navigation on registered native geometry using the share
     expect(host.world.physics.getPosition('walker')[0]).toBeGreaterThan(2.7);
   } finally { host.close(); floor.geometry.dispose(); floor.material.dispose(); }
 }, 30000);
+
+it('preserves a native material, light, shader and renderer loop while injecting semantics', async () => {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#101820');
+  const camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.1, 100);
+  const renderer = { render: vi.fn(), extensions: { has: () => false }, toneMapping: THREE.ACESFilmicToneMapping };
+  const light = new THREE.DirectionalLight(0xffffff, 2.5);
+  light.castShadow = true;
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(12, .2, 12), new THREE.MeshStandardMaterial({ color: '#5f7480', roughness: .72 }));
+  floor.receiveShadow = true;
+  const shaderMaterial = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 } },
+    vertexShader: 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform float time; void main() { gl_FragColor = vec4(0.2 + 0.1 * sin(time), 0.6, 0.9, 1.0); }',
+  });
+  const shaderObject = new THREE.Mesh(new THREE.TorusGeometry(1, .2, 16, 32), shaderMaterial);
+  scene.add(light, floor, shaderObject);
+  const host = await attachNativeScene({ scene, camera, renderer, autoStart: false });
+  try {
+    expect(host.scene.native.scene).toBe(scene);
+    expect(host.scene.native.camera).toBe(camera);
+    expect(host.scene.native.renderer).toBe(renderer);
+    expect(scene.background).toBeInstanceOf(THREE.Color);
+    expect(floor.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(shaderObject.material).toBe(shaderMaterial);
+    expect(light.castShadow).toBe(true);
+    host.scene.frame(16);
+    expect(renderer.render).not.toHaveBeenCalled();
+  } finally {
+    host.close();
+    floor.geometry.dispose();
+    floor.material.dispose();
+    shaderObject.geometry.dispose();
+    shaderMaterial.dispose();
+  }
+  expect(scene.children).toEqual([light, floor, shaderObject]);
+}, 30000);
