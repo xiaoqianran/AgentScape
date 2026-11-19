@@ -45,7 +45,34 @@ await session.scene.addModel({ id: 'cup_01', asset: 'builtin://cup', position: [
 - 必须复用同一份 `three` 构造器。`NATIVE_THREE_INSTANCE_MISMATCH` 说明项目存在不兼容或重复实例；先检查打包器去重，不能靠转换原生对象绕过。
 - 仅在可信项目中注入；不要把浏览器内执行任意外来代码当成不可信代码沙箱。
 
-## 2. 完全不改原项目源文件的可选发现路径
+## 2. 原生组件和语义注入
+
+原生模式提供 `native.addComponent()`，用于把宿主创建的任意 Three.js `Object3D` 挂载到指定父节点，并可同时注册语义实体。组件被移除时只解除场景挂载和语义注册，不会调用几何体、材质或纹理的 `dispose()`。
+
+`onAttach` 适合在绑定完成后初始化语义和组件，回调可以直接使用宿主传入的 Three.js 实例。
+
+```js
+const session = await AgentScape.attach({
+  scene, camera, renderer, autoStart: false,
+  onAttach({ scene: api, native, three }) {
+    const material = new three.MeshPhysicalMaterial({
+      color: 0x5577ff, metalness: 0.75, roughness: 0.2, transmission: 0.25,
+    });
+    const mesh = new three.Mesh(new three.SphereGeometry(1, 32, 16), material);
+    native.addComponent({
+      id: 'energy-core', object: mesh,
+      semantic: { label: '能量核心', read: () => ({ material: mesh.material.type }) },
+    });
+    api.registerAction({
+      target: 'energy-core', name: 'setIntensity',
+      parameters: { type: 'object', properties: { value: { type: 'number' } }, required: ['value'], additionalProperties: false },
+      execute({ value }) { material.emissiveIntensity = value; },
+    });
+  },
+});
+```
+
+## 3. 完全不改原项目源文件的可选发现路径
 
 `examples/native-scene/project/main.js` 是没有 AgentScape 引用的独立原生项目。Vite 启动阶段配置 `nativeScenePlugin({projectRoots:[...]})`，仅对选定目录下的 `import ... from 'three'` 提供模块 shim，以观察 `WebGLRenderer` 渲染过的 Scene。随后由独立启动文件调用 `listNativeScenes()`、`attachNativeScene()`。
 

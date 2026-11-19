@@ -24,6 +24,7 @@ export async function attachNativeScene({
   staticMeshes = [], walkableMesh = null, hostProjectId = null, hostRevision = null,
   assetModule = null, autoStart = true, codeExecutor = null, codeGLTFLoader,
   assetBaseUrl = globalThis.location?.origin ? globalThis.location.origin + '/' : null,
+  onAttach = null,
 } = {}) {
   if (three.Object3D !== THREE.Object3D || three.REVISION !== THREE.REVISION) throw fail('NATIVE_THREE_INSTANCE_MISMATCH');
   if (!nativeScene?.isScene || !camera?.isCamera || typeof renderer?.render !== 'function') throw fail('NATIVE_BINDING_INVALID');
@@ -35,11 +36,14 @@ export async function attachNativeScene({
   if (hostProjectId != null && (typeof hostProjectId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(hostProjectId))) throw fail('NATIVE_HOST_IDENTITY_INVALID');
   if (hostRevision != null && (typeof hostRevision !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(hostRevision))) throw fail('NATIVE_HOST_IDENTITY_INVALID');
   if (navigationRoot && !navigationRoot.isObject3D) throw fail('NATIVE_NAVIGATION_ROOT_INVALID');
+  if (onAttach != null && typeof onAttach !== 'function') throw fail('NATIVE_ATTACH_HOOK_INVALID');
   const extractedColliders = extractNativeStaticColliders(nativeScene, { staticMeshes, walkableMesh });
   const environmentColliders = [...structuredClone(colliders), ...extractedColliders];
   const environmentNavigation = navigationRoot || walkableMesh;
   bindings.set(nativeScene, true); // Reserve before asynchronous physics initialization.
   let assets, world, facade, frameId, closed = false;
+  const injectedComponents = new Map();
+  const componentId = value => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(value);
   const unsupported = code => async () => { throw fail(code); };
   try {
     const manifests = structuredClone(assetManifests);
@@ -72,7 +76,6 @@ export async function attachNativeScene({
     await world.init();
     facade = createSceneFacade(world, { name, codeExecutor, codeGLTFLoader });
     nativeScene.add(world.scene);
-    world.simulation.play();
     const frame = timestamp => {
       if (closed) throw fail('SCENE_CLOSED');
       // Do not call renderer.render: the original project owns every render pass.
@@ -83,12 +86,43 @@ export async function attachNativeScene({
       frame(timestamp);
       frameId = requestAnimationFrame(tick);
     };
-    if (autoStart) frameId = requestAnimationFrame(tick);
+    const removeComponent = component => {
+      if (!component || injectedComponents.get(component.id) !== component) return false;
+      injectedComponents.delete(component.id);
+      component.unregister?.();
+      component.object.removeFromParent();
+      return true;
+    };
+    const addComponent = ({ id, object, parent = world.scene, semantic = null } = {}) => {
+      if (!componentId(id)) throw fail('NATIVE_COMPONENT_ID_INVALID');
+      if (!(object instanceof THREE.Object3D) || !object.isObject3D) throw fail('NATIVE_COMPONENT_OBJECT_INVALID');
+      if (!(parent instanceof THREE.Object3D) || !parent.isObject3D) throw fail('NATIVE_COMPONENT_PARENT_INVALID');
+      if (injectedComponents.has(id)) throw fail('NATIVE_COMPONENT_CONFLICT');
+      if (semantic != null && (typeof semantic !== 'object' || Array.isArray(semantic))) throw fail('NATIVE_COMPONENT_SEMANTIC_INVALID');
+      const component = { id, object, parent, unregister: null, remove: () => removeComponent(component) };
+      try {
+        parent.add(object);
+        if (semantic) {
+          component.unregister = facade.registerEntity({
+            id, label: semantic.label ?? id, description: semantic.description ?? '',
+            object, read: semantic.read ?? (() => ({})),
+          });
+        }
+        injectedComponents.set(id, component);
+        return Object.freeze({ id, object, remove: component.remove });
+      } catch (error) {
+        component.unregister?.();
+        object.removeFromParent();
+        throw error;
+      }
+    };
+    const native = { scene: nativeScene, renderer, camera, root: world.scene, addComponent };
     const close = () => {
       if (closed) return;
       facade.close(); // Reject a close during a mutation before detaching anything.
       closed = true;
       if (frameId != null) cancelAnimationFrame(frameId);
+      for (const component of [...injectedComponents.values()]) removeComponent(component);
       world.scene.removeFromParent();
       try { world.dispose(); } finally {
         if (!assetModule) assets.loader.gltfLoader.dispose?.();
@@ -140,16 +174,24 @@ export async function attachNativeScene({
       importWorld: unsupported('NATIVE_PROJECT_IMPORT_UNSUPPORTED'),
       prepareWorld: unsupported('NATIVE_PROJECT_IMPORT_UNSUPPORTED'),
       setStyle: unsupported('NATIVE_RENDERING_OWNED_BY_PROJECT'),
-      native: { scene: nativeScene, renderer, camera, root: world.scene },
+      native,
       capabilities: Object.freeze({ mode: 'native-scene', threeRevision: THREE.REVISION,
         sourceConversion: false, ownsRenderer: false, nativeProjectSave: false,
         environmentColliders: environmentColliders.length, navigationRegistered: Boolean(environmentNavigation),
         nativeOverlayPersistence: Boolean(hostProjectId) }),
     };
+    if (onAttach) await onAttach({ scene: handle, native, three: THREE });
+    world.simulation.play();
+    if (autoStart) frameId = requestAnimationFrame(tick);
     // Runtime is exposed to the local Studio bridge, never serialized over MCP.
     return { scene: handle, world, close };
   } catch (error) {
     if (frameId != null) cancelAnimationFrame(frameId);
+    for (const component of [...injectedComponents.values()]) {
+      component.unregister?.();
+      component.object.removeFromParent();
+    }
+    injectedComponents.clear();
     world?.scene.removeFromParent();
     try {
       facade?.close();

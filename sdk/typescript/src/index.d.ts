@@ -104,6 +104,17 @@ export interface NativeSceneOptions {
   environmentId?: string; colliders?: Record<string, unknown>[]; navigationRoot?: any;
   staticMeshes?: any[]; walkableMesh?: any; hostProjectId?: string; hostRevision?: string;
   assetModule?: any; autoStart?: boolean; codeExecutor?: any; codeGLTFLoader?: any; assetBaseUrl?: string | null;
+  onAttach?: (context: NativeSceneAttachContext) => void | Promise<void>;
+}
+export interface NativeSceneComponent { id: string; object: any; remove(): boolean }
+export interface NativeSceneAttachContext {
+  scene: NativeSceneHandle;
+  native: NativeSceneNative;
+  three: any;
+}
+export interface NativeSceneNative {
+  scene: any; camera: any; renderer: any; root: any;
+  addComponent(input: { id: string; object: any; parent?: any; semantic?: { label?: string; description?: string; read?: () => Record<string, unknown> } | null }): NativeSceneComponent;
 }
 export interface NativeOverlayPrepared {
   summary: unknown;
@@ -118,7 +129,7 @@ export interface NativeSceneHandle extends SceneHandle {
   importOverlay(storage: WorldStorage, source: AsyncIterable<Uint8Array>, options?: {signal?:AbortSignal}): Promise<WorldBlockRef & {kind:'native-overlay'}>;
 }
 export interface NativeSceneSession {
-  scene: NativeSceneHandle & { native: { scene: any; renderer: any; camera: any; root: any };
+  scene: NativeSceneHandle & { native: NativeSceneNative;
     capabilities: { mode: 'native-scene'; threeRevision: string; sourceConversion: false;
       ownsRenderer: false; nativeProjectSave: false; nativeOverlayPersistence: boolean; environmentColliders: number; navigationRegistered: boolean } };
   world: any;

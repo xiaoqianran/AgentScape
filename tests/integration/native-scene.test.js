@@ -71,6 +71,39 @@ it('injects physical assets into the exact native scene and detaches without tou
   native.geometry.dispose(); native.material.dispose();
 }, 30000);
 
+it('supports native component and semantic injection with rollback-safe cleanup', async () => {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera();
+  const renderer = { render() {}, extensions: { has: () => false } };
+  const component = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshPhysicalMaterial({ transmission: 0.2 }));
+  let attachedContext;
+  const host = await attachNativeScene({ scene, camera, renderer, autoStart: false,
+    onAttach(context) {
+      attachedContext = context;
+      const injected = context.native.addComponent({
+        id: 'native-glass', object: component, parent: context.native.scene,
+        semantic: { label: '原生玻璃', read: () => ({ material: component.material.type }) },
+      });
+      expect(injected.object).toBe(component);
+    } });
+  try {
+    expect(attachedContext.three).toBe(THREE);
+    expect(scene.getObjectById(component.id)).toBe(component);
+    expect(host.scene.observe().project.entities).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'native-glass', label: '原生玻璃' }),
+    ]));
+    expect(() => host.scene.native.addComponent({ id: 'native-glass', object: new THREE.Group() }))
+      .toThrow('NATIVE_COMPONENT_CONFLICT');
+  } finally {
+    host.close();
+  }
+  expect(scene.getObjectById(component.id)).toBeUndefined();
+  expect(component.geometry).toBeDefined();
+  expect(component.material).toBeDefined();
+  component.geometry.dispose();
+  component.material.dispose();
+});
+
 it('rejects another Three.js instance and transformed scene roots before mounting', async () => {
   const options = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), renderer: { render() {} }, autoStart: false };
   await expect(attachNativeScene({ ...options, three: { ...THREE, Object3D: class {} } })).rejects.toThrow('NATIVE_THREE_INSTANCE_MISMATCH');
