@@ -18,6 +18,14 @@ function localAgentGatewayPlugin(env) {
         console.warn("[AgentScape] LLM Gateway not started: API key is missing");
         return;
       }
+      // Route the same-origin capability API to the local gateway by default.
+      if (!process.env.AGENT_ADAPTER_URL) {
+        const host = settings.AGENTSCAPE_LLM_HOST || settings.AGENTSCAPE_TEST_LLM_HOST || "127.0.0.1";
+        const port = settings.AGENTSCAPE_LLM_PORT || settings.AGENTSCAPE_TEST_LLM_PORT || 8788;
+        if (["127.0.0.1", "localhost", "::1"].includes(host) && /^\d+$/.test(String(port)) && Number(port) > 0 && Number(port) <= 65535) {
+          process.env.AGENT_ADAPTER_URL = `http://${host === "::1" ? "[::1]" : host}:${port}/agent`;
+        }
+      }
       const gateway = startAgentGateway({
         baseUrl: settings.AGENTSCAPE_LLM_BASE_URL || settings.AGENTSCAPE_TEST_LLM_BASE_URL || DEFAULT_BASE_URL,
         apiKey,
