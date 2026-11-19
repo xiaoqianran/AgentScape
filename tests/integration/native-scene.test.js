@@ -544,3 +544,21 @@ it.each([
       physics: { body: 'fixed', colliders: [{ ...collider, rotation: [0, 0, 0, 0] }] } })).toThrow('NATIVE_PHYSICS_INVALID');
   } finally { host.close(); }
 });
+
+it('discovers native components without explicit semantics and removes their project entity on unbind', async () => {
+  const scene = new THREE.Scene();
+  const object = new THREE.Group();
+  scene.add(object);
+  const host = await attachNativeScene({ scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false });
+  try {
+    const component = host.scene.native.bindComponent({ id: 'discoverable', object,
+      physics: { body: 'dynamic', colliders: [{ shape: 'box', halfExtents: [.2, .2, .2] }] } });
+    expect(host.scene.inspect('discoverable')).toMatchObject({ id: 'discoverable', label: 'discoverable', state: {}, actions: [] });
+    expect(host.scene.observe().project.entities).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'discoverable' })]));
+    expect(component.remove()).toBe(true);
+    expect(host.world.projectCapabilities.has('discoverable')).toBe(false);
+    expect(() => host.scene.inspect('discoverable')).toThrow('OBJECT_NOT_FOUND');
+    expect(object.parent).toBe(scene);
+  } finally { host.close(); }
+});

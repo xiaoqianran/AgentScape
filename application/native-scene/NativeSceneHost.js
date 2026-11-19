@@ -205,14 +205,12 @@ export async function attachNativeScene({
           if (!world.audio) throw fail('NATIVE_AUDIO_UNAVAILABLE');
           world.audio.registerEmitter(id, object, audioOptions);
         }
-        if (semantic || actions.length) {
-          component.unregister = facade.registerEntity({
-            id, label: semantic?.label ?? id, description: semantic?.description ?? '',
-            object, read: semantic?.read ?? (() => ({})),
-          });
-          for (const action of actions) {
-            facade.registerAction({ ...action, target: id });
-          }
+        component.unregister = facade.registerEntity({
+          id, label: semantic?.label ?? id, description: semantic?.description ?? '',
+          object, read: semantic?.read ?? (() => ({})),
+        });
+        for (const action of actions) {
+          facade.registerAction({ ...action, target: id });
         }
         injectedComponents.set(id, component);
         return Object.freeze({ id, object, remove: component.remove });
