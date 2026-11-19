@@ -353,3 +353,37 @@ it('uses a bound host object as a fixed collider and removes it on unbind', asyn
     host.close();
   }
 });
+
+
+it('registers and removes explicit host component actions through the scene API', async () => {
+  const scene = new THREE.Scene();
+  const object = new THREE.Group();
+  scene.add(object);
+  const host = await attachNativeScene({ scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false });
+  let opened = false;
+  try {
+    const component = host.scene.native.bindComponent({ id: 'door', object,
+      semantic: { read: () => ({ opened }) },
+      actions: [{ name: 'open', execute: (_args, context) => {
+        expect(context.object).toBe(object);
+        opened = true;
+      }, verify: ({ after }) => after.opened === true }] });
+    expect(host.world.entities.describe('door').capabilities).toContain('interaction');
+    expect(host.scene.inspect('door').actions).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'open' })]));
+    const job = host.scene.interact({ action: 'custom', target: 'door', name: 'open' });
+    expect(await host.scene.waitJob(job.id)).toMatchObject({ status: 'succeeded', result: { verification: { status: 'verified' } } });
+    expect(opened).toBe(true);
+    component.remove();
+    expect(host.world.projectCapabilities.has('door')).toBe(false);
+    expect(object.parent).toBe(scene);
+    expect(() => host.scene.native.bindComponent({ id: 'bad-actions', object, actions: [
+      { name: 'open', execute() {} }, { name: 'open', execute() {} }
+    ] })).toThrow('PROJECT_ACTION_CONFLICT');
+    expect(host.world.projectCapabilities.has('bad-actions')).toBe(false);
+    expect(host.world.entities.has('bad-actions')).toBe(false);
+    expect(object.parent).toBe(scene);
+  } finally {
+    host.close();
+  }
+});

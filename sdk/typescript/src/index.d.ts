@@ -135,9 +135,18 @@ export interface NativeSceneAttachContext {
   native: NativeSceneNative;
   three: any;
 }
+export interface NativeSceneComponentInput {
+  id: string; object: any; parent?: any;
+  semantic?: { label?: string; description?: string; read?: () => Record<string, unknown>; capabilities?: string[] } | null;
+  audio?: boolean; audioOptions?: { refDistance?: number; rolloffFactor?: number };
+  physics?: { body: 'fixed' | 'dynamic'; mass?: number; friction?: number; carryable?: boolean;
+    colliders: Array<{ shape: 'box'; halfExtents: Vec3; translation?: Vec3 }> } | null;
+  actions?: Array<Omit<ProjectActionDefinition, 'target'>>;
+}
 export interface NativeSceneNative {
   scene: any; camera: any; renderer: any; root: any; audio: NativeAudioRuntime | null;
-  addComponent(input: { id: string; object: any; parent?: any; semantic?: { label?: string; description?: string; read?: () => Record<string, unknown> } | null; audio?: boolean; audioOptions?: { refDistance?: number; rolloffFactor?: number } }): NativeSceneComponent;
+  addComponent(input: NativeSceneComponentInput): NativeSceneComponent;
+  bindComponent(input: NativeSceneComponentInput): NativeSceneComponent;
 }
 export interface NativeOverlayPrepared {
   summary: unknown;

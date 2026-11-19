@@ -101,7 +101,7 @@ export async function attachNativeScene({
       if (component.mounted) component.object.removeFromParent();
       return true;
     };
-    const registerComponent = ({ id, object, parent = world.scene, semantic = null, audio = false, audioOptions = {}, physics = null } = {}, mounted = true) => {
+    const registerComponent = ({ id, object, parent = world.scene, semantic = null, audio = false, audioOptions = {}, physics = null, actions = [] } = {}, mounted = true) => {
       if (closed) throw fail('SCENE_CLOSED');
       if (!componentId(id)) throw fail('NATIVE_COMPONENT_ID_INVALID');
       if (!(object instanceof THREE.Object3D) || !object.isObject3D) throw fail('NATIVE_COMPONENT_OBJECT_INVALID');
@@ -113,6 +113,7 @@ export async function attachNativeScene({
         if (ancestor !== nativeScene) throw fail('NATIVE_COMPONENT_NOT_IN_HOST_SCENE');
       }
       if (semantic != null && (typeof semantic !== 'object' || Array.isArray(semantic))) throw fail('NATIVE_COMPONENT_SEMANTIC_INVALID');
+      if (!Array.isArray(actions)) throw fail('NATIVE_COMPONENT_ACTIONS_INVALID');
       if (world.entities.has(id) || world.store.has(id) || world.physics.entries.has(id)) throw fail('NATIVE_COMPONENT_CONFLICT');
       let physicsSpec = null;
       if (physics != null) {
@@ -143,7 +144,7 @@ export async function attachNativeScene({
       try {
         if (mounted) parent.add(object);
         world.entities.register({ id, object, source:'native', phase:'visual-mounted', transformAuthority:physicsSpec ? 'physics' : 'host',
-          capabilities:['semantic', ...(physicsSpec ? ['physics'] : []), ...(semantic?.capabilities || [])], metadata:{ label:semantic?.label ?? id } });
+          capabilities:['semantic', ...(physicsSpec ? ['physics'] : []), ...(actions.length ? ['interaction'] : []), ...(semantic?.capabilities || [])], metadata:{ label:semantic?.label ?? id } });
         if (physicsSpec) {
           world.physics.addObject(id, { physics: physicsSpec }, object);
           component.physics = true;
@@ -153,11 +154,14 @@ export async function attachNativeScene({
           if (!world.audio) throw fail('NATIVE_AUDIO_UNAVAILABLE');
           world.audio.registerEmitter(id, object, audioOptions);
         }
-        if (semantic) {
+        if (semantic || actions.length) {
           component.unregister = facade.registerEntity({
-            id, label: semantic.label ?? id, description: semantic.description ?? '',
-            object, read: semantic.read ?? (() => ({})),
+            id, label: semantic?.label ?? id, description: semantic?.description ?? '',
+            object, read: semantic?.read ?? (() => ({})),
           });
+          for (const action of actions) {
+            facade.registerAction({ ...action, target: id });
+          }
         }
         injectedComponents.set(id, component);
         return Object.freeze({ id, object, remove: component.remove });
