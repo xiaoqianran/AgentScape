@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { assetPhysicsSchema } from '../../modules/asset/model/AssetInputContracts.js';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { ArticulationVerifier } from '../../modules/world/verification/ArticulationVerifier.js';
@@ -80,6 +81,10 @@ export async function attachNativeScene({
       if (closed) throw fail('SCENE_CLOSED');
       // Do not call renderer.render: the original project owns every render pass.
       facade.frame(timestamp);
+      world.physics.writeback({
+        has: id => Boolean(injectedComponents.get(id)?.physics),
+        get: id => injectedComponents.get(id),
+      });
     };
     const tick = timestamp => {
       if (closed) return;
@@ -90,12 +95,13 @@ export async function attachNativeScene({
       if (!component || injectedComponents.get(component.id) !== component) return false;
       injectedComponents.delete(component.id);
       world.audio?.unregisterEmitter(component.id);
+      if (component.physics) world.physics.removeObject(component.id);
       component.unregister?.();
       world.entities.unregister(component.id, { reason:'native-component-removed' });
       if (component.mounted) component.object.removeFromParent();
       return true;
     };
-    const registerComponent = ({ id, object, parent = world.scene, semantic = null, audio = false, audioOptions = {} } = {}, mounted = true) => {
+    const registerComponent = ({ id, object, parent = world.scene, semantic = null, audio = false, audioOptions = {}, physics = null } = {}, mounted = true) => {
       if (closed) throw fail('SCENE_CLOSED');
       if (!componentId(id)) throw fail('NATIVE_COMPONENT_ID_INVALID');
       if (!(object instanceof THREE.Object3D) || !object.isObject3D) throw fail('NATIVE_COMPONENT_OBJECT_INVALID');
@@ -107,12 +113,42 @@ export async function attachNativeScene({
         if (ancestor !== nativeScene) throw fail('NATIVE_COMPONENT_NOT_IN_HOST_SCENE');
       }
       if (semantic != null && (typeof semantic !== 'object' || Array.isArray(semantic))) throw fail('NATIVE_COMPONENT_SEMANTIC_INVALID');
-      if (world.entities.has(id) || world.store.has(id)) throw fail('NATIVE_COMPONENT_CONFLICT');
-      const component = { id, object, parent, mounted, unregister: null, remove: () => removeComponent(component) };
+      if (world.entities.has(id) || world.store.has(id) || world.physics.entries.has(id)) throw fail('NATIVE_COMPONENT_CONFLICT');
+      let physicsSpec = null;
+      if (physics != null) {
+        const parsed = assetPhysicsSchema.safeParse(physics);
+        if (!parsed.success || parsed.data.body !== 'dynamic') throw fail('NATIVE_PHYSICS_INVALID');
+        if (!object.matrixAutoUpdate) throw fail('NATIVE_PHYSICS_MATRIX_AUTO_UPDATE_REQUIRED');
+        if (object.matrixAutoUpdate) object.updateMatrix();
+        const matrix = new THREE.Matrix4();
+        if (mounted) {
+          parent.updateWorldMatrix(true, false);
+          matrix.multiplyMatrices(parent.matrixWorld, object.matrix);
+        } else {
+          object.updateWorldMatrix(true, false);
+          matrix.copy(object.matrixWorld);
+        }
+        const position = new THREE.Vector3();
+        const rotation = new THREE.Quaternion();
+        const scale = new THREE.Vector3();
+        matrix.decompose(position, rotation, scale);
+        const reconstructed = new THREE.Matrix4().compose(position, rotation, scale);
+        if (scale.toArray().some(value => Math.abs(value - 1) > 1e-6) ||
+            matrix.elements.some((value, index) => Math.abs(value - reconstructed.elements[index]) > 1e-6)) {
+          throw fail('NATIVE_PHYSICS_SCALE_UNSUPPORTED');
+        }
+        physicsSpec = parsed.data;
+      }
+      const component = { id, object, parent, mounted, physics: false, unregister: null, remove: () => removeComponent(component) };
       try {
         if (mounted) parent.add(object);
-        world.entities.register({ id, object, source:'native', phase:'visual-mounted', transformAuthority:'host',
-          capabilities:['semantic', ...(semantic?.capabilities || [])], metadata:{ label:semantic?.label ?? id } });
+        world.entities.register({ id, object, source:'native', phase:'visual-mounted', transformAuthority:physicsSpec ? 'physics' : 'host',
+          capabilities:['semantic', ...(physicsSpec ? ['physics'] : []), ...(semantic?.capabilities || [])], metadata:{ label:semantic?.label ?? id } });
+        if (physicsSpec) {
+          world.physics.addObject(id, { physics: physicsSpec }, object);
+          component.physics = true;
+          world.entities.setPhase(id, 'physics-registered');
+        }
         if (audio) {
           if (!world.audio) throw fail('NATIVE_AUDIO_UNAVAILABLE');
           world.audio.registerEmitter(id, object, audioOptions);
@@ -128,6 +164,7 @@ export async function attachNativeScene({
       } catch (error) {
         component.unregister?.();
         world.audio?.unregisterEmitter(id);
+        if (component.physics) world.physics.removeObject(id);
         world.entities.unregister(id, { reason:'native-injection-failed' });
         if (mounted) object.removeFromParent();
         throw error;
@@ -209,6 +246,7 @@ export async function attachNativeScene({
     for (const component of [...injectedComponents.values()]) {
       component.unregister?.();
       world.audio?.unregisterEmitter(component.id);
+      if (component.physics) world.physics.removeObject(component.id);
       world.entities.unregister(component.id, { reason:'native-scene-attach-failed' });
       if (component.mounted) component.object.removeFromParent();
     }

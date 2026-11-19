@@ -288,3 +288,39 @@ it('keeps host objects in place when the attach hook fails', async () => {
   expect(object.parent).toBe(parent);
   expect(scene.children).toEqual([parent]);
 });
+
+it('simulates an existing nested host object in world space and releases its body', async () => {
+  const scene = new THREE.Scene();
+  const parent = new THREE.Group();
+  parent.position.set(3, 1, -2);
+  parent.rotation.y = Math.PI / 3;
+  const object = new THREE.Group();
+  object.position.set(1, 2, 0);
+  parent.add(object);
+  scene.add(parent);
+  const host = await attachNativeScene({ scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false,
+    colliders: [{ shape: 'box', halfExtents: [10, .1, 10], translation: [0, -.1, 0] }] });
+  try {
+    const physics = { body: 'dynamic', mass: 1, colliders: [{ shape: 'box', halfExtents: [.2, .2, .2] }] };
+    const binding = host.scene.native.bindComponent({ id: 'physical-host', object, physics });
+    expect(host.world.entities.describe('physical-host')).toMatchObject({ transformAuthority: 'physics', phase: 'physics-registered' });
+    for (let i = 0; i < 240; i++) host.scene.frame(i * 1000 / 60);
+    const position = object.getWorldPosition(new THREE.Vector3());
+    const bodyPosition = host.world.physics.getPosition('physical-host');
+    expect(position.y).toBeGreaterThan(.15);
+    expect(position.y).toBeLessThan(.3);
+    expect(position.distanceTo(new THREE.Vector3(...bodyPosition))).toBeLessThan(1e-5);
+    expect(object.parent).toBe(parent);
+    binding.remove();
+    expect(host.world.physics.entries.has('physical-host')).toBe(false);
+    expect(object.parent).toBe(parent);
+    expect(() => host.scene.native.bindComponent({ id: 'bad', object, physics: { body: 'dynamic', colliders: [] } })).toThrow('NATIVE_PHYSICS_INVALID');
+    expect(() => host.scene.native.bindComponent({ id: 'rollback', object, physics, audio: true })).toThrow('NATIVE_AUDIO_UNAVAILABLE');
+    expect(host.world.physics.entries.has('rollback')).toBe(false);
+    expect(host.world.entities.has('rollback')).toBe(false);
+    expect(object.parent).toBe(parent);
+  } finally {
+    host.close();
+  }
+});

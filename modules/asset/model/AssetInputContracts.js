@@ -10,7 +10,7 @@ const sizes = z.tuple([size, size, size]);
 const id = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
 export const packagePath = z.string().max(240).refine(value => value.startsWith('./') && value.slice(2).split('/').every(p => /^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(p) && !p.endsWith('.') && !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p)));
 const boxCollider = z.object({ shape: z.literal('box'), halfExtents: sizes, translation: vector.default(() => [0, 0, 0]) }).strict();
-const physics = z.object({ body: z.enum(['fixed', 'dynamic']), mass: size.default(1), friction: z.number().min(0).max(2).default(0.5), carryable:z.boolean().optional(), colliders: z.array(boxCollider).min(1).max(64) }).strict();
+export const assetPhysicsSchema = z.object({ body: z.enum(['fixed', 'dynamic']), mass: size.default(1), friction: z.number().min(0).max(2).default(0.5), carryable:z.boolean().optional(), colliders: z.array(boxCollider).min(1).max(64) }).strict();
 const reviewedPhysics = z.object({ body:z.enum(['fixed','dynamic']), mass:size, friction:z.number().min(0).max(2),
   colliders:z.array(boxCollider).max(64).optional() }).strict();
 export const interactionReviewSchema = z.object({
@@ -36,7 +36,7 @@ export const recipeSchema = z.object({
     scale: z.number().min(0.05).max(20).default(1),
     material: z.object({ color: z.string().regex(/^#[a-fA-F0-9]{6}$/).default('#aaaaaa'), roughness: z.number().min(0).max(1).default(0.7), metalness: z.number().min(0).max(1).default(0) }).strict().optional()
   }).strict()).min(1).max(64),
-  capabilities: z.object({ level: z.enum(['visual', 'physical', 'interactive']), physics: physics.optional(),
+  capabilities: z.object({ level: z.enum(['visual', 'physical', 'interactive']), physics: assetPhysicsSchema.optional(),
     actions: z.array(z.enum(['move', 'pickup', 'place'])).max(3).default([]),
     surfaces: z.array(z.object({ id, localPosition: vector, size: z.tuple([size, size]) }).strict()).max(16).default([])
   }).strict().default(() => ({ level: 'visual', actions: [], surfaces: [] }))

@@ -1620,8 +1620,19 @@ export class PhysicsSystem {
           entry.lastRotation.z*q.z+entry.lastRotation.w*q.w
         );
         if(dx*dx+dy*dy+dz*dz>1e-10 || 1-rotationDot>1e-10) changed=true;
-        record.object.position.set(p.x,p.y,p.z);
-        record.object.quaternion.set(q.x,q.y,q.z,q.w);
+        const object = record.object;
+        this.rootWorldPosition.set(p.x, p.y, p.z);
+        this.rootRotation.set(q.x, q.y, q.z, q.w);
+        if (object.parent) {
+          object.parent.updateWorldMatrix(true, false);
+          object.position.copy(object.parent.worldToLocal(this.rootWorldPosition));
+          object.parent.getWorldQuaternion(this.parentWorldRotation);
+          object.quaternion.copy(this.parentWorldRotation.invert()).multiply(this.rootRotation);
+        } else {
+          object.position.copy(this.rootWorldPosition);
+          object.quaternion.copy(this.rootRotation);
+        }
+        object.updateMatrixWorld(true);
         entry.lastPosition.set(p.x,p.y,p.z);
         entry.lastRotation.set(q.x,q.y,q.z,q.w);
       }

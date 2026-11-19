@@ -233,3 +233,24 @@ test('binds an existing animated native object in place and preserves it after d
   expect(await page.evaluate(() => window.nativeBindingTest.object.parent === window.nativeBindingTest.parent &&
     window.nativeBindingTest.object.material === window.nativeBindingTest.material)).toBe(true);
 });
+
+test('simulates a host-imported GLB and keeps it in the native scene after detach', async ({ page }) => {
+  await page.goto('/examples/native-scene/');
+  await page.getByRole('button', { name: '连接场景', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已连接');
+  await page.evaluate(async () => {
+    const host = window.nativeDemo.session;
+    const object = await host.world.assetModule.loader.gltfLoader.loadScene('/assets/cabinet.glb');
+    object.position.set(2, 3, 0);
+    host.scene.native.scene.add(object);
+    const binding = host.scene.native.bindComponent({ id: 'host-glb', object,
+      semantic: { label: 'Host GLB' },
+      physics: { body: 'dynamic', mass: 1, colliders: [{ shape: 'box', halfExtents: [.2, .2, .2] }] },
+    });
+    window.nativePhysicalTest = { object, binding, scene: host.scene.native.scene };
+  });
+  await expect.poll(() => page.evaluate(() => window.nativePhysicalTest.object.position.y), { timeout: 15000 }).toBeLessThan(.35);
+  expect(await page.evaluate(() => window.nativePhysicalTest.object.position.y)).toBeGreaterThan(.15);
+  await page.getByRole('button', { name: '移除注入层' }).click();
+  expect(await page.evaluate(() => window.nativePhysicalTest.object.parent === window.nativePhysicalTest.scene)).toBe(true);
+});
