@@ -3,6 +3,7 @@ import { describeCapabilities, inspectCapabilities } from './CapabilityResolver.
 import { createSceneJobController } from './SceneJobController.js';
 import { createScenePersistence } from './ScenePersistence.js';
 import { sceneError, sceneInteractionSchema } from './SceneContracts.js';
+import { createSceneLifecycle } from './SceneLifecycle.js';
 import { SCENE_LEGACY_SKILLS } from './SceneSkillNames.js';
 import * as z from 'zod/v4';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
@@ -29,18 +30,14 @@ const facadeSkills = ['verifyScene', 'observeScene', 'interactScene', 'planScene
 /** One application service per existing Runtime. No entity or asset cache. */
 export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', codeExecutor = null, codeGLTFLoader = undefined } = {}) {
   if (services.has(world)) return services.get(world);
-  let busy = false, closed = false, revision = 0, selectedActor = null;
+  const lifecycle = createSceneLifecycle(world);
+  let selectedActor = null;
   const tools = new AgentTools(world, { profile: 'builder', source: 'scene-api' });
   const styles = new StyleSystem({ scene: world.scene, events: world.events, getRenderer: () => world.rendering?.renderer, getCamera: () => world.rendering?.camera });
   world.rendering?.attachStyleSystem?.(styles);
-  const unsubscribe = ['history.recorded', 'history.applied', 'scene.restored'].map(event => world.events.on(event, () => { revision++; }));
-  const assertOpen = () => { if (closed) throw sceneError('SCENE_CLOSED'); };
-  const assertIdle = () => { assertOpen(); if (busy || world.mutationOwner) throw sceneError('SCENE_BUSY'); };
-  const exclusive = async operation => { assertIdle(); busy = true; try { return await operation(); } finally { busy = false; } };
-  const result = (operation, value, extra = {}) => ({ schema: 'agentscape.scene-result', schemaVersion: 1, operation, status: 'succeeded', revision,
-    admission: null, verification: { status: 'not-requested', evidence: null }, diagnostics: [], value, ...extra });
-  const edit = createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision: () => revision, result, codeExecutor, codeGLTFLoader });
-  const jobController = createSceneJobController(world, { tools, assertOpen, assertIdle, setBusy: value => { busy = value; }, actors: () => facade.actors(), onProjectAction: () => { revision++; }, result });
+  const { assertOpen, assertIdle, exclusive, result } = lifecycle;
+  const edit = createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision: lifecycle.getRevision, result, codeExecutor, codeGLTFLoader });
+  const jobController = createSceneJobController(world, { tools, assertOpen, assertIdle, setBusy: lifecycle.setBusy, actors: () => facade.actors(), onProjectAction: () => { lifecycle.incrementRevision(); }, result });
   const persistence = createScenePersistence(world, { name, styles, assertIdle, exclusive, result });
   const withListingCapabilities = (listing, actor) => ({ ...listing,
     entities:listing.entities.map(entry => {
@@ -83,7 +80,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       // Explicit object pages do not derive the global graph or affordances.
       if (limit != null) {
         const page = world.store.page({ offset, limit });
-        return { schema: 'agentscape.scene-object-page', schemaVersion: 1, revision,
+        return { schema: 'agentscape.scene-object-page', schemaVersion: 1, revision: lifecycle.getRevision(),
           total: world.store.size, offset, nextOffset: page.nextOffset,
           objects: page.entries.map(([key, record]) => ({ ...world.observation.object(key), state: structuredClone(record.state),
             transform: { position: record.object.position.toArray(), quaternion: record.object.quaternion.toArray(), scale: record.object.scale.x },
@@ -93,7 +90,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       if (offset) throw sceneError('PAGE_LIMIT_REQUIRED');
       world.sceneGraph.update();
       const native = world.queries?.listEnvironmentInteractables?.({actorId:actor,radius:20});
-      return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision,
+      return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision: lifecycle.getRevision(),
         style: styles.export(), actors:facade.actors(), affordances: withListingCapabilities(world.affordances.list({ actorId: actor, limit: 100 }), actor),
         project: withListingCapabilities(world.projectCapabilities.list({ actor }), actor),
         // Native interaction points are not Asset entities. Expose their stable
@@ -135,7 +132,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
           const state=thermal.setHeatPower(experiment.targetId,experiment.powerW,{
             nodeId:experiment.nodeId
           });
-          revision++;
+          lifecycle.incrementRevision();
           world.events.emit('thermal.experiment',{operation:'setPower',targetId:experiment.targetId});
           return result('thermal.setPower',state);
         }
@@ -146,7 +143,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         try {
           for(let frame=0;frame<frames;frame++)world.simulation.step();
         } finally {if(wasRunning)world.simulation.play();}
-        revision++;
+        lifecycle.incrementRevision();
         world.events.emit('thermal.experiment',{operation:'run',frames});
         return result('thermal.run',{
           elapsedSec:frames/60,frames,entities:thermal.list()
@@ -185,12 +182,9 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     frame(timestamp) { assertOpen(); jobController.cancelPending(); world.simulation.pump(timestamp); world.rendering?.render(timestamp); },
     step() { assertOpen(); jobController.cancelPending(); return world.simulation.step(); },
     close() {
-      if (closed) return;
-      assertIdle();
-      closed = true;
+      if (!lifecycle.close()) return;
       services.delete(world);
       for (const name of facadeSkills) world.skills?.unregister?.(name);
-      unsubscribe.forEach(fn => fn());
       edit.dispose();
       styles.dispose();
       if (world.rendering?.styleSystem === styles) world.rendering.attachStyleSystem(null);
