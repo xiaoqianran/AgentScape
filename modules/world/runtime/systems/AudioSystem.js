@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Instrument } from './Instrument.js';
 
 const fail = (code, message) => Object.assign(new Error(message), { code });
 
@@ -16,6 +17,7 @@ export class AudioSystem {
     this.three = three;
     this.emitters = new Map();
     this.notes = new Set();
+    this.instruments = new Set();
     this.disposed = false;
   }
 
@@ -39,6 +41,9 @@ export class AudioSystem {
     const emitter = this.emitters.get(id);
     if (!emitter) return false;
     this.stopEntityNotes(id);
+    for (const instrument of [...this.instruments]) {
+      if (instrument.entityId === id) instrument.dispose();
+    }
     this.emitters.delete(id);
     emitter.sound.disconnect();
     emitter.sound.removeFromParent();
@@ -47,6 +52,18 @@ export class AudioSystem {
       this.entities.setPhase(id, emitter.previousPhase);
     }
     return true;
+  }
+
+  createInstrument(id, options = {}) {
+    this.assertAvailable();
+    if (!this.emitters.has(id)) throw fail('AUDIO_EMITTER_NOT_FOUND', `Audio emitter not registered: ${id}`);
+    const instrument = new Instrument({ ...options, audio: this, entityId: id });
+    this.instruments.add(instrument);
+    return instrument;
+  }
+
+  releaseInstrument(instrument) {
+    this.instruments.delete(instrument);
   }
 
   scheduleNote(id, { frequency, duration = 0.25, gain = 0.2, startAt = this.context.currentTime, waveform = 'sine' } = {}) {
@@ -100,10 +117,9 @@ export class AudioSystem {
 
   dispose() {
     if (this.disposed) return;
+    for (const instrument of [...this.instruments]) instrument.dispose();
     for (const id of [...this.emitters.keys()]) this.unregisterEmitter(id);
     for (const note of [...this.notes]) this.stopNote(note);
     this.disposed = true;
   }
 }
-
-

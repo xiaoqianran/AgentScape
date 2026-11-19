@@ -103,18 +103,41 @@ export interface NativeSceneOptions {
   scene: any; camera: any; renderer: any; three?: any; name?: string;
   environmentId?: string; colliders?: Record<string, unknown>[]; navigationRoot?: any;
   staticMeshes?: any[]; walkableMesh?: any; hostProjectId?: string; hostRevision?: string;
-  assetModule?: any; autoStart?: boolean; codeExecutor?: any; codeGLTFLoader?: any; assetBaseUrl?: string | null;
+  assetModule?: any; audioListener?: any; audioThree?: any; autoStart?: boolean; codeExecutor?: any; codeGLTFLoader?: any; assetBaseUrl?: string | null;
   onAttach?: (context: NativeSceneAttachContext) => void | Promise<void>;
 }
 export interface NativeSceneComponent { id: string; object: any; remove(): boolean }
+export interface AudioNoteOptions {
+  frequency: number;
+  duration?: number;
+  gain?: number;
+  startAt?: number;
+  waveform?: 'sine' | 'square' | 'sawtooth' | 'triangle';
+}
+export type InstrumentNote = number | AudioNoteOptions;
+export interface NativeAudioNote { entityId: string; stop(): boolean }
+export interface NativeAudioInstrument {
+  play(note: string | AudioNoteOptions, options?: Partial<AudioNoteOptions>): NativeAudioNote;
+  trigger(note: string | AudioNoteOptions, options?: Partial<AudioNoteOptions>): NativeAudioNote;
+  dispose(): void;
+}
+export interface NativeAudioRuntime {
+  scheduleNote(entityId: string, note: AudioNoteOptions): NativeAudioNote;
+  createInstrument(entityId: string, options?: {
+    notes?: Record<string, InstrumentNote>;
+    duration?: number;
+    gain?: number;
+    waveform?: AudioNoteOptions['waveform'];
+  }): NativeAudioInstrument;
+}
 export interface NativeSceneAttachContext {
   scene: NativeSceneHandle;
   native: NativeSceneNative;
   three: any;
 }
 export interface NativeSceneNative {
-  scene: any; camera: any; renderer: any; root: any;
-  addComponent(input: { id: string; object: any; parent?: any; semantic?: { label?: string; description?: string; read?: () => Record<string, unknown> } | null }): NativeSceneComponent;
+  scene: any; camera: any; renderer: any; root: any; audio: NativeAudioRuntime | null;
+  addComponent(input: { id: string; object: any; parent?: any; semantic?: { label?: string; description?: string; read?: () => Record<string, unknown> } | null; audio?: boolean; audioOptions?: { refDistance?: number; rolloffFactor?: number } }): NativeSceneComponent;
 }
 export interface NativeOverlayPrepared {
   summary: unknown;
@@ -131,7 +154,7 @@ export interface NativeSceneHandle extends SceneHandle {
 export interface NativeSceneSession {
   scene: NativeSceneHandle & { native: NativeSceneNative;
     capabilities: { mode: 'native-scene'; threeRevision: string; sourceConversion: false;
-      ownsRenderer: false; nativeProjectSave: false; nativeOverlayPersistence: boolean; environmentColliders: number; navigationRegistered: boolean } };
+      ownsRenderer: false; nativeProjectSave: false; nativeOverlayPersistence: boolean; environmentColliders: number; navigationRegistered: boolean; audio: boolean } };
   world: any;
   close(): void;
 }
