@@ -117,7 +117,7 @@ export async function attachNativeScene({
       let physicsSpec = null;
       if (physics != null) {
         const parsed = assetPhysicsSchema.safeParse(physics);
-        if (!parsed.success || parsed.data.body !== 'dynamic') throw fail('NATIVE_PHYSICS_INVALID');
+        if (!parsed.success) throw fail('NATIVE_PHYSICS_INVALID');
         if (!object.matrixAutoUpdate) throw fail('NATIVE_PHYSICS_MATRIX_AUTO_UPDATE_REQUIRED');
         if (object.matrixAutoUpdate) object.updateMatrix();
         const matrix = new THREE.Matrix4();

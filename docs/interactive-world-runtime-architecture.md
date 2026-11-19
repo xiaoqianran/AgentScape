@@ -70,7 +70,7 @@ GLB 节点名称只作为编译输入，不能直接作为长期身份。编译�
 
 AgentScape 默认将自己的根节点挂到宿主 Scene，宿主继续管理 renderer、composer 和渲染循环。宿主的原生材质、灯光、阴影、Shader、动画回调和后处理继续由宿主控制。宿主已有对象通过 `native.bindComponent({ id, object, semantic })` 原位接入身份和语义索引，默认变换权威为 `host`。对象必须位于宿主场景中，绑定、解绑和关闭均保留其父子关系。`native.addComponent()` 用于将对象加入指定父节点，移除时将其摘除。
 
-音频能力可以通过组件接口的 `audio: true` 显式注册。宿主对象可通过 `bindComponent({ id, object, physics })` 显式接入动态刚体，碰撞体采用与资产配方相同的盒形配置，变换权威交给物理系统。当前要求对象启用 `matrixAutoUpdate`，世界变换无缩放或剪切，调用方负责在绑定期间避免其他系统同时修改对象变换。解绑时释放刚体并保留宿主对象。部件关节和专用交互能力仍需接入。能力注册不会自动改变材质，也不会自动释放宿主资源。
+音频能力可以通过组件接口的 `audio: true` 显式注册。宿主对象可通过 `bindComponent({ id, object, physics })` 显式接入静态或动态刚体，碰撞体采用与资产配方相同的盒形配置，变换权威交给物理系统。当前要求对象启用 `matrixAutoUpdate`，世界变换无缩放或剪切，调用方负责在绑定期间避免其他系统同时修改对象变换。解绑时释放刚体并保留宿主对象。部件关节和专用交互能力仍需接入。能力注册不会自动改变材质，也不会自动释放宿主资源。
 
 `physics` 例如 `{ body: 'dynamic', mass: 1, colliders: [{ shape: 'box', halfExtents: [0.2, 0.2, 0.2] }] }`，尺寸及可选 `translation` 采用对象局部坐标。
 
@@ -114,7 +114,7 @@ AgentScape 默认将自己的根节点挂到宿主 Scene，宿主继续管理 re
 
 - `EntityCapabilityRegistry` 已记录 Runtime 与 Native 实体身份、阶段和能力。`ObjectStore` 与实体注册表暂时并存。
 - `WorldRuntime.spawn/remove/dispose` 和原生组件接口已接入实体注册和基础清理。`native.bindComponent()` 原位绑定宿主对象，`native.addComponent()` 管理新加入的对象。
-- Runtime 资产已有 GLB 编译、manifest、物理和部分交互流程。已存在的宿主 GLB 对象支持显式动态刚体与盒形碰撞体，部件关节及交互流程仍需补齐。
+- Runtime 资产已有 GLB 编译、manifest、物理和部分交互流程。已存在的宿主 GLB 对象支持显式静态或动态刚体与盒形碰撞体，部件关节及交互流程仍需补齐。
 - 已有 `AudioSystem` 空间单音调度和 `Instrument` 显式音符触发。当前乐器使用振荡器合成，音频交互的真实浏览器闭环和环境音乐尚待建设。
 - `GenerationOrchestrator` 已有生成任务、取消、结果导入和资产编译等能力。根据场景命中位置预览并提交可交互物体的完整闭环仍需建设。
 - 原生 Three.js 的部分材质、Shader、渲染循环和 Overlay 已有浏览器或集成测试。兼容范围以实际接口约束和测试结果为准。

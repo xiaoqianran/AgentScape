@@ -324,3 +324,32 @@ it('simulates an existing nested host object in world space and releases its bod
     host.close();
   }
 });
+
+
+it('uses a bound host object as a fixed collider and removes it on unbind', async () => {
+  const scene = new THREE.Scene();
+  const platform = new THREE.Group();
+  const falling = new THREE.Group();
+  platform.position.set(2, 1, 0);
+  falling.position.set(2, 3, 0);
+  scene.add(platform, falling);
+  const host = await attachNativeScene({ scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false });
+  try {
+    const fixed = host.scene.native.bindComponent({ id: 'platform', object: platform,
+      physics: { body: 'fixed', colliders: [{ shape: 'box', halfExtents: [1, .1, 1] }] } });
+    host.scene.native.bindComponent({ id: 'falling', object: falling,
+      physics: { body: 'dynamic', colliders: [{ shape: 'box', halfExtents: [.2, .2, .2] }] } });
+    for (let i = 0; i < 240; i++) host.scene.frame(i * 1000 / 60);
+    expect(falling.getWorldPosition(new THREE.Vector3()).y).toBeGreaterThan(1.25);
+    expect(falling.getWorldPosition(new THREE.Vector3()).y).toBeLessThan(1.35);
+    expect(platform.position.toArray()).toEqual([2, 1, 0]);
+    fixed.remove();
+    expect(host.world.physics.entries.has('platform')).toBe(false);
+    for (let i = 240; i < 360; i++) host.scene.frame(i * 1000 / 60);
+    expect(falling.getWorldPosition(new THREE.Vector3()).y).toBeLessThan(1);
+    expect(platform.parent).toBe(scene);
+  } finally {
+    host.close();
+  }
+});
