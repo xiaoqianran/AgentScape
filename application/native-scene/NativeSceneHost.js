@@ -22,7 +22,7 @@ export async function attachNativeScene({
   scene: nativeScene, camera, renderer, three = THREE, name = 'Native scene',
   environmentId = 'native-scene', colliders = [], navigationRoot = null,
   staticMeshes = [], walkableMesh = null, hostProjectId = null, hostRevision = null,
-  assetModule = null, autoStart = true, codeExecutor = null, codeGLTFLoader,
+  assetModule = null, audioListener = null, audioThree = THREE, autoStart = true, codeExecutor = null, codeGLTFLoader,
   assetBaseUrl = globalThis.location?.origin ? globalThis.location.origin + '/' : null,
   onAttach = null,
 } = {}) {
@@ -55,7 +55,7 @@ export async function attachNativeScene({
     assets = assetModule || createAssetModule({ manifests, volatile: true, manifestStore: null, libraryStore: null });
     const environmentRoot = new THREE.Group();
     environmentRoot.name = 'AgentScapeEnvironment';
-    world = new WorldRuntime({ assetModule: assets, environmentFactory: () => ({
+    world = new WorldRuntime({ assetModule: assets, audioListener, audioThree, environmentFactory: () => ({
       id: environmentId, root: environmentRoot, colliders: environmentColliders,
       ...(environmentNavigation ? { navigationRoot: environmentNavigation } : {}), dispose() {},
     }) });
@@ -89,12 +89,13 @@ export async function attachNativeScene({
     const removeComponent = component => {
       if (!component || injectedComponents.get(component.id) !== component) return false;
       injectedComponents.delete(component.id);
+      world.audio?.unregisterEmitter(component.id);
       component.unregister?.();
       world.entities.unregister(component.id, { reason:'native-component-removed' });
       component.object.removeFromParent();
       return true;
     };
-    const addComponent = ({ id, object, parent = world.scene, semantic = null } = {}) => {
+    const addComponent = ({ id, object, parent = world.scene, semantic = null, audio = false, audioOptions = {} } = {}) => {
       if (!componentId(id)) throw fail('NATIVE_COMPONENT_ID_INVALID');
       if (!(object instanceof THREE.Object3D) || !object.isObject3D) throw fail('NATIVE_COMPONENT_OBJECT_INVALID');
       if (!(parent instanceof THREE.Object3D) || !parent.isObject3D) throw fail('NATIVE_COMPONENT_PARENT_INVALID');
@@ -106,6 +107,10 @@ export async function attachNativeScene({
         parent.add(object);
         world.entities.register({ id, object, source:'native', phase:'visual-mounted', transformAuthority:'host',
           capabilities:['semantic', ...(semantic?.capabilities || [])], metadata:{ label:semantic?.label ?? id } });
+        if (audio) {
+          if (!world.audio) throw fail('NATIVE_AUDIO_UNAVAILABLE');
+          world.audio.registerEmitter(id, object, audioOptions);
+        }
         if (semantic) {
           component.unregister = facade.registerEntity({
             id, label: semantic.label ?? id, description: semantic.description ?? '',
@@ -116,12 +121,13 @@ export async function attachNativeScene({
         return Object.freeze({ id, object, remove: component.remove });
       } catch (error) {
         component.unregister?.();
+        world.audio?.unregisterEmitter(id);
         world.entities.unregister(id, { reason:'native-injection-failed' });
         object.removeFromParent();
         throw error;
       }
     };
-    const native = { scene: nativeScene, renderer, camera, root: world.scene, addComponent };
+    const native = { scene: nativeScene, renderer, camera, root: world.scene, addComponent, audio: world.audio };
     const close = () => {
       if (closed) return;
       facade.close(); // Reject a close during a mutation before detaching anything.
@@ -183,7 +189,7 @@ export async function attachNativeScene({
       capabilities: Object.freeze({ mode: 'native-scene', threeRevision: THREE.REVISION,
         sourceConversion: false, ownsRenderer: false, nativeProjectSave: false,
         environmentColliders: environmentColliders.length, navigationRegistered: Boolean(environmentNavigation),
-        nativeOverlayPersistence: Boolean(hostProjectId) }),
+        nativeOverlayPersistence: Boolean(hostProjectId), audio: Boolean(world.audio) }),
     };
     if (onAttach) await onAttach({ scene: handle, native, three: THREE });
     world.simulation.play();
@@ -194,6 +200,7 @@ export async function attachNativeScene({
     if (frameId != null) cancelAnimationFrame(frameId);
     for (const component of [...injectedComponents.values()]) {
       component.unregister?.();
+      world.audio?.unregisterEmitter(component.id);
       world.entities.unregister(component.id, { reason:'native-scene-attach-failed' });
       component.object.removeFromParent();
     }

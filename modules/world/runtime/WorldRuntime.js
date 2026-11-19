@@ -29,6 +29,7 @@ import { WorldQueries } from './WorldQueries.js';
 import { WorldCommands } from './WorldCommands.js';
 import { WorldRecovery } from './WorldRecovery.js';
 import { ProjectCapabilities } from './ProjectCapabilities.js';
+import { AudioSystem } from './systems/AudioSystem.js';
 import { SemanticWorldView } from './semantic/SemanticWorldView.js';
 import { EntityCapabilityRegistry } from './EntityCapabilityRegistry.js';
 import { RUNTIME_VERSION } from '../../../foundation/version.js';
@@ -70,7 +71,7 @@ async function rollbackMutation(runtime, before, authority, physics) {
 }
 
 export class WorldRuntime {
-  constructor({ environmentFactory, assetModule, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend() } = {}) {
+  constructor({ environmentFactory, assetModule, audioListener = null, audioThree = THREE, physicsFactory = () => new PhysicsSystem({ backend:new RapierPhysicsBackend() }), navigationBackendFactory = () => new RecastNavigationBackend() } = {}) {
     const assetMethods=['getManifest','hasAsset','assertCompatibleManifest','instantiate'];
     if (
       !assetModule?.registry || !assetModule?.loader || !assetModule?.catalog || !assetModule?.compiledStore ||
@@ -97,6 +98,7 @@ export class WorldRuntime {
     this.rendering = null;
     this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.entities = new EntityCapabilityRegistry({ events:this.events }); this.physics = physicsFactory(); this.navigation = null;
     this.projectCapabilities = new ProjectCapabilities(this);
+    this.audio = audioListener ? new AudioSystem({ entities: this.entities, listener: audioListener, three: audioThree }) : null;
     this.semantic = new SemanticWorldView(this);
     this.thermal = new ThermalSystem({physics:this.physics,
       isActive:id=>this.store.has(id) && this.store.get(id).active!==false});
@@ -634,6 +636,7 @@ export class WorldRuntime {
   dispose() {
     this.ready = false;
     this.events?.emit?.('world.disposing');
+    this.audio?.dispose();
     this.projectCapabilities?.dispose();
     this.thermal?.clear?.();
     this.ruleRuntime?.stop();

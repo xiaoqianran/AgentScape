@@ -180,3 +180,58 @@ it('preserves a native material, light, shader and renderer loop while injecting
   }
   expect(scene.children).toEqual([light, floor, shaderObject]);
 }, 30000);
+
+it('registers native components as spatial audio emitters only when host audio dependencies are supplied', async () => {
+  const scene = new THREE.Scene();
+  const listener = {
+    context: {
+      currentTime: 2,
+      createOscillator: vi.fn(() => ({
+        type: 'sine',
+        frequency: { setValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+      })),
+      createGain: vi.fn(() => ({
+        gain: { setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      })),
+      close: vi.fn(),
+    },
+    getInput: vi.fn(),
+  };
+  class PositionalAudio extends THREE.Object3D {
+    constructor() {
+      super();
+      this.panner = { connect: vi.fn(), disconnect: vi.fn() };
+    }
+    setRefDistance() { return this; }
+    setRolloffFactor() { return this; }
+    disconnect() {}
+  }
+
+  const host = await attachNativeScene({
+    scene,
+    camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } },
+    audioListener: listener,
+    audioThree: { PositionalAudio },
+    autoStart: false,
+  });
+  const object = new THREE.Group();
+  const component = host.scene.native.addComponent({ id: 'bell', object, audio: true });
+
+  expect(host.world.entities.get('bell').phase).toBe('audio-registered');
+  host.scene.native.audio.scheduleNote('bell', { frequency: 440, duration: 0.2 });
+  expect(listener.context.createOscillator).toHaveBeenCalledOnce();
+
+  component.remove();
+  expect(host.world.entities.has('bell')).toBe(false);
+  expect(object.children).toHaveLength(0);
+
+  host.close();
+  expect(listener.context.close).not.toHaveBeenCalled();
+});
