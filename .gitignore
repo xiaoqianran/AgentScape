@@ -1,6 +1,7 @@
 node_modules
 dist
 sdk/typescript/dist/
+sdk/typescript/site/
 .DS_Store
 *.log
 
