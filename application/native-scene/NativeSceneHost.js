@@ -47,6 +47,15 @@ export async function attachNativeScene({
   const injectedComponents = new Map();
   const componentId = value => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(value);
   const unsupported = code => async () => { throw fail(code); };
+  const restoreMount = component => {
+    component.object.removeFromParent();
+    if (!component.originalParent) return;
+    component.originalParent.add(component.object);
+    const children = component.originalParent.children;
+    const currentIndex = children.indexOf(component.object);
+    children.splice(currentIndex, 1);
+    children.splice(Math.min(component.originalIndex, children.length), 0, component.object);
+  };
   try {
     const manifests = structuredClone(assetManifests);
     if (assetBaseUrl) {
@@ -111,6 +120,11 @@ export async function attachNativeScene({
       if (!(object instanceof THREE.Object3D) || !object.isObject3D) throw fail('NATIVE_COMPONENT_OBJECT_INVALID');
       if (!(parent instanceof THREE.Object3D) || !parent.isObject3D) throw fail('NATIVE_COMPONENT_PARENT_INVALID');
       if (injectedComponents.has(id) || [...injectedComponents.values()].some(component => component.object === object)) throw fail('NATIVE_COMPONENT_CONFLICT');
+      if (mounted) {
+        for (let ancestor = parent; ancestor; ancestor = ancestor.parent) {
+          if (ancestor === object) throw fail('NATIVE_COMPONENT_PARENT_INVALID');
+        }
+      }
       if (!mounted) {
         let ancestor = object.parent;
         while (ancestor && ancestor !== nativeScene && ancestor !== world.scene) ancestor = ancestor.parent;
@@ -144,7 +158,9 @@ export async function attachNativeScene({
         }
         physicsSpec = parsed.data;
       }
-      const component = { id, object, parent, mounted, physics: false, unregister: null, remove: () => removeComponent(component) };
+      const component = { id, object, parent, mounted, originalParent: object.parent,
+        originalIndex: object.parent?.children.indexOf(object) ?? -1,
+        physics: false, unregister: null, remove: () => removeComponent(component) };
       try {
         if (mounted) parent.add(object);
         world.entities.register({ id, object, source:'native', phase:'visual-mounted', transformAuthority:physicsSpec ? 'physics' : 'host',
@@ -174,7 +190,7 @@ export async function attachNativeScene({
         world.audio?.unregisterEmitter(id);
         if (component.physics) world.physics.removeObject(id);
         world.entities.unregister(id, { reason:'native-injection-failed' });
-        if (mounted) object.removeFromParent();
+        if (mounted) restoreMount(component);
         throw error;
       }
     };
@@ -251,12 +267,12 @@ export async function attachNativeScene({
     return { scene: handle, world, close };
   } catch (error) {
     if (frameId != null) cancelAnimationFrame(frameId);
-    for (const component of [...injectedComponents.values()]) {
+    for (const component of [...injectedComponents.values()].reverse()) {
       component.unregister?.();
       world.audio?.unregisterEmitter(component.id);
       if (component.physics) world.physics.removeObject(component.id);
       world.entities.unregister(component.id, { reason:'native-scene-attach-failed' });
-      if (component.mounted) component.object.removeFromParent();
+      if (component.mounted) restoreMount(component);
     }
     injectedComponents.clear();
     world?.scene.removeFromParent();

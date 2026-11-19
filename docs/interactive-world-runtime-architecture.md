@@ -114,6 +114,8 @@ AgentScape 默认将自己的根节点挂到宿主 Scene，宿主继续管理 re
 
 宿主组件注册和移除遵循场景任务的忙碌状态。动作执行期间以及取消请求后的回调结束之前，这些操作会返回 `SCENE_BUSY`，调用方可在任务结束后重试。
 
+挂载已有宿主对象时，注册失败或 `onAttach` 失败会恢复原父节点及同级顺序。组件成功挂载后的正常移除会解除挂载。
+
 - `EntityCapabilityRegistry` 已记录 Runtime 与 Native 实体身份、阶段和能力。`ObjectStore` 与实体注册表暂时并存。
 - `WorldRuntime.spawn/remove/dispose` 和原生组件接口已接入实体注册和基础清理。`native.bindComponent()` 原位绑定宿主对象，`native.addComponent()` 管理新加入的对象。
 - Runtime 资产已有 GLB 编译、manifest、物理和部分交互流程。已存在的宿主 GLB 对象支持显式静态或动态刚体与盒形碰撞体，支持通过显式自定义动作接入现有场景交互入口，部件关节与内建物理交互流程仍需补齐。

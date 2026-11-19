@@ -420,3 +420,36 @@ it('keeps native component resources until an asynchronous action settles', asyn
     host.close();
   }
 });
+
+
+it('restores the original host hierarchy when mounting fails', async () => {
+  const scene = new THREE.Scene();
+  const parent = new THREE.Group();
+  const first = new THREE.Group();
+  const second = new THREE.Group();
+  const last = new THREE.Group();
+  parent.add(first, second, last);
+  scene.add(parent);
+  const options = { scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false };
+  const host = await attachNativeScene(options);
+  try {
+    expect(() => host.scene.native.addComponent({ id: 'failure', object: second, audio: true }))
+      .toThrow('NATIVE_AUDIO_UNAVAILABLE');
+    expect(parent.children).toEqual([first, second, last]);
+    expect(host.world.entities.has('failure')).toBe(false);
+    expect(() => host.scene.native.addComponent({ id: 'cycle', object: parent, parent: second }))
+      .toThrow('NATIVE_COMPONENT_PARENT_INVALID');
+    expect(parent.children).toEqual([first, second, last]);
+  } finally {
+    host.close();
+  }
+  await expect(attachNativeScene({ ...options, onAttach({ native }) {
+    native.addComponent({ id: 'first', object: first });
+    native.addComponent({ id: 'second', object: second });
+    throw new Error('hook failure');
+  } })).rejects.toThrow('hook failure');
+  expect(parent.children).toEqual([first, second, last]);
+  const reopened = await attachNativeScene(options);
+  reopened.close();
+});
