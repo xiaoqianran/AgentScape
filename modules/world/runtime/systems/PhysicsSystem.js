@@ -576,8 +576,13 @@ export class PhysicsSystem {
     } else entry.root.position.fromArray(position);
     entry.lastPosition.fromArray(position);
     if (rotation) {
-      entry.root.quaternion.fromArray(rotation);
       entry.lastRotation.fromArray(rotation);
+      if (entry.root.parent) {
+        entry.root.parent.getWorldQuaternion(this.parentWorldRotation);
+        entry.root.quaternion.copy(this.parentWorldRotation.invert()).multiply(entry.lastRotation);
+      } else {
+        entry.root.quaternion.copy(entry.lastRotation);
+      }
     }
     entry.root.updateMatrixWorld(true);
     return true;

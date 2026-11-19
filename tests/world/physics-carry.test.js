@@ -20,6 +20,30 @@ async function setup(asset=manifest){
 }
 
 describe('PhysicsSystem carry primitives',()=>{
+  it.each(['rapier', 'transform-only'])('applies held world poses under a rotated parent with %s', async (mode) => {
+    const physics = mode === 'rapier' ? createRapierPhysicsSystem() : new PhysicsSystem({ backend: {
+      hasCapability: () => false, init: async () => {}, createWorld: () => ({}), dispose: () => {},
+    } });
+    await physics.init();
+    const parent = new THREE.Group();
+    parent.position.set(3, 1, -2);
+    parent.rotation.set(0.2, 0.8, -0.1);
+    const object = new THREE.Group();
+    parent.add(object);
+    parent.updateMatrixWorld(true);
+    physics.addObject('cup', manifest, object);
+    const position = [1, 2, 3];
+    const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.4, -0.3, 0.2));
+    try {
+      expect(physics.setHeldPose('cup', position, rotation.toArray())).toBe(true);
+      const actualPosition = object.getWorldPosition(new THREE.Vector3());
+      const actualRotation = object.getWorldQuaternion(new THREE.Quaternion());
+      expect(actualPosition.distanceTo(new THREE.Vector3(...position))).toBeLessThan(1e-6);
+      expect(1 - Math.abs(actualRotation.dot(rotation))).toBeLessThan(1e-6);
+      const bodyRotation = physics.getRotation('cup');
+      expect(1 - Math.abs(new THREE.Quaternion(...bodyRotation).dot(rotation))).toBeLessThan(1e-6);
+    } finally { physics.dispose(); }
+  });
   it('blocks a carried box at a wall and checks the orientation of an offset box collider',async()=>{
     const box={...manifest,physics:{body:'dynamic',colliders:[{shape:'box',halfExtents:[.4,.15,.1],translation:[0,.2,0],rotation:[0,Math.SQRT1_2,0,Math.SQRT1_2]}]}};
     const {physics}=await setup(box);
