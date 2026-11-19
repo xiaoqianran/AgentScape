@@ -16,7 +16,16 @@ import { writeNativeSceneOverlay, prepareNativeSceneOverlay, restoreNativeSceneO
 
 const bindings = new WeakMap();
 const fail = code => Object.assign(new Error(code), { code });
-const nativePhysicsSchema = assetPhysicsSchema.extend({ body: z.enum(['fixed', 'dynamic', 'kinematic']) });
+const nativeColliderSize = z.number().finite().positive().max(100);
+const nativeColliderOffset = z.tuple([z.number().finite().min(-100).max(100), z.number().finite().min(-100).max(100), z.number().finite().min(-100).max(100)]).default(() => [0, 0, 0]);
+const nativeRoundCollider = z.object({
+  shape: z.enum(['capsule', 'cylinder']), radius: nativeColliderSize, halfHeight: nativeColliderSize,
+  translation: nativeColliderOffset,
+}).strict();
+const nativePhysicsSchema = assetPhysicsSchema.extend({
+  body: z.enum(['fixed', 'dynamic', 'kinematic']),
+  colliders: z.array(z.union([assetPhysicsSchema.shape.colliders.element, nativeRoundCollider])).min(1).max(64),
+});
 
 /** Attach to a trusted, already running native Scene. Never own its renderer or loop.
  * Colliders/navigationRoot are explicit world-space environment registration.

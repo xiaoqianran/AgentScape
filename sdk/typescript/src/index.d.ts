@@ -140,7 +140,8 @@ export interface NativeSceneComponentInput {
   semantic?: { label?: string; description?: string; read?: () => Record<string, unknown>; capabilities?: string[] } | null;
   audio?: boolean; audioOptions?: { refDistance?: number; rolloffFactor?: number };
   physics?: { body: 'fixed' | 'dynamic' | 'kinematic'; mass?: number; friction?: number; carryable?: boolean;
-    colliders: Array<{ shape: 'box'; halfExtents: Vec3; translation?: Vec3 }> } | null;
+    colliders: Array<{ shape: 'box'; halfExtents: Vec3; translation?: Vec3 } |
+      { shape: 'capsule' | 'cylinder'; radius: number; halfHeight: number; translation?: Vec3 }> } | null;
   actions?: Array<Omit<ProjectActionDefinition, 'target'>>;
 }
 export interface NativeSceneNative {

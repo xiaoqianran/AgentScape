@@ -495,3 +495,26 @@ it('syncs a host-driven kinematic collider without taking ownership of its trans
     expect(platform.parent).toBe(parent);
   } finally { host.close(); }
 });
+
+it.each(['capsule', 'cylinder'])('simulates native %s colliders and rejects invalid dimensions', async shape => {
+  const scene = new THREE.Scene();
+  const platform = new THREE.Group();
+  const object = new THREE.Group();
+  object.position.y = 2;
+  scene.add(platform, object);
+  const host = await attachNativeScene({ scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false });
+  try {
+    host.scene.native.bindComponent({ id: 'floor', object: platform,
+      physics: { body: 'fixed', colliders: [{ shape: 'box', halfExtents: [3, .1, 3] }] } });
+    const binding = host.scene.native.bindComponent({ id: 'round', object,
+      physics: { body: 'dynamic', colliders: [{ shape, radius: .2, halfHeight: .3 }] } });
+    for (let i = 0; i < 180; i++) host.scene.step();
+    expect(object.position.y).toBeGreaterThan(.35);
+    expect(object.position.y).toBeLessThan(.7);
+    expect(binding.remove()).toBe(true);
+    expect(object.parent).toBe(scene);
+    expect(() => host.scene.native.bindComponent({ id: 'invalid', object,
+      physics: { body: 'dynamic', colliders: [{ shape, radius: 0, halfHeight: .3 }] } })).toThrow('NATIVE_PHYSICS_INVALID');
+  } finally { host.close(); }
+});
