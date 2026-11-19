@@ -518,3 +518,29 @@ it.each(['capsule', 'cylinder'])('simulates native %s colliders and rejects inva
       physics: { body: 'dynamic', colliders: [{ shape, radius: 0, halfHeight: .3 }] } })).toThrow('NATIVE_PHYSICS_INVALID');
   } finally { host.close(); }
 });
+
+it.each([
+  { shape: 'box', halfExtents: [.1, 1, .5] },
+  { shape: 'cylinder', radius: .1, halfHeight: 1 },
+  { shape: 'capsule', radius: .1, halfHeight: 1 },
+])('applies local rotation to a native $shape collider', async collider => {
+  const scene = new THREE.Scene();
+  const platform = new THREE.Group();
+  const object = new THREE.Group();
+  object.position.set(.7, 2, 0);
+  scene.add(platform, object);
+  const host = await attachNativeScene({ scene, camera: new THREE.PerspectiveCamera(),
+    renderer: { render() {}, extensions: { has: () => false } }, autoStart: false });
+  try {
+    const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2).toArray();
+    host.scene.native.bindComponent({ id: 'rotated-platform', object: platform,
+      physics: { body: 'fixed', colliders: [{ ...collider, rotation }] } });
+    host.scene.native.bindComponent({ id: 'falling-object', object,
+      physics: { body: 'dynamic', colliders: [{ shape: 'box', halfExtents: [.1, .1, .1] }] } });
+    for (let i = 0; i < 180; i++) host.scene.step();
+    expect(object.position.y).toBeGreaterThan(.15);
+    expect(object.position.y).toBeLessThan(.3);
+    expect(() => host.scene.native.addComponent({ id: 'invalid-rotation', object: new THREE.Group(),
+      physics: { body: 'fixed', colliders: [{ ...collider, rotation: [0, 0, 0, 0] }] } })).toThrow('NATIVE_PHYSICS_INVALID');
+  } finally { host.close(); }
+});
