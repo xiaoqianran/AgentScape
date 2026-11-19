@@ -30,6 +30,7 @@ import { WorldCommands } from './WorldCommands.js';
 import { WorldRecovery } from './WorldRecovery.js';
 import { ProjectCapabilities } from './ProjectCapabilities.js';
 import { SemanticWorldView } from './semantic/SemanticWorldView.js';
+import { EntityCapabilityRegistry } from './EntityCapabilityRegistry.js';
 import { RUNTIME_VERSION } from '../../../foundation/version.js';
 installThreeBvhRuntime();
 
@@ -94,7 +95,7 @@ export class WorldRuntime {
     this.navigationBackendFactory = navigationBackendFactory;
     this.scene = new THREE.Scene();
     this.rendering = null;
-    this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.physics = physicsFactory(); this.navigation = null;
+    this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.entities = new EntityCapabilityRegistry({ events:this.events }); this.physics = physicsFactory(); this.navigation = null;
     this.projectCapabilities = new ProjectCapabilities(this);
     this.semantic = new SemanticWorldView(this);
     this.thermal = new ThermalSystem({physics:this.physics,
@@ -267,11 +268,16 @@ export class WorldRuntime {
     object.userData.instanceId = id;
     ensureBoundsTrees(object);
     let stored = false;
+    let entityRegistered = false;
     let attached = false;
     try {
       this.scene.add(object);
       this.store.add(id, { id, assetId, object, manifest, state: {}, physicsScale:uniformScale, active });
       stored = true;
+      this.entities?.register({ id, object, assetId, manifest, state:this.store.get(id).state,
+        source:'runtime', phase:'visual-mounted', transformAuthority:manifest.physics?.body === 'dynamic' ? 'physics' : 'static',
+        capabilities:['semantic', ...(manifest.capabilityLevel !== 'visual' ? ['interaction'] : []), ...(manifest.capabilityLevel !== 'visual' && manifest.physics ? ['physics'] : []), ...(manifest.actions?.length ? ['articulation'] : [])] });
+      entityRegistered = Boolean(this.entities);
       if (active && manifest.capabilityLevel !== 'visual') {
         this.physics.addObject(id, physicsManifest, object);
         attached = true;
@@ -280,6 +286,7 @@ export class WorldRuntime {
       clearInteractionEvidenceForTarget(this,id);
       if (initialState && Object.keys(initialState).length) this.restoreObjectState(id, initialState);
       this.invalidateNavigationForObject(id, 'object.spawned');
+      if (active) this.entities?.setPhase(id, 'active');
       if (active) this.sceneGraph?.changed(); else this.sceneGraph?.invalidate();
       this.events.emit('object.spawned', { id, assetId, position });
       return id;
@@ -288,7 +295,8 @@ export class WorldRuntime {
       if (attached) this.physics.removeObject(id);
       this.thermal?.remove?.(id);
       if (stored) this.store.delete(id);
-      this.scene.remove(object);
+      if (entityRegistered) this.entities.unregister(id, { reason:'spawn-failed' });
+      this.scene.remove?.(object);
       disposeObject3D(object);
       throw error;
     }
@@ -306,6 +314,7 @@ export class WorldRuntime {
       const placeholder = new THREE.Object3D();
       placeholder.position.copy(old.position); placeholder.quaternion.copy(old.quaternion); placeholder.scale.copy(old.scale);
       record.object = placeholder; record.active = false;
+      this.entities?.setObject(id, placeholder);
       disposeObject3D(old);
     } else {
       const { object } = await this.assetModule.instantiate(record.assetId, { signal });
@@ -315,12 +324,13 @@ export class WorldRuntime {
         object.userData.instanceId = id; ensureBoundsTrees(object); this.scene.add(object);
         if (record.manifest.capabilityLevel !== 'visual') this.physics.addObject(id, physicsManifestForUniformScale(record.manifest, old.scale.x), object);
         record.object = object; record.active = true;
+        this.entities?.setObject(id, object);
         this.restoreObjectState(id, record.state);
         if (record.dormantArticulation?.length) this.physics.restoreArticulationPose(id, record.dormantArticulation);
         this.scene.remove(old);
       } catch (error) {
         this.physics.removeObject(id); this.scene.remove(object); disposeObject3D(object);
-        record.object = old; record.active = false; throw error;
+        record.object = old; record.active = false; this.entities?.setObject(id, old); throw error;
       }
     }
     this.navigation?.invalidate('entity-activation'); this.sceneGraph?.invalidate();
@@ -589,6 +599,7 @@ export class WorldRuntime {
     this.scene.remove(record.object);
     disposeObject3D(record.object);
     this.store.delete(id);
+    this.entities?.unregister(id, { reason:'object-removed' });
     clearInteractionEvidenceForTarget(this,id);
     this.sceneGraph?.removeObject(id); this.sceneGraph?.changed();
     if(!silent) this.events.emit('object.removed', { id, assetId: record.assetId });
@@ -631,6 +642,7 @@ export class WorldRuntime {
       this.scene.remove(record.object);
       disposeObject3D(record.object);
       this.store.delete(id);
+      this.entities?.unregister(id, { reason:'runtime-disposed' });
     }
     this.sceneGraph.reset();
     this.locomotion?.cancelAll();

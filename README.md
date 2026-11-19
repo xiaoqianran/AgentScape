@@ -53,6 +53,8 @@ npm run starter
 
 原生集成示例位于 [examples/native-scene](examples/native-scene/)，详细接入步骤、同一 Three.js 实例、物理碰撞体和宿主渲染循环约束见 [原生 Three.js 集成指南](docs/native-threejs-integration.md)和[原生注入架构契约](docs/native-threejs-architecture.md)。此能力复用原来的 SceneFacade / Runtime，不接管宿主渲染器；原生项目保存/导出尚未实现。
 
+实体交互、GLB 物理、乐器音频和实时生成的长期架构见[交互式世界运行时架构](docs/interactive-world-runtime-architecture.md)，并可继续阅读[实体能力契约](docs/entity-capability-contract.md)、[GLB 交互物理管线](docs/glb-interactive-physics-pipeline.md)、[音频运行时与自适配音乐](docs/audio-runtime-and-adaptive-music.md)和[实时交互生成](docs/realtime-interactive-spawn.md)。
+
 ## 当前边界
 
 首页在 `/`，Studio 在 `/studio/`，Starter 教学页在 `/starter/`，诊断台在 `/observatory/`。公开 npm 包 `agentscape3d` 分发 SDK、CLI 和 MCP 能力，不包含网站前端；npm Starter CLI 生成的是独立 SDK 示例工程，并不包含 Studio 工作台。现有 MCP 的独立世界、程序化资产、真实交互与可信恢复继续保留。本机代码资产默认可通过受限 QuickJS Worker 运行，无须 Docker；公网不可信源码执行必须配置操作系统隔离后端，否则明确拒绝。

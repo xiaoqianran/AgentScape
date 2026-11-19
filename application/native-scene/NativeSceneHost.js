@@ -90,6 +90,7 @@ export async function attachNativeScene({
       if (!component || injectedComponents.get(component.id) !== component) return false;
       injectedComponents.delete(component.id);
       component.unregister?.();
+      world.entities.unregister(component.id, { reason:'native-component-removed' });
       component.object.removeFromParent();
       return true;
     };
@@ -99,9 +100,12 @@ export async function attachNativeScene({
       if (!(parent instanceof THREE.Object3D) || !parent.isObject3D) throw fail('NATIVE_COMPONENT_PARENT_INVALID');
       if (injectedComponents.has(id)) throw fail('NATIVE_COMPONENT_CONFLICT');
       if (semantic != null && (typeof semantic !== 'object' || Array.isArray(semantic))) throw fail('NATIVE_COMPONENT_SEMANTIC_INVALID');
+      if (world.entities.has(id) || world.store.has(id)) throw fail('NATIVE_COMPONENT_CONFLICT');
       const component = { id, object, parent, unregister: null, remove: () => removeComponent(component) };
       try {
         parent.add(object);
+        world.entities.register({ id, object, source:'native', phase:'visual-mounted', transformAuthority:'host',
+          capabilities:['semantic', ...(semantic?.capabilities || [])], metadata:{ label:semantic?.label ?? id } });
         if (semantic) {
           component.unregister = facade.registerEntity({
             id, label: semantic.label ?? id, description: semantic.description ?? '',
@@ -112,6 +116,7 @@ export async function attachNativeScene({
         return Object.freeze({ id, object, remove: component.remove });
       } catch (error) {
         component.unregister?.();
+        world.entities.unregister(id, { reason:'native-injection-failed' });
         object.removeFromParent();
         throw error;
       }
@@ -189,6 +194,7 @@ export async function attachNativeScene({
     if (frameId != null) cancelAnimationFrame(frameId);
     for (const component of [...injectedComponents.values()]) {
       component.unregister?.();
+      world.entities.unregister(component.id, { reason:'native-scene-attach-failed' });
       component.object.removeFromParent();
     }
     injectedComponents.clear();

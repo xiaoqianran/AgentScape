@@ -89,6 +89,7 @@ it('supports native component and semantic injection with rollback-safe cleanup'
   try {
     expect(attachedContext.three).toBe(THREE);
     expect(scene.getObjectById(component.id)).toBe(component);
+    expect(host.world.entities.describe('native-glass')).toMatchObject({ source:'native', capabilities:['semantic'], transformAuthority:'host', phase:'visual-mounted' });
     expect(host.scene.observe().project.entities).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'native-glass', label: '原生玻璃' }),
     ]));
@@ -98,6 +99,7 @@ it('supports native component and semantic injection with rollback-safe cleanup'
     host.close();
   }
   expect(scene.getObjectById(component.id)).toBeUndefined();
+  expect(host.world.entities.has('native-glass')).toBe(false);
   expect(component.geometry).toBeDefined();
   expect(component.material).toBeDefined();
   component.geometry.dispose();
