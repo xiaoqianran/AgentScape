@@ -35,3 +35,51 @@ export const fridge={
  }`,
  definition:{id:'fridge',type:'fridge',label:'程序化冰箱',actions:['move','open','close'],requiredNodes:['Body','doorHinge','Door'],physics:{body:'fixed',colliders:shell},receptacles:[{id:'interior',localPosition:[0,.95,-.01],size:[1.4,1.7,.46]}],parts:{door:{node:'doorHinge',semantic:'door',actions:['open','close'],targets:{open:-1.35,close:0},physics:{body:'dynamic',mass:8,colliders:[{shape:'box',halfExtents:[.81,.95,.04],translation:[.81,0,0]}]},joint:{type:'revolute',axis:[0,1,0],limits:[-1.35,0],parentAnchor:[-.82,1,.39],childAnchor:[0,0,0],motor:{stiffness:80,damping:12}}}}}
 };
+
+const applePositions = [
+  [-0.85, 2.65, 0.2], [0.05, 2.95, 0.35], [0.8, 2.55, 0.1],
+  [-0.35, 3.25, -0.35], [0.45, 3.35, -0.25]
+];
+const appleParts = Object.fromEntries(applePositions.map((_, index) => {
+  const node = `Apple_${String(index + 1).padStart(2, '0')}`;
+  return [node.toLowerCase(), {
+    node, semantic: 'apple', actions: ['pickup', 'drop', 'place'],
+    physics: { body: 'dynamic', mass: 0.12, colliders: [{ shape: 'cylinder', radius: 0.13, halfHeight: 0.13 }] }
+  }];
+}));
+
+export const appleTree = {
+  source: `export function createAsset(THREE) {
+    const root = new THREE.Group(); root.name = 'AppleTree';
+    const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x6b3f21, roughness: 0.9 });
+    const leafMaterial = new THREE.MeshStandardMaterial({ color: 0x2f7d32, roughness: 1 });
+    const appleMaterial = new THREE.MeshStandardMaterial({ color: 0xc92d35, roughness: 0.55 });
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.42, 2.3, 12), trunkMaterial);
+    trunk.name = 'Trunk'; trunk.position.y = 1.15; root.add(trunk);
+    for (const [index, [x, y, z]] of [[0, [-0.5, 1.75, 0]], [1, [0.5, 1.8, 0]], [2, [0, 2.15, 0]]]) {
+      const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.14, 1.3, 8), trunkMaterial);
+      branch.name = 'Branch_' + String(index + 1).padStart(2, '0'); branch.position.set(x, y, z); branch.rotation.z = x < 0 ? -0.7 : x > 0 ? 0.7 : 0; root.add(branch);
+    }
+    const crown = new THREE.Group(); crown.name = 'Crown'; root.add(crown);
+    for (const [x, y, z, scale] of [[0, 2.65, 0, 1.25], [-0.75, 2.35, 0.15, 0.9], [0.75, 2.35, 0.15, 0.9], [0, 3.15, -0.2, 0.95]]) {
+      const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(0.85, 1), leafMaterial);
+      leaves.position.set(x, y, z); leaves.scale.setScalar(scale); crown.add(leaves);
+    }
+    for (const [index, [x, y, z]] of ${JSON.stringify(applePositions.map((position, index) => [index, position]))}) {
+      const apple = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), appleMaterial);
+      apple.name = 'Apple_' + String(index + 1).padStart(2, '0'); apple.position.set(x, y, z); root.add(apple);
+    }
+    return root;
+  }`,
+  definition: {
+    id: 'apple-tree', type: 'apple_tree', label: '程序化苹果树',
+    description: '包含树干、树枝、树冠和可拾取苹果的程序化树木。',
+    tags: ['nature', 'tree', 'apple', 'interactive'],
+    actions: ['move'], requiredNodes: ['Trunk', 'Crown', ...applePositions.map((_, i) => `Apple_${String(i + 1).padStart(2, '0')}`)],
+    physics: { body: 'fixed', navigationObstacle: true, colliders: [
+      { shape: 'cylinder', radius: 0.42, halfHeight: 1.15, translation: [0, 1.15, 0] }
+    ] },
+    parts: appleParts
+  }
+};
+
