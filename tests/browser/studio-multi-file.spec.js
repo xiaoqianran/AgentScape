@@ -54,6 +54,7 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   await call('file',{action:'create',path:'shaders/pulse.glsl',content:'vec3 tint = vec3(1.0);',expectedRevision:2,requestId:randomUUID()});
   await expect(page.getByLabel('项目文件列表')).toContainText('lib/motion.js');
   await expect(page.getByLabel('项目文件列表')).toContainText('shaders/pulse.glsl');
+  await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await call('run',{requestId:randomUUID()});
   const canvas=page.locator('.studio-code-project-viewport canvas');
   await expect(canvas).toBeVisible();
@@ -74,6 +75,7 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
     expectedRevision:1,requestId:randomUUID()}});
   expect(stale.isError).toBe(true);
   expect(JSON.parse(stale.content[0].text).code).toBe('PROJECT_REVISION_CONFLICT');
+  await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
   await expect(page.locator('.code-project-editor output').first()).toHaveText('代码世界运行中');
   const reobserved=await client.callTool({name:'scene_observe',arguments:{}});
@@ -90,6 +92,7 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   await resourceInput.setInputFiles({name:'note.txt',mimeType:'text/plain',buffer:Buffer.from('embedded bytes')});
   await expect(page.locator('.code-project-editor output').first()).toHaveText('资源文件已导入');
   await expect(page.locator('.code-project-resources')).toContainText('note.txt');
+  await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
   await saveWorldAndWait(page);
   const saved=await call('save');
@@ -103,6 +106,7 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   await page.getByLabel('本机代码项目').selectOption({label:'多文件Studio'});
   await page.getByRole('button',{name:'打开代码项目',exact:true}).click();
   await expect(page.getByLabel('项目文件列表')).toContainText('notes/readme.txt');
+  await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
   await expect(page.locator('.code-project-actions')).toContainText('"motionRate": 2');
   expect(errors).toEqual([]);
@@ -117,7 +121,8 @@ test('Studio imports the distributable multi-file ShaderMaterial example and res
  await page.locator('.code-project-editor input[type="file"]').first()
    .setInputFiles(path.resolve('examples/code-project/multifile-studio.json'));
  await expect(page.getByLabel('项目文件列表')).toContainText('shaders/glow.frag');
- await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
+ await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
+  await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
  const canvas=page.locator('.studio-code-project-viewport canvas');
  await expect(canvas).toBeVisible();
  const screenshot=await canvas.screenshot({path:testInfo.outputPath('multi-file-glow.png')});
@@ -132,7 +137,8 @@ test('Studio imports the distributable multi-file ShaderMaterial example and res
  await page.getByRole('button',{name:'代码世界',exact:true}).click();
  await page.getByLabel('本机代码项目').selectOption({label:'多文件发光雕塑'});
  await page.getByRole('button',{name:'打开代码项目',exact:true}).click();
- await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
+ await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
+  await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
  await page.getByRole('button',{name:'对象属性',exact:true}).click();
  await expect(page.locator('.code-project-actions')).toContainText('"speed": 2');
  expect(errors).toEqual([]);

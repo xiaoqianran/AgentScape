@@ -48,13 +48,13 @@ test('records startup, frame/CPU/heap and repeated project replacement resources
     requestAnimationFrame(sample);
   }));
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: '3. Download world' }).click();
+  await page.getByRole('button', { name: 'Download world' }).click();
   const file = await (await downloadPromise).path();
   const replacements = [];
   for (let cycle = 0; cycle < 3; cycle++) {
     const before = Date.now();
     await page.locator('#file').setInputFiles(file);
-    await expect(page.getByRole('status')).toContainText('Restored 3 objects', { timeout: 60000 });
+    await expect(page.getByRole('status')).toContainText('Restored 4 objects', { timeout: 60000 });
     await expect(page.locator('#viewport canvas')).toHaveCount(1);
     await page.waitForFunction(expected => window.__resourceCounts.lostContexts >= expected, cycle + 1);
     await client.send('HeapProfiler.collectGarbage');

@@ -6,7 +6,8 @@
 
 任务见 tasks.jsonl。验证：npm run test:studio、npm run typecheck、npm run build。
 
-代码世界工作台支持原生多文件 JS、Shader、JSON 编辑、相对 ESM import、资源上传，以及 AI/MCP 文件级操作与存档。示例：[多文件发光雕塑](../../examples/code-project/multifile-studio.json)。
+代码世界工作台支持原生多文件 JS、Shader、JSON 编辑、相对 ESM import、资源上传，以及 AI/MCP 文件级操作与存档。
+完整 JS 工程执行须由用户通过 Studio 代码编辑器显式批准当前项目修订的内容指纹；MCP 只能写草稿和请求运行，不能授予执行权限。修订、重新加载与关闭会撤销批准。批准是信任门禁，不是 JS 沙箱；执行前必须人工审查全部源码/资源。示例：[多文件发光雕塑](../../examples/code-project/multifile-studio.json)。
 
 ## 自动保存失败处理
 

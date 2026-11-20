@@ -5,6 +5,7 @@ import { AuthoringWorldStore } from '../persistence/AuthoringWorldStore.js';
 import { projectTemplate, projectGuide } from './projectTemplate.js';
 import { projectFileEntries, compileCodeProjectModules } from '../../../application/native-scene/CodeProjectModules.js';
 import { applyProjectChanges, summarizeProjectChanges, patchProjectText } from './StudioProjectChanges.js';
+import { projectExecutionFingerprint, assertApprovedProject } from './ProjectExecutionPolicy.js';
 
 const fail = code => Object.assign(new Error(code), { code });
 const clone = value => structuredClone(value);
@@ -17,7 +18,7 @@ export class StudioCodeProjects {
     Object.assign(this, { container, baseScene, baseWorld, store, open, onActivate, onShow });
     this.session = null; this.draft = null; this.revision = 0; this.runningRevision = null;
     this.listeners = new Set(); this.busy = false; this.visible = false;
-    this.pendingBatch = null; this.lastBatch = null;
+    this.pendingBatch = null; this.lastBatch = null; this.approval = null;
     this.current = Object.freeze({ visible:false, active:false, busy:false, project:null, revision:0, runningRevision:null, projects:[], error:null });
   }
   subscribe = listener => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
@@ -27,6 +28,7 @@ export class StudioCodeProjects {
   emit(patch = {}) {
     this.current = Object.freeze({ ...this.current, visible:this.visible, active:Boolean(this.session), busy:this.busy,
       project:this.draft ? clone(this.draft) : null, revision:this.revision, runningRevision:this.runningRevision,
+      approval:this.approval ? { revision:this.approval.revision, digest:this.approval.digest.slice(0,12) } : null,
       batchPreview:this.pendingBatch?.summary || null,
       undoBatch:this.lastBatch ? { revision:this.lastBatch.revision, ...this.lastBatch.counts } : null,
       ...patch });
@@ -158,7 +160,7 @@ export class StudioCodeProjects {
       if (!create && next.id !== this.draft.id) throw fail('PROJECT_ID_CHANGE_REQUIRES_CREATE');
       const revision = this.revision + 1;
       await this.persist(next, revision);
-      this.draft = next; this.revision = revision; this.runningRevision = create ? null : this.runningRevision;
+      this.draft = next; this.revision = revision; this.runningRevision = create ? null : this.runningRevision; this.approval = null;
       this.pendingBatch = null; this.lastBatch = null;
       this.visible = true; this.onShow(); this.emit();
       return { status:patch?'project-source-patched':'project-draft-saved', id:next.id, revision };
@@ -170,10 +172,21 @@ export class StudioCodeProjects {
       return this.editFile({action:'patch',path,oldText,newText,expectedRevision});
     return this.write({ expectedRevision, patch:{ oldText, newText } });
   }
+  /** Only the user-facing Studio editor calls this method; no MCP operation exposes approval. */
+  async approveCurrentRevision() {
+    return this.exclusive(async () => {
+      if (!this.draft) throw fail('PROJECT_REQUIRED');
+      const digest = await projectExecutionFingerprint(this.draft,this.revision);
+      this.approval = { id:this.draft.id, revision:this.revision, digest };
+      this.emit();
+      return { id:this.draft.id, revision:this.revision, digest:digest.slice(0,12) };
+    });
+  }
   async run({ expectedRevision } = {}) {
     return this.exclusive(async () => {
       if (!this.draft) throw fail('PROJECT_REQUIRED');
       if (expectedRevision !== undefined && expectedRevision !== this.revision) throw fail('PROJECT_REVISION_CONFLICT');
+      await assertApprovedProject(this.approval,this.draft,this.revision);
       // Saving acquires the Scene lock; pending actions must settle before replacement.
       const old = this.session;
       const live = old ? (await old.save()).value : null;
@@ -232,7 +245,7 @@ export class StudioCodeProjects {
       const saved = await this.store.load(id);
       if (!saved) throw fail('PROJECT_NOT_FOUND');
       const project = await parseCodeProject(saved.document.project);
-      this.draft = project; this.revision = Math.max(this.revision + 1, saved.document.revision); this.runningRevision = null;
+      this.draft = project; this.revision = Math.max(this.revision + 1, saved.document.revision); this.runningRevision = null; this.approval = null;
       this.pendingBatch = null; this.lastBatch = null;
       this.visible = true; this.onShow(); this.emit();
       return { status:'project-opened', id, revision:this.revision };
@@ -252,6 +265,7 @@ export class StudioCodeProjects {
       await this.persist(project, revision);
       this.draft = project;
       this.revision = revision;
+      this.approval = null;
       this.visible = true;
       this.onShow();
       return { id, revision };
@@ -281,7 +295,7 @@ export class StudioCodeProjects {
       this.stopFrameError?.();
       this.stopFrameError = null;
     }
-    this.pendingBatch = null; this.lastBatch = null;
+    this.pendingBatch = null; this.lastBatch = null; this.approval = null;
     this.visible = false; this.emit();
     return { status:'project-closed' };
   }

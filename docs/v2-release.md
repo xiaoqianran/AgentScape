@@ -1,6 +1,6 @@
 # v2 development release
 
-Version: 2.0.0-dev.1. Implementation phases are local work slices; GitHub PRs have not been created or merged automatically. The SDK is not published to npm.
+Version: 2.0.0-dev.1. Implementation phases are local work slices; GitHub PRs have not been created or merged automatically. The official npm Registry already lists `agentscape3d@1.0.0-beta.1` under `beta` (and currently `latest`). This historic Beta publication does not establish release acceptance of the current main commit.
 
 ## Release decision versus local engineering acceptance
 

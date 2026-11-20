@@ -96,6 +96,9 @@
   },
   "overrides": {
     "glob": "14.0.3",
-    "minimatch": "11.0.4"
+    "minimatch": "11.0.4",
+    "undici": "8.13.0",
+    "@modelcontextprotocol/client": "2.4.0",
+    "fflate": "0.8.3"
   }
 }

@@ -23,6 +23,11 @@ async function fixture() {
  return {base,controller,tools:controller.wrapTools(new AgentTools(base.world)),close(){controller.dispose();base.close();}};
 }
 
+async function approvedRun(controller,options) {
+  await controller.approveCurrentRevision(); // Human approval simulated by the test, never by MCP.
+  return controller.run(options);
+}
+
 describe('Studio multi-file source and resource operations',()=>{
  it('lets AI create files, patch one file, run, persist and reopen real imported modules',async()=>{
   const f=await fixture(); let other;
@@ -42,13 +47,14 @@ describe('Studio multi-file source and resource operations',()=>{
    expect(f.tools.executionPolicy('readStudioFile',page).mutates).toBe(false);
    await f.tools.call('patchStudioProject',{path:'lib/counter.js',oldText:'initial=4',newText:'initial=7',expectedRevision:3});
    expect(f.controller.revision).toBe(4);
+   await f.controller.approveCurrentRevision();
    await f.tools.call('runStudioProject',{expectedRevision:4});
    expect(f.controller.scene.inspect('counter').state).toEqual({count:7,pixel:'vec4(1.0)'});
    const saved=await f.tools.call('saveStudioProject');
    expect(saved.value.files['lib/counter.js']).toContain('initial=7');
    await f.controller.close();
    other=await fixture();
-   await other.controller.load(project.id);await other.controller.run();
+   await other.controller.load(project.id);await approvedRun(other.controller,);
    expect(other.controller.scene.inspect('counter').state.count).toBe(7);
   }finally{other?.close();f.close();}
  },30000);

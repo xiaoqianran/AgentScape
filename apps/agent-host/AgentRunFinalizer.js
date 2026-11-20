@@ -1,4 +1,5 @@
 import { connectStudioMcp } from './McpWorldTools.js';
+import { requiredTaskCriteria } from './TaskSpec.js';
 
 const SOURCE_CHANGES = new Set(['write','patch','file','resource','apply_batch','undo_batch','open','run']);
 const code = value => typeof value === 'string' && /^[A-Z_]{3,80}$/.test(value) ? value : 'FINAL_VERIFICATION_UNAVAILABLE';
@@ -41,7 +42,7 @@ async function invoke(connection,name,args,signal) {
 }
 
 /** The Host, not either model SDK, owns the final task admission decision. */
-export async function finalizeRun({output={},project=null,configuration,signal,expectedWorldSessionId=null,mcpConnector=connectStudioMcp}={}) {
+export async function finalizeRun({output={},project=null,configuration,signal,expectedWorldSessionId=null,taskSpec=null,mcpConnector=connectStudioMcp}={}) {
   const execution = Array.isArray(output.execution) ? output.execution : [];
   const mutations = execution.filter(entry=>entry.mutates && entry.outcome?.state!=='failed');
   const unresolved = unresolvedOperations(execution);
@@ -56,6 +57,7 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
   const projectScope = project ? project.worldSessionId+'/'+project.id : undefined;
   const format=()=>({
     ...output,schema:'agentscape.agent-run',schemaVersion:1,taskStatus:status,
+    ...(taskSpec?{taskSpec}:{}),
     verified:status==='completed',steps:execution.length,execution,
     mutations:mutations.map(entry=>({tool:entry.tool,toolCallId:entry.toolCallId})),
     unresolvedMutations:status==='completed'||status==='no-mutation'?[]:
@@ -74,11 +76,20 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
   if(mutations.length && !expectedSession){
     reason='WORLD_SESSION_UNBOUND';return format();
   }
-  if(!mutations.length && !project && !hasFailures && !execution.some(entry=>entry.outcome?.state==='failed') && (output.taskStatus==='no-mutation'||execution.some(entry=>entry.outcome?.state==='accepted'))){
+  if(taskSpec?.status==='review-required'){
+    reason=taskSpec.reason || 'TASK_SPEC_REVIEW_REQUIRED';return format();
+  }
+  if(taskSpec?.status==='ready' && taskSpec.requiredChecks?.length && !mutations.length){
+    reason='TASK_REQUIRED_MUTATION_MISSING';return format();
+  }  if(!mutations.length && !project && !hasFailures && !execution.some(entry=>entry.outcome?.state==='failed') && (output.taskStatus==='no-mutation'||execution.some(entry=>entry.outcome?.state==='accepted'))){
     status='no-mutation';reason=null;return format();
+  }
+  if(unresolved.some(entry=>entry.reason==='PROJECT_EXECUTION_REVIEW_REQUIRED')){
+    status='awaiting-approval';reason='PROJECT_EXECUTION_REVIEW_REQUIRED';return format();
   }
   if(hasFailures){reason='UNRESOLVED_TOOL_FAILURE';return format();}
   if(project && !mutations.length){reason='TASK_PROJECT_NOT_BUILT';return format();}
+  if(taskSpec && taskSpec.status!=='ready'){reason=taskSpec.reason||'TASK_SPEC_REVIEW_REQUIRED';return format();}
   if(!verificationCall?.criteria?.length){reason='SCENE_VERIFICATION_MISSING';return format();}
   if(verificationIndex <= lastMutation){reason='SCENE_VERIFICATION_STALE';return format();}
   if(verificationCall.outcome?.state!=='verified'){reason='SCENE_VERIFICATION_FAILED';return format();}
@@ -108,7 +119,10 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
       }
     }
     const before=await invoke(connection,'scene_observe',{limit:1},signal);
-    const criteria=[...verificationCall.criteria];
+    // User requirements win if an Agent tries to reuse a task-* id with weaker checks.
+    const required=requiredTaskCriteria(taskSpec);
+    const criteria=[...required,...verificationCall.criteria.filter(check=>
+      !required.some(item=>item.id===check.id))];
     const existingTargets=new Set(criteria.filter(item=>item.kind==='object-exists').map(item=>item.targetId));
     for(const entry of mutations){
       if(entry.tool!=='scene_add_model'||!entry.targetId||existingTargets.has(entry.targetId))continue;
@@ -131,6 +145,7 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
         reason='PROJECT_REVISION_CHANGED';return format();
       }
     }
+    if(taskSpec?.visual?.required){reason='VISUAL_REVIEW_PENDING';return format();}
     status='completed';reason=null;
   } catch(error) {
     reason=signal?.aborted?'RUN_CANCELLED':code(error?.code);

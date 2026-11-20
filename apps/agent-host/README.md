@@ -44,6 +44,7 @@ Pi / DSH 共用同一世界会话，通过 `worldSessionId` 标识，禁止并�
 
 - `AgentExecution.js` 只抽取必要的工具名、操作、目标 ID、执行状态及 `scene_verify` 验收条件；不会保存生成的源代码或全部 LLM 对话。
 - Pi 的 SDK 完成事件、DSH SDK 的 `tool/call` / `tool/result` 统一生成 `execution`；两个后端不再直接宣布 `completed`。
+- `TaskSpec.js` 独立从用户原始任务编译苹果树、房屋和杯子三类黄金任务的结构化验收要求，并在 Agent 后置验证之前注入 Host 最终复验；未知/无法完整描述的任务进入人工审查，不允许 Agent 自行用更弱的验收取代。视觉质量要求在未接入截图评价时保持 `VISUAL_REVIEW_PENDING`。
 - `AgentHost` 在两种 SDK 结束之后调用同一个 `finalizeRun()`。存在已提交世界变更时，必须有晚于最后一次变更的显式 `scene_verify`。
 - Host 使用受限 MCP **确认与任务执行时是同一世界会话（DSH 预先绑定；Pi 比对 SDK 会话），重新读取当前 Studio Scene Revision、重跑原始验收条件**，同时添加世界有效性与已添加实体存在性检查。前后版本不一致、证据过期、失败操作未恢复均返回 `incomplete`。
 - 针对新建 Code Project，还必须确认项目 ID、`runningRevision`、实体注册及保存结果；项目源代码仍在浏览器 Studio 中执行，本改动**不提供 JavaScript 隔离**。

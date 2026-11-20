@@ -1,6 +1,6 @@
 # AgentScape v1 数据与 Scene 契约
 
-状态：2.0.0-dev.1 开发实现，未发布。JSON 是唯一规范格式；未知字段、不支持的 schemaVersion 明确拒绝。
+状态：主干 2.0.0-dev.1 仍在开发；npm 已有独立的 agentscape3d@1.0.0-beta.1，不能视为本提交通过发布验收。JSON 是唯一规范格式；未知字段、不支持的 schemaVersion 明确拒绝。
 
 | 契约 | Schema / 实现 |
 | --- | --- |

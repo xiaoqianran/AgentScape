@@ -39,7 +39,7 @@ describe('dual agent host transport',()=>{
       dsh:async()=>{calls.push('dsh');return {taskStatus:'incomplete',message:'dsh'};}});
     const a=await json(url,'/run',{runId:'test_pi_1234567',backend:'pi',prompt:'observe'});
     const b=await json(url,'/run',{runId:'test_dsh_123456',backend:'dsh',prompt:'observe'});
-    expect((await a.json()).events).toEqual([{type:'run.started'}, {type:'run.finished',backend:'pi',taskStatus:'no-mutation',verified:false}]);
+    expect((await a.json()).events).toEqual([{type:'run.started'}, {type:'run.finished',backend:'pi',taskStatus:'incomplete',verified:false}]);
     expect((await b.json()).backend).toBe('dsh');
     expect(calls).toEqual(['pi','dsh']);
   });

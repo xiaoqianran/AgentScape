@@ -37,6 +37,11 @@ export function createProject`},
  {kind:'file',action:'patch',path:'main.js',oldText:'read:()=>({value})',newText:'read:()=>({value,shader})'}
 ];
 
+async function approvedRun(controller,options) {
+  await controller.approveCurrentRevision(); // Human approval simulated by the test, never by MCP.
+  return controller.run(options);
+}
+
 describe('Studio coordinated multi-file batch review',()=>{
  it('previews without persistence, applies one revision, runs dynamic action, and undoes the whole batch',async()=>{
   const f=await fixture();
@@ -54,7 +59,7 @@ describe('Studio coordinated multi-file batch review',()=>{
    expect((await f.store.load(project.id)).document.revision).toBe(2);
    expect(f.controller.snapshot().batchPreview).toBeNull();
    expect(f.controller.snapshot().undoBatch).toMatchObject({revision:2,files:3});
-   await f.controller.run();
+   await approvedRun(f.controller,);
    expect(f.controller.scene.inspect('counter').state).toEqual({value:1,shader:'void main() {}'});
    const job=f.controller.scene.interact({action:'custom',target:'counter',name:'increment'});
    expect((await f.controller.scene.waitJob(job.id)).status).toBe('succeeded');
@@ -66,7 +71,7 @@ describe('Studio coordinated multi-file batch review',()=>{
    expect(f.controller.draft.files).toBeUndefined();
    expect(f.controller.draft.state.value).toBe(4);
    expect(f.controller.snapshot().undoBatch).toBeNull();
-   await f.controller.run();
+   await approvedRun(f.controller,);
    expect(f.controller.scene.inspect('counter').state.value).toBe(4);
   }finally{f.close();}
  },30000);
@@ -149,6 +154,7 @@ describe('Studio coordinated multi-file batch review',()=>{
     complete:async request=>{
      expect(request.tools.map(tool=>tool.name)).toContain('previewStudioProjectBatch');
      const step=plan[index++];
+     if(step?.[0]==='runStudioProject') await f.controller.approveCurrentRevision(); // Mock user review
      if (!step) return {message:'批量代码修改已保存。',toolCalls:[]};
      return {toolCalls:[{id:'batch-tool-'+index,name:step[0],
        args:typeof step[1]==='function'?step[1]():step[1]}]};

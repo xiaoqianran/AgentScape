@@ -31,7 +31,9 @@ export function executionRecord({ name, callId, args, result, isError = false, d
     !Array.isArray(payload.verification.evidence.checks) ||
     !payload.verification.evidence.checks.length ||
     payload.verification.evidence.checks.some(check => check.verified !== true));
-  const reason = !allowed ? 'AGENT_TOOL_FORBIDDEN' : isError ? 'TOOL_FAILED'
+  const approvalRequired = tool==='studio_project' && input.operation==='run' && isError &&
+    /PROJECT_EXECUTION_REVIEW_REQUIRED/.test(String(result?.content?.find?.(item=>item.type==='text')?.text||''));
+  const reason = !allowed ? 'AGENT_TOOL_FORBIDDEN' : approvalRequired ? 'PROJECT_EXECUTION_REVIEW_REQUIRED' : isError ? 'TOOL_FAILED'
     : failedVerify ? 'SCENE_UNVERIFIED'
     : error ? 'TOOL_FAILED' : undefined;
   return {

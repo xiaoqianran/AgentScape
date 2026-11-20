@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { runPiAgent } from './PiAgentBackend.js';
 import { runDshAgent } from './DshAgentBackend.js';
 import { finalizeRun } from './AgentRunFinalizer.js';
+import { compileTaskSpec } from './TaskSpec.js';
 
 export function loadPrivateEnv(file) {
   if(!existsSync(file))return;
@@ -125,6 +126,7 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
     runs.set(input.runId,{controller});
     try{
       const emit=event=>{if(events.length<250)events.push(event);stream(event);};
+      const taskSpec=compileTaskSpec(input.prompt);
       const project=isNewWorldRequest(input.prompt) ? await prepareProject(config,input.runId,controller.signal) : null;
       const projectScope=project ? project.worldSessionId+'/'+project.id : undefined;
       // DSH SDK connects to MCP independently. Pin the authoritative Studio before it runs.
@@ -137,8 +139,13 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
         'Base the source on the starter entry point and runtime interfaces. Register the requested entities, run the revision, save it, and verify all requested entities together using scene_verify.',
         'User request:',input.prompt
       ].join('\n') : input.prompt;
-      const backendOutput=await backends[input.backend]({prompt,projectScope,configuration:config,signal:controller.signal,emit});
-      const output=await finalize({output:{...backendOutput,backend:input.backend},project,configuration:config,signal:controller.signal,expectedWorldSessionId});
+      const fullPrompt=taskSpec.status==='ready' ? [
+        prompt,'User-derived task requirements (do not weaken; use these exact entity IDs):',
+        JSON.stringify(taskSpec.requiredChecks),
+        'The Host will independently verify these criteria. A tool result is not task completion.'
+      ].join('\n') : prompt;
+      const backendOutput=await backends[input.backend]({prompt:fullPrompt,projectScope,configuration:config,signal:controller.signal,emit});
+      const output=await finalize({output:{...backendOutput,backend:input.backend},project,configuration:config,signal:controller.signal,expectedWorldSessionId,taskSpec});
       emit({type:'run.finished',backend:input.backend,taskStatus:output.taskStatus,verified:output.verified});
       if(streaming){stream({type:'run.result',result:{...output,runId:input.runId}});res.end();return;}
       return respond(res,200,{...output,runId:input.runId,events},origin);

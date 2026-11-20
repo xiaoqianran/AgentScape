@@ -143,6 +143,17 @@ describe('shared Pi / DSH execution and Host admission',()=>{
     expect(output.taskStatus).toBe('incomplete');
     expect(output.verification.reason).toBe('SCENE_VERIFICATION_MISSING');
   });
+  it('reports a missing human approval as awaiting-approval, never as a completed mutation',async()=>{
+    const execution=normalizeExecution('pi',[{
+      name:'studio_project',callId:'attempt',args:{operation:'run'},
+      result:result({code:'PROJECT_EXECUTION_REVIEW_REQUIRED'}),isError:true
+    }]);
+    expect(execution[0].outcome.reason).toBe('PROJECT_EXECUTION_REVIEW_REQUIRED');
+    const {output}=await finish('pi',execution);
+    expect(output.taskStatus).toBe('awaiting-approval');
+    expect(output.verified).toBe(false);
+    expect(output.verification.reason).toBe('PROJECT_EXECUTION_REVIEW_REQUIRED');
+  });
   it('verifies a scoped project only after saving the matching running revision',async()=>{
     const project={id:'world_abc',worldSessionId:'world-session'};
     const edits=normalizeExecution('pi',[

@@ -22,6 +22,11 @@ test('Studio MCP creates a visible world; UI edits, fails safely, saves and reop
   const guide=await call('studio_project',{operation:'read'});expect(guide.guide).toContain('createProject');
   await call('studio_project',{operation:'write',create:true,source:projectTemplate,name:'MCP 自由世界',requestId:randomUUID()});
   await expect(page.getByLabel('世界源码')).toHaveValue(projectTemplate);
+  // MCP/Agent cannot authorize complete JavaScript; only a user UI review can.
+  const deniedRun=await client.callTool({name:'studio_project',arguments:{operation:'run',requestId:randomUUID()}});
+  expect(deniedRun.isError).toBe(true);
+  expect(JSON.parse(deniedRun.content[0].text).code).toBe('PROJECT_EXECUTION_REVIEW_REQUIRED');
+  await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await call('studio_project',{operation:'run',requestId:randomUUID()});
   const canvas=page.locator('.studio-code-project-viewport canvas');await expect(canvas).toBeVisible();
   const shot=await canvas.screenshot({path:testInfo.outputPath('studio-code-world.png')});
@@ -42,10 +47,12 @@ test('Studio MCP creates a visible world; UI edits, fails safely, saves and reop
   expect(patched).toMatchObject({status:'project-source-patched',revision:2});
   await expect(page.getByLabel('世界源码')).toHaveValue(/patched through MCP/);
   await page.getByLabel('世界源码').fill('export function createProject() { throw new Error("STUDIO_SETUP_TEST"); }');
+  await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
   await expect(page.locator('.code-project-editor [role=alert]')).toContainText('STUDIO_SETUP_TEST');
   await expect(canvas).toBeVisible();expect((await call('scene_observe',{target:'sculpture'})).state.speed).toBe(2);
   await page.getByLabel('世界源码').fill(projectTemplate+'\n// Studio user edit');
+  await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
   await expect(page.locator('.code-project-editor output')).toHaveText('代码世界运行中');
   await page.getByRole('button',{name:'保存世界状态',exact:true}).click();
@@ -56,6 +63,7 @@ test('Studio MCP creates a visible world; UI edits, fails safely, saves and reop
   await page.getByLabel('本机代码项目').selectOption(saved.value.id);
   await page.getByRole('button',{name:'打开代码项目',exact:true}).click();
   await expect(page.getByLabel('世界源码')).toHaveValue(saved.value.source);
+  await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
   await expect(page.locator('.code-project-actions')).toContainText('"speed": 2');
   await page.getByRole('button',{name:'对象属性',exact:true}).click();
@@ -83,11 +91,15 @@ test('Studio task AI creates, runs, changes a dynamic action state, edits source
   const request=route.request().postDataJSON();
   if(round===3)expect(request.context.scene.project.entities[0].actions[0].name).toBe('setSpeed');
   const step=steps[round++];
+  // In this fixture an actual browser UI action, not the model tool, authorizes each revision.
+  if(step?.[0]==='runStudioProject')
+    await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await route.fulfill({json:step?{toolCalls:[{id:'step'+round,name:step[0],args:step[1]}]}:{message:'代码世界已创建、修改并保存。',toolCalls:[]}});
  });
  await page.goto('/studio/?page=world');
  await expect(page.locator('#runtime-status')).toHaveAttribute('data-state','ready',{timeout:60000});
  await page.locator('#open-world-task').click();
+ await page.locator('#task-agent-backend').selectOption('legacy');
  await page.locator('#input').fill('创建一个完整代码世界，运行并改变旋转速度，修改源码然后保存');await page.locator('#send').click();
  await expect.poll(()=>round,{timeout:60000}).toBe(9);
  await expect(page.locator('.studio-code-project-viewport canvas')).toBeVisible();
@@ -98,6 +110,7 @@ test('Studio task AI creates, runs, changes a dynamic action state, edits source
  await page.getByRole('button',{name:'代码世界',exact:true}).click();
  await page.getByLabel('本机代码项目').selectOption({label:'AI 完整世界'});
  await page.getByRole('button',{name:'打开代码项目',exact:true}).click();
- await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
+ await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
+  await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
  await expect(page.locator('.code-project-actions')).toContainText('"speed": 3');expect(errors).toEqual([]);
 });

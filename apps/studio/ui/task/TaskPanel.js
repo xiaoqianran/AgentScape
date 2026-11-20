@@ -28,6 +28,8 @@ export class TaskPanel {
     this.gateway = null;
     this.remoteAgent = null;
     this.backend = 'legacy';
+    this.explicitBackendSelection = false;
+    this.backendSelectionRevision = 0;
     this.backendAvailability = {pi:false,dsh:false};
     this.busy = false;
     this.available = true;
@@ -81,15 +83,24 @@ export class TaskPanel {
     void remoteAgent.availability().then(available=>{
       this.backendAvailability=available;
       this.emit();
-      if(this.backend==='legacy' && available.pi)void this.selectBackend('pi');
+      if(this.backend==='legacy' && available.pi && !this.explicitBackendSelection)
+        void this.selectBackend('pi',{automatic:true});
     });
   }
 
-  async selectBackend(backend) {
+  async selectBackend(backend,{automatic=false}={}) {
     if(this.busy || !['legacy','pi','dsh'].includes(backend))return false;
     if(backend!=='legacy' && !this.remoteAgent)return false;
+    if(automatic && this.explicitBackendSelection)return false;
+    if(!automatic)this.explicitBackendSelection=true;
+    const revision=++this.backendSelectionRevision;
     this.backend=backend;
-    if(backend!=='legacy')this.backendAvailability=await this.remoteAgent.availability();
+    if(backend!=='legacy'){
+      const availability=await this.remoteAgent.availability();
+      if(revision!==this.backendSelectionRevision)return false;
+      this.backendAvailability=availability;
+    }
+    if(revision!==this.backendSelectionRevision)return false;
     this.setAvailability(backend==='legacy' ? this.gateway?.isConfigured?.() ?? true : Boolean(this.backendAvailability[backend]));
     this.emit();
     return this.available;
@@ -333,6 +344,10 @@ export class TaskPanel {
           this.setState('success','任务已完成',`${label} · 运行时验证通过。`);
           this.log('任务状态：已完成 · 变更链已验证','result');
         }
+      } else if (result.taskStatus === 'awaiting-approval') {
+        this.setState('partial','等待用户审阅',
+          '完整代码世界需要人工批准当前源码版本。请打开「代码世界」，审阅并批准本版本，然后重试。');
+        this.log('任务等待用户审阅代码世界源码，不会由 Agent 自动批准。','result');
       } else {
         this.setState('partial','任务未完成',`${label} · ${tool} → ${lastStep?.outcome?.reason || outcome}。${this.backend==='legacy'?'请检查对象、通路和支撑面后重试。':'请查看任务活动日志中的工具结果。'}`);
         this.log(`任务状态：未完成 · ${tool} → ${outcome}`,'error');

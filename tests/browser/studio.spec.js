@@ -7,6 +7,7 @@ test('unconfigured first visit explains unavailable agent while the world remain
   await page.getByRole('button',{name:'编辑',exact:true}).click();
   await verifyRenderedWorld(page, testInfo);
   await page.locator('#open-world-task').click();
+  await page.locator('#task-agent-backend').selectOption('legacy');
   await expect(page.locator('#task-state')).toHaveAttribute('data-state', 'offline');
   await expect(page.locator('#task-state-detail')).toContainText('需要');
   await expect(page.locator('#input')).toBeDisabled();
@@ -122,6 +123,8 @@ test('fixed protocol task starts, cancels its pending model request and retries 
   const objects = await page.locator('#scene-object-list [data-object-id]').count();
   await page.locator('[data-object-id="cup_01"]').click();
   await page.locator('#open-world-task').click();
+  // Fixed-protocol gateway is a Legacy-only fixture; Pi/DSH use a different host.
+  await page.locator('#task-agent-backend').selectOption('legacy');
   await page.locator('#input').fill('固定协议验收：观察世界后等待取消');
   await page.locator('#send').click();
   await expect.poll(() => gateway.requests.length).toBe(1);

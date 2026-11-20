@@ -2,11 +2,11 @@
 
 ![AgentScape — A Shared 3D World for Humans & AI](docs/assets/agentscape-hero.png)
 
-> v2 已实现统一 Scene API、Recipe、完整项目包与三种 StylePack；`agentscape3d@1.0.0-beta.1` 正在准备公开发布，尚未上线 npm。最新能力与限制见 [v1 契约](planning/public-contracts-v1.md)和[发布清单](docs/v2-release.md)。
+> v2 已实现统一 Scene API、Recipe、完整项目包与三种 StylePack；`agentscape3d@1.0.0-beta.1` 已在官方 npm Registry 提供；此版本为 Beta，不等于当前 main 的开发版或稳定版。最新能力与限制见 [v1 契约](planning/public-contracts-v1.md)和[发布清单](docs/v2-release.md)。
 
 **让人和 AI 能够操作同一个交互式 3D 世界。**
 
-自由代码项目入口已加入开发工作区：运行多文件 Three.js、Shader 和持续逻辑，自定义可供 AI 发现的动作，保存代码与状态后重开。详见 [Code Project](docs/modules/code-project.md)，本地示例 `/examples/code-project/`；尚不表示已发布到 npm。
+自由代码项目入口已加入开发工作区：运行多文件 Three.js、Shader 和持续逻辑，自定义可供 AI 发现的动作，保存代码与状态后重开。详见 [Code Project](docs/modules/code-project.md)，本地示例 `/examples/code-project/`；是否包含在现有 Beta 包中需以已发布 tarball 为准。
 
 Three.js 渲染、Rapier 物理和 Recast 导航共享真实世界状态。人物能够走近物体、拾取和放置；请求成功与实际行为验证分开报告。
 
