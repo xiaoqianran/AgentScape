@@ -83,6 +83,34 @@ export class AuthoringWorldStore {
     return clone(record);
   }
 
+  async rename(id, name) {
+    const worldId = String(id || '').trim();
+    if (!worldId) throw new TypeError('Authoring world rename requires id');
+
+    const nextName = String(name ?? '').trim();
+    if (!nextName) throw new TypeError('Authoring world rename requires name');
+
+    const previous = await this.load(worldId);
+    if (!previous) return null;
+
+    const record = {
+      ...previous,
+      name:nextName,
+      updatedAt:this.now()
+    };
+
+    const db = await this.open();
+    if (!db) {
+      this.memory.set(worldId, clone(record));
+      return clone(record);
+    }
+
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(record);
+    await transactionDone(tx);
+    return clone(record);
+  }
+
   async load(id) {
     const worldId = String(id || '').trim();
     if (!worldId) return null;

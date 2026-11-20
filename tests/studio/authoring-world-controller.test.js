@@ -55,6 +55,11 @@ describe('AuthoringWorldController', () => {
       dirty:false
     });
 
+    controller.restoreOverlayPresentation();
+    expect(controller.status()).toMatchObject({ id:'world_a', active:false });
+    await controller.openWorld('world_a');
+    expect(controller.status()).toMatchObject({ id:'world_a', active:true });
+
     authoring.get('house').position.x = 5;
     expect(controller.isDirty()).toBe(true);
 
@@ -83,6 +88,13 @@ describe('AuthoringWorldController', () => {
     });
     expect(authoring.get('house')).toBeTruthy();
     expect(authoring.get('house').position.x).toBe(0);
+
+    const renamed = await controller.renameWorld('world_a', 'Garden Renamed');
+    expect(renamed.name).toBe('Garden Renamed');
+    expect(controller.status().name).toBe('Garden Renamed');
+    await expect(controller.removeWorld('world_a')).rejects.toThrow('当前正在编辑的草稿不能删除');
+    expect(await controller.removeWorld('world_b')).toBe(true);
+    expect((await controller.list()).map(item => item.id)).toEqual(['world_a']);
   });
   it('does not create a save revision when persistence fails', async () => {
     const authoring = createAuthoring();

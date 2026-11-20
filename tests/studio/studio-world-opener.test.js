@@ -3,7 +3,7 @@ import { StudioWorldOpener } from '../../apps/studio/runtime/StudioWorldOpener.j
 
 const builtin = { id:'woodland-workshop', title:'林间工坊' };
 
-function harness({ authoring = null } = {}) {
+function harness({ authoring = null, confirmDiscard } = {}) {
   const session = { open:vi.fn(async(source, options) => ({
     status:'world-ready',
     materialized:typeof source === 'function' ? await source() : null,
@@ -16,7 +16,8 @@ function harness({ authoring = null } = {}) {
     builtins:[builtin],
     materializeBuiltin,
     materializeGenerated,
-    authoring
+    authoring,
+    confirmDiscard
   });
   return { opener, session, materializeBuiltin, materializeGenerated };
 }
@@ -30,6 +31,33 @@ describe('StudioWorldOpener', () => {
     expect(restoreOverlayPresentation).toHaveBeenCalledOnce();
   });
 
+  it('protects unsaved authoring changes before leaving for a runtime world', async () => {
+    const confirmDiscard = vi.fn(() => false);
+    const authoring = {
+      status:vi.fn(() => ({ active:true, id:'draft_01', name:'Draft 01' })),
+      isDirty:vi.fn(() => true),
+      restoreOverlayPresentation:vi.fn()
+    };
+    const h = harness({ authoring, confirmDiscard });
+
+    await expect(h.opener.open({ kind:'builtin', id:'woodland-workshop' })).rejects.toThrow('已取消切换');
+    expect(confirmDiscard).toHaveBeenCalledWith(expect.stringContaining('Draft 01'));
+    expect(h.session.open).not.toHaveBeenCalled();
+    expect(authoring.restoreOverlayPresentation).not.toHaveBeenCalled();
+  });
+
+  it('leaves a dirty authoring draft after explicit confirmation', async () => {
+    const authoring = {
+      status:vi.fn(() => ({ active:true, id:'draft_01', name:'Draft 01' })),
+      isDirty:vi.fn(() => true),
+      restoreOverlayPresentation:vi.fn()
+    };
+    const h = harness({ authoring, confirmDiscard:vi.fn(() => true) });
+
+    await h.opener.open({ kind:'builtin', id:'woodland-workshop' });
+    expect(authoring.restoreOverlayPresentation).toHaveBeenCalledOnce();
+    expect(h.session.open).toHaveBeenCalledOnce();
+  });
   it('materializes built-in worlds inside the WorldSession transaction', async () => {
     const restoreOverlayPresentation = vi.fn();
     const h = harness({ authoring:{ restoreOverlayPresentation } });

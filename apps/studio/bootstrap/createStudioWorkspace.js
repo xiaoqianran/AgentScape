@@ -118,7 +118,13 @@ export async function createStudioWorkspace({
     lifecycle,
     inspector:content.inspector,
     openAuthoringWorld,
-    newAuthoringWorld
+    newAuthoringWorld,
+    onAuthoringSaved:(record)=>{
+      const href = currentHref();
+      const route = parseStudioRoute(href);
+      if (route.page !== 'world' || (!route.authoringNew && !route.authoringId)) return;
+      globalThis.history?.replaceState?.(globalThis.history.state,'',authoringWorldUrl(href,record.id));
+    }
   });
 
   const applyWorldRoute = async () => {
@@ -141,7 +147,8 @@ export async function createStudioWorkspace({
     }
 
     if (route.authoringNew) {
-      await newAuthoringWorld({}, { historyMode:'none' });
+      const options = route.draftName ? { name:route.draftName } : {};
+      await newAuthoringWorld(options, { historyMode:'none' });
       await activation.authoringControls?.refresh?.();
       return;
     }

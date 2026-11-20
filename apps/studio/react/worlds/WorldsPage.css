@@ -158,7 +158,33 @@
 }
 
 .worlds-browser-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
   margin: 30px 0 16px;
+}
+
+.worlds-refresh {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--studio-border);
+  border-radius: 7px;
+  background: var(--studio-surface-1);
+  color: var(--studio-text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.worlds-refresh:hover:not(:disabled) {
+  border-color: var(--studio-border-strong);
+  color: var(--studio-text);
+  background: var(--studio-surface-2);
+}
+
+.worlds-refresh:disabled {
+  cursor: default;
+  opacity: .62;
 }
 
 .worlds-browser-heading h2 {
@@ -395,6 +421,11 @@
   background: var(--studio-surface-1);
 }
 
+.world-list-row.is-current {
+  border-color: rgba(var(--ds-accent-rgb),.48);
+  background: var(--studio-surface-2);
+}
+
 .world-list-icon {
   display: grid;
   place-items: center;
@@ -424,7 +455,30 @@
   white-space: nowrap;
 }
 
-.world-list-row button {
+.world-list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.world-list-meta span + span::before,
+.world-list-meta time::before {
+  content: '·';
+  margin-right: 6px;
+  color: var(--studio-text-3);
+}
+
+.world-list-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.world-list-actions button,
+.world-list-name-actions button {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -435,6 +489,78 @@
   background: var(--studio-surface-2);
   color: var(--studio-text);
   cursor: pointer;
+}
+
+.world-list-actions button:hover:not(:disabled),
+.world-list-name-actions button:hover:not(:disabled) {
+  border-color: var(--studio-border-strong);
+  background: var(--studio-surface-3);
+}
+
+.world-list-actions button:disabled,
+.world-list-name-actions button:disabled {
+  cursor: default;
+  opacity: .55;
+}
+
+.world-list-actions .world-list-open {
+  background: var(--studio-surface-3);
+}
+
+.world-list-actions .world-list-danger {
+  color: var(--studio-danger);
+}
+
+.world-list-name-editor {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.world-list-name-editor label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.world-list-name-editor input {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--studio-accent);
+  border-radius: 7px;
+  outline: none;
+  background: var(--studio-surface-2);
+  color: var(--studio-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.world-list-name-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.world-list-name-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.worlds-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 150px;
+  border: 1px dashed var(--studio-border-strong);
+  border-radius: 12px;
+  color: var(--studio-text-3);
+  font-size: 13px;
 }
 
 .worlds-empty {
@@ -540,6 +666,16 @@
     grid-template-columns: 1fr;
   }
 
+  .worlds-browser-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .worlds-refresh {
+    width: 100%;
+  }
+
   .worlds-filters button {
     flex: 1;
     justify-content: center;
@@ -548,6 +684,34 @@
 
   .worlds-filters {
     flex-wrap: wrap;
+  }
+
+  .world-list-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .world-list-icon {
+    flex-shrink: 0;
+  }
+
+  .world-list-copy {
+    flex-basis: calc(100% - 60px);
+  }
+
+  .world-list-actions {
+    width: 100%;
+    justify-content: flex-start;
+    padding-left: 60px;
+  }
+
+  .world-list-name-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .world-list-name-actions {
+    justify-content: flex-start;
   }
 
   .worlds-footer {

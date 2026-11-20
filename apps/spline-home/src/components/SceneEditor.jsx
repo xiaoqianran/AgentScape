@@ -168,7 +168,7 @@ export default function SceneEditor({ title = "Spline 3D Starter File", onBack, 
             <button type="button" className={styles.ghostBtn} onClick={() => onToast("Performance ok")}>
               Perf
             </button>
-            <button type="button" className={styles.ghostBtn} onClick={() => onToast("Share link copied")}>
+            <button type="button" className={styles.ghostBtn} onClick={() => onToast("Sharing is unavailable in this preview. No link was copied.")}>
               Share
             </button>
             <button type="button" className={styles.ghostBtn} onClick={() => onToast("Export .splinecode")}>

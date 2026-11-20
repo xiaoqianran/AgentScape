@@ -6,6 +6,7 @@ import { recents } from "../data/home.js";
 
 const ART_HUES = {
   starter: [222, 280],
+  draft: [215, 290],
   "mini-room": [280, 330],
   hana: [205, 240],
   "hana-light": [205, 240],
@@ -14,7 +15,7 @@ const ART_HUES = {
 
 const CHIPS = ["All Files", "Recent Files", "Trash"];
 
-export default function FilesPage({ onOpen, onToast, onNewProject }) {
+export default function FilesPage({ files = recents, onOpen, onToast, onNewProject }) {
   const [tab, setTab] = useState("mine");
   const [view, setView] = useState("grid");
   const [chip, setChip] = useState("All Files");
@@ -108,10 +109,10 @@ export default function FilesPage({ onOpen, onToast, onNewProject }) {
         </div>
       ) : view === "grid" ? (
         <div className={styles.grid}>
-          {recents.filter((file) => chip !== "Recent Files" || file.group === "previous").map((file) => (
+          {files.filter((file) => chip !== "Recent Files" || file.group === "previous").map((file) => (
             <div key={file.id} className={styles.card}>
               <div className={styles.thumbWrap}>
-                <button type="button" className={styles.thumbOpen} onClick={() => onOpen(file.name)} aria-label={`Open ${file.name}`}>
+                <button type="button" className={styles.thumbOpen} onClick={() => onOpen(file)} aria-label={`Open ${file.name}`}>
                   <Art hues={ART_HUES[file.art] || [222, 262]} seed={Number(file.id.slice(1)) % 4} light={file.art.startsWith("hana")} />
                 </button>
                 <button
@@ -126,7 +127,7 @@ export default function FilesPage({ onOpen, onToast, onNewProject }) {
                   <IconDots />
                 </button>
               </div>
-              <button type="button" className={styles.cardName} onClick={() => onOpen(file.name)}>
+              <button type="button" className={styles.cardName} onClick={() => onOpen(file)}>
                 {file.name}
               </button>
               <p className={styles.edited}>Edited {file.time}</p>
@@ -135,9 +136,9 @@ export default function FilesPage({ onOpen, onToast, onNewProject }) {
         </div>
       ) : (
         <ul className={styles.listView}>
-          {recents.filter((file) => chip !== "Recent Files" || file.group === "previous").map((file) => (
+          {files.filter((file) => chip !== "Recent Files" || file.group === "previous").map((file) => (
             <li key={file.id}>
-              <button type="button" className={styles.listRow} onClick={() => onOpen(file.name)}>
+              <button type="button" className={styles.listRow} onClick={() => onOpen(file)}>
                 <span className={styles.listThumb}>
                   <Art hues={ART_HUES[file.art] || [222, 262]} seed={1} light={file.art.startsWith("hana")} />
                 </span>

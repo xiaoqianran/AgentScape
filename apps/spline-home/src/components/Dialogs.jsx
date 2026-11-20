@@ -178,13 +178,15 @@ export function NewProjectModal({ onClose, onCreate }) {
   const [name, setName] = useState("Workspace Project");
   return (
     <Backdrop onClose={onClose} modal>
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="newProjectTitle">
+      <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="newProjectTitle" aria-describedby="newProjectHint">
         <h2 id="newProjectTitle" className={styles.modalTitle}>Create new project</h2>
+        <p id="newProjectHint" className={styles.fieldLabel}>Opens a draft in Studio. Save it there to keep it in this browser.</p>
         <label className={styles.fieldLabel} htmlFor="newProjectName">Project name</label>
         <input
           id="newProjectName"
           className={styles.fieldInput}
           value={name}
+          maxLength={100}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") onCreate(name.trim() || "Untitled");

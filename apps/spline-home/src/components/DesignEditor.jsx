@@ -147,8 +147,7 @@ export default function DesignEditor({ title = "Hana starter file", onBack, onTo
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey && prompt.trim()) {
                       e.preventDefault();
-                      onToast(`Queued: ${prompt.slice(0, 40)}…`);
-                      setPrompt("");
+                      onToast("Design generation is unavailable in this preview. Your prompt was not sent.");
                     }
                   }}
                 />
@@ -170,8 +169,7 @@ export default function DesignEditor({ title = "Hana starter file", onBack, onTo
                     className={styles.sendBtn}
                     disabled={!prompt.trim()}
                     onClick={() => {
-                      onToast(`Queued: ${prompt.slice(0, 40)}…`);
-                      setPrompt("");
+                      onToast("Design generation is unavailable in this preview. Your prompt was not sent.");
                     }}
                   >
                     ↑
@@ -256,7 +254,7 @@ export default function DesignEditor({ title = "Hana starter file", onBack, onTo
           <button type="button" className={styles.zoomBtn} onClick={() => setZoom(zoom === "5%" ? "Fit" : "5%")}>
             {zoom}
           </button>
-          <button type="button" className={styles.ghostBtn} onClick={() => onToast("Share link copied")}>
+          <button type="button" className={styles.ghostBtn} onClick={() => onToast("Sharing is unavailable in this preview. No link was copied.")}>
             Share
           </button>
           <button type="button" className={styles.exportBtn} disabled onClick={() => onToast("Export")}>

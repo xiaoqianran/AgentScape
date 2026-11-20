@@ -90,6 +90,26 @@ test('authoring draft can save, reload and reopen from the user file menu', asyn
   await verifyRenderedWorld(page, testInfo);
 });
 
+test('switching away from a saved draft clears the active draft state', async ({ page }) => {
+  await enterWorld(page);
+  await openFiles(page);
+  await page.locator('#authoring-new').click();
+  await page.locator('#authoring-save').click();
+  await expect(page.locator('#authoring-save-status')).toContainText('已保存');
+
+  await page.locator('#world-select').selectOption({ index:0 });
+  await expect(page.locator('#authoring-save-status')).toHaveText('当前世界 · 未启用创作草稿');
+  await expect(page.locator('#authoring-world-select')).toHaveValue('');
+  await expect(page.locator('#authoring-save')).toBeDisabled();
+  await expect(page.locator('#authoring-save-as')).toBeDisabled();
+
+  await page.locator('[data-product-nav="worlds"]').click();
+  await page.getByRole('button', { name:/我的草稿/ }).click();
+  const draftRow = page.locator('.world-list-row').first();
+  await expect(draftRow).not.toHaveClass(/is-current/);
+  await expect(draftRow.getByRole('button', { name:/删除/ })).toBeEnabled();
+
+});
 test('fixed protocol task starts, cancels its pending model request and retries from a fresh observation', async ({ page, gateway }, testInfo) => {
   let release;
   const blocked = new Promise(resolve => { release = resolve; });

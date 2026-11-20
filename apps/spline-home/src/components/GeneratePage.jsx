@@ -56,8 +56,7 @@ export default function GeneratePage({ onBack, onToast }) {
   const canGenerate = prompt.trim().length > 0;
 
   const queue = () => {
-    onToast(`Queued ${outputType} · ${engine}: ${prompt.slice(0, 40)}…`);
-    setPrompt("");
+    onToast("Generation is unavailable in this preview. Open AgentScape Studio to use configured providers.");
   };
 
   return (

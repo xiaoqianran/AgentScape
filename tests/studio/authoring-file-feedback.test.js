@@ -1,15 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import { bindAuthoringWorldControls } from '../../apps/studio/authoring/bindAuthoringWorldControls.js';
 
-function setup(options={}) {
+function setup(options={}, viewOptions={}) {
  const controller={
   status:()=>({id:null,name:'Untitled World',dirty:false,persisted:false}),
   list:vi.fn(async()=>[]),isDirty:()=>false,
   newWorld:vi.fn(async()=>({id:null})),openWorld:vi.fn(async()=>({id:'draft'})),
   save:vi.fn(async()=>({id:'draft',name:'Draft'})),saveAs:vi.fn(async()=>({id:'draft',name:'Draft'})),
+  renameWorld:vi.fn(async(id,name)=>({id,name})),
+  removeWorld:vi.fn(async()=>true),
   ...options
  };
- return {controller,view:bindAuthoringWorldControls({controller,log:vi.fn(),confirmImpl:()=>false})};
+ return {controller,view:bindAuthoringWorldControls({controller,log:vi.fn(),confirmImpl:()=>false,...viewOptions})};
 }
 
 describe('Authoring file operation feedback',()=>{
@@ -28,5 +30,17 @@ describe('Authoring file operation feedback',()=>{
   const {view}=setup({openWorld:open});
   try {await view.open('draft');expect(view.snapshot().fileError).toContain('missing file');expect(await view.open('draft')).toEqual({id:'draft'});expect(view.snapshot().fileError).toBe('');}
   finally {view.dispose()}
+ });
+ it('exposes rename and remove through the same operation feedback channel',async()=>{
+  const {view,controller}=setup({
+   list:vi.fn(async()=>[{id:'draft',name:'Draft'}])
+  }, { confirmImpl:()=>true });
+  try {
+   await new Promise((resolve)=>setTimeout(resolve,0));
+   expect(await view.rename('draft','Renamed')).toMatchObject({id:'draft',name:'Renamed'});
+   expect(controller.renameWorld).toHaveBeenCalledWith('draft','Renamed');
+   expect(await view.remove('draft')).toBe(true);
+   expect(controller.removeWorld).toHaveBeenCalledWith('draft');
+  } finally {view.dispose()}
  });
 });

@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { WorldsPage } from '../../apps/studio/react/worlds/WorldsPage.tsx';
+import { DraftWorldRow, WorldsPage } from '../../apps/studio/react/worlds/WorldsPage.tsx';
 
 describe('WorldsPage contract',()=>{
   it('shows real collection counts and previews without rendering three competing collections at once',()=>{
@@ -43,5 +43,26 @@ describe('WorldsPage contract',()=>{
     expect(html).not.toContain('Generated Garden');
     expect(html).not.toContain('Garden Draft');
     expect(html).not.toContain('UNSAVED');
+  });
+
+  it('keeps draft management and current-state actions visible in the list',()=>{
+    const html=renderToStaticMarkup(createElement(DraftWorldRow,{
+      world:{id:'draft_01',name:'Garden Draft',updatedAt:'2026-09-18T00:00:00.000Z'},
+      currentId:'draft_01',
+      dirty:true,
+      busyKey:null,
+      canManage:true,
+      onOpen:vi.fn(),
+      onRename:vi.fn(async()=>true),
+      onRemove:vi.fn()
+    }));
+
+    expect(html).toContain('data-world-id="draft_01"');
+    expect(html).toContain('当前草稿');
+    expect(html).toContain('有未保存修改');
+    expect(html).toContain('最近保存');
+    expect(html).toContain('重命名Garden Draft');
+    expect(html).toContain('删除Garden Draft');
+    expect(html).toContain('class="world-list-danger" type="button" disabled=""');
   });
 });

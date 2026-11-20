@@ -2,25 +2,29 @@ export function bindAuthoringWorldControls({
   controller,
   openWorld = (id) => controller.openWorld(id),
   newWorld = (options) => controller.newWorld(options),
+  renameWorld = (id, name) => controller.renameWorld(id, name),
+  removeWorld = (id) => controller.removeWorld(id),
+  onSaved = () => {},
   log = () => {},
   promptImpl = globalThis.prompt?.bind(globalThis),
   confirmImpl = globalThis.confirm?.bind(globalThis)
 } = {}) {
-  if (!controller) return { subscribe:()=>()=>{}, snapshot:()=>({worlds:[],status:null}), dispose:()=>{} };
+  if (!controller) return { subscribe:()=>()=>{}, snapshot:()=>({worlds:[],status:null,loading:false}), dispose:()=>{} };
 
   const listeners = new Set();
   let worlds = [];
   let status = controller.status();
   let disposed = false;
   let busy = false;
+  let loading = true;
   let message = '';
   let fileError = '';
   const promotionState = () => ({ nodes:controller.promotion?.list() || [], busy, message });
-  let viewSnapshot = Object.freeze({ worlds, status, fileError, ...promotionState() });
+  let viewSnapshot = Object.freeze({ worlds, status, loading, fileError, ...promotionState() });
 
   const emit = () => {
     status = controller.status();
-    viewSnapshot = Object.freeze({ worlds, status, fileError, ...promotionState() });
+    viewSnapshot = Object.freeze({ worlds, status, loading, fileError, ...promotionState() });
     for (const listener of listeners) listener();
   };
   const subscribe = (listener) => {
@@ -30,9 +34,20 @@ export function bindAuthoringWorldControls({
   const snapshot = () => viewSnapshot;
 
   const refresh = async () => {
-    worlds = await controller.list();
+    loading = true;
+    fileError = '';
     if (!disposed) emit();
-    return worlds;
+    try {
+      worlds = await controller.list();
+      return worlds;
+    } catch (error) {
+      fileError=`读取草稿列表失败：${error.message}`;
+      log(fileError,'error');
+      throw error;
+    } finally {
+      loading = false;
+      if (!disposed) emit();
+    }
   };
 
   const allowDiscard = () => {
@@ -73,6 +88,7 @@ export function bindAuthoringWorldControls({
     fileError='';emit();
     try {
       const record = await controller.save();
+      onSaved(record);
       await refresh();
       log(`创作世界已保存：${record.name}`,'result');
       return record;
@@ -89,11 +105,53 @@ export function bindAuthoringWorldControls({
     if (name == null) return null;
     try {
       const record = await controller.saveAs({ name });
+      onSaved(record);
       await refresh();
       log(`创作世界已另存为：${record.name}`,'result');
       return record;
     } catch (error) {
       fileError=`另存草稿失败：${error.message}`;emit();log(fileError,'error');
+      return null;
+    }
+  };
+
+  const rename = async (id, name = null) => {
+    fileError='';emit();
+    const current = worlds.find((world) => world.id === id);
+    const nextName = name == null
+      ? (promptImpl ? promptImpl('创作世界名称', current?.name || id) : current?.name || id)
+      : name;
+    if (nextName == null) return null;
+    if (!String(nextName).trim()) {
+      fileError='重命名草稿失败：名称不能为空';
+      emit();
+      return null;
+    }
+    try {
+      const record = await renameWorld(id, nextName);
+      await refresh();
+      log(`创作世界已重命名：${record.name}`,'result');
+      return record;
+    } catch (error) {
+      fileError=`重命名草稿失败：${error.message}`;emit();log(fileError,'error');
+      return null;
+    }
+  };
+
+  const remove = async (id) => {
+    fileError='';emit();
+    const current = worlds.find((world) => world.id === id);
+    const confirmed = confirmImpl
+      ? confirmImpl(`确定删除草稿“${current?.name || id}”吗？删除后无法恢复。`)
+      : false;
+    if (!confirmed) return null;
+    try {
+      const result = await removeWorld(id);
+      await refresh();
+      log(`已删除创作世界：${current?.name || id}`,'result');
+      return result;
+    } catch (error) {
+      fileError=`删除草稿失败：${error.message}`;emit();log(fileError,'error');
       return null;
     }
   };
@@ -108,6 +166,7 @@ export function bindAuthoringWorldControls({
   void refresh().catch((error)=>log(`读取创作世界列表失败：${error.message}`,'error'));
   const stops = ['authoring.changed', 'authoring.promotion.changed', 'scene.restored', 'history.changed', 'object.removed'].map(event =>
     controller.promotion?.world.events.on(event, () => { if (!disposed) emit(); })).filter(Boolean);
+  const stopStatus = controller.onStatusChange?.(() => { if (!disposed) emit(); });
 
   const promote = async (action, nodeId, options = {}) => {
     if (busy) return null;
@@ -139,12 +198,15 @@ export function bindAuthoringWorldControls({
     open,
     save,
     saveAs,
+    rename,
+    remove,
     promote,
     renderStatus:emit,
     dispose() {
       disposed=true;
       listeners.clear();
       for (const stop of stops) stop();
+      stopStatus?.();
       globalThis.window?.removeEventListener?.('beforeunload',beforeUnload);
     }
   };

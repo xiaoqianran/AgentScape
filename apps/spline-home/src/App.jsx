@@ -15,7 +15,8 @@ import ArenaPage from "./components/ArenaPage.jsx";
 import { WorkspaceMenu, InboxPanel, NewProjectModal, ImportModal } from "./components/Dialogs.jsx";
 import { IconSearch, IconClose } from "./components/icons.jsx";
 import { workspace, recents, routeTitles, importAccept, paintThumb } from "./data/home.js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { loadAuthoringRecents } from "./data/localDrafts.js";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const ROUTES = ["home", "scene", "design", "generate", "files", "templates", "community", "academy", "arena"];
 
@@ -61,6 +62,7 @@ export default function App() {
   const [importOpen, setImportOpen] = useState(false);
   const [sceneFile, setSceneFile] = useState("Spline 3D Starter File");
   const [designFile, setDesignFile] = useState("Hana starter file");
+  const [authoringRecents, setAuthoringRecents] = useState([]);
   const importRef = useRef(null);
   const skipHashSync = useRef(false);
 
@@ -95,6 +97,20 @@ export default function App() {
     return () => {
       window.removeEventListener("hashchange", onHash);
       window.removeEventListener("popstate", onPop);
+    };
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    void loadAuthoringRecents()
+      .then((files) => {
+        if (!disposed) setAuthoringRecents(files);
+      })
+      .catch(() => {
+        // Keep the built-in examples available when local storage is unavailable.
+      });
+    return () => {
+      disposed = true;
     };
   }, []);
 
@@ -137,13 +153,19 @@ export default function App() {
   };
 
   const createProject = (name) => {
-    setNewProjectOpen(false);
-    setSceneFile(name);
-    onRoute("scene");
-    showToast(`Created “${name}”`);
+    const params = new URLSearchParams({ authoring: "new", draftName: name });
+    window.location.assign(`/studio/?${params}`);
   };
 
-  const openFile = (name) => {
+  const openFile = (fileOrName) => {
+    const file = typeof fileOrName === "string" ? { name: fileOrName } : fileOrName;
+    if (file?.kind === "authoring" && file.authoringId) {
+      const params = new URLSearchParams({ authoring: file.authoringId, page: "world" });
+      window.location.assign(`/studio/?${params}`);
+      return;
+    }
+
+    const name = file?.name || "";
     if (name.includes("Hana")) {
       setDesignFile(name);
       onRoute("design");
@@ -156,9 +178,10 @@ export default function App() {
   };
 
   const isShell = route === "home" || route === "files" || route === "templates" || route === "community" || route === "academy";
+  const recentFiles = useMemo(() => [...authoringRecents, ...recents], [authoringRecents]);
 
   const query = searchQuery.trim().toLowerCase();
-  const matches = recents.filter((file) => !query || file.name.toLowerCase().includes(query));
+  const matches = recentFiles.filter((file) => !query || file.name.toLowerCase().includes(query));
   const searchGroups = query
     ? [{ id: "results", label: "RESULTS", items: matches }]
     : [
@@ -198,7 +221,18 @@ export default function App() {
                 <>
                   <div className={styles.homeCol}>
                     <h1 className={styles.welcome}>Welcome back, {workspace.user}</h1>
+                    <section className={styles.startLinks} aria-label="Get started with AgentScape">
+                      <a className={styles.studioLink} href="/studio/">
+                        <strong>Open Studio</strong>
+                        <span>Build, edit and save your 3D worlds.</span>
+                      </a>
+                      <a className={styles.starterLink} href="/starter/">
+                        <strong>Try Starter</strong>
+                        <span>Pick up, place and save objects in a guided world.</span>
+                      </a>
+                    </section>
                     <HomeRecents
+                      files={recentFiles}
                       onOpen={openFile}
                       onViewAll={() => onRoute("files")}
                       onTrash={() => showToast("Trash — 2 files")}
@@ -211,6 +245,7 @@ export default function App() {
                 </>
               ) : route === "files" ? (
                 <FilesPage
+                  files={recentFiles}
                   onOpen={openFile}
                   onToast={showToast}
                   onNewProject={() => setNewProjectOpen(true)}
@@ -316,7 +351,7 @@ export default function App() {
                       className={styles.searchResult}
                       onClick={() => {
                         setSearchOpen(false);
-                        openFile(file.name);
+                        openFile(file);
                       }}
                     >
                       <SearchThumb art={file.art} />

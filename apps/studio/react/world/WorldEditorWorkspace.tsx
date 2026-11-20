@@ -16,9 +16,13 @@ import { CodeProjectEditor, CodeProjectActions, emptyCodeSubscribe, emptyCodeSna
 function AuthoringMenu({ controller }: { controller:any }) {
   const state:any = useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
   const [selected,setSelected] = useState('');
+  const authoringActive = state.status?.active === true;
   useEffect(()=>{
-    if (state.status?.id) setSelected(state.status.id);
-  },[state.status?.id]);
+    setSelected(authoringActive && state.status?.id ? state.status.id : '');
+  },[authoringActive,state.status?.id]);
+  const statusLabel = authoringActive
+    ? `${state.status?.name==='Untitled World'?'未命名草稿':state.status?.name || '未命名草稿'}${!state.status?.id ? ' · 尚未保存' : state.status?.dirty ? ' · 有未保存更改' : ' · 已保存'}`
+    : '当前世界 · 未启用创作草稿';
   return (
     <>
       <div className="toolbar-menu-label">创作世界</div>
@@ -28,11 +32,11 @@ function AuthoringMenu({ controller }: { controller:any }) {
       </select>
       <button id="authoring-new" type="button" onClick={()=>void controller.createNew()}>新建草稿</button>
       <button id="authoring-open" disabled={!selected} type="button" onClick={()=>void controller.open(selected)}>打开草稿</button>
-      <button id="authoring-save" type="button" onClick={()=>void controller.save()}>保存草稿</button>
-      <button id="authoring-save-as" type="button" onClick={()=>void controller.saveAs()}>草稿另存为</button>
-      <span id="authoring-save-status" className="toolbar-menu-status">{state.status?.name==='Untitled World'?'未命名草稿':state.status?.name || '未命名草稿'}{!state.status?.id ? ' · 尚未保存' : state.status?.dirty ? ' · 有未保存更改' : ' · 已保存'}</span>
+      <button id="authoring-save" disabled={!authoringActive} type="button" onClick={()=>void controller.save()}>保存草稿</button>
+      <button id="authoring-save-as" disabled={!authoringActive} type="button" onClick={()=>void controller.saveAs()}>草稿另存为</button>
+      <span id="authoring-save-status" className="toolbar-menu-status">{statusLabel}</span>
       {state.fileError ? <span className="toolbar-menu-status" role="alert">{state.fileError}</span> : null}
-      <AuthoringPromotionView state={state} controller={controller} />
+      {authoringActive ? <AuthoringPromotionView state={state} controller={controller} /> : null}
     </>
   );
 }

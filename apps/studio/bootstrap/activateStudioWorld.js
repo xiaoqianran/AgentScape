@@ -14,7 +14,8 @@ export async function activateStudioWorld({
   lifecycle,
   inspector,
   openAuthoringWorld = (id)=>lifecycle.worldOpener.open({ kind:'authoring', id }),
-  newAuthoringWorld = (options)=>lifecycle.worldOpener.open({ kind:'authoring-new', options })
+  newAuthoringWorld = (options)=>lifecycle.worldOpener.open({ kind:'authoring-new', options }),
+  onAuthoringSaved
 }) {
   const log=(text,kind)=>taskPanel.log(text,kind);
   const runtimeEvents=bindRuntimeEvents({
@@ -44,6 +45,7 @@ export async function activateStudioWorld({
     controller:authoringWorlds,
     openWorld:(id)=>openAuthoringWorld(id),
     newWorld:(options)=>newAuthoringWorld(options),
+    onSaved:onAuthoringSaved,
     log
   }) : null;
   ui.attachAuthoring?.(authoringControls);

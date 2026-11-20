@@ -111,6 +111,56 @@
   letter-spacing: -0.02em;
 }
 
+.startLinks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.startLinks a {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 14px 16px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.startLinks a:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+.startLinks strong {
+  font-size: 15px;
+}
+
+.startLinks span {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.startLinks .studioLink {
+  background: #e8f0ff;
+  color: #172743;
+}
+
+.startLinks .studioLink:hover {
+  background: #cbdcff;
+}
+
+.startLinks .starterLink {
+  border-color: var(--color-border);
+  background: #262626;
+}
+
+.startLinks .starterLink:hover {
+  background: #333;
+}
+
 .aiDock {
   position: sticky;
   bottom: 16px;

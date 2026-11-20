@@ -25,6 +25,7 @@ export function parseStudioRoute(currentHref) {
     worldArtifactId:url.searchParams.get('worldArtifact'),
     authoringId:authoring && authoring !== 'new' ? authoring : null,
     authoringNew:authoring === 'new',
+    draftName:authoring === 'new' ? url.searchParams.get('draftName')?.trim().slice(0,100).trim() || null : null,
     externalGenerated:Boolean(url.searchParams.get('worldManifest') || url.searchParams.get('mesh'))
   });
 }
@@ -40,7 +41,7 @@ export function studioProductUrl(currentHref, { page = 'worlds', agentView = 'ta
 
 export function builtInWorldUrl(currentHref, worldId) {
   const url = asUrl(currentHref);
-  for (const key of [...GENERATED_SOURCE_KEYS,'worldArtifact','authoring']) url.searchParams.delete(key);
+  for (const key of [...GENERATED_SOURCE_KEYS,'worldArtifact','authoring','draftName']) url.searchParams.delete(key);
   url.searchParams.set('world',worldId);
   url.searchParams.set('page','world');
   url.searchParams.delete('agent');
@@ -49,7 +50,7 @@ export function builtInWorldUrl(currentHref, worldId) {
 
 export function generatedArtifactWorldUrl(currentHref, artifactId) {
   const url = asUrl(currentHref);
-  for (const key of [...GENERATED_SOURCE_KEYS,'world','authoring']) url.searchParams.delete(key);
+  for (const key of [...GENERATED_SOURCE_KEYS,'world','authoring','draftName']) url.searchParams.delete(key);
   url.searchParams.set('worldArtifact',artifactId);
   url.searchParams.set('page','world');
   url.searchParams.delete('agent');
@@ -58,7 +59,7 @@ export function generatedArtifactWorldUrl(currentHref, artifactId) {
 
 export function authoringWorldUrl(currentHref, authoringId = null) {
   const url = asUrl(currentHref);
-  for (const key of [...GENERATED_SOURCE_KEYS,'world','worldArtifact']) url.searchParams.delete(key);
+  for (const key of [...GENERATED_SOURCE_KEYS,'world','worldArtifact','draftName']) url.searchParams.delete(key);
   url.searchParams.set('authoring',authoringId || 'new');
   url.searchParams.set('page','world');
   url.searchParams.delete('agent');

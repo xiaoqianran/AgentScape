@@ -60,6 +60,17 @@ describe('AuthoringWorldStore', () => {
     }]);
     expect(list[0]).not.toHaveProperty('document');
 
+    const renamed = await second.rename('garden', 'Garden Renamed');
+    expect(renamed).toMatchObject({
+      id:'garden',
+      name:'Garden Renamed',
+      createdAt:'2026-09-18T00:00:00.000Z',
+      updatedAt:'2026-09-18T00:00:02.000Z'
+    });
+    expect((await second.load('garden')).name).toBe('Garden Renamed');
+    expect(await second.rename('missing', 'Missing')).toBeNull();
+    await expect(second.rename('garden', '   ')).rejects.toThrow('requires name');
+
     expect(await second.remove('garden')).toBe(true);
     expect(await second.load('garden')).toBeNull();
     expect(await second.remove('garden')).toBe(false);

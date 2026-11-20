@@ -153,6 +153,18 @@ export function paintThumb(canvas, kind) {
       ctx.fill();
       break;
     }
+    case "draft": {
+      fill("#171a24");
+      ctx.fillStyle = "#84d8ff";
+      ctx.fillRect(12, 12, 64, 4);
+      ctx.fillStyle = "#7b6cff";
+      ctx.fillRect(12, 22, 42, 22);
+      ctx.fillStyle = "#ff8acb";
+      ctx.fillRect(60, 22, 16, 22);
+      ctx.fillStyle = "#d6f6ff";
+      ctx.fillRect(20, 28, 26, 4);
+      break;
+    }
     case "hana": {
       fill("#f4f4f4");
       ctx.strokeStyle = "#222";
