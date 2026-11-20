@@ -26,8 +26,8 @@ export function acceptedSceneChecks(result) {
   return evidence.checks;
 }
 
-export async function runPiAgent({prompt,configuration,signal,emit=()=>{},mcpConnector=connectStudioMcp}={}) {
-  const connection=await mcpConnector({url:configuration.mcpUrl,token:configuration.mcpToken,signal});
+export async function runPiAgent({prompt,configuration,signal,projectScope,emit=()=>{},mcpConnector=connectStudioMcp}={}) {
+  const connection=await mcpConnector({url:configuration.mcpUrl,token:configuration.mcpToken,signal,projectScope});
   const {models,model}=createPiModel(configuration);
   const agent=new Agent({
     initialState:{systemPrompt:[
@@ -46,7 +46,7 @@ export async function runPiAgent({prompt,configuration,signal,emit=()=>{},mcpCon
   const execution=[];
   const calls=new Map();
   const addedTargets=new Set();
-  let projectNeedsRun=false, evidenceRevision=null, evidenceChecks=[];
+  let projectSaved=false, projectNeedsRun=Boolean(projectScope), evidenceRevision=null, evidenceChecks=[];
   const unresolved=new Map();
   let lastFailure='', repeats=0, failedCalls=0, retryLimit=false;
   const unsubscribe=agent.subscribe(event=>{
@@ -71,11 +71,16 @@ export async function runPiAgent({prompt,configuration,signal,emit=()=>{},mcpCon
         evidenceRevision=null;
       }
       if(event.toolName==='studio_project' && !event.isError){
-        if(['write','patch','file','resource','apply_batch','undo_batch','open'].includes(args.operation))projectNeedsRun=true;
+        if(['write','patch','file','resource','apply_batch','undo_batch','open'].includes(args.operation)){
+          projectNeedsRun=true;
+          projectSaved=false;
+        }
+        if(args.operation==='save' && payload?.status==='succeeded')projectSaved=true;
         if(args.operation==='run' && payload?.status==='project-running'){
           projectNeedsRun=false;
+          if(projectScope)addedTargets.clear();
           for(const entity of payload.observation?.project?.entities || []){
-            if(entity.id && prompt.includes(entity.id))addedTargets.add(entity.id);
+            if(entity.id && (projectScope || prompt.includes(entity.id)))addedTargets.add(entity.id);
           }
         }
       }
@@ -116,9 +121,10 @@ export async function runPiAgent({prompt,configuration,signal,emit=()=>{},mcpCon
     emit({type:'run.started',backend:'pi',worldSessionId:connection.worldSessionId});
     await agent.prompt(prompt);
     const stopped=Boolean(signal?.aborted);
+    if(projectScope && projectSaved && verification)unresolved.clear();
     let status='no-mutation';
     if(stopped)status='cancelled';
-    else if(retryLimit || agent.state.errorMessage || unresolved.size)status='incomplete';
+    else if(retryLimit || agent.state.errorMessage || unresolved.size || (projectScope && (!projectSaved || !verification)))status='incomplete';
     else if(connection.mutations.length)status=verification?'completed':'incomplete';
     const result={backend:'pi',message:retryLimit?'工具失败次数达到上限，已停止本轮重试。':lastMessage||agent.state.errorMessage||'',taskStatus:status,
       steps,worldSessionId:connection.worldSessionId,mutations:connection.mutations,

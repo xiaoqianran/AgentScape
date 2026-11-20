@@ -9,7 +9,7 @@ import {startServer} from '../../apps/mcp-server/main.mjs';
 import {runDshAgent} from '../../apps/agent-host/DshAgentBackend.js';
 
 describe('actual DSH subprocess with mock NewAPI + restricted MCP',()=>{
-  it.skipIf(process.env.AGENTSCAPE_DSH_INTEGRATION!=='1')('runs SDK model and invokes Studio scene_observe via restricted MCP',async()=>{
+  it.skipIf(process.env.AGENTSCAPE_DSH_INTEGRATION!=='1').each([false,true])('runs SDK model with project scope enabled=%s',async scoped=>{
     const work=await mkdtemp(path.join(tmpdir(),'agentscape-dsh-integration-'));
     const saveKeys=['AGENTSCAPE_LLM_BASE_URL','AGENTSCAPE_LLM_MODEL','AGENTSCAPE_LLM_API_KEY',
       'AGENTSCAPE_MCP_TOKEN','AGENTSCAPE_MCP_URL','DSH_SYSTEM_PROMPT'];
@@ -65,9 +65,15 @@ describe('actual DSH subprocess with mock NewAPI + restricted MCP',()=>{
           fileURLToPath(new URL('../../apps/agent-host/dsh-restricted.patch.yml',import.meta.url)),
           fileURLToPath(new URL('../../apps/agent-host/dsh-newapi.patch.yml',import.meta.url))],
         dshHome:path.join(work,'dsh-home')};
-      const result=await runDshAgent({prompt:'Observe the world',configuration:config});
+      const projectId='world_'+'c'.repeat(32);
+      const result=await runDshAgent({prompt:'Observe the world',configuration:config,
+        projectScope:scoped ? worldSessionId+'/'+projectId : undefined});
       const observedRequest=await observed;
       expect(observedRequest.method).toBe('observe');
+      if(scoped){
+        expect(observedRequest.args.expectedProjectId).toBe(projectId);
+        expect(modelTools).not.toContain('mcp__agentscape__asset_build_submit');
+      }
       expect(modelCalls).toBeGreaterThanOrEqual(2);
       expect(modelTools).toContain('mcp__agentscape__scene_observe');
       expect(modelTools).not.toContain('mcp__agentscape__authoring_execute');

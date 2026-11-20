@@ -2,13 +2,14 @@ import { DeepSeekHarness } from '@deepseek-ai/dsh-sdk-client';
 
 // The DSH SDK spawns a separate process. Require an explicit reviewed profile
 // patch: the stock SDK profile may expose Shell/filesystem tools.
-export async function runDshAgent({prompt,configuration,signal,emit=()=>{},harnessFactory=null}={}) {
+export async function runDshAgent({prompt,configuration,signal,projectScope,emit=()=>{},harnessFactory=null}={}) {
   if(!configuration.dshPatch || !configuration.dshProvider || !configuration.dshModel)
     throw Object.assign(new Error('DSH_RESTRICTED_PROFILE_REQUIRED'),{code:'DSH_RESTRICTED_PROFILE_REQUIRED'});
   if(signal?.aborted)return {backend:'dsh',taskStatus:'cancelled',message:'Cancelled'};
   const harness=harnessFactory?.() || new DeepSeekHarness({
     profile:'sdk-minimal',patches:configuration.dshPatches||[configuration.dshPatch],dshHome:configuration.dshHome,
     provider:configuration.dshProvider,model:configuration.dshModel,
+    ...(projectScope ? {env:{...process.env,AGENTSCAPE_PROJECT_SCOPE:projectScope}} : {}),
     approvalRequests:true,initializeTimeoutMs:45000
   });
   let running=true;

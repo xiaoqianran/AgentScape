@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { createHash } from 'node:crypto';
+import { connectStudioMcp } from './McpWorldTools.js';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
@@ -52,8 +54,27 @@ async function readJson(req){
   }
   return JSON.parse(Buffer.concat(parts).toString('utf8'));
 }
+export function isNewWorldRequest(prompt) {
+  const command = prompt.trim().replace(/^(?:(?:请(?:你)?|帮我|给我|能否|可以|你能)\s*)+/, '');
+  return /^(?:创建|新建|生成|搭建|建造|构建|打造|做)(?![^，。！？\n]{0,80}(?:当前|这个|原有|现有)世界)[^，。！？\n]{0,80}世界(?![地图观里中内])/u.test(command)
+    || /^(?:please\s+)?(?:create|build|generate|make)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:new\s+)?(?:[\w-]+\s+){0,5}world\b(?!\s+(?:map|view|building)\b)/i.test(command)
+      && !/^(?:please\s+)?(?:create|build|generate|make)\b[^.!?]*\b(?:in|inside|within)\s+(?:this|the current|the existing)\s+world\b/i.test(command);
+}
+
+async function prepareWorld(config, runId, signal) {
+  const id = 'world_' + createHash('sha256').update(runId).digest('hex').slice(0,32);
+  const connection = await connectStudioMcp({url:config.mcpUrl,token:config.mcpToken,signal});
+  try {
+    const tool = connection.tools.find(tool=>tool.name==='studio_project');
+    const result = await tool.execute(runId,{operation:'create_world',id},signal);
+    const project = JSON.parse(result.content[0].text);
+    if(project.id!==id)throw new Error('TASK_PROJECT_CREATE_FAILED');
+    return {...project,worldSessionId:connection.worldSessionId};
+  } finally { await connection.close(); }
+}
+
 export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',port=8789,
-  origins=DEFAULT_ORIGINS,backends={pi:runPiAgent,dsh:runDshAgent}}={}) {
+  origins=DEFAULT_ORIGINS,prepareProject=prepareWorld,backends={pi:runPiAgent,dsh:runDshAgent}}={}) {
   if(host!=='127.0.0.1')throw new Error('AGENT_HOST_LOOPBACK_REQUIRED');
   const runs=new Map(), enabled=readiness(config);
   const respond=(res,status,payload,origin)=>{
@@ -96,8 +117,18 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
     const stream=event=>{if(streaming&&!res.writableEnded)res.write(JSON.stringify(event)+'\n');};
     runs.set(input.runId,{controller});
     try{
-      const output=await backends[input.backend]({prompt:input.prompt,configuration:config,signal:controller.signal,
-        emit:event=>{if(events.length<250)events.push(event);stream(event);}});
+      const emit=event=>{if(events.length<250)events.push(event);stream(event);};
+      const project=isNewWorldRequest(input.prompt) ? await prepareProject(config,input.runId,controller.signal) : null;
+      const projectScope=project ? project.worldSessionId+'/'+project.id : undefined;
+      if(project)emit({type:'project.created',projectId:project.id,revision:project.revision});
+      const prompt=project ? [
+        'The Host has prepared a dedicated draft for this task. Use studio_project read to obtain the starter and guide.',
+        'Write the complete scene source via studio_project write with the current expectedRevision; use that same project.',
+        'Base the source on the starter entry point and runtime interfaces. Register the requested entities, run the revision, save it, and verify all requested entities together using scene_verify.',
+        'User request:',input.prompt
+      ].join('\n') : input.prompt;
+      const output=await backends[input.backend]({prompt,projectScope,configuration:config,signal:controller.signal,emit});
+      if(project)output.projectId=project.id;
       if(streaming){stream({type:'run.result',result:{...output,runId:input.runId}});res.end();return;}
       return respond(res,200,{...output,runId:input.runId,events},origin);
     }catch(error){

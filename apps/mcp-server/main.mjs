@@ -31,7 +31,7 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
    const {owner,body}=await authorize(req);
    if(req.url==='/agent-mcp'){
      if(req.method!=='POST'){res.writeHead(405).end();return;}
-     const answer=await handleRestrictedAgentMcp({body,owner,manager,assets,studioBridge});
+     const answer=await handleRestrictedAgentMcp({body,owner,manager,assets,studioBridge,scope:req.headers['x-agentscape-project']});
      if(answer.body===null){res.writeHead(answer.status).end();return;}
      const payload=JSON.stringify(answer.body);
      res.writeHead(answer.status,{'content-type':'application/json; charset=utf-8','content-length':Buffer.byteLength(payload)}).end(payload);

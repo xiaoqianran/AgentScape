@@ -25,8 +25,9 @@
                 throw new Error('AGENT_MCP_RESTRICTED_ROUTE_REQUIRED');
               return url.toString();
             })()
-        headers:
-          Authorization: !!js '`Bearer ${process.env.AGENTSCAPE_MCP_TOKEN}`'
+        headers: !!js >-
+          ({ Authorization: 'Bearer ' + process.env.AGENTSCAPE_MCP_TOKEN,
+             ...(process.env.AGENTSCAPE_PROJECT_SCOPE ? { 'x-agentscape-project': process.env.AGENTSCAPE_PROJECT_SCOPE } : {}) })
         startupTimeoutMs: 10000
         toolCallTimeoutMs: 60000
         failOnStartupError: true

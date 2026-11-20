@@ -21,6 +21,23 @@ async function fixture(store = new AuthoringWorldStore({indexedDBImpl:null})) {
 }
 
 describe('Studio complete code project ownership',()=>{
+ it('creates a distinct draft once and resumes it after reconnect without discarding edits',async()=>{
+  const f=await fixture();let other;
+  try {
+   await f.controller.write({create:true,project});await f.controller.run();
+   const id='world_'+'a'.repeat(32);
+   const created=await f.controller.createForTask({id});
+   expect(f.controller.session).toBeNull();
+   const written=await f.controller.write({source,expectedRevision:created.revision});
+   expect(await f.controller.createForTask({id})).toEqual({id,revision:written.revision});
+   other=await fixture(f.controller.store);
+   await other.controller.createForTask({id});
+   expect(other.controller.draft.source).toBe(source);
+   expect((await other.controller.store.list()).map(item=>item.id).sort()).toEqual([project.id,id].sort());
+   await other.controller.run();
+   expect(other.controller.scene.inspect('counter').state.value).toBe(1);
+  } finally {other?.close();f.close();}
+ });
  it('routes tools to the visible instance, retains state across edits, persists and reopens in another controller',async()=>{
   const f=await fixture();let other;
   try {

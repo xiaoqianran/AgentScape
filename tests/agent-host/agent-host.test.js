@@ -1,13 +1,13 @@
 import {describe,it,expect,afterEach} from 'vitest';
-import {createAgentHost} from '../../apps/agent-host/AgentHost.mjs';
+import {createAgentHost,isNewWorldRequest} from '../../apps/agent-host/AgentHost.mjs';
 
 const ORIGIN='http://localhost:5173';
 const configuration={baseUrl:'https://test.invalid/v1',apiKey:'test',modelId:'test',
   mcpToken:'z'.repeat(32),dshPatch:'C:/approved/restricted.yml',dshProvider:'test',dshModel:'test'};
 const active=[];
 afterEach(async()=>{while(active.length)await active.pop().close();});
-async function setup(backends){
-  const host=createAgentHost({config:configuration,port:0,backends});
+async function setup(backends,prepareProject){
+  const host=createAgentHost({config:configuration,port:0,backends,prepareProject});
   const address=await host.listen();active.push(host);
   return 'http://127.0.0.1:'+address.port;
 }
@@ -15,6 +15,14 @@ const json=(url,path,body,origin=ORIGIN)=>fetch(url+path,{
   method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(body)
 });
 describe('dual agent host transport',()=>{
+  it('distinguishes creating a world from editing or discussing a world',()=>{
+    expect(isNewWorldRequest('帮我创建一个有房子和苹果树的世界')).toBe(true);
+    expect(isNewWorldRequest('Build a new orchard world')).toBe(true);
+    for(const prompt of ['在这个世界加一棵树','创建一个现有世界里的房子','创建世界地图',
+      '如何创建一个世界','Create a world map','Add a tree in the current world']){
+      expect(isNewWorldRequest(prompt)).toBe(false);
+    }
+  });
   it('rejects foreign origins and does not leak model keys in health',async()=>{
     const url=await setup({pi:async()=>({}),dsh:async()=>({})});
     expect((await fetch(url+'/health',{headers:{origin:'https://evil.example'}})).status).toBe(403);
@@ -34,6 +42,18 @@ describe('dual agent host transport',()=>{
     expect((await a.json()).events).toEqual([{type:'run.started'}]);
     expect((await b.json()).backend).toBeUndefined();
     expect(calls).toEqual(['pi','dsh']);
+  });
+  it.each(['pi','dsh'])('prepares a scoped draft before invoking %s',async backend=>{
+    const calls=[];
+    const id='world_'+'a'.repeat(32), worldSessionId=crypto.randomUUID();
+    const run=async ({projectScope,prompt})=>{calls.push('backend');expect(projectScope).toBe(worldSessionId+'/'+id);
+      expect(prompt).toContain('创建一个有房子和苹果树的世界');return {taskStatus:'completed'};};
+    const url=await setup({pi:run,dsh:run},async (_config,runId)=>{
+      calls.push(runId);return {id,worldSessionId,revision:1};
+    });
+    const result=await (await json(url,'/run',{runId:'new_world_12345',backend,prompt:'创建一个有房子和苹果树的世界'})).json();
+    expect(calls).toEqual(['new_world_12345','backend']);
+    expect(result.projectId).toBe(id);
   });
   it('serializes world runs and aborts on cancellation',async()=>{
     let started;

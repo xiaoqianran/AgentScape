@@ -153,10 +153,22 @@ export class StudioLiveBridgeClient {
   }
   async execute(request){
     const {method,args={}}=request;
+    const { expectedProjectId, ...inputArgs } = args;
+    if (expectedProjectId && this.codeProjects?.draft?.id !== expectedProjectId)
+      throw failure('TASK_PROJECT_CHANGED');
+    if (expectedProjectId && method === 'verify' &&
+        (!this.codeProjects.session || this.codeProjects.runningRevision !== this.codeProjects.revision))
+      throw failure('RUN_DRAFT_BEFORE_VERIFY');
     if (method === 'project') {
       if (!this.codeProjects) throw failure('STUDIO_PROJECTS_UNAVAILABLE');
-      const { operation, ...input } = args;
-      if (operation === 'read') { await this.codeProjects.refresh(); return this.codeProjects.read(); }
+      const { operation, ...input } = inputArgs;
+      if (operation === 'create_world') return this.codeProjects.createForTask(input);
+      if (operation === 'read') {
+        await this.codeProjects.refresh();
+        if (expectedProjectId && this.codeProjects.draft?.id !== expectedProjectId)
+          throw failure('TASK_PROJECT_CHANGED');
+        return this.codeProjects.read();
+      }
       if (operation === 'write') return this.codeProjects.write(input);
       if (operation === 'patch') return this.codeProjects.patch(input);
       if (operation === 'file_read') return this.codeProjects.readFile(input.path,input);
@@ -181,7 +193,21 @@ export class StudioLiveBridgeClient {
       case 'interact':return this.scene.interact(args.interaction);
       case 'job':return this.scene.getJob(args.jobId);
       case 'cancel':return this.scene.cancelJob(args.jobId);
-      case 'verify':return this.scene.verify(args.criteria);
+      case 'verify': {
+        if (!expectedProjectId) return this.scene.verify(args.criteria);
+        const existing = new Set(args.criteria.filter(check=>check.kind==='object-exists').map(check=>check.targetId));
+        const ids = new Set(args.criteria.map(check=>check.id));
+        const additional = [];
+        for (const entity of this.scene.observe().project?.entities || []) {
+          if (existing.has(entity.id)) continue;
+          let index = ids.size;
+          while (ids.has('task-entity-'+index)) index++;
+          const id = 'task-entity-'+index;
+          ids.add(id);
+          additional.push({id,kind:'object-exists',targetId:entity.id});
+        }
+        return this.scene.verify([...args.criteria,...additional]);
+      }
       case 'thermal':return this.scene.thermalExperiment(args);
       case 'addModel':{
         let model=args.model;

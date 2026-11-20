@@ -238,32 +238,52 @@ export class StudioCodeProjects {
       return { status:'project-opened', id, revision:this.revision };
     });
   }
-  async close() {
+  async createForTask({ id }) {
+    if (!/^world_[a-f0-9]{32}$/.test(id || '')) throw fail('PROJECT_ID_INVALID');
     return this.exclusive(async () => {
-      if (this.session) {
-        const saved = (await this.session.save()).value;
-        // Preserve unrun edits and the last live state together on return to built-in worlds.
-        const project = this.runningRevision === this.revision ? saved : { ...withoutIntegrity(this.draft), state:saved.state, runtime:saved.runtime };
-        await this.persist(project); this.draft = project;
-        const previous = this.session;
-        // 返回内置 World 前先切换外部视图；回调失败仍保留原会话。
-        this.session = null;
-        try {
-          this.onActivate(null);
-          previous.close();
-        } catch (error) {
-          this.session = previous;
-          try { this.onActivate(previous); } catch { /* 保留首次错误 */ }
-          throw error;
-        }
-        this.runningRevision = null;
-        this.stopFrameError?.();
-        this.stopFrameError = null;
-      }
-      this.pendingBatch = null; this.lastBatch = null;
-      this.visible = false; this.emit();
-      return { status:'project-closed' };
+      if (this.draft?.id === id) return { id, revision:this.revision };
+      const saved = await this.store.load(id);
+      const project = await parseCodeProject(saved?.document.project || {
+        schema:'agentscape.code-project', schemaVersion:1, id,
+        name:'New world', source:projectTemplate, resources:{}
+      });
+      await this.closeProject();
+      const revision = Math.max(this.revision + 1, saved?.document.revision || 0);
+      await this.persist(project, revision);
+      this.draft = project;
+      this.revision = revision;
+      this.visible = true;
+      this.onShow();
+      return { id, revision };
     });
+  }
+  async close() {
+    return this.exclusive(() => this.closeProject());
+  }
+  async closeProject() {
+    if (this.session) {
+      const saved = (await this.session.save()).value;
+      // Preserve unrun edits and the last live state together on return to built-in worlds.
+      const project = this.runningRevision === this.revision ? saved : { ...withoutIntegrity(this.draft), state:saved.state, runtime:saved.runtime };
+      await this.persist(project); this.draft = project;
+      const previous = this.session;
+      // 返回内置 World 前先切换外部视图；回调失败仍保留原会话。
+      this.session = null;
+      try {
+        this.onActivate(null);
+        previous.close();
+      } catch (error) {
+        this.session = previous;
+        try { this.onActivate(previous); } catch { /* 保留首次错误 */ }
+        throw error;
+      }
+      this.runningRevision = null;
+      this.stopFrameError?.();
+      this.stopFrameError = null;
+    }
+    this.pendingBatch = null; this.lastBatch = null;
+    this.visible = false; this.emit();
+    return { status:'project-closed' };
   }
   dispose() { this.stopFrameError?.(); this.session?.close(); this.listeners.clear(); this.pendingBatch=null; this.lastBatch=null; }
   wrapTools(base) {

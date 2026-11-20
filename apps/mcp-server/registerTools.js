@@ -20,7 +20,7 @@ export const actionSchemas={
  approachAndPickup:z.object({actorId:id,targetId:id,speed}).strict(),
  approachAndPlace:z.object({actorId:id,supportId:id,surfaceId:id.optional(),speed}).strict()
 };
-export function registerTools(server,manager,owner,assets,studioBridge=null,{agentOnly=false}={}) {
+export function registerTools(server,manager,owner,assets,studioBridge=null,{agentOnly=false,projectScope}={}) {
  const session={worldSessionId:z.uuid()};
  const sceneSession={worldSessionId:z.uuid().optional()};
  const add=(name,description,shape,fn)=>agentOnly && !AGENT_STUDIO_MCP_SET.has(name) ? null : server.registerTool(name,{description,inputSchema:z.object(shape).strict()},async(a,extra)=>{
@@ -60,7 +60,8 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
  add('asset_list','List your published asset versions, paginated.',{offset:z.number().int().min(0).max(128).default(0),limit:z.number().int().min(1).max(20).default(20)},async a=>{const all=await assets.repository.list(owner);return {assets:all.slice(a.offset,a.offset+a.limit),total:all.length,nextOffset:a.offset+a.limit<all.length?a.offset+a.limit:null};});
  const run=(a,fn,extra)=>manager.run(owner,a.worldSessionId,fn,{signal:extra?.signal});
  const sceneRun=async(a,method,args,fn,extra)=>{
-  const target=a.worldSessionId || studioBridge.currentSession(owner).worldSessionId;
+  const target=projectScope?.worldSessionId || a.worldSessionId || studioBridge.currentSession(owner).worldSessionId;
+  if(projectScope)args={...args,expectedProjectId:projectScope.projectId};
   if(studioBridge?.isStudioSession(target)) {
    studioBridge.ownerSession(owner,target);
    const ref=args.model?.asset;
@@ -72,6 +73,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
    }
    return studioBridge.call(owner,target,method,args,{signal:extra?.signal,requestId:a.requestId});
   }
+  if(projectScope)throw new Error('STUDIO_NOT_CONNECTED');
   return manager.run(owner,target,fn,{signal:extra?.signal,
     ...(a.requestId?{requestId:a.requestId,fingerprint:JSON.stringify([method,args])}:{})});
  };
@@ -85,7 +87,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
   }
  };
  add('studio_project','Create, edit, run, save and reopen complete trusted code worlds in the active Studio workbench. Use operation=read to list projects; open takes id from projects[].id. run takes expectedRevision from open/write. save persists the active project. Read first for source, revision and createProject API guide. file/file_read edit named JavaScript and shader files, resource imports embedded binary resources. write saves a draft; patch applies a unique exact-fragment edit with expectedRevision; preview_batch stages up to 32 changes for diff review, apply_batch commits them atomically, discard_batch drops the preview, and undo_batch reverts the latest batch; run activates it; save persists live state and assets. Not a sandbox. Use scene_observe/interact for dynamic actions.',{
-  ...sceneSession, operation:z.enum(['read','write','patch','file_read','file','resource','preview_batch','apply_batch','discard_batch','undo_batch','run','save','open','close']), requestId:z.uuid().optional(),
+  ...sceneSession, operation:z.enum(['read','write','patch','file_read','file','resource','preview_batch','apply_batch','discard_batch','undo_batch','run','save','open','close','create_world']), requestId:z.uuid().optional(),
   create:z.boolean().optional(), source:z.string().min(1).optional(), name:z.string().min(1).optional(),
   oldText:z.string().min(1).optional(), newText:z.string().optional(),
   action:z.enum(['create','write','patch','rename','delete','add']).optional(), path:z.string().min(1).max(180).optional(),
@@ -99,6 +101,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
     mime:z.string().optional(),base64:z.string().optional()}).strict()).min(1).max(32).optional()
  },(a,e)=>{
   const {worldSessionId,requestId,...args}=a;
+  if(projectScope && (a.create || ['open','close','create_world'].includes(a.operation)))throw new Error('TASK_PROJECT_SWITCH_FORBIDDEN');
   return sceneRun(a,'project',args,()=>{throw new Error('STUDIO_PROJECTS_UNAVAILABLE');},e);
  });
  const decodeModel=model=>{

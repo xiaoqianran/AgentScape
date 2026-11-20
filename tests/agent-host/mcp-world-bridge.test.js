@@ -41,6 +41,21 @@ describe('Pi/DSH shared restricted MCP boundary',()=>{
       app.studioBridge.reply(worldSessionId,studioToken,{requestId:request.requestId,result:{objects:[{id:'apple-tree'}]}});
       const result=await work;
       expect(result.content.some(part=>part.type==='text' && part.text.includes('apple-tree'))).toBe(true);
+
+      const projectId='world_'+'b'.repeat(32);
+      const scoped=await connectStudioMcp({url:'http://127.0.0.1:'+app.port+'/agent-mcp',token,
+        projectScope:worldSessionId+'/'+projectId});
+      try {
+        expect(scoped.tools.map(tool=>tool.name).sort()).toEqual(['scene_observe','scene_verify','studio_project']);
+        const project=scoped.tools.find(tool=>tool.name==='studio_project');
+        expect(project.parameters.properties.operation.enum).not.toContain('open');
+        await expect(project.execute('switch',{operation:'open',id:'other'})).rejects.toThrow('TASK_PROJECT_SWITCH_FORBIDDEN');
+        const pending=project.execute('write',{operation:'write',source:'new',expectedRevision:1});
+        const {request}=await app.studioBridge.poll(worldSessionId,studioToken);
+        expect(request.args).toMatchObject({operation:'write',expectedProjectId:projectId});
+        app.studioBridge.reply(worldSessionId,studioToken,{requestId:request.requestId,error:{code:'TASK_PROJECT_CHANGED'}});
+        await expect(pending).rejects.toThrow('TASK_PROJECT_CHANGED');
+      } finally {await scoped.close();}
     }finally{
       await connection?.close();
       await app?.close();

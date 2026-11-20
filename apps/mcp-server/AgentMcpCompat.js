@@ -10,7 +10,15 @@ function response(id,result,status=200) {
 function error(id,code,message,status=400) {
   return {status,body:{jsonrpc:'2.0',id,error:{code,message}}};
 }
-export async function handleRestrictedAgentMcp({body,owner,manager,assets,studioBridge,signal}={}) {
+function scopedSchema(name, input, projectScope) {
+  const schema=z.toJSONSchema(input,{target:'draft-7'});
+  if(projectScope && name==='studio_project'){
+    schema.properties.operation.enum=schema.properties.operation.enum.filter(op=>!['open','close','create_world'].includes(op));
+    delete schema.properties.create;
+  }
+  return schema;
+}
+export async function handleRestrictedAgentMcp({body,owner,manager,assets,studioBridge,signal,scope}={}) {
   if(!body || body.jsonrpc!=='2.0' || typeof body.method!=='string')
     return error(null,-32700,'Invalid JSON-RPC message');
   const {id=null,method,params={}}=body;
@@ -28,15 +36,21 @@ export async function handleRestrictedAgentMcp({body,owner,manager,assets,studio
   if(method==='ping')return response(id,{});
   if(method!=='tools/list' && method!=='tools/call')
     return error(id,-32601,'Method not found',404);
+  const match=scope == null ? null : /^([a-f0-9-]{36})\/(world_[a-f0-9]{32})$/.exec(scope);
+  if(scope != null && !match)return error(id,-32602,'Invalid project scope');
+  const projectScope=match && {worldSessionId:match[1],projectId:match[2]};
   const definitions=new Map();
   registerTools({registerTool(name,options,handler){
-    definitions.set(name,{options,handler});
-  }},manager,owner,assets,studioBridge,{agentOnly:true});
+    if(!projectScope || ['session_attach','studio_project','scene_observe','scene_verify'].includes(name))
+      definitions.set(name,{options,handler});
+  }},manager,owner,assets,studioBridge,{agentOnly:true,projectScope});
   if(method==='tools/list'){
     if(params?.cursor!=null)return error(id,-32602,'Unknown cursor');
     return response(id,{tools:[...definitions].map(([name,{options}])=>({
-      name,description:options.description,
-      inputSchema:z.toJSONSchema(options.inputSchema,{target:'draft-7'})
+      name,description:projectScope && name==='studio_project'
+        ? 'Edit the prepared draft. Read first for the starter, API guide and revision. Use write with source, name and expectedRevision. Run the returned revision and save the running project. Use file operations only for additional source or resources.'
+        : options.description,
+      inputSchema:scopedSchema(name, options.inputSchema, projectScope)
     }))});
   }
   const name=params?.name,entry=definitions.get(name);
@@ -52,6 +66,7 @@ export async function handleRestrictedAgentMcp({body,owner,manager,assets,studio
       return response(id,{isError:true,content:[{type:'text',text:JSON.stringify({code:'INVALID_TOOL_INPUT',diagnostics})}]});
     }
     const args=parsed.data;
+    if(projectScope && name==='session_attach')args.worldSessionId=projectScope.worldSessionId;
     const result=await entry.handler(args,{signal});
     return response(id,result);
   }catch(cause){

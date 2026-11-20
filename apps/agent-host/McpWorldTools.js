@@ -12,13 +12,14 @@ export function changesWorld(name, args = {}) {
   return ['scene_apply','scene_interact','scene_cancel'].includes(name);
 }
 
-export async function connectStudioMcp({url='http://127.0.0.1:39015/agent-mcp',token,signal}={}) {
+export async function connectStudioMcp({url='http://127.0.0.1:39015/agent-mcp',token,signal,projectScope}={}) {
   if (!token || token.length < 32) throw Object.assign(new Error('AGENTSCAPE_MCP_TOKEN_REQUIRED'),{code:'AGENTSCAPE_MCP_TOKEN_REQUIRED'});
   const address=new URL(url);
   if (address.protocol!=='http:' || !['127.0.0.1','localhost'].includes(address.hostname) || address.pathname!=='/agent-mcp')
     throw new Error('AGENTSCAPE_MCP_LOCAL_ONLY');
   const client=new McpClient({name:'agentscape-agent-host',version:'0.1.0'});
-  await client.connect(new StreamableHttpTransport({url:address.toString(),headers:{authorization:'Bearer '+token}}));
+  await client.connect(new StreamableHttpTransport({url:address.toString(),headers:{authorization:'Bearer '+token,
+    ...(projectScope?{'x-agentscape-project':projectScope}:{})}}));
   try {
     const session=await client.callTool('session_attach',{}, {signal});
     if (session.isError) throw new Error('STUDIO_NOT_CONNECTED');
