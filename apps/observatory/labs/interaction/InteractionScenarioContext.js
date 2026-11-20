@@ -6,7 +6,7 @@ import { PhysicsSystem } from "../../../../modules/world/runtime/systems/Physics
 import { RapierPhysicsBackend } from "../../../../modules/physics/RapierPhysicsBackend.js";
 import { SpatialSystem } from "../../../../modules/world/runtime/systems/SpatialSystem.js";
 import { InteractionSystem } from "../../../../modules/world/runtime/systems/InteractionSystem.js";
-import { installThreeBvhRuntime, ensureBoundsTrees } from "../../../../modules/world/runtime/spatial/ThreeBvhRuntime.js";
+import { ensureBoundsTrees, disposeBoundsTrees } from "../../../../modules/rendering/spatial/ThreeBvhRuntime.js";
 
 export class InteractionScenarioContext {
   constructor({ scene }) {
@@ -32,7 +32,6 @@ export class InteractionScenarioContext {
     this.lastSupportSurface = null;
     this.transition = null;
     this.events.on("*", (event) => this.eventLog.push(structuredClone(event)));
-    installThreeBvhRuntime();
   }
 
   async init() {
@@ -157,7 +156,7 @@ export class InteractionScenarioContext {
     for (const object of this.visuals) {
       this.scene.remove(object);
       object.traverse?.((node) => {
-        node.geometry?.disposeBoundsTree?.();
+        disposeBoundsTrees(node);
         node.geometry?.dispose?.();
         if (Array.isArray(node.material)) node.material.forEach((material) => material.dispose?.());
         else node.material?.dispose?.();

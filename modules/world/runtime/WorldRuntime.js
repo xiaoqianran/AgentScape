@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { installThreeBvhRuntime, ensureBoundsTrees } from './spatial/ThreeBvhRuntime.js';
+import { ensureBoundsTrees } from '../../rendering/spatial/ThreeBvhRuntime.js';
 import { EventBus } from '../../../foundation/EventBus.js';
 import { ObjectStore } from './ObjectStore.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
@@ -33,7 +33,6 @@ import { AudioSystem } from './systems/AudioSystem.js';
 import { SemanticWorldView } from './semantic/SemanticWorldView.js';
 import { EntityCapabilityRegistry } from './EntityCapabilityRegistry.js';
 import { RUNTIME_VERSION } from '../../../foundation/version.js';
-installThreeBvhRuntime();
 
 const mutationResultCommitted=(result)=>!(
   result?.committed===false ||

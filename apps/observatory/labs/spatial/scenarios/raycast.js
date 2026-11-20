@@ -17,7 +17,7 @@ export const spatialRaycastScenario = {
   assertions(ctx) {
     const debug = ctx.debugSnapshot();
     return [
-      { label: "BVH 加速射线检测已启用", pass: debug.bvh.installed && debug.bvh.raycast === "three-mesh-bvh" },
+      { label: "BVH 加速射线检测已启用", pass: debug.bvh.scope === "object-instance" && debug.bvh.raycast === "three-mesh-bvh" },
       { label: "射线至少命中一个对象", pass: (debug.ray?.hits?.length || 0) > 0 },
       { label: "最近命中 near-box", pass: debug.ray?.hits?.[0]?.id === "near-box", detail: debug.ray?.hits?.[0]?.id || "未命中" }
     ];

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { ObjectStore } from "../../../../modules/world/runtime/ObjectStore.js";
 import { SpatialSystem } from "../../../../modules/world/runtime/systems/SpatialSystem.js";
-import { installThreeBvhRuntime, ensureBoundsTrees, bvhRuntimeStatus } from "../../../../modules/world/runtime/spatial/ThreeBvhRuntime.js";
+import { ensureBoundsTrees, bvhRuntimeStatus, disposeBoundsTrees } from "../../../../modules/rendering/spatial/ThreeBvhRuntime.js";
 
 export class SpatialScenarioContext {
   constructor({ scene }) {
@@ -14,7 +14,6 @@ export class SpatialScenarioContext {
     this.lastFreeSpace = null;
     this.lastInside = null;
     this.lastStepMs = 0;
-    installThreeBvhRuntime();
   }
 
   async init() { return this; }
@@ -99,7 +98,7 @@ export class SpatialScenarioContext {
     for (const object of this.visuals) {
       this.scene.remove(object);
       object.traverse?.((node) => {
-        node.geometry?.disposeBoundsTree?.();
+        disposeBoundsTrees(node);
         node.geometry?.dispose?.();
         if (Array.isArray(node.material)) node.material.forEach((material) => material.dispose?.());
         else node.material?.dispose?.();

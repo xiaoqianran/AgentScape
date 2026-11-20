@@ -49,7 +49,7 @@ AgentScape 进入一个已经由宿主创建和驱动的 Three.js 项目，为�
 
 - 同一份 Three.js 构造器创建 `Scene`、`Camera`、`Object3D` 和资源。
 - 一个宿主 `Scene` 绑定一个 AgentScape Runtime。
-- 宿主自行调用 `composer.render()`、`renderer.render()` 或其他既有渲染路径。
+- 宿主自行调用 `composer.render()`、`renderer.render()` 或其他既有渲染路径。`NativeSceneHost` 不安装 Three.js 全局原型补丁。
 - 原生材质、`ShaderMaterial`、灯光、阴影、雾、InstancedMesh、`onBeforeRender` 和 OrbitControls 继续由宿主控制。
 - AgentScape 运行时只通过 `nativeScene.add(world.scene)` 进入宿主场景。
 - 碰撞和导航几何由 `walkableMesh`、`staticMeshes`、`colliders` 或 `navigationRoot` 显式提供。
@@ -57,7 +57,7 @@ AgentScape 进入一个已经由宿主创建和驱动的 Three.js 项目，为�
 ### B 级，需专项验收
 
 - 多相机和多视口。共享一个 Runtime，分别由宿主调用 `frame()` 后自行渲染。
-- WebGL2、WebGL1、WebGPU、XR、OffscreenCanvas。
+- WebGL2、WebGPU、XR、OffscreenCanvas。当前仓库使用的 Three.js 版本不再支持 WebGL1，不能将 WebGL1 列入兼容承诺。
 - EffectComposer 多 pass、RenderTarget、后处理中的深度和层级设置。
 - 宿主根节点固定平移、旋转和统一缩放后的坐标适配。
 

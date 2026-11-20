@@ -1,3 +1,5 @@
+import { disposeBoundsTrees } from './spatial/ThreeBvhRuntime.js';
+
 const disposeTextureValue = (value, textures) => {
   if (value?.isTexture && !textures.has(value)) {
     textures.add(value);
@@ -9,6 +11,7 @@ export const RELEASE_RESOURCE = Symbol('agentscape.release-resource');
 
 export function disposeObject3D(root) {
   if (root?.[RELEASE_RESOURCE]) return root[RELEASE_RESOURCE]();
+  disposeBoundsTrees(root);
   const geometries = new Set();
   const materials = new Set();
   const textures = new Set();
