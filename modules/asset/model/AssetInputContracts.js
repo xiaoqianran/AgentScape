@@ -7,6 +7,7 @@ const number = z.number().finite().min(-100).max(100);
 const size = z.number().finite().positive().max(100);
 const vector = z.tuple([number, number, number]);
 const sizes = z.tuple([size, size, size]);
+const nonnegativeSize = z.number().finite().min(0).max(100);
 const id = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
 export const packagePath = z.string().max(240).refine(value => value.startsWith('./') && value.slice(2).split('/').every(p => /^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(p) && !p.endsWith('.') && !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p)));
 const boxCollider = z.object({ shape: z.literal('box'), halfExtents: sizes, translation: vector.default(() => [0, 0, 0]) }).strict();
@@ -30,7 +31,11 @@ export const recipeSchema = z.object({
   parts: z.array(z.object({ id, parent: id.optional(), geometry: z.discriminatedUnion('type', [
     z.object({ type: z.literal('box'), size: sizes }).strict(),
     z.object({ type: z.literal('sphere'), radius: size }).strict(),
-    z.object({ type: z.literal('cylinder'), radius: size, height: size }).strict()
+    z.object({ type: z.literal('ellipsoid'), radii: sizes }).strict(),
+    z.object({ type: z.literal('cylinder'), radius: size, height: size }).strict(),
+    z.object({ type: z.literal('tapered-cylinder'), radiusTop: nonnegativeSize, radiusBottom: size, height: size }).strict(),
+    z.object({ type: z.literal('segment'), from: vector, to: vector, radiusStart: size, radiusEnd: nonnegativeSize })
+      .strict().refine(({from, to}) => Math.hypot(...from.map((v, i) => to[i] - v)) > 1e-6, 'Segment endpoints must differ')
   ]).optional(), position: vector.default(() => [0, 0, 0]),
     quaternion: z.tuple([number, number, number, number]).refine(q => Math.abs(Math.hypot(...q) - 1) < 0.0001).default(() => [0, 0, 0, 1]),
     scale: z.number().min(0.05).max(20).default(1),

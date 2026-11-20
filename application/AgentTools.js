@@ -19,7 +19,10 @@ export class AgentTools {
   async call(name, args = {}, internalContext = {}) {
     this.runtime.events.emit('tool.called', { name, args, ...(this.source?{source:this.source}:{}) });
     const response = await this.runtime.skills.invoke(name, args, { ...internalContext, profile:this.profile, actor:this.actor });
-    if (!response.success) throw Object.assign(new Error(response.error.message), { code: response.error.code });
+    if (!response.success) throw Object.assign(new Error(response.error.message), {
+      code:response.error.code,
+      ...(response.error.details ? { diagnostics:response.error.details } : {})
+    });
     return response.result;
   }
 }

@@ -1,4 +1,5 @@
 import { ToolCallingAgent } from '../../../modules/agent/ToolCallingAgent.js';
+import { createProgressiveAgentTools } from '../../../application/agent/ProgressiveAgentTools.js';
 import { HttpLLMGateway } from '../../../modules/agent/gateway/HttpLLMGateway.js';
 import { AgentRuntimeTestRunner } from '../agent/AgentRuntimeTestRunner.js';
 import { GeneratedPlacementDemoRunner } from '../demos/generated-placement/GeneratedPlacementDemoRunner.js';
@@ -43,7 +44,7 @@ export function createStudioAgent({
     endpoint:capabilityStatus.agent.available ? CAPABILITY_API.agent : ''
   });
   const agent = new ToolCallingAgent({
-    tools:agentTools,
+    tools:createProgressiveAgentTools(agentTools),
     gateway,
     maxSteps:32,
     log:(text,kind)=>taskPanel.log(text,kind)

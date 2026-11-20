@@ -21,7 +21,8 @@ export async function invokeAgentTool(tools, call, {
       : await tools.call(call.name, call.args);
   } catch (error) {
     invocationFailed = true;
-    result = { error:error.message, code:error.code || 'TOOL_ERROR' };
+    result = { error:error.message, code:error.code || 'TOOL_ERROR',
+      ...(Array.isArray(error.diagnostics) ? { diagnostics:error.diagnostics.slice(0, 12) } : {}) };
   }
   const acceptanceAfter = tools.runtime?.lastAcceptanceBundle || null;
   const acceptanceChanged = acceptanceAfter !== acceptanceBefore;

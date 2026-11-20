@@ -1,3 +1,21 @@
+// Return bounded schema issues to the model, never rejected raw input values.
+function validationDetails(error) {
+  if (!Array.isArray(error?.issues)) return [];
+  const flatten = issues => issues.flatMap(issue => {
+    if (issue.code !== 'invalid_union' || !Array.isArray(issue.errors)) return [issue];
+    const branches = issue.errors.filter(Array.isArray);
+    if (!branches.length) return [issue];
+    const ranked = branches.map(items => ({
+      items, depth:Math.max(0, ...items.map(item => item.path?.length || 0))
+    })).sort((a, b) => b.depth - a.depth || a.items.length - b.items.length);
+    return flatten(ranked[0].items);
+  });
+  return flatten(error.issues).slice(0, 12).map(issue => ({
+    path:Array.isArray(issue.path) ? issue.path.join('.') : '',
+    code:issue.code || 'invalid_input',
+    message:String(issue.message || 'Invalid input').slice(0, 240)
+  }));
+}
 const objectSchema = (skill) => ({
   type: 'object',
   properties: skill.properties || {},
@@ -156,8 +174,16 @@ export class SkillRegistry {
       this.trace?.emit('skill.executed', { skill:name, version:skill.version, input, result:result ?? { ok:true } }, { actor, causedBy:policyEvent ? [policyEvent.seq] : [] });
       return { success:true, result:result ?? { ok:true } };
     } catch (error) {
-      this.trace?.emit('skill.failed', { skill:name, input, error:error.message, code:error.code }, { actor });
-      return { success:false, error:{ code:error.code || 'handler_error', message:error.message } };
+      const details = validationDetails(error);
+      const code = details.length ? 'invalid_input' : error.code || 'handler_error';
+      // Zod's formatted error includes every branch of an invalid union. The
+      // bounded field diagnostics below are more actionable and cheaper to send.
+      const message = details.length
+        ? `Invalid input at ${details[0].path || 'root'}: ${details[0].message}`
+        : error.message;
+      this.trace?.emit('skill.failed', { skill:name, input, error:message, code }, { actor });
+      return { success:false, error:{ code, message,
+        ...(details.length ? { details } : {}) } };
     }
   }
 }

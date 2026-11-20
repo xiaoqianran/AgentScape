@@ -13,6 +13,7 @@ export async function executeAgentRun(agent, text, { signal, actor = agent.tools
   const { tools, gateway:configuredGateway, maxSteps, maxRecoveryReadRounds, maxUnchangedFailures } = agent;
   // Preserve the public logger callback's original Agent receiver.
   const log = (...args) => agent.log(...args);
+  tools.beginTask?.(text);
   log(`goal: ${text}`, 'goal');
   let toolDefinitions=tools.definitions();
   const messages = [
@@ -27,8 +28,10 @@ export async function executeAgentRun(agent, text, { signal, actor = agent.tools
   const unresolvedMutations = new Map();
   const appliedAuxiliaryRecoveries = new Map();
   const attemptedWorldPlans = new Set();
-  const proposalGateEnabled=toolDefinitions.some((tool)=>tool.name==='proposeWorldIR');
-  const revisionProposalGateEnabled=toolDefinitions.some((tool)=>tool.name==='proposeWorldRevision');
+  // Hidden catalog tools still enforce Runtime proposal gates when discovered later.
+  const authoritativeDefinitions=tools.fullDefinitions?.() || toolDefinitions;
+  const proposalGateEnabled=authoritativeDefinitions.some((tool)=>tool.name==='proposeWorldIR');
+  const revisionProposalGateEnabled=authoritativeDefinitions.some((tool)=>tool.name==='proposeWorldRevision');
   const issuedWorldRevisions=new Set();
   const issuedWorldRevisionProposals=new Map();
   let pendingWorldProposalLineage=null;

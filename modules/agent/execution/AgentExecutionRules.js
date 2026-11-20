@@ -45,6 +45,7 @@ export const mutationIdentity = (call, result = null) => {
   if(call.name==='interactScene')return `interactScene:${stableValue(args.interaction || {})}`;
   const keys = ['actorId','id','targetId','supportId','blockerId','blockerPartName','blockerAction','action','assetId','instanceId','end'];
   const scope = Object.fromEntries(keys.filter((key)=>args[key] != null).map((key)=>[key,args[key]]));
+  if (call.name === 'addSceneModel' && args.model?.id != null) scope.modelId = args.model.id;
   const partName = args.partName ?? result?.partName ?? result?.interaction?.part ?? result?.actionSweep?.partName;
   if (partName != null) scope.partName=partName;
   return `${call.name}:${stableValue(scope)}`;
