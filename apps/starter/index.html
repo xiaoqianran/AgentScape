@@ -5,16 +5,26 @@
   <main>
     <aside>
       <a class="brand" href="/">AgentScape <span>STARTER</span></a>
-      <h1>A world you<br>can interact with.</h1>
-      <p>Pick up a cup. Put it on the table. Save your world and open it again.</p>
+      <h1>A world you<br>can extend.</h1>
+      <p>Explore four object types, verify real interactions, then compose your own physical world.</p>
       <div class="steps">
-        <button id="pickup" disabled>1. Pick up the cup</button>
-        <button id="place" disabled>2. Place on the table</button>
-        <button id="save" disabled>3. Download world</button>
+        <button id="navigate" disabled>Guide the agent</button>
+        <button id="pickup" disabled>Pick up the cup</button>
+        <button id="place" disabled>Place it on the table</button>
+        <button id="save" disabled>Download world</button>
+      </div>
+      <div class="builder">
+        <label for="asset">Add an object</label>
+        <select id="asset" disabled>
+          <option value="chair">Chair</option>
+          <option value="cup">Cup</option>
+          <option value="table">Table</option>
+          <option value="agent">Agent</option>
+        </select>
+        <button id="add" disabled>Add selected object</button>
+        <button id="move" disabled>Move last added object</button>
       </div>
       <div class="secondary">
-        <button id="add" disabled>Add a chair</button>
-        <button id="move" disabled>Move the chair</button>
         <button id="restore" disabled>Open saved world</button>
         <input id="file" type="file" accept="application/json,.json" hidden>
       </div>
@@ -24,8 +34,8 @@
         <a href="/">Open full Studio (styles and project packages)</a>
         <a href="https://github.com/xiaoqianran/AgentScape/blob/main/apps/mcp-server/README.md" target="_blank" rel="noreferrer">Connect an AI agent with MCP</a>
       </nav>
-      <p class="hint">Starter is a focused first-world tutorial: four bundled physical assets only. Use Studio for StylePacks and complete project imports.</p>
-      <details><summary>Make it yours</summary><p>Edit <code>apps/starter/scene.json</code>, then reload. The JavaScript in <code>main.js</code> uses the experimental Scene API.</p><p>This starter supports four bundled physical assets. GLB uploads, style packs and general project packages are not available here yet.</p></details>
+      <p class="hint">Starter demonstrates the four bundled physical assets. Use Studio for StylePacks, GLB imports and complete project packages.</p>
+      <details><summary>Make it yours</summary><p>Edit <code>apps/starter/scene.json</code> to change the initial composition. The JavaScript in <code>main.js</code> uses the experimental Scene API.</p><p>The interaction runtime is asset-agnostic. Replace the bundled assets with a project package when you need custom GLB capabilities.</p></details>
       <a href="https://github.com/xiaoqianran/AgentScape" target="_blank" rel="noreferrer">Source & contribution guide ↗</a>
     </aside>
     <section id="viewport" aria-label="Interactive 3D world"><div class="badge">LIVE PHYSICS <span id="count"></span></div></section>

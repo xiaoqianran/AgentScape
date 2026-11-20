@@ -26,13 +26,13 @@ describe('experimental starter scene', () => {
       const place = await complete(scene, scene.interact({ action: 'place', actorId: 'helper', targetId: 'desk', surfaceId: 'top' }));
       expect(place.verified).toBe(true);
       expect(place.result.supportVerified).toBe(true);
-      await scene.add({ id: 'seat', asset: 'chair', position: [-4, 0, 3] });
-      await scene.move({ id: 'seat', position: [-3, 0, 6] });
+      await scene.add({ id: 'chair_1', asset: 'chair', position: [-4, 0, 4] });
+      await scene.move({ id: 'chair_1', position: [-3, 0, 6] });
       const save = JSON.parse(JSON.stringify(scene.save()));
       restored = await openStarterScene({ project });
       await restored.load(save);
-      expect(restored.observe().objects).toHaveLength(4);
-      expect(restored.observe().objects.find(o => o.id === 'seat').position).toEqual([-3, 0, 6]);
+      expect(restored.observe().objects).toHaveLength(5);
+      expect(restored.observe().objects.find(o => o.id === 'chair_1').position).toEqual([-3, 0, 6]);
       expect(restored.observe().relations).toEqual(expect.arrayContaining([expect.objectContaining({ subject: 'mug', predicate: 'ON', object: 'desk' })]));
       const before = restored.save().objects;
       const bad = structuredClone(save); bad.objects[0].assetId = 'https://invalid.example/model.glb';
@@ -54,7 +54,7 @@ describe('experimental starter scene', () => {
       expect(() => scene.close()).toThrow('SCENE_BUSY');
       await complete(scene, pending);
       await expect(scene.add({ id: 'seat', asset: 'chair', position: [NaN, 0, 3] })).rejects.toThrow();
-      expect(scene.observe().objects).toHaveLength(3);
+      expect(scene.observe().objects).toHaveLength(4);
     } finally { scene.close(); }
   }, 60000);
 });
