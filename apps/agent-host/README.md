@@ -40,6 +40,17 @@ Studio 任务页可选择 Legacy、Pi 和 DSH。Host 位于 `127.0.0.1:8789`。
 浏览器只连接 loopback Host，不接收 MCP 或 NewAPI 密钥。
 Pi / DSH 共用同一世界会话，通过 `worldSessionId` 标识，禁止并行写入同一 Studio 世界。
 
+## Pi / DSH 统一执行与验收
+
+- `AgentExecution.js` 只抽取必要的工具名、操作、目标 ID、执行状态及 `scene_verify` 验收条件；不会保存生成的源代码或全部 LLM 对话。
+- Pi 的 SDK 完成事件、DSH SDK 的 `tool/call` / `tool/result` 统一生成 `execution`；两个后端不再直接宣布 `completed`。
+- `AgentHost` 在两种 SDK 结束之后调用同一个 `finalizeRun()`。存在已提交世界变更时，必须有晚于最后一次变更的显式 `scene_verify`。
+- Host 使用受限 MCP **确认与任务执行时是同一世界会话（DSH 预先绑定；Pi 比对 SDK 会话），重新读取当前 Studio Scene Revision、重跑原始验收条件**，同时添加世界有效性与已添加实体存在性检查。前后版本不一致、证据过期、失败操作未恢复均返回 `incomplete`。
+- 针对新建 Code Project，还必须确认项目 ID、`runningRevision`、实体注册及保存结果；项目源代码仍在浏览器 Studio 中执行，本改动**不提供 JavaScript 隔离**。
+- 统一返回 `agentscape.agent-run` v1，保留 `taskStatus`、`execution`、`verification` 与 `unresolvedMutations`，并增加 `world`（worldSessionId、projectId、projectRevision、sceneRevision）。
+- `run.finished` 只由 Host 在最终验收后发出，适用于普通 HTTP 与 NDJSON 事件流。
+
+**验收范围**：本版严格验证 Agent 提交的明确后置条件及已知变更对象，不会将通用 `world-valid` 等同于用户自然语言任务的全部语义要求。视觉质量与未授权 Three.js 代码隔离分别属于后续工作；不得凭本结果声称已解决。
 ## 安全和已知限制
 
 - `/agent-mcp` 是对原 `/mcp` 的服务端工具级白名单，含限定 MCP 兼容路由；`/mcp` 仍保留给原有 MCP 客户端。

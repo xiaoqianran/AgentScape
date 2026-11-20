@@ -78,6 +78,9 @@ describe('actual DSH subprocess with mock NewAPI + restricted MCP',()=>{
       expect(modelTools).toContain('mcp__agentscape__scene_observe');
       expect(modelTools).not.toContain('mcp__agentscape__authoring_execute');
       expect(result.message).toContain('DSH observed apple-tree');
+      expect(result.execution).toEqual(expect.arrayContaining([
+        expect.objectContaining({tool:'scene_observe',mutates:false,outcome:{state:'accepted'}})
+      ]));
       expect(result.taskStatus).toBe('incomplete');
     } finally {
       for(const [key,value] of Object.entries(original)){

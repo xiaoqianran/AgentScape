@@ -48,7 +48,7 @@ describe('Pi SDK integration without remote model charges',()=>{
       expect(requests[0].model).toBe('mock-model');
       expect(result.message).toContain('Pi loop is active');
       expect(result.taskStatus).toBe('no-mutation');
-      expect(events.some(event=>event.type==='run.finished')).toBe(true);
+      expect(events.some(event=>event.type==='run.started')).toBe(true);
     }finally{await new Promise(resolve=>upstream.close(resolve));}
   },20000);
 });
@@ -96,7 +96,7 @@ describe('Pi tool turns and Runtime acceptance',()=>{
       const result=await runPiAgent({prompt:'Build the world',configuration:{baseUrl:'http://127.0.0.1:'+upstream.address().port+'/v1',
         apiKey:'test',modelId:'model'},emit:event=>events.push(event),
         mcpConnector:async()=>({worldSessionId:'fixture',tools,mutations,close:async()=>{}})});
-      expect(result.taskStatus).toBe(expected);
+      expect(result.taskStatus).toBe('incomplete'); // AgentHost decides final admission.
       expect(result.execution).toHaveLength(turns.length);
       expect(events.filter(event=>event.type==='tool.end')).toHaveLength(turns.length);
       if(turns.every(turn=>turn==='error'))expect(index).toBe(3);

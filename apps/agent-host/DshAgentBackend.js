@@ -1,4 +1,5 @@
 import { DeepSeekHarness } from '@deepseek-ai/dsh-sdk-client';
+import { normalizeExecution } from './AgentExecution.js';
 
 // The DSH SDK spawns a separate process. Require an explicit reviewed profile
 // patch: the stock SDK profile may expose Shell/filesystem tools.
@@ -26,12 +27,14 @@ export async function runDshAgent({prompt,configuration,signal,projectScope,emit
     const result=await harness.run(prompt,{onNotification:notification=>{
       emit({type:'dsh.notification',notificationType:notification.method||notification.type||'event'});
     }});
-    const status=signal?.aborted?'cancelled':'incomplete';
-    // Until the shared Scene verifier yields an admission record, DSH cannot mark success.
-    emit({type:'run.finished',taskStatus:status});
-    return {backend:'dsh',taskStatus:status,message:result.finalResponse||'',
-      sessionId:result.sessionId,finishReason:result.finishReason,
-      steps:0,execution:[],unresolvedMutations:[],verified:false};
+    // SDK emits the original tool/call and tool/result events; the Host alone verifies success.
+    const execution=normalizeExecution('dsh',result.events||[]);
+    for(const entry of execution)
+      emit({type:'tool.end',tool:entry.tool,toolCallId:entry.toolCallId,
+        failed:entry.outcome.state==='failed',reason:entry.outcome.reason});
+    return {backend:'dsh',taskStatus:signal?.aborted?'cancelled':'incomplete',
+      message:result.finalResponse||'',sessionId:result.sessionId,finishReason:result.finishReason,
+      steps:execution.length,execution};
   } finally {
     running=false;
     signal?.removeEventListener('abort',abort);

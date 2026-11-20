@@ -18,8 +18,9 @@ describe('agent event streaming',()=>{
       const raw=await res.text();
       const events=raw.trim().split('\n').map(line=>JSON.parse(line));
       expect(events[0]).toEqual({type:'tool.start',tool:'scene_observe'});
-      expect(events[1].type).toBe('run.result');
-      expect(events[1].result.message).toBe('seen');
+      expect(events[1].type).toBe('run.finished');
+      expect(events[2].type).toBe('run.result');
+      expect(events[2].result.message).toBe('seen');
     }finally{await app.close();}
   });
 });

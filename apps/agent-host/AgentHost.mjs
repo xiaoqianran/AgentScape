@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
 import { runPiAgent } from './PiAgentBackend.js';
 import { runDshAgent } from './DshAgentBackend.js';
+import { finalizeRun } from './AgentRunFinalizer.js';
 
 export function loadPrivateEnv(file) {
   if(!existsSync(file))return;
@@ -73,8 +74,14 @@ async function prepareWorld(config, runId, signal) {
   } finally { await connection.close(); }
 }
 
+async function attachWorldSession(config,signal) {
+  const connection=await connectStudioMcp({url:config.mcpUrl,token:config.mcpToken,signal});
+  try { return connection.worldSessionId; }
+  finally { await connection.close(); }
+}
+
 export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',port=8789,
-  origins=DEFAULT_ORIGINS,prepareProject=prepareWorld,backends={pi:runPiAgent,dsh:runDshAgent}}={}) {
+  origins=DEFAULT_ORIGINS,prepareProject=prepareWorld,backends={pi:runPiAgent,dsh:runDshAgent},finalize=finalizeRun,attachSession=attachWorldSession}={}) {
   if(host!=='127.0.0.1')throw new Error('AGENT_HOST_LOOPBACK_REQUIRED');
   const runs=new Map(), enabled=readiness(config);
   const respond=(res,status,payload,origin)=>{
@@ -120,6 +127,9 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
       const emit=event=>{if(events.length<250)events.push(event);stream(event);};
       const project=isNewWorldRequest(input.prompt) ? await prepareProject(config,input.runId,controller.signal) : null;
       const projectScope=project ? project.worldSessionId+'/'+project.id : undefined;
+      // DSH SDK connects to MCP independently. Pin the authoritative Studio before it runs.
+      const expectedWorldSessionId=project?.worldSessionId ||
+        (input.backend==='dsh' ? await attachSession(config,controller.signal) : undefined);
       if(project)emit({type:'project.created',projectId:project.id,revision:project.revision});
       const prompt=project ? [
         'The Host has prepared a dedicated draft for this task. Use studio_project read to obtain the starter and guide.',
@@ -127,8 +137,9 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
         'Base the source on the starter entry point and runtime interfaces. Register the requested entities, run the revision, save it, and verify all requested entities together using scene_verify.',
         'User request:',input.prompt
       ].join('\n') : input.prompt;
-      const output=await backends[input.backend]({prompt,projectScope,configuration:config,signal:controller.signal,emit});
-      if(project)output.projectId=project.id;
+      const backendOutput=await backends[input.backend]({prompt,projectScope,configuration:config,signal:controller.signal,emit});
+      const output=await finalize({output:{...backendOutput,backend:input.backend},project,configuration:config,signal:controller.signal,expectedWorldSessionId});
+      emit({type:'run.finished',backend:input.backend,taskStatus:output.taskStatus,verified:output.verified});
       if(streaming){stream({type:'run.result',result:{...output,runId:input.runId}});res.end();return;}
       return respond(res,200,{...output,runId:input.runId,events},origin);
     }catch(error){
