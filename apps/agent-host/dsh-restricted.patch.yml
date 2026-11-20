@@ -1,0 +1,32 @@
+# DSH sdk-minimal overlay: no host Shell, filesystem or workdir tool.
+# Only the curated AgentScape MCP surface is exposed to the model.
+- id: persistent-bash
+  disabled: true
+- id: persistent-pwsh
+  disabled: true
+- id: terminal-bash
+  disabled: true
+- id: terminal-pwsh
+  disabled: true
+- id: tool-fs
+  disabled: true
+- id: tool-working-directory
+  disabled: true
+- insert:
+    - id: agentscape-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: agentscape
+        transport: streamable-http
+        url: !!js >-
+            (() => {
+              const url = new URL(process.env.AGENTSCAPE_MCP_URL || 'http://127.0.0.1:39015/agent-mcp');
+              if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(url.hostname) || url.pathname !== '/agent-mcp')
+                throw new Error('AGENT_MCP_RESTRICTED_ROUTE_REQUIRED');
+              return url.toString();
+            })()
+        headers:
+          Authorization: !!js '`Bearer ${process.env.AGENTSCAPE_MCP_TOKEN}`'
+        startupTimeoutMs: 10000
+        toolCallTimeoutMs: 60000
+        failOnStartupError: true

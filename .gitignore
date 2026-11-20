@@ -31,3 +31,6 @@ agentscape_cnb_key.pub
 
 # Private Remote MCP scene snapshots
 .mcp-sessions/
+
+.agent-host/
+.mcp-assets/

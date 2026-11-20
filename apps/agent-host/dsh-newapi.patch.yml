@@ -1,0 +1,21 @@
+# Optional same-model NewAPI route for the isolated DSH SDK profile.
+# Values are evaluated inside the Agent Host child process; no key literal in repo.
+- id: llm-deepseek
+  disabled: true
+- insert:
+    - id: llm-newapi
+      name: '@deepseek-ai/dsh-llm-pi-ai'
+      config:
+        providers:
+          agentscape-newapi:
+            displayName: AgentScape NewAPI
+            apiKeyEnv: AGENTSCAPE_LLM_API_KEY
+            api: openai-completions
+            baseURL: !!js process.env.AGENTSCAPE_LLM_BASE_URL || process.env.AGENTSCAPE_TEST_LLM_BASE_URL
+            defaultContextWindow: 128000
+            defaultMaxTokens: 8192
+            models:
+              - id: !!js process.env.AGENTSCAPE_LLM_MODEL || process.env.AGENTSCAPE_TEST_LLM_MODEL
+                name: AgentScape configured model
+                contextWindow: 128000
+                maxTokens: 8192

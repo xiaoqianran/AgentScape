@@ -7,6 +7,7 @@ import { SessionManager } from './SessionManager.js';
 import { StudioLiveBridge } from './StudioLiveBridge.js';
 import { handleStudioBridgeHttp } from './StudioBridgeHttp.js';
 import { registerTools } from './registerTools.js';
+import { handleRestrictedAgentMcp } from './AgentMcpCompat.js';
 import { createSecurity } from './security.js';
 import { FileAssetRepository } from './FileAssetRepository.js';
 import { createCodeExecutor } from './CodeExecutor.js';
@@ -26,18 +27,26 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
   let server;
   try {
    if(await handleStudioBridgeHttp(req,res,studioBridge,{...(studioOrigins?{origins:studioOrigins}:{})}))return;
-   if(req.url!=='/mcp') {res.writeHead(404).end();return;}
+   if(req.url!=='/mcp' && req.url!=='/agent-mcp') {res.writeHead(404).end();return;}
    const {owner,body}=await authorize(req);
+   if(req.url==='/agent-mcp'){
+     if(req.method!=='POST'){res.writeHead(405).end();return;}
+     const answer=await handleRestrictedAgentMcp({body,owner,manager,assets,studioBridge});
+     if(answer.body===null){res.writeHead(answer.status).end();return;}
+     const payload=JSON.stringify(answer.body);
+     res.writeHead(answer.status,{'content-type':'application/json; charset=utf-8','content-length':Buffer.byteLength(payload)}).end(payload);
+     return;
+   }
    if(req.method!=='POST') {res.writeHead(405).end();return;}
    // The unified SDK handler supports modern per-request envelopes and legacy initialization.
    const handler=createMcpHandler(()=>{
     server=new McpServer({name:'AgentScape Remote MCP',version:'0.3.0'});
-    registerTools(server,manager,owner,assets,studioBridge);
+    registerTools(server,manager,owner,assets,studioBridge,{agentOnly:req.url==='/agent-mcp'});
     connections.add(server);
     return server;
    });
    res.on('close',()=>{connections.delete(server);handler.close().catch(()=>{});});
-   const response=await handler.fetch(await toWebRequest(req,body));
+   const response=await handler.fetch(await toWebRequest(req,body),{parsedBody:body});
    res.writeHead(response.status,Object.fromEntries(response.headers));
    res.end(Buffer.from(await response.arrayBuffer()));
   } catch(e) {if(!res.headersSent) res.writeHead(e.status||500).end(JSON.stringify({error:e.status?'HTTP_REQUEST_REJECTED':'INTERNAL_ERROR'}));}

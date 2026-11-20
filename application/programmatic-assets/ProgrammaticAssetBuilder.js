@@ -13,7 +13,12 @@ export class ProgrammaticAssetBuilder {
  constructor({runner,gltfLoader}) {Object.assign(this,{runner,gltfLoader});}
  async build({source,definition,assetId},{signal}={}) {
   const draft=definition == null ? null : parseDefinition(definition);
-  const result=await this.runner.run({mode:'procedural',source},{signal});
+  let result;
+  try { result=await this.runner.run({mode:'procedural',source},{signal}); }
+  catch(error) {
+   error.details={...error.details,stage:'source-execution'};
+   throw error;
+  }
   if(signal?.aborted)throw new Error('BUILD_CANCELLED');
   const authoring=createWorldAuthoringContext({events:{emit(){}}},{executeCode:()=>{throw Error('SOURCE_EXECUTION_FORBIDDEN');}});
   const assets=createAssetModule({manifests:{},manifestStore:null,libraryStore:null,gltfLoader:this.gltfLoader});
@@ -24,7 +29,7 @@ export class ProgrammaticAssetBuilder {
    const object=authoring.get('asset-root');
    const names=new Map();object.traverse(n=>{if(n.name)names.set(n.name,(names.get(n.name)||0)+1);});
    const required=[...(draft?.requiredNodes||[]),...Object.values(draft?.parts||{}).map(p=>p.node)];
-   if(required.some(name=>names.get(name)!==1))throw Object.assign(new Error('PROCEDURAL_REQUIRED_NODE_INVALID'),{details:{invalidNodes:required.filter(name=>names.get(name)!==1)}});
+   if(required.some(name=>names.get(name)!==1))throw Object.assign(new Error('PROCEDURAL_REQUIRED_NODE_INVALID'),{details:{invalidNodes:required.filter(name=>names.get(name)!==1),nodeCounts:Object.fromEntries(required.map(name=>[name,names.get(name)||0]))}});
    const box=new THREE.Box3().setFromObject(object),size=box.getSize(new THREE.Vector3());
    if(![size.x,size.y,size.z].every(v=>Number.isFinite(v)&&v>0&&v<=100))throw new Error('PROCEDURAL_DIMENSIONS_INVALID');
    const captured=capturePromotionSource(authoring,'asset-root');
@@ -48,7 +53,7 @@ export class ProgrammaticAssetBuilder {
    if(signal?.aborted)throw new Error('BUILD_CANCELLED');
    manifest.capabilityLevel=Object.keys(draft.parts||{}).length?'interactive':'physical';
    return {bytes:compiled.bytes,manifest,environment:result.environment,security:result.security,validation:{execution:'succeeded',nodes:[...names.keys()],bounds:{min:box.min.toArray(),max:box.max.toArray()},runtime},admission:assetAdmission(manifest)};
-  } catch(error) {error.execution={status:'succeeded'};throw error;}
+  } catch(error) {error.execution={status:'succeeded'};error.details={...error.details,stage:'asset-admission'};throw error;}
   finally {authoring.dispose();}
  }
 }

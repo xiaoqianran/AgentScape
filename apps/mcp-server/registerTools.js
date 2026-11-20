@@ -1,8 +1,11 @@
 import * as z from 'zod/v4';
+import { AGENT_STUDIO_MCP_SET } from '../../application/agent/StudioMcpAllowlist.js';
 import { allowedSkills } from './HeadlessWorldHost.js';
 import { compileWorldAcceptance } from '../../modules/world/verification/WorldAcceptance.js';
 import { definitionSchema, proceduralContract } from '../../application/programmatic-assets/ProgrammaticAssetContract.js';
 import { assetAdmission } from '../../modules/asset/model/admission.js';
+import { sceneObjectIdSchema, sceneTransformSchema, sceneVector3Schema } from '../../application/scene/SceneProject.js';
+import { recipeSchema } from '../../modules/asset/model/AssetInputContracts.js';
 import { publicMcpError } from './errorDiagnostics.js';
 const id=z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
 const targetId=z.string().min(1).max(256);
@@ -17,10 +20,10 @@ export const actionSchemas={
  approachAndPickup:z.object({actorId:id,targetId:id,speed}).strict(),
  approachAndPlace:z.object({actorId:id,supportId:id,surfaceId:id.optional(),speed}).strict()
 };
-export function registerTools(server,manager,owner,assets,studioBridge=null) {
+export function registerTools(server,manager,owner,assets,studioBridge=null,{agentOnly=false}={}) {
  const session={worldSessionId:z.uuid()};
  const sceneSession={worldSessionId:z.uuid().optional()};
- const add=(name,description,shape,fn)=>server.registerTool(name,{description,inputSchema:z.object(shape).strict()},async(a,extra)=>{
+ const add=(name,description,shape,fn)=>agentOnly && !AGENT_STUDIO_MCP_SET.has(name) ? null : server.registerTool(name,{description,inputSchema:z.object(shape).strict()},async(a,extra)=>{
   try { const result=await fn(a,extra); return {content:[{type:'text',text:JSON.stringify(result)}]}; }
   catch(e) { return {isError:true,content:[{type:'text',text:JSON.stringify(publicMcpError(e))}]}; }
  });
@@ -81,7 +84,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
    }
   }
  };
- add('studio_project','Create, edit, run, save and reopen complete trusted code worlds in the active Studio workbench. Read first for source, revision and createProject API guide. file/file_read edit named JavaScript and shader files, resource imports embedded binary resources. write saves a draft; patch applies a unique exact-fragment edit with expectedRevision; preview_batch stages up to 32 changes for diff review, apply_batch commits them atomically, discard_batch drops the preview, and undo_batch reverts the latest batch; run activates it; save persists live state and assets. Not a sandbox. Use scene_observe/interact for dynamic actions.',{
+ add('studio_project','Create, edit, run, save and reopen complete trusted code worlds in the active Studio workbench. Use operation=read to list projects; open takes id from projects[].id. run takes expectedRevision from open/write. save persists the active project. Read first for source, revision and createProject API guide. file/file_read edit named JavaScript and shader files, resource imports embedded binary resources. write saves a draft; patch applies a unique exact-fragment edit with expectedRevision; preview_batch stages up to 32 changes for diff review, apply_batch commits them atomically, discard_batch drops the preview, and undo_batch reverts the latest batch; run activates it; save persists live state and assets. Not a sandbox. Use scene_observe/interact for dynamic actions.',{
   ...sceneSession, operation:z.enum(['read','write','patch','file_read','file','resource','preview_batch','apply_batch','discard_batch','undo_batch','run','save','open','close']), requestId:z.uuid().optional(),
   create:z.boolean().optional(), source:z.string().min(1).optional(), name:z.string().min(1).optional(),
   oldText:z.string().min(1).optional(), newText:z.string().optional(),
@@ -157,8 +160,12 @@ export function registerTools(server,manager,owner,assets,studioBridge=null) {
  add('scene_job','Read task completion and physical verification separately.',job,(a,e)=>sceneRun(a,'job',{jobId:a.jobId},s=>s.host.scene.getJob(a.jobId),e));
  add('scene_cancel','Request task cancellation and query until terminal.',job,(a,e)=>sceneRun(a,'cancel',{jobId:a.jobId},s=>s.host.scene.cancelJob(a.jobId),e));
  add('scene_verify','Evaluate explicit postconditions through the common verifier.',{...sceneSession,criteria:z.array(check).min(1).max(32)},(a,e)=>sceneRun(a,'verify',{criteria:a.criteria},s=>s.host.scene.verify(a.criteria),e));
- add('scene_add_model','Analyze GLB/URDF with mode=prepare; mode=screen runs bounded, isolated Rapier tests of source-bound kinematic candidates (model.proposalId and optional model.hypothesisIds), never grants actions; mode=add imports reviewed assets. GLB uses bytesBase64.',{
-  ...sceneSession,requestId:z.uuid(),mode:z.enum(['prepare','screen','add']).default('add'),model:z.record(z.string(),z.unknown())
+ add('scene_add_model','Add a recipe using model={id,asset:{schema:"agentscape.asset-recipe",schemaVersion:1,id,parts:[{id,geometry:{type:"box",size:[1,1,1]}}]},position:[0,0,0]}. Analyze GLB/URDF with mode=prepare; mode=screen runs bounded, isolated Rapier tests of source-bound kinematic candidates (model.proposalId and optional model.hypothesisIds), never grants actions; mode=add imports reviewed assets. GLB uses bytesBase64.',{
+  ...sceneSession,requestId:z.uuid(),mode:z.enum(['prepare','screen','add']).default('add'),model:z.object({
+    id:sceneObjectIdSchema.optional(),position:sceneVector3Schema.optional(),transform:sceneTransformSchema.optional(),
+    level:z.enum(['visual','physical','interactive']).optional(),
+    asset:z.union([recipeSchema,z.string(),z.record(z.string(),z.unknown()).refine(asset=>asset.schema!=='agentscape.asset-recipe')])
+  }).passthrough()
  },(a,e)=>sceneRun(a,'addModel',{model:a.model,mode:a.mode},async s=>{
   const model=decodeModel(a.model);
   if(a.mode==='prepare')return s.host.scene.prepareAsset(model.asset);

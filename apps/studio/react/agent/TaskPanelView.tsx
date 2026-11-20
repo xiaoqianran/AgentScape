@@ -17,6 +17,7 @@ type TaskController = {
   prepareStandardTask?:()=>Promise<unknown>;
   runStandardTask?:()=>Promise<unknown>;
   selectActor?:(actor:string)=>void;
+  selectBackend?:(backend:'legacy'|'pi'|'dsh')=>Promise<boolean>;
 };
 
 function entryState(entries:any[] = [], runningState = 'running') {
@@ -66,6 +67,15 @@ export function TaskPanelView({ controller }: { controller:TaskController }) {
         {state.status.action ? <button id="task-state-action" className="text-button" type="button" onClick={()=>controller.openSettings()}>{state.status.action}</button> : null}
       </div>
 
+      <div className="task-controls" aria-label="Agent 引擎">
+        <label htmlFor="task-agent-backend">Agent 引擎</label>
+        <select id="task-agent-backend" value={state.backend||'legacy'} disabled={state.busy}
+          onChange={event=>void controller.selectBackend?.(event.target.value as 'legacy'|'pi'|'dsh')}>
+          <option value="legacy">Legacy（自研）</option>
+          <option value="pi">Pi {state.backendAvailability?.pi?'':'（需启动 Agent Host）'}</option>
+          <option value="dsh">DSH {state.backendAvailability?.dsh?'':'（需配置受限 Profile）'}</option>
+        </select>
+      </div>
       <div className="task-controls" aria-label="任务控制">
         {state.busy ? <button id="cancel-task" type="button" disabled={!state.canCancel} onClick={()=>controller.cancel?.()}>{state.status.state==='cancelling' ? '正在取消…' : state.canCancel ? '停止任务' : '当前验收运行中'}</button> : null}
         {!state.busy && state.canRetry ? <button id="retry-task" type="button" onClick={()=>void controller.retry?.()}>重新观察并重试</button> : null}

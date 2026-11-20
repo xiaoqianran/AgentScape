@@ -1,4 +1,5 @@
 import { ToolCallingAgent } from '../../../modules/agent/ToolCallingAgent.js';
+import { RemoteAgentClient } from '../agent/RemoteAgentClient.js';
 import { createProgressiveAgentTools } from '../../../application/agent/ProgressiveAgentTools.js';
 import { HttpLLMGateway } from '../../../modules/agent/gateway/HttpLLMGateway.js';
 import { AgentRuntimeTestRunner } from '../agent/AgentRuntimeTestRunner.js';
@@ -51,6 +52,13 @@ export function createStudioAgent({
   });
 
   taskPanel.attachAgent({ agent, gateway });
+  taskPanel.attachExternalBackends(new RemoteAgentClient({
+    onEvent:event=>{
+      if(event.type==='tool.start')taskPanel.log('Pi/DSH tool: '+event.tool,'tool');
+      if(event.type==='tool.end' && event.failed)taskPanel.log(event.tool+' · '+(event.reason || '工具执行失败'),'error');
+      if(event.type==='run.finished')taskPanel.log('Agent Host: '+event.taskStatus,'result');
+    }
+  }));
   taskPanel.setAvailability(capabilityStatus.agent.available);
   ui.attachAgent?.({ taskPanel, runsPanel });
   const actorEvents=['object.spawned','object.removed','scene.restored','scene.actor.selected'].map(name=>world.events.on(name,()=>{taskPanel.emit();ui.refreshInspector?.();}));

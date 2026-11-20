@@ -26,6 +26,9 @@ export class TaskPanel {
     this.getActors=getActors;this.onSelectActor=onSelectActor;
     this.agent = null;
     this.gateway = null;
+    this.remoteAgent = null;
+    this.backend = 'legacy';
+    this.backendAvailability = {pi:false,dsh:false};
     this.busy = false;
     this.available = true;
     this.activeTaskKey = null;
@@ -47,6 +50,8 @@ export class TaskPanel {
       busy:this.busy,
       actors:this.getActors(),
       available:this.available,
+      backend:this.backend,
+      backendAvailability:this.backendAvailability,
       activeTaskKey:this.activeTaskKey,
       activityCount:this.activityCount,
       status:this.status,
@@ -70,6 +75,25 @@ export class TaskPanel {
 
   snapshot = () => this.viewSnapshot;
   selectActor(actor) {if(this.busy)return;try{this.onSelectActor(actor);this.emit();}catch(error){this.setState('error','无法切换 Agent',error.message);}}
+
+  attachExternalBackends(remoteAgent) {
+    this.remoteAgent=remoteAgent;
+    void remoteAgent.availability().then(available=>{
+      this.backendAvailability=available;
+      this.emit();
+      if(this.backend==='legacy' && available.pi)void this.selectBackend('pi');
+    });
+  }
+
+  async selectBackend(backend) {
+    if(this.busy || !['legacy','pi','dsh'].includes(backend))return false;
+    if(backend!=='legacy' && !this.remoteAgent)return false;
+    this.backend=backend;
+    if(backend!=='legacy')this.backendAvailability=await this.remoteAgent.availability();
+    this.setAvailability(backend==='legacy' ? this.gateway?.isConfigured?.() ?? true : Boolean(this.backendAvailability[backend]));
+    this.emit();
+    return this.available;
+  }
 
   attachAgent({ agent, gateway }) {
     this.agent = agent;
@@ -274,7 +298,9 @@ export class TaskPanel {
 
     try {
       const demoRunner = demoId ? this.demoRunners?.[demoId] : null;
-      const result = demoRunner ? await demoRunner.run(GENERATED_PLACEMENT_TASK) : await this.agent.run(prompt,{ signal:this.abortController.signal });
+      const result = demoRunner ? await demoRunner.run(GENERATED_PLACEMENT_TASK) : this.backend==='legacy'
+        ? await this.agent.run(prompt,{ signal:this.abortController.signal })
+        : await this.remoteAgent.run(prompt,{backend:this.backend,signal:this.abortController.signal});
       if (result.taskStatus === 'cancelled') {
         const detail = result.message || '任务已停止；已完成的世界变化已保留。';
         this.setState('cancelled','任务已停止',detail);
@@ -294,7 +320,7 @@ export class TaskPanel {
         && !unresolved.length
         && Boolean(message)
         && !failedMessage
-        && executedSteps.length > 0
+        && (executedSteps.length > 0 || this.backend !== 'legacy')
         && executedSteps.every((entry) => entry.mutates !== true);
       const completed = result.taskStatus === 'completed'
         || result.status === 'completed'
@@ -308,7 +334,7 @@ export class TaskPanel {
           this.log('任务状态：已完成 · 变更链已验证','result');
         }
       } else {
-        this.setState('partial','任务未完成',`${label} · ${tool} → ${lastStep?.outcome?.reason || outcome}。请检查对象、通路和支撑面后重试；重试会重新观察世界。`);
+        this.setState('partial','任务未完成',`${label} · ${tool} → ${lastStep?.outcome?.reason || outcome}。${this.backend==='legacy'?'请检查对象、通路和支撑面后重试。':'请查看任务活动日志中的工具结果。'}`);
         this.log(`任务状态：未完成 · ${tool} → ${outcome}`,'error');
       }
       const status = completed ? 'success' : 'partial';
