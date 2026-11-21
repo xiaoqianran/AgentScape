@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { runPiAgent } from './PiAgentBackend.js';
 import { runDshAgent } from './DshAgentBackend.js';
 import { finalizeRun } from './AgentRunFinalizer.js';
-import { compileTaskSpec } from './TaskSpec.js';
+import { compileTaskSpecWithModel } from './TaskCompiler.js';
 
 export function loadPrivateEnv(file) {
   if(!existsSync(file))return;
@@ -32,6 +32,7 @@ export const getConfig=env=>({
   baseUrl:env.AGENTSCAPE_LLM_BASE_URL||env.AGENTSCAPE_TEST_LLM_BASE_URL,
   apiKey:env.AGENTSCAPE_LLM_API_KEY||env.AGENTSCAPE_TEST_LLM_API_KEY,
   modelId:env.AGENTSCAPE_LLM_MODEL||env.AGENTSCAPE_TEST_LLM_MODEL,
+  taskCompilerTimeoutMs:env.AGENTSCAPE_TASK_COMPILER_TIMEOUT_MS,
   mcpUrl:env.AGENTSCAPE_MCP_URL||'http://127.0.0.1:39015/agent-mcp',
   mcpToken:env.AGENTSCAPE_MCP_TOKEN,
   dshPatch:env.AGENTSCAPE_DSH_RESTRICTED==='1'?fileURLToPath(new URL('./dsh-restricted.patch.yml', import.meta.url)):null,
@@ -82,7 +83,7 @@ async function attachWorldSession(config,signal) {
 }
 
 export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',port=8789,
-  origins=DEFAULT_ORIGINS,prepareProject=prepareWorld,backends={pi:runPiAgent,dsh:runDshAgent},finalize=finalizeRun,attachSession=attachWorldSession}={}) {
+  origins=DEFAULT_ORIGINS,prepareProject=prepareWorld,backends={pi:runPiAgent,dsh:runDshAgent},finalize=finalizeRun,attachSession=attachWorldSession,compileTask=compileTaskSpecWithModel}={}) {
   if(host!=='127.0.0.1')throw new Error('AGENT_HOST_LOOPBACK_REQUIRED');
   const runs=new Map(), enabled=readiness(config);
   const respond=(res,status,payload,origin)=>{
@@ -126,7 +127,7 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
     runs.set(input.runId,{controller});
     try{
       const emit=event=>{if(events.length<250)events.push(event);stream(event);};
-      const taskSpec=compileTaskSpec(input.prompt);
+      const taskSpec=await compileTask(input.prompt,{configuration:config,signal:controller.signal});
       const project=isNewWorldRequest(input.prompt) ? await prepareProject(config,input.runId,controller.signal) : null;
       const projectScope=project ? project.worldSessionId+'/'+project.id : undefined;
       // DSH SDK connects to MCP independently. Pin the authoritative Studio before it runs.
@@ -150,6 +151,15 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
       if(streaming){stream({type:'run.result',result:{...output,runId:input.runId}});res.end();return;}
       return respond(res,200,{...output,runId:input.runId,events},origin);
     }catch(error){
+      if(controller.signal.aborted){
+        const finished={type:'run.finished',backend:input.backend,taskStatus:'cancelled',verified:false};
+        events.push(finished);stream(finished);
+        const cancelled={schema:'agentscape.agent-run',schemaVersion:1,backend:input.backend,
+          taskStatus:'cancelled',verified:false,steps:0,execution:[],
+          verification:{status:'unverified',reason:'RUN_CANCELLED',checks:[]}};
+        if(streaming){stream({type:'run.result',result:{...cancelled,runId:input.runId}});res.end();return;}
+        return respond(res,200,{...cancelled,runId:input.runId,events},origin);
+      }
       if(streaming){stream({type:'run.error',code:errorCode(error)});res.end();return;}
       return respond(res,500,{code:errorCode(error),message:errorCode(error),runId:input.runId,
         events:events.slice(-40)},origin);

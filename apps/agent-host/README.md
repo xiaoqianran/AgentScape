@@ -44,7 +44,7 @@ Pi / DSH 共用同一世界会话，通过 `worldSessionId` 标识，禁止并�
 
 - `AgentExecution.js` 只抽取必要的工具名、操作、目标 ID、执行状态及 `scene_verify` 验收条件；不会保存生成的源代码或全部 LLM 对话。
 - Pi 的 SDK 完成事件、DSH SDK 的 `tool/call` / `tool/result` 统一生成 `execution`；两个后端不再直接宣布 `completed`。
-- `TaskSpec.js` 独立从用户原始任务编译苹果树、房屋和杯子三类黄金任务的结构化验收要求，并在 Agent 后置验证之前注入 Host 最终复验；未知/无法完整描述的任务进入人工审查，不允许 Agent 自行用更弱的验收取代。视觉质量要求在未接入截图评价时保持 `VISUAL_REVIEW_PENDING`。
+- TaskSpec.js 保留苹果树、房屋、杯子的确定性 Golden Tasks；TaskCompiler.js 对其他请求使用现有 NewAPI 模型配置尝试一次结构化编译（Pi/DSH 共用），TaskSchema.js 用 Zod 限制候选规格，Host 转换为现有 Runtime 验收条件。模型只能提出候选条件，不参与最终结果判定。
 - `AgentHost` 在两种 SDK 结束之后调用同一个 `finalizeRun()`。存在已提交世界变更时，必须有晚于最后一次变更的显式 `scene_verify`。
 - Host 使用受限 MCP **确认与任务执行时是同一世界会话（DSH 预先绑定；Pi 比对 SDK 会话），重新读取当前 Studio Scene Revision、重跑原始验收条件**，同时添加世界有效性与已添加实体存在性检查。前后版本不一致、证据过期、失败操作未恢复均返回 `incomplete`。
 - 针对新建 Code Project，还必须确认项目 ID、`runningRevision`、实体注册及保存结果；项目源代码仍在浏览器 Studio 中执行，本改动**不提供 JavaScript 隔离**。
@@ -70,3 +70,12 @@ npm run typecheck
 npm run build
 node_modules/.bin/dsh.cmd --profile sdk-minimal --patch apps/agent-host/dsh-restricted.patch.yml --dump-config
 ```
+
+### 通用任务编译（第一阶段）
+
+- 无需新增独立模型服务或 Agent Loop：在 Pi/DSH 执行前，Host 复用配置的 OpenAI-compatible AGENTSCAPE_LLM_* 请求一次 /chat/completions；已有 Golden Tasks 不再额外调用模型。默认 15 秒超时，可通过 AGENTSCAPE_TASK_COMPILER_TIMEOUT_MS 调整（1000–60000 毫秒）。仅配置 DSH、不提供这些模型参数时，未知任务保持 review-required。
+- 每项需求包含源文本 quote，严格 Zod Schema 限定为 entity（数量展开）、relation（五种可验证空间关系）、action（必须有独立执行证据）、state、visual 或 unverifiable。Host 检查原文引用、显式数量、粗粒度文本覆盖、条件数量上限；不接受模型返回任意 scene_verify 参数。
+- 无法解析、超时、超量或模型接口失败时回退为 review-required，不得自动报告完成。显式不可验证需求需要人工审核；视觉外观和颜色不当作 Runtime 状态，必须等待视觉验收机制，仍返回 VISUAL_REVIEW_PENDING。
+- 原始 Golden Task 条件在合并时优先保留。AgentRunFinalizer 在同一世界修订上独立复验；模型声明 complete:true 不构成成功证据。
+- **当前限制**：原文引用和文本覆盖比例不能严格证明模型没有遗漏语义；暂未加入第二模型交叉审核、人工任务规格确认 UI 或视觉评分。通用任务的完成状态只证明已列出、受 Runtime 支持的结构化条件，不能保证主观视觉品质。
+- 可运行 npx vitest run tests/agent-host/task-compiler.test.js tests/agent-host/task-spec.test.js 验证新编译与旧任务回归。
