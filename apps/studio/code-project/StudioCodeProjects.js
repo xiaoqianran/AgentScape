@@ -231,6 +231,40 @@ export class StudioCodeProjects {
       return { status:'project-running', id:project.id, revision:this.revision, observation };
     });
   }
+  /** Capture a real running Three.js frame, bound to the current project revision. */
+  capture({expectedRevision,maxWidth=768,maxHeight=432}={}) {
+    if (!this.session || !this.draft) throw fail('VISUAL_PROJECT_NOT_RUNNING');
+    if (this.busy) throw fail('PROJECT_BUSY');
+    if (expectedRevision !== this.revision || this.runningRevision !== this.revision)
+      throw fail('PROJECT_REVISION_CONFLICT');
+    if (!Number.isSafeInteger(maxWidth) || maxWidth < 128 || maxWidth > 1024 ||
+        !Number.isSafeInteger(maxHeight) || maxHeight < 128 || maxHeight > 1024)
+      throw fail('VISUAL_CAPTURE_DIMENSIONS_INVALID');
+    const session=this.session, canvas=session.scene.native?.renderer?.domElement;
+    if (!canvas || !canvas.width || !canvas.height || typeof document==='undefined')
+      throw fail('VISUAL_CANVAS_UNAVAILABLE');
+    try {
+      // The WebGL drawing buffer may be discarded; render and copy synchronously.
+      session.frame(performance.now());
+      const ratio=Math.min(1,maxWidth/canvas.width,maxHeight/canvas.height);
+      const width=Math.max(1,Math.round(canvas.width*ratio));
+      const height=Math.max(1,Math.round(canvas.height*ratio));
+      const target=document.createElement('canvas');
+      target.width=width;target.height=height;
+      const context=target.getContext('2d');
+      if(!context)throw fail('VISUAL_CAPTURE_UNAVAILABLE');
+      context.drawImage(canvas,0,0,width,height);
+      const imageBase64=target.toDataURL('image/jpeg',0.72).split(',')[1];
+      if(!imageBase64 || imageBase64.length>240000)throw fail('VISUAL_CAPTURE_TOO_LARGE');
+      if(this.session!==session || this.runningRevision!==this.revision)
+        throw fail('PROJECT_REVISION_CONFLICT');
+      return {status:'captured',projectId:this.draft.id,revision:this.revision,
+        sceneRevision:session.scene.observe().revision,width,height,mime:'image/jpeg',imageBase64};
+    } catch(error) {
+      if(error?.code)throw error;
+      throw fail('VISUAL_CAPTURE_FAILED');
+    }
+  }
   async save() {
     return this.exclusive(async () => {
       if (!this.session) throw fail('RUN_PROJECT_FIRST');

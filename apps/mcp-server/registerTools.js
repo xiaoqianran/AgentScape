@@ -86,13 +86,14 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
    }
   }
  };
- add('studio_project','Create, edit, run, save and reopen complete trusted code worlds in the active Studio workbench. Use operation=read to list projects; open takes id from projects[].id. run takes expectedRevision from open/write. save persists the active project. Read first for source, revision and createProject API guide. file/file_read edit named JavaScript and shader files, resource imports embedded binary resources. write saves a draft; patch applies a unique exact-fragment edit with expectedRevision; preview_batch stages up to 32 changes for diff review, apply_batch commits them atomically, discard_batch drops the preview, and undo_batch reverts the latest batch; run activates it; save persists live state and assets. Not a sandbox. Use scene_observe/interact for dynamic actions.',{
-  ...sceneSession, operation:z.enum(['read','write','patch','file_read','file','resource','preview_batch','apply_batch','discard_batch','undo_batch','run','save','open','close','create_world']), requestId:z.uuid().optional(),
+ add('studio_project','Create, edit, run, save and reopen complete trusted code worlds in the active Studio workbench. Use operation=read to list projects; open takes id from projects[].id. run takes expectedRevision from open/write. save persists the active project. Read first for source, revision and createProject API guide. file/file_read edit named JavaScript and shader files, resource imports embedded binary resources. write saves a draft; patch applies a unique exact-fragment edit with expectedRevision; preview_batch stages up to 32 changes for diff review, apply_batch commits them atomically, discard_batch drops the preview, and undo_batch reverts the latest batch; run activates it; save persists live state and assets. Not a sandbox. operation=capture returns a real bounded JPEG frame from the running revision; it is not a visual verdict. Use scene_observe/interact for dynamic actions.',{
+  ...sceneSession, operation:z.enum(['read','write','patch','file_read','file','resource','preview_batch','apply_batch','discard_batch','undo_batch','run','save','open','close','create_world','capture']), requestId:z.uuid().optional(),
   create:z.boolean().optional(), source:z.string().min(1).optional(), name:z.string().min(1).optional(),
   oldText:z.string().min(1).optional(), newText:z.string().optional(),
   action:z.enum(['create','write','patch','rename','delete','add']).optional(), path:z.string().min(1).max(180).optional(),
   newPath:z.string().max(180).optional(), content:z.string().optional(), mime:z.string().optional(), base64:z.string().optional(),
   offset:z.number().int().min(0).optional(), limit:z.number().int().min(1).max(65536).optional(),
+  maxWidth:z.number().int().min(128).max(1024).optional(), maxHeight:z.number().int().min(128).max(1024).optional(),
   expectedRevision:z.number().int().nonnegative().optional(), id:z.string().optional(), project:z.record(z.string(),z.unknown()).optional(),
   previewId:z.uuid().optional(),
   operations:z.array(z.object({kind:z.enum(['file','resource']),action:z.enum(['create','write','patch','rename','delete','add']),

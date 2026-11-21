@@ -57,6 +57,12 @@ export function createStudioAgent({
       if(event.type==='tool.start')taskPanel.log('Pi/DSH tool: '+event.tool,'tool');
       if(event.type==='tool.end' && event.failed)taskPanel.log(event.tool+' · '+(event.reason || '工具执行失败'),'error');
       if(event.type==='run.finished')taskPanel.log('Agent Host: '+event.taskStatus,'result');
+      if(event.type==='visual.reviewed')taskPanel.log(
+        '视觉评价第'+(event.attempt+1)+'轮：'+event.score+'/10 · '+
+        (event.status==='passed'?'通过':'待修订')+
+        (event.issues?.length ? ' · '+event.issues.join('；') : ''),'result');
+      if(event.type==='visual.revision.requested')taskPanel.log(
+        '视觉反馈已触发第'+event.attempt+'次 Three.js 源码修订','tool');
     }
   }));
   taskPanel.setAvailability(capabilityStatus.agent.available);

@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { runPiAgent } from './PiAgentBackend.js';
 import { runDshAgent } from './DshAgentBackend.js';
 import { finalizeRun } from './AgentRunFinalizer.js';
+import { reviewStudioVisual, iterateVisualProject } from './VisualReview.js';
 // The TaskSpec compiler is loaded only for explicitly requested strict acceptance.
 const compileTaskSpecWithModel = async (prompt,options) =>
   (await import('./TaskCompiler.js')).compileTaskSpecWithModel(prompt,options);
@@ -38,6 +39,10 @@ export const getConfig=env=>({
   taskCompilerModelId:env.AGENTSCAPE_TASK_COMPILER_MODEL,
   taskCompilerDisableThinking:env.AGENTSCAPE_TASK_COMPILER_DISABLE_THINKING,
   taskAcceptanceMode:env.AGENTSCAPE_TASK_ACCEPTANCE_MODE || 'world',
+  visualReviewMode:env.AGENTSCAPE_VISUAL_REVIEW_MODE || 'auto',
+  visualModelId:env.AGENTSCAPE_VISUAL_MODEL || env.AGENTSCAPE_LLM_MODEL || env.AGENTSCAPE_TEST_LLM_MODEL,
+  visualTimeoutMs:env.AGENTSCAPE_VISUAL_TIMEOUT_MS,
+  visualMaxRevisions:env.AGENTSCAPE_VISUAL_MAX_REVISIONS==null ? 2 : Number(env.AGENTSCAPE_VISUAL_MAX_REVISIONS),
   mcpUrl:env.AGENTSCAPE_MCP_URL||'http://127.0.0.1:39015/agent-mcp',
   mcpToken:env.AGENTSCAPE_MCP_TOKEN,
   dshPatch:env.AGENTSCAPE_DSH_RESTRICTED==='1'?fileURLToPath(new URL('./dsh-restricted.patch.yml', import.meta.url)):null,
@@ -88,10 +93,17 @@ async function attachWorldSession(config,signal) {
 }
 
 export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',port=8789,
-  origins=DEFAULT_ORIGINS,prepareProject=prepareWorld,backends={pi:runPiAgent,dsh:runDshAgent},finalize=finalizeRun,attachSession=attachWorldSession,compileTask=compileTaskSpecWithModel}={}) {
+  origins=DEFAULT_ORIGINS,prepareProject=prepareWorld,backends={pi:runPiAgent,dsh:runDshAgent},
+  finalize=finalizeRun,reviewVisual=reviewStudioVisual,
+  attachSession=attachWorldSession,compileTask=compileTaskSpecWithModel}={}) {
   if(host!=='127.0.0.1')throw new Error('AGENT_HOST_LOOPBACK_REQUIRED');
   const acceptanceMode=config.taskAcceptanceMode || 'world';
   if(!['world','strict'].includes(acceptanceMode))throw new Error('TASK_ACCEPTANCE_MODE_INVALID');
+  const visualMode=config.visualReviewMode || 'auto';
+  if(!['auto','on','off'].includes(visualMode))throw new Error('VISUAL_REVIEW_MODE_INVALID');
+  const visualMaxRevisions=config.visualMaxRevisions ?? 2;
+  if(!Number.isSafeInteger(visualMaxRevisions)||visualMaxRevisions<0||visualMaxRevisions>3)
+    throw new Error('VISUAL_MAX_REVISIONS_INVALID');
   const runs=new Map(), enabled=readiness(config);
   const respond=(res,status,payload,origin)=>{
     const body=JSON.stringify(payload);
@@ -156,8 +168,18 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
         JSON.stringify(taskSpec.requiredChecks),
         'The Host will independently verify these criteria. A tool result is not task completion.'
       ].join('\n') : prompt;
-      const backendOutput=await backends[input.backend]({prompt:fullPrompt,projectScope,configuration:config,signal:controller.signal,emit});
-      const output=await finalize({output:{...backendOutput,backend:input.backend},project,configuration:config,signal:controller.signal,expectedWorldSessionId,taskSpec});
+      const shouldReview=visualMode==='on'||(visualMode==='auto'&&Boolean(project));
+      const runBackend=prompt=>backends[input.backend]({prompt,projectScope,configuration:config,signal:controller.signal,emit});
+      const verify=backendOutput=>finalize({output:{...backendOutput,backend:input.backend},project,
+        configuration:config,signal:controller.signal,expectedWorldSessionId,taskSpec,
+        deferVisualReview:shouldReview});
+      let output=await verify(await runBackend(fullPrompt));
+      if(shouldReview && output.taskStatus==='completed') {
+        output=await iterateVisualProject({prompt:input.prompt,initial:output,
+          review:()=>reviewVisual({prompt:input.prompt,project,configuration:config,signal:controller.signal}),
+          revise:({prompt})=>runBackend(prompt),verify,maxRevisions:visualMaxRevisions,
+          signal:controller.signal,emit});
+      }
       emit({type:'run.finished',backend:input.backend,taskStatus:output.taskStatus,verified:output.verified});
       if(streaming){stream({type:'run.result',result:{...output,runId:input.runId}});res.end();return;}
       return respond(res,200,{...output,runId:input.runId,events},origin);

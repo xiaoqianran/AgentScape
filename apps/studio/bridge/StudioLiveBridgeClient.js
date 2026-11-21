@@ -179,6 +179,7 @@ export class StudioLiveBridgeClient {
       if (operation === 'discard_batch') return this.codeProjects.discardBatch(input);
       if (operation === 'undo_batch') return this.codeProjects.undoBatch(input);
       if (operation === 'run') return this.codeProjects.run(input);
+      if (operation === 'capture') return this.codeProjects.capture(input);
       if (operation === 'save') return this.codeProjects.save();
       if (operation === 'open') return this.codeProjects.load(input.id);
       if (operation === 'close') return this.codeProjects.close();

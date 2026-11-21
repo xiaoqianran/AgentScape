@@ -344,6 +344,12 @@ export class TaskPanel {
           this.setState('success','任务已完成',`${label} · 运行时验证通过。`);
           this.log('任务状态：已完成 · 变更链已验证','result');
         }
+      } else if (result.visual && result.visual.status !== 'passed') {
+        const last=result.visual.reviews?.at(-1);
+        const score=Number.isFinite(last?.score)?last.score+'/10':'未取得评分';
+        const issue=last?.issues?.[0] || result.visual.reason || '视觉评价不可用';
+        this.setState('partial','视觉质量尚未通过',`${label} · ${score} · ${issue}`);
+        this.log('视觉验收未完成：'+score+' · '+issue,'result');
       } else if (result.taskStatus === 'awaiting-approval') {
         this.setState('partial','等待用户审阅',
           '完整代码世界需要人工批准当前源码版本。请打开「代码世界」，审阅并批准本版本，然后重试。');

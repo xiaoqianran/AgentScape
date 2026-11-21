@@ -7,7 +7,7 @@ const WORLD_TOOLS = new Set(['scene_observe','scene_verify','scene_add_model','s
 
 
 export function changesWorld(name, args = {}) {
-  if (name === 'studio_project') return !['read','file_read','save','preview_batch','discard_batch'].includes(args.operation);
+  if (name === 'studio_project') return !['read','file_read','capture','save','preview_batch','discard_batch'].includes(args.operation);
   if (name === 'scene_add_model') return (args.mode || 'add') === 'add';
   return ['scene_apply','scene_interact','scene_cancel'].includes(name);
 }

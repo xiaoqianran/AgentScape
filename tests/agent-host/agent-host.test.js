@@ -57,6 +57,50 @@ describe('dual agent host transport',()=>{
     expect(calls).toEqual(['new_world_12345','backend']);
     expect(result.projectId).toBe(id);
   });
+  it('revises the same world through Pi/DSH until a real screenshot is accepted',async()=>{
+    const prompts=[],visualEvents=[],projectId='world_'+'e'.repeat(32);
+    const worldSessionId=crypto.randomUUID();
+    const verdicts=[
+      {status:'needs-revision',score:3,issues:['外观缺少树叶'],advice:'加绿色树冠',projectId,revision:2},
+      {status:'passed',score:9,issues:[],advice:'',projectId,revision:3}
+    ];
+    const host=createAgentHost({config:configuration,port:0,
+      prepareProject:async()=>({id:projectId,worldSessionId,revision:1}),
+      backends:{pi:async({prompt})=>{prompts.push(prompt);return {worldSessionId,execution:[]};},dsh:async()=>({})},
+      finalize:async()=>({taskStatus:'completed',verified:true,verification:{scope:'world-state',status:'verified'}}),
+      reviewVisual:async()=>verdicts.shift()});
+    await host.listen();active.push(host);
+    const output=await (await json('http://127.0.0.1:'+host.server.address().port,'/run',
+      {runId:'visual_create_001',backend:'pi',prompt:'创建一个精致苹果树世界'})).json();
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain('加绿色树冠');
+    expect(prompts[1]).toContain('创建一个精致苹果树世界');
+    expect(output).toMatchObject({taskStatus:'completed',verified:true,visual:{status:'passed'}});
+    expect(output.visual.reviews).toHaveLength(2);
+    expect(output.events.filter(event=>event.type==='visual.reviewed')).toHaveLength(2);
+    expect(JSON.stringify(output)).not.toContain('imageBase64');
+  });
+  it('lets an explicit off mode keep existing world-only behavior without vision API calls',async()=>{
+    const worldSessionId=crypto.randomUUID(),projectId='world_'+'f'.repeat(32);
+    let reviewed=false;
+    const host=createAgentHost({config:{...configuration,visualReviewMode:'off'},port:0,
+      prepareProject:async()=>({id:projectId,worldSessionId,revision:1}),
+      backends:{pi:async()=>({worldSessionId,execution:[]}),dsh:async()=>({})},
+      finalize:async()=>({taskStatus:'completed',verified:true}),
+      reviewVisual:async()=>{reviewed=true;throw Error('unexpected');}});
+    await host.listen();active.push(host);
+    const result=await (await json('http://127.0.0.1:'+host.server.address().port,'/run',
+      {runId:'visual_off_001',backend:'pi',prompt:'创建一座房屋世界'})).json();
+    expect(reviewed).toBe(false);
+    expect(result.taskStatus).toBe('completed');
+    expect(result).not.toHaveProperty('visual');
+  });
+  it('rejects unsupported visual settings rather than silently ignoring them',()=>{
+    expect(()=>createAgentHost({config:{...configuration,visualReviewMode:'sometimes'}}))
+      .toThrow('VISUAL_REVIEW_MODE_INVALID');
+    expect(()=>createAgentHost({config:{...configuration,visualMaxRevisions:12}}))
+      .toThrow('VISUAL_MAX_REVISIONS_INVALID');
+  });
   it('serializes world runs and aborts on cancellation',async()=>{
     let started;
     const startedPromise=new Promise(resolve=>started=resolve);

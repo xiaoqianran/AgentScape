@@ -42,7 +42,8 @@ async function invoke(connection,name,args,signal) {
 }
 
 /** The Host, not either model SDK, owns the final task admission decision. */
-export async function finalizeRun({output={},project=null,configuration,signal,expectedWorldSessionId=null,taskSpec=null,mcpConnector=connectStudioMcp}={}) {
+export async function finalizeRun({output={},project=null,configuration,signal,expectedWorldSessionId=null,taskSpec=null,
+  deferVisualReview=false,mcpConnector=connectStudioMcp}={}) {
   const execution = Array.isArray(output.execution) ? output.execution : [];
   const mutations = execution.filter(entry=>entry.mutates && entry.outcome?.state!=='failed');
   const unresolved = unresolvedOperations(execution);
@@ -148,7 +149,7 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
         reason='PROJECT_REVISION_CHANGED';return format();
       }
     }
-    if(taskSpec?.visual?.required){reason='VISUAL_REVIEW_PENDING';return format();}
+    if(taskSpec?.visual?.required && !deferVisualReview){reason='VISUAL_REVIEW_PENDING';return format();}
     status='completed';reason=null;
   } catch(error) {
     reason=signal?.aborted?'RUN_CANCELLED':code(error?.code);

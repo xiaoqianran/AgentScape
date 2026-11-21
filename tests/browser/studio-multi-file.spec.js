@@ -58,6 +58,19 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   await call('run',{requestId:randomUUID()});
   const canvas=page.locator('.studio-code-project-viewport canvas');
   await expect(canvas).toBeVisible();
+  // The vision evaluator receives real pixels via the existing Studio MCP bridge.
+  const visual=await call('capture',{expectedRevision:3});
+  expect(visual).toMatchObject({status:'captured',revision:3,mime:'image/jpeg'});
+  expect(visual.width).toBeGreaterThan(100);
+  expect(visual.width).toBeLessThanOrEqual(768);
+  expect(visual.height).toBeLessThanOrEqual(432);
+  const image=Buffer.from(visual.imageBase64,'base64');
+  expect(image.length).toBeGreaterThan(1000);
+  const pixels=await sharp(image).stats();
+  expect(Math.max(...pixels.channels.slice(0,3).map(channel=>channel.stdev))).toBeGreaterThan(2);
+  const staleCapture=await client.callTool({name:'studio_project',arguments:{operation:'capture',expectedRevision:1}});
+  expect(staleCapture.isError).toBe(true);
+  expect(JSON.parse(staleCapture.content[0].text).code).toBe('PROJECT_REVISION_CONFLICT');
   const first=await client.callTool({name:'scene_observe',arguments:{}});
   const observation=JSON.parse(first.content[0].text);
   expect(observation.project.entities[0].state).toMatchObject({
