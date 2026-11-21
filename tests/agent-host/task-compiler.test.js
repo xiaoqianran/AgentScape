@@ -51,7 +51,7 @@ describe('general TaskCompiler acceptance boundary',()=>{
     ]})).toThrow('TASK_SOURCE_QUOTE_MISMATCH');
     expect(buildTaskSpec(prompt,{complete:true,requirements:[
       {kind:'entity',quote:'跑车',targetId:'car'}
-    ]})).toMatchObject({status:'review-required',reason:'TASK_SOURCE_COVERAGE_LOW'});
+    ]})).toMatchObject({status:'review-required',reason:'TASK_SPEC_REVIEW_REQUIRED'});
     expect(()=>buildTaskSpec(prompt,{...proposal,requirements:[
       {...proposal.requirements[0],arbitrary:'injection'},...proposal.requirements.slice(1)
     ]})).toThrow();
@@ -257,5 +257,73 @@ describe('Agent Host compilation cancellation',()=>{
       expect(result.events.at(-1)).toMatchObject({type:'run.finished',taskStatus:'cancelled'});
       expect(backend).not.toHaveBeenCalled();
     }finally{await host.close();}
+  });
+});
+
+describe('live-model failure guards and model selection',()=>{
+  const car='创建一辆有四个轮子的汽车，车门能够打开';
+  it('refuses property substitutions for counted parts and interactive behaviors',()=>{
+    const bad={
+      complete:true,requirements:[
+        {kind:'entity',quote:'汽车',targetId:'car'},
+        {kind:'state',quote:'有四个轮子',targetId:'car',stateKey:'wheel_count',value:4},
+        {kind:'state',quote:'车门能够打开',targetId:'car',stateKey:'door_openable',value:true}
+      ]
+    };
+    const result=buildTaskSpec(car,bad);
+    expect(result.status).toBe('review-required');
+    expect(result.compilation).toMatchObject({missingCountMentions:1,missingAbilityMentions:1});
+    expect(result.requiredChecks.every(item=>item.kind!=='state-equals')).toBe(true);
+  });
+  it('rejects a broad quotation that hides missing subrequirements',()=>{
+    const result=buildTaskSpec(car,{complete:true,requirements:[
+      {kind:'entity',quote:car,targetId:'car',count:1}
+    ]});
+    expect(result.status).toBe('review-required');
+  });
+  it('disables reasoning on Nemotron 3.5 and supports a separate compiler model',async()=>{
+    const request=vi.fn(async()=>mockResult({complete:true,requirements:[
+      {kind:'entity',quote:'机器人',targetId:'robot'}
+    ]}));
+    const result=await compileTaskSpecWithModel('创建一个机器人',{
+      configuration:{...config,modelId:'main-model',taskCompilerModelId:'nvidia/nemotron-3.5-super-vl-120b-a12b'},
+      request
+    });
+    expect(result.status).toBe('ready');
+    const body=JSON.parse(request.mock.calls[0][1].body);
+    expect(body.model).toBe('nvidia/nemotron-3.5-super-vl-120b-a12b');
+    expect(body.chat_template_kwargs).toEqual({enable_thinking:false});
+  });
+  it('never accepts truncated reasoning without final content',async()=>{
+    const reply={choices:[{message:{content:null,reasoning_content:'thoughts'},finish_reason:'length'}]};
+    const result=await compileTaskSpecWithModel('创建一个机器人',{configuration:config,
+      request:async()=>new Response(JSON.stringify(reply),{status:200})});
+    expect(result.status).toBe('review-required');
+  });
+});
+
+describe('Chinese quantity audit for diverse classifiers',()=>{
+  it('does not silently discard numbered towers, machines and lamps',()=>{
+    for(const [prompt,noun,id] of [
+      ['创建一座城堡，有两座塔楼','塔楼','tower'],
+      ['创建一个工厂，有两台机器','机器','machine'],
+      ['创建一条街道，有三盏路灯','路灯','lamp']
+    ]){
+      const wrong=buildTaskSpec(prompt,{complete:true,requirements:[
+        {kind:'entity',quote:prompt.includes('城堡')?'城堡':prompt.includes('工厂')?'工厂':'街道',targetId:'root'},
+        {kind:'entity',quote:noun,targetId:id}
+      ]});
+      expect(wrong).toMatchObject({status:'review-required',
+        compilation:{missingCountMentions:1}});
+    }
+  });
+  it('accepts explicitly counted tower requirements from the original text',()=>{
+    const prompt='创建一座城堡，有两座塔楼';
+    const spec=buildTaskSpec(prompt,{complete:true,requirements:[
+      {kind:'entity',quote:'城堡',targetId:'castle'},
+      {kind:'entity',quote:'两座塔楼',targetId:'tower',count:2}
+    ]});
+    expect(spec.status).toBe('ready');
+    expect(spec.requiredChecks.map(x=>x.targetId)).toEqual(['castle','tower_01','tower_02']);
   });
 });

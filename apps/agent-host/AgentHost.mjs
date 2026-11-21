@@ -33,6 +33,8 @@ export const getConfig=env=>({
   apiKey:env.AGENTSCAPE_LLM_API_KEY||env.AGENTSCAPE_TEST_LLM_API_KEY,
   modelId:env.AGENTSCAPE_LLM_MODEL||env.AGENTSCAPE_TEST_LLM_MODEL,
   taskCompilerTimeoutMs:env.AGENTSCAPE_TASK_COMPILER_TIMEOUT_MS,
+  taskCompilerModelId:env.AGENTSCAPE_TASK_COMPILER_MODEL,
+  taskCompilerDisableThinking:env.AGENTSCAPE_TASK_COMPILER_DISABLE_THINKING,
   mcpUrl:env.AGENTSCAPE_MCP_URL||'http://127.0.0.1:39015/agent-mcp',
   mcpToken:env.AGENTSCAPE_MCP_TOKEN,
   dshPatch:env.AGENTSCAPE_DSH_RESTRICTED==='1'?fileURLToPath(new URL('./dsh-restricted.patch.yml', import.meta.url)):null,

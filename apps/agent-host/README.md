@@ -79,3 +79,12 @@ node_modules/.bin/dsh.cmd --profile sdk-minimal --patch apps/agent-host/dsh-rest
 - 原始 Golden Task 条件在合并时优先保留。AgentRunFinalizer 在同一世界修订上独立复验；模型声明 complete:true 不构成成功证据。
 - **当前限制**：原文引用和文本覆盖比例不能严格证明模型没有遗漏语义；暂未加入第二模型交叉审核、人工任务规格确认 UI 或视觉评分。通用任务的完成状态只证明已列出、受 Runtime 支持的结构化条件，不能保证主观视觉品质。
 - 可运行 npx vitest run tests/agent-host/task-compiler.test.js tests/agent-host/task-spec.test.js 验证新编译与旧任务回归。
+
+### TaskCompiler 真实模型诊断与配置
+
+- 对 NVIDIA Nemotron 3.5 系列，编译请求自动传入 chat_template_kwargs.enable_thinking=false；这只影响任务规格解析，不改变 Pi/DSH 正式 Agent 的推理设置。官方 NIM 文档表明推理开启时 max_tokens 可能全耗在 reasoning 而导致 content 为空。
+- 通过 AGENTSCAPE_TASK_COMPILER_MODEL 可覆盖仅用于任务编译的模型 ID；AGENTSCAPE_TASK_COMPILER_DISABLE_THINKING=1 可为其他兼容模型显式关闭思考。不向未知模型自动发送该模型专属参数。
+- 当模型返回 finish_reason=length 且没有可用完成结果时拒绝验收，不允许将 reasoning_content 当成任务 JSON。默认 15 秒超时保持不变。
+- TaskCompiler 输出只保留白名单内的 diagnosticCode（如 TASK_COMPILER_TIMEOUT、TASK_COMPILER_OUTPUT_TRUNCATED、TASK_COMPILER_SCHEMA_INVALID），不保存模型响应正文、API Key 或链路详情。
+- 真实模型可能将“四个轮子”错误解释为 wheel_count=4，或将“车门能够打开”解释成 door_openable=true。编译器明确拒绝这类将实体/动作要求替换成普通属性的情形。源文覆盖率不能证明所有语义都已理解，必须继续建设更系统的需求完整性验收。
+真实模型评估见 docs/agent-task-compiler-evaluation.md；可使用 node dev/evaluate-task-compiler.mjs 复测。
