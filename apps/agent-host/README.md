@@ -44,14 +44,14 @@ Pi / DSH 共用同一世界会话，通过 `worldSessionId` 标识，禁止并�
 
 - `AgentExecution.js` 只抽取必要的工具名、操作、目标 ID、执行状态及 `scene_verify` 验收条件；不会保存生成的源代码或全部 LLM 对话。
 - Pi 的 SDK 完成事件、DSH SDK 的 `tool/call` / `tool/result` 统一生成 `execution`；两个后端不再直接宣布 `completed`。
-- TaskSpec.js 保留苹果树、房屋、杯子的确定性 Golden Tasks；TaskCompiler.js 对其他请求使用现有 NewAPI 模型配置尝试一次结构化编译（Pi/DSH 共用），TaskSchema.js 用 Zod 限制候选规格，Host 转换为现有 Runtime 验收条件。模型只能提出候选条件，不参与最终结果判定。
+- 默认 world 模式下，AgentHost 直接把原始用户需求发送给 Pi/DSH，不预先调用 TaskSpec/TaskCompiler，不强制指定预编译对象 ID 或固定关系。只有启用 strict 模式才加载 TaskSpec 与 TaskCompiler，并将模型候选要求用于独立语义验收。
 - `AgentHost` 在两种 SDK 结束之后调用同一个 `finalizeRun()`。存在已提交世界变更时，必须有晚于最后一次变更的显式 `scene_verify`。
-- Host 使用受限 MCP **确认与任务执行时是同一世界会话（DSH 预先绑定；Pi 比对 SDK 会话），重新读取当前 Studio Scene Revision、重跑原始验收条件**，同时添加世界有效性与已添加实体存在性检查。前后版本不一致、证据过期、失败操作未恢复均返回 `incomplete`。
-- 针对新建 Code Project，还必须确认项目 ID、`runningRevision`、实体注册及保存结果；项目源代码仍在浏览器 Studio 中执行，本改动**不提供 JavaScript 隔离**。
+- Host 使用受限 MCP 确认任务前后是同一世界会话（DSH 预先绑定；Pi 比对 SDK 会话），重新读取当前 Studio Scene Revision、验证 Agent 声明的后置条件；strict 模式还会复核额外编译的用户需求条件。世界有效性与新增实体存在性始终纳入检查，证据过期、失败操作未恢复均返回 incomplete。
+- 针对新建 Code Project，还必须确认项目 ID、runningRevision 及保存结果。默认 world 模式允许没有注册语义实体的纯 Three.js Scene；需要验证具体交互或 strict 任务条件时仍需可观察的实体/动作证据。本改动不提供 JavaScript 沙箱隔离。
 - 统一返回 `agentscape.agent-run` v1，保留 `taskStatus`、`execution`、`verification` 与 `unresolvedMutations`，并增加 `world`（worldSessionId、projectId、projectRevision、sceneRevision）。
 - `run.finished` 只由 Host 在最终验收后发出，适用于普通 HTTP 与 NDJSON 事件流。
 
-**验收范围**：本版严格验证 Agent 提交的明确后置条件及已知变更对象，不会将通用 `world-valid` 等同于用户自然语言任务的全部语义要求。视觉质量与未授权 Three.js 代码隔离分别属于后续工作；不得凭本结果声称已解决。
+**验收范围**：默认 world 模式仍复核当前 Studio 世界会话、项目运行修订、Agent 声明的 scene_verify 条件、变更实体存在性和 world-valid；未通过真实检查不能冒充成功。返回的 verification.scope 为 world-state，不代表用户语言中的全部要求或视觉质量已经验收。strict 模式额外要求 TaskSpec 条件，scope 为 task-criteria；视觉评价尚需后续实现。
 ## 安全和已知限制
 
 - `/agent-mcp` 是对原 `/mcp` 的服务端工具级白名单，含限定 MCP 兼容路由；`/mcp` 仍保留给原有 MCP 客户端。
@@ -71,11 +71,11 @@ npm run build
 node_modules/.bin/dsh.cmd --profile sdk-minimal --patch apps/agent-host/dsh-restricted.patch.yml --dump-config
 ```
 
-### 通用任务编译（第一阶段）
+### 可选严格任务编译
 
-- 无需新增独立模型服务或 Agent Loop：在 Pi/DSH 执行前，Host 复用配置的 OpenAI-compatible AGENTSCAPE_LLM_* 请求一次 /chat/completions；已有 Golden Tasks 不再额外调用模型。默认 15 秒超时，可通过 AGENTSCAPE_TASK_COMPILER_TIMEOUT_MS 调整（1000–60000 毫秒）。仅配置 DSH、不提供这些模型参数时，未知任务保持 review-required。
+- 默认 AGENTSCAPE_TASK_ACCEPTANCE_MODE=world（或留空）直接执行用户要求，不调用 TaskCompiler。显式设置 AGENTSCAPE_TASK_ACCEPTANCE_MODE=strict 时才额外编译任务，复用已有 OpenAI-compatible 模型接口，Golden Tasks 无需再次调用模型。超时默认 15 秒，可由 AGENTSCAPE_TASK_COMPILER_TIMEOUT_MS 调整；模型不可用或语义不确定时，仅严格模式会转为 review-required。无效模式会明确报错而不会静默关闭验收。
 - 每项需求包含源文本 quote，严格 Zod Schema 限定为 entity（数量展开）、relation（五种可验证空间关系）、action（必须有独立执行证据）、state、visual 或 unverifiable。Host 检查原文引用、显式数量、粗粒度文本覆盖、条件数量上限；不接受模型返回任意 scene_verify 参数。
-- 无法解析、超时、超量或模型接口失败时回退为 review-required，不得自动报告完成。显式不可验证需求需要人工审核；视觉外观和颜色不当作 Runtime 状态，必须等待视觉验收机制，仍返回 VISUAL_REVIEW_PENDING。
+- strict 模式下无法解析、超时、超量或模型接口失败时回退为 review-required；视觉外观仍会返回 VISUAL_REVIEW_PENDING。默认 world 模式不因无法表达的关系或外观要求阻止 AI 运行，但不能把已验证的世界状态声称为全部自然语言需求完成。
 - 原始 Golden Task 条件在合并时优先保留。AgentRunFinalizer 在同一世界修订上独立复验；模型声明 complete:true 不构成成功证据。
 - **当前限制**：原文引用和文本覆盖比例不能严格证明模型没有遗漏语义；暂未加入第二模型交叉审核、人工任务规格确认 UI 或视觉评分。通用任务的完成状态只证明已列出、受 Runtime 支持的结构化条件，不能保证主观视觉品质。
 - 可运行 npx vitest run tests/agent-host/task-compiler.test.js tests/agent-host/task-spec.test.js 验证新编译与旧任务回归。

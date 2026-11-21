@@ -21,3 +21,9 @@ export async function assertApprovedProject(approval,project,revision) {
   if(approval.digest!==await projectExecutionFingerprint(project,revision))
     throw Object.assign(new Error('PROJECT_EXECUTION_REVIEW_REQUIRED'),{code:'PROJECT_EXECUTION_REVIEW_REQUIRED'});
 }
+
+/** Opt-in content approval policy. Default Studio execution has no approval gate. */
+export const requireProjectApproval = Object.freeze({
+  requiresApproval: true,
+  beforeRun: ({ approval, project, revision }) => assertApprovedProject(approval, project, revision)
+});

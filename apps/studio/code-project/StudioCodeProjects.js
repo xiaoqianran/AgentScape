@@ -5,7 +5,7 @@ import { AuthoringWorldStore } from '../persistence/AuthoringWorldStore.js';
 import { projectTemplate, projectGuide } from './projectTemplate.js';
 import { projectFileEntries, compileCodeProjectModules } from '../../../application/native-scene/CodeProjectModules.js';
 import { applyProjectChanges, summarizeProjectChanges, patchProjectText } from './StudioProjectChanges.js';
-import { projectExecutionFingerprint, assertApprovedProject } from './ProjectExecutionPolicy.js';
+import { projectExecutionFingerprint } from './ProjectExecutionPolicy.js';
 
 const fail = code => Object.assign(new Error(code), { code });
 const clone = value => structuredClone(value);
@@ -14,12 +14,14 @@ const withoutIntegrity = ({ integrity, ...value }) => value;
 /** Studio project ownership. Source drafts and live state have distinct revisions. */
 export class StudioCodeProjects {
   constructor({ container, baseScene, baseWorld, store = new AuthoringWorldStore({ databaseName:'agentscape-code-projects' }),
-    open = openCodeProject, onActivate = () => {}, onShow = () => {} } = {}) {
-    Object.assign(this, { container, baseScene, baseWorld, store, open, onActivate, onShow });
+    open = openCodeProject, onActivate = () => {}, onShow = () => {}, executionPolicy = null } = {}) {
+    if (executionPolicy && typeof executionPolicy.beforeRun !== 'function') throw new TypeError('PROJECT_EXECUTION_POLICY_INVALID');
+    Object.assign(this, { container, baseScene, baseWorld, store, open, onActivate, onShow, executionPolicy });
     this.session = null; this.draft = null; this.revision = 0; this.runningRevision = null;
     this.listeners = new Set(); this.busy = false; this.visible = false;
     this.pendingBatch = null; this.lastBatch = null; this.approval = null;
-    this.current = Object.freeze({ visible:false, active:false, busy:false, project:null, revision:0, runningRevision:null, projects:[], error:null });
+    this.current = Object.freeze({ visible:false, active:false, busy:false, project:null, revision:0, runningRevision:null,
+      approvalRequired:Boolean(executionPolicy?.requiresApproval), projects:[], error:null });
   }
   subscribe = listener => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   snapshot = () => this.current;
@@ -172,7 +174,7 @@ export class StudioCodeProjects {
       return this.editFile({action:'patch',path,oldText,newText,expectedRevision});
     return this.write({ expectedRevision, patch:{ oldText, newText } });
   }
-  /** Only the user-facing Studio editor calls this method; no MCP operation exposes approval. */
+  /** Optional approval policy hook; only the Studio editor can grant a revision approval. */
   async approveCurrentRevision() {
     return this.exclusive(async () => {
       if (!this.draft) throw fail('PROJECT_REQUIRED');
@@ -186,7 +188,7 @@ export class StudioCodeProjects {
     return this.exclusive(async () => {
       if (!this.draft) throw fail('PROJECT_REQUIRED');
       if (expectedRevision !== undefined && expectedRevision !== this.revision) throw fail('PROJECT_REVISION_CONFLICT');
-      await assertApprovedProject(this.approval,this.draft,this.revision);
+      await this.executionPolicy?.beforeRun({ approval:this.approval, project:this.draft, revision:this.revision });
       // Saving acquires the Scene lock; pending actions must settle before replacement.
       const old = this.session;
       const live = old ? (await old.save()).value : null;

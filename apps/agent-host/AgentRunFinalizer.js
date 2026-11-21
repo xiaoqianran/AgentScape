@@ -65,7 +65,8 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
     worldSessionId,
     ...(projectId?{projectId}:{}),
     world:{worldSessionId,projectId,projectRevision,sceneRevision},
-    verification:{status:status==='completed'?'verified':'unverified',reason:status==='completed'?null:reason,
+    verification:{scope:taskSpec?'task-criteria':'world-state',
+      status:status==='completed'?'verified':'unverified',reason:status==='completed'?null:reason,
       worldSessionId,revision:sceneRevision,checks}
   });
   if(signal?.aborted || output.taskStatus==='cancelled'){status='cancelled';reason='RUN_CANCELLED';return format();}
@@ -114,7 +115,9 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
           projectState.runningRevision!==projectState.revision){
         reason='TASK_PROJECT_CHANGED';return format();
       }
-      if(!projectState.observation?.project?.entities?.length){
+      // Ordinary Three.js projects do not have to register an ontology.
+      // Explicit strict task criteria remain checked by scene_verify below.
+      if(taskSpec?.status==='ready' && !projectState.observation?.project?.entities?.length){
         reason='TASK_PROJECT_ENTITIES_MISSING';return format();
       }
     }

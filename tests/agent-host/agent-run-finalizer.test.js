@@ -168,7 +168,15 @@ describe('shared Pi / DSH execution and Host admission',()=>{
       project,configuration:config,mcpConnector:mock.connection});
     expect(acceptedProject.taskStatus).toBe('completed');
     expect(acceptedProject.world).toMatchObject({projectId:'world_abc',projectRevision:3});
+    expect(acceptedProject.verification.scope).toBe('world-state');
     expect(mock.invoked.filter(item=>item.name==='studio_project')).toHaveLength(2);
+    // A free-form THREE.Scene can be visually rich without registerEntity() calls.
+    const emptyRegistry=fixture({projectState:{...options.projectState,observation:{project:{entities:[]}}}});
+    const noSemantics=await finalizeRun({output:{backend:'pi',execution:[...edits,...normalizeExecution('pi',[
+      tool('scene_verify',{criteria:[{id:'valid',kind:'world-valid'}]},accepted([{id:'valid',kind:'world-valid'}]))
+    ])]},project,configuration:config,mcpConnector:emptyRegistry.connection});
+    expect(noSemantics.taskStatus).toBe('completed');
+    expect(noSemantics.verification.scope).toBe('world-state');
     const noSave=await finalizeRun({output:{backend:'pi',execution:[...edits.slice(0,2),...proof]},
       project,configuration:config,mcpConnector:mock.connection});
     expect(noSave.verification.reason).toBe('PROJECT_NOT_SAVED');

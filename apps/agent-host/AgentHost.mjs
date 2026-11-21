@@ -7,7 +7,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { runPiAgent } from './PiAgentBackend.js';
 import { runDshAgent } from './DshAgentBackend.js';
 import { finalizeRun } from './AgentRunFinalizer.js';
-import { compileTaskSpecWithModel } from './TaskCompiler.js';
+// The TaskSpec compiler is loaded only for explicitly requested strict acceptance.
+const compileTaskSpecWithModel = async (prompt,options) =>
+  (await import('./TaskCompiler.js')).compileTaskSpecWithModel(prompt,options);
 
 export function loadPrivateEnv(file) {
   if(!existsSync(file))return;
@@ -35,6 +37,7 @@ export const getConfig=env=>({
   taskCompilerTimeoutMs:env.AGENTSCAPE_TASK_COMPILER_TIMEOUT_MS,
   taskCompilerModelId:env.AGENTSCAPE_TASK_COMPILER_MODEL,
   taskCompilerDisableThinking:env.AGENTSCAPE_TASK_COMPILER_DISABLE_THINKING,
+  taskAcceptanceMode:env.AGENTSCAPE_TASK_ACCEPTANCE_MODE || 'world',
   mcpUrl:env.AGENTSCAPE_MCP_URL||'http://127.0.0.1:39015/agent-mcp',
   mcpToken:env.AGENTSCAPE_MCP_TOKEN,
   dshPatch:env.AGENTSCAPE_DSH_RESTRICTED==='1'?fileURLToPath(new URL('./dsh-restricted.patch.yml', import.meta.url)):null,
@@ -87,6 +90,8 @@ async function attachWorldSession(config,signal) {
 export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',port=8789,
   origins=DEFAULT_ORIGINS,prepareProject=prepareWorld,backends={pi:runPiAgent,dsh:runDshAgent},finalize=finalizeRun,attachSession=attachWorldSession,compileTask=compileTaskSpecWithModel}={}) {
   if(host!=='127.0.0.1')throw new Error('AGENT_HOST_LOOPBACK_REQUIRED');
+  const acceptanceMode=config.taskAcceptanceMode || 'world';
+  if(!['world','strict'].includes(acceptanceMode))throw new Error('TASK_ACCEPTANCE_MODE_INVALID');
   const runs=new Map(), enabled=readiness(config);
   const respond=(res,status,payload,origin)=>{
     const body=JSON.stringify(payload);
@@ -129,7 +134,9 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
     runs.set(input.runId,{controller});
     try{
       const emit=event=>{if(events.length<250)events.push(event);stream(event);};
-      const taskSpec=await compileTask(input.prompt,{configuration:config,signal:controller.signal});
+      // World-first mode runs the original request without rewriting it into a fixed ontology.
+      const taskSpec=acceptanceMode==='strict'
+        ? await compileTask(input.prompt,{configuration:config,signal:controller.signal}) : null;
       const project=isNewWorldRequest(input.prompt) ? await prepareProject(config,input.runId,controller.signal) : null;
       const projectScope=project ? project.worldSessionId+'/'+project.id : undefined;
       // DSH SDK connects to MCP independently. Pin the authoritative Studio before it runs.
@@ -139,10 +146,12 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
       const prompt=project ? [
         'The Host has prepared a dedicated draft for this task. Use studio_project read to obtain the starter and guide.',
         'Write the complete scene source via studio_project write with the current expectedRevision; use that same project.',
-        'Base the source on the starter entry point and runtime interfaces. Register the requested entities, run the revision, save it, and verify all requested entities together using scene_verify.',
+        acceptanceMode==='strict'
+          ? 'Use the starter and Runtime interfaces. Register the required entities, run the revision, save and verify all user-derived criteria via scene_verify.'
+          : 'Use the starter and native Three.js APIs freely to implement the requested world. Semantic entity/action registration is optional; use it only if interaction is needed. Run the revision, save, and check observable state with scene_verify. Do not substitute a fixed object vocabulary for the user request.',
         'User request:',input.prompt
       ].join('\n') : input.prompt;
-      const fullPrompt=taskSpec.status==='ready' ? [
+      const fullPrompt=taskSpec?.status==='ready' ? [
         prompt,'User-derived task requirements (do not weaken; use these exact entity IDs):',
         JSON.stringify(taskSpec.requiredChecks),
         'The Host will independently verify these criteria. A tool result is not task completion.'

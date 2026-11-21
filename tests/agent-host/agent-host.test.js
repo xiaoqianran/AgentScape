@@ -1,5 +1,5 @@
 import {describe,it,expect,afterEach} from 'vitest';
-import {createAgentHost,isNewWorldRequest} from '../../apps/agent-host/AgentHost.mjs';
+import {createAgentHost,isNewWorldRequest,getConfig} from '../../apps/agent-host/AgentHost.mjs';
 
 const ORIGIN='http://localhost:5173';
 const configuration={baseUrl:'https://test.invalid/v1',apiKey:'test',modelId:'test',
@@ -39,7 +39,7 @@ describe('dual agent host transport',()=>{
       dsh:async()=>{calls.push('dsh');return {taskStatus:'incomplete',message:'dsh'};}});
     const a=await json(url,'/run',{runId:'test_pi_1234567',backend:'pi',prompt:'observe'});
     const b=await json(url,'/run',{runId:'test_dsh_123456',backend:'dsh',prompt:'observe'});
-    expect((await a.json()).events).toEqual([{type:'run.started'}, {type:'run.finished',backend:'pi',taskStatus:'incomplete',verified:false}]);
+    expect((await a.json()).events).toEqual([{type:'run.started'}, {type:'run.finished',backend:'pi',taskStatus:'no-mutation',verified:false}]);
     expect((await b.json()).backend).toBe('dsh');
     expect(calls).toEqual(['pi','dsh']);
   });
@@ -47,7 +47,9 @@ describe('dual agent host transport',()=>{
     const calls=[];
     const id='world_'+'a'.repeat(32), worldSessionId=crypto.randomUUID();
     const run=async ({projectScope,prompt})=>{calls.push('backend');expect(projectScope).toBe(worldSessionId+'/'+id);
-      expect(prompt).toContain('创建一个有房子和苹果树的世界');return {taskStatus:'completed'};};
+      expect(prompt).toContain('创建一个有房子和苹果树的世界');
+      expect(prompt).toContain('Semantic entity/action registration is optional');
+      return {taskStatus:'completed'};};
     const url=await setup({pi:run,dsh:run},async (_config,runId)=>{
       calls.push(runId);return {id,worldSessionId,revision:1};
     });
@@ -66,6 +68,27 @@ describe('dual agent host transport',()=>{
     expect((await json(url,'/run',{runId:'run_second_12345',backend:'pi',prompt:'conflict'})).status).toBe(409);
     expect((await json(url,'/cancel',{runId:'run_first_12345'})).status).toBe(200);
     expect((await (await run).json()).taskStatus).toBe('cancelled');
+  });
+  it('runs arbitrary original requests without invoking TaskSpec in the default world-first mode',async()=>{
+    expect(getConfig({}).taskAcceptanceMode).toBe('world');
+    expect(getConfig({AGENTSCAPE_TASK_ACCEPTANCE_MODE:'strict'}).taskAcceptanceMode).toBe('strict');
+    let received, compiled=false;
+    const host=createAgentHost({config:configuration,port:0,compileTask:async()=>{compiled=true;throw new Error('unexpected compilation');},
+      backends:{pi:async ({prompt})=>{received=prompt;return {taskStatus:'incomplete',execution:[]};},dsh:async()=>({})},
+      attachSession:async()=> 'world-test'});
+    await host.listen();active.push(host);
+    const prompt='创建一台会旋转、具有任意自定义部件和材质的机器人';
+    const output=await (await json('http://127.0.0.1:'+host.server.address().port,'/run',
+      {runId:'free_three_js_001',backend:'pi',prompt})).json();
+    expect(received).toBe(prompt);
+    expect(compiled).toBe(false);
+    expect(output).not.toHaveProperty('taskSpec');
+    expect(output.verification).toMatchObject({scope:'world-state',status:'unverified',reason:'SCENE_VERIFICATION_MISSING'});
+    expect(output.verified).toBe(false);
+  });
+  it('rejects unknown task acceptance modes rather than silently disabling a requested policy',()=>{
+    expect(()=>createAgentHost({config:{...configuration,taskAcceptanceMode:'stict'}}))
+      .toThrow('TASK_ACCEPTANCE_MODE_INVALID');
   });
   it('requires a restricted DSH profile and hides unavailable backends',async()=>{
     const host=createAgentHost({config:{...configuration,dshPatch:null},port:0,backends:{pi:async()=>({}),dsh:async()=>({})}});

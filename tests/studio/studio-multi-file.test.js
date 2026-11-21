@@ -23,8 +23,7 @@ async function fixture() {
  return {base,controller,tools:controller.wrapTools(new AgentTools(base.world)),close(){controller.dispose();base.close();}};
 }
 
-async function approvedRun(controller,options) {
-  await controller.approveCurrentRevision(); // Human approval simulated by the test, never by MCP.
+async function runProject(controller,options) {
   return controller.run(options);
 }
 
@@ -54,7 +53,7 @@ describe('Studio multi-file source and resource operations',()=>{
    expect(saved.value.files['lib/counter.js']).toContain('initial=7');
    await f.controller.close();
    other=await fixture();
-   await other.controller.load(project.id);await approvedRun(other.controller,);
+   await other.controller.load(project.id);await runProject(other.controller,);
    expect(other.controller.scene.inspect('counter').state.count).toBe(7);
   }finally{other?.close();f.close();}
  },30000);

@@ -18,7 +18,8 @@ export async function createStudioRuntime({
   ui,
   environmentDefinition,
   params,
-  capabilityStatus
+  capabilityStatus,
+  projectExecutionPolicy = null
 }) {
   const environmentMaterializer = new StudioEnvironmentMaterializer({ parent:ui.shell });
   const requestedRenderScale = Number(params.get('renderScale') ?? (environmentDefinition.id === 'suzhou-garden' ? 0.75 : 1));
@@ -104,7 +105,7 @@ export async function createStudioRuntime({
   projectHost.hidden = true;
   ui.viewport.appendChild(projectHost);
   const codeProjects = new StudioCodeProjects({
-    container:projectHost, baseScene:scene, baseWorld:world,
+    container:projectHost, baseScene:scene, baseWorld:world, executionPolicy:projectExecutionPolicy,
     onShow:inspect=>{ ui.setPage('world'); if (inspect || ui.panel?.dataset.view !== 'task') ui.setView('inspect'); },
     onActivate:session=>activateCodeProjectView({
       session, projectHost, viewport:ui.viewport, runtimeDriver, liveBridge,

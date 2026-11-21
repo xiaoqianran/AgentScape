@@ -123,7 +123,7 @@ describe('general TaskCompiler acceptance boundary',()=>{
   it('connects model-derived checks through HTTP Agent Host to both backends',async()=>{
     for(const backend of ['pi','dsh']){
       let observed;
-      const host=createAgentHost({config:{...config,dshPatch:'restricted.yml',dshProvider:'test',dshModel:'test'},
+      const host=createAgentHost({config:{...config,dshPatch:'restricted.yml',dshProvider:'test',dshModel:'test',taskAcceptanceMode:'strict'},
         port:0,compileTask:(goal,options)=>compileTaskSpecWithModel(goal,{...options,request:async()=>mockResult(proposal)}),
         backends:{pi:async args=>{observed=args.prompt;return {taskStatus:'incomplete',execution:[]};},
           dsh:async args=>{observed=args.prompt;return {taskStatus:'incomplete',execution:[]};}},
@@ -228,7 +228,7 @@ describe('Agent Host compilation cancellation',()=>{
     let started;
     const compiling=new Promise(resolve=>{started=resolve;});
     const backend=vi.fn();
-    const host=createAgentHost({config,port:0,
+    const host=createAgentHost({config:{...config,taskAcceptanceMode:'strict'},port:0,
       compileTask:(_prompt,{signal})=>{
         started();
         return new Promise((_resolve,reject)=>{

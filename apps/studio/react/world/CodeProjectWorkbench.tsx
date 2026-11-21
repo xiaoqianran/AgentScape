@@ -135,12 +135,12 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
       </div>
       <div className="code-project-buttons">
         <button disabled={busy || !dirty} onClick={()=>void run(apply,'源码草稿已保存')}>保存源码草稿</button>
-        <button disabled={busy || (!dirty && state.approval?.revision===state.revision)}
+        {state.approvalRequired ? <button disabled={busy || (!dirty && state.approval?.revision===state.revision)}
           onClick={()=>void run(async()=>{
             await apply(); // Include the visible unsaved editor contents in the reviewed revision.
             await controller.approveCurrentRevision();
-          },'已批准当前源码版本，请点击运行')}>审阅后批准本版本</button>
-        <button disabled={busy || dirty || state.approval?.revision!==state.revision}
+          },'已批准当前源码版本，请点击运行')}>审阅后批准本版本</button> : null}
+        <button disabled={busy || dirty || (state.approvalRequired && state.approval?.revision!==state.revision)}
           onClick={()=>void run(()=>controller.run({expectedRevision:controller.snapshot().revision}),'代码世界运行中')}>运行代码世界</button>
         <button disabled={busy || dirty || !state.active || state.revision!==state.runningRevision}
           onClick={()=>void run(()=>controller.save(),'世界状态已保存到本机')}>保存世界状态</button>
@@ -152,7 +152,7 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
             setTimeout(()=>URL.revokeObjectURL(url),1000);
           },'完整代码项目已导出')}>导出代码项目</button>
       </div>
-      <p className="code-project-note">安全提示：完整 JavaScript 在当前浏览器上下文执行，并非安全沙箱。运行前必须检查源码、导入文件与资源；每次修改都要重新批准。批准仅对当前修订有效。{state.approval?.revision===state.revision?' 已批准 · SHA-256 '+state.approval.digest:' 当前版本尚未批准'}</p>
+      <p className="code-project-note">安全提示：完整 JavaScript 在当前浏览器上下文执行，不是安全沙箱。默认可直接运行，包括 AI 提交的代码；请只连接可信的模型和项目。{state.approvalRequired ? (state.approval?.revision===state.revision ? ' 审批策略已启用 · 已批准 SHA-256 '+state.approval.digest : ' 审批策略已启用 · 当前版本尚未批准') : ' 未启用审批策略。'}</p>
       <small>入口 {entry} · 草稿 r{state.revision} · {state.active?'运行 r'+state.runningRevision:'尚未运行'}{dirty?' · 当前文件未保存':''}</small>
       {dirty && revision!==state.revision ? <p role="alert">AI 已更新项目。请保留本地编辑，再载入最新版本。</p> : null}
       {dirty ? <button disabled={busy} onClick={()=>setDirty(false)}>放弃编辑并载入最新源码</button> : null}

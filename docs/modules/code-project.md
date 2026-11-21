@@ -11,16 +11,16 @@
 - `SceneFacade`：统一观察、Job、取消与写入互斥。SDK、Agent 工具和 MCP 复用同一入口。
 - 项目持有原生 scene、camera、renderer；Runtime 只拥有自己的子树与物理实体。视觉对象可直接编程，物理对象通过 Runtime/物理接口操作。
 
-## Studio 完整代码执行审批（第一阶段）
+## Studio 默认自动执行与可选审批策略
 
-Studio 代码世界的源码写入、修改、批量编辑和保存可以由用户或 MCP 完成，但**执行完整 JS 工程需要用户显式批准**。
+Studio 默认允许完整 JavaScript 项目直接运行。用户保存后点击「运行代码世界」，或者 AI 经 MCP 写入并调用 studio_project 的 run 操作，都不需要再次人工批准。
 
-1. 在「代码世界」查看所有 JS、Shader、JSON 和资源；
-2. 点击「审阅后批准本版本」，Studio 保存当前可见编辑并计算覆盖项目 ID、revision、入口、所有源文件和资源字节的 SHA-256 内容指纹；
-3. 点击「运行代码世界」。MCP 可以发起 `run` 请求，但不能代替用户授予批准；
-4. 后续修改任何源码/资源、重新打开或关闭项目，授权均失效，必须再次审阅。
+审批作为可选策略使用：可将 ProjectExecutionPolicy.js 导出的 requireProjectApproval 传入 StudioCodeProjects({ ..., executionPolicy: requireProjectApproval })，或者注入 createStudioRuntime({ ..., projectExecutionPolicy: requireProjectApproval })。只有明确启用该策略时，Studio 才显示「审阅后批准本版本」按钮，按项目 ID、修订和完整文件/资源 SHA-256 指纹进行校验；MCP 不暴露授予审批的操作。
 
-这是**用户信任门禁，不是安全隔离**。批准后的项目仍在 Studio 浏览器上下文中执行，可接触同源环境。不要运行来源不明的代码；自动执行未经审查的模型生成完整工程仍需独立沙箱与更严格的网络策略。
+即使默认自动执行，仍会校验 expectedRevision，启动/观察新场景后才替换原有世界；失败保留旧世界。项目保存、修订追踪、世界状态验证及任务终验也不因此失效。
+
+**安全边界**：默认执行的代码在 Studio 浏览器同源上下文中运行，不是沙箱。请仅连接可信模型和源码；要隔离不可信代码，须由宿主应用或部署环境实现独立隔离。可选人工审批也不是 JavaScript 沙箱。
+
 ## 多文件项目
 
 ```sh

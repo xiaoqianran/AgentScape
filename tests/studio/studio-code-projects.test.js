@@ -20,8 +20,7 @@ async function fixture(store = new AuthoringWorldStore({indexedDBImpl:null})) {
  return {base,controller,tools:controller.wrapTools(new AgentTools(base.world)),close(){controller.dispose();base.close();}};
 }
 
-async function approvedRun(controller,options) {
-  await controller.approveCurrentRevision(); // Human approval simulated by the test, never by MCP.
+async function runProject(controller,options) {
   return controller.run(options);
 }
 
@@ -29,7 +28,7 @@ describe('Studio complete code project ownership',()=>{
  it('creates a distinct draft once and resumes it after reconnect without discarding edits',async()=>{
   const f=await fixture();let other;
   try {
-   await f.controller.write({create:true,project});await approvedRun(f.controller,);
+   await f.controller.write({create:true,project});await runProject(f.controller,);
    const id='world_'+'a'.repeat(32);
    const created=await f.controller.createForTask({id});
    expect(f.controller.session).toBeNull();
@@ -39,27 +38,27 @@ describe('Studio complete code project ownership',()=>{
    await other.controller.createForTask({id});
    expect(other.controller.draft.source).toBe(source);
    expect((await other.controller.store.list()).map(item=>item.id).sort()).toEqual([project.id,id].sort());
-   await approvedRun(other.controller,);
+   await runProject(other.controller,);
    expect(other.controller.scene.inspect('counter').state.value).toBe(1);
   } finally {other?.close();f.close();}
  });
  it('routes tools to the visible instance, retains state across edits, persists and reopens in another controller',async()=>{
   const f=await fixture();let other;
   try {
-   await f.controller.write({create:true,project});await approvedRun(f.controller,);
+   await f.controller.write({create:true,project});await runProject(f.controller,);
    expect(f.tools.runtime).toBe(f.controller.session.world);
    await f.tools.call('interactScene',{interaction:{action:'custom',target:'counter',name:'increment'}});
    expect(f.controller.scene.inspect('counter').state.value).toBe(2);
    await f.controller.write({expectedRevision:1,source:source.replace('value++;','value+=2;')});
    await expect(f.controller.save()).rejects.toThrow('RUN_DRAFT_BEFORE_SAVE');
-   await approvedRun(f.controller,{expectedRevision:2});
+   await runProject(f.controller,{expectedRevision:2});
    expect(f.controller.scene.inspect('counter').state.value).toBe(2);
    const action=await f.tools.call('interactScene',{interaction:{action:'custom',target:'counter',name:'increment'}});
    expect(action.verification.status).toBe('unverified'); // New execute no longer meets old verifier.
    const saved=await f.tools.call('saveStudioProject');
    expect(saved.value.state.value).toBe(4);
    other=await fixture(f.controller.store);
-   await other.controller.load(project.id);await approvedRun(other.controller,);
+   await other.controller.load(project.id);await runProject(other.controller,);
    expect(other.controller.scene.inspect('counter').state.value).toBe(4);
    expect(other.controller.draft.source).toContain('value+=2;');
    await f.controller.close();expect(f.tools.runtime).toBe(f.base.world);
@@ -68,15 +67,15 @@ describe('Studio complete code project ownership',()=>{
  it('keeps the old session on syntax/setup failure, rejects stale edits and prevents replacement during actions',async()=>{
   const f=await fixture();
   try {
-   await f.controller.write({create:true,project});await approvedRun(f.controller,);const active=f.controller.session;
+   await f.controller.write({create:true,project});await runProject(f.controller,);const active=f.controller.session;
    await expect(f.controller.write({source:'bad',expectedRevision:0})).rejects.toThrow('PROJECT_REVISION_CONFLICT');
    await f.controller.write({source:'syntax error !!!',expectedRevision:1});
-   await expect(approvedRun(f.controller,)).rejects.toThrow();expect(f.controller.session).toBe(active);
+   await expect(runProject(f.controller,)).rejects.toThrow();expect(f.controller.session).toBe(active);
    let release;
    active.scene.registerAction({target:'counter',name:'wait',execute:()=>new Promise(resolve=>{release=resolve;})});
    const job=active.scene.interact({action:'custom',target:'counter',name:'wait'});await Promise.resolve();
    await expect(f.controller.close()).rejects.toThrow('SCENE_BUSY');
-   await expect(approvedRun(f.controller,)).rejects.toThrow('SCENE_BUSY');
+   await expect(runProject(f.controller,)).rejects.toThrow('SCENE_BUSY');
    release();await active.scene.waitJob(job.id);
    await f.controller.close();
    expect((await f.controller.store.load(project.id)).document.project).toMatchObject({source:'syntax error !!!',state:{value:1}});
@@ -86,14 +85,14 @@ describe('Studio complete code project ownership',()=>{
   const f=await fixture();
   try {
    await f.controller.write({create:true,project});
-   await approvedRun(f.controller,);
+   await runProject(f.controller,);
    const previous=f.controller.session;
    f.controller.open=async options=>{
     const next=await open(options);
     next.scene.observe=()=>{throw new Error('observation failed');};
     return next;
    };
-   await expect(approvedRun(f.controller,)).rejects.toThrow('observation failed');
+   await expect(runProject(f.controller,)).rejects.toThrow('observation failed');
    expect(f.controller.session).toBe(previous);
    expect(f.controller.snapshot().active).toBe(true);
    expect(f.controller.busy).toBe(false);
@@ -103,14 +102,14 @@ describe('Studio complete code project ownership',()=>{
   const f=await fixture();
   try {
    await f.controller.write({create:true,project});
-   await approvedRun(f.controller,);
+   await runProject(f.controller,);
    const previous=f.controller.session, originalTools=f.controller.activeTools;
    let visible=previous, failOnce=true;
    f.controller.onActivate=session=>{
     visible=session;
     if(failOnce && session!==previous) {failOnce=false;throw new Error('view activation failed');}
    };
-   await expect(approvedRun(f.controller,)).rejects.toThrow('view activation failed');
+   await expect(runProject(f.controller,)).rejects.toThrow('view activation failed');
    expect(f.controller.session).toBe(previous);
    expect(f.controller.activeTools).toBe(originalTools);
    expect(f.tools.runtime).toBe(previous.world);
@@ -123,7 +122,7 @@ describe('Studio complete code project ownership',()=>{
   const f=await fixture();
   try {
    await f.controller.write({create:true,project});
-   await approvedRun(f.controller,);
+   await runProject(f.controller,);
    const previous=f.controller.session;
    let visible=previous;
    f.controller.onActivate=session=>{
@@ -142,14 +141,14 @@ describe('Studio complete code project ownership',()=>{
   const f=await fixture();
   try {
    await f.controller.write({create:true,project});
-   await approvedRun(f.controller,);
+   await runProject(f.controller,);
    const previous=f.controller.session;
    const originalClose=previous.close;
    let active=previous;
    f.controller.onActivate=session=>{active=session;};
    previous.close=()=>{throw new Error('old close failed');};
    try {
-    await expect(approvedRun(f.controller,)).rejects.toThrow('old close failed');
+    await expect(runProject(f.controller,)).rejects.toThrow('old close failed');
     expect(f.controller.session).toBe(previous);
     expect(active).toBe(previous);
     expect(f.controller.scene.inspect('counter').state.value).toBe(1);
@@ -161,7 +160,7 @@ describe('Studio complete code project ownership',()=>{
   const f=await fixture();
   try {
    await f.controller.write({create:true,project});
-   await approvedRun(f.controller,);
+   await runProject(f.controller,);
    const previous=f.controller.session;
    const originalClose=previous.close;
    let active=previous;
@@ -189,7 +188,6 @@ describe('Studio complete code project ownership',()=>{
     if(round===3)expect(request.tools.map(t=>t.name)).not.toContain('runWorldPipeline');
     const step=steps[round++];
     // A user approval happens out-of-band before each AI run request.
-    if(step?.[0]==='runStudioProject') await f.controller.approveCurrentRevision();
     return step?{toolCalls:[{id:'call'+round,name:step[0],args:step[1]}]}:{message:'Saved',toolCalls:[]};
    }}});
    const result=await agent.run('Create a world, increment, modify the source, run and save');
@@ -207,7 +205,7 @@ describe('Studio complete code project ownership',()=>{
    expect(edited).toMatchObject({status:'project-source-patched',revision:2});
    expect(f.controller.draft.source).toContain('value+=3;');
    expect((await f.controller.store.load(project.id)).document.project.source).toContain('value+=3;');
-   await approvedRun(f.controller,);
+   await runProject(f.controller,);
    const called=await f.tools.call('interactScene',{interaction:{action:'custom',target:'counter',name:'increment'}});
    expect(called.verification.status).toBe('unverified');
    expect(f.controller.scene.inspect('counter').state.value).toBe(4);
@@ -238,7 +236,7 @@ describe('Studio complete code project ownership',()=>{
    const original=f.controller.store.save;let reject;
    f.controller.store.save=()=>new Promise((_,fail)=>{reject=fail;});
    const write=f.controller.write({expectedRevision:1,source:source+'\n// pending'});
-   await expect(approvedRun(f.controller,)).rejects.toThrow('PROJECT_BUSY');
+   await expect(runProject(f.controller,)).rejects.toThrow('PROJECT_BUSY');
    await new Promise(resolve=>setTimeout(resolve,0));reject(new Error('disk full'));
    await expect(write).rejects.toThrow('disk full');
    expect(f.controller.draft.source).toBe(source);expect(f.controller.revision).toBe(1);
@@ -249,7 +247,7 @@ describe('Studio complete code project ownership',()=>{
   const f=await fixture();
   try {
    await f.controller.write({create:true,project});
-   await approvedRun(f.controller,);
+   await runProject(f.controller,);
    const store=f.controller.store,save=store.save.bind(store);
    let release;
    const pending=new Promise(resolve=>{release=resolve;});
