@@ -35,6 +35,10 @@ test('Studio MCP creates a visible world; UI edits, fails safely, saves and reop
   const job=await call('scene_interact',{requestId:randomUUID(),interaction:{action:'custom',target:'sculpture',name:'setSpeed',args:{speed:2}}});
   await expect.poll(async()=>(await call('scene_job',{jobId:job.id})).status).toBe('succeeded');
   await expect(page.locator('.code-project-actions')).toContainText('"speed": 2');
+  await page.getByRole('button',{name:'关闭上下文面板',exact:true}).click();
+  await expect(page.locator('.code-project-actions')).toHaveCount(0);
+  await page.locator('.utility-rail [data-dock-view="inspect"]').click();
+  await expect(page.locator('.code-project-actions')).toContainText('"speed": 2');
   const stale=await client.callTool({name:'studio_project',arguments:{
     operation:'patch',oldText:'scene.add(sculpture);',newText:'scene.add(sculpture); // stale',expectedRevision:99,requestId:randomUUID()
   }});

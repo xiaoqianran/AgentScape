@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import './CodeProjectWorkbench.css';
 import { formFieldsForAction, initialActionFieldValues, actionArgumentsFromFields } from './ProjectActionArguments.js';
 import { ProjectBatchReview } from './ProjectBatchReview.js';
+import { subscribeSceneRefresh } from '../../scene/SceneRefreshScheduler.js';
 
 export const emptyCodeState = Object.freeze({ visible:false, active:false });
 export const emptyCodeSubscribe = () => () => {};
@@ -262,7 +263,13 @@ export function CodeProjectActions({ controller }: {controller:any}) {
     try { setEntities(controller.session?.world.projectCapabilities.list().entities || []);setError(''); }
     catch(cause) { setError(String(cause)); }
   };
-  useEffect(()=>{refresh();const timer=setInterval(refresh,1000);return ()=>clearInterval(timer);},[controller,controller.session]);
+  useEffect(()=>{
+    const session=controller.session;
+    refresh();
+    const events=session?.world?.events;
+    if (!events?.on) return;
+    return subscribeSceneRefresh(events,['project.action.completed','project.machine.changed'],refresh);
+  },[controller,controller.session]);
   return <div className="code-project-actions"><h3>世界对象与动态动作</h3>
     {!entities.length ? <p>运行项目后，注册的对象和动作会显示在这里。</p> : null}
     {entities.map(entity=><section key={entity.id}><h4>{entity.label} <small>{entity.id}</small></h4>

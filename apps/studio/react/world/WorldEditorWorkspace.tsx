@@ -175,7 +175,7 @@ export function WorldEditorWorkspace({
           {contextView==='task' ? <div className="world-task-content">
             {active && bridgeState.agent ? <><TaskPanelView controller={bridgeState.agent.taskPanel} /><CommandBar taskPanel={bridgeState.agent.taskPanel} inputRef={commandInputRef} draft={bridgeState.commandDraft} /></> : <p role="status">任务面板启动中…</p>}
           </div> : <section className="inspector">
-            {projectState.visible ? <CodeProjectActions controller={projects} /> : active && contextOpen && content ? <ObjectInspectorView key={selection?.source+':'+selection?.id} {...content.inspector} /> : null}
+            {active && contextOpen && projectState.visible ? <CodeProjectActions controller={projects} /> : active && contextOpen && content ? <ObjectInspectorView key={selection?.source+':'+selection?.id} {...content.inspector} /> : null}
           </section>}
         </aside>
         <div className="editor-statusbar"><span>{projectState.active ? projectState.project?.name : presentation.title}</span><span>{projectState.active ? '完整代码项目 · 动态动作可由 AI 调用' : selection ? '已选中 '+selection.id : '点击画布或左侧列表选择对象'}</span></div>

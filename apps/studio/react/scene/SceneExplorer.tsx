@@ -3,7 +3,7 @@ import { assetDisplayName } from '../shared/ResourcePresentation';
 import './SceneExplorer.css';
 import { useEffect, useLayoutEffect, useMemo, useState, type DragEvent } from 'react';
 import { ASSET_DRAG_MIME } from '../../editor/AssetPlacementController.js';
-import { collectStudioSceneProjection } from '../../scene/SceneObjectProjection.js';
+import { collectStudioSceneProjection, sceneRowIsSelected } from '../../scene/SceneObjectProjection.js';
 import { useStudioStore } from '../state/studioStore';
 import { subscribeSceneRefresh } from '../../scene/SceneRefreshScheduler.js';
 
@@ -86,7 +86,6 @@ export function SceneExplorerView({
   getStyle
 }: SceneExplorerProps) {
   const selection = useStudioStore((state) => state.editor.selection);
-  const editorRevision = useStudioStore((state) => state.editor.revision);
   const worldPresentation = useStudioStore((state) => state.view.worldPresentation);
   const [revision, setRevision] = useState(0);
   const [resourceRevision, setResourceRevision] = useState(0);
@@ -112,6 +111,7 @@ export function SceneExplorerView({
   const title = worldPresentation?.title || environment?.title || environment?.label || environmentDefinition.title || environment?.id || 'World';
   const environmentId = worldPresentation?.id || environment?.id || environmentDefinition.id || 'environment';
 
+  // Keep scene structure independent from selection and inspector-only revisions.
   const projection = useMemo(() => collectStudioSceneProjection({
     runtimeObjects:world.queries.listObjects(),
     authoringDocument:authoring?.export?.() || null,
@@ -119,9 +119,8 @@ export function SceneExplorerView({
       id:environmentId,
       title,
       interactions:environment?.interactions || []
-    },
-    selection
-  }), [authoring, editorRevision, environmentId, revision, selection, title, world.queries]);
+    }
+  }), [authoring, environmentId, revision, title, world.queries]);
 
   const filterRows = (rows:any[]) => {
     const needle=query.trim().toLowerCase();
@@ -261,11 +260,11 @@ export function SceneExplorerView({
                 <button
                   key={record.key}
                   type="button"
-                  className={'scene-object-row' + (record.selected ? ' active' : '')}
+                  className={'scene-object-row' + (sceneRowIsSelected(record,selection) ? ' active' : '')}
                   data-object-id={record.id}
                   data-scene-key={record.key}
                   data-source={record.source}
-                  aria-pressed={record.selected}
+                  aria-pressed={sceneRowIsSelected(record,selection)}
                   onClick={() => selectRuntimeObject(record.id)}
                 >
                   <span className="scene-object-glyph">
@@ -290,11 +289,11 @@ export function SceneExplorerView({
                     <button
                       key={record.key}
                       type="button"
-                      className={'scene-object-row'+(record.selected?' active':'')}
+                      className={'scene-object-row'+(sceneRowIsSelected(record,selection)?' active':'')}
                       data-object-id={record.id}
                       data-scene-key={record.key}
                       data-source="environment"
-                      aria-pressed={record.selected}
+                      aria-pressed={sceneRowIsSelected(record,selection)}
                       onClick={()=>selectEnvironmentInteraction(record.id)}
                     >
                       <span className="scene-object-glyph">✦</span>
@@ -322,11 +321,11 @@ export function SceneExplorerView({
                     <button
                       key={record.key}
                       type="button"
-                      className={'scene-object-row' + (record.selected ? ' active' : '')}
+                      className={'scene-object-row' + (sceneRowIsSelected(record,selection) ? ' active' : '')}
                       data-object-id={record.id}
                       data-scene-key={record.key}
                       data-source={record.source}
-                      aria-pressed={record.selected}
+                      aria-pressed={sceneRowIsSelected(record,selection)}
                       onClick={()=>selectAuthoringObject(record.id)}
                     >
                       <span className="scene-object-glyph">✦</span>

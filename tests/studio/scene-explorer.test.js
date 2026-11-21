@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   collectSceneObjects,
-  collectStudioSceneProjection
+  collectStudioSceneProjection,
+  sceneRowIsSelected
 } from '../../apps/studio/scene/SceneObjectProjection.js';
 
 describe('StudioSceneProjection', () => {
@@ -24,6 +25,21 @@ describe('StudioSceneProjection', () => {
     });
     expect(projection.environmentRows[2].selected).toBe(false);
   });
+  it('matches selection separately from structural rows and keeps source identities distinct', () => {
+    const projection=collectStudioSceneProjection({
+      runtimeObjects:[{id:'shared_01',asset:'chair',label:'Runtime Chair'}],
+      authoringDocument:{root:{id:'root',children:[{id:'shared_01',name:'Draft Chair',components:{},children:[]}]}}
+    });
+    const runtimeRow=projection.runtimeRows[0];
+    const authoringRow=projection.authoringRows[0];
+
+    expect(runtimeRow.selected).toBe(false);
+    expect(authoringRow.selected).toBe(false);
+    expect(sceneRowIsSelected(runtimeRow,{source:'runtime',id:'shared_01'})).toBe(true);
+    expect(sceneRowIsSelected(runtimeRow,{source:'authoring',id:'shared_01'})).toBe(false);
+    expect(sceneRowIsSelected(authoringRow,{source:'authoring',id:'shared_01'})).toBe(true);
+  });
+
   it('keeps the legacy runtime projection stable for non-React callers', () => {
     const store={list:()=>[
       ['table_01',{assetId:'table',manifest:{label:'Table',type:'table'}}],

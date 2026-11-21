@@ -6,6 +6,11 @@ const selectionMatches = (selection, source, id) => (
   selection?.source === source && selection.id === id
 );
 
+/** @param {{source:'runtime'|'authoring'|'environment',id:string}|null} selection */
+export function sceneRowIsSelected(row, selection = null) {
+  return Boolean(row && selectionMatches(selection, row.source, row.id));
+}
+
 export function sceneProjectionKey(source, id) {
   return source + ':' + id;
 }

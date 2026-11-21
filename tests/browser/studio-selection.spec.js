@@ -20,6 +20,7 @@ test('environment references and world changes use the shared dock',async({page,
  await nativeRow.click();
  await expect(dock.locator('strong')).toHaveAttribute('title','cabin:table-lamp');
  await dock.getByRole('button',{name:'让 Agent 操作'}).click();await expect(page.locator('.task-object-reference')).toContainText('cabin:table-lamp');
+ await page.locator('#task-agent-backend').selectOption('legacy');
  await page.locator('#input').fill('观察这个对象');await page.locator('#send').click();
  await expect.poll(()=>gateway.requests.length).toBeGreaterThan(0);
  expect(JSON.stringify(gateway.requests.at(-1))).toContain('cabin:table-lamp');
