@@ -47,11 +47,13 @@ describe('code project editable multi-file modules',()=>{
     entry:'main.js',files:{'back.js':"import './main.js';"}};
   await expect(compileCodeProjectModules(cycle)).rejects.toThrow('PROJECT_IMPORT_CYCLE');
  });
- it('rejects external/dynamic imports and unsafe file paths',async()=>{
+ it('rejects unbundled npm, computed dynamic imports and unsafe file paths',async()=>{
   await expect(compileCodeProjectModules({...project,source:"import fake from 'other-package'; export function createProject() {}"}))
    .rejects.toThrow('PROJECT_IMPORT_UNSUPPORTED');
-  await expect(compileCodeProjectModules({...project,source:"export async function createProject() { return import('./state.js') }"}))
-   .rejects.toThrow('PROJECT_DYNAMIC_IMPORT_UNSUPPORTED');
+  await expect(compileCodeProjectModules({...project,source:"export async function createProject(path) { return import(path) }"}))
+   .rejects.toThrow('PROJECT_DYNAMIC_IMPORT_EXPRESSION_UNSUPPORTED');
+  await expect(compileCodeProjectModules({...project,source:"export async function createProject() { return import('./state.js', {with:{type:'json'}}) }"}))
+   .rejects.toThrow('PROJECT_IMPORT_ATTRIBUTES_UNSUPPORTED');
   await expect(parseCodeProject({...project,files:{'../escape.js':'export const escape=true;'}}))
    .rejects.toThrow('PROJECT_FILE_PATH_INVALID');
  });
@@ -59,5 +61,48 @@ describe('code project editable multi-file modules',()=>{
   const old={schema:'agentscape.code-project',schemaVersion:1,id:'legacy',name:'旧版',resources:{},
    source:'export function createProject() { return null; }'};
   expect(await compileCodeProjectModules(await parseCodeProject(old))).toBe(old.source);
+ });
+ it('loads lazy modules after setup with the same THREE object and cleans up on close',async()=>{
+  const lazySource=[
+    'export function createProject({THREE}) {',
+    '  let count=0;',
+    '  return {scene:new THREE.Scene(),camera:new THREE.PerspectiveCamera(),',
+    '    renderer:{render(){},extensions:{has:()=>false}},',
+    '    setup({scene}) {',
+    "      scene.registerEntity({id:'lazy',read:()=>({count})});",
+    "      scene.registerAction({target:'lazy',name:'load',async execute(){",
+    "        const utils=await import('./lazy.js');",
+    "        const namespace=await import('three');",
+    '        count+=utils.measure(namespace);',
+    '      }});',
+    '    },',
+    '    serialize(){return {count};},restore(saved){count=saved.count;}',
+    '  };',
+    '}'
+  ].join('\n');
+  const files={'lazy.js':"import {BoxGeometry} from 'three'; export function measure(T){return new BoxGeometry(1,1,1) instanceof T.BoxGeometry?1:100;}"};
+  const dynamic={...project,id:'lazy_demo',entry:'main.js',source:lazySource,files};
+  const before=Object.keys(globalThis).filter(key=>key.startsWith('__agentscape_three_')).sort();
+  const first=await openCodeProject({project:dynamic,authorized:true,autoStart:false});
+  let restored;
+  try {
+    const job=first.scene.interact({action:'custom',target:'lazy',name:'load'});
+    expect((await first.scene.waitJob(job.id)).status).toBe('succeeded');
+    expect(first.scene.inspect('lazy').state.count).toBe(1);
+    const saved=(await first.save()).value;
+    restored=await openCodeProject({project:saved,authorized:true,autoStart:false});
+    const second=restored.scene.interact({action:'custom',target:'lazy',name:'load'});
+    expect((await restored.scene.waitJob(second.id)).status).toBe('succeeded');
+    expect(restored.scene.inspect('lazy').state.count).toBe(2);
+  } finally {first.close();restored?.close();}
+  expect(Object.keys(globalThis).filter(key=>key.startsWith('__agentscape_three_')).sort()).toEqual(before);
+ },30000);
+
+ it('does not impose the old arbitrary 64-file limit on editable modules',async()=>{
+  const files=Object.fromEntries(Array.from({length:75},(_,i)=>
+    ['src/part_'+i+'.js','export const part='+i+';']));
+  const many={...project,entry:'main.js',source:'export function createProject() {}',files};
+  expect(Object.keys((await parseCodeProject(many)).files)).toHaveLength(75);
+  expect(await compileCodeProjectModules(many)).toContain('releaseProjectModules');
  });
 });

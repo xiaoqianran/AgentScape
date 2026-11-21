@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><title>AgentScape standard Three.js project</title>
+<style>body{margin:0;background:#101827;color:white;font:14px sans-serif}#app{height:90vh}</style>
+</head><body><div id="app"></div><script type="module">
+import * as THREE from 'three';
+import { createProject } from './main.js';
+const project = createProject({ THREE, container: document.getElementById('app') });
+await project.setup({ scene: { registerEntity() {}, registerAction() {} } });
+let previous = null;
+function frame(time) { const dt = previous == null ? 0 : (time - previous) / 1000; previous = time;
+  project.update({ timestamp: time, dt }); project.renderer.render(project.scene, project.camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script></body></html>

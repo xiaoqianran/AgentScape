@@ -28,7 +28,7 @@ node dev/build-code-project.mjs examples/code-project/project.js public/code-pro
 npm run dev
 ```
 
-打开 `/examples/code-project/`。构建器将普通多文件 JS 和可打包 npm 依赖合并为自包含 ESM，import 'three' 绑定宿主的同一实例，addons 可正常解析。第四个可选 CLI 参数为 resources JSON，格式 `{ "texture.png": { "mime":"image/png", "base64":"..." } }`。
+打开 `/examples/code-project/`。构建器使用 Rolldown 将普通 ESM/npm 依赖（包括 Three.js addons）输出成**可编辑的入口 `main.js` 和按需加载的 `chunks/*.js`**；浏览器无需额外 npm 服务或打包器。`three` 不会重复打包，而是绑定当前 Studio Runtime 的同一个 THREE 实例。Shader 的 `?raw` 导入可转换为文本模块。第四个可选 CLI 参数为 resources JSON，格式 `{ "texture.png": { "mime":"image/png", "base64":"..." } }`。
 
 需要特定构建插件、顶层 await 或不能内联依赖的项目可使用自己的构建工具输出自包含 ESM；既有复杂项目也可直接 AgentScape.attach()，保留自己的构建与循环。
 
@@ -154,9 +154,9 @@ Studio 不再要求每次编辑都先离线打包。代码世界保持 `agentsca
 - `source`：入口文件源码；`entry`：入口路径（默认 `main.js`，旧项目可省略）；`files`：其余可编辑文本文件，路径到源码的映射；`resources`：图片等二进制资源原有 base64/MIME 映射。
 - Studio 文件列表可创建、导入、切换、重命名、删除及保存 JS/Shader/TXT/JSON 文件；资源区导入图片等二进制文件。默认资源上传单文件上限 8 MiB；总项目由解析预算保护。
 - `import './lib/util.js'`、`import code from './shaders/glow.frag'`、`import config from './settings.json'` 均可直接运行；Shader/TXT 默认导出字符串、JSON 默认导出解析后的值。来自 `three` 的标准导入与当前宿主引擎共享实例。
-- 采用浏览器/Node 共用的轻量 ESM 模块链接，不需要另一套服务器；每个代码文件最大 1 MiB，工程最多 64 个文本文件，编译后的模块 URL 有独立预算。遇到相对导入缺失、循环引用或非法文件名，返回明确错误且不会替换现有世界。
-- 当前**不支持**动态 `import()`、npm 裸包（除 `three`）、Three addons 路径及自动转换 Vue/React 工程。这些工程继续通过 `dev/build-code-project.mjs` 预打包；原生框架宿主可继续使用 `AgentScape.attach()`。
-- 可直接从 Studio 导入 [多文件发光雕塑示例](../../examples/code-project/multifile-studio.json)，真实 ShaderMaterial、动态 `setSpeed` 和保存恢复可共同测试。
+- 采用浏览器/Node 共用的轻量 ESM 模块链接，无须第二套服务器；**不再设定任意的 64 文件数/单文件 1 MiB 限制**。完整代码项目默认解析预算仍为 64 MiB，每个编译模块 URL 有 12 MiB 的独立预算。遇到相对导入缺失、直接模块循环或非法路径时，返回明确错误，不替换已有世界。Rolldown 构建后的标准模块循环由其预打包阶段处理。
+- 直接在 Studio 编辑的相对模块现已支持**字符串字面量**形式 `import('./lazy.js')`、`import('./config.json')` 和 `import('three')`，包括项目启动之后的延迟加载。计算型动态路径（例如 `import(path)`）仍不属于直接编辑模式的能力；应改为明确的字面量分支，或使用能处理该表达式的专门构建插件。普通 Rolldown 并不保证自动转换任意计算型路径。裸 npm 包和 Three addons 路径由 `dev/build-code-project.mjs` 在本地 Node 构建时解析，**不是**浏览器运行时自动下载/npm install；直接编辑模式的未打包裸包仍会提示 `PROJECT_IMPORT_UNSUPPORTED`。Vue/React 完整网站不直接变成 Code Project，需导出遵循 `createProject(context)` 入口的 Three.js 工程或由框架宿主使用 `AgentScape.attach()`。
+- 可直接从 Studio 导入 [多文件发光雕塑示例](../../examples/code-project/multifile-studio.json)；另有 [标准 Three.js/npm/动态导入示例](../../examples/code-project/standard-three/README.md)，同时能作为普通 Vite 页面运行，也可执行 `node dev/build-code-project.mjs examples/code-project/standard-three/main.js public/code-projects/standard-three.json standard_three` 后导入 Studio，验证 `three-mesh-bvh`、Shader `?raw`、延迟动作和状态恢复。
 
 AI 工具：`readStudioProject` 返回当前项目基本信息、入口源码预览、文件/资源清单和修订号，**不会把所有资源 base64 发给模型**。`readStudioFile({path,offset,limit})` 可分页阅读文件；`editStudioFile({action,path,newPath,content,oldText,newText,expectedRevision})` 进行文件级创建/写入/补丁/重命名/删除。`editStudioResource({action,path,mime,base64,expectedRevision})` 添加/删除资源。修改不会直接影响正在运行的实例，必须重新运行。文件操作仍受修订号保护，入口文件不可删除。
 

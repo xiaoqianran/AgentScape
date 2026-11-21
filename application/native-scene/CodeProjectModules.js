@@ -23,14 +23,11 @@ export function validateCodeFiles(project) {
   if (project.entry == null && project.files == null) return;
   if (!project.entry || !script(assertCodeFilePath(project.entry))) throw fail('PROJECT_ENTRY_INVALID');
   const files = project.files || {};
-  if (Object.keys(files).length > 63) throw fail('PROJECT_FILE_LIMIT');
   for (const [path, content] of Object.entries(files)) {
     assertCodeFilePath(path);
     if (path === project.entry) throw fail('PROJECT_FILE_DUPLICATE', path);
-    if (typeof content !== 'string' || new TextEncoder().encode(content).length > 1024 * 1024)
-      throw fail('PROJECT_FILE_LIMIT', path);
+    if (typeof content !== 'string') throw fail('PROJECT_FILE_CONTENT_INVALID', path);
   }
-  if (new TextEncoder().encode(project.source).length > 1024 * 1024) throw fail('PROJECT_FILE_LIMIT', project.entry);
 }
 
 function resolveImport(importer, specifier, files) {
@@ -96,9 +93,22 @@ export async function compileCodeProjectModules(project) {
         catch (error) { throw fail('PROJECT_MODULE_SYNTAX', path + ': ' + error.message); }
         const edits = [];
         for (const item of imports) {
-          if (item.d >= 0) throw fail('PROJECT_DYNAMIC_IMPORT_UNSUPPORTED', path);
-          if (!item.n) continue; // import.meta is not a module dependency.
-          if (item.n === 'three') {
+          if (item.a >= 0) throw fail('PROJECT_IMPORT_ATTRIBUTES_UNSUPPORTED', path);
+          if (!item.n) {
+            if (item.d >= 0) throw fail('PROJECT_DYNAMIC_IMPORT_EXPRESSION_UNSUPPORTED', path);
+            continue; // import.meta is not a module dependency.
+          }
+          if (item.d >= 0) {
+            // Static-literal dynamic imports stay lazy; computed specifiers require a prebundle.
+            if (item.n === 'three') {
+              edits.push({start:item.ss,end:item.se,
+                value:'Promise.resolve(globalThis[' + JSON.stringify(key) + '])'});
+            } else {
+              const dependency = resolveImport(path,item.n,files);
+              const url = await link(dependency.path,dependency.raw);
+              edits.push({start:item.s,end:item.e,value:JSON.stringify(url)});
+            }
+          } else if (item.n === 'three') {
             edits.push({ start:item.ss, end:item.se,
               value:threeBinding(code.slice(item.ss,item.se), key) });
           } else {
@@ -109,7 +119,8 @@ export async function compileCodeProjectModules(project) {
         }
         for (const edit of edits.reverse()) code = code.slice(0,edit.start) + edit.value + code.slice(edit.end);
       }
-      const url = toUrl(code);
+      // Project-unique URL avoids sharing mutable module scope across reopened revisions.
+      const url = toUrl(code) + '#' + key;
       if (url.length > 12 * 1024 * 1024) throw fail('PROJECT_BUNDLE_LIMIT', path);
       compiled.set(id,url);
       return url;
@@ -123,6 +134,10 @@ export async function compileCodeProjectModules(project) {
       const module = await import(/* @vite-ignore */ ${JSON.stringify(url)});
       if (typeof module.createProject !== 'function') throw new Error('CODE_PROJECT_FACTORY_REQUIRED');
       return await module.createProject(context);
-    } finally { delete globalThis[key]; }
-  }`;
+    } catch (error) {
+      delete globalThis[key];
+      throw error;
+    }
+  }
+  export function releaseProjectModules() { delete globalThis[${JSON.stringify(key)}]; }`;
 }

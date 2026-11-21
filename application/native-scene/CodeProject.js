@@ -46,7 +46,7 @@ export async function openCodeProject({ project: input, container = null, author
   if (authorized !== true) throw fail('CODE_EXECUTION_AUTHORIZATION_REQUIRED');
   const project = await parseCodeProject(input, { maxBytes });
   const controller = new AbortController(), urls = new Map();
-  let instance, session, frameId, closed = false, capturing = false, lastTime = null;
+  let instance, session, projectModule, frameId, closed = false, capturing = false, lastTime = null;
   const mount = container && document.createElement('div');
   if (mount) mount.style.cssText = 'width:100%;height:100%';
   const resource = name => {
@@ -57,11 +57,14 @@ export async function openCodeProject({ project: input, container = null, author
     const bytes = Uint8Array.from(atob(item.base64), char => char.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: item.mime })); urls.set(name, url); return url;
   };
-  const release = () => { for (const url of urls.values()) URL.revokeObjectURL(url); urls.clear(); mount?.remove(); };
+  const release = () => {
+    try { projectModule?.releaseProjectModules?.(); }
+    finally { for (const url of urls.values()) URL.revokeObjectURL(url); urls.clear(); mount?.remove(); }
+  };
   try {
-    const module = await loadModule(await compileCodeProjectModules(project));
-    if (typeof module.createProject !== 'function') throw fail('CODE_PROJECT_FACTORY_REQUIRED');
-    instance = await module.createProject({ THREE, container: mount, state: project.state === undefined ? undefined : projectJson(project.state), resource, signal: controller.signal });
+    projectModule = await loadModule(await compileCodeProjectModules(project));
+    if (typeof projectModule.createProject !== 'function') throw fail('CODE_PROJECT_FACTORY_REQUIRED');
+    instance = await projectModule.createProject({ THREE, container: mount, state: project.state === undefined ? undefined : projectJson(project.state), resource, signal: controller.signal });
     if (!instance || typeof instance !== 'object') throw fail('CODE_PROJECT_INSTANCE_INVALID');
     if (instance.update != null && typeof instance.update !== 'function') throw fail('CODE_PROJECT_UPDATE_INVALID');
     session = await attachNativeScene({ scene: instance.scene, camera: instance.camera, renderer: instance.renderer,

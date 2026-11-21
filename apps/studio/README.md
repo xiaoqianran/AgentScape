@@ -6,7 +6,7 @@
 
 任务见 tasks.jsonl。验证：npm run test:studio、npm run typecheck、npm run build。
 
-代码世界工作台支持原生多文件 JS、Shader、JSON 编辑、相对 ESM import、资源上传，以及 AI/MCP 文件级操作与存档。
+代码世界工作台支持原生多文件 JS、Shader、JSON 编辑、相对 ESM import、字面量动态 `import()`、资源上传，以及 AI/MCP 文件级操作与存档。普通 Three.js/npm 工程可通过 `dev/build-code-project.mjs` 生成可编辑的入口和异步分块，统一走现有 Studio/MCP 代码项目运行时。
 Studio 默认直接运行已保存的完整 JS 项目：用户点击「运行」，Pi/DSH 可通过 MCP 的 run 操作自动执行，无需每次手动批准。底层仍保留修订检查、失败回滚和状态恢复。需要源码审批的部署可显式注入 requireProjectApproval 策略，继续验证绑定 SHA-256 内容指纹的当前版本；MCP 不能授予审批。无论是否开启审批，JS 都在浏览器同源上下文执行，不能当作沙箱使用。
 
 ## 自动保存失败处理
