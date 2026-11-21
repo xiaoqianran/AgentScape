@@ -27,4 +27,4 @@ Optional npm packages:
 
 See docs/sdk-packages.md and docs/semantic-core.md in the repository.
 
-This is a breaking npm-entry migration, not a published release. Code executes with the permissions of the host JavaScript environment; Core does not impose or claim a security boundary.
+Beta 2 changes the default package entry: the former all-in-one runtime moves to agentscape3d-engine. Install explicitly with npm install agentscape3d@beta three. Code executes with the permissions of the host JavaScript environment; Core does not impose or claim a security boundary.

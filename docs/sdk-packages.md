@@ -1,5 +1,15 @@
 # AgentScape npm 拆包与迁移
 
+## Beta 2 发布状态
+
+三个 1.0.0-beta.2 包已经完成官方 npm 首次发布审核。轻量 Core 可使用 npm install agentscape3d@beta three；完整引擎可使用 npm install agentscape3d-engine@beta three；Studio 可使用 npm install agentscape3d-studio@beta。Core 的 latest 仍指向旧综合版 1.0.0-beta.1，新版请显式选择 beta。
+
+- [Core](https://www.npmjs.com/package/agentscape3d)
+- [Engine](https://www.npmjs.com/package/agentscape3d-engine)
+- [Studio](https://www.npmjs.com/package/agentscape3d-studio)
+
+完整测试证据和已知浏览器回归限制见[Beta 2 发布说明](releases/1.0.0-beta.2.md)。
+
 **目标：** AgentScape 默认是自由 Three.js 语义扩展；Studio、完整引擎及 MCP 仅由应用按需引入，Core 不承担任务编译、安全审批或 Agent 框架职责。
 
 | npm 包 | 功能 | Core 安装时是否引入 |
@@ -55,6 +65,6 @@ node dev/build-sdk.mjs --studio
 node dev/build-sdk.mjs
 ~~~
 
-对应发布目录：sdk/typescript、sdk/engine、sdk/studio。三个包目前只做源码与归档验证，不自动发布 npm。发布前需处理版本、既有消费者迁移、正式集成回归。
+对应发布目录：sdk/typescript、sdk/engine、sdk/studio。本次发布目标为三个包的 1.0.0-beta.2，正式发布后应分别核对官方 npm Registry 的 beta 标签与安装测试。因默认入口发生破坏性变化，原 beta.1 用户需改为显式安装 agentscape3d-engine@beta。
 
 **现阶段范围：** Core / Engine / Studio 已拆为物理包。MCP 仍作为 Engine 的显式子入口，日后可进一步独立发包。Pi/DSH、权限和任务验收属于可选应用层，不需要运行在 Core 中。

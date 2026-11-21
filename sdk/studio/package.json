@@ -1,11 +1,11 @@
 {
   "name": "agentscape3d-studio",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "type": "module",
   "description": "Optional standalone AgentScape Studio website",
   "license": "MIT",
   "bin": {
-    "agentscape3d-studio": "./cli.mjs"
+    "agentscape3d-studio": "cli.mjs"
   },
   "files": [
     "site",

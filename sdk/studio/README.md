@@ -1,5 +1,7 @@
 # AgentScape Studio (optional)
 
+Install with npm install agentscape3d-studio@beta.
+
 **agentscape3d-studio** contains the bundled Studio and static website, independent of the lightweight semantic Core and its dependencies.
 
 ~~~bash

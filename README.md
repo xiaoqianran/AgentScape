@@ -2,7 +2,7 @@
 
 ![AgentScape — A Shared 3D World for Humans & AI](docs/assets/agentscape-hero.png)
 
-> v2 已实现统一 Scene API、Recipe、完整项目包与三种 StylePack；`agentscape3d@1.0.0-beta.1` 已在官方 npm Registry 提供；此版本为 Beta，不等于当前 main 的开发版或稳定版。**main 已将 SDK 拆成 Core、Engine、Studio 三个独立 npm 包；新的包结构尚未发布。**最新能力与限制见 [v1 契约](planning/public-contracts-v1.md)和[发布清单](docs/v2-release.md)。
+> **Beta 2 三包发布完成**：agentscape3d、agentscape3d-engine、agentscape3d-studio 的 1.0.0-beta.2 已在官方 npm Registry 发布。默认 agentscape3d@beta 为自由 Three.js 语义 Core，完整 Runtime 与 Studio 按需安装。旧综合版 agentscape3d@1.0.0-beta.1 继续保留为 latest，以避免破坏性自动升级。参见[发布说明](docs/releases/1.0.0-beta.2.md)与[迁移指南](docs/sdk-packages.md)。
 
 **让人和 AI 能够操作同一个交互式 3D 世界。**
 

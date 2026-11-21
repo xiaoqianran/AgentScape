@@ -49,7 +49,7 @@ Edit [`apps/starter/scene.json`](apps/starter/scene.json) and reload. Your scene
 { "id": "reading-chair", "asset": "chair", "position": [-4, 0, 3] }
 ```
 
-The default `agentscape3d` package on main is now a standalone Three.js semantic and action extension without Studio, MCP, physics or approval requirements. The full previous SDK is in the opt-in `agentscape3d-engine` package, and the web UI is in `agentscape3d-studio`. The `1.0.0-beta.1` package is being prepared for npm; until publication, [build a local tarball](sdk/typescript/README.md). The new split package layout is not yet published. See [migration notes](docs/sdk-packages.md).
+Beta 2 is now published to the official npm Registry as three packages: agentscape3d (default lightweight Three.js semantic core), agentscape3d-engine (opt-in runtime), and agentscape3d-studio (opt-in website). Install any of them using the beta tag. The original all-in-one agentscape3d@1.0.0-beta.1 stays on latest for compatibility; this is a breaking migration for existing AgentScape.open() consumers. See [release notes](docs/releases/1.0.0-beta.2.md) and [migration guide](docs/sdk-packages.md).
 
 ```js
 import { AgentScape } from 'agentscape3d-engine';

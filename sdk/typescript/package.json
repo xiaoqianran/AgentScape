@@ -1,6 +1,6 @@
 {
   "name": "agentscape3d",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "type": "module",
   "description": "A lightweight, open semantic and action extension for Three.js scenes",
   "license": "MIT",

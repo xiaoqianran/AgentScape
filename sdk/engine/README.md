@@ -1,5 +1,7 @@
 # AgentScape Engine (optional)
 
+Install with npm install agentscape3d-engine@beta three.
+
 **agentscape3d-engine** contains the existing full WorldRuntime, physics engine, asset processing, Node integration, and explicit MCP server entry. None of these components is required by agentscape3d Core.
 
 ~~~js
