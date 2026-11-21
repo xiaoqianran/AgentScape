@@ -41,8 +41,12 @@ await copyFile(new URL('src/node.mjs', source), new URL('dist/node.js', source))
 await writeFile(new URL('dist/mcp.js', source), "export { startServer } from './runtime/apps/mcp-server/main.mjs';\n");
 const worker = await rolldown({input:fileURLToPath(new URL('application/code-execution/BrowserCodeWorker.js',root))});
 try { await worker.write({file:fileURLToPath(new URL('dist/BrowserCodeWorker.js',source)),format:'es'}); } finally { await worker.close(); }
-sdk.dependencies = {...pkg.dependencies};
-delete sdk.dependencies.three;
+// SDK dependencies are explicit; never pull unrelated Agent/Studio dependencies
+// from the monorepo merely because they were added to the root application.
+if (sdk.dependencies?.three) throw new Error('SDK_THREE_MUST_BE_PEER_DEPENDENCY');
+for (const [name, version] of Object.entries(sdk.dependencies || {})) {
+  if (pkg.dependencies[name] !== version) throw new Error('SDK_DEPENDENCY_DRIFT: ' + name);
+}
 sdk.peerDependencies = { ...sdk.peerDependencies, three: '^0.187.0' };
 sdk.exports['.'] = {types:'./dist/index.d.ts',browser:'./dist/index.js',node:'./dist/node.js',import:'./dist/index.js'};
 sdk.exports['./node'] = {types:'./dist/node.d.ts',import:'./dist/node.js'};

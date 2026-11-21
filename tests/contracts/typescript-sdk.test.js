@@ -24,6 +24,8 @@ it('runs the bundled SDK without repository sources and creates a safe Starter',
     semantics.dispose();
     expect(existing.children).toContain(mesh);
     expect(AgentScape.extend).toBeTypeOf('function');
+    const manifest = JSON.parse(await readFile('sdk/typescript/package.json', 'utf8'));
+    expect(Object.keys(manifest.dependencies).filter(name => /@deepseek-ai\/|@earendil-works\//.test(name))).toEqual([]);
     const world = await AgentScape.open();
     try {
       await world.addModel({ id: 'cup', asset: 'builtin://cup' });
