@@ -43,12 +43,13 @@
     "test:modal-e2e": "vitest run tests/e2e/generated-cup-runtime-e2e.test.js",
     "test:studio": "vitest run tests/studio",
     "test:observatory": "vitest run tests/observatory",
-    "typecheck": "tsc --noEmit && tsc -p sdk/typescript/tsconfig.json",
+    "typecheck": "tsc --noEmit && tsc -p sdk/typescript/tsconfig.json && tsc -p sdk/engine/tsconfig.json",
     "test:artifact": "vitest run tests/artifact",
     "test:browser": "playwright test",
     "mcp:serve": "node apps/mcp-server/main.mjs",
     "test:mcp": "vitest run tests/mcp",
-    "sdk:verify": "node dev/verify-sdk-install.mjs"
+    "sdk:verify": "node dev/verify-sdk-install.mjs",
+    "sdk:verify:packages": "node dev/build-sdk.mjs && node dev/verify-sdk-packages.mjs"
   },
   "dependencies": {
     "@deepseek-ai/dsh": "0.2.2-rc.5",

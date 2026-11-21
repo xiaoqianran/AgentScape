@@ -63,7 +63,7 @@ unsubscribePlugin(); // 卸载插件，但不影响世界中已经注册的实�
 - 新的轻量入口为 **agentscape3d/core**；打包后仅包含通用语义注册核心，不依赖 WebGL、DOM 或大型运行时。
 - **当前仅完成运行模块解耦**：原有 agentscape3d npm 包仍打包整套旧引擎/网站并声明它们的依赖，安装体积尚未按插件拆分；不应将 6.9 KB 的核心入口误解为整个 npm 包只有这些内容。
 - 现有 **AgentScape.attach({scene,camera,renderer})** 是旧的完整 NativeScene/WorldRuntime 接入路径，暂时保留，以免影响现有应用。
-- 根入口还提供 **attach(scene)**（语义核心）与 **AgentScape.extend(scene)**（语义核心），方便渐进迁移。要避免大型引擎被打包，应用推荐从 **agentscape3d/core** 导入。
+- 根入口 **agentscape3d** 与 **agentscape3d/core** 现在都只导出轻量语义核心；完整 Runtime 已迁移到可选的 **agentscape3d-engine**。
 - 已有 MCP、Studio、资产编译及验证功能可以继续单独使用，但都不是 Core 的强制依赖。其独立插件化和入口精简需要后续逐步完成，不能视为本次已经全部迁移。
 
 ## GLB 语义的界限

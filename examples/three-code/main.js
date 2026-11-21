@@ -1,4 +1,4 @@
-import { AgentScape } from '../../sdk/typescript/src/index.ts';
+import { AgentScape } from '../../sdk/engine/src/index.ts';
 const status=document.querySelector('[role=status]');
 document.querySelector('#run').onclick=async()=>{
   try {

@@ -15,7 +15,7 @@
 ## Node SDK
 
 ```javascript
-import { AgentScape, WorldStorage, WorldDiskStorage } from 'agentscape3d/node';
+import { AgentScape, WorldStorage, WorldDiskStorage } from 'agentscape3d-engine/node';
 import { open } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 

@@ -1,4 +1,4 @@
-import { AgentScape } from '../../sdk/typescript/src/index.ts';
+import { AgentScape } from '../../sdk/engine/src/index.ts';
 import project from './scene.json';
 import './style.css';
 

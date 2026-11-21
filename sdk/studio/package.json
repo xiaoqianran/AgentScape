@@ -1,0 +1,33 @@
+{
+  "name": "agentscape3d-studio",
+  "version": "1.0.0-beta.1",
+  "type": "module",
+  "description": "Optional standalone AgentScape Studio website",
+  "license": "MIT",
+  "bin": {
+    "agentscape3d-studio": "./cli.mjs"
+  },
+  "files": [
+    "site",
+    "cli.mjs",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "node ../../dev/build-sdk.mjs --studio",
+    "prepack": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "tag": "beta"
+  },
+  "exports": {
+    "./cli": "./cli.mjs",
+    ".": "./cli.mjs"
+  },
+  "main": "./cli.mjs"
+}

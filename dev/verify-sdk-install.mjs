@@ -14,24 +14,31 @@ try {
   execFileSync(process.execPath, ['dev/build-sdk.mjs'], { cwd: root, stdio: 'inherit' });
   // npm lifecycle scripts can print to stdout before the pack JSON payload.
   // Parse the final top-level JSON envelope instead of assuming clean stdout.
-  const packOutput = npm(['pack', '--json', '--silent', '--pack-destination', temporary], join(root, 'sdk/typescript'));
-  const jsonStart = Math.max(packOutput.lastIndexOf('\n{'), packOutput.lastIndexOf('\n['));
-  if (jsonStart < 0) throw new Error('SDK package metadata JSON missing');
-  const packedResult = JSON.parse(packOutput.slice(jsonStart + 1));
-  const packed = Array.isArray(packedResult) ? packedResult[0] : packedResult['agentscape3d'];
-  if (!packed?.filename) throw new Error('SDK package metadata missing');
+  const packOne = (folder, name) => {
+    const output = npm(['pack', '--json', '--silent', '--pack-destination', temporary], join(root, folder));
+    const start = Math.max(output.lastIndexOf('\n{'), output.lastIndexOf('\n['));
+    if (start < 0) throw new Error('SDK package metadata missing: ' + name);
+    const envelope = JSON.parse(output.slice(start + 1));
+    const record = Array.isArray(envelope) ? envelope[0] : envelope[name];
+    if (!record?.filename) throw new Error('SDK package filename missing: ' + name);
+    return record;
+  };
+  const packed = packOne('sdk/typescript', 'agentscape3d');
+  const enginePacked = packOne('sdk/engine', 'agentscape3d-engine');
+  const studioPacked = packOne('sdk/studio', 'agentscape3d-studio');
   const sdkManifest = JSON.parse(readFileSync(join(root, 'sdk/typescript/package.json'), 'utf8'));
   if (!sdkManifest.peerDependencies?.three || sdkManifest.dependencies?.three) throw new Error('Three.js must be a host-provided SDK peer dependency');
   const consumer = join(temporary, 'consumer'); mkdirSync(consumer);
   writeFileSync(join(consumer, 'package.json'), JSON.stringify({ name: 'agentscape-clean-consumer', private: true, type: 'module' }));
-  const installation = npm(['install', '--ignore-scripts', join(temporary, packed.filename)], consumer);
+  const installation = npm(['install', '--ignore-scripts', '--no-audit', '--no-fund',
+    ...[packed,enginePacked,studioPacked].map(item => join(temporary,item.filename))], consumer);
   for (const path of ['site/index.html', 'site/studio/index.html']) {
-    if (!packed.files.some(file => file.path === path)) throw new Error(`npm archive is missing the packaged website entry: ${path}`);
+    if (!studioPacked.files.some(file => file.path === path)) throw new Error(`npm archive is missing the packaged website entry: ${path}`);
   }
   writeFileSync(join(consumer, 'web.mjs'), `
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
-const server=spawn(process.execPath,['node_modules/agentscape3d/cli.mjs','web','--port','0'],{stdio:['ignore','pipe','inherit']});
+const server=spawn(process.execPath,['node_modules/agentscape3d-studio/cli.mjs','web','--port','0'],{stdio:['ignore','pipe','inherit']});
 let output='';
 try {
  const address=await new Promise((resolve,reject)=>{
@@ -60,7 +67,7 @@ try {
   execFileSync(process.execPath, ['web.mjs'], { cwd: consumer, stdio: 'inherit' });
   writeFileSync(join(consumer, 'table.json'), readFileSync(join(root, 'examples/recipes/table.json')));
   writeFileSync(join(consumer, 'create.mjs'), `
-import { AgentScape } from 'agentscape3d';
+import { AgentScape } from 'agentscape3d-engine';
 import { readFile, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const scene = await AgentScape.open();
@@ -73,7 +80,7 @@ try {
 } finally {scene.close();}
 `);
   writeFileSync(join(consumer, 'restore.mjs'), `
-import { AgentScape } from 'agentscape3d';
+import { AgentScape } from 'agentscape3d-engine';
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const scene = await AgentScape.open({bundle:JSON.parse(await readFile('project.json','utf8'))});
@@ -87,8 +94,8 @@ try {
   execFileSync(process.execPath, ['create.mjs'], { cwd: consumer, stdio: 'inherit' });
   const restoration = execFileSync(process.execPath, ['restore.mjs'], { cwd: consumer, encoding: 'utf8' });
   writeFileSync(join(consumer, 'code.mjs'), `
-import { AgentScape } from 'agentscape3d';
-import { startServer } from 'agentscape3d/mcp';
+import { AgentScape } from 'agentscape3d-engine';
+import { startServer } from 'agentscape3d-engine/mcp';
 import assert from 'node:assert/strict';
 const world=await AgentScape.open({codeExecution:{mode:'worker-wasm'}});
 let restored;
@@ -106,7 +113,7 @@ try {
   execFileSync(process.execPath, ['code.mjs'], { cwd: consumer, stdio: 'inherit' });
   // A clean consumer must share the same Three.js constructors with NativeSceneHost.
   writeFileSync(join(consumer, 'native.mjs'), `
-import { AgentScape, attachNativeScene } from 'agentscape3d';
+import { AgentScape, attachNativeScene } from 'agentscape3d-engine';
 import * as THREE from 'three';
 import assert from 'node:assert/strict';
 assert.equal(AgentScape.attach, attachNativeScene);
@@ -145,7 +152,7 @@ console.log('Installed SDK native Three.js attach, physics, detach and instance 
   execFileSync(process.execPath, ['native.mjs'], { cwd: consumer, stdio: 'inherit' });
   writeFileSync(join(consumer, 'portal-source.json'), readFileSync(join(root, 'public/code-projects/portal.json')));
   writeFileSync(join(consumer, 'code-project-create.mjs'), `
-import {AgentScape,parseCodeProject} from 'agentscape3d';
+import {AgentScape,parseCodeProject} from 'agentscape3d-engine';
 import {readFile,writeFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const project=await parseCodeProject(await readFile('portal-source.json','utf8'));
@@ -160,7 +167,7 @@ try {
 } finally {host.close();}
 `);
   writeFileSync(join(consumer, 'code-project-restore.mjs'), `
-import {AgentScape} from 'agentscape3d';
+import {AgentScape} from 'agentscape3d-engine';
 import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const host=await AgentScape.openProject({project:await readFile('code-project.json','utf8'),authorized:true,autoStart:false});
@@ -175,11 +182,12 @@ try {
   execFileSync(process.execPath, ['code-project-create.mjs'], { cwd: consumer, stdio: 'inherit' });
   execFileSync(process.execPath, ['code-project-restore.mjs'], { cwd: consumer, stdio: 'inherit' });
   writeFileSync(join(consumer, 'multi-file.json'), "{\"schema\":\"agentscape.code-project\",\"schemaVersion\":1,\"id\":\"sdk_multifile\",\"name\":\"SDK MultiFile\",\"entry\":\"main.js\",\"source\":\"import { hue } from './lib/hue.js';\\nimport shader from './shaders/example.glsl';\\nexport function createProject({THREE}) {\\n  return {scene:new THREE.Scene(),camera:new THREE.PerspectiveCamera(),\\n    renderer:{render(){},extensions:{has:()=>false}},\\n    setup({scene}) {scene.registerEntity({id:'widget',read:()=>({hue,shader})});}};\\n}\",\"files\":{\"lib/hue.js\":\"import {Color} from 'three'; export const hue=new Color('#ff0000').getHexString();\",\"shaders/example.glsl\":\"uniform float time;\"},\"resources\":{}}");
-  writeFileSync(join(consumer, 'multi-file.mjs'), "import {AgentScape,parseCodeProject} from 'agentscape3d';\nimport assert from 'node:assert/strict';\nimport {readFile} from 'node:fs/promises';\nconst project=await parseCodeProject(await readFile('multi-file.json','utf8'));\nconst first=await AgentScape.openProject({project,authorized:true,autoStart:false});\nlet second;\ntry {\n assert.deepEqual(first.scene.inspect('widget').state,{hue:'ff0000',shader:'uniform float time;'});\n const saved=(await first.save()).value;\n assert.equal(saved.files['lib/hue.js'].includes('Color'),true);\n second=await AgentScape.openProject({project:saved,authorized:true,autoStart:false});\n assert.deepEqual(second.scene.inspect('widget').state,{hue:'ff0000',shader:'uniform float time;'});\n console.log('Installed SDK multi-file JS/GLSL imports, host THREE and round-trip passed');\n} finally { first.close(); second?.close(); }");
+  writeFileSync(join(consumer, 'multi-file.mjs'), "import {AgentScape,parseCodeProject} from 'agentscape3d-engine';\nimport assert from 'node:assert/strict';\nimport {readFile} from 'node:fs/promises';\nconst project=await parseCodeProject(await readFile('multi-file.json','utf8'));\nconst first=await AgentScape.openProject({project,authorized:true,autoStart:false});\nlet second;\ntry {\n assert.deepEqual(first.scene.inspect('widget').state,{hue:'ff0000',shader:'uniform float time;'});\n const saved=(await first.save()).value;\n assert.equal(saved.files['lib/hue.js'].includes('Color'),true);\n second=await AgentScape.openProject({project:saved,authorized:true,autoStart:false});\n assert.deepEqual(second.scene.inspect('widget').state,{hue:'ff0000',shader:'uniform float time;'});\n console.log('Installed SDK multi-file JS/GLSL imports, host THREE and round-trip passed');\n} finally { first.close(); second?.close(); }");
   execFileSync(process.execPath, ['multi-file.mjs'], { cwd: consumer, stdio: 'inherit' });
   const report = { version: packed.version, node: process.version, platform: process.platform,
     sha256: createHash('sha256').update(readFileSync(join(temporary, packed.filename))).digest('hex'),
-    files: packed.files.map(file => file.path), installation, restoration: JSON.parse(restoration.trim()) };
+    files: { core: packed.files.map(file => file.path), engine: enginePacked.files.map(file => file.path), studio: studioPacked.files.map(file => file.path) },
+    installation, restoration: JSON.parse(restoration.trim()) };
   mkdirSync(join(root, '.tmp-release'), { recursive: true });
   writeFileSync(join(root, '.tmp-release/sdk-install.json'), JSON.stringify(report, null, 2));
   console.log('Standalone SDK installation and fresh-process project restore passed');

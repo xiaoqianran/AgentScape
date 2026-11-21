@@ -1,72 +1,152 @@
 import { rolldown } from 'rolldown';
 import { build as buildVite } from 'vite';
-import { readFile, writeFile, mkdir, copyFile, rm, lstat, cp } from 'node:fs/promises';
-import { isAbsolute, resolve, dirname } from 'node:path';
+import { readFile, writeFile, mkdir, copyFile, rm, lstat, cp, open, unlink } from 'node:fs/promises';
+import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
-const source = new URL('sdk/typescript/', root);
-const pkg = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
-const sdk = JSON.parse(await readFile(new URL('package.json', source), 'utf8'));
-// SDK releases are versioned independently from the private monorepo.
-const referenced = new Set();
-const output = fileURLToPath(new URL('dist/', source));
-if (resolve(dirname(output)) !== resolve(fileURLToPath(source))) throw new Error('Unsafe SDK output path');
-const existing = await lstat(output).catch(error => { if (error.code !== 'ENOENT') throw error; return null; });
-if (existing?.isSymbolicLink()) throw new Error('SDK output must not be a link');
-await rm(output, { recursive: true, force: true });
-await mkdir(new URL('dist/', source), { recursive: true });
-const bundle = await rolldown({ input: new URL('src/index.ts', source).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
-  external: id => {
-    const external = !id.startsWith('.') && !isAbsolute(id);
-    if (external) referenced.add(id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0]);
-    return external;
-  } });
-await bundle.write({ dir: new URL('dist/', source).pathname.replace(/^\/([A-Za-z]:)/, '$1'), format: 'es', entryFileNames: 'index.js', sourcemap: true });
-await bundle.close();
-// Independent, zero-host-service entry: native Three.js semantics only.
-const semanticCore = await rolldown({ input: fileURLToPath(new URL('src/core.js', source)) });
-try {
-  await semanticCore.write({ file: fileURLToPath(new URL('dist/core.js', source)), format: 'es', sourcemap: true });
-} finally { await semanticCore.close(); }
-// Keep Node execution and MCP out of the browser entry. Package their source closure
-// so Worker URLs and the audited sandbox bundle are available after npm installation.
-const runtime = new URL('dist/runtime/', source);
-for (const directory of ['application','modules','foundation','apps/mcp-server','apps/server','public/assets']) {
-  await cp(new URL(directory, root), new URL(directory, runtime), {recursive:true});
-}
-await copyFile(new URL('package-lock.json', root), new URL('package-lock.json', runtime));
-await copyFile(new URL('package.json', root), new URL('package.json', runtime));
-await copyFile(new URL('src/node.mjs', source), new URL('dist/node.js', source));
-await writeFile(new URL('dist/mcp.js', source), "export { startServer } from './runtime/apps/mcp-server/main.mjs';\n");
-const worker = await rolldown({input:fileURLToPath(new URL('application/code-execution/BrowserCodeWorker.js',root))});
-try { await worker.write({file:fileURLToPath(new URL('dist/BrowserCodeWorker.js',source)),format:'es'}); } finally { await worker.close(); }
-// SDK dependencies are explicit; never pull unrelated Agent/Studio dependencies
-// from the monorepo merely because they were added to the root application.
-if (sdk.dependencies?.three) throw new Error('SDK_THREE_MUST_BE_PEER_DEPENDENCY');
-for (const [name, version] of Object.entries(sdk.dependencies || {})) {
-  if (pkg.dependencies[name] !== version) throw new Error('SDK_DEPENDENCY_DRIFT: ' + name);
-}
-sdk.peerDependencies = { ...sdk.peerDependencies, three: '^0.187.0' };
-sdk.exports['.'] = {types:'./dist/index.d.ts',browser:'./dist/index.js',node:'./dist/node.js',import:'./dist/index.js'};
-sdk.exports['./node'] = {types:'./dist/node.d.ts',import:'./dist/node.js'};
-sdk.exports['./mcp'] = {types:'./dist/mcp.d.ts',import:'./dist/mcp.js'};
-sdk.exports['./core'] = {types:'./dist/core.d.ts',import:'./dist/core.js'};
-await writeFile(new URL('package.json', source), JSON.stringify(sdk, null, 2) + '\n');
-await copyFile(new URL('src/index.d.ts', source), new URL('dist/index.d.ts', source));
-await copyFile(new URL('src/core.d.ts', source), new URL('dist/core.d.ts', source));
-await copyFile(new URL('src/node.d.ts', source), new URL('dist/node.d.ts', source));
-await copyFile(new URL('src/mcp.d.ts', source), new URL('dist/mcp.d.ts', source));
-await copyFile(new URL('LICENSE', root), new URL('LICENSE', source));
+const corePackage = new URL('sdk/typescript/', root);
+const enginePackage = new URL('sdk/engine/', root);
+const studioPackage = new URL('sdk/studio/', root);
+const allowed = new Set(['--core', '--engine', '--studio']);
+const flags = process.argv.slice(2);
+const snapshotIndex = flags.indexOf('--snapshot');
+const snapshot = snapshotIndex >= 0 ? flags.splice(snapshotIndex, 2)[1] : null;
+if (snapshotIndex >= 0 && !snapshot) throw new Error('SDK_SNAPSHOT_PATH_REQUIRED');
+if (flags.some(flag => !allowed.has(flag))) throw new Error('Unknown SDK build target: ' + flags.join(' '));
+const enabled = name => !flags.length || flags.includes('--' + name);
 
-// Ship the same multi-page website used by the hosted deployment so `agentscape3d web`
-// can serve the Spline homepage at / and Studio at /studio/ from an npm installation.
-await buildVite({ root: fileURLToPath(root), configFile: fileURLToPath(new URL('vite.config.js', root)) });
-const site = new URL('site/', source);
-const sitePath = resolve(fileURLToPath(site));
-if (dirname(sitePath) !== resolve(fileURLToPath(source))) throw new Error('Unsafe SDK site output path');
-const existingSite = await lstat(sitePath).catch(error => { if (error.code !== 'ENOENT') throw error; return null; });
-if (existingSite?.isSymbolicLink()) throw new Error('SDK site output must not be a link');
-await rm(site, { recursive: true, force: true });
-await cp(new URL('dist/', root), site, { recursive: true });
-console.log('Standalone SDK and website build complete');
+// Serialize shared output writes when independent SDK contract suites build in parallel.
+async function acquireBuildLock() {
+  const url = new URL('sdk/.build-sdk.lock', root);
+  for (let i = 0; i < 1200; i++) {
+    try {
+      const handle = await open(url, 'wx');
+      await handle.writeFile(JSON.stringify({ pid: process.pid, startedAt: Date.now() }));
+      return async () => {
+        try { await handle.close(); } finally { await unlink(url).catch(error => {
+          if (error.code !== 'ENOENT') throw error;
+        }); }
+      };
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      if (i % 30 === 0) {
+        try {
+          const record = JSON.parse(await readFile(url, 'utf8'));
+          if (Number.isInteger(record.pid) && record.pid > 0) {
+            try { process.kill(record.pid, 0); }
+            catch (error) { if (error.code === 'ESRCH') await unlink(url).catch(() => {}); }
+          }
+        } catch (error) { if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  throw new Error('SDK_BUILD_LOCK_TIMEOUT: another build did not release its lock');
+}
+
+async function cleanDirectory(directory, parent) {
+  const target = resolve(fileURLToPath(directory));
+  if (dirname(target) !== resolve(fileURLToPath(parent))) throw new Error('Invalid SDK output path: ' + target);
+  const existing = await lstat(target).catch(error => {
+    if (error.code !== 'ENOENT') throw error;
+    return null;
+  });
+  if (existing?.isSymbolicLink()) throw new Error('SDK output cannot be a symlink: ' + target);
+  await rm(target, { recursive: true, force: true });
+  await mkdir(target, { recursive: true });
+}
+
+async function bundleFile(input, output, options = {}) {
+  const build = await rolldown({ input: fileURLToPath(input), ...options });
+  try {
+    await build.write({ file: fileURLToPath(output), format: 'es', sourcemap: true });
+  } finally {
+    await build.close();
+  }
+}
+
+// Contract tests build into unique snapshots while the build lock is held.
+async function snapshotSdkBuild(target) {
+  if (!target) return;
+  const directory = resolve(target);
+  const parent = resolve(fileURLToPath(root));
+  if (dirname(directory) !== parent ||
+      !['.tmp-sdk-', '.tmp-sdk-journey-'].some(prefix => basename(directory).startsWith(prefix))) {
+    throw new Error('SDK_SNAPSHOT_OUTSIDE_TEST_DIRECTORY');
+  }
+  if (enabled('core')) await cp(new URL('dist/', corePackage), resolve(directory, 'core'), { recursive: true });
+  if (enabled('engine')) await cp(new URL('dist/', enginePackage), resolve(directory, 'dist'), { recursive: true });
+  if (enabled('studio')) await cp(new URL('site/', studioPackage), resolve(directory, 'site'), { recursive: true });
+}
+
+async function buildCore() {
+  const dist = new URL('dist/', corePackage);
+  await cleanDirectory(dist, corePackage);
+  await bundleFile(new URL('src/core.js', corePackage), new URL('core.js', dist));
+  await bundleFile(new URL('src/index.ts', corePackage), new URL('index.js', dist));
+  await copyFile(new URL('src/core.d.ts', corePackage), new URL('core.d.ts', dist));
+  await copyFile(new URL('src/index.d.ts', corePackage), new URL('index.d.ts', dist));
+  const manifest = JSON.parse(await readFile(new URL('package.json', corePackage), 'utf8'));
+  if (Object.keys(manifest.dependencies || {}).length || manifest.bin ||
+    Object.keys(manifest.exports || {}).some(key => !['.', './core'].includes(key))) {
+    throw new Error('Core package must not require engine dependencies, CLI or plugin entrypoints');
+  }
+  console.log('agentscape3d core built without engine, Studio or MCP');
+}
+
+async function buildEngine() {
+  const dist = new URL('dist/', enginePackage);
+  await cleanDirectory(dist, enginePackage);
+  const manifest = JSON.parse(await readFile(new URL('package.json', enginePackage), 'utf8'));
+  const rootManifest = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
+  if (manifest.dependencies?.three) throw new Error('Engine must use host-provided Three.js');
+  for (const [name, version] of Object.entries(manifest.dependencies || {})) {
+    if (rootManifest.dependencies[name] !== version) throw new Error('Engine dependency drift: ' + name);
+  }
+  const engineBuild = await rolldown({
+    input: fileURLToPath(new URL('src/index.ts', enginePackage)),
+    external: id => !id.startsWith('.') && !id.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(id)
+  });
+  try {
+    await engineBuild.write({
+      dir: fileURLToPath(dist), format: 'es', entryFileNames: 'index.js', sourcemap: true
+    });
+  } finally {
+    await engineBuild.close();
+  }
+  await bundleFile(new URL('src/core.js', corePackage), new URL('core.js', dist));
+  const runtime = new URL('runtime/', dist);
+  await mkdir(runtime);
+  for (const directory of ['application', 'modules', 'foundation', 'apps/mcp-server', 'apps/server', 'public/assets']) {
+    await cp(new URL(directory, root), new URL(directory, runtime), { recursive: true });
+  }
+  await copyFile(new URL('package-lock.json', root), new URL('package-lock.json', runtime));
+  await copyFile(new URL('package.json', root), new URL('package.json', runtime));
+  await copyFile(new URL('src/node.mjs', enginePackage), new URL('node.js', dist));
+  await writeFile(new URL('mcp.js', dist), "export { startServer } from './runtime/apps/mcp-server/main.mjs';\n");
+  await bundleFile(new URL('application/code-execution/BrowserCodeWorker.js', root), new URL('BrowserCodeWorker.js', dist));
+  await copyFile(new URL('src/index.d.ts', enginePackage), new URL('index.d.ts', dist));
+  await copyFile(new URL('src/core.d.ts', corePackage), new URL('core.d.ts', dist));
+  await copyFile(new URL('src/node.d.ts', enginePackage), new URL('node.d.ts', dist));
+  await copyFile(new URL('src/mcp.d.ts', enginePackage), new URL('mcp.d.ts', dist));
+  console.log('agentscape3d-engine runtime and optional MCP entry built');
+}
+
+async function buildStudio() {
+  const site = new URL('site/', studioPackage);
+  await buildVite({ root: fileURLToPath(root), configFile: fileURLToPath(new URL('vite.config.js', root)) });
+  await cleanDirectory(site, studioPackage);
+  await cp(new URL('dist/', root), site, { recursive: true });
+  console.log('agentscape3d-studio static website built');
+}
+
+const release = await acquireBuildLock();
+try {
+  if (enabled('core')) await buildCore();
+  if (enabled('engine')) await buildEngine();
+  if (enabled('studio')) await buildStudio();
+  await snapshotSdkBuild(snapshot);
+} finally {
+  await release();
+}

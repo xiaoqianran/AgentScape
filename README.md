@@ -2,7 +2,7 @@
 
 ![AgentScape — A Shared 3D World for Humans & AI](docs/assets/agentscape-hero.png)
 
-> v2 已实现统一 Scene API、Recipe、完整项目包与三种 StylePack；`agentscape3d@1.0.0-beta.1` 已在官方 npm Registry 提供；此版本为 Beta，不等于当前 main 的开发版或稳定版。最新能力与限制见 [v1 契约](planning/public-contracts-v1.md)和[发布清单](docs/v2-release.md)。
+> v2 已实现统一 Scene API、Recipe、完整项目包与三种 StylePack；`agentscape3d@1.0.0-beta.1` 已在官方 npm Registry 提供；此版本为 Beta，不等于当前 main 的开发版或稳定版。**main 已将 SDK 拆成 Core、Engine、Studio 三个独立 npm 包；新的包结构尚未发布。**最新能力与限制见 [v1 契约](planning/public-contracts-v1.md)和[发布清单](docs/v2-release.md)。
 
 **让人和 AI 能够操作同一个交互式 3D 世界。**
 
@@ -49,6 +49,17 @@ npm run starter
 
 修改 `apps/starter/scene.json` 后刷新即可改变初始布局。支持 agent、cup、table、chair 四种内置物理资产；`main.js` 展示统一 SDK 的使用方式，包括浏览器帧循环。
 
+## 轻量 Three.js 核心与插件化 SDK
+
+main 的默认导出为 **agentscape3d Core**：直接绑定现有 Three.js Scene 和 Object3D，添加任意语义和动作，不依赖 Studio、MCP、物理系统和权限审批。可选的完整 Runtime 通过 **agentscape3d-engine** 安装；独立 Studio 网站通过 **agentscape3d-studio** 安装。详细迁移说明见 [npm 拆包指南](docs/sdk-packages.md)。
+
+~~~js
+import { attach } from 'agentscape3d';
+const world = attach(scene);
+world.register(mesh, { id: 'mesh', actions: { rotate: () => { mesh.rotation.y += 1; } } });
+await world.invoke('mesh', 'rotate');
+~~~
+
 ## 接入已有 Three.js 项目
 
 原生集成示例位于 [examples/native-scene](examples/native-scene/)，详细接入步骤、同一 Three.js 实例、物理碰撞体和宿主渲染循环约束见 [原生 Three.js 集成指南](docs/native-threejs-integration.md)和[原生注入架构契约](docs/native-threejs-architecture.md)。长期方向和阶段验收见[AgentScape 架构路线与决策锚点](docs/agentscape-architecture-roadmap.md)。此能力复用原来的 SceneFacade / Runtime，不接管宿主渲染器；原生项目保存/导出尚未实现。
@@ -57,9 +68,9 @@ npm run starter
 
 ## 当前边界
 
-首页在 `/`，Studio 在 `/studio/`，Starter 教学页在 `/starter/`，诊断台在 `/observatory/`。公开 npm 包 `agentscape3d` 分发 SDK、CLI 和 MCP 能力，不包含网站前端；npm Starter CLI 生成的是独立 SDK 示例工程，并不包含 Studio 工作台。现有 MCP 的独立世界、程序化资产、真实交互与可信恢复继续保留。本机代码资产默认可通过受限 QuickJS Worker 运行，无须 Docker；公网不可信源码执行必须配置操作系统隔离后端，否则明确拒绝。
+首页在 `/`，Studio 在 `/studio/`，Starter 教学页在 `/starter/`，诊断台在 `/observatory/`。原有综合功能已移到可选的 Engine 和 Studio 包（旧版 npm Beta 仍是综合包）；npm Starter CLI 生成的是独立 SDK 示例工程，并不包含 Studio 工作台。现有 MCP 的独立世界、程序化资产、真实交互与可信恢复继续保留。本机代码资产默认可通过受限 QuickJS Worker 运行，无须 Docker；公网不可信源码执行必须配置操作系统隔离后端，否则明确拒绝。
 
-SDK 已支持自包含 GLB Visual、受约束 Recipe、完整项目包和三种 StylePack；Starter 的按钮仍保持最小学习范围，Studio 提供风格切换。Scene Project 使用内置世界目录；SDK 默认纪念大厅，浏览器专属环境不支持 Headless。实体总数不固定为 32，激活、分页与存储有独立预算；YAML、任意 Shader 插件和通用压缩包上传不属于 v1。发布后可使用 `npm install agentscape3d` 和 `npx agentscape3d starter my-world`；发布前请参考 [SDK 本地打包说明](sdk/typescript/README.md)。
+SDK 已支持自包含 GLB Visual、受约束 Recipe、完整项目包和三种 StylePack；Starter 的按钮仍保持最小学习范围，Studio 提供风格切换。Scene Project 使用内置世界目录；SDK 默认纪念大厅，浏览器专属环境不支持 Headless。实体总数不固定为 32，激活、分页与存储有独立预算；YAML、任意 Shader 插件和通用压缩包上传不属于 v1。新的完整引擎可使用 `npm install agentscape3d-engine` 和 `npx agentscape3d-engine starter my-world`（尚未发布）；发布前请参考 [SDK 本地打包说明](sdk/typescript/README.md)。
 
 ## 验证与贡献
 

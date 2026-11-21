@@ -1,65 +1,30 @@
-# AgentScape TypeScript SDK
-## 推荐：不接管 Three.js 的轻量核心
+# AgentScape 3D Core
 
-使用 `import { attach } from 'agentscape3d/core'`，直接连接已有 `THREE.Scene`；使用 `world.register(object,{id,type,read,actions})` 给 GLB/任意 Object3D 添加自由语义，使用 `world.invoke(id,action)` 执行动作。核心无 Studio、权限审批、任务编译或其他强制插件，不接管渲染循环。完整示例参见 [轻量核心说明](../../docs/semantic-core.md)。下文是保留兼容的完整 WorldRuntime/Studio SDK 用法。
+**agentscape3d** is a small, unrestricted semantic and action extension for host-owned Three.js scenes. It does not require Studio, a renderer, WorldRuntime, MCP, an AI provider, an approval workflow, a sandbox or a physics engine.
 
+~~~js
+import * as THREE from 'three';
+import { attach } from 'agentscape3d';
 
-自由代码世界新增 `AgentScape.openProject({project,container,authorized:true})`，支持持续 Three.js 逻辑、Shader、自定义动作和项目代码/状态保存。生命周期与示例见 [Code Project](../../docs/modules/code-project.md)。本地示例为 `/examples/code-project/`，可直接导入 [多文件代码世界 JSON](../../examples/code-project/multifile-studio.json)。多文件项目使用 `entry` 指定入口，`source` 保存入口源码，`files` 保存其他 JS/GLSL/JSON/TXT 源码；相对 ESM 导入会在浏览器与 Node 中解析，`three` 导入共享宿主实例。动态 import 和 npm 裸导入请使用原有外部打包工具。
+const scene = new THREE.Scene();
+const door = new THREE.Group();
+scene.add(door);
+const world = attach(scene);
+world.register(door, {
+  id: 'door', type: 'custom-door',
+  read: () => ({ angle: door.rotation.y }),
+  actions: { open: () => { door.rotation.y = -Math.PI / 2; } }
+});
+await world.invoke('door', 'open');
+world.dispose(); // Does not dispose the scene or door
+~~~
 
-Beta package for the AgentScape 3D world engine. The official npm Registry currently offers `agentscape3d@1.0.0-beta.1`; use `npm install agentscape3d@beta` for the explicit Beta. `latest` also currently points to this Beta, so do not assume an unqualified install is stable. Before releasing a new revision, build with `node dev/build-sdk.mjs` and verify the `npm pack` tarball.
+The same API works on objects imported through GLTFLoader or created in JavaScript. Use world.use(plugin) for optional extensions; there are no automatically installed plugins.
 
-```js
-import { AgentScape } from 'agentscape3d';
-const world = await AgentScape.open({ canvas: '#app' });
-await world.addModel({ id: 'cup', asset: 'builtin://cup', position: [0, 0, 2] });
-const saved = await world.save();
-const reopened = await AgentScape.open({ bundle: saved.value });
-reopened.close();
-world.close();
-```
+Optional npm packages:
+- **agentscape3d-engine**: legacy full WorldRuntime, physics, assets and the explicit MCP integration
+- **agentscape3d-studio**: standalone Studio and static website
 
-`#app` is an HTML container with an explicit width and height. Rendering schedules automatically when a container is supplied. Headless hosts advance `step()` themselves. Interactions return jobs; query or await them with `getJob` / `waitJob`, and inspect their verification evidence separately.
+See docs/sdk-packages.md and docs/semantic-core.md in the repository.
 
-Browser rendering defaults to automatic WebGPU/WebGL renderer selection and a `pixelRatioScale` of `0.75` to reduce GPU load on high-DPI displays. Pass `rendererMode` (`auto`, `webgpu`, `webgl2` or `webgl-legacy`) and `pixelRatioScale` (`0.5`–`1`) to `AgentScape.open()` to tune it for a host. These settings affect rendering cost; actual frame rate still depends on the scene and device.
-
-## Embedding in an existing Three.js scene
-
-Use `AgentScape.attach({scene,camera,renderer,walkableMesh,hostProjectId,hostRevision})` to mount a self-owned Runtime subtree without taking over the host renderer or loop. Call `session.scene.frame(timestamp)` in the host frame callback and `session.close()` to detach. Save only the AgentScape overlay with `session.scene.saveOverlay(storage)`; prepare and commit it with `prepareOverlay(storage,root)`. Use `WorldStorage` with `WorldDirectory` for durable content-addressed blocks. The host project remains responsible for its own source and rendering state. For reload-safe browser checkpoints, pair `WorldStorage(new WorldDirectory(await navigator.storage.getDirectory()))` with `IndexedDBNativeOverlayHeadStore({key})`; then `await openNativeOverlayCheckpoint(session.scene, storage, heads)` restores the latest verified overlay automatically, and `await checkpoint.saveLatest()` publishes a new head only after validation. See [the native integration guide](../../docs/native-threejs-integration.md).
-
-The SDK defaults to `monument-hall`; other built-in IDs are resolved through the shared Studio catalog. Some environments require a browser DOM and reject headless Node. Studio preset furniture is not implicitly inserted into Scene Projects. Bundled assets include agent, cup, table and chair. Use await world.setStyle(ref) with builtin://realistic, builtin://toon or builtin://low-poly. Headless hosts validate and defer rendering. This SDK shares the application Scene service and does not maintain another object store.
-
-`npx agentscape3d starter new-directory` (or `agentscape starter new-directory`) scaffolds an empty destination containing a minimal SDK example, not the Studio editor. Install this SDK tarball and Vite in that directory, then `npm run dev`. Open the repository root with `npm run dev` to use the full Studio workspace. No provider key or paid service is needed for built-in worlds. Python Connector SDK usage is unchanged.
-
-The package also includes the production multi-page website. Run `npx agentscape3d web` to serve the Spline-style homepage at `/` and Studio at `/studio/` on `http://127.0.0.1:4173`. Choose another port with `--port 8080`; choose a network interface explicitly with `--host 0.0.0.0` when access from other devices is intended. The website build is generated from the repository's root Vite configuration during package build.
-
-For native Three.js integration, the package declares `three` as a peer dependency so the host application supplies the shared runtime instance. Install a compatible Three.js version in the host project. See the [native integration guide](../../docs/native-threejs-integration.md) and [architecture contract](../../docs/native-threejs-architecture.md).
-
-Code assets require an explicit execution configuration. Node selects the Node entry automatically; `agentscape3d/node` is also available. Docker is not an installation prerequisite.
-
-```js
-const world = await AgentScape.open({codeExecution:{mode:'worker-wasm'}});
-await world.addModel({id:'cube',asset:{kind:'three-code',source:`
-  export function createAsset(THREE) {
-    const root = new THREE.Group();
-    root.add(new THREE.Mesh(new THREE.BoxGeometry(1,1,1),
-      new THREE.MeshStandardMaterial({color:'#ee8844'})));
-    return root;
-  }
-`}});
-const bundle = (await world.save()).value;
-world.close();
-```
-
-Node `worker-wasm` runs synchronous source in QuickJS without host filesystem/network bindings. `trusted-local` requires `{mode:'trusted-local',authorized:true}` and runs ESM factories (including async factories) in a dedicated Worker. It has the host's privileges. Browser code execution currently supports this explicitly authorized trusted Worker mode; browser `worker-wasm` and `os-isolated` are rejected. Worker time/memory controls are reliability protection, not OS security isolation. `disabled` rejects code. Public services must use `os-isolated` (configured Docker backend) or `disabled`; no fallback occurs.
-
-An optional `definition` provides the existing programmatic Manifest contract (`id`, `type`, `label`, `actions`, `physics`, named `parts`, joints and interaction targets). Omit it for visual-only assets. Physical assets undergo compiler admission and runtime registration/actuation verification before insertion. Serializable Mesh/Group/Object3D, buffer geometry and Basic/Standard/Physical materials are supported; runtime callbacks, animations, material arrays and external texture references are not transported. Root transforms must be identity; place assets through `position`/`transform`.
-
-Use `addModel(input,{signal})` to cancel. Saved bundles embed versioned compiled assets and their physical definitions and restore without executing source. Build execution, admission and live interaction verification are separate results.
-
-`agentscape3d mcp` (or `agentscape mcp`) starts the local authenticated loopback MCP server. Set `AGENTSCAPE_MCP_TOKENS` to a JSON array such as `[{"identity":"local","token":"a-random-secret-at-least-32-characters"}]` using a freshly generated secret. The default backend is `worker-wasm`. Trusted execution additionally requires `AGENTSCAPE_CODE_EXECUTION=trusted-local` and `AGENTSCAPE_TRUSTED_CODE=1`. Public deployments set `AGENTSCAPE_PUBLIC_SERVICE=1` and configure `os-isolated`; the server rejects unsafe modes. The programmatic entry is `import {startServer} from 'agentscape3d/mcp'`.
-
-## npm 发布门槛（维护者）
-
-当前准备发布 `1.0.0-beta.1`，发布前不得假定 npm 已上线。正式发布前必须在项目根目录通过 `npm run check`、`npm run test:browser` 和 `npm run sdk:verify`，并确认 `git status` 干净、发布版本号未被占用、许可证及依赖清单完整。浏览器测试必须覆盖自动 Studio MCP 连接、手动配对、复杂物理资产创建和跨进程保存/恢复。
-
-发布目标固定为官方 npm Registry (`https://registry.npmjs.org/`) 的公开 npm 包，避免将镜像缓存结果当作发布状态。维护者需拥有 `agentscape3d` 的发布权限，通过 `npm whoami --registry=https://registry.npmjs.org/` 检查认证，再从 `sdk/typescript` 目录使用 `npm pack --dry-run` 审阅归档。`npm publish --tag beta --access public --registry=https://registry.npmjs.org/` 仅在版本确定、全部验收通过且获得发布授权后执行；不要在自动测试中发布。初次发布后验证 `npm view agentscape3d dist-tags --json --registry=https://registry.npmjs.org/`，确认 `beta` 指向 `1.0.0-beta.1`，再在全新项目验证 `npm install agentscape3d@beta`。
+This is a breaking npm-entry migration, not a published release. Code executes with the permissions of the host JavaScript environment; Core does not impose or claim a security boundary.

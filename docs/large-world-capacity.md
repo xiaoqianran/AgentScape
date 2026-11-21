@@ -20,7 +20,7 @@
 | application/scene/SceneProject.js | v1 解析允许超过 32 个对象，继续校验重复 ID |
 | application/scene/StarterScene.js | Starter 对象数组取消 32 上限 |
 | modules/world/runtime/ObjectStore.js | O(1) size 和有界输出 page |
-| sdk/typescript/src/index.d.ts | 分页请求和独立返回类型 |
+| sdk/engine/src/index.d.ts | 分页请求和独立返回类型 |
 | tests/integration/scene-scale.test.js | 逻辑记录规模、分页无全量调用、物理对象保存恢复及失败一致性 |
 | dev/experiments/world/003-scene-capacity.mjs | 本机可重复运行的逻辑/物理分离基准 |
 

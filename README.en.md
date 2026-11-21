@@ -49,10 +49,10 @@ Edit [`apps/starter/scene.json`](apps/starter/scene.json) and reload. Your scene
 { "id": "reading-chair", "asset": "chair", "position": [-4, 0, 3] }
 ```
 
-The `agentscape3d` SDK shares the Scene service with Studio and MCP. Its generated Starter is a developer example, not the Studio interface. The `1.0.0-beta.1` package is being prepared for npm; until publication, [build a local tarball](sdk/typescript/README.md). After publication, install with `npm install agentscape3d`.
+The default `agentscape3d` package on main is now a standalone Three.js semantic and action extension without Studio, MCP, physics or approval requirements. The full previous SDK is in the opt-in `agentscape3d-engine` package, and the web UI is in `agentscape3d-studio`. The `1.0.0-beta.1` package is being prepared for npm; until publication, [build a local tarball](sdk/typescript/README.md). The new split package layout is not yet published. See [migration notes](docs/sdk-packages.md).
 
 ```js
-import { AgentScape } from 'agentscape3d';
+import { AgentScape } from 'agentscape3d-engine';
 const world = await AgentScape.open({ canvas: '#app' });
 await world.addModel({ id: 'seat', asset: 'builtin://chair', position: [-4, 0, 3] });
 await world.setStyle('builtin://toon');

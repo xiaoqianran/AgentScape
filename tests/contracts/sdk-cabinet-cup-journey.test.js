@@ -35,10 +35,9 @@ it('executes the CabinetCup journey through the TypeScript SDK', async () => {
   let bundle;
   try { bundle = (await source.save()).value; } finally { source.close(); }
 
-  execFileSync(process.execPath, ['dev/build-sdk.mjs'], { stdio: 'pipe' });
   const directory = await mkdtemp(resolve('.tmp-sdk-journey-'));
   try {
-    await cp('sdk/typescript/dist', resolve(directory, 'dist'), { recursive: true });
+    execFileSync(process.execPath, ['dev/build-sdk.mjs', '--engine', '--snapshot', directory], { stdio: 'pipe' });
     await symlink(resolve('node_modules'), resolve(directory, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
     await writeFile(resolve(directory, 'package.json'), '{"type":"module"}');
     const { AgentScape } = await import(pathToFileURL(resolve(directory, 'dist/index.js')).href);

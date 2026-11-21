@@ -19,7 +19,7 @@
 在已经安装 `agentscape3d` 的可信 Three.js 项目中：
 
 ```js
-import { AgentScape } from 'agentscape3d';
+import { AgentScape } from 'agentscape3d-engine';
 
 // scene / camera / renderer / floor 由原项目创建和管理。
 const session = await AgentScape.attach({
@@ -85,7 +85,7 @@ const session = await AgentScape.attach({
 原生模式仍拒绝 `scene.save()`、完整原生项目导入/导出及 `setStyle()`，这些能力会错误地把宿主项目伪装成 AgentScape 项目。现在提供独立的 AgentScape 注入层 Overlay 持久化：
 
 ```js
-import { AgentScape, WorldStorage, WorldDirectory } from 'agentscape3d';
+import { AgentScape, WorldStorage, WorldDirectory } from 'agentscape3d-engine';
 
 const session = await AgentScape.attach({
   scene, camera, renderer,
@@ -125,7 +125,7 @@ const importedRoot = await session.scene.importOverlay(storage, source);
 import {
   AgentScape, WorldStorage, WorldDirectory,
   IndexedDBNativeOverlayHeadStore, openNativeOverlayCheckpoint,
-} from 'agentscape3d';
+} from 'agentscape3d-engine';
 
 const session = await AgentScape.attach({
   scene, camera, renderer,
