@@ -1,6 +1,7 @@
 import { it, expect } from 'vitest';
+import * as THREE from 'three';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, cp, symlink, writeFile, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, cp, symlink, writeFile, rm, readFile, stat } from 'node:fs/promises';
 import { resolve, dirname, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -12,6 +13,17 @@ it('runs the bundled SDK without repository sources and creates a safe Starter',
     await symlink(resolve('node_modules'), resolve(directory, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
     await writeFile(resolve(directory, 'package.json'), '{"type":"module"}');
     const { AgentScape } = await import(pathToFileURL(resolve(directory, 'dist/index.js')).href);
+    // The independently distributed core must not require the heavy Scene runtime.
+    const { attach } = await import(pathToFileURL(resolve(directory, 'dist/core.js')).href);
+    expect((await stat(resolve(directory, 'dist/core.js'))).size).toBeLessThan(16384);
+    const existing = new THREE.Scene(), mesh = new THREE.Group();
+    existing.add(mesh);
+    const semantics = attach(existing);
+    semantics.register(mesh, { id: 'free-three-object', actions: { ping: () => 'pong' } });
+    expect(await semantics.invoke('free-three-object', 'ping')).toBe('pong');
+    semantics.dispose();
+    expect(existing.children).toContain(mesh);
+    expect(AgentScape.extend).toBeTypeOf('function');
     const world = await AgentScape.open();
     try {
       await world.addModel({ id: 'cup', asset: 'builtin://cup' });

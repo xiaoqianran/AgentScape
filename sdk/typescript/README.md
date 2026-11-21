@@ -1,4 +1,8 @@
 # AgentScape TypeScript SDK
+## 推荐：不接管 Three.js 的轻量核心
+
+使用 `import { attach } from 'agentscape3d/core'`，直接连接已有 `THREE.Scene`；使用 `world.register(object,{id,type,read,actions})` 给 GLB/任意 Object3D 添加自由语义，使用 `world.invoke(id,action)` 执行动作。核心无 Studio、权限审批、任务编译或其他强制插件，不接管渲染循环。完整示例参见 [轻量核心说明](../../docs/semantic-core.md)。下文是保留兼容的完整 WorldRuntime/Studio SDK 用法。
+
 
 自由代码世界新增 `AgentScape.openProject({project,container,authorized:true})`，支持持续 Three.js 逻辑、Shader、自定义动作和项目代码/状态保存。生命周期与示例见 [Code Project](../../docs/modules/code-project.md)。本地示例为 `/examples/code-project/`，可直接导入 [多文件代码世界 JSON](../../examples/code-project/multifile-studio.json)。多文件项目使用 `entry` 指定入口，`source` 保存入口源码，`files` 保存其他 JS/GLSL/JSON/TXT 源码；相对 ESM 导入会在浏览器与 Node 中解析，`three` 导入共享宿主实例。动态 import 和 npm 裸导入请使用原有外部打包工具。
 

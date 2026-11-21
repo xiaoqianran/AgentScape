@@ -24,6 +24,11 @@ const bundle = await rolldown({ input: new URL('src/index.ts', source).pathname.
   } });
 await bundle.write({ dir: new URL('dist/', source).pathname.replace(/^\/([A-Za-z]:)/, '$1'), format: 'es', entryFileNames: 'index.js', sourcemap: true });
 await bundle.close();
+// Independent, zero-host-service entry: native Three.js semantics only.
+const semanticCore = await rolldown({ input: fileURLToPath(new URL('src/core.js', source)) });
+try {
+  await semanticCore.write({ file: fileURLToPath(new URL('dist/core.js', source)), format: 'es', sourcemap: true });
+} finally { await semanticCore.close(); }
 // Keep Node execution and MCP out of the browser entry. Package their source closure
 // so Worker URLs and the audited sandbox bundle are available after npm installation.
 const runtime = new URL('dist/runtime/', source);
@@ -42,8 +47,10 @@ sdk.peerDependencies = { ...sdk.peerDependencies, three: '^0.187.0' };
 sdk.exports['.'] = {types:'./dist/index.d.ts',browser:'./dist/index.js',node:'./dist/node.js',import:'./dist/index.js'};
 sdk.exports['./node'] = {types:'./dist/node.d.ts',import:'./dist/node.js'};
 sdk.exports['./mcp'] = {types:'./dist/mcp.d.ts',import:'./dist/mcp.js'};
+sdk.exports['./core'] = {types:'./dist/core.d.ts',import:'./dist/core.js'};
 await writeFile(new URL('package.json', source), JSON.stringify(sdk, null, 2) + '\n');
 await copyFile(new URL('src/index.d.ts', source), new URL('dist/index.d.ts', source));
+await copyFile(new URL('src/core.d.ts', source), new URL('dist/core.d.ts', source));
 await copyFile(new URL('src/node.d.ts', source), new URL('dist/node.d.ts', source));
 await copyFile(new URL('src/mcp.d.ts', source), new URL('dist/mcp.d.ts', source));
 await copyFile(new URL('LICENSE', root), new URL('LICENSE', source));

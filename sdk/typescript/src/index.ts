@@ -1,10 +1,12 @@
 import { openScene } from '../../../application/scene/SceneFacade.js';
+import { attach as extendSemanticScene } from './core.js';
 import { openScenePackage } from '../../../application/scene/ScenePackage.js';
 import { createBrowserCodeExecutor } from '../../../application/code-execution/BrowserCodeExecutor.js';
 import { attachNativeScene } from '../../../application/native-scene/NativeSceneHost.js';
 import { openCodeProject } from '../../../application/native-scene/CodeProject.js';
 export { openCodeProject, parseCodeProject } from '../../../application/native-scene/CodeProject.js';
 export { attachNativeScene };
+export { attach } from './core.js';
 export { observeNativeRenderer, listNativeScenes, subscribeNativeScenes } from '../../../application/native-scene/NativeRenderDiscovery.js';
 export { parseSceneProject } from '../../../application/scene/SceneProject.js';
 export { recipeSchema, assetPackageSchema } from '../../../modules/asset/model/AssetInputContracts.js';
@@ -15,6 +17,7 @@ export { createNativeOverlayCheckpoint, openNativeOverlayCheckpoint, MemoryNativ
 
 export const AgentScape = {
   attach: attachNativeScene,
+  extend: extendSemanticScene,
   openProject: openCodeProject,
   async open({ canvas, project, bundle, environment = 'monument-hall', autoStart = true, rendererMode = 'auto', pixelRatioScale = 0.75, codeExecution, codeExecutor = null, codeGLTFLoader, assetModule = null }: {
     canvas?: string | HTMLElement; project?: unknown; bundle?: unknown; environment?: string; autoStart?: boolean; rendererMode?: 'auto' | 'webgpu' | 'webgl2' | 'webgl-legacy'; pixelRatioScale?: number;

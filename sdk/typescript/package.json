@@ -20,6 +20,10 @@
     "./mcp": {
       "types": "./dist/mcp.d.ts",
       "import": "./dist/mcp.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
     }
   },
   "bin": {
@@ -41,7 +45,14 @@
     "prepack": "npm run build"
   },
   "dependencies": {
+    "@deepseek-ai/dsh": "0.2.2-rc.5",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.2.2-rc.5",
+    "@deepseek-ai/dsh-mcp-client": "0.2.2-rc.5",
+    "@deepseek-ai/dsh-sdk-client": "0.2.2-rc.5",
     "@dimforge/rapier3d-compat": "^0.21.0",
+    "@earendil-works/pi-agent-core": "1.5.2",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@earendil-works/pi-mcp": "1.5.2",
     "@gltf-transform/core": "^4.5.1",
     "@gltf-transform/extensions": "^4.5.1",
     "@gltf-transform/functions": "^4.5.1",

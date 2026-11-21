@@ -13,6 +13,7 @@ export async function openCodeProject(options = {}) {
 }
 export const AgentScape = {
   attach: BrowserAgentScape.attach,
+  extend: BrowserAgentScape.extend,
   openProject: openCodeProject,
   async open(options = {}) {
     installHeadlessAssetIO();
