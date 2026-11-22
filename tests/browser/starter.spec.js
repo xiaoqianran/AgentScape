@@ -36,7 +36,7 @@ test('starter canvas follows narrow and wide viewport after runtime startup and 
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto('/starter/');
   await expect(page.getByRole('status')).toContainText('Ready.', { timeout: 60000 });
-  await expect(page.getByRole('navigation', { name: 'Continue with AgentScape' }).getByRole('link', { name: /Open full Studio/ })).toHaveAttribute('href', '/');
+  await expect(page.getByRole('navigation', { name: 'Continue with AgentScape' }).getByRole('link', { name: /Open full Studio/ })).toHaveAttribute('href', '/studio/');
   await expect(page.getByRole('navigation', { name: 'Continue with AgentScape' }).getByRole('link', { name: /Connect an AI agent with MCP/ })).toBeVisible();
 
   const checkViewport = async width => {
