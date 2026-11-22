@@ -106,8 +106,9 @@ export default function App() {
       .then((files) => {
         if (!disposed) setAuthoringRecents(files);
       })
-      .catch(() => {
-        // Keep the built-in examples available when local storage is unavailable.
+      .catch((error) => {
+        // Built-in examples remain available when IndexedDB is unavailable.
+        console.warn('[Home] 本地草稿列表加载失败', error);
       });
     return () => {
       disposed = true;

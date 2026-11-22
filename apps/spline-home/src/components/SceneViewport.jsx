@@ -71,6 +71,8 @@ function buildStarterScene() {
 export default function SceneViewport({ selected, onSelect }) {
   const mountRef = useRef(null);
   const apiRef = useRef(null);
+  const onSelectRef = useRef(onSelect);
+  useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -130,14 +132,13 @@ export default function SceneViewport({ selected, onSelect }) {
       pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
       const hits = raycaster.intersectObjects(pickables, false);
-      if (hits[0]) onSelect?.(hits[0].object.name);
+      if (hits[0]) onSelectRef.current?.(hits[0].object.name);
     };
     renderer.domElement.addEventListener("click", onClick);
 
+    let paused = false;
     const animate = () => {
-      if (disposed) return;
-      frame = requestAnimationFrame(animate);
-      if (apiRef.current?.paused) return;
+      if (disposed || paused) { frame = 0; return; }
       t += 0.01;
       // gentle idle motion on showcase spheres
       const blue = root.getObjectByName("sphere blue");
@@ -150,10 +151,23 @@ export default function SceneViewport({ selected, onSelect }) {
       if (ringObj) ringObj.rotation.z = t * 0.25;
       controls.update();
       renderer.render(scene, camera);
+      frame = requestAnimationFrame(animate);
     };
-    animate();
+    const resume = () => {
+      if (disposed || frame) return;
+      frame = requestAnimationFrame(animate);
+    };
+    resume();
 
-    apiRef.current = { scene, root, renderer, paused: false };
+    apiRef.current = {
+      scene, root, renderer,
+      setPaused(value) {
+        if (disposed) return;
+        paused = Boolean(value);
+        if (paused && frame) { cancelAnimationFrame(frame); frame = 0; }
+        else if (!paused) resume();
+      }
+    };
 
     const onResize = () => {
       const w = mount.clientWidth || 1;
@@ -171,10 +185,17 @@ export default function SceneViewport({ selected, onSelect }) {
       ro.disconnect();
       renderer.domElement.removeEventListener("click", onClick);
       controls.dispose();
+      root.traverse((object) => {
+        object.geometry?.dispose?.();
+        const materials = Array.isArray(object.material) ? object.material : object.material ? [object.material] : [];
+        for (const material of materials) material.dispose?.();
+      });
       renderer.dispose();
+      renderer.forceContextLoss();
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
+      apiRef.current = null;
     };
-  }, [onSelect]);
+  }, []);
 
   // highlight selection via emissive
   useEffect(() => {
@@ -189,17 +210,17 @@ export default function SceneViewport({ selected, onSelect }) {
     });
   }, [selected]);
 
-  // pause rendering when host is hidden; keep WebGL context alive
+  // Stop the frame loop while hidden; the WebGL context stays alive.
   useEffect(() => {
     const host = mountRef.current;
     if (!host) return;
+    const view = host.closest("[data-view]");
     const sync = () => {
-      const view = host.closest("[data-view]");
       const hidden = !view || view.getAttribute("data-active") !== "1";
-      if (apiRef.current) apiRef.current.paused = hidden;
+      apiRef.current?.setPaused(hidden);
     };
     const obs = new MutationObserver(sync);
-    obs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-active", "class"] });
+    if (view) obs.observe(view, { attributes: true, attributeFilter: ["data-active"] });
     sync();
     return () => obs.disconnect();
   }, []);

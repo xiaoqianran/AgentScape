@@ -2,24 +2,34 @@
 
 独立前端，高保真复刻 `app.spline.design/home`。技术栈对齐原站：**React + CSS Modules + Spline Sans**（原站为 Next.js + CSS Modules，此处用 Vite 承载同一组件/样式模型）。
 
-与 `apps/studio`、`apps/observatory` 无耦合。
+页面主体独立渲染；最近草稿列表复用 `apps/studio/persistence/AuthoringWorldStore.js` 读取本机 IndexedDB。
 
 ## 运行
 
-```powershell
-cd apps/spline-home
-# 依赖用仓库根目录的 react / vite
-$env:NODE_PATH = "D:\Users\yuminghui\AppData\Local\Programs\Xiaomi MiMo\resources\runtimes\win32-x64\node\node_modules"
-# 或直接用根 node_modules：
-node ../../node_modules/vite/bin/vite.js
+在仓库根（依赖已安装）直接复用根构建：
+
+```sh
+npm run dev
+# 打开 /home/
 ```
 
-在仓库根（已有依赖）也可：
+独立开发这个界面：
 
-```powershell
-node node_modules/vite/bin/vite.js --config apps/spline-home/vite.config.js
+```sh
+cd apps/spline-home
+npm install
+npm run dev
 # http://127.0.0.1:5175/
 ```
+
+也可以在仓库根用这份配置启动：
+
+```sh
+npx vite --config apps/spline-home/vite.config.js
+```
+
+独立配置会把 `/apps/spline-home/...` 前缀重写到自身 root，并复用仓库 `public/` 资源，
+因此同一份 `index.html` 在两种构建下都能工作。
 
 ## 结构
 
