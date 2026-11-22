@@ -17,7 +17,8 @@ export function createCapabilityDevMiddleware({ routes = DEV_CAPABILITY_ROUTES }
     if (!handler) return next();
     try {
       await handler(req, res);
-    } catch {
+    } catch (error) {
+      console.error('[AgentScape] capability handler failed', error);
       if (res.headersSent || res.writableEnded) return;
       res.statusCode = 500;
       res.setHeader("content-type", "application/json; charset=utf-8");
@@ -28,11 +29,16 @@ export function createCapabilityDevMiddleware({ routes = DEV_CAPABILITY_ROUTES }
 }
 
 export function capabilityDevPlugin() {
+  const middleware = createCapabilityDevMiddleware();
   return {
     name: "agentscape-capability-dev-api",
-    apply: "serve",
     configureServer(server) {
-      server.middlewares.use(createCapabilityDevMiddleware());
+      server.middlewares.use(middleware);
+    },
+    // `vite preview` (used by Playwright) must behave like dev/production:
+    // the same-origin capability API returns JSON, never the SPA fallback HTML.
+    configurePreviewServer(server) {
+      server.middlewares.use(middleware);
     }
   };
 }

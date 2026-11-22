@@ -5,8 +5,11 @@ import { fileURLToPath } from 'node:url';
  * Add project directories here; their ordinary `import ... from 'three'` stays intact.
  * The shim resolves `three` normally, so addons and the Runtime share one instance.
  */
+const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url));
+
 export function nativeScenePlugin({ projectRoots = [] } = {}) {
-  const roots = projectRoots.map(root => path.resolve(root));
+  // Resolve against the repository, not the shell's cwd.
+  const roots = projectRoots.map(root => path.resolve(REPO_ROOT, root));
   const shim = fileURLToPath(new URL('../application/native-scene/NativeThreeModule.js', import.meta.url));
   return {
     name: 'agentscape-native-scene', enforce: 'pre',

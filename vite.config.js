@@ -1,8 +1,12 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { capabilityDevPlugin } from "./dev/capabilityDevPlugin.js";
 import { nativeScenePlugin } from "./dev/nativeScenePlugin.js";
 import { startServer as startAgentGateway, loadEnvFile, DEFAULT_BASE_URL, DEFAULT_MODEL } from "./apps/server/openai-compatible-agent-gateway.mjs";
+
+// URL.pathname stays percent-encoded; fileURLToPath gives Rollup a real path on every OS.
+const fromRoot = (relative) => fileURLToPath(new URL(relative, import.meta.url));
 
 function localAgentGatewayPlugin(env) {
   return {
@@ -104,7 +108,8 @@ function observatoryRoutePlugin() {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+  // .env files take precedence, but inline CI variables must still be visible.
+  const env = { ...process.env, ...loadEnv(mode, process.cwd(), "") };
   Object.assign(process.env, env);
   const devHost = String(env.AGENTSCAPE_DEV_HOST || "127.0.0.1").trim() || "127.0.0.1";
   return {
@@ -130,21 +135,17 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         input: {
-          codeProject: new URL('./examples/code-project/index.html', import.meta.url).pathname,
-          nativeScene: new URL('./examples/native-scene/index.html', import.meta.url).pathname,
-          codeExample: new URL('./examples/three-code/index.html', import.meta.url).pathname,
-          starter: new URL("./apps/starter/index.html", import.meta.url).pathname,
-          studio: new URL("./index.html", import.meta.url).pathname,
-          observatory: new URL("./apps/observatory/index.html", import.meta.url).pathname,
-          home: new URL("./apps/spline-home/index.html", import.meta.url).pathname
-        },
-        output: {
-          manualChunks(id) {
-            if (id.includes("/node_modules/react/") || id.includes("/node_modules/react-dom/") || id.includes("/node_modules/scheduler/") || id.includes("/node_modules/zustand/")) return "studio-react";
-            if (id.includes("@dimforge/rapier3d-compat")) return "physics";
-            if (id.includes("/three/")) return "three";
-          }
+          codeProject: fromRoot('./examples/code-project/index.html'),
+          nativeScene: fromRoot('./examples/native-scene/index.html'),
+          codeExample: fromRoot('./examples/three-code/index.html'),
+          standardThree: fromRoot('./examples/code-project/standard-three/index.html'),
+          starter: fromRoot('./apps/starter/index.html'),
+          studio: fromRoot('./index.html'),
+          observatory: fromRoot('./apps/observatory/index.html'),
+          home: fromRoot('./apps/spline-home/index.html')
         }
+        // No manualChunks: Rollup splits shared modules per entry automatically,
+        // so light pages no longer download the Studio's physics/post-processing stack.
       }
     }
   };
