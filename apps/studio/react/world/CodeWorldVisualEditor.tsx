@@ -25,6 +25,7 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     controller?.snapshot || emptyCodeSnapshot,controller?.snapshot || emptyCodeSnapshot);
   const [objects,setObjects]=useState<VisualObject[]>([]);
   const [missing,setMissing]=useState<string[]>([]);
+  const [history,setHistory]=useState({undo:0,redo:0,canUndo:false,canRedo:false});
   const [selected,setSelected]=useState('');
   const [fields,setFields]=useState(fallback);
   const [busy,setBusy]=useState(false);
@@ -40,7 +41,7 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
 
   const refresh=()=>{
     const active=controller?.session;
-    if(!active){setObjects([]);setMissing([]);return;}
+    if(!active){setObjects([]);setMissing([]);setHistory({undo:0,redo:0,canUndo:false,canRedo:false});return;}
     const view=active.scene.observe();
     const native:VisualObject[]=(view.nativeEditables?.objects || []).map((record:any)=>({
       id:record.id,label:record.label,source:'code',
@@ -55,6 +56,7 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     }));
     setObjects([...native,...managed]);
     setMissing(view.nativeEditables?.unresolved || []);
+    setHistory(view.history || {undo:0,redo:0,canUndo:false,canRedo:false});
     setRevision(value=>value+1);
   };
   refreshRef.current=refresh;
@@ -63,7 +65,7 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     refresh();
     const world=controller?.session?.world;
     if(!world?.events?.on)return;
-    const unsubscribe=['native.edit.changed','native.edit.registered','native.edit.unregistered','history.recorded','history.applied','scene.restored']
+    const unsubscribe=['native.edit.changed','native.edit.registered','native.edit.unregistered','history.changed','history.recorded','history.applied','scene.restored']
       .map(event=>world.events.on(event,refresh));
     return ()=>unsubscribe.forEach(stop=>stop?.());
   },[controller,session,state.runningRevision,state.active]);
@@ -218,6 +220,14 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     {!state.active ? <p role="status">请先运行代码世界，才能编辑场景。</p> : <>
       <div className="code-world-visual-actions">
         <button type="button" onClick={()=>void addBox()} disabled={busy||state.busy}>添加方块</button>
+        <button type="button" disabled={!history.canUndo||busy||state.busy}
+          onClick={()=>void execute(()=>controller.scene.history({
+            operation:'undo',expectedRevision:controller.scene.observe().revision
+          }),'撤销已通过统一 Scene 历史提交 · 尚未保存世界')}>撤销</button>
+        <button type="button" disabled={!history.canRedo||busy||state.busy}
+          onClick={()=>void execute(()=>controller.scene.history({
+            operation:'redo',expectedRevision:controller.scene.observe().revision
+          }),'重做已通过统一 Scene 历史提交 · 尚未保存世界')}>重做</button>
         <button type="button" onClick={refresh} disabled={busy}>刷新对象</button>
         <button type="button" onClick={()=>void execute(()=>controller.save(),'整个代码世界与编辑层已保存到当前浏览器')}
           disabled={busy||state.busy||state.revision!==state.runningRevision}>保存世界</button>

@@ -7,7 +7,7 @@ import { sceneTransformSchema } from './SceneProject.js';
 import { applySchema, modelSchema, operations, ref, sceneError, diagnostic } from './SceneContracts.js';
 
 /** Scene edit operations and request deduplication. All mutations remain in WorldRuntime. */
-export function createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision, result, codeExecutor, codeGLTFLoader, nativeEditables = null, incrementRevision = () => {} }) {
+export function createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision, result, codeExecutor, codeGLTFLoader, nativeEditables = null }) {
   const requestWindow = createRequestWindow({ conflictCode:'REQUEST_CONFLICT', limitCode:'REQUEST_LIMIT' });
   const resolveAssetId = (asset, requested) => {
     ref.parse(asset);
@@ -31,9 +31,23 @@ export function createSceneEditService(world, { exclusive, assertOpen, assertIdl
   const executeEditOperation = async (op, batchSnapshots = null) => {
     if(op.type==='editNative'){
       if(!nativeEditables)throw sceneError('NATIVE_EDIT_UNAVAILABLE');
-      const value=nativeEditables.edit(op.id,op.changes);
-      incrementRevision();
-      world.events.emit('native.edit.changed',{id:op.id,properties:Object.keys(op.changes)});
+      if(world.history.pending||world.history.suspended||world.history.applying)
+        throw sceneError('WORLD_MUTATION_BUSY');
+      const keys=Object.keys(op.changes);
+      const before=nativeEditables.captureEdit(op.id,keys);
+      let value;
+      try{
+        value=nativeEditables.edit(op.id,op.changes);
+        const after=nativeEditables.captureEdit(op.id,keys);
+        // This shares the Runtime history timeline with managed add/remove/transform.
+        // Undo/redo is one Runtime-exclusive operation and restores override ownership.
+        world.history.recordExternal('scene:editNative',before,after,
+          snapshot=>nativeEditables.restoreEdit(snapshot),{source:'scene-api',id:op.id});
+      }catch(error){
+        nativeEditables.restoreEdit(before);
+        throw error;
+      }
+      world.events.emit('native.edit.changed',{id:op.id,properties:keys});
       return result(op.type,value,{id:op.id});
     }
     if (op.type === 'replaceAsset') {

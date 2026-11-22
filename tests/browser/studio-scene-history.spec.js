@@ -1,0 +1,50 @@
+import {test,expect} from '@playwright/test';
+
+test('Studio visual undo/redo uses the same ordered history as managed and code-owned scene writes',async({page})=>{
+ const errors=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.goto('/studio/?page=world&codeWorld=eldermere-academy');
+ await expect(page.locator('.studio-code-project-viewport canvas')).toBeVisible({timeout:60000});
+ await page.getByRole('button',{name:'可视化',exact:true}).click();
+ const visual=page.getByLabel('代码世界可视化编辑');
+ const objects=visual.getByLabel('可视化对象列表');
+ const undo=visual.getByRole('button',{name:'撤销',exact:true});
+ const redo=visual.getByRole('button',{name:'重做',exact:true});
+ await objects.selectOption('grand_keep');
+ await expect(undo).toBeDisabled();
+ await visual.getByLabel('position X').fill('6');
+ await visual.getByRole('button',{name:'应用变换'}).click();
+ await expect(undo).toBeEnabled({timeout:45000});
+ await undo.click();
+ await expect(visual.getByLabel('position X')).toHaveValue('0');
+ await expect(redo).toBeEnabled();
+ await redo.click();
+ await expect(visual.getByLabel('position X')).toHaveValue('6');
+
+ await visual.getByRole('button',{name:'添加方块'}).click();
+ await expect(visual.getByRole('status')).toContainText('已向当前代码世界添加方块',{timeout:45000});
+ const added=await objects.inputValue();
+ expect(added).toMatch(/^visual_[a-f0-9]{12}$/);
+ await undo.click();
+ await expect(objects.locator('option[value="'+added+'"]')).toHaveCount(0);
+ await objects.selectOption('grand_keep');
+ await undo.click();
+ await expect(visual.getByLabel('position X')).toHaveValue('0');
+ await redo.click();
+ await expect(visual.getByLabel('position X')).toHaveValue('6');
+ await redo.click();
+ await expect(objects.locator('option[value="'+added+'"]')).toHaveCount(1);
+ await expect(redo).toBeDisabled();
+ await visual.getByRole('button',{name:'保存世界'}).click();
+ await expect(visual.getByRole('status')).toContainText('整个代码世界与编辑层已保存',{timeout:60000});
+ await page.reload();
+ await expect(page.locator('.studio-code-project-viewport canvas')).toBeVisible({timeout:60000});
+ await page.getByRole('button',{name:'可视化',exact:true}).click();
+ const recovered=page.getByLabel('代码世界可视化编辑');
+ await recovered.getByLabel('可视化对象列表').selectOption('grand_keep');
+ await expect(recovered.getByLabel('position X')).toHaveValue('6');
+ await expect(recovered.getByLabel('可视化对象列表').locator('option[value="'+added+'"]')).toHaveCount(1);
+ // Histories are ephemeral and are not blindly imported across runtime sessions.
+ await expect(recovered.getByRole('button',{name:'撤销',exact:true})).toBeDisabled();
+ expect(errors).toEqual([]);
+});

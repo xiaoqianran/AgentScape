@@ -30,6 +30,27 @@ export class CommandHistory {
     return true;
   }
 
+  /**
+   * Interleave a non-WorldSerializer edit in the same Runtime history timeline.
+   * Caller owns the already committed mutation and supplies reversible, local
+   * serializable state. Applying an old command remains guarded by runExclusive.
+   */
+  recordExternal(label, before, after, apply, meta = {}) {
+    if (this.suspended || this.pending || this.applying) {
+      const error = new Error('History is busy');
+      error.code = 'WORLD_MUTATION_BUSY';
+      throw error;
+    }
+    if (typeof apply !== 'function') throw new TypeError('External history requires apply');
+    if (JSON.stringify(before) === JSON.stringify(after)) return false;
+    this.undoStack.push({label,before:structuredClone(before),after:structuredClone(after),apply,meta,at:Date.now()});
+    if (this.undoStack.length > this.limit) this.undoStack.shift();
+    this.redoStack.length = 0;
+    this.events?.emit('history.changed',this.status());
+    this.events?.emit('history.recorded',{label,meta});
+    return true;
+  }
+
   cancel() { this.pending = null; }
   canUndo() { return this.undoStack.length > 0; }
   canRedo() { return this.redoStack.length > 0; }
@@ -59,7 +80,7 @@ export class CommandHistory {
     this.applying = true;
     this.suspended = true;
     try {
-      await this.apply(undoing ? command.before : command.after);
+      await (command.apply || this.apply)(undoing ? command.before : command.after);
     } finally {
       this.suspended = false;
       this.applying = false;

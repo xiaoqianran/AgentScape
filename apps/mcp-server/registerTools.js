@@ -160,6 +160,14 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
   return sceneRun(a,'thermal',args,s=>s.host.scene.thermalExperiment(args),e);
  });
  add('scene_apply','Apply structured scene edits with revision protection and explicit partial results.',{...sceneSession,requestId:z.uuid(),expectedRevision:z.number().int().nonnegative().optional(),operations:z.array(z.record(z.string(),z.unknown())).min(1).max(32)},(a,e)=>sceneRun(a,'apply',{requestId:a.requestId,expectedRevision:a.expectedRevision,operations:a.operations},async s=>{await attachSceneAssets(s,a.operations.map(op=>op.type==='add'?op.model?.asset:op.asset));return s.host.scene.apply({expectedRevision:a.expectedRevision,operations:a.operations});},e));
+ add('scene_history','Read or undo/redo the shared Scene history. One timeline for Studio GUI changes, native Three.js registered properties and managed Scene edits. Supply the current scene_observe revision for mutations to reject stale requests.',{
+  ...sceneSession,operation:z.enum(['status','undo','redo']).default('status'),
+  expectedRevision:z.number().int().nonnegative().optional(),requestId:z.uuid().optional()
+ },(a,e)=>{
+  if(a.operation!=='status' && !a.requestId)throw new Error('REQUEST_ID_REQUIRED');
+  return sceneRun(a,'history',{operation:a.operation,expectedRevision:a.expectedRevision},
+    s=>s.host.scene.history({operation:a.operation,expectedRevision:a.expectedRevision}),e);
+ });
  add('scene_interact','Start a real action and return a queryable JobRef immediately.',{...sceneSession,requestId:z.uuid(),interaction:z.record(z.string(),z.unknown())},(a,e)=>sceneRun(a,'interact',{interaction:a.interaction},s=>s.host.startSceneInteraction(a.interaction),e));
  const job={...sceneSession,jobId:z.string().regex(/^job_[a-f0-9-]+$/)};
  add('scene_job','Read task completion and physical verification separately.',job,(a,e)=>sceneRun(a,'job',{jobId:a.jobId},s=>s.host.scene.getJob(a.jobId),e));

@@ -202,6 +202,7 @@ export class StudioLiveBridgeClient {
         actor:args.actor,...(args.limit!=null?{limit:args.limit,offset:args.offset||0}:{})
       });
       case 'apply':return this.scene.apply({requestId:args.requestId,expectedRevision:args.expectedRevision,operations:args.operations});
+      case 'history':return this.scene.history(args);
       case 'interact':return this.scene.interact(args.interaction);
       case 'job':return this.scene.getJob(args.jobId);
       case 'cancel':return this.scene.cancelJob(args.jobId);

@@ -92,6 +92,29 @@ describe('local automatic Studio MCP',()=>{
       expect(edited.status).toBe('succeeded');
       expect(first.world.store.get('auto_cup').object.position.toArray()).toEqual([1,2,0]);
 
+      // GUI edits and remote MCP edits share the WorldRuntime history timeline.
+      const historyBefore=await parse(client,'scene_history',{operation:'status'});
+      expect(historyBefore.value.canUndo).toBe(true);
+      const historyRevision=(await parse(client,'scene_observe')).revision;
+      const stale=await parse(client,'scene_history',{
+        operation:'undo',expectedRevision:historyRevision-1,requestId:randomUUID()
+      });
+      expect(stale.isError).toBe(true);
+      expect(stale.code).toBe('REVISION_CONFLICT');
+      const undone=await parse(client,'scene_history',{
+        operation:'undo',expectedRevision:historyRevision,requestId:randomUUID()
+      });
+      expect(undone.isError).toBe(false);
+      expect(undone.value.applied).toBe(true);
+      expect(first.world.store.get('auto_cup').object.position.toArray()).toEqual([0,0,0]);
+      const redone=await parse(client,'scene_history',{
+        operation:'redo',expectedRevision:(await parse(client,'scene_observe')).revision,requestId:randomUUID()
+      });
+      expect(redone.isError).toBe(false);
+      expect(first.world.store.get('auto_cup').object.position.toArray()).toEqual([1,2,0]);
+      expect((await parse(other,'scene_history',{worldSessionId:current.worldSessionId})).code)
+        .toBe('SESSION_NOT_FOUND');
+
       page2.setAutoEnabled(true);
       await waitFor(()=>page2.snapshot().status==='connected');
       expect((await parse(client,'scene_observe')).code).toBe('STUDIO_MULTIPLE_WORLDS');

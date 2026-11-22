@@ -63,6 +63,35 @@ export class NativeEditableRegistry {
     return {total:this.records.size,objects:[...this.records.keys()].map(id=>this.read(id)),
       unresolved:[...this.overrides.keys()].filter(id=>!this.records.has(id))};
   }
+  /** Capture only the explicitly edited keys, including whether each had a saved override. */
+  captureEdit(id,keys) {
+    const record=this.records.get(id);
+    if(!record)throw fail('NATIVE_EDIT_OBJECT_NOT_FOUND');
+    const live=read(record.object), overrides=this.overrides.get(id)||{};
+    return {id,fields:Object.fromEntries(keys.map(key=>[key,{
+      value:structuredClone(live[key]),hasOverride:Object.hasOwn(overrides,key),
+      ...(Object.hasOwn(overrides,key)?{override:structuredClone(overrides[key])}:{})
+    }]))};
+  }
+  /** Replays a historical value without creating another history command. */
+  restoreEdit(snapshot) {
+    const record=this.records.get(snapshot.id);
+    if(!record)throw fail('NATIVE_EDIT_OBJECT_NOT_FOUND');
+    const changes={},next={...(this.overrides.get(snapshot.id)||{})};
+    for(const [key,entry] of Object.entries(snapshot.fields)){
+      if(!record.properties.includes(key))throw fail('NATIVE_EDIT_PROPERTY_REVOKED');
+      changes[key]=structuredClone(entry.value);
+      if(entry.hasOverride)next[key]=structuredClone(entry.override);
+      else delete next[key];
+    }
+    nativeEditableChangesSchema.parse(changes);
+    const previous=read(record.object);
+    try {apply(record.object,changes);}catch(error){apply(record.object,previous);throw error;}
+    if(Object.keys(next).length)this.overrides.set(snapshot.id,next);
+    else this.overrides.delete(snapshot.id);
+    this.world.events?.emit('native.edit.changed',{id:snapshot.id,properties:Object.keys(changes)});
+    return this.read(snapshot.id);
+  }
   /** Only SceneEditService may invoke edit; callers must pass the Scene lock/revision gate. */
   edit(id,input) {
     const record=this.records.get(id);

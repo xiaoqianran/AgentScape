@@ -36,7 +36,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
   const styles = new StyleSystem({ scene: world.scene, events: world.events, getRenderer: () => world.rendering?.renderer, getCamera: () => world.rendering?.camera });
   world.rendering?.attachStyleSystem?.(styles);
   const { assertOpen, assertIdle, exclusive, result } = lifecycle;
-  const edit = createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision: lifecycle.getRevision, result, codeExecutor, codeGLTFLoader, nativeEditables, incrementRevision:lifecycle.incrementRevision });
+  const edit = createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision: lifecycle.getRevision, result, codeExecutor, codeGLTFLoader, nativeEditables });
   const jobController = createSceneJobController(world, { tools, assertOpen, assertIdle, setBusy: lifecycle.setBusy, actors: () => facade.actors(), onProjectAction: () => { lifecycle.incrementRevision(); }, result });
   const persistence = createScenePersistence(world, { name, styles, assertIdle, exclusive, result });
   const withListingCapabilities = (listing, actor) => ({ ...listing,
@@ -94,6 +94,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
         style: styles.export(), actors:facade.actors(), affordances: withListingCapabilities(world.affordances.list({ actorId: actor, limit: 100 }), actor),
         project: withListingCapabilities(world.projectCapabilities.list({ actor }), actor),
         ...(nativeEditables ? {nativeEditables:nativeEditables.list()} : {}),
+        history:world.history.status(),
         // Native interaction points are not Asset entities. Expose their stable
         // IDs and explicitly provisional evidence without claiming physics verification.
         nativeInteractions: {
@@ -152,6 +153,22 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       });
     },
     apply: input => edit.apply(input),
+    /** One history timeline for code-owned native edits and managed entities. */
+    history(input = {operation:'status'}) {
+      const args=z.object({
+        operation:z.enum(['status','undo','redo']).default('status'),
+        expectedRevision:z.number().int().nonnegative().optional()
+      }).strict().parse(input);
+      assertOpen();
+      if(args.operation==='status')return result('history.status',world.history.status());
+      return exclusive(async()=>{
+        if(args.expectedRevision!=null && args.expectedRevision!==lifecycle.getRevision())
+          throw sceneError('REVISION_CONFLICT');
+        const command=await world.history[args.operation]();
+        return result('history.'+args.operation,{applied:Boolean(command),
+          label:command?.label||null,history:world.history.status()});
+      });
+    },
     // Compatibility entry for audited legacy adapters; public SDK types expose
     // intent-level methods. The same service lock and Runtime own execution.
     executeSkill(name, args) {
