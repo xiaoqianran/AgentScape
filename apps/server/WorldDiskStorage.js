@@ -46,6 +46,11 @@ export class WorldDiskStorage {
     try {
       await handle.writeFile(bytes); await handle.sync(); await handle.close();
       await rename(temporary, file);
+      // The CAS block must be durable before a repository HEAD can refer to it.
+      if(process.platform!=='win32'){
+        const directory=await open(this.directory,'r');
+        try{await directory.sync();}finally{await directory.close();}
+      }
     } finally { await handle.close().catch(() => {}); await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
   }
 }

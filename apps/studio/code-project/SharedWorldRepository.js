@@ -42,6 +42,28 @@ export class SharedWorldRepository {
     if(project.id!==id)throw fail('WORLD_REPOSITORY_ID_MISMATCH');
     return {...record,content:project};
   }
+  async history(id,{offset=0,limit=20}={}) {
+    const query=new URLSearchParams({offset:String(offset),limit:String(limit)});
+    return this.request(this.base+'/'+encodeId(id)+'/versions?'+query);
+  }
+  async version(id,version) {
+    if(!Number.isSafeInteger(version)||version<1)throw fail('WORLD_REPOSITORY_VERSION_INVALID');
+    return this.request(this.base+'/'+encodeId(id)+'/versions/'+version);
+  }
+  /** CAS rollback creates a new server version, never touching local drafts. */
+  async rollback({id,targetVersion,baseVersion,token}={}) {
+    if(typeof token!=='string'||!token.trim())throw fail('WORLD_REPOSITORY_AUTH_REQUIRED');
+    if(!Number.isSafeInteger(targetVersion)||targetVersion<1)throw fail('WORLD_REPOSITORY_VERSION_INVALID');
+    if(!Number.isSafeInteger(baseVersion)||baseVersion<1)throw fail('WORLD_REPOSITORY_BASE_VERSION_REQUIRED');
+    const value=await this.request(this.base+'/'+encodeId(id)+'/rollback',{
+      method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+token.trim()},
+      body:JSON.stringify({targetVersion,baseVersion})
+    });
+    // Server HEAD now points to the restored snapshot, but the local IndexedDB
+    // draft has NOT been updated. Do not advance its optimistic baseVersion:
+    // a later local publish must conflict until the user explicitly reloads.
+    return value;
+  }
   versionKey(id){return 'agentscape.shared-world.version.'+encodeId(id);}
   versionOf(id) {
     const cached=this.versions.get(id);
