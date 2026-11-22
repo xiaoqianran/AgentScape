@@ -37,6 +37,8 @@ export async function handleStudioBridgeHttp(req,res,bridge,{origins=DEFAULT_ORI
     let data;
     if(endpoint==='/studio-bridge/auto-register'){
       data=bridge.registerAuto(input.instanceId,input.worldId);
+    }else if(endpoint==='/studio-bridge/world-change'){
+      data=bridge.updateWorld(input.worldSessionId,input.studioToken,input.worldId);
     }else if(endpoint==='/studio-bridge/connect'){
       if(typeof input.pairCode!=='string')throw fail('PAIR_CODE_INVALID');
       data=bridge.connect(input.pairCode);

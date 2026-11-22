@@ -20,6 +20,8 @@ export const projectTemplate = `export async function createProject({ THREE, con
     scene, camera, renderer,
     setup({ scene: api }) {
       api.registerEntity({ id: 'sculpture', label: '旋转雕塑', object: sculpture, read: () => ({ speed }) });
+      // Code owns geometry/rotation; the visual editor may adjust location and visibility.
+      api.registerEditable({ id:'sculpture', object:sculpture, properties:['position','visible'] });
       api.registerAction({ target: 'sculpture', name: 'setSpeed', description: '设置旋转速度',
         parameters: { type: 'object', properties: { speed: { type: 'number' } }, required: ['speed'], additionalProperties: false },
         execute(args) { speed = args.speed; },
@@ -38,6 +40,7 @@ context: { THREE, container, state, resource(name), signal }. THREE is the host 
 Return { scene: THREE.Scene, camera, renderer, setup({scene: api, world, signal}), update({dt,timestamp}), render?, serialize(), restore(state), dispose() }.
 Append renderer.domElement to container; use ResizeObserver and release resources in dispose.
 Shaders, animation, arbitrary JS logic and embedded resources are supported. Studio native multi-file: entry='main.js' and source is the entry content; files maps relative paths to JS/GLSL/WGSL/JSON/TXT text. Use relative import paths. Imported Shader/TXT becomes a default string and JSON becomes a default value. Imports from 'three' bind to context.THREE. Direct editor mode supports relative modules, string-literal dynamic import('./lazy.js') and import('three'); other bare npm packages, addons and computed dynamic import expressions require an external bundler. Circular dependencies should be prebundled.
+setup can opt in live Three.js objects with api.registerEditable({id,object,label?,properties:['position','quaternion','scale','visible']}); only explicit properties are editable, selected by stable per-world ID. GUI and MCP use scene.apply({operations:[{type:'editNative',id,changes:{position:[x,y,z]}}]}) through one Scene edit gate. Visual edits live in a separate optional project.edits snapshot, replayed after code reruns, while ordinary editor-created models live in project.runtime. Never expose actively code-animated properties for editing without coordinating ownership.
 setup registers api.registerEntity({id,label,object?,read:()=>JSON}) and api.registerAction({target,name,description,parameters:JSONSchema,execute(args,{signal}),verify?}).
 For objects with repeatable interactions prefer api.registerStateMachine({id,label,object,initialState,transitions:[{name,description,when:[{field,op,value|other}],effects:[{field,op:'set'|'add',value}]}],timers?,ranges?,onChange(next),verifyVisual(next)}). This automatically registers guarded actions with verified project-owned state and saves/restores machine state without project.serialize. Timed behaviors call the returned machine.advance(dt) from update(). Actions may use expose:false for internal clock completions. Example: examples/code-project/semantic-workshop.json (book pages and rice cooker). This verifies Three.js/state, not physical grasping.
 Discover actions via observeScene; invoke registered actions through interactScene with action:invoke after planSceneTask. Verification is optional and never implies physics.

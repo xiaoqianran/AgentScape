@@ -49,6 +49,25 @@ describe('bounded MCP idempotency', () => {
     } finally { broker.dispose(); }
   });
 
+  it('updates the active world ID without disconnecting an in-flight MCP call',async()=>{
+    const broker=new StudioLiveBridge();
+    try{
+      const instance=randomUUID(),tab=broker.registerAuto(instance,'original');
+      const task=broker.call('alice',tab.worldSessionId,'project',{operation:'run'});
+      const pending=await broker.poll(tab.worldSessionId,tab.studioToken);
+      expect(pending.request.method).toBe('project');
+      expect(broker.updateWorld(tab.worldSessionId,tab.studioToken,'code-project:castle'))
+        .toMatchObject({worldSessionId:tab.worldSessionId,worldId:'code-project:castle'});
+      expect(broker.status('alice',tab.worldSessionId).worldId).toBe('code-project:castle');
+      expect(()=>broker.updateWorld(tab.worldSessionId,'incorrect','wrong'))
+        .toThrow('STUDIO_AUTH_FAILED');
+      expect(()=>broker.updateWorld(tab.worldSessionId,tab.studioToken,''))
+        .toThrow('STUDIO_WORLD_INVALID');
+      broker.reply(tab.worldSessionId,tab.studioToken,{requestId:pending.request.requestId,result:{status:'project-running'}});
+      expect(await task).toEqual({status:'project-running'});
+    }finally{broker.dispose();}
+  });
+
   it('lists live paired and automatic sessions without claiming unowned tabs and removes stale sessions', () => {
     let now=1000;
     const broker=new StudioLiveBridge({now:()=>now,heartbeatMs:100});

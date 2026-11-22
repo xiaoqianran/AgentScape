@@ -28,7 +28,7 @@ const services = new WeakMap();
 const facadeSkills = ['verifyScene', 'observeScene', 'interactScene', 'planSceneTask'];
 
 /** One application service per existing Runtime. No entity or asset cache. */
-export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', codeExecutor = null, codeGLTFLoader = undefined, lifecycle = null } = {}) {
+export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', codeExecutor = null, codeGLTFLoader = undefined, lifecycle = null, nativeEditables = null } = {}) {
   if (services.has(world)) return services.get(world);
   lifecycle ||= createSceneLifecycle(world);
   let selectedActor = null;
@@ -36,7 +36,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
   const styles = new StyleSystem({ scene: world.scene, events: world.events, getRenderer: () => world.rendering?.renderer, getCamera: () => world.rendering?.camera });
   world.rendering?.attachStyleSystem?.(styles);
   const { assertOpen, assertIdle, exclusive, result } = lifecycle;
-  const edit = createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision: lifecycle.getRevision, result, codeExecutor, codeGLTFLoader });
+  const edit = createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision: lifecycle.getRevision, result, codeExecutor, codeGLTFLoader, nativeEditables, incrementRevision:lifecycle.incrementRevision });
   const jobController = createSceneJobController(world, { tools, assertOpen, assertIdle, setBusy: lifecycle.setBusy, actors: () => facade.actors(), onProjectAction: () => { lifecycle.incrementRevision(); }, result });
   const persistence = createScenePersistence(world, { name, styles, assertIdle, exclusive, result });
   const withListingCapabilities = (listing, actor) => ({ ...listing,
@@ -93,6 +93,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision: lifecycle.getRevision(),
         style: styles.export(), actors:facade.actors(), affordances: withListingCapabilities(world.affordances.list({ actorId: actor, limit: 100 }), actor),
         project: withListingCapabilities(world.projectCapabilities.list({ actor }), actor),
+        ...(nativeEditables ? {nativeEditables:nativeEditables.list()} : {}),
         // Native interaction points are not Asset entities. Expose their stable
         // IDs and explicitly provisional evidence without claiming physics verification.
         nativeInteractions: {

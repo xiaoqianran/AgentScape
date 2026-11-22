@@ -27,6 +27,10 @@ export class StudioCodeProjects {
   snapshot = () => this.current;
   get scene() { return this.session?.scene || this.baseScene; }
   get world() { return this.session?.world || this.baseWorld; }
+  visualObject(id) {
+    return this.session?.scene.native?.editables?.getObject(id)
+      || this.session?.world.store.get(id)?.object || null;
+  }
   emit(patch = {}) {
     this.current = Object.freeze({ ...this.current, visible:this.visible, active:Boolean(this.session), busy:this.busy,
       project:this.draft ? clone(this.draft) : null, revision:this.revision, runningRevision:this.runningRevision,
@@ -49,6 +53,7 @@ export class StudioCodeProjects {
       resources:Object.fromEntries(Object.entries(project.resources || {}).map(([path,value])=>
         [path,{mime:value.mime,encodedChars:value.base64.length}])),
       hasSavedState:Object.hasOwn(project,'state'),
+      hasVisualEdits:Boolean(project.edits && Object.keys(project.edits.overrides).length),
     } : null;
     return { ...clone(metadata), project:summary,guide:projectGuide,starter:projectTemplate,
       observation:this.session?.scene.observe() || null };
@@ -194,7 +199,7 @@ export class StudioCodeProjects {
       const live = old ? (await old.save()).value : null;
       if (!old && this.baseWorld.mutationOwner) throw fail('SCENE_BUSY');
       const project = live && live.id === this.draft.id
-        ? { ...withoutIntegrity(this.draft), state:live.state, runtime:live.runtime } : this.draft;
+        ? { ...withoutIntegrity(this.draft), state:live.state, runtime:live.runtime, ...(live.edits ? {edits:live.edits} : {}) } : this.draft;
       const next = await this.open({ project, container:this.container, authorized:true });
       let observation;
       try {
@@ -314,7 +319,7 @@ export class StudioCodeProjects {
     if (this.session) {
       const saved = (await this.session.save()).value;
       // Preserve unrun edits and the last live state together on return to built-in worlds.
-      const project = this.runningRevision === this.revision ? saved : { ...withoutIntegrity(this.draft), state:saved.state, runtime:saved.runtime };
+      const project = this.runningRevision === this.revision ? saved : { ...withoutIntegrity(this.draft), state:saved.state, runtime:saved.runtime, ...(saved.edits ? {edits:saved.edits} : {}) };
       await this.persist(project); this.draft = project;
       const previous = this.session;
       // 返回内置 World 前先切换外部视图；回调失败仍保留原会话。

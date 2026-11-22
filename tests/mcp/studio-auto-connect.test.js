@@ -60,6 +60,16 @@ describe('local automatic Studio MCP',()=>{
       expect((await parse(other,'session_attach')).code).toBe('STUDIO_NOT_CONNECTED');
       expect((await parse(other,'scene_observe',{worldSessionId:current.worldSessionId})).code).toBe('SESSION_NOT_FOUND');
 
+      // A Studio CodeProject activation changes its active WorldRuntime but not
+      // the tab/capability. The broker's world metadata must follow that switch.
+      page1.world={environment:{id:'code-project:studio-test'}};
+      await page1.syncWorld();
+      expect((await parse(client,'session_attach')).worldId).toBe('code-project:studio-test');
+      expect(page1.snapshot().worldSessionId).toBe(current.worldSessionId);
+      page1.world=first.world;
+      await page1.syncWorld();
+      expect((await parse(client,'session_attach')).worldId).toBe('empty_one');
+
       const added=await parse(client,'scene_add_model',{
         requestId:randomUUID(),model:{id:'auto_cup',asset:'builtin://cup',position:[0,0,0]}
       });

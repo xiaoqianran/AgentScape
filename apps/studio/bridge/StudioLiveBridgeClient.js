@@ -116,6 +116,17 @@ export class StudioLiveBridgeClient {
       this.registerAbort=null;
     }
   }
+  /** Update the advertised world without dropping pending MCP calls or rotating the session ID. */
+  syncWorld() {
+    if(!this.session||this.disposed)return Promise.resolve(null);
+    const active=this.session;
+    const worldId=String(this.world.environment?.id||'studio-world');
+    this.worldSync=(this.worldSync||Promise.resolve()).catch(()=>{}).then(()=>{
+      if(this.session!==active)return null;
+      return this.post('world-change',{...active,worldId:String(this.world.environment?.id||worldId)},this.abort?.signal);
+    });
+    return this.worldSync;
+  }
   scheduleAuto(delay=this.retryDelay){
     if(!this.autoEnabled||this.disposed||this.retryTimer)return;
     this.retryTimer=setTimeout(()=>{

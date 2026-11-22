@@ -217,6 +217,9 @@ export async function createProject({THREE,container,state}){
         ['grand_gate','石砌学院正门'],['moonlit_bridge','月光石桥'],
         ['enchanted_grounds','环山松林与高地'],['silver_lake','银月湖']]){
         api.registerEntity({id,label,object:groups[id],read:()=>({label,exists:true})});
+        // Code owns the geometry; Studio owns only explicitly exposed properties.
+        api.registerEditable({id,label,object:groups[id],
+          properties:['position','quaternion','scale','visible']});
       }
       api.registerAction({target:'grand_gate',name:'toggleLanterns',description:'切换城堡道路与入口的魔法灯光',
         parameters:{type:'object',properties:{enabled:{type:'boolean'}},required:['enabled'],additionalProperties:false},

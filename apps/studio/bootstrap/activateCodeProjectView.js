@@ -17,6 +17,9 @@ export function activateCodeProjectView({ session, projectHost, viewport, runtim
     liveBridge.world = session?.world || baseWorld;
     ui.setSelection?.(null);
     ui.refreshInspector?.();
+    // The already-authenticated browser tab remains the same MCP session. Update its
+    // live world identity rather than disconnecting an in-flight project RPC.
+    void liveBridge.syncWorld?.().catch?.(()=>{});
   } catch (error) {
     // 回滚显示与数据引用，避免 Bridge 指向已失效的 World。
     projectHost.hidden = previous.hidden;

@@ -7,7 +7,7 @@ import { sceneTransformSchema } from './SceneProject.js';
 import { applySchema, modelSchema, operations, ref, sceneError, diagnostic } from './SceneContracts.js';
 
 /** Scene edit operations and request deduplication. All mutations remain in WorldRuntime. */
-export function createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision, result, codeExecutor, codeGLTFLoader }) {
+export function createSceneEditService(world, { exclusive, assertOpen, assertIdle, getRevision, result, codeExecutor, codeGLTFLoader, nativeEditables = null, incrementRevision = () => {} }) {
   const requestWindow = createRequestWindow({ conflictCode:'REQUEST_CONFLICT', limitCode:'REQUEST_LIMIT' });
   const resolveAssetId = (asset, requested) => {
     ref.parse(asset);
@@ -29,6 +29,13 @@ export function createSceneEditService(world, { exclusive, assertOpen, assertIdl
     if (world.store.get(key).state?.heldBy || world.interactions?.isHeld?.(key) || world.interactions?.carry?.agentHeld?.has(key)) throw sceneError('OBJECT_HELD');
   };
   const executeEditOperation = async (op, batchSnapshots = null) => {
+    if(op.type==='editNative'){
+      if(!nativeEditables)throw sceneError('NATIVE_EDIT_UNAVAILABLE');
+      const value=nativeEditables.edit(op.id,op.changes);
+      incrementRevision();
+      world.events.emit('native.edit.changed',{id:op.id,properties:Object.keys(op.changes)});
+      return result(op.type,value,{id:op.id});
+    }
     if (op.type === 'replaceAsset') {
       assertEditable(op.id); const key = resolveAssetId(op.asset, op.level);
       return result(op.type, await world.commands.replaceAsset(op.id, key), { id: op.id, admission: assetAdmission(world.assetModule.getManifest(key)) });

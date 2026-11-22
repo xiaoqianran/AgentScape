@@ -84,6 +84,13 @@ export class StudioLiveBridge {
     if(owner!=null)this.ownerSession(owner,active[0].worldSessionId);
     return active[0];
   }
+  /** Keep stable worldSessionId while Studio switches its active code project. */
+  updateWorld(id,token,worldId) {
+    const session=this.authorized(id,token);
+    if(typeof worldId!=='string'||!worldId.length||worldId.length>128)throw issue('STUDIO_WORLD_INVALID');
+    session.worldId=worldId;
+    return {worldSessionId:id,worldId,status:'connected'};
+  }
   isStudioSession(id) {return this.sessions.has(id);}
   ownerSession(owner,id) {
     const s=this.sessions.get(id);

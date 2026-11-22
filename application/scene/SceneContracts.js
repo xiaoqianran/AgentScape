@@ -1,4 +1,5 @@
 import * as z from 'zod/v4';
+import { nativeEditableChangesSchema } from './NativeEditableContracts.js';
 import { recipeSchema } from '../../modules/asset/model/AssetInputContracts.js';
 import { mechanicalDraftSchema } from '../../modules/asset/model/MechanicalAssetDraft.js';
 import { sceneObjectIdSchema as id, sceneTransformSchema, sceneVector3Schema } from './SceneProject.js';
@@ -12,7 +13,8 @@ export const operations = z.discriminatedUnion('type', [
   z.object({ type: z.literal('add'), model: modelSchema }).strict(),
   z.object({ type: z.literal('setTransform'), id, transform: sceneTransformSchema }).strict(),
   z.object({ type: z.literal('remove'), id }).strict(),
-  z.object({ type: z.literal('replaceAsset'), id, asset: ref, level }).strict()
+  z.object({ type: z.literal('replaceAsset'), id, asset: ref, level }).strict(),
+  z.object({ type: z.literal('editNative'), id, changes:nativeEditableChangesSchema }).strict()
 ]);
 export const applySchema = z.object({ requestId: z.union([id,z.uuid()]).optional(), expectedRevision: z.number().int().nonnegative().optional(), operations: z.array(operations).min(1).max(32) }).strict();
 const operationVector = sceneVector3Schema.refine(value => Math.hypot(...value) > 1e-6, 'Direction must be nonzero');

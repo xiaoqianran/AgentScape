@@ -12,6 +12,7 @@ import { useStudioStore } from '../state/studioStore';
 import { TaskPanelView } from '../agent/TaskPanelView';
 import { CommandBar } from '../shell/ProductPages';
 import { CodeProjectEditor, CodeProjectActions, emptyCodeSubscribe, emptyCodeSnapshot } from './CodeProjectWorkbench';
+import { CodeWorldVisualEditor } from './CodeWorldVisualEditor';
 import { guardAsync } from '../shared/guardAsync';
 
 function AuthoringMenu({ controller }: { controller:any }) {
@@ -143,6 +144,7 @@ export function WorldEditorWorkspace({
   const closeContext = useStudioStore((state)=>state.closeContext);
   const content = bridgeState.content;
   const commandInputRef=useRef<HTMLInputElement|null>(null);
+  const [codeMode,setCodeMode]=useState<'code'|'visual'>('code');
 
   const commitLayoutChange = (change:()=>void) => {
     flushSync(change);
@@ -160,9 +162,18 @@ export function WorldEditorWorkspace({
     <section className={'world-editor-workspace' + (active ? ' is-active' : ' is-background') + (projectState.visible ? ' code-project-mode' : '')} aria-label="World Editor" aria-hidden={!active}>
       <section className="workspace">
         <aside className="scene-panel" aria-hidden={sceneCollapsed}>
-          {projectState.visible ? <CodeProjectEditor controller={projects} /> : content ? <SceneExplorerView {...content.sceneExplorer} /> : null}
+          {projectState.visible ? <>
+            <div className="code-world-mode-tabs" role="group" aria-label="代码世界编辑方式">
+              <button type="button" aria-pressed={codeMode==='code'} onClick={()=>setCodeMode('code')}>源码</button>
+              <button type="button" aria-pressed={codeMode==='visual'} onClick={()=>setCodeMode('visual')}>可视化</button>
+            </div>
+            <div className="code-world-source-host" hidden={codeMode!=='code'}>
+              <CodeProjectEditor controller={projects} />
+            </div>
+            {codeMode==='visual' ? <CodeWorldVisualEditor controller={projects} /> : null}
+          </> : content ? <SceneExplorerView {...content.sceneExplorer} /> : null}
         </aside>
-        {projectState.visible ? <div className="editor-toolbar"><strong>{projectState.project?.name || '完整代码项目'}</strong><span>{projectState.active ? '代码世界运行中' : '编辑源码后运行'}</span></div> : <SceneToolbar bridgeState={bridgeState} />}
+        {projectState.visible ? <div className="editor-toolbar"><strong>{projectState.project?.name || '完整代码项目'}</strong><span>{projectState.active ? '代码世界运行中 · 可切换可视化编辑' : '编辑源码后运行'}</span></div> : <SceneToolbar bridgeState={bridgeState} />}
         <div id="viewport" className="viewport">
           {active && content && !projectState.active ? <SelectionActionDock {...content.inspector} openInspect={()=>commitLayoutChange(()=>openView('inspect'))} /> : null}
 

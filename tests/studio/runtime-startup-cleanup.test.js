@@ -31,6 +31,7 @@ vi.mock('../../apps/studio/code-project/StudioCodeProjects.js',()=>({
   StudioCodeProjects:class {
     constructor(){fail('projects');}
     wrapTools(tools){return tools;}
+    async refresh(){return [];}
     dispose(){release('projects');}
   }
 }));

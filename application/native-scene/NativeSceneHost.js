@@ -11,6 +11,7 @@ import { SkillRegistry } from '../skills/SkillRegistry.js';
 import { registerSceneSkills } from '../skills/packs/sceneSkills.js';
 import { registerSpatialSkills } from '../skills/packs/spatialSkills.js';
 import { registerInteractionSkills } from '../skills/packs/interactionSkills.js';
+import { NativeEditableRegistry } from './NativeEditableRegistry.js';
 import { extractNativeStaticColliders } from './NativeEnvironmentGeometry.js';
 import { writeNativeSceneOverlay, prepareNativeSceneOverlay, restoreNativeSceneOverlay, exportNativeSceneOverlay, importNativeSceneOverlay } from './NativeSceneOverlay.js';
 
@@ -100,7 +101,8 @@ export async function attachNativeScene({
     registerInteractionSkills(add, world);
     await world.init();
     const lifecycle = createSceneLifecycle(world);
-    facade = createSceneFacade(world, { name, codeExecutor, codeGLTFLoader, lifecycle });
+    const nativeEditables = new NativeEditableRegistry(nativeScene,world);
+    facade = createSceneFacade(world, { name, codeExecutor, codeGLTFLoader, lifecycle, nativeEditables });
     nativeScene.add(world.scene);
     const syncKinematicComponents = () => {
       for (const component of injectedComponents.values()) {
@@ -225,7 +227,9 @@ export async function attachNativeScene({
     };
     const addComponent = options => registerComponent(options);
     const bindComponent = options => registerComponent(options, false);
-    const native = { scene: nativeScene, renderer, camera, root: world.scene, addComponent, bindComponent, audio: world.audio };
+    const native = { scene: nativeScene, renderer, camera, root: world.scene, addComponent, bindComponent, audio: world.audio,
+      editables:Object.freeze({register:options=>nativeEditables.register(options),list:()=>nativeEditables.list(),
+        getObject:id=>nativeEditables.objectFor(id)}) };
     const close = () => {
       if (closed) return;
       facade.close(); // Reject a close during a mutation before detaching anything.
@@ -233,6 +237,7 @@ export async function attachNativeScene({
       if (frameId != null) cancelAnimationFrame(frameId);
       for (const component of [...injectedComponents.values()]) removeComponent(component);
       world.scene.removeFromParent();
+      nativeEditables.dispose();
       try { world.dispose(); } finally {
         if (!assetModule) assets.loader.gltfLoader.dispose?.();
         bindings.delete(nativeScene);
@@ -285,6 +290,10 @@ export async function attachNativeScene({
       prepareWorld: unsupported('NATIVE_PROJECT_IMPORT_UNSUPPORTED'),
       setStyle: unsupported('NATIVE_RENDERING_OWNED_BY_PROJECT'),
       native,
+      registerEditable:options=>nativeEditables.register(options),
+      nativeEditables:()=>nativeEditables.list(),
+      exportNativeEdits:()=>nativeEditables.export(),
+      restoreNativeEdits:snapshot=>nativeEditables.restore(snapshot),
       capabilities: Object.freeze({ mode: 'native-scene', threeRevision: THREE.REVISION,
         sourceConversion: false, ownsRenderer: false, nativeProjectSave: false,
         environmentColliders: environmentColliders.length, navigationRegistered: Boolean(environmentNavigation),
