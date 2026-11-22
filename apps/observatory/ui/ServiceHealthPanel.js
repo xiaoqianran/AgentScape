@@ -1,6 +1,5 @@
 import { SERVICE_LABELS, STATE_LABELS, describeReason, summarize } from '../app/ServiceHealthMonitor.js';
-
-const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+import { escapeHtml } from './escapeHtml.js';
 
 export function renderServiceHealthMarkup() {
   return `

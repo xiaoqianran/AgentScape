@@ -1,5 +1,6 @@
 // Polls the same-origin capability health API and exposes a small observable state.
 // Browser code must never import apps/server; it only sees the sanitized JSON contract.
+import { reportFailure } from './reportFailure.js';
 
 export const HEALTH_API = '/api/capabilities/health';
 
@@ -125,7 +126,8 @@ export class ServiceHealthMonitor {
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       this.#set(normalizeHealth(await response.json()));
-    } catch {
+    } catch (error) {
+      reportFailure('能力健康检查失败', error);
       this.#set(offlineHealth(controller.signal.aborted ? 'TIMEOUT' : 'API_UNAVAILABLE'));
     } finally {
       clearTimeout(timer);

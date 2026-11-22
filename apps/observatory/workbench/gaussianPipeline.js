@@ -49,6 +49,11 @@ export function downloadBytes(bytes, fileName, documentImpl = globalThis.documen
   const anchor = documentImpl.createElement('a');
   anchor.href = url;
   anchor.download = fileName;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  documentImpl.body?.appendChild?.(anchor);
+  try {
+    anchor.click();
+  } finally {
+    anchor.remove?.();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }

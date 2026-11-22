@@ -32,41 +32,16 @@ const LABS = [
     title: "物理工作台",
     load: () => import("./labs/physics-studio/index.js")
   },
-  {
-    id: "physics",
-    title: "物理（Deprecated）",
-    load: () => import("./labs/physics/index.js")
-  },
-  {
-    id: "spatial",
-    title: "空间（Deprecated）",
-    load: () => import("./labs/spatial/index.js")
-  },
-  {
-    id: "navigation",
-    title: "导航（Deprecated）",
-    load: () => import("./labs/navigation/index.js")
-  },
-  {
-    id: "interaction",
-    title: "交互（Deprecated）",
-    load: () => import("./labs/interaction/index.js")
-  },
-  {
-    id: "generation",
-    title: "生成与智能体构建（Deprecated）",
-    load: () => import("./labs/generation/index.js")
-  },
-  {
-    id: "agent",
-    title: "智能体工具（Deprecated）",
-    load: () => import("./labs/agent/index.js")
-  },
-  {
-    id: "agent-trace",
-    title: "智能体轨迹（Deprecated）",
-    load: () => import("./labs/agent/traceIndex.js")
-  }
+  // Legacy labs are still live navigation entries: WorkspaceRegistry lists them
+  // as workspace tools and `agent` uses `generation` as its defaultLab. Keep them
+  // registered until those workspaces are migrated; the flag is metadata only.
+  { id: "physics", title: "物理", legacy: true, load: () => import("./labs/physics/index.js") },
+  { id: "spatial", title: "空间", legacy: true, load: () => import("./labs/spatial/index.js") },
+  { id: "navigation", title: "导航", legacy: true, load: () => import("./labs/navigation/index.js") },
+  { id: "interaction", title: "交互", legacy: true, load: () => import("./labs/interaction/index.js") },
+  { id: "generation", title: "生成与智能体构建", legacy: true, load: () => import("./labs/generation/index.js") },
+  { id: "agent", title: "智能体工具", legacy: true, load: () => import("./labs/agent/index.js") },
+  { id: "agent-trace", title: "智能体轨迹", legacy: true, load: () => import("./labs/agent/traceIndex.js") }
 ];
 
 class ObservatoryApp {
@@ -98,15 +73,8 @@ class ObservatoryApp {
 
     this.shell.configureWorkspaces(WORKSPACES);
     this.shell.configureLabs(this.labs.list(), null);
-    this.shell.onWorkspaceChange = async (workspaceId) => {
-      const workspace = WORKSPACES.find(item => item.id === workspaceId);
-      if (!workspace) return;
-      this.activeWorkspaceId = workspaceId;
-      if (this.activeLabId === workspace.defaultLab) {
-        this.shell.configureWorkspace(workspace, this.activeLabId);
-        if (workspace.id === "rendering") this.shell.setRightTab("inspect");
-        this.updateUrl();
-      } else await this.activateLab(workspace.defaultLab);
+    this.shell.onWorkspaceChange = (workspaceId) => {
+      this.changeWorkspace(workspaceId).catch((error) => this.reportActivationError(error));
     };
     this.shell.bind({
       onRun: () => this.lab?.toggleRunning?.(),
@@ -141,11 +109,11 @@ class ObservatoryApp {
       onCompactionProbe: () => this.toggleCompactionProbe(),
       onComputeProbe: () => this.runComputeProbe(),
       onSpatialProbe: () => this.runSpatialProbe(),
-      onLabChange: (labId) => this.activateLab(labId),
-      onBackendChange: (backendId) => this.activateLab(this.activeLabId, {
-        backendId,
-        scenarioId: this.activeScenarioId
-      })
+      onLabChange: (labId) => { this.activateLab(labId).catch((error) => this.reportActivationError(error)); },
+      onBackendChange: (backendId) => {
+        this.activateLab(this.activeLabId, { backendId, scenarioId: this.activeScenarioId })
+          .catch((error) => this.reportActivationError(error));
+      }
     });
   }
 
@@ -164,6 +132,22 @@ class ObservatoryApp {
 
   async activateLab(labId, options = {}) {
     return this.activationController.activateLab(labId, options);
+  }
+
+  async changeWorkspace(workspaceId) {
+    const workspace = WORKSPACES.find(item => item.id === workspaceId);
+    if (!workspace) return;
+    this.activeWorkspaceId = workspaceId;
+    if (this.activeLabId === workspace.defaultLab) {
+      this.shell.configureWorkspace(workspace, this.activeLabId);
+      if (workspace.id === "rendering") this.shell.setRightTab("inspect");
+      this.updateUrl();
+    } else await this.activateLab(workspace.defaultLab);
+  }
+
+  reportActivationError(error) {
+    console.error('[Observatory] Lab 激活失败', error);
+    this.shell.setActivationError(error?.message || String(error));
   }
 
   async runComputeProbe() {
@@ -315,6 +299,7 @@ const root = document.querySelector("#observatory");
 const app = new ObservatoryApp(root);
 app.init().catch((error) => {
   console.error(error);
-  root.textContent = `Observatory 启动失败\n\n${String(error?.stack || error)}`;
+  app.serviceHealth.stop();
+  root.textContent = `Observatory 启动失败\n\n${String(error?.message || error)}`;
   root.className = "obs-fatal";
 });

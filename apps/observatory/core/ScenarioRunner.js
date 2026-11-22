@@ -13,9 +13,15 @@ export class ScenarioRunner {
     this.clock.reset();
     this.scenario = scenario;
     this.context = await this.createContext(scenario);
-    await scenario.setup(this.context);
-    this.context.scene?.updateMatrixWorld?.(true);
-    return this.context;
+    try {
+      await scenario.setup(this.context);
+      this.context.scene?.updateMatrixWorld?.(true);
+      return this.context;
+    } catch (error) {
+      await this.disposeContext();
+      this.scenario = null;
+      throw error;
+    }
   }
 
   step(count = 1) {

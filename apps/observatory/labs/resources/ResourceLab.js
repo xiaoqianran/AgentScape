@@ -8,10 +8,10 @@ import { createObservatoryGrid, disposeObservatoryGrid } from '../../visual/Obse
 import { createObservatoryRenderSurface } from '../../visual/ObservatoryRenderSurface.js';
 import { resizeObservatoryRenderer } from '../../visual/RendererQuality.js';
 import { downloadBytes, prepareGaussianRuntimeVisual } from '../../workbench/gaussianPipeline.js';
+import { escapeHtml } from '../../ui/escapeHtml.js';
 
 const safeId = (value) => String(value || '').trim().replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 160);
 const bytesLabel = (value) => value >= 1024 ** 2 ? `${(value / 1024 ** 2).toFixed(1)} MiB` : `${Math.ceil(value / 1024)} KiB`;
-const escapeHtml = (value) => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 
 export class ResourceLab {
   constructor({ viewport, assetModule, onTelemetry, rendererMode='auto', rendererTiming=false, onRendererFailure=null, mode='assets' }) {
@@ -34,6 +34,7 @@ export class ResourceLab {
     this.gaussian=null;
     this.selectedAsset=null;
     this.gaussianState={status:'waiting'};
+    this.workbenchEpoch=0;
   }
 
   async init() {
@@ -58,6 +59,8 @@ export class ResourceLab {
   }
 
   resourceWorkbench() {
+    // Re-mounting the workbench invalidates any in-flight file operation.
+    ++this.workbenchEpoch;
     return this.mode==='assets' ? {mountBrowser:(host)=>this.mountAssetBrowser(host),mountInspector:(host)=>this.mountAssetInspector(host)} : {mount:(host)=>this.mountGaussian(host)};
   }
 
@@ -126,14 +129,18 @@ export class ResourceLab {
     if(file.size>RESOURCE_BUDGET.maxInputBytes){this.setReport(host,`文件超过 ${bytesLabel(RESOURCE_BUDGET.maxInputBytes)} 上限。`,true);return;}
     const assetId=safeId(host.querySelector('[data-asset-id]').value||file.name.replace(/\.glb$/i,''));
     if(!assetId){this.setReport(host,'Asset ID 无效。',true);return;}
+    const epoch=this.workbenchEpoch;
+    const isCurrent=()=>epoch===this.workbenchEpoch&&this.assetInspectorHost===host;
     this.setReport(host,'inspect → normalize → collider → admission…');
     try{
       const result=await this.compiler.compile({bytes:new Uint8Array(await file.arrayBuffer()),sourceName:file.name,assetId,label:host.querySelector('[data-asset-label]').value.trim()||assetId});
+      if(!isCurrent())return;
       await this.assetModule.registerManifest(result.manifest);
+      if(!isCurrent())return;
       if(this.assetBrowserHost)this.renderAssetList(this.assetBrowserHost,this.assetBrowserHost.querySelector('[data-resource-search]').value);
       this.setReport(host,`${result.manifest.id} · ${result.quality.status} · ${result.inspection.stats.meshes} meshes · ${result.manifest.compiler.collisionStrategy}`);
       await this.previewAsset(result.manifest.id);
-    }catch(error){this.setReport(host,`编译失败：${error.message}`,true);}
+    }catch(error){if(isCurrent())this.setReport(host,`编译失败：${error.message}`,true);}
   }
 
   mountGaussian(host) {
@@ -152,18 +159,22 @@ export class ResourceLab {
 
   async loadGaussian(host,file) {
     if(!file)return;
+    const epoch=this.workbenchEpoch;
+    const isCurrent=()=>epoch===this.workbenchEpoch&&this.gaussianHost===host;
     host.querySelector('[data-file-name]').textContent=`${file.name} · ${bytesLabel(file.size)}`;
     this.setReport(host,file.name.toLowerCase().endsWith('.ply')?'读取 PLY → 转码 SPZ…':'校验 SPZ…');
     try{
       const prepared=await prepareGaussianRuntimeVisual({name:file.name,bytes:new Uint8Array(await file.arrayBuffer())});
+      if(!isCurrent())return;
       const loaded=await loadGaussianSplatVisual({source:{data:prepared.bytes,format:'spz'}});
+      if(!isCurrent()){loaded.dispose?.();return;}
       this.replaceSubject(loaded.object,loaded);
       this.cameraRig.moveTo([4,2.5,5],[0,0,0]);
       this.gaussianState={...prepared,status:'ready',runtimeCount:loaded.splatCount,downloadName:`${file.name.replace(/\.(ply|spz)$/i,'')}.spz`};
       host.querySelector('[data-download-spz]').hidden=!prepared.converted;
       this.setReport(host,`${prepared.inputFormat.toUpperCase()} ${bytesLabel(file.size)} → SPZ ${bytesLabel(prepared.bytes.byteLength)} · ${loaded.splatCount.toLocaleString()} splats`);
       this.emitTelemetry();
-    }catch(error){this.gaussianState={status:'failed',error:error.message};this.setReport(host,`处理失败：${error.message}`,true);this.emitTelemetry();}
+    }catch(error){if(!isCurrent())return;this.gaussianState={status:'failed',error:error.message};this.setReport(host,`处理失败：${error.message}`,true);this.emitTelemetry();}
   }
 
   replaceSubject(object,gaussian=null) {

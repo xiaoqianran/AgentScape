@@ -1,3 +1,5 @@
+import { ignorePrevious } from './reportFailure.js';
+
 export class ScenarioController {
   constructor(app) { this.app = app; }
 
@@ -14,7 +16,7 @@ export class ScenarioController {
     app.updateUrl();
     app.shell.setBusy(true, `正在准备 ${scenario.title}…`);
     const isCurrent = () => version === app.scenarioSelectionVersion && activation === app.activationVersion && lab === app.lab;
-    const operation = app.scenarioLoadPromise.catch(() => {}).then(async () => {
+    const operation = app.scenarioLoadPromise.catch(ignorePrevious).then(async () => {
       if (!isCurrent()) return null;
       try {
         await lab.load(scenario);
@@ -35,7 +37,7 @@ export class ScenarioController {
     const lab = app.lab;
     const version = app.scenarioSelectionVersion;
     const activation = app.activationVersion;
-    const operation = app.scenarioLoadPromise.catch(() => {}).then(() => {
+    const operation = app.scenarioLoadPromise.catch(ignorePrevious).then(() => {
       if (lab !== app.lab || version !== app.scenarioSelectionVersion || activation !== app.activationVersion) {
         throw Object.assign(new Error('场景已切换，请在新场景中重新调用工具'), {code:'SCENARIO_CHANGED'});
       }

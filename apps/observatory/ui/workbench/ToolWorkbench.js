@@ -1,4 +1,4 @@
-const escapeHtml = (value) => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+import { escapeHtml } from '../escapeHtml.js';
 const toolArgumentTemplate = (schema = {}) => {
   const properties = schema.properties || {};
   const keys = schema.required?.length ? schema.required : Object.keys(properties).slice(0, 4);

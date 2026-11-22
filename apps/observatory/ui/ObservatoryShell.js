@@ -4,6 +4,7 @@ import { configureInspectorPanel, renderInspectorPanel } from './inspector/Inspe
 import { normalizeDiagnostics } from '../core/DiagnosticsContract.js';
 import { mountDebugLayerGroups } from './debugging/DebugLayerGroups.js';
 import { mountServiceHealthPanel } from './ServiceHealthPanel.js';
+import { escapeHtml } from './escapeHtml.js';
 
 export class ObservatoryShell {
   constructor(root) {
@@ -25,6 +26,7 @@ export class ObservatoryShell {
     this.toolWorkbench = new ToolWorkbenchController(this);
 
     this.onWorkspaceChange = null;
+    this.failure = null;
     this.refs["workspace-select"].addEventListener("change", event => this.onWorkspaceChange?.(event.target.value));
     this.root.querySelectorAll('[data-workspace]').forEach(button => button.addEventListener('click', () => {
       this.onWorkspaceChange?.(button.dataset.workspace);
@@ -399,29 +401,30 @@ export class ObservatoryShell {
   }
 
   setBusy(busy, message = "正在加载实验…") {
-    this.root.setAttribute("aria-busy", String(Boolean(busy)));
-    this.refs["status-layer"].hidden = !busy;
-    this.refs["status-text"].textContent = message;
-    this.refs["status-layer"].querySelector(".obs-spinner").hidden = !busy;
-    this.refs["status-action"].hidden = true;
-    this.refs["status-action"].onclick = null;
-    this.refs.run.disabled = Boolean(busy);
-    this.refs.step.disabled = Boolean(busy);
-    this.refs.step10.disabled = Boolean(busy);
-    this.refs.reset.disabled = Boolean(busy);
+    const active = Boolean(busy);
+    if (active) this.failure = null;
+    const failure = active ? null : this.failure;
+    this.root.setAttribute("aria-busy", String(active));
+    this.refs["status-layer"].hidden = !active && !failure;
+    this.refs["status-text"].textContent = failure ? failure.message : message;
+    this.refs["status-layer"].querySelector(".obs-spinner").hidden = Boolean(failure) || !active;
+    this.refs["status-action"].hidden = !failure;
+    this.refs["status-action"].onclick = failure ? failure.recover : null;
+    for (const key of ["run", "step", "step10", "reset"]) this.refs[key].disabled = active || Boolean(failure);
+  }
+
+  // Failure state survives the setBusy(false) that ends scenario loading.
+  showFailure(message, recover) {
+    this.failure = { message, recover };
+    this.setBusy(false);
   }
 
   setRendererFailure(message = "渲染设备丢失", recover = () => location.reload()) {
-    this.root.setAttribute("aria-busy", "true");
-    this.refs["status-layer"].hidden = false;
-    this.refs["status-layer"].querySelector(".obs-spinner").hidden = true;
-    this.refs["status-text"].textContent = message;
-    this.refs["status-action"].hidden = false;
-    this.refs["status-action"].onclick = recover;
-    this.refs.run.disabled = true;
-    this.refs.step.disabled = true;
-    this.refs.step10.disabled = true;
-    this.refs.reset.disabled = true;
+    this.showFailure(message, recover);
+  }
+
+  setActivationError(message) {
+    this.showFailure(`Lab 加载失败：${message}`, () => location.reload());
   }
 
   renderScenarios(scenarios, activeId, onSelect) {
@@ -495,12 +498,6 @@ export class ObservatoryShell {
 }
 
 const assertionStatus = (assertion) => assertion.status || (assertion.pass ? "pass" : "fail");
-
-const escapeHtml = (value) => String(value)
-  .replaceAll("&", "&amp;")
-  .replaceAll("<", "&lt;")
-  .replaceAll(">", "&gt;")
-  .replaceAll("\"", "&quot;");
 
 const DISPLAY_KEYS = Object.freeze({
   position: "位置", heldBy: "持有者", humanHeld: "人工持有", lastAction: "上次动作", lastResult: "上次结果",

@@ -2,14 +2,28 @@ import { resolveWorkspace } from '../core/WorkspaceRegistry.js';
 import { ScenarioRegistry } from '../core/ScenarioRegistry.js';
 import { disposeLabProbes, applyLabDebugLayers, initializeLabCandidate } from './LabLifecycle.js';
 import { renderingInfoForLab, projectLabTelemetry } from './TelemetryAdapter.js';
+import { reportFailure, ignorePrevious } from './reportFailure.js';
 
 export class LabActivationController {
   constructor(app) { this.app = app; }
-  async activateLab(labId, { backendId = null, scenarioId = null } = {}) {
+  async activateLab(labId, options = {}) {
     const app = this.app;
     const version = ++app.activationVersion;
     ++app.scenarioSelectionVersion;
     app.shell.setBusy(true, `正在加载 ${labId} Lab…`);
+    try {
+      await this.#activate(labId, options, version);
+    } catch (error) {
+      if (version === app.activationVersion) reportFailure(`Lab ${labId} 激活失败`, error);
+      throw error;
+    } finally {
+      // A superseded activation must not clear the busy state owned by its successor.
+      if (version === app.activationVersion) app.shell.setBusy(false);
+    }
+  }
+
+  async #activate(labId, { backendId = null, scenarioId = null } = {}, version) {
+    const app = this.app;
     app.shell.configureToolWorkbench([]);
     app.shell.configureResourceWorkbench(null);
     const module = await app.labs.load(labId);
@@ -19,7 +33,7 @@ export class LabActivationController {
       throw new Error(`Invalid Observatory lab module: ${labId}`);
     }
 
-    await app.scenarioLoadPromise.catch(() => {});
+    await app.scenarioLoadPromise.catch(ignorePrevious);
     if (version !== app.activationVersion) return;
     disposeLabProbes(app);
     await app.lab?.dispose?.();
