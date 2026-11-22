@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Eldermere Academy · 艾德米尔魔法学院</title>
+<style>
+:root{color-scheme:dark;font-family:Georgia,'Noto Serif SC',serif}
+*{box-sizing:border-box}body{margin:0;background:#0e1b2c;color:#f6ebd7;overflow:hidden}
+#world{position:fixed;inset:0}#world canvas{display:block;width:100%;height:100%}
+.overlay{position:fixed;z-index:2;pointer-events:none;text-shadow:0 2px 14px #07131c}
+.brand{left:34px;top:27px}small,.subtitle{font:11px/1.6 ui-sans-serif,sans-serif;letter-spacing:.2em;color:#d8c4a6}
+h1{margin:9px 0 4px;font-size:clamp(24px,3.1vw,48px);font-weight:400;letter-spacing:.03em}
+.subtitle{letter-spacing:.15em}.hint{left:34px;bottom:25px;font:12px ui-sans-serif,sans-serif;letter-spacing:.02em;color:#c0c9d5}
+.controls{position:fixed;right:25px;bottom:25px;z-index:3;display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;max-width:420px}
+button{background:#14273abb;border:1px solid #9e8b7099;color:#e8dccb;padding:10px 15px;font:13px ui-sans-serif,sans-serif;cursor:pointer;backdrop-filter:blur(7px);border-radius:3px}
+button:hover,button[aria-pressed="true"]{background:#735c45cc;border-color:#d5b58c}
+.status{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;background:#17243f;padding:20px 27px;border:1px solid #8d7e6a;font:14px ui-sans-serif,sans-serif}
+@media(max-width:650px){.brand{left:17px;top:16px}.hint{left:17px;bottom:88px}.controls{bottom:17px;right:17px;left:17px}button{padding:9px 11px;font-size:11px}}
+</style>
+</head>
+<body>
+<div id="world" aria-label="Three.js 魔法学院世界"></div>
+<div class="overlay brand"><small>AN ORIGINAL FANTASY WORLD</small><h1>Eldermere Academy</h1><div class="subtitle">艾 德 米 尔 · 魔 法 学 院</div></div>
+<div class="overlay hint">拖动旋转视角 · 滚轮缩放 · 右键平移</div>
+<div class="controls" aria-label="城堡视角"><button data-view="overview" aria-pressed="true">全景</button><button data-view="gate">石桥与学院大门</button><button data-view="towers">星象塔群</button><button data-view="lake">月光湖</button></div>
+<div class="status" id="status">正在进入魔法学院世界…</div>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {createProject} from './world.js';
+const host=document.querySelector('#world'),status=document.querySelector('#status');
+const views={
+  overview:{position:[87,60,128],target:[0,23,-22]},
+  gate:{position:[23,22,90],target:[0,20,-13]},
+  towers:{position:[78,89,18],target:[0,40,-33]},
+  lake:{position:[-95,25,65],target:[0,24,-36]}
+};
+try{
+ const project=await createProject({THREE,container:host,state:{lanternsOn:true}});
+ const controls=new OrbitControls(project.camera,project.renderer.domElement);
+ controls.enableDamping=true;controls.dampingFactor=.05;
+ controls.target.set(0,23,-22);controls.maxDistance=280;controls.minDistance=15;
+ let last=performance.now(),done=false;
+ const tick=(now)=>{
+   if(done)return;
+   const dt=Math.min(.05,(now-last)/1000);last=now;
+   controls.update();
+   project.update?.({dt,timestamp:now});
+   project.renderer.render(project.scene,project.camera);
+   requestAnimationFrame(tick);
+ };
+ requestAnimationFrame(tick);
+ for(const button of document.querySelectorAll('[data-view]'))button.addEventListener('click',()=>{
+   const selected=views[button.dataset.view];
+   project.camera.position.set(...selected.position);
+   controls.target.set(...selected.target);
+   controls.update();
+   document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+ });
+ window.addEventListener('pagehide',()=>{done=true;controls.dispose();project.dispose?.();},{once:true});
+ status.remove();
+}catch(error){console.error(error);status.textContent='场景加载失败：'+error.message;}
+</script>
+</body>
+</html>
