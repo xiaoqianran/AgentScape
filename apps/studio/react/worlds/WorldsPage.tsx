@@ -4,6 +4,7 @@ import { worldPresentation } from './WorldPresentation';
 import { PUBLISHED_CODE_WORLDS } from '../../code-project/PublishedCodeWorlds.js';
 import { codeWorldUrl, sharedAuthoringWorldUrl } from '../../navigation/StudioRoutes.js';
 import { SharedWorldRepository } from '../../code-project/SharedWorldRepository.js';
+import { SharedWorldHistory } from './SharedWorldHistory';
 import { AuthoringWorldStore } from '../../persistence/AuthoringWorldStore.js';
 import './WorldsPage.css';
 
@@ -185,12 +186,20 @@ export function WorldsPage({ environments, presentation, resources=null, authori
   const [sharedWorlds,setSharedWorlds]=useState<SharedEntry[]>([]);
   const [sharedLoading,setSharedLoading]=useState(false);
   const [sharedError,setSharedError]=useState('');
+  const [historyId,setHistoryId]=useState<string|null>(()=>
+    new URLSearchParams(globalThis.location?.search||'').get('history'));
   const sharedRepo=useMemo(()=>new SharedWorldRepository(),[]);
   const refreshShared=async()=>{
     setSharedLoading(true);setSharedError('');
     try{
-      const response=await sharedRepo.list({limit:50});
-      setSharedWorlds(response.worlds);
+      const worlds:SharedEntry[]=[];
+      let offset:number|null=0;
+      while(offset!==null){
+        const response=await sharedRepo.list({limit:50,offset});
+        worlds.push(...response.worlds);
+        offset=response.nextOffset;
+      }
+      setSharedWorlds(worlds);
     }catch(cause){
       setSharedWorlds([]);
       setSharedError(cause instanceof Error?cause.message:'WORLD_REPOSITORY_OFFLINE');
@@ -391,16 +400,26 @@ export function WorldsPage({ environments, presentation, resources=null, authori
       </div> : null}
 
       {collection==='shared' ? <div className="worlds-list" aria-label="共享世界目录">
-        {visibleShared.map(world=><article className="world-list-row" data-shared-world={world.id} key={world.id}>
-          <div className="world-list-icon"><StudioIcon name="worlds" size={24}/></div>
-          <div className="world-list-copy"><strong>{world.name}</strong>
-            <small className="world-list-meta"><span>{world.kind==='code-project'?'完整 Three.js 代码世界':'可视化创作草稿'}</span>
-              <span>共享版本 v{world.version}</span><span>最近发布：{formatUpdatedAt(world.updatedAt)}</span></small>
-            <code>{world.id}</code>
-          </div>
-          <div className="world-list-actions"><button type="button" disabled={!!busyKey}
-            onClick={()=>openSharedWorld(world)}>{world.kind==='code-project'?'查看源码并选择运行':'导入并编辑'}<StudioIcon name="arrow" size={16}/></button></div>
-        </article>)}
+        {visibleShared.map(world=><div className="shared-world-group" key={world.id}>
+          <article className="world-list-row" data-shared-world={world.id}>
+            <div className="world-list-icon"><StudioIcon name="worlds" size={24}/></div>
+            <div className="world-list-copy"><strong>{world.name}</strong>
+              <small className="world-list-meta"><span>{world.kind==='code-project'?'完整 Three.js 代码世界':'可视化创作草稿'}</span>
+                <span>共享版本 v{world.version}</span><span>最近发布：{formatUpdatedAt(world.updatedAt)}</span></small>
+              <code>{world.id}</code>
+            </div>
+            <div className="world-list-actions">
+              <button type="button" disabled={!!busyKey} aria-expanded={historyId===world.id}
+                onClick={()=>setHistoryId(value=>value===world.id?null:world.id)}>
+                {historyId===world.id?'收起历史':'历史版本'}
+              </button>
+              <button type="button" disabled={!!busyKey}
+                onClick={()=>openSharedWorld(world)}>{world.kind==='code-project'?'查看源码并选择运行':'导入并编辑'}<StudioIcon name="arrow" size={16}/></button>
+            </div>
+          </article>
+          {historyId===world.id?<SharedWorldHistory world={world} repository={sharedRepo}
+            publishToken={publishToken} onUpdated={refreshShared}/>:null}
+        </div>)}
       </div> : null}
 
       {collection==='code' ? <div className="worlds-list" aria-label="代码世界列表">

@@ -163,6 +163,8 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
             '代码、资源和可视化编辑已发布至共享 WorldRepository')}>
           发布 / 更新共享世界
         </button>
+        {project?.id ? <a href={'/studio/?page=worlds&collection=shared&history='+encodeURIComponent(project.id)}
+          target="_blank" rel="noopener noreferrer">在新标签页查看共享版本历史</a> : null}
         <small>发布明确向所有能访问此 Studio 服务器的浏览器提供源码与场景数据。
           更新必须持有之前的共享版本号；版本冲突时不会覆盖其他浏览器的修改。
           不会把发布令牌保存到项目或本地存储。共享来源的 JavaScript 需要手动运行。</small>

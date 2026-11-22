@@ -1,0 +1,33 @@
+/* Shared-world history is an extension of the existing WorldsPage list, not a separate editor. */
+.shared-world-group{display:flex;flex-direction:column;gap:8px;min-width:0}
+.shared-world-history{display:flex;flex-direction:column;gap:13px;padding:16px 20px;
+  border:1px solid var(--studio-border);border-radius:10px;background:var(--studio-surface-1);min-width:0}
+.shared-history-header,.shared-history-actions,.shared-history-info{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.shared-history-header{justify-content:space-between}
+.shared-history-header>div{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+.shared-history-header strong{font-size:13px}
+.shared-history-header small,.shared-history-info small,.shared-history-footnote,
+.shared-history-preview small{color:var(--studio-text-3);font-size:12px;line-height:1.5}
+.shared-world-history button{border:1px solid var(--studio-border);border-radius:6px;
+  background:var(--studio-surface-2);padding:7px 11px;font-size:12px;color:inherit;cursor:pointer}
+.shared-world-history button:hover:not(:disabled){border-color:var(--studio-accent)}
+.shared-world-history button:disabled{opacity:.48;cursor:not-allowed}
+.shared-history-list{display:flex;flex-direction:column;list-style:none;margin:0;padding:0}
+.shared-history-list>li{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 0;border-top:1px solid var(--studio-border)}
+.shared-history-info{flex:1;min-width:0;gap:7px 12px}
+.shared-history-info strong{font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.shared-history-info small{white-space:nowrap}
+.shared-history-actions{flex-shrink:0;justify-content:flex-end}
+.shared-history-more{align-self:flex-start}
+.shared-history-preview{border:1px solid var(--studio-border);border-radius:8px;padding:12px;min-width:0}
+.shared-history-preview p{font-size:12px;margin:10px 0 6px}
+.shared-history-preview pre{max-height:300px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
+  font-size:11px;line-height:1.55;padding:13px;border-radius:6px;background:var(--studio-surface-2)}
+.shared-history-error,.shared-history-message{font-size:12px;line-height:1.6;margin:0}
+.shared-history-error{color:var(--studio-danger,#e78a8a)}
+.shared-history-message{color:var(--studio-text-2)}
+@media(max-width:700px){
+  .shared-history-list>li{flex-direction:column;align-items:flex-start}
+  .shared-history-actions{justify-content:flex-start}
+}
