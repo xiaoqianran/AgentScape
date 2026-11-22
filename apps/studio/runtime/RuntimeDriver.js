@@ -27,6 +27,7 @@ export class RuntimeDriver {
     this.running = false;
     this.frameStartTime = null;
     this.lastFrameTime = null;
+    this.firstFrameRendered = false;
     this.unsubscribeDeviceLost = null;
     this.onResize = () => this.world.rendering.resize?.();
   }
@@ -60,6 +61,10 @@ export class RuntimeDriver {
       if (this.shouldRender()) {
         this.world.rendering.update?.();
         this.world.rendering.render?.(frameTime);
+        if (!this.firstFrameRendered) {
+          this.firstFrameRendered = true;
+          this.world.events?.emit?.('renderer.first-frame',{});
+        }
       }
     } catch (error) {
       // 帧处理失败后立即清理运行状态，避免界面显示为运行中却停止刷新。

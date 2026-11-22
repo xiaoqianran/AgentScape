@@ -6,12 +6,14 @@ export function createStudioUiBridge() {
     dockActions:[],
     agent:null,
     content:null,
+    worldResources:null,
     sceneControls:null,
     authoring:null,
     liveBridge:null,
     codeProjects:null,
     developerOpenHandler:null,
-    commandDraft:null
+    commandDraft:null,
+    onWorldCollectionChange:null
   });
   const listeners = new Set();
   let commandSequence = 0;
@@ -63,6 +65,10 @@ export function createStudioUiBridge() {
     attachAgent(agent) {
       emit({ agent });
     },
+    setWorldCollectionChangeHandler(handler) {
+      emit({ onWorldCollectionChange:typeof handler === 'function' ? handler : null });
+    },
+    attachWorldResources(worldResources) { emit({ worldResources }); },
     attachContent(content) {
       emit({ content });
     },

@@ -89,13 +89,14 @@ export function ProductPages({
         <WorldsPage
           environments={environments}
           presentation={presentation}
-          resources={content?.resourceLibrary?.resources || null}
+          resources={content?.resourceLibrary?.resources || bridgeState.worldResources || null}
           authoring={bridgeState.authoring}
           openBuiltinWorld={openBuiltinWorld}
           openGeneratedWorld={content?.resourceLibrary?.openGeneratedWorld}
           enterCurrentWorld={()=>navigate('world')}
           enterAuthoringEditor={()=>navigate('world')}
           openBuild={()=>navigate('build')}
+          onCollectionChange={bridgeState.onWorldCollectionChange}
         />
       ) : null}
       {activePage === 'build' ? (

@@ -126,9 +126,12 @@ export class WorldRuntime {
   }
   async init() {
     await this.assetModule.hydrate?.();
+    this.events.emit('runtime.init.phase',{stage:'assets-ready'});
     await this.physics.init();
+    this.events.emit('runtime.init.phase',{stage:'physics-ready'});
     if (this.rendering) {
       await this.rendering.init();
+      this.events.emit('runtime.init.phase',{stage:'renderer-ready'});
       if (this.rendering.renderer) this.assetModule.configureRenderer?.(this.rendering.renderer);
     }
     this.spatial = new SpatialSystem({ store: this.store });
@@ -140,6 +143,7 @@ export class WorldRuntime {
     });
     this.validator = new WorldValidator(this); this.repair = new RepairEngine(this);
     await this.addEnvironment();
+    this.events.emit('runtime.init.phase',{stage:'environment-ready'});
     this.createEnvironmentSystems();
     this.ruleRuntime.start();
     this.ready = true;

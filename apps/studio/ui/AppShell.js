@@ -69,6 +69,9 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     panel,
     viewport,
     isWorldVisible:()=>useStudioStore.getState().product.activePage === 'world',
+    subscribeProductPage:(listener)=>useStudioStore.subscribe((state,previous)=>{
+      if (state.product.activePage !== previous.product.activePage) listener(state.product.activePage);
+    }),
     developerDialog:app.querySelector('#developer-dialog'),
     setView,
     setPage,
@@ -85,11 +88,13 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     refreshInspector:()=>useStudioStore.getState().refreshInspector(),
     setWorldPresentation:(identity)=>useStudioStore.getState().setWorldPresentation(identity),
     setWorldChangeHandler:(handler)=>bridge.setWorldChangeHandler(handler),
+    setWorldCollectionChangeHandler:(handler)=>bridge.setWorldCollectionChangeHandler(handler),
     setRuntimeStatus:(state,label)=>bridge.setRuntimeStatus(state,label),
     setRuntimeRecoveryAction:(handler,label)=>bridge.setRuntimeRecoveryAction(handler,label),
     setLayoutChangeHandler:(handler)=>bridge.setLayoutChangeHandler(handler),
     attachAgent:(agent)=>bridge.attachAgent(agent),
     attachContent:(content)=>bridge.attachContent(content),
+    attachWorldResources:(resources)=>bridge.attachWorldResources(resources),
     attachSceneControls:(controls)=>bridge.attachSceneControls(controls),
     attachAuthoring:(authoring)=>bridge.attachAuthoring(authoring),
     attachLiveBridge:(liveBridge)=>bridge.attachLiveBridge(liveBridge),

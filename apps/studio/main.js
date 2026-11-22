@@ -2,16 +2,15 @@ import { ENVIRONMENTS } from '../../modules/world/content/environments.js';
 import { createAppShell } from './ui/AppShell.js';
 import { clearLegacyEndpointOverrides, readCapabilityStatus } from './config/capabilityEntry.js';
 import { resolveStudioEnvironment } from './bootstrap/resolveStudioEnvironment.js';
-import { createStudioRuntime } from './bootstrap/createStudioRuntime.js';
-import { createStudioAgent } from './bootstrap/createStudioAgent.js';
-import { createStudioWorldLifecycle } from './bootstrap/createStudioWorldLifecycle.js';
-import { createStudioWorkspace } from './bootstrap/createStudioWorkspace.js';
+import { parseStudioRoute } from './navigation/StudioRoutes.js';
+import { createStudioStartupMetrics } from './bootstrap/studioStartupMetrics.js';
 
 async function main() {
+  const metrics = createStudioStartupMetrics();
+  metrics.mark('start');
   const app = document.querySelector('#app');
   clearLegacyEndpointOverrides();
 
-  const capabilityStatusPromise = readCapabilityStatus();
   const params = new URLSearchParams(location.search);
   const environmentDefinition = resolveStudioEnvironment(params);
 
@@ -20,16 +19,35 @@ async function main() {
     environmentDefinition,
     environments:ENVIRONMENTS
   });
-  ui.setRuntimeStatus('loading','启动中');
+  metrics.mark('shell-ready');
+  const route = parseStudioRoute(location.href);
+  if (route.page === 'worlds' && params.get('fullRuntime') !== '1') {
+    const { createStudioLightweightWorkspace } = await import('./bootstrap/createStudioLightweightWorkspace.js');
+    const workspace = createStudioLightweightWorkspace({ ui, environments:ENVIRONMENTS });
+    metrics.mark('worlds-ready');
+    window.addEventListener('pagehide',()=>{ workspace.dispose(); ui.destroyChrome?.(); },{once:true});
+    return;
+  }
 
-  const capabilityStatus = await capabilityStatusPromise;
+  ui.setRuntimeStatus('loading','启动中');
+  const capabilityStatus = await readCapabilityStatus();
+  metrics.mark('capabilities-ready');
+  const [{ createStudioRuntime },{ createStudioAgent },{ createStudioWorldLifecycle },{ createStudioWorkspace }] = await Promise.all([
+    import('./bootstrap/createStudioRuntime.js'),
+    import('./bootstrap/createStudioAgent.js'),
+    import('./bootstrap/createStudioWorldLifecycle.js'),
+    import('./bootstrap/createStudioWorkspace.js')
+  ]);
+  metrics.mark('runtime-modules-ready');
   const runtime = await createStudioRuntime({
     ui,
     environmentDefinition,
     params,
-    capabilityStatus
+    capabilityStatus,
+    metrics
   });
 
+  metrics.mark('runtime-ready');
   const agent = createStudioAgent({
     ui,
     world:runtime.world,
@@ -67,6 +85,14 @@ async function main() {
     codeProjects:runtime.codeProjects
   });
 
+  metrics.mark('workspace-ready');
+  if (params.get('openCode') === '1') {
+    const url = new URL(location.href);
+    url.searchParams.set('page','world');
+    url.searchParams.delete('openCode');
+    history.replaceState(history.state,'',url.href);
+    runtime.codeProjects.show();
+  }
   window.addEventListener('pagehide',()=>{
     workspace.dispose();
     lifecycle.dispose();

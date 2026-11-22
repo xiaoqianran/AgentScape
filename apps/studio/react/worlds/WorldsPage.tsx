@@ -25,6 +25,7 @@ type Props = {
   enterAuthoringEditor?:(id:string|null)=>void;
   enterCurrentWorld?:()=>void;
   openBuild?:()=>void;
+  onCollectionChange?:(collection:Collection)=>void;
 };
 const EMPTY_AUTHORING = Object.freeze({ worlds:[], status:null, loading:false, fileError:'' });
 const emptySubscribe = () => () => {};
@@ -161,9 +162,9 @@ export function DraftWorldRow({
   );
 }
 
-export function WorldsPage({ environments, presentation, resources=null, authoring=null, openBuiltinWorld, openGeneratedWorld, enterAuthoringEditor=()=>{}, enterCurrentWorld, openBuild }:Props) {
+export function WorldsPage({ environments, presentation, resources=null, authoring=null, openBuiltinWorld, openGeneratedWorld, enterAuthoringEditor=()=>{}, enterCurrentWorld, openBuild, onCollectionChange }:Props) {
   const [resourceRevision,setResourceRevision] = useState(0);
-  const [collection,setCollection] = useState<Collection>('builtin');
+  const [collection,setCollection] = useState<Collection>(()=>new URLSearchParams(globalThis.location?.search || '').get('collection') === 'generated' ? 'generated' : 'builtin');
   const [query,setQuery] = useState('');
   const [busyKey,setBusyKey] = useState<string|null>(null);
   const [error,setError] = useState('');
@@ -276,7 +277,7 @@ export function WorldsPage({ environments, presentation, resources=null, authori
 
     <div className="worlds-controls">
       <div className="worlds-filters" role="group" aria-label="世界分类">
-        {([['builtin','示例场景'],['drafts','我的草稿'],['generated','已生成']] as const).map(([key,label])=><button key={key} type="button" aria-pressed={collection===key} onClick={()=>{setCollection(key);setQuery('');setError('');}}>{label}<span>{counts[key]}</span></button>)}
+        {([['builtin','示例场景'],['drafts','我的草稿'],['generated','已生成']] as const).map(([key,label])=><button key={key} type="button" aria-pressed={collection===key} onClick={()=>{setCollection(key);setQuery('');setError('');onCollectionChange?.(key);}}>{label}<span>{counts[key]}</span></button>)}
       </div>
       <label className="worlds-search"><StudioIcon name="search" size={16} /><input type="search" aria-label="搜索世界" placeholder="搜索名称或场景…" value={query} onChange={e=>setQuery(e.target.value)} /></label>
     </div>

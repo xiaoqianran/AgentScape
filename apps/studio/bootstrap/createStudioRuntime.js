@@ -19,7 +19,8 @@ export async function createStudioRuntime({
   environmentDefinition,
   params,
   capabilityStatus,
-  projectExecutionPolicy = null
+  projectExecutionPolicy = null,
+  metrics = null
 }) {
   const environmentMaterializer = new StudioEnvironmentMaterializer({ parent:ui.shell });
   const requestedRenderScale = Number(params.get('renderScale') ?? (environmentDefinition.id === 'suzhou-garden' ? 0.75 : 1));
@@ -37,8 +38,13 @@ export async function createStudioRuntime({
     }
   });
 
+  metrics?.mark('session-created');
+  const stopStartupPhases = world.events.on('runtime.init.phase',({stage})=>metrics?.mark(stage));
+  const stopFirstFrame = world.events.on('renderer.first-frame',()=>{ metrics?.mark('first-frame'); stopFirstFrame(); });
   world.generationState = await generation.initialize({ pair:false });
+  metrics?.mark('generation-ready');
   await world.init();
+  metrics?.mark('world-initialized');
   const selectedPort = Number(params.get('mcpPort'));
   const bridgePort = Number.isInteger(selectedPort) && selectedPort>=1 && selectedPort<=65535 ? selectedPort : 39015;
   const liveBridge = new StudioLiveBridgeClient({world,scene,serverUrl:'http://127.0.0.1:'+bridgePort});
@@ -128,6 +134,8 @@ export async function createStudioRuntime({
     editor,
     dispose() {
       codeProjects.dispose();
+      stopStartupPhases();
+      stopFirstFrame();
       projectHost.remove();
       stopInteractionMode?.();
       liveBridge.dispose();
