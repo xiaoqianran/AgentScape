@@ -26,6 +26,7 @@ export function parseStudioRoute(currentHref) {
     authoringId:authoring && authoring !== 'new' ? authoring : null,
     authoringNew:authoring === 'new',
     draftName:authoring === 'new' ? url.searchParams.get('draftName')?.trim().slice(0,100).trim() || null : null,
+    sharedDraftId:url.searchParams.get('sharedDraft'),
     externalGenerated:Boolean(url.searchParams.get('worldManifest') || url.searchParams.get('mesh'))
   });
 }
@@ -41,7 +42,7 @@ export function studioProductUrl(currentHref, { page = 'worlds', agentView = 'ta
 
 export function builtInWorldUrl(currentHref, worldId) {
   const url = asUrl(currentHref);
-  for (const key of [...GENERATED_SOURCE_KEYS,'worldArtifact','authoring','draftName','codeWorld','codeProject']) url.searchParams.delete(key);
+  for (const key of [...GENERATED_SOURCE_KEYS,'worldArtifact','authoring','draftName','codeWorld','codeProject','sharedCode','sharedDraft']) url.searchParams.delete(key);
   url.searchParams.set('world',worldId);
   url.searchParams.set('page','world');
   url.searchParams.delete('agent');
@@ -50,7 +51,7 @@ export function builtInWorldUrl(currentHref, worldId) {
 
 export function generatedArtifactWorldUrl(currentHref, artifactId) {
   const url = asUrl(currentHref);
-  for (const key of [...GENERATED_SOURCE_KEYS,'world','authoring','draftName','codeWorld','codeProject']) url.searchParams.delete(key);
+  for (const key of [...GENERATED_SOURCE_KEYS,'world','authoring','draftName','codeWorld','codeProject','sharedCode','sharedDraft']) url.searchParams.delete(key);
   url.searchParams.set('worldArtifact',artifactId);
   url.searchParams.set('page','world');
   url.searchParams.delete('agent');
@@ -59,7 +60,7 @@ export function generatedArtifactWorldUrl(currentHref, artifactId) {
 
 export function authoringWorldUrl(currentHref, authoringId = null) {
   const url = asUrl(currentHref);
-  for (const key of [...GENERATED_SOURCE_KEYS,'world','worldArtifact','draftName','codeWorld','codeProject']) url.searchParams.delete(key);
+  for (const key of [...GENERATED_SOURCE_KEYS,'world','worldArtifact','draftName','codeWorld','codeProject','sharedCode','sharedDraft']) url.searchParams.delete(key);
   url.searchParams.set('authoring',authoringId || 'new');
   url.searchParams.set('page','world');
   url.searchParams.delete('agent');
@@ -72,14 +73,24 @@ export function isProductNavigationActive(activePage, navigationPage) {
 }
 
 /** Enter Studio's full code editor, rather than the unrelated authoring draft. */
-/** @param {string} currentHref @param {{published?: string|null,local?: string|null}} options */
-export function codeWorldUrl(currentHref,{published=null,local=null}={}) {
+/** @param {string} currentHref @param {{published?: string|null,local?: string|null,shared?: string|null}} options */
+export function codeWorldUrl(currentHref,{published=null,local=null,shared=null}={}) {
   const url=asUrl(currentHref);
-  for(const key of [...GENERATED_SOURCE_KEYS,'world','worldArtifact','authoring','draftName','openCode','collection'])url.searchParams.delete(key);
+  for(const key of [...GENERATED_SOURCE_KEYS,'world','worldArtifact','authoring','draftName','openCode','collection','sharedDraft'])url.searchParams.delete(key);
   url.searchParams.set('page','world');
   url.searchParams.delete('codeWorld');
   url.searchParams.delete('codeProject');
-  if(published)url.searchParams.set('codeWorld',published);
+  url.searchParams.delete('sharedCode');
+  if(shared)url.searchParams.set('sharedCode',shared);
+  else if(published)url.searchParams.set('codeWorld',published);
   else if(local)url.searchParams.set('codeProject',local);
+  return url.toString();
+}
+
+/** Shared authoring drafts are imported on explicit navigation, never silently replace local drafts. */
+export function sharedAuthoringWorldUrl(currentHref,id) {
+  const url=asUrl(authoringWorldUrl(currentHref,null));
+  url.searchParams.delete('authoring');
+  url.searchParams.set('sharedDraft',id);
   return url.toString();
 }

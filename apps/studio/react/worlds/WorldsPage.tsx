@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { StudioIcon } from '../shared/StudioIcon';
 import { worldPresentation } from './WorldPresentation';
 import { PUBLISHED_CODE_WORLDS } from '../../code-project/PublishedCodeWorlds.js';
-import { codeWorldUrl } from '../../navigation/StudioRoutes.js';
+import { codeWorldUrl, sharedAuthoringWorldUrl } from '../../navigation/StudioRoutes.js';
+import { SharedWorldRepository } from '../../code-project/SharedWorldRepository.js';
+import { AuthoringWorldStore } from '../../persistence/AuthoringWorldStore.js';
 import './WorldsPage.css';
 
 type WorldDefinition = { id:string; title:string; number?:string; headline?:string; description?:string; facts?:string[]; worldFirst?:boolean };
@@ -33,7 +35,8 @@ type Props = {
 const EMPTY_AUTHORING = Object.freeze({ worlds:[], status:null, loading:false, fileError:'' });
 const emptySubscribe = () => () => {};
 const emptySnapshot = () => EMPTY_AUTHORING;
-type Collection = 'builtin'|'drafts'|'generated'|'code';
+type Collection = 'builtin'|'drafts'|'generated'|'code'|'shared';
+type SharedEntry = {id:string;kind:'code-project'|'authoring-draft';name:string;version:number;updatedAt:string;digest:string};
 
 function formatUpdatedAt(value:unknown) {
   if (!value) return '尚未保存';
@@ -63,7 +66,8 @@ export function DraftWorldRow({
   canManage,
   onOpen,
   onRename,
-  onRemove
+  onRemove,
+  onPublish
 }: {
   world:DraftWorld;
   currentId:string|null;
@@ -73,6 +77,7 @@ export function DraftWorldRow({
   onOpen:(id:string)=>void;
   onRename:(id:string,name:string)=>Promise<boolean>;
   onRemove:(id:string)=>void;
+  onPublish?:(id:string)=>void;
 }) {
   const [editing,setEditing] = useState(false);
   const [name,setName] = useState(world.name || world.id);
@@ -139,6 +144,8 @@ export function DraftWorldRow({
             {busyKey===openKey?'正在打开…':isCurrent?'继续编辑':'打开'}
             <StudioIcon name="arrow" size={16} />
           </button>
+          {onPublish ? <button type="button" disabled={!!busyKey}
+            onClick={()=>onPublish(world.id)}>发布共享版本</button> : null}
           {canManage ? (
             <>
               <button
@@ -169,11 +176,27 @@ export function WorldsPage({ environments, presentation, resources=null, authori
   const [resourceRevision,setResourceRevision] = useState(0);
   const [collection,setCollection] = useState<Collection>(()=>{
     const initial=new URLSearchParams(globalThis.location?.search || '').get('collection');
-    return initial==='generated'||initial==='drafts'||initial==='code'?initial:'builtin';
+    return initial==='generated'||initial==='drafts'||initial==='code'||initial==='shared'?initial:'builtin';
   });
   const [query,setQuery] = useState('');
   const [busyKey,setBusyKey] = useState<string|null>(null);
   const [error,setError] = useState('');
+  const [publishToken,setPublishToken]=useState('');
+  const [sharedWorlds,setSharedWorlds]=useState<SharedEntry[]>([]);
+  const [sharedLoading,setSharedLoading]=useState(false);
+  const [sharedError,setSharedError]=useState('');
+  const sharedRepo=useMemo(()=>new SharedWorldRepository(),[]);
+  const refreshShared=async()=>{
+    setSharedLoading(true);setSharedError('');
+    try{
+      const response=await sharedRepo.list({limit:50});
+      setSharedWorlds(response.worlds);
+    }catch(cause){
+      setSharedWorlds([]);
+      setSharedError(cause instanceof Error?cause.message:'WORLD_REPOSITORY_OFFLINE');
+    }finally{setSharedLoading(false);}
+  };
+  useEffect(()=>{if(collection==='shared')void refreshShared();},[collection]);
   const busy = useRef(false);
   useEffect(()=>resources?.onChange?.(()=>setResourceRevision(value=>value+1)),[resources]);
   const resourceSnapshot = useMemo(()=>resources?.snapshot?.() || { worlds:[] },[resources,resourceRevision]);
@@ -194,8 +217,12 @@ export function WorldsPage({ environments, presentation, resources=null, authori
   const visibleGenerated=generatedWorlds.filter(world=>matches(world.label,world.id));
   const visiblePublishedCodeWorlds=PUBLISHED_CODE_WORLDS.filter(world=>matches(world.name,world.description,world.id));
   const visibleLocalCodeWorlds=localOnlyCodeWorlds.filter(world=>matches(world.name,world.id));
-  const counts={builtin:environments.length,drafts:drafts.length,generated:generatedWorlds.length,code:PUBLISHED_CODE_WORLDS.length+localOnlyCodeWorlds.length};
-  const visibleCount=collection==='builtin'?visibleBuiltins.length:collection==='drafts'?visibleDrafts.length:collection==='generated'?visibleGenerated.length:visiblePublishedCodeWorlds.length+visibleLocalCodeWorlds.length;
+  const visibleShared=sharedWorlds.filter(world=>matches(world.name,world.id,world.kind));
+  const counts={builtin:environments.length,drafts:drafts.length,generated:generatedWorlds.length,
+    code:PUBLISHED_CODE_WORLDS.length+localOnlyCodeWorlds.length,shared:sharedWorlds.length};
+  const visibleCount=collection==='builtin'?visibleBuiltins.length:collection==='drafts'?visibleDrafts.length:
+    collection==='generated'?visibleGenerated.length:collection==='shared'?visibleShared.length:
+    visiblePublishedCodeWorlds.length+visibleLocalCodeWorlds.length;
   const showDraftLoading=collection==='drafts' && authoringLoading && drafts.length===0;
   const canManageDrafts=Boolean(authoring?.rename && authoring?.remove);
 
@@ -217,6 +244,21 @@ export function WorldsPage({ environments, presentation, resources=null, authori
 
   const openCodeWorld=(published:string|null,local:string|null)=>{
     globalThis.location.assign(codeWorldUrl(globalThis.location.href,{published,local}));
+  };
+  const openSharedWorld=(world:SharedEntry)=>{
+    const href=world.kind==='code-project'
+      ? codeWorldUrl(globalThis.location.href,{shared:world.id})
+      : sharedAuthoringWorldUrl(globalThis.location.href,world.id);
+    globalThis.location.assign(href);
+  };
+  const publishDraft=async(id:string)=>{
+    await run('publish:'+id,async()=>{
+      if(!publishToken.trim())throw new Error('请先填写服务器发布授权令牌');
+      const record=await new AuthoringWorldStore().load(id);
+      if(!record)throw new Error('请先保存创作草稿');
+      await sharedRepo.publish({kind:'authoring-draft',content:record,token:publishToken});
+      await refreshShared();
+    });
   };
 
   const create=async()=>{
@@ -284,6 +326,8 @@ export function WorldsPage({ environments, presentation, resources=null, authori
         <h2>选择你的起点</h2>
         <p>从现成场景开始，或继续自己的创作。</p>
       </div>
+      {collection==='shared' ? <button className="worlds-refresh" type="button" onClick={()=>void refreshShared()}
+        disabled={sharedLoading}>{sharedLoading?'正在刷新…':'刷新共享世界'}</button> : null}
       {collection==='drafts' && authoring?.refresh ? (
         <button className="worlds-refresh" type="button" disabled={!!busyKey || authoringLoading} onClick={()=>void refreshDrafts()}>
           {authoringLoading?'正在刷新…':'刷新草稿'}
@@ -293,11 +337,17 @@ export function WorldsPage({ environments, presentation, resources=null, authori
 
     <div className="worlds-controls">
       <div className="worlds-filters" role="group" aria-label="世界分类">
-        {([['builtin','示例场景'],['drafts','我的草稿'],['generated','已生成'],['code','代码世界']] as const).map(([key,label])=><button key={key} type="button" aria-pressed={collection===key} onClick={()=>{setCollection(key);setQuery('');setError('');onCollectionChange?.(key);}}>{label}<span>{counts[key]}</span></button>)}
+        {([['builtin','示例场景'],['drafts','我的草稿'],['generated','已生成'],['code','代码世界'],['shared','共享世界']] as const).map(([key,label])=><button key={key} type="button" aria-pressed={collection===key} onClick={()=>{setCollection(key);setQuery('');setError('');onCollectionChange?.(key);}}>{label}<span>{counts[key]}</span></button>)}
       </div>
       <label className="worlds-search"><StudioIcon name="search" size={16} /><input type="search" aria-label="搜索世界" placeholder="搜索名称或场景…" value={query} onChange={e=>setQuery(e.target.value)} /></label>
     </div>
 
+    {['drafts','shared'].includes(collection) ? <label className="worlds-share-token">
+      发布授权令牌 <input type="password" aria-label="共享世界发布授权令牌"
+        autoComplete="off" placeholder="只用于明确发布，不保存在本机"
+        value={publishToken} onChange={event=>setPublishToken(event.target.value)} />
+    </label> : null}
+    {sharedError&&collection==='shared' ? <p role="status">共享目录暂时无法读取：{sharedError}</p> : null}
     {error ? <div className="worlds-error" role="alert"><span>操作未完成：{error}</span><button type="button" aria-label="关闭错误提示" onClick={()=>setError('')}><StudioIcon name="close" /></button></div> : null}
 
     <div className="worlds-results" aria-busy={!!busyKey || authoringLoading}>
@@ -323,6 +373,7 @@ export function WorldsPage({ environments, presentation, resources=null, authori
           onOpen={(id)=>void openDraft(id)}
           onRename={renameDraft}
           onRemove={(id)=>void removeDraft(id)}
+          onPublish={(id)=>void publishDraft(id)}
         />)}
       </div> : null}
 
@@ -337,6 +388,19 @@ export function WorldsPage({ environments, presentation, resources=null, authori
             </div>
           </article>;
         })}
+      </div> : null}
+
+      {collection==='shared' ? <div className="worlds-list" aria-label="共享世界目录">
+        {visibleShared.map(world=><article className="world-list-row" data-shared-world={world.id} key={world.id}>
+          <div className="world-list-icon"><StudioIcon name="worlds" size={24}/></div>
+          <div className="world-list-copy"><strong>{world.name}</strong>
+            <small className="world-list-meta"><span>{world.kind==='code-project'?'完整 Three.js 代码世界':'可视化创作草稿'}</span>
+              <span>共享版本 v{world.version}</span><span>最近发布：{formatUpdatedAt(world.updatedAt)}</span></small>
+            <code>{world.id}</code>
+          </div>
+          <div className="world-list-actions"><button type="button" disabled={!!busyKey}
+            onClick={()=>openSharedWorld(world)}>{world.kind==='code-project'?'查看源码并选择运行':'导入并编辑'}<StudioIcon name="arrow" size={16}/></button></div>
+        </article>)}
       </div> : null}
 
       {collection==='code' ? <div className="worlds-list" aria-label="代码世界列表">
@@ -363,9 +427,9 @@ export function WorldsPage({ environments, presentation, resources=null, authori
         </article>)}
       </div> : null}
 
-      {!visibleCount && !showDraftLoading ? <div className="worlds-empty"><StudioIcon name={query?'search':collection==='drafts'?'folder':'worlds'} size={32} /><h3>{query?'没有找到匹配的世界':collection==='drafts'?'给新想法一个空白场景':collection==='code'?'还没有代码世界':'还没有生成的世界'}</h3><p>{query?'换一个关键词，或清除搜索。':collection==='drafts'?'新建草稿后，可以从资源库添加物体并保存到本机。':collection==='code'?'可以从代码世界入口创建，或打开已发布的示例。':'前往生成工作台，描述你想要的环境。生成结果会保存在这里。'}</p>{query ? <button type="button" onClick={()=>setQuery('')}>清除搜索</button> : collection==='drafts' ? <button type="button" disabled={!authoring || !!busyKey} onClick={()=>void create()}>新建草稿</button> : openBuild ? <button type="button" onClick={openBuild}>前往生成工作台<StudioIcon name="arrow" size={16} /></button> : null}</div> : null}
+      {!visibleCount && !showDraftLoading && !(collection==='shared'&&sharedLoading) ? <div className="worlds-empty"><StudioIcon name={query?'search':collection==='drafts'?'folder':'worlds'} size={32} /><h3>{query?'没有找到匹配的世界':collection==='drafts'?'给新想法一个空白场景':collection==='code'?'还没有代码世界':collection==='shared'?'共享目录暂无世界':'还没有生成的世界'}</h3><p>{query?'换一个关键词，或清除搜索。':collection==='drafts'?'新建草稿后，可以从资源库添加物体并保存到本机。':collection==='code'?'可以从代码世界入口创建，或打开已发布的示例。':collection==='shared'?'由浏览器明确发布的世界会显示在这里；发布需要管理员令牌。':'前往生成工作台，描述你想要的环境。生成结果会保存在这里。'}</p>{query ? <button type="button" onClick={()=>setQuery('')}>清除搜索</button> : collection==='drafts' ? <button type="button" disabled={!authoring || !!busyKey} onClick={()=>void create()}>新建草稿</button> : openBuild ? <button type="button" onClick={openBuild}>前往生成工作台<StudioIcon name="arrow" size={16} /></button> : null}</div> : null}
     </div>
 
-    <footer className="worlds-footer"><span>{showDraftLoading?'正在读取…':`${visibleCount} 个${collection==='builtin'?'示例场景':collection==='drafts'?'草稿':collection==='code'?'代码世界':'生成世界'}`}</span><span>本机草稿保存在当前浏览器；已发布代码世界可跨浏览器访问</span></footer>
+    <footer className="worlds-footer"><span>{showDraftLoading?'正在读取…':`${visibleCount} 个${collection==='builtin'?'示例场景':collection==='drafts'?'草稿':collection==='code'?'代码世界':collection==='shared'?'共享世界':'生成世界'}`}</span><span>本机草稿保存在当前浏览器；共享世界保存到 Studio 所在服务器，可供其他浏览器访问</span></footer>
   </section>;
 }

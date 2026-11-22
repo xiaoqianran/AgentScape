@@ -34,6 +34,7 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState('');
+  const [publishToken,setPublishToken]=useState('');
   const [working, setWorking] = useState(false);
   const projectInput = useRef<HTMLInputElement>(null);
   const codeInput = useRef<HTMLInputElement>(null);
@@ -151,6 +152,20 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
             const link=document.createElement('a');link.href=url;link.download=saved.value.id+'.json';link.click();
             setTimeout(()=>URL.revokeObjectURL(url),1000);
           },'完整代码项目已导出')}>导出代码项目</button>
+      </div>
+      <div className="code-project-file-tools" aria-label="共享世界发布">
+        <label>共享发布授权令牌<input type="password" aria-label="共享发布授权令牌"
+          placeholder="由服务端管理员配置，不会写入世界源码"
+          value={publishToken} onChange={event=>setPublishToken(event.target.value)} autoComplete="off" /></label>
+        <button type="button" disabled={busy || !publishToken.trim() || dirty ||
+            !state.active || state.revision!==state.runningRevision}
+          onClick={()=>void run(()=>controller.publishShared({token:publishToken}),
+            '代码、资源和可视化编辑已发布至共享 WorldRepository')}>
+          发布 / 更新共享世界
+        </button>
+        <small>发布明确向所有能访问此 Studio 服务器的浏览器提供源码与场景数据。
+          更新必须持有之前的共享版本号；版本冲突时不会覆盖其他浏览器的修改。
+          不会把发布令牌保存到项目或本地存储。共享来源的 JavaScript 需要手动运行。</small>
       </div>
       <p className="code-project-note">安全提示：完整 JavaScript 在当前浏览器上下文执行，不是安全沙箱。默认可直接运行，包括 AI 提交的代码；请只连接可信的模型和项目。{state.approvalRequired ? (state.approval?.revision===state.revision ? ' 审批策略已启用 · 已批准 SHA-256 '+state.approval.digest : ' 审批策略已启用 · 当前版本尚未批准') : ' 未启用审批策略。'}</p>
       <small>入口 {entry} · 草稿 r{state.revision} · {state.active?'运行 r'+state.runningRevision:'尚未运行'}{dirty?' · 当前文件未保存':''}</small>

@@ -35,3 +35,6 @@ agentscape_cnb_key.pub
 
 .agent-host/
 .mcp-assets/
+
+# Local shared world catalog and immutable project blocks (never commit project data or tokens)
+.studio-world-repository/

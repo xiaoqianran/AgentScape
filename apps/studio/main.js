@@ -92,11 +92,18 @@ async function main() {
   metrics.mark('workspace-ready');
   const publishedCode=params.get('codeWorld');
   const localCode=params.get('codeProject');
-  if(publishedCode || localCode){
+  const sharedCode=params.get('sharedCode');
+  if(publishedCode || localCode || sharedCode){
     const { findPublishedCodeWorld } = await import('./code-project/PublishedCodeWorlds.js');
     const { parseCodeProject } = await import('../../application/native-scene/CodeProject.js');
     const controller=runtime.codeProjects;
-    if(publishedCode){
+    if(sharedCode){
+      const existing=await controller.store.load(sharedCode);
+      if(existing)await controller.load(sharedCode);
+      else await controller.importShared(sharedCode);
+      // Shared JavaScript is untrusted. Import to the editor without execution;
+      // only the explicit "Run code world" action can execute it.
+    }else if(publishedCode){
       const published=findPublishedCodeWorld(publishedCode);
       if(!published)throw new Error('CODE_WORLD_NOT_FOUND');
       await controller.refresh();
@@ -113,7 +120,7 @@ async function main() {
       if(!/^world_[a-f0-9]{32}$/.test(localCode||''))throw new Error('CODE_PROJECT_ID_INVALID');
       await controller.load(localCode);
     }
-    await controller.run({expectedRevision:controller.snapshot().revision});
+    if(!sharedCode)await controller.run({expectedRevision:controller.snapshot().revision});
   }
   if (params.get('openCode') === '1') {
     const url = new URL(location.href);

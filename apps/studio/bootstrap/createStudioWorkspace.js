@@ -7,6 +7,7 @@ import {
 import { createStudioContent } from './createStudioContent.js';
 import { createStudioDeveloperTools } from './createStudioDeveloperTools.js';
 import { activateStudioWorld } from './activateStudioWorld.js';
+import { SharedWorldRepository } from '../code-project/SharedWorldRepository.js';
 
 const currentHref = () => globalThis.location?.href || 'http://127.0.0.1/';
 
@@ -143,6 +144,25 @@ export async function createStudioWorkspace({
       if (lifecycle.worldSession.current?.persistenceSource !== 'artifact:' + route.worldArtifactId) {
         await openGeneratedWorld(route.worldArtifactId,{ historyMode:'none' });
       }
+      return;
+    }
+
+    if(route.sharedDraftId){
+      if(authoringWorlds?.status?.().id===route.sharedDraftId &&
+          authoringWorlds?.status?.().active)return;
+      const repository=new SharedWorldRepository();
+      const record=await repository.get(route.sharedDraftId);
+      if(record.kind!=='authoring-draft')throw new Error('WORLD_REPOSITORY_KIND_INVALID');
+      if(!authoringWorlds)throw new Error('AUTHORING_WORLD_UNAVAILABLE');
+      const exists=await authoringWorlds.store.load(record.id);
+      if(!exists){
+        await authoringWorlds.store.save({
+          id:record.content.id,name:record.content.name,
+          document:record.content.document,promotions:record.content.promotions||null
+        });
+      }
+      await openAuthoringWorld(record.id,{historyMode:'none'});
+      await activation.authoringControls?.refresh?.();
       return;
     }
 

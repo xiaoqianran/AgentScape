@@ -6,6 +6,7 @@ import { projectTemplate, projectGuide } from './projectTemplate.js';
 import { projectFileEntries, compileCodeProjectModules } from '../../../application/native-scene/CodeProjectModules.js';
 import { applyProjectChanges, summarizeProjectChanges, patchProjectText } from './StudioProjectChanges.js';
 import { projectExecutionFingerprint } from './ProjectExecutionPolicy.js';
+import { SharedWorldRepository } from './SharedWorldRepository.js';
 
 const fail = code => Object.assign(new Error(code), { code });
 const clone = value => structuredClone(value);
@@ -14,14 +15,15 @@ const withoutIntegrity = ({ integrity, ...value }) => value;
 /** Studio project ownership. Source drafts and live state have distinct revisions. */
 export class StudioCodeProjects {
   constructor({ container, baseScene, baseWorld, store = new AuthoringWorldStore({ databaseName:'agentscape-code-projects' }),
-    open = openCodeProject, onActivate = () => {}, onShow = () => {}, executionPolicy = null } = {}) {
+    open = openCodeProject, onActivate = () => {}, onShow = () => {}, executionPolicy = null,
+    repository = new SharedWorldRepository() } = {}) {
     if (executionPolicy && typeof executionPolicy.beforeRun !== 'function') throw new TypeError('PROJECT_EXECUTION_POLICY_INVALID');
-    Object.assign(this, { container, baseScene, baseWorld, store, open, onActivate, onShow, executionPolicy });
+    Object.assign(this, { container, baseScene, baseWorld, store, open, onActivate, onShow, executionPolicy, repository });
     this.session = null; this.draft = null; this.revision = 0; this.runningRevision = null;
     this.listeners = new Set(); this.busy = false; this.visible = false;
     this.pendingBatch = null; this.lastBatch = null; this.approval = null;
     this.current = Object.freeze({ visible:false, active:false, busy:false, project:null, revision:0, runningRevision:null,
-      approvalRequired:Boolean(executionPolicy?.requiresApproval), projects:[], error:null });
+      approvalRequired:Boolean(executionPolicy?.requiresApproval), projects:[], sharedWorlds:[], sharedStatus:null, error:null });
   }
   subscribe = listener => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   snapshot = () => this.current;
@@ -41,7 +43,38 @@ export class StudioCodeProjects {
     for (const listener of this.listeners) listener();
   }
   show() { this.visible = true; this.onShow(true); this.emit(); void this.refresh().catch(error => this.emit({ error:error.message })); }
-  async refresh() { this.emit({ projects:await this.store.list() }); }
+  async refresh({shared=true}={}) {
+    const projects=await this.store.list();
+    if(!shared){this.emit({projects});return;}
+    let sharedWorlds=[],sharedStatus='ready';
+    try{
+      const remote=await this.repository.list({kind:'code-project'});
+      sharedWorlds=remote.worlds;
+    }catch(error){sharedStatus=error.code||'WORLD_REPOSITORY_OFFLINE';}
+    this.emit({projects,sharedWorlds,sharedStatus});
+  }
+  /** Explicit, optimistic publication of the running code + current visual edits. */
+  async publishShared({token}={}) {
+    return this.exclusive(async()=>{
+      if(!this.session||!this.draft)throw fail('RUN_PROJECT_FIRST');
+      if(this.runningRevision!==this.revision)throw fail('RUN_DRAFT_BEFORE_SAVE');
+      const project=(await this.session.save()).value;
+      const meta=await this.repository.publish({kind:'code-project',content:project,token});
+      await this.persist(project);
+      this.draft=project;
+      await this.refresh();
+      this.emit();
+      return {status:'world-published',...meta};
+    });
+  }
+  /** Import a shared project into the local draft store without auto executing JS. */
+  async importShared(id) {
+    const saved=await this.repository.openCode(id);
+    if(await this.store.load(id))throw fail('WORLD_REPOSITORY_LOCAL_CONFLICT');
+    const result=await this.write({create:true,project:saved.content});
+    this.repository.remember(id,saved.version);
+    return {...result,sharedVersion:saved.version};
+  }
   /** AI/MCP receive bounded metadata, not embedded resource bytes or entire runtime archives. */
   read() {
     const { project, ...metadata } = this.current;
@@ -152,7 +185,8 @@ export class StudioCodeProjects {
   }
   async persist(project = this.draft, revision = this.revision) {
     await this.store.save({ id:project.id, name:project.name, document:{ project, revision } });
-    await this.refresh();
+    // Local edits must never wait for shared-network access or an offline repository.
+    await this.refresh({shared:false});
   }
   async write({ project, source, name, expectedRevision, create = false, patch = null } = {}) {
     return this.exclusive(async () => {

@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { capabilityDevPlugin } from "./dev/capabilityDevPlugin.js";
+import { worldRepositoryPlugin } from "./dev/worldRepositoryPlugin.js";
 import { nativeScenePlugin } from "./dev/nativeScenePlugin.js";
 import { startServer as startAgentGateway, loadEnvFile, DEFAULT_BASE_URL, DEFAULT_MODEL } from "./apps/server/openai-compatible-agent-gateway.mjs";
 
@@ -114,7 +115,7 @@ export default defineConfig(({ mode }) => {
   const devHost = String(env.AGENTSCAPE_DEV_HOST || "127.0.0.1").trim() || "127.0.0.1";
   return {
     base: "/",
-    plugins: [nativeScenePlugin({ projectRoots: ['examples/native-scene/project'] }), react(), observatoryRoutePlugin(), capabilityDevPlugin(), localAgentGatewayPlugin(env)],
+    plugins: [nativeScenePlugin({ projectRoots: ['examples/native-scene/project'] }), react(), observatoryRoutePlugin(), capabilityDevPlugin(), localAgentGatewayPlugin(env), worldRepositoryPlugin(env)],
     test: {
       include: ["tests/**/*.test.js"],
       // Physics/WASM world fixtures each own native resources; cap concurrent

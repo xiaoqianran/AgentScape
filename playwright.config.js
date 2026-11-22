@@ -24,6 +24,8 @@ export default defineConfig({
     url: 'http://127.0.0.1:4178',
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { AGENTSCAPE_DEV_HOST: '127.0.0.1' }
+    env: { AGENTSCAPE_DEV_HOST: '127.0.0.1',
+      AGENTSCAPE_WORLD_REPOSITORY_TOKEN: 'test-browser-world-publish-token-for-isolated-e2e',
+      AGENTSCAPE_WORLD_REPOSITORY_DIR: '.tmp/playwright-world-repository' }
   }
 });
