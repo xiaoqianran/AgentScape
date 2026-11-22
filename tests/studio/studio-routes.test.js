@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   authoringWorldUrl,
   builtInWorldUrl,
+  codeWorldUrl,
   generatedArtifactWorldUrl,
   isProductNavigationActive,
   parseStudioRoute,
@@ -37,6 +38,19 @@ describe('StudioRoutes',()=>{
     const blank=authoringWorldUrl(authored,null);
     expect(parseStudioRoute(blank)).toMatchObject({page:'world',worldId:null,worldArtifactId:null,authoringId:null,authoringNew:true});
     expect(new URL(blank).searchParams.get('authoring')).toBe('new');
+  });
+
+  it('opens published and browser-local code worlds independently of authoring routes',()=>{
+    const source='http://127.0.0.1:5173/studio/?page=worlds&world=monument-hall&authoring=draft_01';
+    const published=codeWorldUrl(source,{published:'eldermere-academy'});
+    expect(new URL(published).searchParams.get('codeWorld')).toBe('eldermere-academy');
+    expect(new URL(published).searchParams.get('authoring')).toBeNull();
+    expect(parseStudioRoute(published).page).toBe('world');
+    const local=codeWorldUrl(published,{local:'world_abc123'});
+    expect(new URL(local).searchParams.get('codeWorld')).toBeNull();
+    expect(new URL(local).searchParams.get('codeProject')).toBe('world_abc123');
+    expect(new URL(builtInWorldUrl(published,'ruined-courtyard')).searchParams.get('codeWorld')).toBeNull();
+    expect(new URL(authoringWorldUrl(local,null)).searchParams.get('codeProject')).toBeNull();
   });
 
   it('keeps Worlds selected while a concrete World Editor child route is active',()=>{

@@ -36,6 +36,7 @@ describe('WorldsPage contract',()=>{
     expect(html).toContain('示例场景<span>2</span>');
     expect(html).toContain('我的草稿<span>1</span>');
     expect(html).toContain('已生成<span>1</span>');
+    expect(html).toContain('代码世界<span>1</span>');
     expect(html).toContain('aria-label="搜索世界"');
     expect(html).toContain('/previews/worlds/monument-hall.webp');
     expect(html).toContain('纪念大厅的场景预览');

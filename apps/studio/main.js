@@ -90,6 +90,31 @@ async function main() {
   }));
 
   metrics.mark('workspace-ready');
+  const publishedCode=params.get('codeWorld');
+  const localCode=params.get('codeProject');
+  if(publishedCode || localCode){
+    const { findPublishedCodeWorld } = await import('./code-project/PublishedCodeWorlds.js');
+    const { parseCodeProject } = await import('../../application/native-scene/CodeProject.js');
+    const controller=runtime.codeProjects;
+    if(publishedCode){
+      const published=findPublishedCodeWorld(publishedCode);
+      if(!published)throw new Error('CODE_WORLD_NOT_FOUND');
+      await controller.refresh();
+      if(controller.snapshot().projects.some(project=>project.id===published.id)){
+        await controller.load(published.id);
+      }else{
+        const response=await fetch(published.projectUrl,{cache:'no-cache'});
+        if(!response.ok)throw new Error('CODE_WORLD_DOWNLOAD_FAILED');
+        const project=await parseCodeProject(await response.json());
+        if(project.id!==published.id)throw new Error('CODE_WORLD_ID_MISMATCH');
+        await controller.write({create:true,project});
+      }
+    }else{
+      if(!/^world_[a-f0-9]{32}$/.test(localCode||''))throw new Error('CODE_PROJECT_ID_INVALID');
+      await controller.load(localCode);
+    }
+    await controller.run({expectedRevision:controller.snapshot().revision});
+  }
   if (params.get('openCode') === '1') {
     const url = new URL(location.href);
     url.searchParams.set('page','world');

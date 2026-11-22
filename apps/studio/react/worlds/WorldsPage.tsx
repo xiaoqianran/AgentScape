@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { StudioIcon } from '../shared/StudioIcon';
 import { worldPresentation } from './WorldPresentation';
+import { PUBLISHED_CODE_WORLDS } from '../../code-project/PublishedCodeWorlds.js';
+import { codeWorldUrl } from '../../navigation/StudioRoutes.js';
 import './WorldsPage.css';
 
 type WorldDefinition = { id:string; title:string; number?:string; headline?:string; description?:string; facts?:string[]; worldFirst?:boolean };
@@ -20,6 +22,7 @@ type Props = {
   presentation:any;
   resources?:{ snapshot:()=>Record<string,WorldResource[]>; onChange:(listener:()=>void)=>(()=>void)|undefined }|null;
   authoring?:AuthoringControls|null;
+  codeProjects?:{subscribe:(listener:()=>void)=>()=>void;snapshot:()=>any;refresh?:()=>Promise<unknown>}|null;
   openBuiltinWorld:(id:string)=>Promise<unknown>;
   openGeneratedWorld?:(id:string)=>Promise<unknown>;
   enterAuthoringEditor?:(id:string|null)=>void;
@@ -30,7 +33,7 @@ type Props = {
 const EMPTY_AUTHORING = Object.freeze({ worlds:[], status:null, loading:false, fileError:'' });
 const emptySubscribe = () => () => {};
 const emptySnapshot = () => EMPTY_AUTHORING;
-type Collection = 'builtin'|'drafts'|'generated';
+type Collection = 'builtin'|'drafts'|'generated'|'code';
 
 function formatUpdatedAt(value:unknown) {
   if (!value) return '尚未保存';
@@ -162,9 +165,12 @@ export function DraftWorldRow({
   );
 }
 
-export function WorldsPage({ environments, presentation, resources=null, authoring=null, openBuiltinWorld, openGeneratedWorld, enterAuthoringEditor=()=>{}, enterCurrentWorld, openBuild, onCollectionChange }:Props) {
+export function WorldsPage({ environments, presentation, resources=null, authoring=null, codeProjects=null, openBuiltinWorld, openGeneratedWorld, enterAuthoringEditor=()=>{}, enterCurrentWorld, openBuild, onCollectionChange }:Props) {
   const [resourceRevision,setResourceRevision] = useState(0);
-  const [collection,setCollection] = useState<Collection>(()=>new URLSearchParams(globalThis.location?.search || '').get('collection') === 'generated' ? 'generated' : 'builtin');
+  const [collection,setCollection] = useState<Collection>(()=>{
+    const initial=new URLSearchParams(globalThis.location?.search || '').get('collection');
+    return initial==='generated'||initial==='drafts'||initial==='code'?initial:'builtin';
+  });
   const [query,setQuery] = useState('');
   const [busyKey,setBusyKey] = useState<string|null>(null);
   const [error,setError] = useState('');
@@ -174,6 +180,10 @@ export function WorldsPage({ environments, presentation, resources=null, authori
   const generatedWorlds = (resourceSnapshot.worlds || []).filter(item=>item.source==='generated');
   const authoringState:any = useSyncExternalStore(authoring?.subscribe || emptySubscribe,authoring?.snapshot || emptySnapshot,authoring?.snapshot || emptySnapshot);
   const drafts:DraftWorld[] = authoringState.worlds || [];
+  const codeState:any=useSyncExternalStore(codeProjects?.subscribe || emptySubscribe,codeProjects?.snapshot || emptySnapshot,codeProjects?.snapshot || emptySnapshot);
+  const localCodeWorlds:Array<{id:string;name?:string;updatedAt?:string}>=codeState.projects || [];
+  const publishedIds=new Set<string>(PUBLISHED_CODE_WORLDS.map(world=>world.id));
+  const localOnlyCodeWorlds=localCodeWorlds.filter(world=>!publishedIds.has(world.id));
   const authoringLoading = Boolean(authoringState.loading);
   const currentDraftId = authoringState.status?.active === false ? null : authoringState.status?.id || null;
   const current = worldPresentation(presentation || { id:'', title:'当前世界' });
@@ -182,8 +192,10 @@ export function WorldsPage({ environments, presentation, resources=null, authori
   const visibleBuiltins=environments.filter(world=>matches(worldPresentation(world).title,worldPresentation(world).description,world.id));
   const visibleDrafts=drafts.filter(world=>matches(world.name,world.id));
   const visibleGenerated=generatedWorlds.filter(world=>matches(world.label,world.id));
-  const counts={builtin:environments.length,drafts:drafts.length,generated:generatedWorlds.length};
-  const visibleCount=collection==='builtin'?visibleBuiltins.length:collection==='drafts'?visibleDrafts.length:visibleGenerated.length;
+  const visiblePublishedCodeWorlds=PUBLISHED_CODE_WORLDS.filter(world=>matches(world.name,world.description,world.id));
+  const visibleLocalCodeWorlds=localOnlyCodeWorlds.filter(world=>matches(world.name,world.id));
+  const counts={builtin:environments.length,drafts:drafts.length,generated:generatedWorlds.length,code:PUBLISHED_CODE_WORLDS.length+localOnlyCodeWorlds.length};
+  const visibleCount=collection==='builtin'?visibleBuiltins.length:collection==='drafts'?visibleDrafts.length:collection==='generated'?visibleGenerated.length:visiblePublishedCodeWorlds.length+visibleLocalCodeWorlds.length;
   const showDraftLoading=collection==='drafts' && authoringLoading && drafts.length===0;
   const canManageDrafts=Boolean(authoring?.rename && authoring?.remove);
 
@@ -201,6 +213,10 @@ export function WorldsPage({ environments, presentation, resources=null, authori
       busy.current=false;
       setBusyKey(null);
     }
+  };
+
+  const openCodeWorld=(published:string|null,local:string|null)=>{
+    globalThis.location.assign(codeWorldUrl(globalThis.location.href,{published,local}));
   };
 
   const create=async()=>{
@@ -277,7 +293,7 @@ export function WorldsPage({ environments, presentation, resources=null, authori
 
     <div className="worlds-controls">
       <div className="worlds-filters" role="group" aria-label="世界分类">
-        {([['builtin','示例场景'],['drafts','我的草稿'],['generated','已生成']] as const).map(([key,label])=><button key={key} type="button" aria-pressed={collection===key} onClick={()=>{setCollection(key);setQuery('');setError('');onCollectionChange?.(key);}}>{label}<span>{counts[key]}</span></button>)}
+        {([['builtin','示例场景'],['drafts','我的草稿'],['generated','已生成'],['code','代码世界']] as const).map(([key,label])=><button key={key} type="button" aria-pressed={collection===key} onClick={()=>{setCollection(key);setQuery('');setError('');onCollectionChange?.(key);}}>{label}<span>{counts[key]}</span></button>)}
       </div>
       <label className="worlds-search"><StudioIcon name="search" size={16} /><input type="search" aria-label="搜索世界" placeholder="搜索名称或场景…" value={query} onChange={e=>setQuery(e.target.value)} /></label>
     </div>
@@ -323,9 +339,33 @@ export function WorldsPage({ environments, presentation, resources=null, authori
         })}
       </div> : null}
 
-      {!visibleCount && !showDraftLoading ? <div className="worlds-empty"><StudioIcon name={query?'search':collection==='drafts'?'folder':'worlds'} size={32} /><h3>{query?'没有找到匹配的世界':collection==='drafts'?'给新想法一个空白场景':'还没有生成的世界'}</h3><p>{query?'换一个关键词，或清除搜索。':collection==='drafts'?'新建草稿后，可以从资源库添加物体并保存到本机。':'前往生成工作台，描述你想要的环境。生成结果会保存在这里。'}</p>{query ? <button type="button" onClick={()=>setQuery('')}>清除搜索</button> : collection==='drafts' ? <button type="button" disabled={!authoring || !!busyKey} onClick={()=>void create()}>新建草稿</button> : openBuild ? <button type="button" onClick={openBuild}>前往生成工作台<StudioIcon name="arrow" size={16} /></button> : null}</div> : null}
+      {collection==='code' ? <div className="worlds-list" aria-label="代码世界列表">
+        {visiblePublishedCodeWorlds.map(world=><article className="world-list-row" data-code-world={world.slug} key={world.slug}>
+          <div className="world-list-icon"><StudioIcon name="worlds" size={24} /></div>
+          <div className="world-list-copy">
+            <strong>{world.name}</strong>
+            <small className="world-list-meta"><span>已发布的完整 Three.js 代码世界</span><span>首次打开将导入当前浏览器</span></small>
+            <small>{world.description}</small>
+          </div>
+          <div className="world-list-actions">
+            <button type="button" disabled={!!busyKey} onClick={()=>openCodeWorld(world.slug,null)}>在 Studio 中打开<StudioIcon name="arrow" size={16}/></button>
+          </div>
+        </article>)}
+        {visibleLocalCodeWorlds.map(world=><article className="world-list-row" data-code-project={world.id} key={world.id}>
+          <div className="world-list-icon"><StudioIcon name="folder" size={24}/></div>
+          <div className="world-list-copy"><strong>{world.name || world.id}</strong>
+            <small className="world-list-meta"><span>当前浏览器的代码世界</span><span>最近保存：{formatUpdatedAt(world.updatedAt)}</span></small>
+            <code>{world.id}</code>
+          </div>
+          <div className="world-list-actions">
+            <button type="button" disabled={!!busyKey} onClick={()=>openCodeWorld(null,world.id)}>继续编辑<StudioIcon name="arrow" size={16}/></button>
+          </div>
+        </article>)}
+      </div> : null}
+
+      {!visibleCount && !showDraftLoading ? <div className="worlds-empty"><StudioIcon name={query?'search':collection==='drafts'?'folder':'worlds'} size={32} /><h3>{query?'没有找到匹配的世界':collection==='drafts'?'给新想法一个空白场景':collection==='code'?'还没有代码世界':'还没有生成的世界'}</h3><p>{query?'换一个关键词，或清除搜索。':collection==='drafts'?'新建草稿后，可以从资源库添加物体并保存到本机。':collection==='code'?'可以从代码世界入口创建，或打开已发布的示例。':'前往生成工作台，描述你想要的环境。生成结果会保存在这里。'}</p>{query ? <button type="button" onClick={()=>setQuery('')}>清除搜索</button> : collection==='drafts' ? <button type="button" disabled={!authoring || !!busyKey} onClick={()=>void create()}>新建草稿</button> : openBuild ? <button type="button" onClick={openBuild}>前往生成工作台<StudioIcon name="arrow" size={16} /></button> : null}</div> : null}
     </div>
 
-    <footer className="worlds-footer"><span>{showDraftLoading?'正在读取…':`${visibleCount} 个${collection==='builtin'?'示例场景':collection==='drafts'?'草稿':'生成世界'}`}</span><span>草稿与资源保存在当前浏览器</span></footer>
+    <footer className="worlds-footer"><span>{showDraftLoading?'正在读取…':`${visibleCount} 个${collection==='builtin'?'示例场景':collection==='drafts'?'草稿':collection==='code'?'代码世界':'生成世界'}`}</span><span>本机草稿保存在当前浏览器；已发布代码世界可跨浏览器访问</span></footer>
   </section>;
 }

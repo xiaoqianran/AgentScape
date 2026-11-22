@@ -132,6 +132,7 @@ export async function createStudioRuntime({
         baseScene:scene, baseWorld:world, ui
       })
     }));
+    void codeProjects.refresh().catch(error=>console.error('读取本机代码世界失败',error));
     liveBridge.codeProjects = codeProjects;
     scope.add(() => ui.attachCodeProjects?.(null));
     ui.attachCodeProjects?.(codeProjects);

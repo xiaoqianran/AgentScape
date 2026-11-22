@@ -93,6 +93,7 @@ export function ProductPages({
           presentation={presentation}
           resources={content?.resourceLibrary?.resources || bridgeState.worldResources || null}
           authoring={bridgeState.authoring}
+          codeProjects={bridgeState.codeProjects}
           openBuiltinWorld={openBuiltinWorld}
           openGeneratedWorld={content?.resourceLibrary?.openGeneratedWorld}
           enterCurrentWorld={()=>navigate('world')}

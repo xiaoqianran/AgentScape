@@ -1,5 +1,5 @@
 import { AuthoringWorldStore } from '../persistence/AuthoringWorldStore.js';
-import { authoringWorldUrl, builtInWorldUrl } from '../navigation/StudioRoutes.js';
+import { authoringWorldUrl, builtInWorldUrl, codeWorldUrl } from '../navigation/StudioRoutes.js';
 
 // The worlds index is usable without creating a renderer, physics engine or world session.
 // The full Studio remains the only owner of world editing and generation capabilities.
@@ -58,10 +58,23 @@ export function createStudioLightweightWorkspace({ ui, environments, location = 
   ui.attachWorldResources({snapshot:()=>({worlds:[]}),onChange:()=>()=>{}});
   // Keep the existing code-world entry visible. Opening it requests the full
   // runtime; the lightweight index must not instantiate a code editor.
-  const emptyCodeSnapshot = Object.freeze({visible:false,active:false,project:null});
+  const codeStore=new AuthoringWorldStore({databaseName:'agentscape-code-projects'});
+  let codeState=Object.freeze({visible:false,active:false,project:null,projects:[]});
+  const codeListeners=new Set();
+  const codeSnapshot=()=>codeState;
+  const codeRefresh=async()=>{
+    const projects=await codeStore.list();
+    if(disposed)return projects;
+    codeState=Object.freeze({...codeState,projects});
+    for(const listener of codeListeners)listener();
+    return projects;
+  };
   ui.attachCodeProjects({
-    subscribe:()=>()=>{},
-    snapshot:()=>emptyCodeSnapshot,
+    subscribe:(listener)=>{codeListeners.add(listener);return ()=>codeListeners.delete(listener);},
+    snapshot:codeSnapshot,
+    refresh:codeRefresh,
+    open:(id)=>{navigate(codeWorldUrl(currentHref(),{local:id}));},
+
     show:()=>{
       const url=new URL(currentHref());
       url.searchParams.set('page','worlds');
@@ -84,12 +97,14 @@ export function createStudioLightweightWorkspace({ ui, environments, location = 
   });
   // The shell is interactive immediately; IndexedDB metadata loads independently.
   void refresh();
+  void codeRefresh().catch(error=>console.error('读取本机代码世界失败',error));
   ui.setRuntimeStatus('ready','工作台就绪');
   return {
     dispose() {
       disposed = true;
       stop();
       listeners.clear();
+      codeListeners.clear();
       ui.setWorldCollectionChangeHandler(null);
       ui.attachAuthoring(null);
       ui.attachWorldResources(null);

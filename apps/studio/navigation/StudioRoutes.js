@@ -41,7 +41,7 @@ export function studioProductUrl(currentHref, { page = 'worlds', agentView = 'ta
 
 export function builtInWorldUrl(currentHref, worldId) {
   const url = asUrl(currentHref);
-  for (const key of [...GENERATED_SOURCE_KEYS,'worldArtifact','authoring','draftName']) url.searchParams.delete(key);
+  for (const key of [...GENERATED_SOURCE_KEYS,'worldArtifact','authoring','draftName','codeWorld','codeProject']) url.searchParams.delete(key);
   url.searchParams.set('world',worldId);
   url.searchParams.set('page','world');
   url.searchParams.delete('agent');
@@ -50,7 +50,7 @@ export function builtInWorldUrl(currentHref, worldId) {
 
 export function generatedArtifactWorldUrl(currentHref, artifactId) {
   const url = asUrl(currentHref);
-  for (const key of [...GENERATED_SOURCE_KEYS,'world','authoring','draftName']) url.searchParams.delete(key);
+  for (const key of [...GENERATED_SOURCE_KEYS,'world','authoring','draftName','codeWorld','codeProject']) url.searchParams.delete(key);
   url.searchParams.set('worldArtifact',artifactId);
   url.searchParams.set('page','world');
   url.searchParams.delete('agent');
@@ -59,7 +59,7 @@ export function generatedArtifactWorldUrl(currentHref, artifactId) {
 
 export function authoringWorldUrl(currentHref, authoringId = null) {
   const url = asUrl(currentHref);
-  for (const key of [...GENERATED_SOURCE_KEYS,'world','worldArtifact','draftName']) url.searchParams.delete(key);
+  for (const key of [...GENERATED_SOURCE_KEYS,'world','worldArtifact','draftName','codeWorld','codeProject']) url.searchParams.delete(key);
   url.searchParams.set('authoring',authoringId || 'new');
   url.searchParams.set('page','world');
   url.searchParams.delete('agent');
@@ -69,4 +69,17 @@ export function authoringWorldUrl(currentHref, authoringId = null) {
 export function isProductNavigationActive(activePage, navigationPage) {
   if (navigationPage === 'worlds') return activePage === 'worlds' || activePage === 'world';
   return activePage === navigationPage;
+}
+
+/** Enter Studio's full code editor, rather than the unrelated authoring draft. */
+/** @param {string} currentHref @param {{published?: string|null,local?: string|null}} options */
+export function codeWorldUrl(currentHref,{published=null,local=null}={}) {
+  const url=asUrl(currentHref);
+  for(const key of [...GENERATED_SOURCE_KEYS,'world','worldArtifact','authoring','draftName','openCode','collection'])url.searchParams.delete(key);
+  url.searchParams.set('page','world');
+  url.searchParams.delete('codeWorld');
+  url.searchParams.delete('codeProject');
+  if(published)url.searchParams.set('codeWorld',published);
+  else if(local)url.searchParams.set('codeProject',local);
+  return url.toString();
 }
