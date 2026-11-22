@@ -1,6 +1,7 @@
 import { LABELS, REASONS } from './ActionPresentation';
 import { useActionOperation } from './useActionOperation';
 import { useEffect, useState } from 'react';
+import { guardAsync } from '../shared/guardAsync';
 import type { EditorCommandsLike, InspectorAffordanceAction, InspectorAffordances } from './InspectorTypes';
 
 const DIRECTION:Record<string,[number,number,number]>={
@@ -79,7 +80,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
         interaction.args={};
       }
       // Completion belongs to the shared controller, never to this mounted target's local state.
-      void commands.executeAffordance(interaction).catch(()=>{});
+      guardAsync('执行交互', () => commands.executeAffordance?.(interaction));
     } catch(cause) {
       const message=cause instanceof Error ? cause.message : String(cause);
       setError(message);log('交互失败：'+message,'error');

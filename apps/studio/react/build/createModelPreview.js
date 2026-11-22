@@ -13,6 +13,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 export async function mountModelPreview({ host, url, onReady = () => {} } = {}) {
   if (!host || !url) throw new TypeError('mountModelPreview requires host and url');
+  // Load before allocating GPU resources: a failed import must not leak a WebGL context.
+  const gltf = await new GLTFLoader().loadAsync(url);
   const scene = new Scene();
   const camera = new PerspectiveCamera(34, 1, 0.01, 1000);
   const renderer = new WebGLRenderer({ antialias:true, alpha:true });
@@ -26,7 +28,6 @@ export async function mountModelPreview({ host, url, onReady = () => {} } = {}) 
   key.position.set(3, 5, 4);
   scene.add(key);
 
-  const gltf = await new GLTFLoader().loadAsync(url);
   const model = gltf.scene;
   const box = new Box3().setFromObject(model);
   const size = box.getSize(new Vector3());
@@ -84,6 +85,7 @@ export async function mountModelPreview({ host, url, onReady = () => {} } = {}) 
       }
     });
     renderer.dispose();
+    renderer.forceContextLoss();
     host.replaceChildren();
   };
 }

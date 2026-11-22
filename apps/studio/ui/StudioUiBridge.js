@@ -20,7 +20,10 @@ export function createStudioUiBridge() {
 
   const emit = (patch) => {
     snapshot = Object.freeze({ ...snapshot, ...patch });
-    for (const listener of listeners) listener();
+    for (const listener of [...listeners]) {
+      try { listener(); }
+      catch (error) { console.error('[AgentScape] UI bridge listener failed', error); }
+    }
   };
 
   return {

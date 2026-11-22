@@ -7,6 +7,7 @@ import { ResourceLibraryView } from '../resources/ResourceLibraryView';
 import { WorldsPage } from '../worlds/WorldsPage';
 import type { ProductPage } from '../state/studioStore';
 import { useStudioStore } from '../state/studioStore';
+import { guardAsync } from '../shared/guardAsync';
 
 type EnvironmentDefinition = {
   id:string;
@@ -22,15 +23,16 @@ export function CommandBar({ taskPanel, inputRef, draft }: { taskPanel:any; inpu
   useEffect(()=>{
     if (!draft) return;
     setValue(draft.value || '');
-    requestAnimationFrame(()=>inputRef.current?.focus());
-  },[draft?.id,inputRef]);
+    const frame = requestAnimationFrame(()=>inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  },[draft?.id,draft?.value,inputRef]);
   const submit = (event:FormEvent) => {
     event.preventDefault();
     const prompt = value.trim();
     if (!prompt || state.busy || !state.available) return;
     setValue('');
     const reference=bindSelection && Boolean(selection) ? `\n对象引用（只针对这个真实对象）：${JSON.stringify({source:selection?.source,id:selection?.id})}` : '';
-    void taskPanel.submit(prompt+reference);
+    guardAsync('提交指令', () => taskPanel.submit(prompt+reference));
   };
   return (
     <form id="command" className="command-bar product-command-bar" autoComplete="off" onSubmit={submit}>

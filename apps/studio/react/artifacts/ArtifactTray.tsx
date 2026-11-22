@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStudioStore, type BuildOutputRef } from '../state/studioStore';
 import { executeArtifactTrayAction, type ArtifactTrayActionController } from '../../artifacts/artifactTrayActions';
 import './ArtifactTray.css';
@@ -146,8 +146,7 @@ export function ArtifactTrayView({ resources, controller, agentVerifier, openBui
     }
   }), [resources]);
 
-  const approvedIds = resources.approvedAssetIds();
-  void libraryRevision;
+  const approvedIds = useMemo(() => resources.approvedAssetIds(), [resources, libraryRevision]);
 
   const saveAsset = async (output: BuildOutputRef) => {
     if (output.kind !== 'asset') return;

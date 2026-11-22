@@ -44,17 +44,32 @@ export class GenerationJobCenter {
   constructor({root,world,tools,log=()=>{}}={}) {
     if(!root||!world?.generation) throw new Error('GenerationJobCenter requires root and runtime generation service');
     Object.assign(this,{root,world,tools,log,jobs:[],capabilities:[],selectedJobId:null,pairingId:null,timer:null,unsubscribers:[]});
+    this.listeners = new AbortController();
+    this.disposed = false;
     this.outcomes=new Map(); this.imports=new Map(); this.assetIds=new Map(); this.bindElements();
   }
   bindElements(){const q=(s)=>this.root.querySelector(s);this.badge=q('#generation-connector-badge');this.state=q('#generation-state');this.stateLabel=q('#generation-state-label');this.stateDetail=q('#generation-state-detail');this.pairingHint=q('#generation-pairing-hint');this.provider=q('#generation-provider');this.operation=q('#generation-operation');this.capabilityHint=q('#generation-capability-hint');this.profile=q('#generation-profile');this.inputs=q('#generation-inputs');this.assetId=q('#generation-asset-id');this.costConfirm=q('#generation-cost-confirm');this.jobsDisclosure=q('#generation-jobs-disclosure');this.resultDisclosure=q('#generation-result-disclosure');this.jobList=q('#generation-job-list');this.selectedId=q('#generation-selected-id');this.jobDetail=q('#generation-job-detail');this.compileAssetId=q('#generation-compile-asset-id');this.resultReport=q('#generation-result-report');this.buttons={pair:q('#generation-pair'),revoke:q('#generation-revoke'),submit:q('#generation-submit'),refresh:q('#generation-refresh'),jobRefresh:q('#generation-job-refresh'),cancel:q('#generation-job-cancel'),import:q('#generation-job-import'),compile:q('#generation-job-compile'),spawn:q('#generation-job-spawn')};}
   async init(){
-this.buttons.pair.addEventListener('click',()=>this.pair());this.buttons.revoke.addEventListener('click',()=>this.revoke());this.buttons.submit.addEventListener('click',()=>this.submit());this.buttons.refresh.addEventListener('click',()=>this.refresh({remote:true}));this.buttons.jobRefresh.addEventListener('click',()=>this.refreshSelected());this.buttons.cancel.addEventListener('click',()=>this.cancelSelected());this.buttons.import.addEventListener('click',()=>this.importSelected());this.buttons.compile.addEventListener('click',()=>this.compileSelected());this.buttons.spawn.addEventListener('click',()=>this.spawnSelected());this.provider.addEventListener('change',()=>this.renderCapabilities());this.operation.addEventListener('change',()=>this.renderCapabilityHint());this.costConfirm.addEventListener('change',()=>this.renderCapabilityHint());
+    const { signal } = this.listeners;
+    const click = (button, action) => button?.addEventListener('click', action, { signal });
+    click(this.buttons.pair, () => this.pair());
+    click(this.buttons.revoke, () => this.revoke());
+    click(this.buttons.submit, () => this.submit());
+    click(this.buttons.refresh, () => this.refresh({remote:true}));
+    click(this.buttons.jobRefresh, () => this.refreshSelected());
+    click(this.buttons.cancel, () => this.cancelSelected());
+    click(this.buttons.import, () => this.importSelected());
+    click(this.buttons.compile, () => this.compileSelected());
+    click(this.buttons.spawn, () => this.spawnSelected());
+    this.provider.addEventListener('change', () => this.renderCapabilities(), { signal });
+    this.operation.addEventListener('change', () => this.renderCapabilityHint(), { signal });
+    this.costConfirm.addEventListener('change', () => this.renderCapabilityHint(), { signal });
     const listen=(type,handler)=>{const off=this.world.events?.on?.(type,handler);if(typeof off==='function')this.unsubscribers.push(off);};
     listen('generation.state',(state)=>{this.renderConnectorState(state);if(state?.status==='generation-ready')this.refreshCapabilities();});listen('generation.job.submitted',()=>this.refresh({remote:false}));listen('generation.job.cancelled',()=>this.refresh({remote:false}));listen('generation.artifact.imported',()=>this.renderSelected());
     this.refreshCapabilities();this.renderConnectorState(this.world.generation.connectorStatus());await this.refresh({remote:this.world.generation.connectorStatus().status==='paired'});
     this.timer=setInterval(()=>{if(this.jobs.some((job)=>ACTIVE_STATUSES.has(job.status))&&this.world.generation.connectorStatus().status==='paired')this.refresh({remote:true,silent:true});},5000);return this;
   }
-  destroy(){if(this.timer)clearInterval(this.timer);this.timer=null;for(const off of this.unsubscribers.splice(0))off();}
+  destroy(){if(this.disposed)return;this.disposed=true;this.listeners?.abort();if(this.timer)clearInterval(this.timer);this.timer=null;for(const off of this.unsubscribers.splice(0))off();}
   setState(state,label,detail){this.state.dataset.state=state;this.stateLabel.textContent=label;this.stateDetail.textContent=detail;}
   renderConnectorState(state={}){
     const connectorState=this.world.generation.connectorStatus();
@@ -102,7 +117,7 @@ this.buttons.pair.addEventListener('click',()=>this.pair());this.buttons.revoke.
     this.resultDisclosure.open=true;
   }catch(error){this.setState('error','提交失败',error.message);this.log(`提交生成失败：${error.message}`,'error');}finally{this.renderCapabilityHint();}}
   async refresh({remote=false,silent=false}={}){try{const result=remote?await this.world.generation.reconcileGenerationJobs():this.world.generation.listGenerationJobs();this.jobs=result.jobs||[];if(this.selectedJobId&&!this.jobs.some((job)=>job.jobId===this.selectedJobId))this.selectedJobId=null;if(!this.selectedJobId&&this.jobs.length)this.selectedJobId=this.jobs[0].jobId;this.renderJobs();this.renderSelected();if(!silent&&result.status==='connection-required'&&this.jobs.length)this.setState('connection-required','离线生成任务快照','连接器不可用；当前显示本地脱敏快照。');}catch(error){if(!silent){this.setState('error','生成任务恢复失败',error.message);this.log(`刷新生成任务失败：${error.message}`,'error');}}}
-  renderJobs(){this.jobList.replaceChildren();for(const job of this.jobs){const button=el('button','generation-job-row');button.type='button';button.classList.toggle('selected',job.jobId===this.selectedJobId);const top=el('span','generation-job-row-top');top.append(el('strong',null,generationStatusLabel(job.status)),el('small',null,text(job.updatedAt)));const id=el('span','generation-job-row-id',job.jobId);const progress=job.progress?.value!=null?` · ${Math.round(job.progress.value*100)}%`:'';button.append(top,id,el('span','generation-job-row-meta',`${job.provider} · ${job.stage||job.phase||'等待中'}${progress}`));button.addEventListener('click',()=>{this.selectedJobId=job.jobId;this.resultDisclosure.open=true;this.renderJobs();this.renderSelected();});this.jobList.append(button);}if(!this.jobs.length)this.jobList.append(el('div','generation-empty','暂无生成任务。'));}
+  renderJobs(){if(this.disposed)return;this.jobList.replaceChildren();for(const job of this.jobs){const button=el('button','generation-job-row');button.type='button';button.classList.toggle('selected',job.jobId===this.selectedJobId);const top=el('span','generation-job-row-top');top.append(el('strong',null,generationStatusLabel(job.status)),el('small',null,text(job.updatedAt)));const id=el('span','generation-job-row-id',job.jobId);const progress=job.progress?.value!=null?` · ${Math.round(job.progress.value*100)}%`:'';button.append(top,id,el('span','generation-job-row-meta',`${job.provider} · ${job.stage||job.phase||'等待中'}${progress}`));button.addEventListener('click',()=>{this.selectedJobId=job.jobId;this.resultDisclosure.open=true;this.renderJobs();this.renderSelected();},{signal:this.listeners.signal});this.jobList.append(button);}if(!this.jobs.length)this.jobList.append(el('div','generation-empty','暂无生成任务。'));}
   selectedJob(){return this.jobs.find((job)=>job.jobId===this.selectedJobId)||null;}
   renderSelected(){
     const job=this.selectedJob(),outcome=job?this.outcomes.get(job.jobId):null,imported=job?this.imports.get(job.jobId):null,actions=generationJobActions(job,outcome);

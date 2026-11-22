@@ -59,7 +59,6 @@ test('MCP stages coordinated changes, Studio reviews and applies them, then undo
   await expect(page.getByRole('button',{name:'撤销上一批修改',exact:true})).toBeVisible();
   expect((await call('read')).revision).toBe(2);
 
-  await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
   await expect(page.locator('.studio-code-project-viewport canvas')).toBeVisible();
   const observe=async()=>{
@@ -73,7 +72,6 @@ test('MCP stages coordinated changes, Studio reviews and applies them, then undo
   await expect(page.locator('.code-project-editor output').first()).toHaveText('已撤销上一批修改，请重新运行代码世界');
   expect((await call('read')).revision).toBe(3);
   await expect(page.getByLabel('项目文件列表')).not.toContainText('lib/config.js');
-  await page.getByRole('button',{name:'审阅后批准本版本',exact:true}).click();
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
   await expect.poll(async()=> (await observe()).project.entities[0].state.configured).toBeUndefined();
 

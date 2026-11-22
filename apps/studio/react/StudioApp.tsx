@@ -55,7 +55,9 @@ export function StudioApp({
   } = useStudioShellModel({ environmentDefinition, commitLayoutChange });
 
   useEffect(()=>{
-    if (activePage === 'agent' && agentView === 'tasks') requestAnimationFrame(()=>commandInputRef.current?.focus());
+    if (activePage !== 'agent' || agentView !== 'tasks') return;
+    const frame = requestAnimationFrame(()=>commandInputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
   },[activePage,agentView]);
 
   return (

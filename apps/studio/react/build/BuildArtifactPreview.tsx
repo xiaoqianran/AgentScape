@@ -46,7 +46,8 @@ export function ModelArtifactPreview({ resources, artifactId, label }: { resourc
     ).then((dispose) => {
       if (disposed) dispose?.();
       else disposePreview = dispose || null;
-    }).catch(() => {
+    }    ).catch((error) => {
+      console.warn('[AgentScape] 3D preview failed', error);
       if (!disposed) setState('error');
     });
 

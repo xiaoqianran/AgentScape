@@ -12,6 +12,7 @@ import { useStudioStore } from '../state/studioStore';
 import { TaskPanelView } from '../agent/TaskPanelView';
 import { CommandBar } from '../shell/ProductPages';
 import { CodeProjectEditor, CodeProjectActions, emptyCodeSubscribe, emptyCodeSnapshot } from './CodeProjectWorkbench';
+import { guardAsync } from '../shared/guardAsync';
 
 function AuthoringMenu({ controller }: { controller:any }) {
   const state:any = useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
@@ -30,10 +31,10 @@ function AuthoringMenu({ controller }: { controller:any }) {
         <option value="">选择创作世界…</option>
         {state.worlds.map((item:any)=><option key={item.id} value={item.id}>{item.name || item.id}</option>)}
       </select>
-      <button id="authoring-new" type="button" onClick={()=>void controller.createNew()}>新建草稿</button>
-      <button id="authoring-open" disabled={!selected} type="button" onClick={()=>void controller.open(selected)}>打开草稿</button>
-      <button id="authoring-save" disabled={!authoringActive} type="button" onClick={()=>void controller.save()}>保存草稿</button>
-      <button id="authoring-save-as" disabled={!authoringActive} type="button" onClick={()=>void controller.saveAs()}>草稿另存为</button>
+      <button id="authoring-new" type="button" onClick={()=>guardAsync('新建草稿', () => controller.createNew())}>新建草稿</button>
+      <button id="authoring-open" disabled={!selected} type="button" onClick={()=>guardAsync('打开草稿', () => controller.open(selected))}>打开草稿</button>
+      <button id="authoring-save" disabled={!authoringActive} type="button" onClick={()=>guardAsync('保存草稿', () => controller.save())}>保存草稿</button>
+      <button id="authoring-save-as" disabled={!authoringActive} type="button" onClick={()=>guardAsync('草稿另存为', () => controller.saveAs())}>草稿另存为</button>
       <span id="authoring-save-status" className="toolbar-menu-status">{statusLabel}</span>
       {state.fileError ? <span className="toolbar-menu-status" role="alert">{state.fileError}</span> : null}
       {authoringActive ? <AuthoringPromotionView state={state} controller={controller} /> : null}
@@ -49,33 +50,34 @@ function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authorin
   const interactionMode=useStudioStore(state=>state.editor.interactionMode);
   const setInteractionMode=useStudioStore(state=>state.setInteractionMode);
   const exploring=interactionMode!=='edit';
+  const worldFirst=useStudioStore(state=>Boolean(state.view.worldPresentation?.worldFirst));
   return (
     <div className="editor-toolbar" aria-label="场景编辑工具">
       <div role="group" aria-label="世界交互模式">
-        <button type="button" aria-pressed={exploring} onClick={()=>setInteractionMode('explore')}>探索</button>
+        <button type="button" aria-pressed={exploring} title={worldFirst ? '进入第一/第三人称漫游' : '此世界不提供第一人称漫游，仅可查看'} onClick={()=>setInteractionMode('explore')}>{worldFirst ? '探索' : '只读'}</button>
         <button type="button" aria-pressed={!exploring} onClick={()=>setInteractionMode('edit')}>编辑</button>
       </div>
-      <button id="undo" title="撤销 (Ctrl+Z)" aria-label="撤销" type="button" disabled={exploring || !state.history?.canUndo} onClick={()=>void controls.undo()}><StudioIcon name="undo" /></button>
-      <button id="redo" title="重做 (Ctrl+Shift+Z)" aria-label="重做" type="button" disabled={exploring || !state.history?.canRedo} onClick={()=>void controls.redo()}><StudioIcon name="redo" /></button>
+      <button id="undo" title="撤销 (Ctrl+Z)" aria-label="撤销" type="button" disabled={exploring || !state.history?.canUndo} onClick={()=>guardAsync('撤销', () => controls.undo())}><StudioIcon name="undo" /></button>
+      <button id="redo" title="重做 (Ctrl+Shift+Z)" aria-label="重做" type="button" disabled={exploring || !state.history?.canRedo} onClick={()=>guardAsync('重做', () => controls.redo())}><StudioIcon name="redo" /></button>
       <span className="toolbar-divider" />
       <button disabled={exploring} data-mode="translate" className={state.mode === 'translate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('translate')}><StudioIcon name="move" size={16} />移动 <kbd>W</kbd></button>
       <button disabled={exploring} data-mode="rotate" className={state.mode === 'rotate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('rotate')}><StudioIcon name="rotate" size={16} />旋转 <kbd>E</kbd></button>
       <span className="toolbar-divider" />
-      <button id="duplicate" disabled={exploring || selection?.source!=='runtime'} type="button" onClick={()=>void controls.duplicate()}>复制</button>
-      <button id="delete" className="danger" disabled={exploring || selection?.source!=='runtime'} type="button" onClick={()=>void controls.deleteSelected()}>删除</button>
+      <button id="duplicate" disabled={exploring || selection?.source!=='runtime'} type="button" onClick={()=>guardAsync('复制对象', () => controls.duplicate())}>复制</button>
+      <button id="delete" className="danger" disabled={exploring || selection?.source!=='runtime'} type="button" onClick={()=>guardAsync('删除对象', () => controls.deleteSelected())}>删除</button>
       <details className="toolbar-more scene-menu">
         <summary>保存与文件 <span aria-hidden="true">⌄</span></summary>
         <div className="toolbar-menu">
           {authoring ? <AuthoringMenu controller={authoring} /> : null}
           <div className="toolbar-menu-label">运行时场景</div>
           <button id="save-scene" type="button" onClick={()=>controls.saveScene()}>保存到本机</button>
-          <button id="load-scene" type="button" onClick={()=>void controls.loadScene()}>加载本机存档</button>
+          <button id="load-scene" type="button" onClick={()=>guardAsync('加载本机存档', () => controls.loadScene())}>加载本机存档</button>
           <button id="export-scene" type="button" onClick={()=>controls.exportScene()}>导出 JSON</button>
-          <button id="export-world-package" type="button" onClick={()=>void controls.exportWorldPackage()}>导出世界包</button>
+          <button id="export-world-package" type="button" onClick={()=>guardAsync('导出世界包', () => controls.exportWorldPackage())}>导出世界包</button>
           <button id="import-scene" type="button" onClick={()=>importRef.current?.click()}>导入 JSON</button>
           <button id="import-world-package" type="button" onClick={()=>worldImportRef.current?.click()}>导入世界包</button>
           {state.fileStatus ? <span id="scene-file-status" className="toolbar-menu-status" role="status">{state.fileStatus}</span> : null}
-          <button id="reset-world" className="danger" type="button" disabled={state.resetBusy} onClick={()=>void controls.resetWorld()}>
+          <button id="reset-world" className="danger" type="button" disabled={state.resetBusy} onClick={()=>guardAsync('重置世界', () => controls.resetWorld())}>
             {state.resetBusy ? '正在重置…' : state.resetWorldArmed ? '确认重置' : '重置世界'}
           </button>
         </div>
@@ -92,7 +94,7 @@ function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authorin
         hidden
         onChange={(event)=>{
           const file=event.target.files?.[0];
-          if(file)void controls.importWorldPackage(file);
+          if(file)guardAsync('导入世界包', () => controls.importWorldPackage(file));
           event.target.value='';
         }}
       />
@@ -104,7 +106,7 @@ function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authorin
         hidden
         onChange={(event)=>{
           const file=event.target.files?.[0];
-          if (file) void controls.importScene(file);
+          if (file) guardAsync('导入场景', () => controls.importScene(file));
           event.target.value='';
         }}
       />

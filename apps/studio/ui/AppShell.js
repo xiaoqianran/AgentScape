@@ -50,14 +50,20 @@ export function createAppShell({ app, environmentDefinition, environments }) {
     }
   });
 
-  flushSync(()=>{
-    reactRoot.render(createElement(StudioApp,{ bridge, environmentDefinition, environments }));
-  });
-
-  const shell = app.querySelector('.shell');
-  const panel = app.querySelector('.panel');
-  const viewport = app.querySelector('#viewport');
-  if (!shell || !panel || !viewport) throw new Error('StudioApp failed to materialize required shell hosts');
+  let shell, panel, viewport;
+  try {
+    flushSync(()=>{
+      reactRoot.render(createElement(StudioApp,{ bridge, environmentDefinition, environments }));
+    });
+    shell = app.querySelector('.shell');
+    panel = app.querySelector('.panel');
+    viewport = app.querySelector('#viewport');
+    if (!shell || !panel || !viewport) throw new Error('StudioApp failed to materialize required shell hosts');
+  } catch (error) {
+    reactRoot.unmount();
+    bridge.dispose();
+    throw error;
+  }
 
   const setView = (view) => useStudioStore.getState().openView(view);
   const setPage = (page) => useStudioStore.getState().openPage(page);

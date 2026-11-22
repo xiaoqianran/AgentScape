@@ -32,12 +32,21 @@ export async function createStudioDeveloperTools({
   ui.setDeveloperOpenHandler?.(openDeveloper);
   ui.setLayoutChangeHandler(()=>world.rendering?.resize?.());
 
-  const generationJobCenter = await new GenerationJobCenter({
-    root:ui.shell,
-    world,
-    tools:studioTools,
-    log
-  }).init();
+  let generationJobCenter;
+  try {
+    generationJobCenter = await new GenerationJobCenter({
+      root:ui.shell,
+      world,
+      tools:studioTools,
+      log
+    }).init();
+  } catch (error) {
+    ui.setDeveloperOpenHandler?.(null);
+    ui.setLayoutChangeHandler?.(null);
+    taskPanel.setOpenSettingsHandler?.(null);
+    developer.dispose();
+    throw error;
+  }
 
   let refreshing = false;
   const refreshCapabilities = async () => {
@@ -46,10 +55,13 @@ export async function createStudioDeveloperTools({
     try { await developer.refreshCapabilityStatus(); }
     finally { refreshing = false; }
   };
-  const timer = setInterval(() => { void refreshCapabilities(); }, 30000);
-  const onVisibilityChange = () => { void refreshCapabilities(); };
+  const queueRefresh = () => {
+    refreshCapabilities().catch((error) => log(`能力状态刷新失败：${error.message}`, 'error'));
+  };
+  const timer = setInterval(queueRefresh, 30000);
+  const onVisibilityChange = () => { queueRefresh(); };
   globalThis.document?.addEventListener?.('visibilitychange', onVisibilityChange);
-  void refreshCapabilities();
+  queueRefresh();
 
   return {
     developer,
@@ -59,6 +71,9 @@ export async function createStudioDeveloperTools({
       clearInterval(timer);
       globalThis.document?.removeEventListener?.('visibilitychange', onVisibilityChange);
       ui.setDeveloperOpenHandler?.(null);
+      ui.setLayoutChangeHandler?.(null);
+      taskPanel.setOpenSettingsHandler?.(null);
+      developer.dispose();
       generationJobCenter.destroy();
     }
   };

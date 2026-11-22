@@ -4,7 +4,7 @@ test('selection is light, modes gate editing, and Escape closes menu before insp
  const dock=page.locator('.selection-action-dock');await expect(dock).toBeVisible();
  await expect(page.locator('#affordance-choice')).toHaveCount(0);await expect(page.locator('#delete')).toBeDisabled();
  await page.getByRole('button',{name:'编辑',exact:true}).click();await expect(page.locator('#delete')).toBeEnabled();
- await page.getByRole('button',{name:'探索',exact:true}).click();await page.keyboard.press('Delete');await expect(dock.locator('strong')).toHaveAttribute('title','cup_01');
+ await page.getByRole('button',{name:'只读',exact:true}).click();await page.keyboard.press('Delete');await expect(dock.locator('strong')).toHaveAttribute('title','cup_01');
  await dock.getByRole('button',{name:'属性',exact:true}).click();await expect(page.locator('#affordance-choice')).toBeVisible();
  await dock.getByRole('button',{name:'更多动作',exact:true}).click();await expect(page.locator('.selection-action-menu')).toBeVisible();
  await page.keyboard.press('Escape');await expect(page.locator('.selection-action-menu')).toHaveCount(0);await expect(page.locator('#affordance-choice')).toBeVisible();

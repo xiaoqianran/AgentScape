@@ -80,7 +80,7 @@ export async function createStudioWorkspace({
 
   ui.setWorldChangeHandler?.((id)=>openBuiltinWorld(id).catch((error)=>{
     taskPanel.log(`打开世界失败：${error.message}`,'error');
-    throw error;
+    return null;
   }));
 
   const content = createStudioContent({
@@ -97,35 +97,43 @@ export async function createStudioWorkspace({
     openGeneratedWorld
   });
 
-  const developerTools = await createStudioDeveloperTools({
-    ui,
-    world,
-    authoring:authoringWorlds?.authoring || null,
-    studioTools,
-    taskPanel,
-    gateway,
-    capabilityStatus
-  });
+  let developerTools, activation;
+  try {
+    developerTools = await createStudioDeveloperTools({
+      ui,
+      world,
+      authoring:authoringWorlds?.authoring || null,
+      studioTools,
+      taskPanel,
+      gateway,
+      capabilityStatus
+    });
 
-  const activation = await activateStudioWorld({
-    ui,
-    world,
-    scene,
-    authoringWorlds,
-    editor,
-    worldSurface,
-    taskPanel,
-    lifecycle,
-    inspector:content.inspector,
-    openAuthoringWorld,
-    newAuthoringWorld,
-    onAuthoringSaved:(record)=>{
-      const href = currentHref();
-      const route = parseStudioRoute(href);
-      if (route.page !== 'world' || (!route.authoringNew && !route.authoringId)) return;
-      globalThis.history?.replaceState?.(globalThis.history.state,'',authoringWorldUrl(href,record.id));
-    }
-  });
+    activation = await activateStudioWorld({
+      ui,
+      world,
+      scene,
+      authoringWorlds,
+      editor,
+      worldSurface,
+      taskPanel,
+      lifecycle,
+      inspector:content.inspector,
+      openAuthoringWorld,
+      newAuthoringWorld,
+      onAuthoringSaved:(record)=>{
+        const href = currentHref();
+        const route = parseStudioRoute(href);
+        if (route.page !== 'world' || (!route.authoringNew && !route.authoringId)) return;
+        globalThis.history?.replaceState?.(globalThis.history.state,'',authoringWorldUrl(href,record.id));
+      }
+    });
+  } catch (error) {
+    ui.setWorldChangeHandler?.(null);
+    try { developerTools?.dispose(); } catch (cleanupError) { console.error('Studio developer cleanup failed', cleanupError); }
+    try { content.dispose(); } catch (cleanupError) { console.error('Studio content cleanup failed', cleanupError); }
+    throw error;
+  }
 
   const applyWorldRoute = async () => {
     const route=parseStudioRoute(currentHref());
@@ -170,6 +178,7 @@ export async function createStudioWorkspace({
   return {
     dispose() {
       globalThis.window?.removeEventListener?.('popstate',handlePopState);
+      ui.setWorldChangeHandler?.(null);
       activation.dispose();
       developerTools.dispose();
       content.dispose();

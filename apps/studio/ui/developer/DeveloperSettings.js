@@ -26,19 +26,23 @@ export class DeveloperSettings {
     this.lastValidation = null;
     this.interactionSource = null;
     this.interactionVersion = 0;
+    this.listeners = new AbortController();
+    this.disposed = false;
+    this.focusFrame = 0;
   }
 
   init() {
+    const { signal } = this.listeners;
     this.renderCapabilityStatus(this.capabilityStatus);
     this.renderRendererStatus();
-    this.refreshCapabilitiesButton.addEventListener('click', () => this.refreshCapabilityStatus());
-    this.dialog.querySelector('#validate-world').addEventListener('click', () => this.validate());
-    this.dialog.querySelector('#repair-world').addEventListener('click', () => this.repair());
-    this.dialog.querySelector('#verify-trace').addEventListener('click', () => this.verifyTrace());
+    this.refreshCapabilitiesButton.addEventListener('click', () => { this.refreshCapabilityStatus(); }, { signal });
+    this.dialog.querySelector('#validate-world').addEventListener('click', () => { this.validate(); }, { signal });
+    this.dialog.querySelector('#repair-world').addEventListener('click', () => { this.repair(); }, { signal });
+    this.dialog.querySelector('#verify-trace').addEventListener('click', () => { this.verifyTrace(); }, { signal });
     this.dialog.querySelector('#compile-url-button').addEventListener('click', () => {
       const url = this.dialog.querySelector('#compiler-url').value.trim();
       if (url) this.compileAndRegister({ url });
-    });
+    }, { signal });
     this.dialog.querySelector('#compile-file-button').addEventListener('click', async () => {
       const file = this.dialog.querySelector('#compiler-file').files?.[0];
       if (!file) return;
@@ -47,27 +51,38 @@ export class DeveloperSettings {
         return;
       }
       await this.compileAndRegister({ bytes: new Uint8Array(await file.arrayBuffer()), sourceName: file.name });
-    });
-    this.dialog.querySelector('#asset-search-button').addEventListener('click', () => this.searchAssets());
-    this.dialog.querySelector('#prepare-interaction-button')?.addEventListener('click', () => this.prepareInteraction());
-    this.dialog.querySelector('#register-interaction-button')?.addEventListener('click', () => this.registerInteraction());
+    }, { signal });
+    this.dialog.querySelector('#asset-search-button').addEventListener('click', () => this.searchAssets(), { signal });
+    this.dialog.querySelector('#prepare-interaction-button')?.addEventListener('click', () => { this.prepareInteraction(); }, { signal });
+    this.dialog.querySelector('#register-interaction-button')?.addEventListener('click', () => { this.registerInteraction(); }, { signal });
     for(const selector of ['#compiler-file','#interaction-urdf']) this.dialog.querySelector(selector)?.addEventListener('change',()=>{
       this.interactionVersion++;this.interactionSource=null;
       const review=this.dialog.querySelector('#interaction-review');if(review)review.hidden=true;
       const report=this.dialog.querySelector('#interaction-proposal');if(report)report.textContent='文件已变化，请重新分析候选。';
-    });
+    }, { signal });
     this.assetQuery.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') { event.preventDefault(); this.searchAssets(); }
-    });
+    }, { signal });
     this.renderAssetResults(this.world.assetModule.catalog.list().slice(0, 5));
     return this;
   }
 
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.listeners?.abort();
+    globalThis.cancelAnimationFrame?.(this.focusFrame);
+  }
+
   open() {
+    if (this.disposed) return;
     if (typeof this.dialog.showModal === 'function') this.dialog.showModal();
     else this.dialog.setAttribute('open', '');
     this.renderRendererStatus();
-    requestAnimationFrame(() => this.refreshCapabilitiesButton.focus());
+    cancelAnimationFrame(this.focusFrame);
+    this.focusFrame = requestAnimationFrame(() => {
+      if (!this.disposed) this.refreshCapabilitiesButton.focus();
+    });
   }
 
   renderRendererStatus() {
@@ -91,15 +106,24 @@ export class DeveloperSettings {
   }
 
   async refreshCapabilityStatus() {
+    if (this.disposed) return;
     this.refreshCapabilitiesButton.disabled = true;
     this.refreshCapabilitiesButton.textContent = '检查中…';
-    const [status, health] = await Promise.all([readCapabilityStatus(), readCapabilityHealth()]);
-    this.capabilityHealth = health;
-    this.capabilityStatus = status;
-    this.renderCapabilityStatus(status);
-    this.onCapabilityStatusChange(status);
-    this.refreshCapabilitiesButton.disabled = false;
-    this.refreshCapabilitiesButton.textContent = '刷新';
+    try {
+      const [status, health] = await Promise.all([readCapabilityStatus(), readCapabilityHealth()]);
+      if (this.disposed) return;
+      this.capabilityHealth = health;
+      this.capabilityStatus = status;
+      this.renderCapabilityStatus(status);
+      this.onCapabilityStatusChange(status);
+    } catch (error) {
+      if (!this.disposed) this.log(`能力状态刷新失败：${error.message}`, 'error');
+    } finally {
+      if (!this.disposed) {
+        this.refreshCapabilitiesButton.disabled = false;
+        this.refreshCapabilitiesButton.textContent = '刷新';
+      }
+    }
   }
 
   renderCapabilityStatus(status) {
@@ -217,6 +241,7 @@ export class DeveloperSettings {
   }
 
   renderAssetResults(assets) {
+    if (this.disposed) return;
     this.assetResults.replaceChildren();
     for (const asset of assets) {
       const row = document.createElement('div');
@@ -233,11 +258,11 @@ export class DeveloperSettings {
       spawn.addEventListener('click', async () => {
         try {
           const id = await this.tools.call('spawnAsset', { assetId: asset.id, position: [1.5, 0, 1.2] });
-          this.log(`已加入世界：${id}`, 'result');
+          if (!this.disposed) this.log(`已加入世界：${id}`, 'result');
         } catch (error) {
-          this.log(`错误：${error.message}`, 'error');
+          if (!this.disposed) this.log(`错误：${error.message}`, 'error');
         }
-      });
+      }, { signal: this.listeners.signal });
       row.append(meta, spawn);
       this.assetResults.append(row);
     }

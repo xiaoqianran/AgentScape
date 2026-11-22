@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStudioStore } from '../state/studioStore';
 import { useActionOperation } from '../inspect/useActionOperation';
 import { LABELS } from '../inspect/ActionPresentation';
 import type { EditorCommandsLike, InspectorProjectionLike, InspectorAffordanceAction, InspectorAffordances } from '../inspect/InspectorTypes';
+import { guardAsync } from '../shared/guardAsync';
 import './SelectionActionDock.css';
 const QUICK=new Set(['pickup','open','close','turn_on','turn_off','pull_out','return']);
 type Props={projection:InspectorProjectionLike;commands:EditorCommandsLike;log:(text:string,kind?:string)=>void;openInspect:()=>void};
@@ -22,7 +23,7 @@ function Actions({id,actor,affordances,commands,openInspect}:{id:string;actor:st
   },[open]);
   const execute=(action:InspectorAffordanceAction)=>{
     if(!actor || running || !commands.executeAffordance)return;
-    void commands.executeAffordance({actor,target:id,action:action.action,...(action.partName?{partName:action.partName}:{})}).catch(()=>{});
+    guardAsync('执行动作', () => commands.executeAffordance?.({actor,target:id,action:action.action,...(action.partName?{partName:action.partName}:{})}));
   };
   return <div className="quick-actions" ref={root} onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node))setOpen(false);}}>
     {primary ? <button type="button" disabled={running || !actor} onClick={()=>execute(primary)}>{running?'执行中…':LABELS[primary.action] || primary.action}</button> : null}
@@ -36,14 +37,17 @@ function Actions({id,actor,affordances,commands,openInspect}:{id:string;actor:st
 }
 function LegacyAction({id,label,commands}:{id:string;label:string;commands:EditorCommandsLike}) {
   const {running,error,feedback}=useActionOperation(commands,null,id);
-  return <div className="quick-actions"><button type="button" disabled={running} onClick={()=>void commands.executeLegacy?.(id).catch(()=>{})}>{running?'执行中…':label}</button>{error?<span role="alert">{error}</span>:feedback?<span role="status">{feedback}</span>:null}</div>;
+  return <div className="quick-actions"><button type="button" disabled={running} onClick={()=>guardAsync('执行旧动作', () => commands.executeLegacy?.(id))}>{running?'执行中…':label}</button>{error?<span role="alert">{error}</span>:feedback?<span role="status">{feedback}</span>:null}</div>;
 }
 export function SelectionActionDock({ projection, commands, log, openInspect }:Props) {
   const selection=useStudioStore(state=>state.editor.selection);
   const openView=useStudioStore(state=>state.openView);
-  useStudioStore(state=>state.editor.revision);
-  if (!selection) return null;
-  const model=projection.projectActions ? projection.projectActions(selection) : projection.project(selection);
+  const revision=useStudioStore(state=>state.editor.revision);
+  const model=useMemo(
+    ()=>selection ? (projection.projectActions ? projection.projectActions(selection) : projection.project(selection)) : null,
+    [projection,selection,revision]
+  );
+  if (!selection || !model) return null;
   if(model.kind==='missing') return null;
   const actor='actor' in model ? model.actor ?? null : null;
   return <section className="selection-action-dock" aria-label="选中对象操作">

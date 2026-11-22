@@ -424,8 +424,7 @@ export function BuildWorkbenchView({
   const running = state.status === 'running' || imageQueueBusy;
   const generateDisabled = running || !caps.paired || !caps[state.mode] || !costConfirmed || !prompt.trim() || (state.mode==='asset'&&!assetSource);
 
-  const environment = resources.currentEnvironment();
-  void environmentRevision;
+  const environment = useMemo(() => resources.currentEnvironment(), [resources, environmentRevision]);
   const builtinTitle = environment?.id === environmentDefinition?.id ? environmentDefinition?.title : null;
   const worldName = environment?.title || environment?.label || builtinTitle || environment?.id || 'Current World';
   const worldId = environment?.id || 'environment';

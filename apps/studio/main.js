@@ -4,6 +4,9 @@ import { clearLegacyEndpointOverrides, readCapabilityStatus } from './config/cap
 import { resolveStudioEnvironment } from './bootstrap/resolveStudioEnvironment.js';
 import { parseStudioRoute } from './navigation/StudioRoutes.js';
 import { createStudioStartupMetrics } from './bootstrap/studioStartupMetrics.js';
+import { createStudioStartupScope } from './bootstrap/createStudioStartupScope.js';
+
+const startup = createStudioStartupScope();
 
 async function main() {
   const metrics = createStudioStartupMetrics();
@@ -19,13 +22,14 @@ async function main() {
     environmentDefinition,
     environments:ENVIRONMENTS
   });
+  startup.add(() => ui.destroyChrome?.());
   metrics.mark('shell-ready');
   const route = parseStudioRoute(location.href);
   if (route.page === 'worlds' && params.get('fullRuntime') !== '1') {
     const { createStudioLightweightWorkspace } = await import('./bootstrap/createStudioLightweightWorkspace.js');
-    const workspace = createStudioLightweightWorkspace({ ui, environments:ENVIRONMENTS });
+    startup.add(createStudioLightweightWorkspace({ ui, environments:ENVIRONMENTS }));
     metrics.mark('worlds-ready');
-    window.addEventListener('pagehide',()=>{ workspace.dispose(); ui.destroyChrome?.(); },{once:true});
+    window.addEventListener('pagehide',()=>startup.dispose(),{once:true});
     return;
   }
 
@@ -39,16 +43,16 @@ async function main() {
     import('./bootstrap/createStudioWorkspace.js')
   ]);
   metrics.mark('runtime-modules-ready');
-  const runtime = await createStudioRuntime({
+  const runtime = startup.add(await createStudioRuntime({
     ui,
     environmentDefinition,
     params,
     capabilityStatus,
     metrics
-  });
+  }));
 
   metrics.mark('runtime-ready');
-  const agent = createStudioAgent({
+  const agent = startup.add(createStudioAgent({
     ui,
     world:runtime.world,
     scene:runtime.scene,
@@ -56,9 +60,9 @@ async function main() {
     codeProjects:runtime.codeProjects,
     runtimeTestTools:runtime.runtimeTestTools,
     capabilityStatus
-  });
+  }));
 
-  const lifecycle = createStudioWorldLifecycle({
+  const lifecycle = startup.add(createStudioWorldLifecycle({
     world:runtime.world,
     studioTools:runtime.studioTools,
     environmentDefinition,
@@ -66,9 +70,9 @@ async function main() {
     authoringWorlds:runtime.authoringWorlds,
     worldSurface:runtime.worldSurface,
     taskPanel:agent.taskPanel
-  });
+  }));
 
-  const workspace = await createStudioWorkspace({
+  startup.add(await createStudioWorkspace({
     ui,
     environmentDefinition,
     environments:ENVIRONMENTS,
@@ -83,7 +87,7 @@ async function main() {
     gateway:agent.gateway,
     lifecycle,
     codeProjects:runtime.codeProjects
-  });
+  }));
 
   metrics.mark('workspace-ready');
   if (params.get('openCode') === '1') {
@@ -93,17 +97,12 @@ async function main() {
     history.replaceState(history.state,'',url.href);
     runtime.codeProjects.show();
   }
-  window.addEventListener('pagehide',()=>{
-    workspace.dispose();
-    lifecycle.dispose();
-    agent.dispose?.();
-    runtime.dispose();
-    ui.destroyChrome?.();
-  },{ once:true });
+  window.addEventListener('pagehide',()=>startup.dispose(),{ once:true });
 }
 
 main().catch((error)=>{
   console.error(error);
+  startup.dispose();
   const panel = document.createElement('main');
   panel.className = 'startup-error';
 

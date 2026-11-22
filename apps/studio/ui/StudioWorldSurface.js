@@ -41,6 +41,15 @@ export class StudioWorldSurface {
     this.interaction=null;
     this.humanView=null;
     this.disposed=false;
+    this.interactionMode='explore';
+    this.preferredHumanMode='first';
+    // HumanViewController emits its mode; remember the last person view chosen
+    // so a later explore action restores it instead of forcing first person.
+    const off=world.events?.on?.('human-view.mode',(event)=>{
+      const mode=event?.mode;
+      if (mode==='first'||mode==='third') this.preferredHumanMode=mode;
+    });
+    this.stopViewMode=typeof off==='function' ? off : null;
   }
 
   setIdentity(identity) {
@@ -50,6 +59,15 @@ export class StudioWorldSurface {
     this.editor.select(null);
     this.identity=next;
     return next;
+  }
+
+  /** Single source of truth: editor read-only state and the human view follow one mode. */
+  applyInteractionMode(mode) {
+    this.#assertReady();
+    this.interactionMode = mode === 'edit' ? 'edit' : 'explore';
+    if (!this.humanView) return false;
+    const view = this.interactionMode === 'edit' ? 'orbit' : this.preferredHumanMode;
+    return Boolean(this.humanView.setMode?.(view));
   }
 
   bindEnvironment({ identity = this.identity } = {}) {
@@ -81,6 +99,10 @@ export class StudioWorldSurface {
 
 
       nextHumanView?.resetForEnvironment?.();
+      // A world swap may create the human view after the mode was already set.
+      if (nextHumanView && this.interactionMode !== 'edit') {
+        nextHumanView.setMode?.(this.preferredHumanMode);
+      }
       this.editor.select(null);
     } catch (error) {
       disposeQuietly(nextInteraction,this.onSurfaceError);
@@ -119,6 +141,8 @@ export class StudioWorldSurface {
     disposeQuietly(this.editor,this.onSurfaceError);
     this.interaction=null;
     this.humanView=null;
+    this.stopViewMode?.();
+    this.stopViewMode=null;
   }
 
   #assertReady() {

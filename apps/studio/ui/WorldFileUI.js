@@ -15,6 +15,8 @@ export async function exportWorldFile(world, environmentId) {
   const filename = `agentscape-${environmentId}.asworld`;
   let writer;
   let cleanup = null;
+  let temporaryRoot = null;
+  let temporaryName = null;
   if (typeof globalThis.showSaveFilePicker === 'function') {
     // Request user permission before any await other than the picker itself.
     const handle = await globalThis.showSaveFilePicker({
@@ -25,10 +27,10 @@ export async function exportWorldFile(world, environmentId) {
   } else {
     // OPFS-backed downloadable File avoids building an entire archive as a JS Uint8Array.
     if (!globalThis.document) throw new Error('WORLD_STREAM_SAVE_UNAVAILABLE');
-    const root = await navigator.storage?.getDirectory?.();
-    if (!root) throw new Error('WORLD_STREAM_SAVE_UNAVAILABLE');
-    const temporaryName = `agentscape-export-${crypto.randomUUID()}.asworld`;
-    const handle = await root.getFileHandle(temporaryName,{create:true});
+    temporaryRoot = await navigator.storage?.getDirectory?.();
+    if (!temporaryRoot) throw new Error('WORLD_STREAM_SAVE_UNAVAILABLE');
+    temporaryName = `agentscape-export-${crypto.randomUUID()}.asworld`;
+    const handle = await temporaryRoot.getFileHandle(temporaryName,{create:true});
     writer = await handle.createWritable();
     cleanup = async () => {
       const file = await handle.getFile();
@@ -37,7 +39,7 @@ export async function exportWorldFile(world, environmentId) {
       anchor.href = url; anchor.download = filename; anchor.click();
       setTimeout(() => {
         URL.revokeObjectURL(url);
-        root.removeEntry(temporaryName).catch(() => {});
+        temporaryRoot.removeEntry(temporaryName).catch(() => {});
       },30000);
     };
   }
@@ -49,6 +51,7 @@ export async function exportWorldFile(world, environmentId) {
     return root;
   } catch (error) {
     await writer.abort?.().catch(() => {});
+    if (temporaryRoot && temporaryName) await temporaryRoot.removeEntry(temporaryName).catch(() => {});
     throw error;
   }
 }

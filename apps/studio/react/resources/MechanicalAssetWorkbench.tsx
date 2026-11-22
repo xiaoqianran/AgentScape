@@ -199,7 +199,8 @@ export function MechanicalAssetWorkbench({creator,navigate}:Props) {
     const url=URL.createObjectURL(blob);
     const link=document.createElement('a');
     link.href=url;link.download='mechanical-asset.json';link.click();
-    URL.revokeObjectURL(url);
+    // Browsers read the blob URL asynchronously after click().
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
   const build=async()=>{
     if(!validation.success || !confirmed || busy)return;

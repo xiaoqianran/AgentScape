@@ -2,6 +2,7 @@ import { StudioIcon } from '../shared/StudioIcon';
 import { useEffect, useRef, useState } from 'react';
 import { LocalImageEditor, type LocalImageEditorHandle } from './LocalImageEditor';
 import { findForegroundRegions, ImageObjectDraftWorkspace, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS, validateImageFile } from '../../build/ImageObjectDrafts.js';
+import { guardAsync } from '../shared/guardAsync';
 
 type Rect = {x:number; y:number; width:number; height:number};
 type Source = {id:string; name:string; blob:Blob; width:number; height:number};
@@ -123,15 +124,19 @@ export function ImageObjectWorkbench({controller, paired, disabled, visible, onC
       setNotice(errors.length ? errors.join('；') : '原图已保存在本机。可以整图添加，也可以框选物体后保存。');
     } finally { lock(false); }
   };
+  // One stable listener reads the latest handler through a ref.
+  const pasteState = useRef({ visible, unavailable, ingest });
+  pasteState.current = { visible, unavailable, ingest };
   useEffect(() => {
     const paste = (event:ClipboardEvent) => {
-      if (!visible || unavailable || !intake.current?.getClientRects().length) return;
+      const current = pasteState.current;
+      if (!current.visible || current.unavailable || !intake.current?.getClientRects().length) return;
       const files = Array.from(event.clipboardData?.items || []).filter((item)=>item.kind==='file'&&item.type.startsWith('image/')).map((item)=>item.getAsFile()).filter((file):file is File=>!!file);
-      if (files.length) { event.preventDefault(); void ingest(files); }
+      if (files.length) { event.preventDefault(); guardAsync('粘贴图片', () => current.ingest(files)); }
     };
     document.addEventListener('paste',paste);
     return ()=>document.removeEventListener('paste',paste);
-  });
+  }, []);
 
   const saveObject = async () => {
     if (!activeSource || !editor.current || locked.current || !name.trim()) return;
