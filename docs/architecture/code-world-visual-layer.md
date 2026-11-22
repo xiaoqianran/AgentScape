@@ -51,7 +51,9 @@ MCP `worldSessionId` 是临时会话 ID；世界身份使用 `code-project:<proj
 - **尚无**完整统一的 GUI/MCP 编辑历史、Undo/Redo；Native 属性修改是带版本校验的单一入口，但不是 WorldRuntime 现有历史栈的一部分。
 - 显式开放的属性不应同时在用户 `update()` 动画中不停重写；如需连续动画与编辑叠加，应再引入明确的相对偏移或属性控制权协议。
 - 三轴非均匀缩放已支持代码对象；受管理场景资源仍使用 WorldRuntime 原有的等比缩放。
-- 当前 Studio 提供对象列表、3D 鼠标选取、变换数值表单、新增方块与对象删除，并显式提供「保存世界」按钮。对 Scene 的即时修改不是自动持久化。拖拽 Gizmo 仍待通过视口适配接入，不能称为已完成。
+- 当前 Studio 提供对象列表、3D 鼠标选取、变换数值表单、Transform Gizmo 拖拽、新增方块与对象删除，并显式提供「保存世界」按钮。对 Scene 的即时修改不是自动持久化。
+- Gizmo 使用当前代码项目提供的 Camera/Renderer/Scene，直接复用 Three.js 官方 `TransformControls`。拖动时**只改代理 pivot 和轮廓框**；鼠标松开才通过带 `expectedRevision` 的 `scene.apply` 提交一次编辑，不直接操纵代码所有的 Object3D。若 MCP 同时修改世界、代码更新目标或父级发生移动，则拒绝本次拖拽并保留真实状态。
+- 三种操作：W 移动、E 旋转、R 缩放（也可以使用面板按钮）；Esc 取消拖拽。仅允许 `registerEditable` 声明的属性；编辑层物体仍遵循现有 WorldRuntime 的**等比缩放**约束，不接受非等比缩放。编辑历史仍需后续统一实现。
 - 跨浏览器世界同步与统一世界目录属于后续阶段；`CodeProject` 仍保存在当前浏览器 IndexedDB。
 - `registerEditable` 仅应由可信源码注册；任意项目代码仍具有正常 JavaScript 权限，不能把此能力理解为安全沙箱。
 

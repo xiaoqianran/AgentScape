@@ -19,3 +19,7 @@
 
 .code-world-source-host {flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;}
 .code-world-source-host[hidden] {display:none;}
+
+.code-world-gizmo-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.code-world-gizmo-tools button{min-width:0;font-size:12px;padding:8px 4px}
+.code-world-gizmo-tools button[aria-pressed=true]{border-color:#e5bd71;background:rgba(229,189,113,.18)}

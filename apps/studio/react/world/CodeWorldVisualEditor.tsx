@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {emptyCodeSnapshot,emptyCodeSubscribe} from './CodeProjectWorkbench';
+import {CodeWorldTransformGizmo} from '../../editor/CodeWorldTransformGizmo.js';
 import './CodeWorldVisualEditor.css';
 
 type VisualObject={id:string;label:string;source:'code'|'editor';properties:string[];transform:{
@@ -30,7 +31,10 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
   const [revision,setRevision]=useState(0);
-  const highlight=useRef<any>(null);
+  const gizmoRef=useRef<any>(null);
+  const refreshRef=useRef<()=>void>(()=>{});
+  const [gizmoMode,setGizmoMode]=useState<'translate'|'rotate'|'scale'>('translate');
+  const [hoverAxis,setHoverAxis]=useState('');
   const selectedObject=objects.find(entry=>entry.id===selected)||null;
   const session=controller?.session;
 
@@ -53,6 +57,7 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     setMissing(view.nativeEditables?.unresolved || []);
     setRevision(value=>value+1);
   };
+  refreshRef.current=refresh;
 
   useEffect(()=>{
     refresh();
@@ -69,9 +74,54 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     else setFields(fallback);
   },[selected,revision]);
 
-  const getObject=(id:string)=>{
-    return controller.visualObject(id);
-  };
+  const getObject=(id:string)=>controller.visualObject(id);
+
+  // Bind Three's gizmo to THIS code project's renderer, camera, and scene.
+  // Dragging is a proxy-only preview; commit goes through SceneFacade.apply,
+  // exactly like GUI numeric fields and MCP scene_apply.
+  useEffect(()=>{
+    const active=controller?.session;
+    const native=active?.scene?.native;
+    const element=native?.renderer?.domElement;
+    if(!active||!native?.scene||!native.camera||!element)return;
+    const gizmo=new CodeWorldTransformGizmo({
+      scene:native.scene,camera:native.camera,element,
+      getObject:(id:string)=>controller.visualObject(id),
+      getRevision:()=>active.scene.observe().revision,
+      onCommit:async({operation,expectedRevision}:any)=>{
+        if(controller.session!==active)throw new Error('CODE_GIZMO_WORLD_CHANGED');
+        const response=await active.scene.apply({expectedRevision,operations:[operation]});
+        if(response.status!=='succeeded')throw new Error(response.diagnostics?.[0]?.code||'CODE_GIZMO_EDIT_FAILED');
+      },
+      onPreview:({phase,transform}:any)=>{
+        if(phase==='start'){setBusy(true);setError('');setMessage('拖拽预览中 · 松开鼠标后通过 Scene API 提交');}
+        if(phase==='move'&&transform){
+          setFields(fromTransform({transform} as VisualObject));
+        }
+        if(phase==='invalid')setMessage('当前父级变换不支持此预览');
+      },
+      onFinish:({committed,cancelled,error}:any)=>{
+        setBusy(false);
+        if(error){setError(error.message||String(error));setMessage('拖拽未提交 · 原始场景未被更改');}
+        else if(committed){setError('');setMessage('已通过统一 Scene API 提交拖拽 · 尚未保存世界');}
+        else if(cancelled)setMessage('已取消拖拽');
+        refreshRef.current();
+      },
+      onMode:(mode:'translate'|'rotate'|'scale')=>setGizmoMode(mode),
+      onAxis:(axis:string)=>setHoverAxis(axis)
+    });
+    gizmoRef.current=gizmo;
+    return ()=>{
+      gizmoRef.current=null;
+      gizmo.dispose();
+      setHoverAxis('');
+    };
+  },[controller,session]);
+
+  useEffect(()=>{
+    const selectedObject=objects.find(item=>item.id===selected)||null;
+    gizmoRef.current?.select(selectedObject);
+  },[session,selected,objects]);
 
   useEffect(()=>{
     const native=controller?.session?.scene?.native;
@@ -82,14 +132,16 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     let pointer:[number,number]|null=null;
     const down=(event:PointerEvent)=>{if(event.button===0)pointer=[event.clientX,event.clientY];};
     const up=(event:PointerEvent)=>{
+      const suppressed=gizmoRef.current?.consumePickSuppression();
       if(!pointer||Math.hypot(event.clientX-pointer[0],event.clientY-pointer[1])>5){pointer=null;return;}
       pointer=null;
+      if(suppressed)return;
       const rect=canvas.getBoundingClientRect();
       point.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);
       raycaster.setFromCamera(point,native.camera);
       const hit=raycaster.intersectObjects(scene.children,true).find((intersection:any)=>{
         for(let node:any=intersection.object;node;node=node.parent){
-          if(node===highlight.current)return false;
+          if(node.name==='AgentScapeCodeWorldGizmo'||node.name==='AgentScapeCodeWorldEditOutline')return false;
           const current=objects.find(item=>getObject(item.id)===node);
           if(current)return true;
         }
@@ -106,19 +158,6 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     return ()=>{canvas.removeEventListener('pointerdown',down);canvas.removeEventListener('pointerup',up);};
   },[controller,session,objects]);
 
-  useEffect(()=>{
-    const scene=controller?.session?.scene?.native?.scene as any;
-    if(highlight.current){highlight.current.removeFromParent();highlight.current.geometry.dispose();highlight.current.material.dispose();highlight.current=null;}
-    if(!scene||!selected)return;
-    const object=getObject(selected);
-    if(!object)return;
-    const box=new THREE.Box3().setFromObject(object);
-    if(box.isEmpty())return;
-    const helper=new THREE.BoxHelper(object,0xffc56b);
-    helper.name='AgentScapeVisualSelection';
-    scene.add(helper);highlight.current=helper;
-    return ()=>{helper.removeFromParent();helper.geometry.dispose();helper.material.dispose();if(highlight.current===helper)highlight.current=null;};
-  },[controller,session,selected,revision]);
 
   const change=(kind:'position'|'rotation'|'scale',axis:number,value:string)=>
     setFields(current=>({...current,[kind]:current[kind].map((item,index)=>index===axis?value:item)}));
@@ -183,6 +222,20 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
         <button type="button" onClick={()=>void execute(()=>controller.save(),'整个代码世界与编辑层已保存到当前浏览器')}
           disabled={busy||state.busy||state.revision!==state.runningRevision}>保存世界</button>
       </div>
+      <div className="code-world-gizmo-tools" role="group" aria-label="三轴变换工具">
+        {([
+          ['translate','移动 W','position'],['rotate','旋转 E','quaternion'],['scale','缩放 R','scale']
+        ] as const).map(([mode,label,property])=><button key={mode} type="button"
+          aria-pressed={gizmoMode===mode}
+          disabled={!selectedObject||!selectedObject.properties.includes(property)||busy||state.busy}
+          onClick={()=>{gizmoRef.current?.setMode(mode);}}>
+          {label}
+        </button>)}
+      </div>
+      <small data-gizmo-status={session&&selectedObject?'active':'inactive'}>
+        {selectedObject?'拖动场景中的三轴控件预览，松开鼠标提交一次；Esc 取消。':'先选中场景对象以显示三轴控件。'}
+        {hoverAxis?' · 当前轴：'+hoverAxis:''}
+      </small>
       <label>场景对象
         <select aria-label="可视化对象列表" value={selected} onChange={event=>setSelected(event.target.value)}>
           <option value="">请选择或点击场景物体</option>
