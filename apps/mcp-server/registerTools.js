@@ -28,6 +28,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
   catch(e) { return {isError:true,content:[{type:'text',text:JSON.stringify(publicMcpError(e))}]}; }
  });
  add('studio_pair_create','Create a short-lived one-time pairing code for an explicitly approved local Studio world. The bearer token is never delivered to the browser.',{},()=>studioBridge.pair(owner));
+ add('studio_sessions_list','List connected Studio worlds visible to this MCP identity. Use a worldSessionId from this list when multiple worlds are open.',{},()=>({worlds:studioBridge.listSessions(owner)}));
  add('studio_session_status','Check a Studio connection, or inspect the automatically connected local world without passing an ID.',sceneSession,a=>a.worldSessionId?studioBridge.status(owner,a.worldSessionId):studioBridge.currentSession(owner));
  add('session_attach','Attach the local current Studio automatically or resolve an explicit paired world.',sceneSession,a=>{
   const state=a.worldSessionId?studioBridge.status(owner,a.worldSessionId):studioBridge.currentSession(owner);

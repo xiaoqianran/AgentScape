@@ -57,14 +57,28 @@ export class StudioLiveBridge {
     return {worldSessionId,studioToken:token,status:'connected',mode:'automatic',worldId};
   }
 
-  currentSession(owner=null) {
+  /**
+   * Enumerate live worlds visible to an MCP identity without claiming
+   * unowned automatic tabs. Never disclose another identity's sessions.
+   */
+  listSessions(owner) {
     const active=[];
     for(const [id,s] of this.sessions){
-      if(!s.auto)continue;
-      if(!s.connected||this.now()-s.lastSeen>this.heartbeatMs){this.disconnect(id,'STUDIO_DISCONNECTED');continue;}
-      if(owner!=null && s.owner!=null && s.owner!==owner)continue;
-      active.push({worldSessionId:id,worldId:s.worldId,status:'connected',connected:true,mode:'automatic'});
+      if(!s.connected)continue;
+      if(this.now()-s.lastSeen>this.heartbeatMs){
+        this.disconnect(id,'STUDIO_DISCONNECTED');
+        continue;
+      }
+      if(s.owner!=null && s.owner!==owner)continue;
+      active.push({worldSessionId:id,worldId:s.worldId||null,
+        status:'connected',connected:true,mode:s.auto?'automatic':'paired'});
     }
+    return active;
+  }
+
+  currentSession(owner=null) {
+    // Automatic routing only covers automatic tabs. Paired worlds require an ID.
+    const active=this.listSessions(owner).filter(s=>s.mode==='automatic');
     if(!active.length)throw issue('STUDIO_NOT_CONNECTED');
     if(active.length>1)throw issue('STUDIO_MULTIPLE_WORLDS');
     if(owner!=null)this.ownerSession(owner,active[0].worldSessionId);

@@ -49,6 +49,28 @@ describe('bounded MCP idempotency', () => {
     } finally { broker.dispose(); }
   });
 
+  it('lists live paired and automatic sessions without claiming unowned tabs and removes stale sessions', () => {
+    let now=1000;
+    const broker=new StudioLiveBridge({now:()=>now,heartbeatMs:100});
+    try {
+      const first=broker.registerAuto(randomUUID(),'first');
+      const second=broker.registerAuto(randomUUID(),'second');
+      const pair=broker.pair('bob');
+      broker.connect(pair.pairCode);
+      const found=broker.listSessions('alice');
+      expect(found.map(item=>item.worldSessionId).sort()).toEqual([first.worldSessionId,second.worldSessionId].sort());
+      expect(broker.sessions.get(first.worldSessionId).owner).toBeNull();
+      expect(broker.listSessions('bob')).toHaveLength(3);
+      expect(broker.status('bob',pair.worldSessionId).mode).toBe('paired');
+      expect(() => broker.currentSession('alice')).toThrow('STUDIO_MULTIPLE_WORLDS');
+      broker.ownerSession('alice',first.worldSessionId);
+      expect(broker.listSessions('bob').map(item=>item.worldSessionId)).not.toContain(first.worldSessionId);
+      now+=101;
+      expect(broker.listSessions('alice')).toHaveLength(0);
+      expect(broker.autoByInstance.size).toBe(0);
+    } finally {broker.dispose();}
+  });
+
   it('handles more than 256 authenticated studio edits without exhausting the request budget', async () => {
     const broker = new StudioLiveBridge();
     try {

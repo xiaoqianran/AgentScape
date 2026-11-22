@@ -9,6 +9,7 @@ describe('agent-only MCP tool surface',()=>{
     registerTools(collector(agent),null,'owner',null,null,{agentOnly:true});
     registerTools(collector(legacy),null,'owner',null,null);
     expect(new Set(agent)).toEqual(new Set(AGENT_STUDIO_MCP_TOOLS));
+    expect(agent).toContain('studio_sessions_list');
     expect(legacy.length).toBeGreaterThan(agent.length);
     for(const forbidden of ['authoring_execute','session_create','action_execute','studio_pair_create','world_restore'])
       expect(agent).not.toContain(forbidden);

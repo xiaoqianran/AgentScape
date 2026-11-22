@@ -4,7 +4,7 @@
 
 新增容器隔离的程序化资产构建/发布、不可变版本与文件存储、可信世界保存恢复。原有 33 个工具继续兼容；新增 4 个 Studio Live Bridge 配对/会话工具，使用同一个 `agentscape-world` 连接。契约、示例、隔离设施和保存边界见 [PROGRAMMATIC-ASSETS.md](./PROGRAMMATIC-ASSETS.md)。
 
-新增 scene_object_definition：将 AI 声明与真实 Three.js 节点结构分析结合，并通过 inspect/preview/apply/fork 对单实例进行版本化定点修正。详见 docs/modules/object-forge-refinement.md。当前 MCP 共 42 个工具。
+新增 scene_object_definition：将 AI 声明与真实 Three.js 节点结构分析结合，并通过 inspect/preview/apply/fork 对单实例进行版本化定点修正。详见 docs/modules/object-forge-refinement.md。当前 MCP 共 43 个工具。
 
 Scene 工具为 `scene_thermal`（Asset Forge 材料实验查询、热功率和真实时步）、`scene_observe`、`scene_apply`、`scene_add_model`、`scene_interact`、`scene_job`、`scene_cancel`、`scene_verify`、`scene_save`、`scene_import`、`scene_object_definition`、`scene_set_style`。它们使用与 SDK/Studio 相同的 Scene 应用服务和 Runtime。`scene_interact` 立即返回 JobRef，由宿主推进模拟，调用方轮询任务并分别检查执行状态与验证证据。Recipe 可以直接作为 scene_add_model 的 model.asset 输入，无需生成 JavaScript。
 
@@ -50,6 +50,16 @@ flowchart TD
  Commands --> Runtime[WorldRuntime / Physics / Navigation / Interaction]
  Host --> Queries[WorldQueries / WorldObservation / Acceptance]
 ```
+
+## 多 Studio 世界的安全选择
+
+通过 MCP 调用 `studio_sessions_list({})`，读取当前身份能够访问的在线世界
+`{worlds:[{worldSessionId,worldId,mode,status,connected}]}`。返回值不包含浏览器令牌，
+也不会自动认领尚未绑定身份的 Studio 标签页。请使用返回的
+`worldSessionId` 调用 `session_attach`、`scene_observe`、`scene_apply`
+等工具；在同一浏览器开多个世界时，未指定 ID 的自动寻址会拒绝
+`STUDIO_MULTIPLE_WORLDS`，而不是猜测目标。只有一个自动世界时保持原有自动连接。
+已失联的会话在枚举时剔除；旧 ID 不可复用，重新连接需要重新列举。
 
 ## Windows 启动
 

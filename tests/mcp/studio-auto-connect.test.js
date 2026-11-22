@@ -85,6 +85,20 @@ describe('local automatic Studio MCP',()=>{
       page2.setAutoEnabled(true);
       await waitFor(()=>page2.snapshot().status==='connected');
       expect((await parse(client,'scene_observe')).code).toBe('STUDIO_MULTIPLE_WORLDS');
+      const worlds=await parse(client,'studio_sessions_list');
+      expect(worlds.worlds).toHaveLength(2);
+      expect(worlds.worlds.map(item=>item.worldId).sort()).toEqual(['empty_one','empty_two']);
+      const secondId=worlds.worlds.find(item=>item.worldId==='empty_two').worldSessionId;
+      expect((await parse(client,'session_attach',{worldSessionId:secondId})).worldId).toBe('empty_two');
+      expect((await parse(client,'scene_add_model',{
+        worldSessionId:secondId,requestId:randomUUID(),
+        model:{id:'second_cup',asset:'builtin://cup',position:[1,0,0]}
+      })).isError).toBe(false);
+      expect(second.world.store.has('second_cup')).toBe(true);
+      expect(first.world.store.has('second_cup')).toBe(false);
+      expect((await parse(other,'studio_sessions_list')).worlds).toHaveLength(0);
+      expect((await parse(other,'session_attach',{worldSessionId:secondId})).code).toBe('SESSION_NOT_FOUND');
+
       const explicit=await parse(client,'scene_observe',{worldSessionId:current.worldSessionId});
       expect(explicit.objects).toHaveLength(1);
       expect((await parse(client,'scene_observe',{worldSessionId:current.worldSessionId,limit:1})).total).toBe(1);
@@ -98,6 +112,7 @@ describe('local automatic Studio MCP',()=>{
       first.world.events.emit('world.session.changed',{id:'empty_replaced'});
       await waitFor(()=>page1.snapshot().status==='connected'&&page1.snapshot().worldSessionId!==oldId);
       expect((await parse(client,'scene_observe',{worldSessionId:oldId})).code).toBe('SESSION_NOT_FOUND');
+      expect((await parse(client,'studio_sessions_list')).worlds.map(item=>item.worldSessionId)).not.toContain(oldId);
       expect((await parse(client,'session_attach')).worldId).toBe('empty_replaced');
       expect((await parse(other,'scene_observe',{worldSessionId:page1.snapshot().worldSessionId})).code).toBe('SESSION_NOT_FOUND');
 
