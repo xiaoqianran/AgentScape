@@ -102,6 +102,7 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   expect((await call('scene_query','inspect',{expectedRevision:3})).camera).toEqual(inspected.camera);
   const paused=await call('scene_timeline',null,{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,command:'pause'});
   expect(paused.paused).toBe(true);
+  await page.locator('.code-project-section > summary').filter({hasText:'时间控制与导出'}).click();
   await expect(page.getByRole('button',{name:'恢复世界时间',exact:true})).toBeEnabled();
   const reviewed=await call('scene_query','inspect',{expectedRevision:3,nodePath:measured.node.nodePath,includeMaterials:true,visibility:true});
   expect(reviewed.materials.items.length).toBeGreaterThan(0);
@@ -149,6 +150,7 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   const reobserved=await client.callTool({name:'scene_observe',arguments:{}});
   expect(JSON.parse(reobserved.content[0].text).project.entities[0].state.motionRate).toBe(2);
 
+  await page.locator('.code-project-file-management > summary').click();
   await page.getByLabel('新增文件路径').fill('notes/readme.txt');
   await page.getByRole('button',{name:'新增文件',exact:true}).click();
   await page.getByLabel('文件内容 notes/readme.txt').fill('project notes');

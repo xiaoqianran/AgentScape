@@ -57,7 +57,7 @@
   padding: 3px;
   border: 1px solid var(--studio-border, rgba(255,255,255,.10));
   border-radius: var(--ds-radius-md);
-  background: rgba(0,0,0,.92);
+  background: var(--studio-surface-1);
   box-shadow: 0 8px 24px rgba(0,0,0,.18);
 }
 
@@ -68,14 +68,14 @@
   border: 0;
   border-radius: var(--ds-radius-sm);
   background: transparent;
-  color: rgba(var(--ds-accent-rgb),.72);
+  color: var(--studio-text-2);
   font: 570 11.5px/1 var(--studio-font-ui, system-ui, sans-serif);
   white-space: nowrap;
   cursor: pointer;
 }
 
 .cabin-views button:hover {
-  background: rgba(255,255,255,.07);
+  background: var(--studio-surface-hover);
   color: var(--ds-text);
 }
 
@@ -135,8 +135,8 @@
   right: 0;
   padding: 5px 7px;
   border-radius: var(--ds-radius-sm);
-  background: rgba(0,0,0,.68);
-  color: rgba(var(--ds-accent-rgb),.48);
+  background: var(--studio-surface-2);
+  color: var(--studio-text-3);
   font: 500 11px/1.2 var(--studio-font-mono, ui-monospace, monospace);
   white-space: nowrap;
   pointer-events: none;

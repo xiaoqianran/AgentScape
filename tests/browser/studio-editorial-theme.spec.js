@@ -1,0 +1,50 @@
+import {test,expect} from '@playwright/test';
+
+test('Sage Garden Studio palette is readable and preserves a real world canvas',async({page},testInfo)=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('/studio/?page=worlds');
+  await expect(page.locator('.worlds-heading h1')).toBeVisible({timeout:60000});
+  await expect(page.locator('html')).toHaveCSS('color-scheme','light');
+  await expect(page.locator('.shell')).toHaveCSS('background-color','rgb(248, 247, 244)');
+  await expect(page.locator('.worlds-heading').getByRole('button',{name:'创建或打开代码世界'})).toBeVisible();
+  const contrast=await page.evaluate(()=>{
+    const probe=document.createElement('span');
+    document.body.appendChild(probe);
+    const luminance=(name)=>{
+      probe.style.color='var('+name+')';
+      const rgb=getComputedStyle(probe).color;
+      const channels=rgb.match(/[\d.]+/g).slice(0,3).map(x=>Number(x)/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);
+      return .2126*channels[0]+.7152*channels[1]+.0722*channels[2];
+    };
+    const ratio=(a,b)=>{const values=[luminance(a),luminance(b)].sort((x,y)=>y-x);return (values[0]+.05)/(values[1]+.05);};
+    const surfaces=['--ds-bg','--ds-surface-1','--ds-surface-2','--ds-surface-3','--ds-accent-soft'];
+    const labels=['--ds-text','--ds-text-2','--ds-text-3','--ds-accent','--ds-success','--ds-warning','--ds-danger'];
+    const result={minimum:Math.min(...surfaces.flatMap(bg=>labels.map(fg=>ratio(bg,fg)))),primary:ratio('--ds-accent','--ds-on-accent'),hover:ratio('--ds-accent-hover','--ds-on-accent')}; probe.remove(); return result;
+  });
+  expect(contrast.minimum).toBeGreaterThanOrEqual(4.5);
+  expect(contrast.primary).toBeGreaterThanOrEqual(4.5);
+  expect(contrast.hover).toBeGreaterThanOrEqual(4.5);
+  await page.screenshot({path:testInfo.outputPath('sage-library.png')});
+  await page.goto('/studio/?page=world');
+  await expect(page.locator('#runtime-status')).toHaveAttribute('data-state','ready',{timeout:60000});
+  await page.getByRole('button',{name:'代码世界',exact:true}).click();
+  const editor=page.getByLabel('完整代码项目');
+  await editor.getByRole('button',{name:'新建代码世界',exact:true}).click();
+  const run=editor.getByRole('button',{name:'运行代码世界',exact:true});
+  await expect(run).toHaveCSS('background-color','rgb(82, 107, 86)');
+  await expect(run).toHaveCSS('color','rgb(255, 255, 255)');
+  await run.click();
+  await expect(page.locator('.studio-code-project-viewport canvas')).toBeVisible();
+  await expect(editor.locator('output')).toHaveText('代码世界运行中');
+  await expect(editor.locator('textarea')).toHaveCSS('color','rgb(40, 51, 45)');
+  const layout=await page.evaluate(()=>{const source=document.querySelector('.code-source-label');const textarea=source.querySelector('textarea');const following=source.nextElementSibling;const tabs=[...document.querySelectorAll('.inspector-chrome button[aria-pressed]')];return {sourceBottom:source.getBoundingClientRect().bottom,textareaBottom:textarea.getBoundingClientRect().bottom,nextTop:following.getBoundingClientRect().top,tabs:tabs.map(el=>({width:el.clientWidth,height:el.clientHeight,scroll:el.scrollHeight}))};});
+  expect(layout.sourceBottom).toBeGreaterThanOrEqual(layout.textareaBottom);
+  expect(layout.nextTop).toBeGreaterThanOrEqual(layout.sourceBottom);
+  expect(layout.tabs.length).toBe(2);
+  expect(layout.tabs.every(tab=>tab.width>=48&&tab.scroll<=tab.height)).toBe(true);
+  await page.screenshot({path:testInfo.outputPath('sage-workbench.png')});
+  await page.getByRole('button',{name:'可视化',exact:true}).click();
+  await expect(page.getByLabel('代码世界可视化编辑')).toBeVisible();
+  await page.screenshot({path:testInfo.outputPath('sage-visual.png')});
+  expect(errors).toEqual([]);
+});

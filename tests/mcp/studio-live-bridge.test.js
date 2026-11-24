@@ -1,4 +1,4 @@
-import {describe,it,expect} from 'vitest';
+import {describe,it,expect,vi} from 'vitest';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -18,6 +18,14 @@ const requestJson=async(url,data,headers={})=>{
 };
 
 describe('Studio Live Bridge through real MCP HTTP',()=>{
+  it('reads local project metadata without waiting for a shared repository request',async()=>{
+    const read=vi.fn(()=>({revision:3,project:{id:'local'}}));
+    const refresh=vi.fn(options=>{if(options?.shared!==false)throw Error('Unexpected shared network dependency');});
+    const result=await StudioLiveBridgeClient.prototype.execute.call({codeProjects:{read,refresh}},
+      {method:'project',args:{operation:'read'}});
+    expect(result).toMatchObject({revision:3,project:{id:'local'}});
+    expect(refresh).toHaveBeenCalledWith({shared:false});
+  });
   it('cleans pending RPCs and queues after a timeout',async()=>{
     const broker=new StudioLiveBridge({rpcTimeoutMs:20});
     try{

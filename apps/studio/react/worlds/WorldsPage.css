@@ -62,6 +62,10 @@
 .worlds-primary-action {
   flex-shrink: 0;
 }
+.worlds-heading-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px; }
+.worlds-code-action { min-height:42px; padding:0 14px; border:1px solid var(--studio-border); border-radius:8px; background:var(--studio-surface-1); color:var(--studio-text); font:inherit; font-size:13px; cursor:pointer; }
+.worlds-code-action:hover { background:var(--studio-surface-3); }
+@media (max-width:620px) { .worlds-heading { flex-wrap:wrap; } .worlds-heading-actions { justify-content:flex-start; } .worlds-code-action { font-size:12px; min-height:38px; } }
 
 .worlds-current {
   display: grid;
@@ -342,8 +346,8 @@
 .world-card-preview > em {
   right: 10px;
   top: 10px;
-  background: #dce4ff;
-  color: #202d55;
+  background: var(--studio-accent-soft);
+  color: var(--studio-text);
   font-weight: 650;
 }
 
@@ -723,3 +727,22 @@
 .worlds-share-token{display:flex;align-items:center;gap:12px;margin:12px 0 20px;font-size:12px;color:var(--studio-text-3)}
 .worlds-share-token input{flex:1;min-width:140px;max-width:420px;border:1px solid var(--studio-border);border-radius:6px;
   padding:8px 12px;background:var(--studio-surface-1);color:inherit}
+
+/* Gallery as a library, not a dashboard. */
+.shell[data-page="worlds"] .worlds-page { width:min(1160px,100%); padding-top:48px; }
+.shell[data-page="worlds"] .worlds-heading { margin-bottom:32px; }
+.shell[data-page="worlds"] .worlds-heading h1 { font-family:var(--studio-font-display); font-size:38px; font-weight:500; letter-spacing:-.035em; }
+.shell[data-page="worlds"] .worlds-heading p { color:var(--studio-text-2); }
+.shell[data-page="worlds"] .worlds-current { border-radius:16px; }
+.shell[data-page="worlds"] .worlds-current-copy { padding:34px; }
+.shell[data-page="worlds"] .worlds-current h2 { font-family:var(--studio-font-display); font-weight:500; font-size:30px; }
+.shell[data-page="worlds"] .worlds-browser-heading { margin-top:38px; }
+.shell[data-page="worlds"] .worlds-browser-heading h2 { font-family:var(--studio-font-display); font-size:23px; font-weight:500; }
+.shell[data-page="worlds"] .world-card { border-radius:12px; }
+.shell[data-page="worlds"] .world-card:hover { border-color:var(--studio-border-strong); box-shadow:0 3px 12px rgba(40,51,45,.06); }
+.shell[data-page="worlds"] .worlds-filters button[aria-pressed="true"] { background:var(--studio-surface-3); border-color:transparent; }
+@media(max-width:820px) {
+  .shell[data-page="worlds"] .worlds-page { padding:24px 16px; }
+  .shell[data-page="worlds"] .worlds-heading h1 { font-size:29px; }
+  .shell[data-page="worlds"] .worlds-current-copy { padding:24px; }
+}

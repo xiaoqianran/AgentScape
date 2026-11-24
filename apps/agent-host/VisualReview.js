@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { connectStudioMcp } from './McpWorldTools.js';
 import { matchesWorldBinding, withVisualTaskEvidence } from '../../application/agent/TaskEvidence.js';
 
+import { isUsableVisualCaptureSize } from '../../application/native-scene/VisualCapturePolicy.js';
+
 const fail = code => Object.assign(new Error(code),{code});
 
 const matchesEvidence=matchesWorldBinding;
@@ -50,8 +52,7 @@ export async function captureStudioVisual({configuration,project=null,expectedWo
        image.projectId!==read.project.id||image.revision!==read.revision||image.runtimeId!==read.runtimeId||
        typeof image.runtimeId!=='string'||!image.runtimeId||
        !Number.isSafeInteger(image.sceneRevision)||
-       !Number.isSafeInteger(image.width)||!Number.isSafeInteger(image.height)||
-       image.width<1||image.height<1||image.width>768||image.height>432||
+       !isUsableVisualCaptureSize(image.width,image.height)||image.width>768||image.height>432||
        typeof image.imageBase64!=='string'||image.imageBase64.length<16||
        image.imageBase64.length>240000||
        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(image.imageBase64))

@@ -225,19 +225,23 @@
 .inspector-chrome {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 6px;
   height: 44px;
-  padding: 0 16px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--studio-border);
   color: var(--studio-text-2);
   font-size: 13px;
 }
 
 .inspector-chrome button {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
+  min-width: 28px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  white-space: nowrap;
   border: 0;
   border-radius: 5px;
   color: var(--studio-text-3);
@@ -245,7 +249,11 @@
   cursor: pointer;
 }
 
+.inspector-chrome button[aria-label="关闭上下文面板"] { margin-left:auto; flex:none; padding:0; width:30px; }
+.inspector-chrome button[aria-pressed="true"] { color:var(--studio-text); background:var(--studio-surface-3); }
 .inspector-chrome button:hover {
   color: var(--studio-text);
   background: var(--studio-surface-3);
 }
+
+.shell[data-page="world"] .inspector-chrome { background: var(--studio-surface-1); }

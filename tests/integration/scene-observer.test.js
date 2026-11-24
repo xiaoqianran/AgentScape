@@ -1,4 +1,4 @@
-import {describe,it,expect} from 'vitest';
+import {describe,it,expect,vi} from 'vitest';
 import * as T from 'three';
 import {createSceneObserver} from '../../application/native-scene/SceneObserver.js';
 import {withNativeIsolation} from '../../application/native-scene/NativeSceneReview.js';
@@ -12,6 +12,24 @@ function fixture(){
   return {scene,camera,first,second,observer:createSceneObserver({scene,camera})};
 }
 describe('standalone scene observer identity',()=>{
+  it('rejects an initializing 1px canvas and accepts a usable frame without advancing time',()=>{
+    const {scene,camera}=fixture();
+    const canvas={width:1,height:1};
+    const redraw=vi.fn();
+    const drawImage=vi.fn();
+    vi.stubGlobal('document',{createElement:()=>({getContext:()=>({drawImage}),toDataURL:()=> 'data:image/jpeg;base64,ZmFrZQ=='})});
+    try{
+      const observer=createSceneObserver({scene,camera,renderer:{domElement:canvas}},{renderCurrent:redraw});
+      expect(()=>observer.capture()).toThrow('VISUAL_CANVAS_NOT_READY');
+      expect(redraw).not.toHaveBeenCalled();
+      canvas.width=640;canvas.height=360;
+      expect(observer.capture()).toMatchObject({status:'captured',width:640,height:360});
+      expect(redraw).toHaveBeenCalledOnce();
+      expect(drawImage).toHaveBeenCalledWith(canvas,0,0,640,360);
+      canvas.width=1024;canvas.height=32;
+      expect(()=>observer.capture({maxWidth:128,maxHeight:128})).toThrow('VISUAL_CAPTURE_DIMENSIONS_INVALID');
+    }finally{vi.unstubAllGlobals();}
+  });
   it('exposes object references and observes host-owned geometry without a Runtime',()=>{
     const {observer,first,scene,camera}=fixture();
     const result=observer.search({query:'Subject'});

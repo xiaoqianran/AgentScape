@@ -69,3 +69,26 @@ input::placeholder,textarea::placeholder {
     min-height: 44px;
   }
 }
+
+/* Quiet editorial hierarchy: readable headings, fewer containers and a single
+   accent. Geometry remains in studio-spatial.css. */
+.shell:is([data-page="worlds"],[data-page="world"],[data-page="agent"]) .brand-home strong {
+  font-family: var(--studio-font-display); font-size: 19px; font-weight: 600; letter-spacing: -.035em;
+}
+.shell:is([data-page="worlds"],[data-page="world"],[data-page="agent"]) .brand-symbol {
+  border: 0; background: transparent; color: var(--studio-accent);
+}
+.shell:is([data-page="worlds"],[data-page="world"],[data-page="agent"]) .product-navigation button[aria-pressed="true"] {
+  background: var(--studio-surface-2); border-color: transparent;
+}
+.shell:is([data-page="worlds"],[data-page="world"],[data-page="agent"]) .screen-heading h1 {
+  font-family: var(--studio-font-display); font-weight: 500; font-size: 30px; letter-spacing: -.025em;
+}
+.shell[data-page="world"] .panel .screen-heading h1 { font-size: 22px; }
+.shell[data-page="world"] .utility-rail { box-shadow: 0 2px 8px rgba(40,51,45,.09); border-radius: 10px; }
+.shell:is([data-page="world"],[data-page="agent"]) .command-bar {
+  border-radius: 16px; box-shadow: 0 2px 10px rgba(40,51,45,.05); background: var(--studio-surface-1);
+}
+.shell:is([data-page="world"],[data-page="agent"]) .command-bar > button { font-weight: 600; }
+.shell[data-page="world"] .code-project-editor :is(input,select,textarea),
+.shell[data-page="world"] .code-world-visual :is(input:not([type="checkbox"]),select) { color: var(--studio-text); }

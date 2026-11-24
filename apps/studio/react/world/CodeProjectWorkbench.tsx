@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { StudioIcon } from '../shared/StudioIcon';
 import './CodeProjectWorkbench.css';
 import { formFieldsForAction, initialActionFieldValues, actionArgumentsFromFields } from './ProjectActionArguments.js';
 import { ProjectBatchReview } from './ProjectBatchReview.js';
@@ -56,10 +57,12 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
     finally { setWorking(false); }
   };
   const apply = async () => {
-    if (!dirty) return;
-    if (activeFile === entry) await controller.write({source,name,expectedRevision:revision});
-    else await controller.editFile({action:'write',path:activeFile,content:source,name,expectedRevision:revision});
+    if (!dirty) return state.revision;
+    const saved = activeFile === entry
+      ? await controller.write({source,name,expectedRevision:revision})
+      : await controller.editFile({action:'write',path:activeFile,content:source,name,expectedRevision:revision});
     setDirty(false);
+    return saved.revision;
   };
   const editFile = async (action:string, opts:Record<string,unknown>={}) => {
     await apply();
@@ -69,9 +72,35 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
     await apply();setActiveFile(path);setNewPath('');setDeleteArmed(false);
   },'');
   const busy = state.busy || working;
+  const conflict=dirty && revision!==state.revision;
+  const canRun=Boolean(project) && !busy && !conflict && (!state.approvalRequired || (!dirty && state.approval?.revision===state.revision));
+  const canSave=Boolean(project) && !busy && !dirty && state.active && state.revision===state.runningRevision;
+  const runWorld=()=>void run(async()=>{const expectedRevision=await apply();await controller.run({expectedRevision});},'代码世界运行中');
+  const statusLabel=busy?'正在处理':conflict?'版本冲突':dirty?'未保存编辑':!state.active?'尚未运行':state.runningRevision!==state.revision?'等待重新运行':state.playback?.paused?'已暂停':'运行中';
+  const statusTone=conflict?'error':dirty||busy||(state.active&&state.runningRevision!==state.revision)?'pending':state.active?'ready':'idle';
+  const errorText=error||state.error;
   return <div className="code-project-editor" aria-label="完整代码项目">
-    <h2>代码世界</h2>
-    <p>编辑多文件 Three.js 世界，运行后通过 AI 或 MCP 操作动态对象。</p>
+    <header className="code-project-commandbar">
+      <div className="code-project-heading"><div><h2>代码世界</h2><p>{project?.name || '创建或打开 Three.js 项目'}</p></div><span className="code-project-state" data-tone={statusTone}>{statusLabel}</span></div>
+      {project ? <>
+        <div className="code-project-primary-actions">
+          <button className="code-project-run" disabled={!canRun} onClick={runWorld}><StudioIcon name="arrow" size={15}/>运行代码世界</button>
+          <button disabled={busy || !dirty || conflict} onClick={()=>void run(apply,'源码草稿已保存')}>保存源码草稿</button>
+          <button disabled={!canSave} onClick={()=>void run(()=>controller.save(),'世界状态已保存到本机')}>保存世界状态</button>
+        </div>
+        {state.approvalRequired ? <button disabled={busy || conflict || (!dirty && state.approval?.revision===state.revision)} onClick={()=>void run(async()=>{await apply();await controller.approveCurrentRevision();},'已批准当前源码版本，请点击运行')}>审阅后批准本版本</button> : null}
+        {!state.active ? <small className="code-project-trust-note">仅运行可信来源的代码 · 在当前浏览器执行</small> : null}
+        <div className="code-project-revisions"><span>草稿 r{state.revision}</span><span>{state.active?'运行 r'+state.runningRevision:'尚未运行'}</span><span>{dirty?'未保存':'源码已保存'}</span></div>
+        {conflict ? <p role="alert">AI 已更新项目。请复制保留本地编辑，再载入最新版本。</p> : null}
+        {dirty ? <button className="code-project-discard" disabled={busy} onClick={()=>setDirty(false)}>放弃编辑并载入最新源码</button> : null}
+      </> : null}
+      <output role="status">{message}</output>
+      {errorText ? <p role="alert" className="code-project-error">{errorText}</p> : null}
+    </header>
+    <div className="code-project-body">
+    <details className="code-project-section" open={!state.active}>
+    <summary><StudioIcon name="folder" size={15}/>项目管理</summary>
+    <div className="code-project-section-content">
     <div className="code-project-buttons">
       <button disabled={busy || state.active || dirty} onClick={()=>void run(()=>controller.write({create:true}), '已创建草稿')}>新建代码世界</button>
       <button disabled={busy || state.active || dirty} onClick={()=>projectInput.current?.click()}>导入代码项目</button>
@@ -81,6 +110,8 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
       {state.projects.map((item:any)=><option key={item.id} value={item.id}>{item.name}</option>)}
     </select></label>
     <button disabled={busy || state.active || dirty || !selected} onClick={()=>void run(()=>controller.load(selected), '项目已打开，点击运行')}>打开代码项目</button>
+    </div></details>
+    {!project ? <div className="code-project-empty"><StudioIcon name="cube" size={28}/><strong>开始创作</strong><p>新建项目后即可修改模板并运行，或打开已保存的世界继续编辑。</p><small>代码在本机浏览器执行，运行前请确认来源可信。</small></div> : null}
     {project ? <>
       <label>项目名称<input aria-label="代码项目名称" value={name} disabled={busy}
         onChange={e=>{setName(e.target.value);setDirty(true);}} /></label>
@@ -93,6 +124,7 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
           <span>{path}</span>{path===entry?<small>入口</small>:null}
         </button>)}
       </div>
+      <details className="code-project-section code-project-file-management"><summary><StudioIcon name="plus" size={15}/>管理工程文件</summary><div className="code-project-section-content">
       <div className="code-project-file-tools">
         <label>新增文件路径<input aria-label="新增文件路径" placeholder="src/helper.js 或 shaders/effect.glsl"
           value={newFile} disabled={busy} onChange={e=>setNewFile(e.target.value)} /></label>
@@ -119,10 +151,14 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
           }}>{deleteArmed?'确认删除文件':'删除文件'}</button>
         </div>
       </div>
-      <label className="code-source-label">{activeFile===entry?'世界源码':'文件内容 · '+activeFile}
+      </div></details>
+      <label className="code-source-label"><span className="code-source-title">{activeFile===entry?'世界源码':'文件内容 · '+activeFile}<small>{source.split('\n').length} 行</small></span>
         <textarea aria-label={activeFile===entry?'世界源码':'文件内容 '+activeFile} spellCheck={false}
-          value={source} disabled={busy} onChange={e=>{setSource(e.target.value);setDirty(true);}} />
+          value={source} disabled={busy} onChange={e=>{setSource(e.target.value);setDirty(true);}}
+          onKeyDown={event=>{if(!(event.ctrlKey||event.metaKey))return;if(event.key.toLowerCase()==='s'){event.preventDefault();event.stopPropagation();if(!busy&&dirty&&!conflict)void run(apply,'源码草稿已保存');}else if(event.key==='Enter'){event.preventDefault();event.stopPropagation();if(canRun)runWorld();}}} />
+        <small className="code-source-shortcuts">Ctrl / ⌘ + S 保存 · Ctrl / ⌘ + Enter 运行</small>
       </label>
+      <details className="code-project-section"><summary><StudioIcon name="image" size={15}/>资源文件 <small>{Object.keys(project.resources || {}).length} 个</small></summary><div className="code-project-section-content">
       <div className="code-project-resources">
         <strong>资源文件 <small>{Object.keys(project.resources || {}).length} 个</small></strong>
         {Object.entries(project.resources || {}).map(([path,value]:[string,any])=><div key={path}>
@@ -134,18 +170,10 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
         </div>)}
         <button disabled={busy} onClick={()=>resourceInput.current?.click()}>导入图片或资源</button>
       </div>
+      </div></details>
+      <details className="code-project-section"><summary><StudioIcon name="settings" size={15}/>时间控制与导出</summary><div className="code-project-section-content">
       <div className="code-project-buttons">
-        <button disabled={busy || !dirty} onClick={()=>void run(apply,'源码草稿已保存')}>保存源码草稿</button>
-        {state.approvalRequired ? <button disabled={busy || (!dirty && state.approval?.revision===state.revision)}
-          onClick={()=>void run(async()=>{
-            await apply(); // Include the visible unsaved editor contents in the reviewed revision.
-            await controller.approveCurrentRevision();
-          },'已批准当前源码版本，请点击运行')}>审阅后批准本版本</button> : null}
-        <button disabled={busy || dirty || (state.approvalRequired && state.approval?.revision!==state.revision)}
-          onClick={()=>void run(()=>controller.run({expectedRevision:controller.snapshot().revision}),'代码世界运行中')}>运行代码世界</button>
-        <button disabled={busy || dirty || !state.active || state.revision!==state.runningRevision}
-          onClick={()=>void run(()=>controller.save(),'世界状态已保存到本机')}>保存世界状态</button>
-        <button disabled={busy || dirty || !state.active || state.revision!==state.runningRevision}
+        <button disabled={!canSave}
           onClick={()=>void run(async()=>{
             const saved=await controller.save();
             const url=URL.createObjectURL(new Blob([JSON.stringify(saved.value)],{type:'application/json'}));
@@ -166,6 +194,8 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
         </div>
         {state.playback.paused?<small>项目时间 {Number(state.playback.elapsedSeconds).toFixed(3)} 秒 · 仿真 tick {state.playback.simulation.tick}。恢复时间后再执行动态动作。</small>:null}
       </div>:null}
+      </div></details>
+      <details className="code-project-section"><summary>共享世界发布</summary><div className="code-project-section-content">
       <div className="code-project-file-tools" aria-label="共享世界发布">
         <label>共享发布授权令牌<input type="password" aria-label="共享发布授权令牌"
           placeholder="由服务端管理员配置，不会写入世界源码"
@@ -182,15 +212,14 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
           更新必须持有之前的共享版本号；版本冲突时不会覆盖其他浏览器的修改。
           不会把发布令牌保存到项目或本地存储。共享来源的 JavaScript 需要手动运行。</small>
       </div>
+      </div></details>
+      <details className="code-project-section"><summary>执行安全与开发说明</summary><div className="code-project-section-content">
       <p className="code-project-note">安全提示：完整 JavaScript 在当前浏览器上下文执行，不是安全沙箱。默认可直接运行，包括 AI 提交的代码；请只连接可信的模型和项目。{state.approvalRequired ? (state.approval?.revision===state.revision ? ' 审批策略已启用 · 已批准 SHA-256 '+state.approval.digest : ' 审批策略已启用 · 当前版本尚未批准') : ' 未启用审批策略。'}</p>
-      <small>入口 {entry} · 草稿 r{state.revision} · {state.active?'运行 r'+state.runningRevision:'尚未运行'}{dirty?' · 当前文件未保存':''}</small>
-      {dirty && revision!==state.revision ? <p role="alert">AI 已更新项目。请保留本地编辑，再载入最新版本。</p> : null}
-      {dirty ? <button disabled={busy} onClick={()=>setDirty(false)}>放弃编辑并载入最新源码</button> : null}
+      <p className="code-project-note">JS 可以使用相对 import；Shader/WGSL/TXT 作为文本导入，JSON 作为对象导入。图片使用 resource('文件名')。npm 依赖仍需预打包。</p>
+      </div></details>
     </> : null}
-    <p className="code-project-note">JS 可以使用相对 import；Shader/WGSL/TXT 作为文本导入，JSON 作为对象导入。图片使用 resource('文件名')。npm 依赖仍需预打包。</p>
-    <button disabled={busy || dirty} onClick={()=>void run(()=>controller.close(),'已返回内置世界')}>保存并返回内置世界</button>
-    <output role="status">{message}</output>
-    {error || state.error ? <p role="alert">{error || state.error}</p> : null}
+    </div>
+    <footer className="code-project-footer"><button disabled={busy || dirty} onClick={()=>void run(()=>controller.close(),'已返回内置世界')}>保存并返回内置世界</button></footer>
     <input hidden ref={projectInput} type="file" accept=".json,application/json" onChange={event=>{
       const input=event.target.files?.[0];event.target.value='';
       if(input) void run(async()=>controller.write({create:true,project:JSON.parse(await input.text())}),'代码项目已导入，点击运行');

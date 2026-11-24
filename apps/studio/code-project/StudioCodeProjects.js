@@ -322,6 +322,19 @@ export class StudioCodeProjects {
       sceneRevision:session.scene.observe({limit:1}).revision,...result};
   }
   capture(options){return this.observeNative('capture',options);}
+  /** Wait only for a transient layout/backing-buffer initialization, never for a new world. */
+  async captureWhenReady(options={}) {
+    const binding={...options,expectedRuntimeId:options.expectedRuntimeId??this.runtimeId};
+    const deadline=performance.now()+2000;
+    for(;;){
+      try{return this.capture(binding);}
+      catch(error){
+        if(error?.code!=='VISUAL_CANVAS_NOT_READY'||performance.now()>=deadline)throw error;
+        await new Promise(resolve=>setTimeout(resolve,50));
+        if(performance.now()>=deadline)throw error;
+      }
+    }
+  }
   async save() {
     return this.exclusive(async () => {
       if (!this.session) throw fail('RUN_PROJECT_FIRST');

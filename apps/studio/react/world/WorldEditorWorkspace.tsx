@@ -139,12 +139,14 @@ export function WorldEditorWorkspace({
   const contextOpen = useStudioStore((state)=>state.layout.contextOpen);
   const contextView = useStudioStore((state)=>state.layout.activeContextView);
   const sceneCollapsed = useStudioStore((state)=>state.layout.sceneCollapsed);
+  const setSceneCollapsed=useStudioStore(state=>state.setSceneCollapsed);
   const selection = useStudioStore((state)=>state.editor.selection);
   const openView = useStudioStore((state)=>state.openView);
   const closeContext = useStudioStore((state)=>state.closeContext);
   const content = bridgeState.content;
   const commandInputRef=useRef<HTMLInputElement|null>(null);
   const [codeMode,setCodeMode]=useState<'code'|'visual'>('code');
+  const [wideEditor,setWideEditor]=useState(false);
 
   const commitLayoutChange = (change:()=>void) => {
     flushSync(change);
@@ -159,13 +161,14 @@ export function WorldEditorWorkspace({
   };
 
   return (
-    <section className={'world-editor-workspace' + (active ? ' is-active' : ' is-background') + (projectState.visible ? ' code-project-mode' : '')} aria-label="World Editor" aria-hidden={!active}>
+    <section className={'world-editor-workspace' + (active ? ' is-active' : ' is-background') + (projectState.visible ? ' code-project-mode' + (wideEditor && codeMode==='code' ? ' code-project-wide' : '') : '')} aria-label="World Editor" aria-hidden={!active}>
       <section className="workspace">
         <aside className="scene-panel" aria-hidden={sceneCollapsed}>
           {projectState.visible ? <>
             <div className="code-world-mode-tabs" role="group" aria-label="代码世界编辑方式">
-              <button type="button" aria-pressed={codeMode==='code'} onClick={()=>setCodeMode('code')}>源码</button>
-              <button type="button" aria-pressed={codeMode==='visual'} onClick={()=>setCodeMode('visual')}>可视化</button>
+              <button type="button" aria-pressed={codeMode==='code'} onClick={()=>commitLayoutChange(()=>setCodeMode('code'))}>源码</button>
+              <button type="button" aria-pressed={codeMode==='visual'} onClick={()=>commitLayoutChange(()=>setCodeMode('visual'))}>可视化</button>
+              {codeMode==='code' ? <button type="button" className="code-world-width" aria-label={wideEditor?'恢复源码区域宽度':'扩大源码区域'} aria-pressed={wideEditor} title={wideEditor?'恢复源码区域宽度':'扩大源码区域'} onClick={()=>commitLayoutChange(()=>setWideEditor(value=>!value))}><StudioIcon name="expand" size={15}/></button> : null}
             </div>
             <div className="code-world-source-host" hidden={codeMode!=='code'}>
               <CodeProjectEditor controller={projects} />
@@ -173,7 +176,7 @@ export function WorldEditorWorkspace({
             {codeMode==='visual' ? <CodeWorldVisualEditor controller={projects} /> : null}
           </> : content ? <SceneExplorerView {...content.sceneExplorer} /> : null}
         </aside>
-        {projectState.visible ? <div className="editor-toolbar"><strong>{projectState.project?.name || '完整代码项目'}</strong><span>{projectState.active ? '代码世界运行中 · 可切换可视化编辑' : '编辑源码后运行'}</span></div> : <SceneToolbar bridgeState={bridgeState} />}
+        {projectState.visible ? <div className="editor-toolbar code-world-toolbar"><strong>{projectState.project?.name || '完整代码项目'}</strong><span>{projectState.active ? (projectState.revision===projectState.runningRevision?'实时预览':'源码已更新 · 运行后预览') : '运行项目以预览世界'}</span></div> : <SceneToolbar bridgeState={bridgeState} />}
         <div id="viewport" className="viewport">
           {active && content && !projectState.active ? <SelectionActionDock {...content.inspector} openInspect={()=>commitLayoutChange(()=>openView('inspect'))} /> : null}
 
@@ -197,7 +200,7 @@ export function WorldEditorWorkspace({
       <div className="artifact-tray-host world-artifact-tray">{content && !projectState.active ? <ArtifactTrayView {...content.artifactTray} /> : null}</div>
 
       <nav className="utility-rail" aria-label="World Editor utilities">
-        {projects ? <button type="button" onClick={()=>{projects.show();commitLayoutChange(()=>openView('inspect'));}}>代码世界</button> : null}
+        {projects ? <button type="button" onClick={()=>{projects.show();commitLayoutChange(()=>{setSceneCollapsed(false);openView('inspect');});}}>代码世界</button> : null}
         {bridgeState.liveBridge ? <StudioMcpConnection controller={bridgeState.liveBridge} /> : null}
         <button id="open-world-task" type="button" aria-pressed={contextOpen && contextView==='task'} onClick={()=>commitLayoutChange(()=>openView('world-task'))}>任务</button>
         {WORLD_EDITOR_UTILITIES.map(({ view,label })=>{

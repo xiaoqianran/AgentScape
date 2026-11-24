@@ -188,3 +188,12 @@
 }
 
 .shell:not([data-context-view="create"]) .artifact-tray-host { display:none; }
+
+.shell[data-page="world"] .artifact-tray {
+  color:var(--studio-text); background:var(--studio-surface-1); border-color:var(--studio-border);
+}
+.shell[data-page="world"] .artifact-tray-item {
+  color:var(--studio-text); background:var(--studio-surface-2); border-color:var(--studio-border);
+}
+.shell[data-page="world"] .artifact-tray-item:hover,
+.shell[data-page="world"] .artifact-tray-item.active { background:var(--studio-accent-soft); border-color:var(--studio-accent); }

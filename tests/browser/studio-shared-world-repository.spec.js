@@ -22,6 +22,7 @@ test('browser A publishes a code world with independent visual edits; browser B 
   const added=await visual.getByLabel('可视化对象列表').inputValue();
   await a.getByRole('button',{name:'源码',exact:true}).click();
   const editor=a.getByLabel('完整代码项目');
+  await editor.locator('summary').filter({hasText:'共享世界发布'}).click();
   await editor.getByLabel('共享发布授权令牌').fill(token);
   await editor.getByRole('button',{name:'发布 / 更新共享世界'}).click();
   await expect(editor.getByRole('status')).toContainText('已发布至共享 WorldRepository',{timeout:60000});

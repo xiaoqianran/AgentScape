@@ -175,7 +175,8 @@ export class StudioLiveBridgeClient {
       const { operation, ...input } = inputArgs;
       if (operation === 'create_world') return this.codeProjects.createForTask(input);
       if (operation === 'read') {
-        await this.codeProjects.refresh();
+        // Local authoring must not depend on a shared repository round trip.
+        await this.codeProjects.refresh({shared:false});
         if (expectedProjectId && this.codeProjects.draft?.id !== expectedProjectId)
           throw failure('TASK_PROJECT_CHANGED');
         return this.codeProjects.read();
@@ -195,7 +196,7 @@ export class StudioLiveBridgeClient {
       if (operation === 'inspect_batch') return this.codeProjects.inspectBatch(input);
       if (operation === 'suggest_views') return this.codeProjects.suggestViews(input);
       if (operation === 'timeline') return this.codeProjects.timeline(input);
-      if (operation === 'capture') return this.codeProjects.capture(input);
+      if (operation === 'capture') return this.codeProjects.captureWhenReady(input);
       if (operation === 'save') return this.codeProjects.save();
       if (operation === 'open') return this.codeProjects.load(input.id);
       if (operation === 'close') return this.codeProjects.close();

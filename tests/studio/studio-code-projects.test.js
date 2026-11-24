@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { StudioCodeProjects } from '../../apps/studio/code-project/StudioCodeProjects.js';
 import { AuthoringWorldStore } from '../../apps/studio/persistence/AuthoringWorldStore.js';
 import { openCodeProject } from '../../application/native-scene/CodeProject.js';
@@ -25,6 +25,23 @@ async function runProject(controller,options) {
 }
 
 describe('Studio complete code project ownership',()=>{
+ it('retries only transient capture readiness and pins the runtime across the wait',async()=>{
+  const controller=new StudioCodeProjects();controller.runtimeId='first-runtime';
+  const capture=vi.spyOn(controller,'capture').mockImplementationOnce(()=>{
+    controller.runtimeId='second-runtime';
+    throw Object.assign(new Error('VISUAL_CANVAS_NOT_READY'),{code:'VISUAL_CANVAS_NOT_READY'});
+  }).mockImplementation(options=>{
+    if(options.expectedRuntimeId!==controller.runtimeId)throw Object.assign(new Error('PROJECT_RUNTIME_CONFLICT'),{code:'PROJECT_RUNTIME_CONFLICT'});
+    return {status:'captured'};
+  });
+  await expect(controller.captureWhenReady({expectedRevision:1})).rejects.toThrow('PROJECT_RUNTIME_CONFLICT');
+  expect(capture).toHaveBeenCalledTimes(2);
+  expect(capture.mock.calls.every(([options])=>options.expectedRuntimeId==='first-runtime')).toBe(true);
+  capture.mockReset().mockImplementationOnce(()=>{throw Object.assign(new Error('VISUAL_CANVAS_NOT_READY'),{code:'VISUAL_CANVAS_NOT_READY'});})
+    .mockReturnValue({status:'captured',width:640,height:360});
+  await expect(controller.captureWhenReady({expectedRevision:1,expectedRuntimeId:'second-runtime'})).resolves.toMatchObject({width:640,height:360});
+  expect(capture).toHaveBeenCalledTimes(2);
+ });
  it('creates a distinct draft once and resumes it after reconnect without discarding edits',async()=>{
   const f=await fixture();let other;
   try {

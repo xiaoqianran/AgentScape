@@ -58,7 +58,7 @@
 }
 
 .developer-dialog::backdrop {
-  background: rgba(var(--ds-accent-rgb),.68);
+  background: rgba(40,51,45,.45);
   backdrop-filter: blur(4px);
 }
 
@@ -271,25 +271,25 @@
 }
 
 .settings-section input {
-  border-color: rgba(228,225,230,.13);
+  border-color: var(--studio-border);
   color: var(--text);
-  background: rgba(0,0,0,.62);
+  background: var(--studio-surface-2);
 }
 
 .settings-section input:focus {
-  border-color: rgba(185,162,232,.7);
+  border-color: rgba(var(--ds-accent-rgb),.7);
   box-shadow: 0 0 0 2px rgba(185,162,232,.08);
 }
 
 .developer-dialog {
-  border-color: rgba(185,162,232,.32);
+  border-color: rgba(var(--ds-accent-rgb),.32);
   color: var(--text);
-  background: rgba(0,0,0,.96);
+  background: var(--studio-surface-1);
   box-shadow: 0 30px 100px rgba(0,0,0,.72),0 0 30px rgba(185,162,232,.06);
   backdrop-filter: blur(24px);
 }
 
 .developer-dialog::backdrop {
-  background: rgba(0,0,0,.72);
+  background: rgba(40,51,45,.55);
   backdrop-filter: blur(8px);
 }

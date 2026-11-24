@@ -30,6 +30,7 @@ type Props = {
   openGeneratedWorld?:(id:string)=>Promise<unknown>;
   enterAuthoringEditor?:(id:string|null)=>void;
   enterCurrentWorld?:()=>void;
+  openCodeEditor?:()=>void;
   openBuild?:()=>void;
   onCollectionChange?:(collection:Collection)=>void;
 };
@@ -173,7 +174,7 @@ export function DraftWorldRow({
   );
 }
 
-export function WorldsPage({ environments, presentation, resources=null, authoring=null, codeProjects=null, openBuiltinWorld, openGeneratedWorld, enterAuthoringEditor=()=>{}, enterCurrentWorld, openBuild, onCollectionChange }:Props) {
+export function WorldsPage({ environments, presentation, resources=null, authoring=null, codeProjects=null, openBuiltinWorld, openGeneratedWorld, enterAuthoringEditor=()=>{}, enterCurrentWorld, openCodeEditor, openBuild, onCollectionChange }:Props) {
   const [resourceRevision,setResourceRevision] = useState(0);
   const [collection,setCollection] = useState<Collection>(()=>{
     const initial=new URLSearchParams(globalThis.location?.search || '').get('collection');
@@ -310,10 +311,13 @@ export function WorldsPage({ environments, presentation, resources=null, authori
         <h1>世界工作台</h1>
         <p>选择一个场景，编辑空间，再让智能体行动。</p>
       </div>
-      <button type="button" className="worlds-primary-action" disabled={!authoring || !!busyKey} onClick={()=>void create()}>
-        <StudioIcon name="plus" />
-        {busyKey==='new'?'正在创建…':'新建草稿'}
-      </button>
+      <div className="worlds-heading-actions">
+        {openCodeEditor ? <button type="button" className="worlds-code-action" onClick={openCodeEditor}>创建或打开代码世界</button> : null}
+        <button type="button" className="worlds-primary-action" disabled={!authoring || !!busyKey} onClick={()=>void create()}>
+          <StudioIcon name="plus" />
+          {busyKey==='new'?'正在创建…':'新建草稿'}
+        </button>
+      </div>
     </header>
 
     <section className="worlds-current" aria-label="当前世界">

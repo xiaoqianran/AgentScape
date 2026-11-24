@@ -25,7 +25,11 @@ test('Studio MCP creates a visible world; UI edits, fails safely, saves and reop
   // Default Studio deliberately permits MCP/Agent runs without human review.
   // Explicit requireProjectApproval is verified separately in code-project-approval.test.js.
   await expect(page.getByRole('button',{name:'审阅后批准本版本',exact:true})).toHaveCount(0);
-  await call('studio_project',{operation:'run',requestId:randomUUID()});
+  const running=await call('studio_project',{operation:'run',requestId:randomUUID()});
+  const firstCapture=await call('scene_capture',{operation:'capture',expectedRevision:running.revision,expectedRuntimeId:running.runtimeId});
+  expect(firstCapture.width).toBeGreaterThanOrEqual(32);expect(firstCapture.height).toBeGreaterThanOrEqual(32);
+  const firstImage=await sharp(Buffer.from(firstCapture.imageBase64,'base64')).metadata();
+  expect(firstImage).toMatchObject({width:firstCapture.width,height:firstCapture.height});
   const canvas=page.locator('.studio-code-project-viewport canvas');await expect(canvas).toBeVisible();
   const shot=await canvas.screenshot({path:testInfo.outputPath('studio-code-world.png')});
   expect(Math.max(...(await sharp(shot).stats()).channels.slice(0,3).map(c=>c.stdev))).toBeGreaterThan(4);

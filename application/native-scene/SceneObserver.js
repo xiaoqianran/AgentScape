@@ -2,6 +2,8 @@ import { createInspectionCamera, frameNativeView, inspectNativeScene, resolveNod
 import { sampleNativeVisibility, withNativeIsolation } from './NativeSceneReview.js';
 import { inspectNativeSceneBatch, searchNativeScene, suggestNativeViews } from './NativeSceneQuery.js';
 
+import { isUsableVisualCaptureSize } from './VisualCapturePolicy.js';
+
 const fail=code=>Object.assign(new Error(code),{code});
 
 /** Read and capture a host-owned Three.js scene without creating a Runtime or advancing time. */
@@ -24,8 +26,10 @@ export function createSceneObserver(native,{renderCurrent}={}){
         !Number.isSafeInteger(maxHeight) || maxHeight < 128 || maxHeight > 1024)
       throw fail('VISUAL_CAPTURE_DIMENSIONS_INVALID');
     const renderer=native.renderer,canvas=renderer?.domElement;
-    if (!canvas || !canvas.width || !canvas.height || typeof document==='undefined')
-      throw fail('VISUAL_CANVAS_UNAVAILABLE');
+    if (!canvas || typeof document==='undefined')throw fail('VISUAL_CANVAS_UNAVAILABLE');
+    // A newly mounted or hidden project may have only a 1px backing buffer.
+    // Such a frame is not usable visual evidence, even after a synchronous redraw.
+    if (!isUsableVisualCaptureSize(canvas.width,canvas.height))throw fail('VISUAL_CANVAS_NOT_READY');
     const aspect=canvas.width/canvas.height;
     if(isolateObjectUuid!==undefined&&isolateNodePath===undefined)throw fail('NATIVE_INSPECT_PATH_INVALID');
     const isolationUuid=isolateObjectUuid??(view?.nodePath===isolateNodePath?view?.objectUuid:undefined);
@@ -54,6 +58,7 @@ export function createSceneObserver(native,{renderCurrent}={}){
       const ratio=Math.min(1,maxWidth/canvas.width,maxHeight/canvas.height);
       const width=Math.max(1,Math.round(canvas.width*ratio));
       const height=Math.max(1,Math.round(canvas.height*ratio));
+      if(!isUsableVisualCaptureSize(width,height))throw fail('VISUAL_CAPTURE_DIMENSIONS_INVALID');
       const target=document.createElement('canvas');
       target.width=width;target.height=height;
       const context=target.getContext('2d');

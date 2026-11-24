@@ -8,7 +8,7 @@ const jpegBase64=Buffer.from([0xff,0xd8,0xff,0xd9,1,2,3,4,5,6,7,8]).toString('ba
 const project={id:'world_'+ 'f'.repeat(32),worldSessionId:'session-good'};
 
 function bridge({revision=2,active=true,sessionId=project.worldSessionId,imageRevision=revision,
-  calls=[],sceneRevision=7,runtimeId='runtime-1'}={}) {
+  calls=[],sceneRevision=7,runtimeId='runtime-1',width=640,height=360}={}) {
   return async({projectScope})=>{
     calls.push(['connect',projectScope]);
     return {worldSessionId:sessionId,
@@ -19,7 +19,7 @@ function bridge({revision=2,active=true,sessionId=project.worldSessionId,imageRe
         const value=args.operation==='read'?
           {active,revision,runningRevision:revision,runtimeId,project:{id:project.id}}:
           {status:'captured',mime:'image/jpeg',projectId:project.id,revision:imageRevision,runtimeId,
-            sceneRevision,width:640,height:360,imageBase64:jpegBase64};
+            sceneRevision,width,height,imageBase64:jpegBase64};
         return {content:[{type:'text',text:JSON.stringify(value)}]};
       }}))],
       close:async()=>{calls.push(['close']);}
@@ -35,6 +35,12 @@ describe('real Studio frame and multimodal review contract',()=>{
     expect(calls.map(item=>item[0])).toEqual(['connect','read','capture','close']);
     expect(calls[0][1]).toBe(project.worldSessionId+'/'+project.id);
     expect(calls[2][1]).toMatchObject({expectedRevision:2,maxWidth:768,maxHeight:432});
+  });
+  it('never sends a 1px frame to the vision model',async()=>{
+    const request=vi.fn();
+    await expect(reviewStudioVisual({prompt:'tree',configuration,project,
+      mcpConnector:bridge({width:1,height:1}),request})).rejects.toThrow('VISUAL_CAPTURE_RESPONSE_INVALID');
+    expect(request).not.toHaveBeenCalled();
   });
   it('rejects stale revision or changed world session before evaluating pixels',async()=>{
     await expect(captureStudioVisual({configuration,project,

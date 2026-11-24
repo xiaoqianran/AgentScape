@@ -210,7 +210,7 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     const views=controller.suggestViews({...request,nodePath,objectUuid,candidateLimit:4,grid:3});
     setNativeViews(views);
     if(!views.best)throw new Error('当前对象无法获得可靠的候选视角');
-    const capture=controller.capture({...request,maxWidth:640,maxHeight:480,view:views.best.view,isolateNodePath:nodePath,isolateObjectUuid:objectUuid});
+    const capture=await controller.captureWhenReady({...request,maxWidth:640,maxHeight:480,view:views.best.view,isolateNodePath:nodePath,isolateObjectUuid:objectUuid});
     setNativePreview('data:image/jpeg;base64,'+capture.imageBase64);
     return views;
   },'已选择采样可见性最佳的机位并生成局部预览');

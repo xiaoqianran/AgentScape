@@ -45,3 +45,35 @@
   --studio-scene-w: 256px;
   --studio-panel-w: 320px;
 }
+
+/* Sage Garden-inspired editorial palette. Keep legacy generation/asset labs on their current
+   palette until their media controls are migrated; authored WebGL is untouched. */
+:root:has(.shell:is([data-page="worlds"],[data-page="world"],[data-page="agent"])) {
+  color-scheme: light;
+  --ds-bg: #f8f7f4;
+  --ds-viewport: #e1e6db;
+  --ds-surface-1: #ffffff;
+  --ds-surface-2: #eff1e9;
+  --ds-surface-3: #e5e9dd;
+  --ds-surface-hover: #eaede4;
+  --ds-border: #e0e4d9;
+  --ds-border-strong: #a8b39f;
+  --ds-text: #28332d;
+  --ds-text-2: #46544a;
+  --ds-text-3: #5a685d;
+  --ds-accent: #526b56;
+  --ds-accent-rgb: 82,107,86;
+  --ds-accent-hover: #425a47;
+  --ds-on-accent: #ffffff;
+  --ds-accent-soft: #e2e9dc;
+  --ds-success: #386747;
+  --ds-warning: #805a21;
+  --ds-danger: #a43f3b;
+  --ds-info: #38647b;
+  --ds-shadow-float: 0 8px 28px rgba(40,51,45,.12), 0 1px 3px rgba(40,51,45,.08);
+  --studio-shadow: 0 16px 42px rgba(40,51,45,.13);
+  --studio-font-display: Georgia, "Noto Serif CJK SC", "Songti SC", SimSun, serif;
+  --studio-type-body: 14px;
+  --studio-type-control: 13px;
+}
+:root { --studio-font-display: var(--studio-font-ui); }
