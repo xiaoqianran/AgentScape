@@ -68,6 +68,62 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   expect(image.length).toBeGreaterThan(1000);
   const pixels=await sharp(image).stats();
   expect(Math.max(...pixels.channels.slice(0,3).map(channel=>channel.stdev))).toBeGreaterThan(2);
+  const inspected=await call('inspect',{expectedRevision:3,limit:64});
+  expect(inspected.status).toBe('inspected');
+  expect(inspected.counts.meshes).toBeGreaterThan(0);
+  // Choose a measured native subtree, not a guessed semantic entity ID.
+  const child=inspected.children.find(item=>item.type==='Mesh');
+  const measured=child?await call('inspect',{expectedRevision:3,nodePath:child.nodePath}):inspected;
+  expect(measured.boundsComplete).toBe(true);
+  const searched=await call('search',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,
+    expectedSceneRevision:measured.sceneRevision,query:'Mesh',visibleOnly:true,limit:8});
+  expect(searched.items.some(item=>item.type==='Mesh')).toBe(true);
+  const match=searched.items.find(item=>item.type==='Mesh');
+  const batch=await call('inspect_batch',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,
+    expectedSceneRevision:searched.sceneRevision,nodePaths:[match.nodePath],includeMaterials:true,includeLights:true,visibility:true});
+  expect(batch).toMatchObject({status:'batch-inspected',count:1});
+  expect(batch.results[0].materials.items.length).toBeGreaterThan(0);
+  const suggestions=await call('suggest_views',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,
+    expectedSceneRevision:batch.sceneRevision,nodePath:match.nodePath,candidateLimit:2,
+    directions:[[1,.5,1],[-1,.5,1]]});
+  expect(suggestions.best).toMatchObject({rank:1,view:{nodePath:match.nodePath}});
+  const staleSearch=await client.callTool({name:'studio_project',arguments:{operation:'search',expectedRevision:3,
+    expectedRuntimeId:inspected.runtimeId,expectedSceneRevision:batch.sceneRevision+1,query:'Mesh'}});
+  expect(staleSearch.isError).toBe(true);
+  expect(JSON.parse(staleSearch.content[0].text).code).toBe('NATIVE_INSPECT_SCENE_CONFLICT');
+  const focused=await client.callTool({name:'studio_project',arguments:{operation:'capture',expectedRevision:3,imageMode:'mcp',
+    view:{nodePath:measured.node.nodePath,direction:[1,.65,1],padding:1.12}}});
+  expect(focused.isError,focused.content[0].text).toBeFalsy();
+  const meta=JSON.parse(focused.content[0].text);
+  expect(meta).toMatchObject({status:'captured',revision:3,renderMode:'direct'});
+  expect(meta).not.toHaveProperty('imageBase64');
+  expect(focused.content[1]).toMatchObject({type:'image',mimeType:'image/jpeg'});
+  expect(Buffer.from(focused.content[1].data,'base64').length).toBeGreaterThan(1000);
+  expect((await call('inspect',{expectedRevision:3})).camera).toEqual(inspected.camera);
+  const paused=await call('timeline',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,command:'pause'});
+  expect(paused.paused).toBe(true);
+  await expect(page.getByRole('button',{name:'恢复世界时间',exact:true})).toBeEnabled();
+  const reviewed=await call('inspect',{expectedRevision:3,nodePath:measured.node.nodePath,includeMaterials:true,visibility:true});
+  expect(reviewed.materials.items.length).toBeGreaterThan(0);
+  expect(reviewed.visibility.samples).toBeLessThanOrEqual(49);
+  const isolated=await call('capture',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,isolateNodePath:measured.node.nodePath});
+  expect(isolated.isolation.nodePath).toBe(measured.node.nodePath);
+  expect(isolated.playback.frames).toBe(paused.frames);
+  expect(isolated.playback.simulation.tick).toBe(paused.simulation.tick);
+  const stepped=await call('timeline',{expectedRevision:3,command:'step',steps:60});
+  expect(stepped.frames-paused.frames).toBe(60);
+  expect(stepped.simulation.tick-paused.simulation.tick).toBe(60);
+  expect(stepped.elapsedSeconds-paused.elapsedSeconds).toBeCloseTo(1,8);
+  await page.getByRole('button',{name:'恢复世界时间',exact:true}).click();
+  await expect(page.getByRole('button',{name:'暂停世界时间',exact:true})).toBeEnabled();
+  expect((await call('timeline',{expectedRevision:3,command:'status'})).paused).toBe(false);
+  const wrongRuntime=await client.callTool({name:'studio_project',arguments:{operation:'inspect',expectedRevision:3,expectedRuntimeId:randomUUID()}});
+  expect(wrongRuntime.isError).toBe(true);
+  expect(JSON.parse(wrongRuntime.content[0].text).code).toBe('PROJECT_RUNTIME_CONFLICT');
+  const invalid=await client.callTool({name:'studio_project',arguments:{operation:'capture',expectedRevision:3,
+    view:{position:[1,2,3],target:[1,2,3]}}});
+  expect(invalid.isError).toBe(true);
+  expect(JSON.parse(invalid.content[0].text).code).toBe('VISUAL_VIEW_INVALID');
   const staleCapture=await client.callTool({name:'studio_project',arguments:{operation:'capture',expectedRevision:1}});
   expect(staleCapture.isError).toBe(true);
   expect(JSON.parse(staleCapture.content[0].text).code).toBe('PROJECT_REVISION_CONFLICT');

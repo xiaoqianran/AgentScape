@@ -35,6 +35,9 @@ export const getConfig=env=>({
   baseUrl:env.AGENTSCAPE_LLM_BASE_URL||env.AGENTSCAPE_TEST_LLM_BASE_URL,
   apiKey:env.AGENTSCAPE_LLM_API_KEY||env.AGENTSCAPE_TEST_LLM_API_KEY,
   modelId:env.AGENTSCAPE_LLM_MODEL||env.AGENTSCAPE_TEST_LLM_MODEL,
+  disableThinking:env.AGENTSCAPE_LLM_DISABLE_THINKING==='1',
+  streamUsage:env.AGENTSCAPE_LLM_STREAM_USAGE==='1',
+  visualDisableThinking:env.AGENTSCAPE_VISUAL_DISABLE_THINKING==='1'||(env.AGENTSCAPE_VISUAL_DISABLE_THINKING===undefined&&!env.AGENTSCAPE_VISUAL_MODEL&&env.AGENTSCAPE_LLM_DISABLE_THINKING==='1'),
   taskCompilerTimeoutMs:env.AGENTSCAPE_TASK_COMPILER_TIMEOUT_MS,
   taskCompilerModelId:env.AGENTSCAPE_TASK_COMPILER_MODEL,
   taskCompilerDisableThinking:env.AGENTSCAPE_TASK_COMPILER_DISABLE_THINKING,
@@ -157,7 +160,7 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
       if(project)emit({type:'project.created',projectId:project.id,revision:project.revision});
       const prompt=project ? [
         'The Host has prepared a dedicated draft for this task. Use studio_project read to obtain the starter and guide.',
-        'Write the complete scene source via studio_project write with the current expectedRevision; use that same project.',
+        'Write a complete runnable core via studio_project write with the current expectedRevision; use that same project. For substantial scenes, add focused source modules with studio_project file or patch and read the latest revision before every edit. Avoid a single oversized tool call.',
         acceptanceMode==='strict'
           ? 'Use the starter and Runtime interfaces. Register the required entities, run the revision, save and verify all user-derived criteria via scene_verify.'
           : 'Use the starter and native Three.js APIs freely to implement the requested world. Semantic entity/action registration is optional; use it only if interaction is needed. Run the revision, save, and check observable state with scene_verify. Do not substitute a fixed object vocabulary for the user request.',
@@ -169,7 +172,18 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
         'The Host will independently verify these criteria. A tool result is not task completion.'
       ].join('\n') : prompt;
       const shouldReview=visualMode==='on'||(visualMode==='auto'&&Boolean(project));
-      const runBackend=prompt=>backends[input.backend]({prompt,projectScope,configuration:config,signal:controller.signal,emit});
+      // Preserve usage from every backend invocation, including visual revisions.
+      let usage=null;
+      const runBackend=async prompt=>{
+        const result=await backends[input.backend]({prompt,projectScope,configuration:config,signal:controller.signal,emit});
+        if(result.usage){
+          usage ||= {};
+          for(const key of ['modelCalls','reportedCalls','inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens','totalTokens','reasoningTokens']){
+            if(Number.isSafeInteger(result.usage[key])&&result.usage[key]>=0)usage[key]=(usage[key]||0)+result.usage[key];
+          }
+        }
+        return result;
+      };
       const verify=backendOutput=>finalize({output:{...backendOutput,backend:input.backend},project,
         configuration:config,signal:controller.signal,expectedWorldSessionId,taskSpec,
         deferVisualReview:shouldReview});
@@ -180,6 +194,7 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
           revise:({prompt})=>runBackend(prompt),verify,maxRevisions:visualMaxRevisions,
           signal:controller.signal,emit});
       }
+      if(usage)output={...output,usage};
       emit({type:'run.finished',backend:input.backend,taskStatus:output.taskStatus,verified:output.verified});
       if(streaming){stream({type:'run.result',result:{...output,runId:input.runId}});res.end();return;}
       return respond(res,200,{...output,runId:input.runId,events},origin);

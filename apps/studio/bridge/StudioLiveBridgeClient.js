@@ -190,6 +190,11 @@ export class StudioLiveBridgeClient {
       if (operation === 'discard_batch') return this.codeProjects.discardBatch(input);
       if (operation === 'undo_batch') return this.codeProjects.undoBatch(input);
       if (operation === 'run') return this.codeProjects.run(input);
+      if (operation === 'inspect') return this.codeProjects.inspect(input);
+      if (operation === 'search') return this.codeProjects.search(input);
+      if (operation === 'inspect_batch') return this.codeProjects.inspectBatch(input);
+      if (operation === 'suggest_views') return this.codeProjects.suggestViews(input);
+      if (operation === 'timeline') return this.codeProjects.timeline(input);
       if (operation === 'capture') return this.codeProjects.capture(input);
       if (operation === 'save') return this.codeProjects.save();
       if (operation === 'open') return this.codeProjects.load(input.id);
@@ -203,7 +208,9 @@ export class StudioLiveBridgeClient {
       });
       case 'apply':return this.scene.apply({requestId:args.requestId,expectedRevision:args.expectedRevision,operations:args.operations});
       case 'history':return this.scene.history(args);
-      case 'interact':return this.scene.interact(args.interaction);
+      case 'interact':
+        if(this.codeProjects?.session?.playback?.status().paused)throw failure('PROJECT_PLAYBACK_PAUSED');
+        return this.scene.interact(args.interaction);
       case 'job':return this.scene.getJob(args.jobId);
       case 'cancel':return this.scene.cancelJob(args.jobId);
       case 'verify': {

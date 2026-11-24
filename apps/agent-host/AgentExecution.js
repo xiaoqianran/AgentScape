@@ -36,6 +36,13 @@ export function executionRecord({ name, callId, args, result, isError = false, d
   const reason = !allowed ? 'AGENT_TOOL_FORBIDDEN' : approvalRequired ? 'PROJECT_EXECUTION_REVIEW_REQUIRED' : isError ? 'TOOL_FAILED'
     : failedVerify ? 'SCENE_UNVERIFIED'
     : error ? 'TOOL_FAILED' : undefined;
+  // Bounded diagnostic codes, never raw source or arbitrary tool result bodies.
+  const failedChecks=tool==='scene_verify'&&Array.isArray(payload?.verification?.evidence?.checks)
+    ?payload.verification.evidence.checks.filter(check=>check?.verified!==true).slice(0,32).map(check=>({
+      id:typeof check?.id==='string'?check.id.slice(0,100):null,
+      kind:typeof check?.kind==='string'?check.kind.slice(0,48):null,
+      reason:/^[A-Z_]{3,80}$/.test(check?.reason||'')?check.reason:'CHECK_UNVERIFIED'
+    })):[];
   // Save receipts bind persisted bytes to the exact live project and scene.
   const saved=tool==='studio_project'&&input.operation==='save'&&payload.status==='succeeded'&&
     typeof payload.projectId==='string'&&payload.value?.id===payload.projectId&&
@@ -50,6 +57,7 @@ export function executionRecord({ name, callId, args, result, isError = false, d
     ...(Number.isFinite(durationMs) ? {durationMs} : {}),
     ...(['studio_project','scene_history'].includes(tool) && typeof input.operation === 'string' ? {operation:input.operation} : {}),
     ...(saved&&!reason?{savedCheckpoint:saved}:{}),
+    ...(failedChecks.length?{failedChecks}:{}),
     ...(tool === 'scene_add_model' && typeof input.model?.id === 'string' ? {targetId:input.model.id} : {}),
     ...(tool === 'scene_verify' && Array.isArray(input.criteria) ? {criteria:input.criteria} : {}),
     ...(Number.isSafeInteger(payload?.revision) ? {revision:payload.revision} : {}),

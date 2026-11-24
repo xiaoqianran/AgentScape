@@ -153,6 +153,19 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
             setTimeout(()=>URL.revokeObjectURL(url),1000);
           },'完整代码项目已导出')}>导出代码项目</button>
       </div>
+      {state.active&&state.playback ? <div className="code-project-file-tools" aria-label="项目时间控制">
+        <strong>{state.playback.paused?'世界已暂停':'世界时间运行中'}</strong>
+        <div className="code-project-buttons">
+          <button type="button" disabled={busy||state.revision!==state.runningRevision}
+            onClick={()=>void run(()=>controller.timeline({expectedRevision:state.revision,expectedRuntimeId:state.runtimeId,
+              command:state.playback.paused?'resume':'pause'}),state.playback.paused?'世界时间已恢复':'世界时间已暂停')}>
+            {state.playback.paused?'恢复世界时间':'暂停世界时间'}
+          </button>
+          <button type="button" disabled={busy||!state.playback.paused||state.revision!==state.runningRevision}
+            onClick={()=>void run(()=>controller.timeline({expectedRevision:state.revision,expectedRuntimeId:state.runtimeId,command:'step',steps:1}),'已推进一个固定时间步')}>单步推进</button>
+        </div>
+        {state.playback.paused?<small>项目时间 {Number(state.playback.elapsedSeconds).toFixed(3)} 秒 · 仿真 tick {state.playback.simulation.tick}。恢复时间后再执行动态动作。</small>:null}
+      </div>:null}
       <div className="code-project-file-tools" aria-label="共享世界发布">
         <label>共享发布授权令牌<input type="password" aria-label="共享发布授权令牌"
           placeholder="由服务端管理员配置，不会写入世界源码"

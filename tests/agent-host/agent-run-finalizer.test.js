@@ -74,6 +74,16 @@ describe('shared Pi / DSH execution and Host admission',()=>{
     }
   });
 
+  it('records specific failed checks and rejects a truncated terminal model response',async()=>{
+    const broken=normalizeExecution('pi',[tool('scene_verify',{criteria}, {
+      schema:'agentscape.scene-result',operation:'verify',status:'succeeded',revision:5,
+      verification:{status:'unverified',evidence:{status:'world-incomplete',checks:[{id:'tree-check',kind:'object-exists',verified:false,reason:'ENTITY_NOT_FOUND'},null]}}
+    })]);
+    expect(broken[0].failedChecks).toEqual([{id:'tree-check',kind:'object-exists',reason:'ENTITY_NOT_FOUND'},{id:null,kind:null,reason:'CHECK_UNVERIFIED'}]);
+    const {output,mock}=await finish('pi',normalizePi(),{},{finishReason:'length'});
+    expect(output.verification.reason).toBe('MODEL_OUTPUT_TRUNCATED');
+    expect(mock.invoked).toHaveLength(0);
+  });
   it('rejects stale verification when a mutation followed scene_verify',async()=>{
     const execution=[...normalizePi(),...normalizeExecution('pi',[tool('studio_project',{operation:'run'},{status:'project-running'})])];
     const {output,mock}=await finish('pi',execution);

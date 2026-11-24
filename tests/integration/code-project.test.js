@@ -147,6 +147,35 @@ it('embeds resources and rebuilds their URLs after restoring only portable bytes
   } finally { first.close(); fresh?.close(); }
 });
 
+it('pauses the authored update loop, steps exact simulation ticks, redraws without advancing and resumes without wall-time catchup',async()=>{
+  const updates=[],renders=[];
+  const instance={scene:new THREE.Scene(),camera:new THREE.PerspectiveCamera(),
+    renderer:{render(){},extensions:{has:()=>false}},update:frame=>updates.push({...frame}),
+    render:frame=>renders.push({...frame})};
+  const host=await openCodeProject({project:await fixture(),authorized:true,autoStart:false,loadModule:async()=>({createProject:()=>instance})});
+  try{
+    host.frame(100);host.frame(200);
+    expect(host.playback.status().elapsedSeconds).toBeCloseTo(.1);
+    const paused=await host.playback.control({command:'pause'});
+    expect(paused.paused).toBe(true);expect(paused.simulation.running).toBe(false);
+    host.frame(1000);host.renderCurrent();
+    expect(updates).toHaveLength(2);
+    expect(host.playback.status()).toEqual(paused);
+    const stepped=await host.playback.control({command:'step',steps:60});
+    expect(stepped.frames-paused.frames).toBe(60);
+    expect(stepped.elapsedSeconds-paused.elapsedSeconds).toBeCloseTo(1,9);
+    expect(stepped.simulation.tick-paused.simulation.tick).toBe(60);
+    expect(updates.at(-1).dt).toBeCloseTo(1/60,9);
+    expect(renders.at(-1).dt).toBe(0);
+    await expect(host.playback.control({command:'step',steps:121})).rejects.toThrow('PROJECT_PLAYBACK_INVALID');
+    await host.playback.control({command:'resume'});
+    host.frame(5000);expect(updates.at(-1).dt).toBe(0);
+    host.frame(5100);expect(updates.at(-1).dt).toBeCloseTo(.1,9);
+    expect(host.playback.status().simulation.running).toBe(true);
+    await expect(host.playback.control({command:'step'})).rejects.toThrow('PROJECT_PLAYBACK_PAUSE_REQUIRED');
+  }finally{host.close();}
+});
+
 it('holds the save lock and pauses project updates during asynchronous state capture', async () => {
   let resolveState, updates = 0;
   const instance = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(),

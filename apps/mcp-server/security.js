@@ -11,7 +11,7 @@ export function createSecurity(tokens,{origins=[],hosts=['127.0.0.1','localhost'
   if(!principal) throw Object.assign(new Error(),{status:401});
   const now=Date.now(),bucket=buckets.get(principal.identity)||{start:now,count:0};
   if(now-bucket.start>60000){bucket.start=now;bucket.count=0;} buckets.set(principal.identity,bucket);
-  if(++bucket.count>rate) throw Object.assign(new Error(),{status:429});
+  if(++bucket.count>rate) throw Object.assign(new Error(),{status:429,retryAfter:Math.max(1,Math.ceil((60000-(now-bucket.start))/1000))});
   if(Number(req.headers['content-length'])>maxBody) throw Object.assign(new Error(),{status:413});
   let size=0; const chunks=[];
   for await(const chunk of req) {size+=chunk.length;if(size>maxBody) throw Object.assign(new Error(),{status:413});chunks.push(chunk);}

@@ -66,7 +66,7 @@ describe('dual agent host transport',()=>{
     ];
     const host=createAgentHost({config:configuration,port:0,
       prepareProject:async()=>({id:projectId,worldSessionId,revision:1}),
-      backends:{pi:async({prompt})=>{prompts.push(prompt);return {worldSessionId,execution:[]};},dsh:async()=>({})},
+      backends:{pi:async({prompt})=>{prompts.push(prompt);return {worldSessionId,execution:[],usage:{modelCalls:2,reportedCalls:2,totalTokens:123}};},dsh:async()=>({})},
       finalize:async()=>({taskStatus:'completed',verified:true,verification:{scope:'world-state',status:'verified'}}),
       reviewVisual:async()=>verdicts.shift()});
     await host.listen();active.push(host);
@@ -77,6 +77,7 @@ describe('dual agent host transport',()=>{
     expect(prompts[1]).toContain('创建一个精致苹果树世界');
     expect(output).toMatchObject({taskStatus:'completed',verified:true,visual:{status:'passed'}});
     expect(output.visual.reviews).toHaveLength(2);
+    expect(output.usage).toEqual({modelCalls:4,reportedCalls:4,totalTokens:246});
     expect(output.events.filter(event=>event.type==='visual.reviewed')).toHaveLength(2);
     expect(JSON.stringify(output)).not.toContain('imageBase64');
   });

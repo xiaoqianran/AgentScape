@@ -49,7 +49,12 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
    const response=await handler.fetch(await toWebRequest(req,body),{parsedBody:body});
    res.writeHead(response.status,Object.fromEntries(response.headers));
    res.end(Buffer.from(await response.arrayBuffer()));
-  } catch(e) {if(!res.headersSent) res.writeHead(e.status||500).end(JSON.stringify({error:e.status?'HTTP_REQUEST_REJECTED':'INTERNAL_ERROR'}));}
+  } catch(e) {
+   if(!res.headersSent){
+    const headers=e.status===429&&Number.isSafeInteger(e.retryAfter)?{'Retry-After':String(e.retryAfter)}:{};
+    res.writeHead(e.status||500,headers).end(JSON.stringify({error:e.status?'HTTP_REQUEST_REJECTED':'INTERNAL_ERROR'}));
+   }
+  }
  });
  http.requestTimeout=35000; http.headersTimeout=10000;
  try {await new Promise((resolve,reject)=>{http.once('error',reject);http.listen(port,'127.0.0.1',resolve);});}

@@ -15,6 +15,9 @@ it('fails safely on port conflicts, rate limits and never reloads stale data',as
   await expect(startServer({root,tokens,port:app.port})).rejects.toThrow();
   const url=`http://127.0.0.1:${app.port}/mcp`,headers={Authorization:`Bearer ${tokens[0].token}`};
   await fetch(url,{method:'POST',headers,body:'{}'});
-  expect((await fetch(url,{method:'POST',headers,body:'{}'})).status).toBe(429);
+  const limited=await fetch(url,{method:'POST',headers,body:'{}'});
+  expect(limited.status).toBe(429);
+  expect(Number(limited.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+  expect(Number(limited.headers.get('retry-after'))).toBeLessThanOrEqual(60);
  } finally {await app.close();await rm(root,{recursive:true,force:true});}
 });

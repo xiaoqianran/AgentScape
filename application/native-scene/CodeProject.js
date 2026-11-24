@@ -49,6 +49,7 @@ export async function openCodeProject({ project: input, container = null, author
   const project = await parseCodeProject(input, { maxBytes });
   const controller = new AbortController(), urls = new Map();
   let instance, session, projectModule, frameId, closed = false, capturing = false, lastTime = null;
+  let lastWallTime=null,paused=false,wasSimulationRunning=false,elapsedSeconds=0,frames=0;
   const mount = container && document.createElement('div');
   if (mount) mount.style.cssText = 'width:100%;height:100%';
   const resource = name => {
@@ -78,13 +79,69 @@ export async function openCodeProject({ project: input, container = null, author
     if (project.machines) session.world.projectCapabilities.restoreStateMachines(project.machines);
     if (project.edits) session.scene.restoreNativeEdits(project.edits);
     const baseFrame = session.scene.frame;
+    // Redraw without advancing animation, physics or lastTime.
+    const renderCurrent = (timestamp=lastTime??0,dt=0) => {
+      if(closed)throw fail('SCENE_CLOSED');
+      if(instance.render)instance.render({timestamp,dt});
+      else instance.renderer.render(instance.scene,instance.camera);
+    };
+    const advance=(timestamp,dt,manual=false)=>{
+      lastTime=timestamp;
+      instance.update?.({timestamp,dt});
+      if(manual){
+        const result=session.scene.step();
+        if(result?.skipped)throw fail('PROJECT_STEP_SKIPPED');
+      }else baseFrame(timestamp);
+      elapsedSeconds+=dt;frames++;
+    };
     const frame = timestamp => {
       if (closed) throw fail('SCENE_CLOSED');
-      const dt = lastTime === null ? 0 : Math.max(0, (timestamp - lastTime) / 1000); lastTime = timestamp;
-      if (capturing) return;
-      instance.update?.({ timestamp, dt }); baseFrame(timestamp);
-      if (instance.render) instance.render({ timestamp, dt });
-      else instance.renderer.render(instance.scene, instance.camera);
+      if(!Number.isFinite(timestamp))throw fail('PROJECT_FRAME_TIME_INVALID');
+      if(capturing||paused){lastWallTime=null;return;}
+      const dt=lastWallTime===null?0:Math.max(0,(timestamp-lastWallTime)/1000);
+      lastWallTime=timestamp;
+      const logicalTime=lastTime===null?timestamp:lastTime+dt*1000;
+      advance(logicalTime,dt);
+      renderCurrent(logicalTime,dt);
+    };
+    const playbackStatus=()=>({
+      paused,elapsedSeconds,frames,
+      simulation:{running:session.world.simulation.running,tick:session.world.simulation.tick,
+        time:session.world.simulation.time,fixedDt:session.world.simulation.fixedDt}
+    });
+    const playback={
+      status:playbackStatus,
+      async control({command='status',steps=1}={}){
+        if(closed)throw fail('SCENE_CLOSED');
+        if(command==='status')return playbackStatus();
+        if(capturing)throw fail('PROJECT_BUSY');
+        if(!['pause','resume','step'].includes(command)||!Number.isSafeInteger(steps)||steps<1||steps>120)
+          throw fail('PROJECT_PLAYBACK_INVALID');
+        // Resume must remain possible even if an external UI has started a job
+        // while paused. Pause/step require idle Scene state.
+        if(command==='resume'){
+          if(paused){
+            paused=false;lastWallTime=null;
+            if(wasSimulationRunning)session.world.simulation.play();
+          }
+          return playbackStatus();
+        }
+        return session.scene.captureProjectState(()=>{
+          if(command==='pause'){
+            if(!paused){
+              wasSimulationRunning=session.world.simulation.running;
+              session.world.simulation.pause();
+              paused=true;lastWallTime=null;
+            }
+          }else{
+            if(!paused)throw fail('PROJECT_PLAYBACK_PAUSE_REQUIRED');
+            const dt=session.world.simulation.fixedDt;
+            for(let i=0;i<steps;i++)advance((lastTime??0)+dt*1000,dt,true);
+            renderCurrent();
+          }
+          return playbackStatus();
+        });
+      }
     };
     const tick = timestamp => {
       if (closed) return;
@@ -108,7 +165,7 @@ export async function openCodeProject({ project: input, container = null, author
         if(session.scene.observe().revision!==revision)throw fail('SCENE_REVISION_CHANGED');
         return { schema: 'agentscape.scene-result', schemaVersion: 1, operation: 'save', status: 'succeeded', revision,
           verification: { status: 'not-requested', evidence: null }, diagnostics: [], value };
-      } finally { capturing = false; }
+      } finally { capturing = false; lastWallTime=null; }
     });
     const close = () => {
       if (closed) return;
@@ -120,7 +177,7 @@ export async function openCodeProject({ project: input, container = null, author
       capabilities: Object.freeze({ ...session.scene.capabilities, codeProject: true, nativeProjectSave: true }) });
     if (mount) container.appendChild(mount);
     if (autoStart && typeof requestAnimationFrame === 'function') frameId = requestAnimationFrame(tick);
-    return { ...session, frame, save, close };
+    return { ...session, frame, renderCurrent, playback, save, close };
   } catch (error) {
     controller.abort();
     try { session?.close(); } finally { try { instance?.dispose?.(); } finally { release(); } }

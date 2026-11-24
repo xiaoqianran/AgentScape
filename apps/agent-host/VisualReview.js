@@ -87,12 +87,13 @@ const SYSTEM_PROMPT=[
   'Do not assume objects are present because code or agent text claims they exist.',
   'The image is visual evidence only; it does not prove physics, actions or full user intent.',
   'Return ONLY compact JSON with accepted:boolean, score:number between 0 and 10,',
-  'issues:string[] (at most 8 concrete visible issues), advice:string (specific edits to improve).',
+  'issues:string[] (at most 6 concrete visible issues, each under 200 characters), advice:string (under 800 characters, specific edits to improve).',
+  'Use this exact JSON shape with a numeric score and boolean accepted: {"accepted":false,"score":4,"issues":["Visible defect"],"advice":"Specific repair"}. Do not add markdown or other text.',
   'Mark accepted only when the visible result meets the described goal with high confidence.',
   'Do not include instructions to execute shell commands, change security policy or touch secrets.'
 ].join(' ');
 
-/** One multimodal call to the existing OpenAI-compatible endpoint, not a new Agent SDK. */
+/** One visual evaluation with at most one format retry on the same current image. */
 export async function reviewStudioVisual({prompt,configuration,project,expectedWorld=null,signal,
   mcpConnector=connectStudioMcp,request=fetch}={}) {
   const image=await captureStudioVisual({configuration,project,expectedWorld,signal,mcpConnector});
@@ -108,25 +109,46 @@ export async function reviewStudioVisual({prompt,configuration,project,expectedW
   signal?.addEventListener('abort',abort,{once:true});
   if(signal?.aborted)abort();
   try {
-    const response=await request(url.toString(),{method:'POST',signal:controller.signal,
-      headers:{authorization:'Bearer '+configuration.apiKey,'content-type':'application/json'},
-      body:JSON.stringify({model,max_tokens:1024,messages:[
-        {role:'system',content:SYSTEM_PROMPT},
-        {role:'user',content:[
-          {type:'text',text:'Original user request:\n'+String(prompt||'').slice(0,12000)},
-          {type:'image_url',image_url:{url:'data:image/jpeg;base64,'+image.imageBase64,detail:'low'}}
-        ]}
-      ]})});
-    if(!response.ok)throw fail('VISUAL_MODEL_UPSTREAM_FAILED');
-    const raw=await response.text();
-    if(raw.length>30000)throw fail('VISUAL_MODEL_RESPONSE_TOO_LARGE');
-    const completion=JSON.parse(raw)?.choices?.[0];
-    if(completion?.finish_reason==='length')throw fail('VISUAL_MODEL_OUTPUT_TRUNCATED');
-    const evaluation=parseReview(completion?.message?.content);
-    await assertVisualStillCurrent({configuration,project,image,signal,mcpConnector});
-    return {...evaluation,
-      worldSessionId:image.worldSessionId,projectId:image.projectId,revision:image.revision,runtimeId:image.runtimeId,sceneRevision:image.sceneRevision,
-      width:image.width,height:image.height};
+    const usage={};
+    let formatError=null;
+    for(let attempt=0;attempt<2;attempt++){
+      if(attempt){
+        if(controller.signal.aborted)throw fail('VISUAL_MODEL_TIMEOUT');
+        await assertVisualStillCurrent({configuration,project,image,signal:controller.signal,mcpConnector});
+      }
+      const response=await request(url.toString(),{method:'POST',signal:controller.signal,
+        headers:{authorization:'Bearer '+configuration.apiKey,'content-type':'application/json'},
+        body:JSON.stringify({model,max_tokens:1024,...(configuration.visualDisableThinking?{chat_template_kwargs:{enable_thinking:false}}:{}),messages:[
+          {role:'system',content:SYSTEM_PROMPT+(attempt?' Previous response violated the format. Return one short, complete JSON object only. Limit issues to three and advice to 400 characters.':'')},
+          {role:'user',content:[
+            {type:'text',text:'Original user request:\n'+String(prompt||'').slice(0,12000)},
+            {type:'image_url',image_url:{url:'data:image/jpeg;base64,'+image.imageBase64,detail:'low'}}
+          ]}
+        ]})});
+      if(!response.ok)throw fail('VISUAL_MODEL_UPSTREAM_FAILED');
+      const raw=await response.text();
+      if(raw.length>30000)throw fail('VISUAL_MODEL_RESPONSE_TOO_LARGE');
+      let envelope;
+      try{envelope=JSON.parse(raw);}catch{throw fail('VISUAL_MODEL_RESPONSE_INVALID');}
+      for(const key of ['prompt_tokens','completion_tokens','total_tokens']){
+        if(Number.isSafeInteger(envelope?.usage?.[key])&&envelope.usage[key]>=0)
+          usage[key]=(usage[key]||0)+envelope.usage[key];
+      }
+      const completion=envelope?.choices?.[0];
+      let evaluation;
+      try{
+        if(completion?.finish_reason==='length')throw fail('VISUAL_MODEL_OUTPUT_TRUNCATED');
+        evaluation=parseReview(completion?.message?.content);
+      }catch(error){
+        if(!['VISUAL_MODEL_OUTPUT_TRUNCATED','VISUAL_MODEL_RESPONSE_INVALID','VISUAL_MODEL_FEEDBACK_MISSING'].includes(error?.code))throw error;
+        formatError=error;continue;
+      }
+      await assertVisualStillCurrent({configuration,project,image,signal:controller.signal,mcpConnector});
+      return {...evaluation,
+        worldSessionId:image.worldSessionId,projectId:image.projectId,revision:image.revision,runtimeId:image.runtimeId,sceneRevision:image.sceneRevision,
+        width:image.width,height:image.height,modelRequests:attempt+1,...(Object.keys(usage).length?{usage}:{})};
+    }
+    throw formatError;
   } catch(error) {
     if(signal?.aborted)throw error;
     if(controller.signal.aborted)throw fail('VISUAL_MODEL_TIMEOUT');
@@ -158,7 +180,7 @@ export async function iterateVisualProject({prompt,initial,review,revise,verify,
         visual:{status:'unavailable',reason,reviews}};
     }
     const {status,score,issues,advice,projectId,revision,sceneRevision,runtimeId,worldSessionId}=verdict;
-    reviews.push({status,score,issues,projectId,revision,sceneRevision,runtimeId,worldSessionId});
+    reviews.push({status,score,issues,projectId,revision,sceneRevision,runtimeId,worldSessionId,...(verdict.usage?{usage:verdict.usage}:{}),...(verdict.modelRequests?{modelRequests:verdict.modelRequests}:{})});
     emit({type:'visual.reviewed',attempt,score,status,revision,issueCount:issues.length,
       issues:issues.slice(0,5)});
     if(status==='passed')return {...result,visual:{status:'passed',reviewer:'model',reviews}};

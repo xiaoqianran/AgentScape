@@ -85,6 +85,14 @@ describe('real Studio frame and multimodal review contract',()=>{
     const request=async()=>({ok:true,text:async()=>JSON.stringify({choices:[{message:{content:JSON.stringify({accepted:true,score:9,issues:[],advice:''})}}]})});
     await expect(reviewStudioVisual({prompt:'tree',configuration,project,mcpConnector:connector,request})).rejects.toThrow('VISUAL_IMAGE_STALE');
   });
+  it('retries malformed output once on the same frame and accounts for both requests',async()=>{
+    const request=vi.fn(async(_url,options)=>({ok:true,text:async()=>JSON.stringify({usage:{total_tokens:100},choices:[{message:{content:request.mock.calls.length===1?'{}':JSON.stringify({accepted:false,score:3,issues:['Missing foliage'],advice:'Add connected branches and dense leaves'})}}]})}));
+    const result=await reviewStudioVisual({prompt:'apple tree',configuration,project,mcpConnector:bridge(),request});
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({status:'needs-revision',score:3,modelRequests:2,usage:{total_tokens:200}});
+    expect(JSON.parse(request.mock.calls[1][1].body).messages[0].content).toContain('Previous response violated');
+    expect(JSON.parse(request.mock.calls[0][1].body).messages[1]).toEqual(JSON.parse(request.mock.calls[1][1].body).messages[1]);
+  });
   it('does not accept malformed or unsupported vision responses',async()=>{
     const request=async()=>({ok:true,text:async()=>JSON.stringify({choices:[{message:{content:'{}'}}]})});
     await expect(reviewStudioVisual({prompt:'apple tree',configuration,project,

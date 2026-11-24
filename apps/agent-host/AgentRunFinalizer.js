@@ -50,7 +50,7 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
   const verificationCall = execution[verificationIndex];
   const lastMutation = lastIndex(execution,entry=>entry.mutates);
   const hasFailures = unresolved.length>0 || Boolean(output.error) || output.retryLimit ||
-    ['error','failed','cancelled','interrupted'].includes(output.finishReason);
+    ['error','failed','cancelled','interrupted','aborted','length'].includes(output.finishReason);
   let status = 'incomplete', reason = 'SCENE_VERIFICATION_MISSING';
   let checks=[],sceneRevision=null,projectRevision=null,runtimeId=null,savedCheckpoint=null,worldSessionId=project?.worldSessionId || output.worldSessionId || null;
   const projectId = project?.id || null;
@@ -89,7 +89,7 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
   if(unresolved.some(entry=>entry.reason==='PROJECT_EXECUTION_REVIEW_REQUIRED')){
     status='awaiting-approval';reason='PROJECT_EXECUTION_REVIEW_REQUIRED';return format();
   }
-  if(hasFailures){reason='UNRESOLVED_TOOL_FAILURE';return format();}
+  if(hasFailures){reason=output.finishReason==='length'?'MODEL_OUTPUT_TRUNCATED':'UNRESOLVED_TOOL_FAILURE';return format();}
   if(project && !mutations.length){reason='TASK_PROJECT_NOT_BUILT';return format();}
   if(taskSpec && taskSpec.status!=='ready'){reason=taskSpec.reason||'TASK_SPEC_REVIEW_REQUIRED';return format();}
   if(!verificationCall?.criteria?.length){reason='SCENE_VERIFICATION_MISSING';return format();}

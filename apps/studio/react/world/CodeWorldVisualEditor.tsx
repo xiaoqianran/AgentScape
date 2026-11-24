@@ -31,6 +31,13 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
+  const [nativeQuery,setNativeQuery]=useState('');
+  const [nativeResults,setNativeResults]=useState<any[]>([]);
+  const [nativeMeta,setNativeMeta]=useState<any>(null);
+  const [nativePath,setNativePath]=useState('');
+  const [nativeBatch,setNativeBatch]=useState<any>(null);
+  const [nativeViews,setNativeViews]=useState<any>(null);
+  const [nativePreview,setNativePreview]=useState('');
   const [revision,setRevision]=useState(0);
   const gizmoRef=useRef<any>(null);
   const refreshRef=useRef<()=>void>(()=>{});
@@ -172,6 +179,31 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     }catch(error){setError(error instanceof Error?error.message:String(error));refresh();}
     finally{setBusy(false);}
   };
+  const nativeRequest=()=>({expectedRevision:state.revision,expectedRuntimeId:state.runtimeId,
+    expectedSceneRevision:controller.scene.observe({limit:1}).revision});
+  const searchNative=(offset=0,append=false)=>execute(async()=>{
+    const result=controller.search({...nativeRequest(),query:nativeQuery,visibleOnly:true,offset,limit:32});
+    setNativeResults(current=>append?[...current,...result.items]:result.items);
+    setNativeMeta(result);
+    if(!append){setNativePath(result.items[0]?.nodePath||'');setNativeBatch(null);setNativeViews(null);setNativePreview('');}
+    return result;
+  },'已搜索原生 Three.js 对象');
+  const inspectNativeBatch=()=>execute(async()=>{
+    if(!nativeResults.length)throw new Error('请先搜索对象');
+    const paths=nativeResults.slice(0,8).map(item=>item.nodePath);
+    const result=controller.inspectBatch({...nativeRequest(),nodePaths:paths,includeMaterials:true,includeLights:true,visibility:paths.length<=4});
+    setNativeBatch(result);return result;
+  },'已批量观察搜索结果');
+  const previewNative=()=>execute(async()=>{
+    if(!nativePath)throw new Error('请先选择一个原生对象');
+    const request=nativeRequest();
+    const views=controller.suggestViews({...request,nodePath:nativePath,candidateLimit:4,grid:3});
+    setNativeViews(views);
+    if(!views.best)throw new Error('当前对象无法获得可靠的候选视角');
+    const capture=controller.capture({...request,maxWidth:640,maxHeight:480,view:views.best.view,isolateNodePath:nativePath});
+    setNativePreview('data:image/jpeg;base64,'+capture.imageBase64);
+    return views;
+  },'已选择采样可见性最佳的机位并生成局部预览');
   const applyChanges=()=>execute(async()=>{
     if(!selectedObject)throw new Error('请先选择对象');
     const numeric=(values:string[])=>values.map(value=>Number(value));
@@ -218,6 +250,43 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     <h2>可视化编辑</h2>
     <p>世界由完整 Three.js 代码创建；编辑只通过 Scene API 写入，不改写原始源码。</p>
     {!state.active ? <p role="status">请先运行代码世界，才能编辑场景。</p> : <>
+      {state.playback ? <section className="native-world-time" aria-label="世界时间控制">
+        <strong>{state.playback.paused?'世界时间已暂停':'世界时间运行中'}</strong>
+        <div className="code-world-visual-actions">
+          <button type="button" disabled={busy||state.busy} onClick={()=>void execute(()=>controller.timeline({
+            expectedRevision:state.revision,expectedRuntimeId:state.runtimeId,command:state.playback.paused?'resume':'pause'
+          }),state.playback.paused?'世界时间已恢复':'世界时间已暂停')}>{state.playback.paused?'恢复世界时间':'暂停世界时间'}</button>
+          <button type="button" disabled={busy||state.busy||!state.playback.paused} onClick={()=>void execute(()=>controller.timeline({
+            expectedRevision:state.revision,expectedRuntimeId:state.runtimeId,command:'step',steps:1
+          }),'已推进一个固定时间步')}>单步推进</button>
+        </div>
+        {state.playback.paused?<small>项目时间 {Number(state.playback.elapsedSeconds).toFixed(3)} 秒 · 仿真 tick {state.playback.simulation.tick}</small>:null}
+      </section>:null}
+      <section className="native-world-inspector" aria-label="原生 Three 对象搜索">
+        <strong>原生场景搜索与观察</strong>
+        <p>搜索完整 Three.js 场景树，不要求对象预先注册语义 ID。</p>
+        <div className="native-world-search">
+          <input aria-label="原生对象搜索" value={nativeQuery} placeholder="名称、Mesh 类型或材质名称"
+            onChange={event=>setNativeQuery(event.target.value)} disabled={busy||state.busy}
+            onKeyDown={event=>{if(event.key==='Enter')void searchNative();}}/>
+          <button type="button" disabled={busy||state.busy||!nativeQuery.trim()} onClick={()=>void searchNative()}>搜索</button>
+        </div>
+        {nativeMeta?<small>扫描 {nativeMeta.scannedNodes} 个节点 · 命中 {nativeMeta.totalMatches} 个 · {nativeMeta.truncated?'结果受扫描预算限制':'扫描完成'}</small>:null}
+        {nativeResults.length?<div className="native-world-results">
+          {nativeResults.map(item=><button type="button" key={item.nodePath||'root'} className={nativePath===item.nodePath?'selected':''}
+            onClick={()=>{setNativePath(item.nodePath);setNativePreview('');setNativeViews(null);}} disabled={busy||state.busy}>
+            <span>{item.name||'(未命名对象)'}</span><small>{item.type} · {item.nodePath||'root'} · {item.visible?'可见':'隐藏'}</small>
+          </button>)}
+        </div>:nativeMeta?<small>没有匹配对象</small>:null}
+        <div className="code-world-visual-actions">
+          <button type="button" disabled={busy||state.busy||!nativeMeta?.nextOffset} onClick={()=>void searchNative(nativeMeta.nextOffset,true)}>加载更多</button>
+          <button type="button" disabled={busy||state.busy||!nativeResults.length} onClick={()=>void inspectNativeBatch()}>批量检查前 8 个</button>
+          <button type="button" disabled={busy||state.busy||!nativePath} onClick={()=>void previewNative()}>自动找最佳机位</button>
+        </div>
+        {nativeViews?.best?<small>最佳采样可见率 {(nativeViews.best.visibility.visibleFraction*100).toFixed(1)}% · {nativeViews.candidates.length} 个候选机位</small>:null}
+        {nativeBatch?<small>批量检查 {nativeBatch.count} 个对象 · {nativeBatch.totals.nodes} 个节点 · {nativeBatch.totals.estimatedTriangles.toLocaleString()} 个估算三角形</small>:null}
+        {nativePreview?<img className="native-world-preview" src={nativePreview} alt="自动机位隔离观察预览"/>:null}
+      </section>
       <div className="code-world-visual-actions">
         <button type="button" onClick={()=>void addBox()} disabled={busy||state.busy}>添加方块</button>
         <button type="button" disabled={!history.canUndo||busy||state.busy}

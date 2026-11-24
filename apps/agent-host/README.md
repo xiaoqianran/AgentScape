@@ -50,12 +50,15 @@ Pi / DSH 共用同一世界会话，通过 `worldSessionId` 标识，禁止并�
 - 针对新建 Code Project，还必须确认项目 ID、runningRevision 及保存结果。默认 world 模式允许没有注册语义实体的纯 Three.js Scene；需要验证具体交互或 strict 任务条件时仍需可观察的实体/动作证据。本改动不提供 JavaScript 沙箱隔离。
 - 统一返回 `agentscape.agent-run` v1，保留 `taskStatus`、`execution`、`verification` 与 `unresolvedMutations`，并增加 `world`（worldSessionId、projectId、projectRevision、sceneRevision）。
 - `run.finished` 只由 Host 在最终验收后发出，适用于普通 HTTP 与 NDJSON 事件流。
+- Pi 的 `model.turn` 事件记录真实模型停止原因、工具调用数与服务端报告的 Token 用量，不保存内部推理内容；`usage` 累计所有 Pi 创作及视觉修订轮次的模型调用量，`reportedCalls` 明确多少次具有真实用量。视觉模型调用用量在 `visual.reviews[].usage` 单独记录。没有供应商价格时不估算费用。
+- `scene_verify` 只接受可由当前场景直接验证的条件；`no-unresolved` 需要完整 Agent 执行日志，由 Host 独立检查，不能作为 Scene 断言。执行记录保留失败验收项的有界 ID、kind 与原因码，避免只有笼统的 SCENE_UNVERIFIED。
+- 对 Host 绑定的新建项目，模型输出截断或完全空响应时最多追加一次针对同一项目的恢复请求，鼓励小而完整的源码文件/补丁；仍失败则拒绝验收。对于已经验证支持对应参数的 NewAPI 路由，可设置 `AGENTSCAPE_LLM_DISABLE_THINKING=1`（`chat_template_kwargs.enable_thinking=false`）与 `AGENTSCAPE_LLM_STREAM_USAGE=1`（`stream_options.include_usage=true`）。视觉评价可单独配置 `AGENTSCAPE_VISUAL_DISABLE_THINKING=1`，同模型默认继承创作开关。
 
 **验收范围**：默认 world 模式仍复核当前 Studio 世界会话、项目运行修订、Agent 声明的 scene_verify 条件、变更实体存在性和 world-valid；未通过真实检查不能冒充成功。返回的 verification.scope 为 world-state，不代表用户语言中的全部要求或视觉质量已经验收。strict 模式额外要求 TaskSpec 条件，scope 为 task-criteria；视觉模型评价单独通过 `visual` 字段呈现，未通过时不宣称整个任务已完成。
 ### 默认视觉反馈与自动修订（Studio Code Project）
 
 - 对**新建代码世界**，默认 `AGENTSCAPE_VISUAL_REVIEW_MODE=auto`：Pi/DSH 写入、运行、保存并通过世界状态验收后，Host 通过 `studio_project(operation=capture)` 取得当前 Studio WebGL 真实帧（JPEG，最大 768×432，base64 上限 240000 字符）。不生成替代性示意图。
-- Host 使用现有 OpenAI-compatible 模型端点发送截图和原始用户要求，要求 JSON 形式返回 `accepted`、0–10 评分、可见问题及具体源码修订建议。默认沿用 `AGENTSCAPE_LLM_MODEL`；可用 `AGENTSCAPE_VISUAL_MODEL` 指定**具备图像输入能力**的模型；`AGENTSCAPE_VISUAL_TIMEOUT_MS` 缺省 30000。
+- Host 使用现有 OpenAI-compatible 模型端点发送截图和原始用户要求，对格式不合规或输出截断最多重试一次（同一已验证画面、总超时不延长），要求 JSON 形式返回 `accepted`、0–10 评分、可见问题及具体源码修订建议。默认沿用 `AGENTSCAPE_LLM_MODEL`；可用 `AGENTSCAPE_VISUAL_MODEL` 指定**具备图像输入能力**的模型；`AGENTSCAPE_VISUAL_TIMEOUT_MS` 缺省 30000。
 - 若视觉模型评价为不合格，Host 向原 Pi/DSH 后端再提交一次包含反馈的修订任务；Agent 继续使用当前 Studio 项目（原项目 ID 和世界会话），写代码、运行、保存、`scene_verify`，然后重新截图评价。默认 `AGENTSCAPE_VISUAL_MAX_REVISIONS=2`（最多 3 次视觉评价和 2 次源码修订，可配置 0–3）。
 - `AGENTSCAPE_VISUAL_REVIEW_MODE=on` 对编辑已有运行中代码世界的已完成任务也启用视觉评价；`off` 禁用。`auto` 只针对 Host 新建的代码世界，不对所有非视觉操作收费。
 - Host 新建代码世界的最终验收要求最后一次场景修改（包括撤销/重做）之后成功保存。`savedCheckpoint` 记录项目 ID、源码修订、独立 Runtime ID、场景修订和保存内容 SHA-256；缺失或与实时独立验收不一致时拒绝完成。它是本机保存证据，并不表示已发布到共享仓库。共享发布仍需用户明确操作。
