@@ -14,7 +14,10 @@ describe('Vite private repository static-file boundary',()=>{
       '/.studio-world-repository/blocks/0123',
       '/%2Estudio-world-repository/records/test.json',
       '/%252Estudio-world-repository/history/world/2.json',
-      '/@fs//workspace/agentscape/.studio-world-repository/blocks/hash',
+      '/@fs/'+directory.split(path.sep).join('/')+'/blocks/hash',
+      '/@fs/'+directory.split(path.sep).join('/')+'/blocks/../records/test.json',
+      '/%2Estudio-world-repository%2Fblocks%2Fhash',
+      '/other%2F..%2F.studio-world-repository/blocks/hash',
       '/.studio-world-repository/records/test.json?cache=0'
     ])expect(check(request),request).toBe(true);
     for(const request of ['/api/studio/worlds','/api/studio/worlds/id/versions',

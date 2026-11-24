@@ -11,6 +11,14 @@ import { SharedWorldRepository } from './SharedWorldRepository.js';
 const fail = code => Object.assign(new Error(code), { code });
 const clone = value => structuredClone(value);
 const withoutIntegrity = ({ integrity, ...value }) => value;
+const mergeLiveState=(draft,live)=>{
+  const next=withoutIntegrity(draft);
+  for(const field of ['state','runtime','edits','machines']){
+    if(Object.hasOwn(live,field))next[field]=live[field];
+    else delete next[field];
+  }
+  return next;
+};
 
 /** Studio project ownership. Source drafts and live state have distinct revisions. */
 export class StudioCodeProjects {
@@ -20,10 +28,11 @@ export class StudioCodeProjects {
     if (executionPolicy && typeof executionPolicy.beforeRun !== 'function') throw new TypeError('PROJECT_EXECUTION_POLICY_INVALID');
     Object.assign(this, { container, baseScene, baseWorld, store, open, onActivate, onShow, executionPolicy, repository });
     this.session = null; this.draft = null; this.revision = 0; this.runningRevision = null;
+    this.requiresExplicitRun = false;
     this.listeners = new Set(); this.busy = false; this.visible = false;
     this.pendingBatch = null; this.lastBatch = null; this.approval = null;
     this.current = Object.freeze({ visible:false, active:false, busy:false, project:null, revision:0, runningRevision:null,
-      approvalRequired:Boolean(executionPolicy?.requiresApproval), projects:[], sharedWorlds:[], sharedStatus:null, error:null });
+      approvalRequired:Boolean(executionPolicy?.requiresApproval), requiresExplicitRun:false, projects:[], sharedWorlds:[], sharedStatus:null, error:null });
   }
   subscribe = listener => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   snapshot = () => this.current;
@@ -36,6 +45,7 @@ export class StudioCodeProjects {
   emit(patch = {}) {
     this.current = Object.freeze({ ...this.current, visible:this.visible, active:Boolean(this.session), busy:this.busy,
       project:this.draft ? clone(this.draft) : null, revision:this.revision, runningRevision:this.runningRevision,
+      requiresExplicitRun:this.requiresExplicitRun,
       approval:this.approval ? { revision:this.approval.revision, digest:this.approval.digest.slice(0,12) } : null,
       batchPreview:this.pendingBatch?.summary || null,
       undoBatch:this.lastBatch ? { revision:this.lastBatch.revision, ...this.lastBatch.counts } : null,
@@ -59,9 +69,10 @@ export class StudioCodeProjects {
       if(!this.session||!this.draft)throw fail('RUN_PROJECT_FIRST');
       if(this.runningRevision!==this.revision)throw fail('RUN_DRAFT_BEFORE_SAVE');
       const project=(await this.session.save()).value;
-      const meta=await this.repository.publish({kind:'code-project',content:project,token});
       await this.persist(project);
       this.draft=project;
+      this.emit();
+      const meta=await this.repository.publish({kind:'code-project',content:project,token});
       await this.refresh();
       this.emit();
       return {status:'world-published',...meta};
@@ -71,7 +82,7 @@ export class StudioCodeProjects {
   async importShared(id) {
     const saved=await this.repository.openCode(id);
     if(await this.store.load(id))throw fail('WORLD_REPOSITORY_LOCAL_CONFLICT');
-    const result=await this.write({create:true,project:saved.content});
+    const result=await this.write({create:true,project:saved.content,requiresExplicitRun:true});
     this.repository.remember(id,saved.version);
     return {...result,sharedVersion:saved.version};
   }
@@ -183,12 +194,12 @@ export class StudioCodeProjects {
     catch (error) { this.emit({ error:error.message }); throw error; }
     finally { this.busy = false; this.emit(); }
   }
-  async persist(project = this.draft, revision = this.revision) {
-    await this.store.save({ id:project.id, name:project.name, document:{ project, revision } });
+  async persist(project = this.draft, revision = this.revision, requiresExplicitRun=this.draft?.id===project.id&&this.requiresExplicitRun) {
+    await this.store.save({ id:project.id, name:project.name, document:{ project, revision, requiresExplicitRun } });
     // Local edits must never wait for shared-network access or an offline repository.
     await this.refresh({shared:false});
   }
-  async write({ project, source, name, expectedRevision, create = false, patch = null } = {}) {
+  async write({ project, source, name, expectedRevision, create = false, patch = null, requiresExplicitRun=false } = {}) {
     return this.exclusive(async () => {
       if (!create && (!this.draft || expectedRevision !== this.revision)) throw fail('PROJECT_REVISION_CONFLICT');
       if (create && this.session) throw fail('CLOSE_PROJECT_BEFORE_CREATE');
@@ -200,7 +211,9 @@ export class StudioCodeProjects {
       const next = await parseCodeProject(input);
       if (!create && next.id !== this.draft.id) throw fail('PROJECT_ID_CHANGE_REQUIRES_CREATE');
       const revision = this.revision + 1;
-      await this.persist(next, revision);
+      const explicit=create?Boolean(requiresExplicitRun):this.requiresExplicitRun;
+      await this.persist(next, revision, explicit);
+      this.requiresExplicitRun=explicit;
       this.draft = next; this.revision = revision; this.runningRevision = create ? null : this.runningRevision; this.approval = null;
       this.pendingBatch = null; this.lastBatch = null;
       this.visible = true; this.onShow(); this.emit();
@@ -233,7 +246,7 @@ export class StudioCodeProjects {
       const live = old ? (await old.save()).value : null;
       if (!old && this.baseWorld.mutationOwner) throw fail('SCENE_BUSY');
       const project = live && live.id === this.draft.id
-        ? { ...withoutIntegrity(this.draft), state:live.state, runtime:live.runtime, ...(live.edits ? {edits:live.edits} : {}) } : this.draft;
+        ? mergeLiveState(this.draft,live) : this.draft;
       const next = await this.open({ project, container:this.container, authorized:true });
       let observation;
       try {
@@ -320,6 +333,7 @@ export class StudioCodeProjects {
       const saved = await this.store.load(id);
       if (!saved) throw fail('PROJECT_NOT_FOUND');
       const project = await parseCodeProject(saved.document.project);
+      this.requiresExplicitRun=Boolean(saved.document.requiresExplicitRun ?? this.repository.versionOf?.(id));
       this.draft = project; this.revision = Math.max(this.revision + 1, saved.document.revision); this.runningRevision = null; this.approval = null;
       this.pendingBatch = null; this.lastBatch = null;
       this.visible = true; this.onShow(); this.emit();
@@ -337,7 +351,9 @@ export class StudioCodeProjects {
       });
       await this.closeProject();
       const revision = Math.max(this.revision + 1, saved?.document.revision || 0);
-      await this.persist(project, revision);
+      const explicit=Boolean(saved?.document.requiresExplicitRun ?? this.repository.versionOf?.(id));
+      await this.persist(project, revision,explicit);
+      this.requiresExplicitRun=explicit;
       this.draft = project;
       this.revision = revision;
       this.approval = null;
@@ -353,7 +369,7 @@ export class StudioCodeProjects {
     if (this.session) {
       const saved = (await this.session.save()).value;
       // Preserve unrun edits and the last live state together on return to built-in worlds.
-      const project = this.runningRevision === this.revision ? saved : { ...withoutIntegrity(this.draft), state:saved.state, runtime:saved.runtime, ...(saved.edits ? {edits:saved.edits} : {}) };
+      const project = this.runningRevision === this.revision ? saved : mergeLiveState(this.draft,saved);
       await this.persist(project); this.draft = project;
       const previous = this.session;
       // 返回内置 World 前先切换外部视图；回调失败仍保留原会话。

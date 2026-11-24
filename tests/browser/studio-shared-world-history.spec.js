@@ -48,6 +48,20 @@ test('published world versions are browseable in Studio and rollback creates a n
     const preview=history.getByLabel('v1 只读预览');
     await expect(preview).toContainText('Immutable history version 1',{timeout:30000});
     await expect(preview).not.toContainText('Immutable history version 3');
+    await preview.getByLabel('对比目标版本').selectOption('2');
+    await preview.getByRole('button',{name:'比较版本'}).click();
+    await expect(preview.getByLabel('版本比较结果')).toContainText('v1 → v2');
+    await expect(preview.getByLabel('版本比较结果')).toContainText('新增：grand_keep');
+    await preview.getByRole('button',{name:'保存为独立本机草稿'}).click();
+    await expect(preview.getByRole('link',{name:'打开独立草稿（仅源码）'})).toBeVisible();
+    const forkHref=await preview.getByRole('link',{name:'打开独立草稿（仅源码）'}).getAttribute('href');
+    const forkPage=await aContext.newPage();
+    try{
+      await forkPage.goto(forkHref);
+      await expect(forkPage.getByLabel('完整代码项目')).toBeVisible({timeout:60000});
+      await expect(forkPage.locator('.studio-code-project-viewport canvas')).toHaveCount(0);
+      await expect(forkPage.getByLabel('代码项目名称')).toHaveValue(/历史 v1/);
+    }finally{await forkPage.close();}
     await preview.getByRole('button',{name:'关闭预览'}).click();
     expect(await a.locator('.studio-code-project-viewport canvas').count()).toBe(0);
 

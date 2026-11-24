@@ -120,7 +120,7 @@ async function main() {
       if(!/^world_[a-f0-9]{32}$/.test(localCode||''))throw new Error('CODE_PROJECT_ID_INVALID');
       await controller.load(localCode);
     }
-    if(!sharedCode)await controller.run({expectedRevision:controller.snapshot().revision});
+    if(!sharedCode&&!controller.snapshot().requiresExplicitRun)await controller.run({expectedRevision:controller.snapshot().revision});
   }
   if (params.get('openCode') === '1') {
     const url = new URL(location.href);

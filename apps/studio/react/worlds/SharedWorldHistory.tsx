@@ -1,6 +1,9 @@
 import {useEffect,useState} from 'react';
 import type {SharedWorldRepository} from '../../code-project/SharedWorldRepository.js';
 import './SharedWorldHistory.css';
+import { compareCodeVersions, forkCodeVersion } from '../../code-project/WorldVersionSummary.js';
+import { AuthoringWorldStore } from '../../persistence/AuthoringWorldStore.js';
+import { codeWorldUrl } from '../../navigation/StudioRoutes.js';
 
 type Entry={
   id:string;kind:'code-project'|'authoring-draft';name:string;version:number
@@ -64,6 +67,9 @@ export function SharedWorldHistory({
   const [total,setTotal]=useState(0);
   const [nextOffset,setNextOffset]=useState<number|null>(null);
   const [preview,setPreview]=useState<Preview|null>(null);
+  const [compareTo,setCompareTo]=useState<number>(0);
+  const [comparison,setComparison]=useState<Awaited<ReturnType<typeof compareCodeVersions>>|null>(null);
+  const [forkId,setForkId]=useState<string|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
@@ -76,14 +82,14 @@ export function SharedWorldHistory({
       if(offset>0&&data.latestVersion!==head)throw new Error('WORLD_REPOSITORY_VERSION_CONFLICT');
       setVersions(previous=>offset===0?data.versions:[...previous,...data.versions]);
       setHead(data.latestVersion);setTotal(data.total);setNextOffset(data.nextOffset);
-      if(offset===0)setPreview(null);
+      if(offset===0){setPreview(null);setComparison(null);setForkId(null);}
     }catch(cause){
       setError(cause instanceof Error?cause.message:String(cause));
     }finally{setBusy(false);}
   };
   useEffect(()=>{
     let live=true;
-    setVersions([]);setPreview(null);setError('');setHead(0);setNextOffset(null);
+    setVersions([]);setPreview(null);setComparison(null);setForkId(null);setError('');setHead(0);setNextOffset(null);
     void repository.history(world.id,{limit:12}).then((response:Page)=>{
       if(!live)return;
       setVersions(response.versions);setHead(response.latestVersion);
@@ -98,10 +104,31 @@ export function SharedWorldHistory({
       const entry:Preview=await repository.version(world.id,version.version);
       if(entry.id!==world.id||entry.version!==version.version||entry.digest!==version.digest||
         entry.kind!==world.kind)throw new Error('WORLD_REPOSITORY_HISTORY_INVALID');
-      setPreview(entry);
+      setPreview(entry);setCompareTo(head);setComparison(null);setForkId(null);
     }catch(cause){
       setError(cause instanceof Error?cause.message:String(cause));
     }finally{setBusy(false);}
+  };
+  const compare=async()=>{
+    if(!preview||preview.kind!=='code-project'||!compareTo||compareTo===preview.version)return;
+    setBusy(true);setError('');
+    try{
+      const target=versions.find(item=>item.version===compareTo);
+      const record:Preview=await repository.version(world.id,compareTo);
+      if(!target||record.version!==target.version||record.digest!==target.digest||record.id!==world.id||record.kind!==world.kind)
+        throw new Error('WORLD_REPOSITORY_HISTORY_INVALID');
+      setComparison(await compareCodeVersions(preview,record));
+    }catch(cause){setError(cause instanceof Error?cause.message:String(cause));}
+    finally{setBusy(false);}
+  };
+  const fork=async()=>{
+    if(!preview||preview.kind!=='code-project')return;
+    setBusy(true);setError('');setMessage('');
+    try{
+      const copy=await forkCodeVersion(preview,new AuthoringWorldStore({databaseName:'agentscape-code-projects'}));
+      setForkId(copy.id);setMessage('已保存独立本机草稿：'+copy.name+'。历史源码不会自动运行。');
+    }catch(cause){setError(cause instanceof Error?cause.message:String(cause));}
+    finally{setBusy(false);}
   };
   const restore=async(version:Version)=>{
     if(!publishToken.trim()){setError('恢复需要填写上方的共享世界发布授权令牌');return;}
@@ -117,7 +144,7 @@ export function SharedWorldHistory({
         id:world.id,targetVersion:version.version,baseVersion:head,token:publishToken
       });
       setMessage(`已创建共享版本 v${result.version}，内容恢复自 v${version.version}。本机草稿保持不变。`);
-      setVersions([]);setPreview(null);setHead(0);
+      setVersions([]);setPreview(null);setComparison(null);setForkId(null);setHead(0);
       const data:Page=await repository.history(world.id,{limit:12});
       setVersions(data.versions);setHead(data.latestVersion);setTotal(data.total);
       setNextOffset(data.nextOffset);
@@ -170,6 +197,24 @@ export function SharedWorldHistory({
       <p>{summary.details}</p>
       <small>完整内容已从共享存储读取并验证哈希。大型文件只展示开头与末尾各 2,400 字符；不会执行代码，也不会覆盖本机草稿。</small>
       <pre>{summary.sample}{summary.truncated?'\n……（已截断）':''}</pre>
+      {preview.kind==='code-project'?<>
+        <div className="shared-history-actions">
+          <label>对比目标<select aria-label="对比目标版本" value={compareTo} disabled={busy} onChange={event=>{setCompareTo(Number(event.target.value));setComparison(null);}}>
+            {versions.map(version=><option key={version.version} value={version.version}>v{version.version}</option>)}
+          </select></label>
+          <button type="button" disabled={busy||!compareTo||compareTo===preview.version} onClick={()=>void compare()}>比较版本</button>
+          <button type="button" disabled={busy} onClick={()=>void fork()}>保存为独立本机草稿</button>
+          {forkId?<a href={codeWorldUrl(globalThis.location.href,{local:forkId})}>打开独立草稿（仅源码）</a>:null}
+        </div>
+        {comparison?<div aria-label="版本比较结果" className="shared-history-preview">
+          <strong>v{comparison.fromVersion} → v{comparison.toVersion}</strong>
+          {([['源码文件',comparison.files],['资源文件',comparison.resources],['受管理对象',comparison.managedObjects],['原生对象编辑',comparison.nativeEdits]] as const).map(([label,diff])=><div key={label}>
+            <strong>{label}</strong><small> 新增 {diff.added.total} · 删除 {diff.removed.total} · 修改 {diff.modified.total}</small>
+            {(['added','removed','modified'] as const).map((key,index)=>diff[key].total?<p key={key}>{['新增','删除','修改'][index]}：{diff[key].items.join('、')}{diff[key].items.length<diff[key].total?' 等':''}</p>:null)}
+          </div>)}
+          <small>项目状态{comparison.stateChanged?'已变化':'未变化'} · 状态机{comparison.machinesChanged?'已变化':'未变化'} · 运行快照{comparison.runtimeChanged?'已变化':'未变化'}</small>
+        </div>:null}
+      </>:null}
     </section>:null}
     <small className="shared-history-footnote">
       回滚不会删除任何历史版本；恢复操作需要上方发布令牌和当前最新版本号。

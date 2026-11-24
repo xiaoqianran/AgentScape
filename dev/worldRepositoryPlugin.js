@@ -26,7 +26,17 @@ export function isRepositoryDataPath(requestUrl,directory,{root=process.cwd()}={
   addRelative(root);
   addRelative(path.join(root,'public'));
   prefixes.push('/@fs/'+absolute.split(path.sep).join('/'));
-  return prefixes.some(prefix=>pathname===prefix||pathname.startsWith(prefix+'/'));
+  // Vite decodes /@fs/ paths; normalize encoded separators and dot segments
+  // before comparing. Windows filesystem paths are case-insensitive.
+  const normalize=value=>{
+    const normalized=path.posix.normalize(value.replaceAll('\\','/'));
+    return process.platform==='win32'?normalized.toLowerCase():normalized;
+  };
+  const candidate=normalize(pathname);
+  return prefixes.some(prefix=>{
+    const protectedPath=normalize(prefix);
+    return candidate===protectedPath||candidate.startsWith(protectedPath+'/');
+  });
 }
 
 /** Same-origin API mounted in both Vite dev and preview. A static production host
