@@ -110,3 +110,7 @@ node_modules/.bin/dsh.cmd --profile sdk-minimal --patch apps/agent-host/dsh-rest
 - TaskCompiler 输出只保留白名单内的 diagnosticCode（如 TASK_COMPILER_TIMEOUT、TASK_COMPILER_OUTPUT_TRUNCATED、TASK_COMPILER_SCHEMA_INVALID），不保存模型响应正文、API Key 或链路详情。
 - 真实模型可能将“四个轮子”错误解释为 wheel_count=4，或将“车门能够打开”解释成 door_openable=true。编译器明确拒绝这类将实体/动作要求替换成普通属性的情形。源文覆盖率不能证明所有语义都已理解，必须继续建设更系统的需求完整性验收。
 真实模型评估见 docs/agent-task-compiler-evaluation.md；可使用 node dev/evaluate-task-compiler.mjs 复测。
+
+### 统一任务证据契约
+
+最终结果的 evidence 字段按 structure、behavior、visual 与 persistence 分类，绑定同一运行实例和版本；必须逐项复核实际请求的条件。视觉要求未满足时不会标记 completed，修订失败时旧证据不能冒充当前证据。详见 [TaskEvidence](../../docs/architecture/task-evidence.md)。

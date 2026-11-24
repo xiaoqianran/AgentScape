@@ -8,6 +8,17 @@ import {
 import { GENERATED_PLACEMENT_TASK } from '../../agent/QuickTasks.js';
 import { createCabinetCupTaskWorldIR, inspectCabinetCupTask } from '../../../../application/tasks/CabinetCupTask.js';
 
+const EVIDENCE_STATUS_LABELS=Object.freeze({verified:'已验证',unverified:'未验证',failed:'未通过',
+  pending:'待评价','not-required':'不要求','assessed-pass':'评价通过','assessed-fail':'评价未通过',unavailable:'不可用',blocked:'受阻'});
+export function taskEvidenceDetail(evidence){
+  if(evidence?.schema!=='agentscape.task-evidence'||evidence.schemaVersion!==1)return '';
+  const label=value=>EVIDENCE_STATUS_LABELS[value?.status]||'未知';
+  const scope=evidence.coverage==='user-derived-checks'?'用户需求条件':evidence.coverage==='read-only'?'只读查询':
+    evidence.coverage==='unresolved-user-requirements'?'需求未解析':'选定后置条件（非全部需求证明）';
+  return [scope,'结构：'+label(evidence.dimensions?.structure),'行为：'+label(evidence.dimensions?.behavior),
+    '视觉：'+label(evidence.dimensions?.visual),'保存：'+label(evidence.persistence)].join(' · ');
+}
+
 const initialStatus = () => ({
   state:'ready',
   label:'就绪',
@@ -333,6 +344,8 @@ export class TaskPanel {
         && !failedMessage
         && (executedSteps.length > 0 || this.backend !== 'legacy')
         && executedSteps.every((entry) => entry.mutates !== true);
+      const evidenceDetail=taskEvidenceDetail(result.evidence);
+      if(evidenceDetail)this.log('验收证据：'+evidenceDetail,'result');
       const completed = result.taskStatus === 'completed'
         || result.status === 'completed'
         || readOnlyAnswered;
@@ -341,7 +354,7 @@ export class TaskPanel {
           this.setState('success','查询完成',`${label} · ${message.slice(0, 80)}${message.length > 80 ? '…' : ''}`);
           this.log('任务状态：查询完成 · 只读工具已返回结果','result');
         } else {
-          this.setState('success','任务已完成',`${label} · 运行时验证通过。`);
+          this.setState('success','任务已完成',evidenceDetail||`${label} · 运行时验证通过。`);
           this.log('任务状态：已完成 · 变更链已验证','result');
         }
       } else if (result.visual && result.visual.status !== 'passed') {

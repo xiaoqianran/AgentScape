@@ -1,5 +1,6 @@
 import { changesWorld, STUDIO_TOOL_NAMES } from './McpWorldTools.js';
 import { STUDIO_PROJECT_TOOL_SET } from '../../application/agent/StudioProjectTools.js';
+import { acceptedSceneChecks } from '../../application/agent/TaskEvidence.js';
 
 // Reuse the actual server-side tool catalog; connection setup tools are read-only.
 const KNOWN_TOOLS = new Set([...STUDIO_TOOL_NAMES,'session_attach','studio_session_status']);
@@ -27,11 +28,7 @@ export function executionRecord({ name, callId, args, result, isError = false, d
   const allowed = KNOWN_TOOLS.has(tool);
   const error = isError || !allowed || TERMINAL_FAILURES.has(payload?.status) ||
     payload?.state === 'failed';
-  const failedVerify = tool === 'scene_verify' && (!payload?.verification ||
-    payload.verification.status !== 'verified' || payload.verification.evidence?.status !== 'world-accepted' ||
-    !Array.isArray(payload.verification.evidence.checks) ||
-    !payload.verification.evidence.checks.length ||
-    payload.verification.evidence.checks.some(check => check.verified !== true));
+  const failedVerify = tool === 'scene_verify' && !acceptedSceneChecks(payload).length;
   const approvalRequired = tool==='studio_project' && input.operation==='run' && isError &&
     /PROJECT_EXECUTION_REVIEW_REQUIRED/.test(String(result?.content?.find?.(item=>item.type==='text')?.text||''));
   const reason = !allowed ? 'AGENT_TOOL_FORBIDDEN' : approvalRequired ? 'PROJECT_EXECUTION_REVIEW_REQUIRED' : isError ? 'TOOL_FAILED'

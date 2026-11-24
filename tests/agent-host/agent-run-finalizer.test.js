@@ -24,11 +24,11 @@ const normalizeDsh=()=>{
   }
   return normalizeExecution('dsh',events);
 };
-function fixture({revision=5,after=revision,verification='verified',projectState=null}={}){
+function fixture({revision=5,after=revision,verification='verified',projectState=null,transformChecks=checks=>checks}={}){
   const invoked=[],projectRead=[];
   const connection=async ({projectScope})=>({
     worldSessionId:'world-session',
-    tools:['scene_verify','scene_observe','studio_project'].map(name=>({
+    tools:['scene_verify','scene_observe','studio_project','scene_query'].map(name=>({
       name,execute:async(_id,args)=>{
         invoked.push({name,args,projectScope});
         if(name==='scene_observe'){
@@ -39,7 +39,9 @@ function fixture({revision=5,after=revision,verification='verified',projectState
           projectRead.push(args);
           return result(projectState || {active:true,revision:3,runningRevision:3,runtimeId:'runtime-1',project:{id:'world_abc'},observation:{project:{entities:[{id:'tree'}]}}});
         }
-        const checks=args.criteria.map(check=>({...check,verified:verification==='verified'}));
+        if(name==='scene_query')return result({status:'inspected',projectId:projectState?.project?.id||'world_abc',
+          revision:3,runtimeId:'runtime-1',sceneRevision:revision,node:{nodePath:''},counts:{nodes:2,meshes:1},boundsComplete:true});
+        const checks=transformChecks(args.criteria.map(check=>({...check,verified:verification==='verified'})));
         return result(verification==='verified' ? accepted(checks,revision) : {
           schema:'agentscape.scene-result',operation:'verify',status:'succeeded',revision,
           verification:{status:'unverified',evidence:{status:'world-incomplete',checks}}
@@ -101,6 +103,11 @@ describe('shared Pi / DSH execution and Host admission',()=>{
     expect(changed.output.verification.reason).toBe('SCENE_REVISION_CHANGED');
   });
 
+  it('refuses a successful independent response which omitted a required target',async()=>{
+    const {output}=await finish('pi',normalizePi(),{transformChecks:checks=>checks.filter(check=>check.kind==='world-valid')});
+    expect(output).toMatchObject({verified:false,taskStatus:'incomplete',verification:{reason:'SCENE_VERIFICATION_FAILED'},
+      evidence:{worldStatus:'unverified',dimensions:{structure:{status:'unverified',checks:[{id:'tree-check',status:'unverified',reason:'CHECK_RESPONSE_MISMATCH'},{id:'host-world-valid',status:'verified'}]}}}});
+  });
   it('requires the actual matching target even if the agent verified only world validity',async()=>{
     const execution=normalizeExecution('pi',[
       calls[0],tool('scene_verify',{criteria:[{id:'valid',kind:'world-valid'}]},
@@ -181,6 +188,12 @@ describe('shared Pi / DSH execution and Host admission',()=>{
     expect(acceptedProject.savedCheckpoint).toEqual({projectId:project.id,projectRevision:3,runtimeId:'runtime-1',sceneRevision:5,digest:'a'.repeat(64)});
     expect(acceptedProject.verification.scope).toBe('world-state');
     expect(mock.invoked.filter(item=>item.name==='studio_project')).toHaveLength(2);
+    expect(acceptedProject.evidence).toMatchObject({worldStatus:'verified',persistence:{status:'verified'},
+      dimensions:{structure:{status:'verified',native:{status:'observed',counts:{meshes:1}}},behavior:{status:'not-required'},visual:{status:'not-required'}}});
+    const pending=await finalizeRun({output:{backend:'pi',execution:[...edits,...proof]},project,configuration:config,
+      mcpConnector:fixture(options).connection,deferVisualReview:true});
+    expect(pending).toMatchObject({taskStatus:'awaiting-visual',verified:false,verification:{status:'verified'},
+      evidence:{worldStatus:'verified',dimensions:{visual:{required:true,status:'pending'}}}});
     // A free-form THREE.Scene can be visually rich without registerEntity() calls.
     const emptyRegistry=fixture({projectState:{...options.projectState,observation:{project:{entities:[]}}}});
     const noSemantics=await finalizeRun({output:{backend:'pi',execution:[...edits,...normalizeExecution('pi',[

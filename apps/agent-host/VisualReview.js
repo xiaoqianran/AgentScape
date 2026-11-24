@@ -1,13 +1,10 @@
+import { createHash } from 'node:crypto';
 import { connectStudioMcp } from './McpWorldTools.js';
+import { matchesWorldBinding, withVisualTaskEvidence } from '../../application/agent/TaskEvidence.js';
 
 const fail = code => Object.assign(new Error(code),{code});
 
-const matchesEvidence=(image,world)=>!world||(
-  (!world.worldSessionId||image.worldSessionId===world.worldSessionId)&&
-  (!world.projectId||image.projectId===world.projectId)&&
-  (world.projectRevision==null||image.revision===world.projectRevision)&&
-  (world.runtimeId==null||image.runtimeId===world.runtimeId)&&
-  (world.sceneRevision==null||image.sceneRevision===world.sceneRevision));
+const matchesEvidence=matchesWorldBinding;
 
 function parseTool(response) {
   if(response?.isError) throw fail('VISUAL_STUDIO_TOOL_FAILED');
@@ -147,7 +144,10 @@ export async function reviewStudioVisual({prompt,configuration,project,expectedW
       await assertVisualStillCurrent({configuration,project,image,signal:controller.signal,mcpConnector});
       return {...evaluation,
         worldSessionId:image.worldSessionId,projectId:image.projectId,revision:image.revision,runtimeId:image.runtimeId,sceneRevision:image.sceneRevision,
-        width:image.width,height:image.height,modelRequests:attempt+1,...(Object.keys(usage).length?{usage}:{})};
+        width:image.width,height:image.height,imageDigest:createHash('sha256').update(Buffer.from(image.imageBase64,'base64')).digest('hex'),
+        ...(Number.isSafeInteger(image.playback?.frames)?{frame:image.playback.frames}:{}),
+        ...(Number.isSafeInteger(image.playback?.simulation?.tick)?{tick:image.playback.simulation.tick}:{}),
+        modelRequests:attempt+1,...(Object.keys(usage).length?{usage}:{})};
     }
     throw formatError;
   } catch(error) {
@@ -165,10 +165,15 @@ export async function iterateVisualProject({prompt,initial,review,revise,verify,
   maxRevisions=2,signal,emit=()=>{}}={}) {
   let result=initial;
   const reviews=[];
+  const ready=value=>value.taskStatus==='awaiting-visual'&&value.evidence?.worldStatus==='verified'&&!value.verified;
+  const finish=(visual,options={})=>{
+    if(result.taskStatus==='cancelled')return result;
+    return withVisualTaskEvidence({...result,visual},visual,options);
+  };
   const count=Math.min(3,Math.max(0,Number.isSafeInteger(maxRevisions)?maxRevisions:2));
   for(let attempt=0;attempt<=count;attempt++) {
     if(signal?.aborted)throw fail('RUN_CANCELLED');
-    if(result.taskStatus!=='completed')break;
+    if(!ready(result))break;
     let verdict;
     try {
       verdict=await review({attempt,signal,world:result.world});
@@ -177,16 +182,16 @@ export async function iterateVisualProject({prompt,initial,review,revise,verify,
     catch(error){
       if(signal?.aborted)throw error;
       const reason=error?.code || 'VISUAL_REVIEW_UNAVAILABLE';
-      return {...result,taskStatus:'incomplete',verified:false,
-        visual:{status:'unavailable',reason,reviews}};
+      return finish({status:'unavailable',reason,reviews},{invalidateWorld:['VISUAL_WORLD_SESSION_CHANGED','VISUAL_PROJECT_REVISION_CHANGED','VISUAL_VERIFIED_WORLD_CHANGED','VISUAL_IMAGE_STALE'].includes(reason)});
     }
     const {status,score,issues,advice,projectId,revision,sceneRevision,runtimeId,worldSessionId}=verdict;
-    reviews.push({status,score,issues,projectId,revision,sceneRevision,runtimeId,worldSessionId,...(verdict.usage?{usage:verdict.usage}:{}),...(verdict.modelRequests?{modelRequests:verdict.modelRequests}:{})});
+    reviews.push({status,score,issues,projectId,revision,sceneRevision,runtimeId,worldSessionId,
+      ...(verdict.imageDigest?{imageDigest:verdict.imageDigest}:{}),...(Number.isSafeInteger(verdict.frame)?{frame:verdict.frame}:{}),
+      ...(Number.isSafeInteger(verdict.tick)?{tick:verdict.tick}:{}),...(verdict.usage?{usage:verdict.usage}:{}),...(verdict.modelRequests?{modelRequests:verdict.modelRequests}:{})});
     emit({type:'visual.reviewed',attempt,score,status,revision,issueCount:issues.length,
       issues:issues.slice(0,5)});
-    if(status==='passed')return {...result,visual:{status:'passed',reviewer:'model',reviews}};
-    if(status!=='needs-revision')return {...result,taskStatus:'incomplete',verified:false,
-      visual:{status:'unavailable',reason:'VISUAL_REVIEW_RESPONSE_INVALID',reviews}};
+    if(status==='passed')return finish({status:'passed',reviewer:'model',reviews});
+    if(status!=='needs-revision')return finish({status:'unavailable',reason:'VISUAL_REVIEW_RESPONSE_INVALID',reviews});
     if(attempt===count)break;
     const feedback=[
       'Revise the CURRENT running Studio Three.js project, not a new project.',
@@ -204,11 +209,9 @@ export async function iterateVisualProject({prompt,initial,review,revise,verify,
       result=await verify(next);
     } catch(error) {
       if(signal?.aborted)throw error;
-      return {...result,taskStatus:'incomplete',verified:false,
-        visual:{status:'blocked',reason:error?.code || 'VISUAL_REVISION_FAILED',reviews}};
+      return finish({status:'blocked',reason:error?.code || 'VISUAL_REVISION_FAILED',reviews},{invalidateWorld:true});
     }
   }
-  return {...result,taskStatus:'incomplete',verified:false,
-    visual:{status:result.taskStatus==='completed'?'needs-revision':'blocked',
-      reason:result.taskStatus==='completed'?'VISUAL_REVISION_LIMIT':'WORLD_VERIFICATION_FAILED',reviews}};
+  return finish({status:ready(result)?'needs-revision':'blocked',
+    reason:ready(result)?'VISUAL_REVISION_LIMIT':'WORLD_VERIFICATION_FAILED',reviews});
 }

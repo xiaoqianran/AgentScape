@@ -166,9 +166,15 @@ describe('general TaskSpec is still independently verified at runtime',()=>{
       tools:['scene_observe','scene_verify'].map(name=>({name,execute:async(_id,args)=>{
         if(name==='scene_observe')return response({revision:9});
         checked=args.criteria;
-        const checks=checked.map(item=>({...item,verified:item.kind==='world-valid'||
-          (item.kind==='object-exists' && objects.includes(item.targetId)) ||
-          (item.kind==='interaction-verified' && actions.includes(item.targetId+'.'+item.capability))}));
+        const checks=checked.map(item=>{
+          const verified=item.kind==='world-valid'||(item.kind==='object-exists'&&objects.includes(item.targetId))||
+            (item.kind==='interaction-verified'&&actions.includes(item.targetId+'.'+item.capability));
+          if(item.kind==='interaction-verified')return {...item,expected:item.capability,verified,
+            ...(verified?{evidence:{schema:'agentscape.interaction-evidence',schemaVersion:1,verified:true,
+              worldRevisionId:'session:test-runtime',targetId:item.targetId,capability:item.capability,
+              source:item.source==='project'?'project-defined':item.source==='asset'?'physical-articulation':item.source||'project-defined'}}:{})};
+          return {...item,verified};
+        });
         const ok=checks.every(item=>item.verified);
         return response({schema:'agentscape.scene-result',operation:'verify',status:'succeeded',revision:9,
           verification:{status:ok?'verified':'unverified',evidence:{status:ok?'world-accepted':'world-incomplete',checks}}});

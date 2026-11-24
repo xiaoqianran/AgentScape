@@ -1,0 +1,18 @@
+# 任务证据体系
+
+Agent Host 的最终返回新增 evidence（schema=agentscape.task-evidence，schemaVersion=1）。它复用既有 Scene/Runtime/SceneObserver/VisualReview 的实际结果，不创建第二套世界状态，不向 Core 引入验收策略。
+
+| 维度 | 来源 | 验收边界 |
+| --- | --- | --- |
+| structure | scene_verify 的 world-valid/object-exists/relation-exists；scene_query 根节点快照 | 检查当前后置条件；原生几何统计是 observed 而非 verified，不能证明特定外观 |
+| behavior | state-equals、interaction-verified | 状态快照只证明采样时的值；已验证动作必须提供 Runtime 的 interaction-evidence 凭证，并匹配目标、能力及来源 |
+| visual | scene_capture + 视觉模型 | 真实 JPEG 的 SHA-256、评分、问题及运行绑定；评价通过不等于物理或动作验证 |
+| persistence | 已保存的项目凭证 | 新建项目需要匹配项目、运行实例、源码和 Scene 修订的持久化证据 |
+
+每次验收由 Host 重新读取运行实例与 Scene revision，并逐项核对 verifier 返回的 ID、kind、目标、关系参数、期望状态或动作凭证。遗漏、替换、重复条件均不能通过；受限项目额外检查注册实体，不得替代用户要求。初次验收未通过时保留已观察条件和失败原因，未观察的必要条件不标记通过。
+
+所有当前证据绑定 worldSessionId、projectId、projectRevision、runtimeId、sceneRevision（非 Code Project 的项目字段为空）。原生快照和截图如有播放计数，记录 frame/tick。原生代码可能在不增加受管 sceneRevision 的情况下继续动画或修改对象，因此这些是分别采集的有界快照，不保证同一仿真帧或任意原生变化的事务原子性。原生根节点统计可能包括 Studio 辅助对象。
+
+视觉评审开启时，结构与行为验收通过后内部状态为 awaiting-visual、verified=false；只有当前绑定的真实截图摘要和评价通过才允许 completed。修订后的世界需要重新验收，旧评价留作历史；修订异常且无法重新确认世界时，旧证据失效。视觉模型评价与客观验收分别报告，不保存原始图像。未要求的证据维度标记 not-required。默认 world 模式的 coverage 为 agent-selected-postconditions，只能证明选定后置条件，不是所有用户意图；strict 模式为 user-derived-checks，编译不完整时为 unresolved-user-requirements。是否启用视觉仍由现有 auto/on/off 策略和 strict 视觉要求决定。Studio 任务状态与日志显示分类证据及验收范围。
+
+回归：tests/agent-host/task-evidence.test.js（条件遗漏、动作凭证、未知/过期证据、截图绑定和修订失效）、tests/browser/agent-visual-loop.spec.js（真实 Studio 渲染与模型回包模拟的完整反馈闭环）。

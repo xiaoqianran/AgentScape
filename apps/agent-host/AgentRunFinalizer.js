@@ -1,16 +1,11 @@
 import { connectStudioMcp } from './McpWorldTools.js';
 import { requiredTaskCriteria } from './TaskSpec.js';
+import { compileWorldAcceptance } from '../../modules/world/verification/WorldAcceptance.js';
+import { buildTaskEvidence, collectSceneChecks, nativeObservation, pendingSceneRecords } from '../../application/agent/TaskEvidence.js';
 
 const code = value => typeof value === 'string' && /^[A-Z_]{3,80}$/.test(value) ? value : 'FINAL_VERIFICATION_UNAVAILABLE';
 
-export function acceptedSceneChecks(result) {
-  const evidence = result?.verification?.evidence;
-  if (result?.schema !== 'agentscape.scene-result' || result.operation !== 'verify' ||
-      result.status !== 'succeeded' || result.verification?.status !== 'verified' ||
-      evidence?.status !== 'world-accepted' || !Array.isArray(evidence.checks) ||
-      !evidence.checks.length || !evidence.checks.every(check => check?.verified === true)) return [];
-  return evidence.checks;
-}
+export { acceptedSceneChecks } from '../../application/agent/TaskEvidence.js';
 
 function unresolvedOperations(execution) {
   const unresolved = new Map();
@@ -30,6 +25,7 @@ function lastIndex(entries,predicate) {
 
 function parseToolResponse(response) {
   const text = response?.content?.find(item=>item.type==='text')?.text;
+  if (response?.isError) throw Object.assign(new Error('FINAL_TOOL_FAILED'),{code:'FINAL_TOOL_FAILED'});
   if (!text) throw Object.assign(new Error('FINAL_TOOL_RESPONSE_EMPTY'),{code:'FINAL_TOOL_RESPONSE_EMPTY'});
   return JSON.parse(text);
 }
@@ -53,7 +49,13 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
     ['error','failed','cancelled','interrupted','aborted','length'].includes(output.finishReason);
   let status = 'incomplete', reason = 'SCENE_VERIFICATION_MISSING';
   let checks=[],sceneRevision=null,projectRevision=null,runtimeId=null,savedCheckpoint=null,worldSessionId=project?.worldSessionId || output.worldSessionId || null;
-  const projectId = project?.id || null;
+  let projectId = project?.id || null;
+  const scope=taskSpec?'task-criteria':'world-state';
+  const visualRequired=Boolean(taskSpec?.visual?.required||deferVisualReview);
+  const pending=requiredTaskCriteria(taskSpec);
+  if((project||mutations.length)&&!pending.some(check=>check.kind==='world-valid'))pending.push({id:'host-world-valid',kind:'world-valid'});
+  let records=pendingSceneRecords(pending),bound=false,worldReady=false,native=null;
+  const currentWorld=()=>({worldSessionId,projectId,projectRevision,sceneRevision,runtimeId});
   const projectScope = project ? project.worldSessionId+'/'+project.id : undefined;
   const format=()=>({
     ...output,schema:'agentscape.agent-run',schemaVersion:1,taskStatus:status,
@@ -64,10 +66,12 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
       [...unresolved,...(reason?[{reason}]:[])],
     worldSessionId,
     ...(projectId?{projectId}:{}),
-    world:{worldSessionId,projectId,projectRevision,sceneRevision,runtimeId},
+    world:currentWorld(),
+    evidence:buildTaskEvidence({world:currentWorld(),scope,records,bound,native,visualRequired:visualRequired&&status!=='no-mutation',worldReady,reason,
+      persistenceRequired:Boolean(project),savedCheckpoint,taskSpecStatus:taskSpec?.status,readOnly:status==='no-mutation'}),
     ...(savedCheckpoint?{savedCheckpoint}:{}),
-    verification:{scope:taskSpec?'task-criteria':'world-state',
-      status:status==='completed'?'verified':'unverified',reason:status==='completed'?null:reason,
+    verification:{scope,
+      status:worldReady?'verified':'unverified',reason:status==='completed'?null:reason,
       worldSessionId,revision:sceneRevision,checks}
   });
   if(signal?.aborted || output.taskStatus==='cancelled'){status='cancelled';reason='RUN_CANCELLED';return format();}
@@ -122,41 +126,55 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
           savedCheckpoint.runtimeId!==runtimeId){
         reason='PROJECT_SAVE_STALE';return format();
       }
-      // Ordinary Three.js projects do not have to register an ontology.
-      // Explicit strict task criteria remain checked by scene_verify below.
-      if(taskSpec?.status==='ready' && !projectState.observation?.project?.entities?.length){
-        reason='TASK_PROJECT_ENTITIES_MISSING';return format();
+    }else if(deferVisualReview&&connection.tools.some(tool=>tool.name==='studio_project')){
+      // Visual review of an existing code world needs its exact runtime identity too.
+      const active=await invoke(connection,'studio_project',{operation:'read'},signal);
+      if(active.active&&active.project?.id&&active.runtimeId&&active.runningRevision===active.revision){
+        projectId=active.project.id;projectRevision=active.revision;runtimeId=active.runtimeId;
       }
     }
     const before=await invoke(connection,'scene_observe',{limit:1},signal);
     // User requirements win if an Agent tries to reuse a task-* id with weaker checks.
     const required=requiredTaskCriteria(taskSpec);
-    const criteria=[...required,...verificationCall.criteria.filter(check=>
+    let criteria=[...required,...verificationCall.criteria.filter(check=>
       !required.some(item=>item.id===check.id))];
+    const nextId=prefix=>{let n=criteria.length;while(criteria.some(item=>item.id===prefix+n))n++;return prefix+n;};
     const existingTargets=new Set(criteria.filter(item=>item.kind==='object-exists').map(item=>item.targetId));
     for(const entry of mutations){
       if(entry.tool!=='scene_add_model'||!entry.targetId||existingTargets.has(entry.targetId))continue;
-      criteria.push({id:'host-entity-'+criteria.length,kind:'object-exists',targetId:entry.targetId});
+      criteria.push({id:nextId('host-entity-'),kind:'object-exists',targetId:entry.targetId});
       existingTargets.add(entry.targetId);
     }
-    if(!criteria.some(item=>item.kind==='world-valid'))criteria.push({id:'host-world-valid',kind:'world-valid'});
+    if(!criteria.some(item=>item.kind==='world-valid'))criteria.push({id:criteria.some(item=>item.id==='host-world-valid')?nextId('host-world-valid-'):'host-world-valid',kind:'world-valid'});
     if(criteria.length>32){reason='FINAL_CRITERIA_LIMIT';return format();}
+    criteria=compileWorldAcceptance(criteria).checks;
+    records=pendingSceneRecords(criteria);
     const verified=await invoke(connection,'scene_verify',{criteria},signal);
-    const after=await invoke(connection,'scene_observe',{limit:1},signal);
     sceneRevision=verified.revision ?? null;
-    checks=acceptedSceneChecks(verified);
-    if(!checks.length){reason='SCENE_VERIFICATION_FAILED';return format();}
+    const evaluation=collectSceneChecks(verified,criteria,{allowScopedExtras:Boolean(project)});
+    checks=evaluation.checks;records=evaluation.records;
+    if(projectId&&Number.isSafeInteger(sceneRevision)&&before.revision===sceneRevision){
+      try{
+        const value=await invoke(connection,'scene_query',{operation:'inspect',expectedRevision:projectRevision,
+          expectedRuntimeId:runtimeId,expectedSceneRevision:sceneRevision,limit:1},signal);
+        native=nativeObservation({...value,worldSessionId},currentWorld());
+      }catch(error){native={status:'unavailable',reason:code(error?.code)};}
+    }
+    const after=await invoke(connection,'scene_observe',{limit:1},signal);
     if(!Number.isSafeInteger(sceneRevision) || before.revision!==sceneRevision ||
         after.revision!==sceneRevision){reason='SCENE_REVISION_CHANGED';return format();}
-    if(project){
-      if(savedCheckpoint.sceneRevision!==sceneRevision){reason='PROJECT_SAVE_STALE';return format();}
+    if(projectId){
+      if(project&&savedCheckpoint.sceneRevision!==sceneRevision){reason='PROJECT_SAVE_STALE';return format();}
       const latest=await invoke(connection,'studio_project',{operation:'read'},signal);
-      if(!latest.active||latest.project?.id!==project.id||latest.revision!==projectRevision||
+      if(!latest.active||latest.project?.id!==projectId||latest.revision!==projectRevision||
           latest.runningRevision!==latest.revision||latest.runtimeId!==runtimeId){
         reason='PROJECT_REVISION_CHANGED';return format();
       }
     }
-    if(taskSpec?.visual?.required && !deferVisualReview){reason='VISUAL_REVIEW_PENDING';return format();}
+    bound=true;
+    if(!evaluation.accepted){reason='SCENE_VERIFICATION_FAILED';return format();}
+    worldReady=true;
+    if(visualRequired){status=deferVisualReview?'awaiting-visual':'incomplete';reason='VISUAL_REVIEW_PENDING';return format();}
     status='completed';reason=null;
   } catch(error) {
     reason=signal?.aborted?'RUN_CANCELLED':code(error?.code);

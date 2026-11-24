@@ -1,5 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
 import {captureStudioVisual,reviewStudioVisual,iterateVisualProject} from '../../apps/agent-host/VisualReview.js';
+import {buildTaskEvidence,collectSceneChecks} from '../../application/agent/TaskEvidence.js';
 
 const configuration={mcpUrl:'http://127.0.0.1:39015/agent-mcp',mcpToken:'z'.repeat(32),
   apiKey:'test-secret-not-to-log',baseUrl:'https://example.invalid/v1',modelId:'vision-test'};
@@ -101,6 +102,16 @@ describe('real Studio frame and multimodal review contract',()=>{
   });
 });
 
+function pending(revision=2,binding={}){
+  const world={worldSessionId:project.worldSessionId,projectId:project.id,projectRevision:revision,runtimeId:'runtime-'+revision,sceneRevision:7,...binding};
+  const criterion={id:'valid',kind:'world-valid'};
+  const records=collectSceneChecks({schema:'agentscape.scene-result',operation:'verify',status:'succeeded',
+    verification:{status:'verified',evidence:{status:'world-accepted',checks:[{...criterion,verified:true}]}}},[criterion]).records;
+  return {taskStatus:'awaiting-visual',verified:false,world,verification:{scope:'world-state',status:'verified',reason:'VISUAL_REVIEW_PENDING'},
+    evidence:buildTaskEvidence({world,scope:'world-state',records,bound:true,worldReady:true,visualRequired:true})};
+}
+const verdict=(world,details)=>({...world,revision:world.projectRevision,imageDigest:'a'.repeat(64),...details});
+
 describe('Pi/DSH independent visual revision loop',()=>{
   it('revises source using observed feedback, re-verifies and stops after visual acceptance',async()=>{
     const prompts=[],events=[],seen=[];
@@ -108,10 +119,10 @@ describe('Pi/DSH independent visual revision loop',()=>{
       {status:'needs-revision',score:4,issues:['缺少苹果'],advice:'增加红苹果',revision:1},
       {status:'passed',score:9,issues:[],advice:'',revision:2}
     ];
-    const result=await iterateVisualProject({prompt:'漂亮的苹果树',initial:{taskStatus:'completed',verified:true},
-      review:async()=>reviews.shift(),
+    const result=await iterateVisualProject({prompt:'漂亮的苹果树',initial:pending(1),
+      review:async({world})=>verdict(world,reviews.shift()),
       revise:async({prompt})=>{prompts.push(prompt);return {execution:[{tool:'studio_project'}]};},
-      verify:async outcome=>{seen.push(outcome);return {taskStatus:'completed',verified:true};},
+      verify:async outcome=>{seen.push(outcome);return pending(2);},
       emit:item=>events.push(item)});
     expect(result).toMatchObject({taskStatus:'completed',verified:true,
       visual:{status:'passed',reviewer:'model'}});
@@ -124,7 +135,7 @@ describe('Pi/DSH independent visual revision loop',()=>{
   });
   it('refuses a verdict not bound to the Host verified world',async()=>{
     const world={worldSessionId:project.worldSessionId,projectId:project.id,projectRevision:2,runtimeId:'runtime-1',sceneRevision:7};
-    const result=await iterateVisualProject({prompt:'tree',initial:{taskStatus:'completed',verified:true,world},
+    const result=await iterateVisualProject({prompt:'tree',initial:pending(2,world),
       review:async({world:expected})=>{
         expect(expected).toEqual(world);
         return {status:'passed',score:10,issues:[],advice:'',worldSessionId:world.worldSessionId,projectId:world.projectId,revision:2,runtimeId:'runtime-2',sceneRevision:7};
@@ -133,10 +144,10 @@ describe('Pi/DSH independent visual revision loop',()=>{
   });
   it('caps revisions and never claims success from a rejected visual image',async()=>{
     let edits=0;
-    const result=await iterateVisualProject({prompt:'make a house',initial:{taskStatus:'completed',verified:true},
-      maxRevisions:2,review:async()=>({status:'needs-revision',score:2,issues:['empty'],advice:'add walls'}),
+    const result=await iterateVisualProject({prompt:'make a house',initial:pending(),
+      maxRevisions:2,review:async({world})=>verdict(world,{status:'needs-revision',score:2,issues:['empty'],advice:'add walls'}),
       revise:async()=>{edits++;return {};},
-      verify:async()=>({taskStatus:'completed',verified:true})});
+      verify:async()=>pending(2+edits)});
     expect(edits).toBe(2);
     expect(result).toMatchObject({taskStatus:'incomplete',verified:false,
       visual:{status:'needs-revision',reason:'VISUAL_REVISION_LIMIT'}});
@@ -144,16 +155,15 @@ describe('Pi/DSH independent visual revision loop',()=>{
   });
   it('keeps the last verified world and reports code-revision failure without crashing the host',async()=>{
     const result=await iterateVisualProject({prompt:'build a house',
-      initial:{taskStatus:'completed',verified:true,verification:{scope:'world-state'}},
-      review:async()=>({status:'needs-revision',score:4,issues:['roof missing'],advice:'add roof'}),
+      initial:pending(),
+      review:async({world})=>verdict(world,{status:'needs-revision',score:4,issues:['roof missing'],advice:'add roof'}),
       revise:async()=>{throw Object.assign(Error('syntax'),{code:'PROJECT_MODULE_SYNTAX'});}});
     expect(result).toMatchObject({taskStatus:'incomplete',verified:false,
       visual:{status:'blocked',reason:'PROJECT_MODULE_SYNTAX'}});
     expect(result.verification.scope).toBe('world-state');
   });
   it('preserves world state evidence but marks missing vision unavailable',async()=>{
-    const result=await iterateVisualProject({prompt:'tree',initial:{taskStatus:'completed',verified:true,
-      verification:{scope:'world-state',status:'verified'}},
+    const result=await iterateVisualProject({prompt:'tree',initial:pending(),
       review:async()=>{throw Object.assign(new Error('no webgl'),{code:'VISUAL_CANVAS_UNAVAILABLE'});}});
     expect(result).toMatchObject({taskStatus:'incomplete',verified:false,
       verification:{scope:'world-state',status:'verified'},

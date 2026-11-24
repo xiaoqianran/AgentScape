@@ -25,6 +25,10 @@ function live({objects=[],actions=[],relations=[]}={}){
           (check.kind==='object-exists'&&objects.includes(check.targetId)) ||
           (check.kind==='interaction-verified'&&actions.includes(check.targetId+'.'+check.capability)) ||
           (check.kind==='relation-exists'&&relations.includes(check.subject+'.'+check.predicate+'.'+check.object));
+        if(check.kind==='interaction-verified')return {...check,expected:check.capability,verified,
+          ...(verified?{evidence:{schema:'agentscape.interaction-evidence',schemaVersion:1,verified:true,
+            worldRevisionId:'session:test-runtime',targetId:check.targetId,capability:check.capability,
+            source:check.source==='project'?'project-defined':check.source}}:{reason:'INTERACTION_NOT_VERIFIED'})};
         return {...check,verified};
       });
       return response({schema:'agentscape.scene-result',operation:'verify',status:'succeeded',

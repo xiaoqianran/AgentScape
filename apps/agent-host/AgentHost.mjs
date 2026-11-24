@@ -188,7 +188,7 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
         configuration:config,signal:controller.signal,expectedWorldSessionId,taskSpec,
         deferVisualReview:shouldReview});
       let output=await verify(await runBackend(fullPrompt));
-      if(shouldReview && output.taskStatus==='completed') {
+      if(shouldReview && output.taskStatus==='awaiting-visual') {
         output=await iterateVisualProject({prompt:input.prompt,initial:output,
           review:({world})=>reviewVisual({prompt:input.prompt,project,expectedWorld:world,configuration:config,signal:controller.signal}),
           revise:({prompt})=>runBackend(prompt),verify,maxRevisions:visualMaxRevisions,

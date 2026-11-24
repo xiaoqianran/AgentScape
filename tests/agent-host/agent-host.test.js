@@ -1,5 +1,6 @@
 import {describe,it,expect,afterEach} from 'vitest';
 import {createAgentHost,isNewWorldRequest,getConfig} from '../../apps/agent-host/AgentHost.mjs';
+import {buildTaskEvidence,collectSceneChecks} from '../../application/agent/TaskEvidence.js';
 
 const ORIGIN='http://localhost:5173';
 const configuration={baseUrl:'https://test.invalid/v1',apiKey:'test',modelId:'test',
@@ -67,8 +68,15 @@ describe('dual agent host transport',()=>{
     const host=createAgentHost({config:configuration,port:0,
       prepareProject:async()=>({id:projectId,worldSessionId,revision:1}),
       backends:{pi:async({prompt})=>{prompts.push(prompt);return {worldSessionId,execution:[],usage:{modelCalls:2,reportedCalls:2,totalTokens:123}};},dsh:async()=>({})},
-      finalize:async()=>({taskStatus:'completed',verified:true,verification:{scope:'world-state',status:'verified'}}),
-      reviewVisual:async()=>verdicts.shift()});
+      finalize:async()=>{
+        const world={worldSessionId,projectId,projectRevision:prompts.length+1,runtimeId:'runtime-'+prompts.length,sceneRevision:7};
+        const criterion={id:'valid',kind:'world-valid'};
+        const records=collectSceneChecks({schema:'agentscape.scene-result',operation:'verify',status:'succeeded',
+          verification:{status:'verified',evidence:{status:'world-accepted',checks:[{...criterion,verified:true}]}}},[criterion]).records;
+        return {taskStatus:'awaiting-visual',verified:false,world,verification:{scope:'world-state',status:'verified'},
+          evidence:buildTaskEvidence({world,scope:'world-state',records,bound:true,worldReady:true,visualRequired:true})};
+      },
+      reviewVisual:async({expectedWorld})=>({...expectedWorld,revision:expectedWorld.projectRevision,imageDigest:'a'.repeat(64),...verdicts.shift()})});
     await host.listen();active.push(host);
     const output=await (await json('http://127.0.0.1:'+host.server.address().port,'/run',
       {runId:'visual_create_001',backend:'pi',prompt:'创建一个精致苹果树世界'})).json();
