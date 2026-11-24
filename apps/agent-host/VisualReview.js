@@ -2,6 +2,13 @@ import { connectStudioMcp } from './McpWorldTools.js';
 
 const fail = code => Object.assign(new Error(code),{code});
 
+const matchesEvidence=(image,world)=>!world||(
+  (!world.worldSessionId||image.worldSessionId===world.worldSessionId)&&
+  (!world.projectId||image.projectId===world.projectId)&&
+  (world.projectRevision==null||image.revision===world.projectRevision)&&
+  (world.runtimeId==null||image.runtimeId===world.runtimeId)&&
+  (world.sceneRevision==null||image.sceneRevision===world.sceneRevision));
+
 function parseTool(response) {
   if(response?.isError) throw fail('VISUAL_STUDIO_TOOL_FAILED');
   const raw=response?.content?.find(item=>item.type==='text')?.text;
@@ -27,12 +34,12 @@ function parseReview(text) {
 }
 
 /** Read one real Studio frame. The user image is never included in agent execution logs. */
-export async function captureStudioVisual({configuration,project=null,signal,mcpConnector=connectStudioMcp}={}) {
+export async function captureStudioVisual({configuration,project=null,expectedWorld=null,signal,mcpConnector=connectStudioMcp}={}) {
   const projectScope=project?.worldSessionId && project?.id?
     project.worldSessionId+'/'+project.id:undefined;
   const connection=await mcpConnector({url:configuration.mcpUrl,token:configuration.mcpToken,signal,projectScope});
   try {
-    if(project?.worldSessionId && connection.worldSessionId!==project.worldSessionId)
+    if((project?.worldSessionId||expectedWorld?.worldSessionId) && connection.worldSessionId!==(project?.worldSessionId||expectedWorld?.worldSessionId))
       throw fail('VISUAL_WORLD_SESSION_CHANGED');
     const studio=connection.tools.find(item=>item.name==='studio_project');
     if(!studio)throw fail('VISUAL_STUDIO_UNAVAILABLE');
@@ -42,15 +49,18 @@ export async function captureStudioVisual({configuration,project=null,signal,mcp
     const image=parseTool(await studio.execute('visual-capture-'+crypto.randomUUID(),
       {operation:'capture',expectedRevision:read.revision,maxWidth:768,maxHeight:432},signal));
     if(image.status!=='captured'||image.mime!=='image/jpeg'||
-       image.projectId!==read.project.id||image.revision!==read.revision||
+       image.projectId!==read.project.id||image.revision!==read.revision||image.runtimeId!==read.runtimeId||
+       typeof image.runtimeId!=='string'||!image.runtimeId||
        !Number.isSafeInteger(image.sceneRevision)||
        !Number.isSafeInteger(image.width)||!Number.isSafeInteger(image.height)||
-       image.width>768||image.height>432||
+       image.width<1||image.height<1||image.width>768||image.height>432||
        typeof image.imageBase64!=='string'||image.imageBase64.length<16||
        image.imageBase64.length>240000||
        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(image.imageBase64))
       throw fail('VISUAL_CAPTURE_RESPONSE_INVALID');
-    return image;
+    const evidence={...image,worldSessionId:connection.worldSessionId};
+    if(!matchesEvidence(evidence,expectedWorld))throw fail('VISUAL_VERIFIED_WORLD_CHANGED');
+    return evidence;
   } finally {await connection.close();}
 }
 
@@ -59,7 +69,7 @@ async function assertVisualStillCurrent({configuration,project,image,signal,mcpC
     project.worldSessionId+'/'+project.id:undefined;
   const connection=await mcpConnector({url:configuration.mcpUrl,token:configuration.mcpToken,signal,projectScope});
   try {
-    if(project?.worldSessionId && connection.worldSessionId!==project.worldSessionId)
+    if(connection.worldSessionId!==image.worldSessionId)
       throw fail('VISUAL_WORLD_SESSION_CHANGED');
     const read=connection.tools.find(tool=>tool.name==='studio_project');
     const observe=connection.tools.find(tool=>tool.name==='scene_observe');
@@ -67,7 +77,7 @@ async function assertVisualStillCurrent({configuration,project,image,signal,mcpC
     const state=parseTool(await read.execute('visual-current-'+crypto.randomUUID(),{operation:'read'},signal));
     const scene=parseTool(await observe.execute('visual-observe-'+crypto.randomUUID(),{limit:1},signal));
     if(!state.active || state.project?.id!==image.projectId || state.revision!==image.revision ||
-      state.runningRevision!==image.revision || scene.revision!==image.sceneRevision)
+      state.runningRevision!==image.revision || state.runtimeId!==image.runtimeId || scene.revision!==image.sceneRevision)
       throw fail('VISUAL_IMAGE_STALE');
   } finally {await connection.close();}
 }
@@ -83,9 +93,9 @@ const SYSTEM_PROMPT=[
 ].join(' ');
 
 /** One multimodal call to the existing OpenAI-compatible endpoint, not a new Agent SDK. */
-export async function reviewStudioVisual({prompt,configuration,project,signal,
+export async function reviewStudioVisual({prompt,configuration,project,expectedWorld=null,signal,
   mcpConnector=connectStudioMcp,request=fetch}={}) {
-  const image=await captureStudioVisual({configuration,project,signal,mcpConnector});
+  const image=await captureStudioVisual({configuration,project,expectedWorld,signal,mcpConnector});
   const base=String(configuration.visualBaseUrl || configuration.baseUrl || '').replace(/\/+$/,'');
   const model=configuration.visualModelId || configuration.modelId;
   if(!base || !configuration.apiKey || !model)throw fail('VISUAL_MODEL_UNCONFIGURED');
@@ -115,7 +125,7 @@ export async function reviewStudioVisual({prompt,configuration,project,signal,
     const evaluation=parseReview(completion?.message?.content);
     await assertVisualStillCurrent({configuration,project,image,signal,mcpConnector});
     return {...evaluation,
-      projectId:image.projectId,revision:image.revision,sceneRevision:image.sceneRevision,
+      worldSessionId:image.worldSessionId,projectId:image.projectId,revision:image.revision,runtimeId:image.runtimeId,sceneRevision:image.sceneRevision,
       width:image.width,height:image.height};
   } catch(error) {
     if(signal?.aborted)throw error;
@@ -137,15 +147,18 @@ export async function iterateVisualProject({prompt,initial,review,revise,verify,
     if(signal?.aborted)throw fail('RUN_CANCELLED');
     if(result.taskStatus!=='completed')break;
     let verdict;
-    try {verdict=await review({attempt,signal});}
+    try {
+      verdict=await review({attempt,signal,world:result.world});
+      if(!matchesEvidence(verdict,result.world))throw fail('VISUAL_VERIFIED_WORLD_CHANGED');
+    }
     catch(error){
       if(signal?.aborted)throw error;
       const reason=error?.code || 'VISUAL_REVIEW_UNAVAILABLE';
       return {...result,taskStatus:'incomplete',verified:false,
         visual:{status:'unavailable',reason,reviews}};
     }
-    const {status,score,issues,advice,projectId,revision,sceneRevision}=verdict;
-    reviews.push({status,score,issues,projectId,revision,sceneRevision});
+    const {status,score,issues,advice,projectId,revision,sceneRevision,runtimeId,worldSessionId}=verdict;
+    reviews.push({status,score,issues,projectId,revision,sceneRevision,runtimeId,worldSessionId});
     emit({type:'visual.reviewed',attempt,score,status,revision,issueCount:issues.length,
       issues:issues.slice(0,5)});
     if(status==='passed')return {...result,visual:{status:'passed',reviewer:'model',reviews}};

@@ -1,7 +1,6 @@
 import { connectStudioMcp } from './McpWorldTools.js';
 import { requiredTaskCriteria } from './TaskSpec.js';
 
-const SOURCE_CHANGES = new Set(['write','patch','file','resource','apply_batch','undo_batch','open','run']);
 const code = value => typeof value === 'string' && /^[A-Z_]{3,80}$/.test(value) ? value : 'FINAL_VERIFICATION_UNAVAILABLE';
 
 export function acceptedSceneChecks(result) {
@@ -53,7 +52,7 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
   const hasFailures = unresolved.length>0 || Boolean(output.error) || output.retryLimit ||
     ['error','failed','cancelled','interrupted'].includes(output.finishReason);
   let status = 'incomplete', reason = 'SCENE_VERIFICATION_MISSING';
-  let checks=[],sceneRevision=null,projectRevision=null,worldSessionId=project?.worldSessionId || output.worldSessionId || null;
+  let checks=[],sceneRevision=null,projectRevision=null,runtimeId=null,savedCheckpoint=null,worldSessionId=project?.worldSessionId || output.worldSessionId || null;
   const projectId = project?.id || null;
   const projectScope = project ? project.worldSessionId+'/'+project.id : undefined;
   const format=()=>({
@@ -65,7 +64,8 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
       [...unresolved,...(reason?[{reason}]:[])],
     worldSessionId,
     ...(projectId?{projectId}:{}),
-    world:{worldSessionId,projectId,projectRevision,sceneRevision},
+    world:{worldSessionId,projectId,projectRevision,sceneRevision,runtimeId},
+    ...(savedCheckpoint?{savedCheckpoint}:{}),
     verification:{scope:taskSpec?'task-criteria':'world-state',
       status:status==='completed'?'verified':'unverified',reason:status==='completed'?null:reason,
       worldSessionId,revision:sceneRevision,checks}
@@ -97,8 +97,9 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
   if(verificationCall.outcome?.state!=='verified'){reason='SCENE_VERIFICATION_FAILED';return format();}
   if(project){
     const saveIndex=lastIndex(execution,entry=>entry.tool==='studio_project'&&entry.operation==='save'&&entry.outcome?.state==='accepted');
-    const changedIndex=lastIndex(execution,entry=>entry.tool==='studio_project'&&SOURCE_CHANGES.has(entry.operation));
-    if(saveIndex<0||saveIndex<changedIndex){reason='PROJECT_NOT_SAVED';return format();}
+    if(saveIndex<0||saveIndex<lastMutation){reason='PROJECT_NOT_SAVED';return format();}
+    savedCheckpoint=execution[saveIndex].savedCheckpoint||null;
+    if(!savedCheckpoint){reason='PROJECT_SAVE_EVIDENCE_MISSING';return format();}
   }
 
   let connection;
@@ -112,9 +113,14 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
     if(project){
       projectState=await invoke(connection,'studio_project',{operation:'read'},signal);
       projectRevision=projectState.revision ?? null;
+      runtimeId=projectState.runtimeId ?? null;
       if(projectState.project?.id!==project.id||!projectState.active||
-          projectState.runningRevision!==projectState.revision){
+          projectState.runningRevision!==projectState.revision||!runtimeId){
         reason='TASK_PROJECT_CHANGED';return format();
+      }
+      if(savedCheckpoint.projectId!==project.id||savedCheckpoint.projectRevision!==projectRevision||
+          savedCheckpoint.runtimeId!==runtimeId){
+        reason='PROJECT_SAVE_STALE';return format();
       }
       // Ordinary Three.js projects do not have to register an ontology.
       // Explicit strict task criteria remain checked by scene_verify below.
@@ -143,9 +149,10 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
     if(!Number.isSafeInteger(sceneRevision) || before.revision!==sceneRevision ||
         after.revision!==sceneRevision){reason='SCENE_REVISION_CHANGED';return format();}
     if(project){
+      if(savedCheckpoint.sceneRevision!==sceneRevision){reason='PROJECT_SAVE_STALE';return format();}
       const latest=await invoke(connection,'studio_project',{operation:'read'},signal);
       if(!latest.active||latest.project?.id!==project.id||latest.revision!==projectRevision||
-          latest.runningRevision!==latest.revision){
+          latest.runningRevision!==latest.revision||latest.runtimeId!==runtimeId){
         reason='PROJECT_REVISION_CHANGED';return format();
       }
     }

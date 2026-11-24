@@ -37,7 +37,7 @@ function fixture({revision=5,after=revision,verification='verified',projectState
         }
         if(name==='studio_project'){
           projectRead.push(args);
-          return result(projectState || {active:true,revision:3,runningRevision:3,project:{id:'world_abc'},observation:{project:{entities:[{id:'tree'}]}}});
+          return result(projectState || {active:true,revision:3,runningRevision:3,runtimeId:'runtime-1',project:{id:'world_abc'},observation:{project:{entities:[{id:'tree'}]}}});
         }
         const checks=args.criteria.map(check=>({...check,verified:verification==='verified'}));
         return result(verification==='verified' ? accepted(checks,revision) : {
@@ -159,15 +159,16 @@ describe('shared Pi / DSH execution and Host admission',()=>{
     const edits=normalizeExecution('pi',[
       tool('studio_project',{operation:'write'},{status:'project-draft-saved',revision:3}),
       tool('studio_project',{operation:'run'},{status:'project-running',revision:3}),
-      tool('studio_project',{operation:'save'},{status:'succeeded'})
+      tool('studio_project',{operation:'save'},{status:'succeeded',projectId:project.id,projectRevision:3,runtimeId:'runtime-1',revision:5,value:{id:project.id,integrity:'a'.repeat(64)}})
     ]);
     const proof=normalizeExecution('pi',[tool('scene_verify',{criteria},accepted(criteria))]);
-    const options={projectState:{active:true,revision:3,runningRevision:3,project:{id:project.id},observation:{project:{entities:[{id:'tree'}]}}}};
+    const options={projectState:{active:true,revision:3,runningRevision:3,runtimeId:'runtime-1',project:{id:project.id},observation:{project:{entities:[{id:'tree'}]}}}};
     const mock=fixture(options);
     const acceptedProject=await finalizeRun({output:{backend:'dsh',execution:[...edits,...proof]},
       project,configuration:config,mcpConnector:mock.connection});
     expect(acceptedProject.taskStatus).toBe('completed');
-    expect(acceptedProject.world).toMatchObject({projectId:'world_abc',projectRevision:3});
+    expect(acceptedProject.world).toMatchObject({projectId:'world_abc',projectRevision:3,runtimeId:'runtime-1',sceneRevision:5});
+    expect(acceptedProject.savedCheckpoint).toEqual({projectId:project.id,projectRevision:3,runtimeId:'runtime-1',sceneRevision:5,digest:'a'.repeat(64)});
     expect(acceptedProject.verification.scope).toBe('world-state');
     expect(mock.invoked.filter(item=>item.name==='studio_project')).toHaveLength(2);
     // A free-form THREE.Scene can be visually rich without registerEntity() calls.
@@ -180,6 +181,21 @@ describe('shared Pi / DSH execution and Host admission',()=>{
     const noSave=await finalizeRun({output:{backend:'pi',execution:[...edits.slice(0,2),...proof]},
       project,configuration:config,mcpConnector:mock.connection});
     expect(noSave.verification.reason).toBe('PROJECT_NOT_SAVED');
+    // Undo/redo is a mutation even when neither the source nor project revision changes.
+    const undo=normalizeExecution('pi',[tool('scene_history',{operation:'undo'},{status:'succeeded',revision:6})]);
+    expect(undo[0]).toMatchObject({mutates:true,operation:'undo'});
+    const unsavedUndo=await finalizeRun({output:{backend:'pi',execution:[...edits,...undo,...proof]},project,configuration:config,mcpConnector:mock.connection});
+    expect(unsavedUndo.verification.reason).toBe('PROJECT_NOT_SAVED');
+    const missingEvidence=await finalizeRun({output:{backend:'pi',execution:[...edits.slice(0,2),
+      ...normalizeExecution('pi',[tool('studio_project',{operation:'save'},{status:'succeeded'})]),...proof]},
+      project,configuration:config,mcpConnector:mock.connection});
+    expect(missingEvidence.verification.reason).toBe('PROJECT_SAVE_EVIDENCE_MISSING');
+    const sceneChanged=await finalizeRun({output:{backend:'pi',execution:[...edits,...proof]},project,
+      configuration:config,mcpConnector:fixture({...options,revision:6}).connection});
+    expect(sceneChanged.verification.reason).toBe('PROJECT_SAVE_STALE');
+    const rerun=await finalizeRun({output:{backend:'dsh',execution:[...edits,...proof]},project,
+      configuration:config,mcpConnector:fixture({projectState:{...options.projectState,runtimeId:'runtime-2'}}).connection});
+    expect(rerun.verification.reason).toBe('PROJECT_SAVE_STALE');
     const changed=await finalizeRun({output:{backend:'pi',execution:[...edits,...proof]},
       project,configuration:config,mcpConnector:fixture({
         projectState:{active:true,revision:4,runningRevision:3,project:{id:project.id}}

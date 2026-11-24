@@ -95,6 +95,7 @@ export async function openCodeProject({ project: input, container = null, author
       if (closed) throw fail('SCENE_CLOSED');
       capturing = true;
       try {
+        const revision=session.scene.observe().revision;
         const state = projectJson(await instance.serialize?.() ?? null);
         const machines = session.world.projectCapabilities.exportStateMachines();
         const runtime = await exportRuntimeState(session.world, { name: project.name });
@@ -104,7 +105,8 @@ export async function openCodeProject({ project: input, container = null, author
           resources: project.resources, state, ...(machines ? {machines} : {}), runtime,
           ...(edits ? {edits} : {}) };
         const value = { ...payload, integrity: await digest(payload) };
-        return { schema: 'agentscape.scene-result', schemaVersion: 1, operation: 'save', status: 'succeeded',
+        if(session.scene.observe().revision!==revision)throw fail('SCENE_REVISION_CHANGED');
+        return { schema: 'agentscape.scene-result', schemaVersion: 1, operation: 'save', status: 'succeeded', revision,
           verification: { status: 'not-requested', evidence: null }, diagnostics: [], value };
       } finally { capturing = false; }
     });

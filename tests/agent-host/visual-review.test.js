@@ -7,7 +7,7 @@ const jpegBase64=Buffer.from([0xff,0xd8,0xff,0xd9,1,2,3,4,5,6,7,8]).toString('ba
 const project={id:'world_'+ 'f'.repeat(32),worldSessionId:'session-good'};
 
 function bridge({revision=2,active=true,sessionId=project.worldSessionId,imageRevision=revision,
-  calls=[],sceneRevision=7}={}) {
+  calls=[],sceneRevision=7,runtimeId='runtime-1'}={}) {
   return async({projectScope})=>{
     calls.push(['connect',projectScope]);
     return {worldSessionId:sessionId,
@@ -15,8 +15,8 @@ function bridge({revision=2,active=true,sessionId=project.worldSessionId,imageRe
         text:JSON.stringify({revision:sceneRevision})}]})},{name:'studio_project',execute:async(callId,args)=>{
         calls.push([args.operation,args]);
         const value=args.operation==='read'?
-          {active,revision,runningRevision:revision,project:{id:project.id}}:
-          {status:'captured',mime:'image/jpeg',projectId:project.id,revision:imageRevision,
+          {active,revision,runningRevision:revision,runtimeId,project:{id:project.id}}:
+          {status:'captured',mime:'image/jpeg',projectId:project.id,revision:imageRevision,runtimeId,
             sceneRevision,width:640,height:360,imageBase64:jpegBase64};
         return {content:[{type:'text',text:JSON.stringify(value)}]};
       }}],
@@ -72,6 +72,19 @@ describe('real Studio frame and multimodal review contract',()=>{
       mcpConnector:connector,request})).rejects.toThrow('VISUAL_IMAGE_STALE');
     expect(connections).toBe(2);
   });
+  it('rejects a screenshot from another scene revision before charging the vision model',async()=>{
+    const request=vi.fn();
+    await expect(reviewStudioVisual({prompt:'tree',configuration,project,
+      expectedWorld:{worldSessionId:project.worldSessionId,projectId:project.id,projectRevision:2,runtimeId:'runtime-1',sceneRevision:6},
+      mcpConnector:bridge(),request})).rejects.toThrow('VISUAL_VERIFIED_WORLD_CHANGED');
+    expect(request).not.toHaveBeenCalled();
+  });
+  it('rejects a rerun with identical numeric revisions during model review',async()=>{
+    let connections=0;
+    const connector=async options=>bridge({runtimeId:++connections===1?'runtime-1':'runtime-2'})(options);
+    const request=async()=>({ok:true,text:async()=>JSON.stringify({choices:[{message:{content:JSON.stringify({accepted:true,score:9,issues:[],advice:''})}}]})});
+    await expect(reviewStudioVisual({prompt:'tree',configuration,project,mcpConnector:connector,request})).rejects.toThrow('VISUAL_IMAGE_STALE');
+  });
   it('does not accept malformed or unsupported vision responses',async()=>{
     const request=async()=>({ok:true,text:async()=>JSON.stringify({choices:[{message:{content:'{}'}}]})});
     await expect(reviewStudioVisual({prompt:'apple tree',configuration,project,
@@ -99,6 +112,15 @@ describe('Pi/DSH independent visual revision loop',()=>{
     expect(prompts[0]).toContain('漂亮的苹果树');
     expect(events.map(e=>e.type)).toEqual(['visual.reviewed','visual.revision.requested','visual.reviewed']);
     expect(seen).toHaveLength(1);
+  });
+  it('refuses a verdict not bound to the Host verified world',async()=>{
+    const world={worldSessionId:project.worldSessionId,projectId:project.id,projectRevision:2,runtimeId:'runtime-1',sceneRevision:7};
+    const result=await iterateVisualProject({prompt:'tree',initial:{taskStatus:'completed',verified:true,world},
+      review:async({world:expected})=>{
+        expect(expected).toEqual(world);
+        return {status:'passed',score:10,issues:[],advice:'',worldSessionId:world.worldSessionId,projectId:world.projectId,revision:2,runtimeId:'runtime-2',sceneRevision:7};
+      }});
+    expect(result).toMatchObject({taskStatus:'incomplete',verified:false,visual:{status:'unavailable',reason:'VISUAL_VERIFIED_WORLD_CHANGED'}});
   });
   it('caps revisions and never claims success from a rejected visual image',async()=>{
     let edits=0;

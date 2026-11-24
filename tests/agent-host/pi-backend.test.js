@@ -17,6 +17,9 @@ it('accepts explicit Runtime evidence and rejects empty, partial and legacy-look
   expect(changesWorld('studio_project',{operation:'read'})).toBe(false);
   expect(changesWorld('studio_project',{operation:'run'})).toBe(true);
   expect(changesWorld('studio_project',{operation:'save'})).toBe(false);
+  expect(changesWorld('scene_history',{operation:'status'})).toBe(false);
+  expect(changesWorld('scene_history',{operation:'undo'})).toBe(true);
+  expect(changesWorld('scene_history',{operation:'redo'})).toBe(true);
 });
 
 describe('Pi SDK integration without remote model charges',()=>{

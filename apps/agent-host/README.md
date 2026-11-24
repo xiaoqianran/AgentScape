@@ -58,7 +58,8 @@ Pi / DSH 共用同一世界会话，通过 `worldSessionId` 标识，禁止并�
 - Host 使用现有 OpenAI-compatible 模型端点发送截图和原始用户要求，要求 JSON 形式返回 `accepted`、0–10 评分、可见问题及具体源码修订建议。默认沿用 `AGENTSCAPE_LLM_MODEL`；可用 `AGENTSCAPE_VISUAL_MODEL` 指定**具备图像输入能力**的模型；`AGENTSCAPE_VISUAL_TIMEOUT_MS` 缺省 30000。
 - 若视觉模型评价为不合格，Host 向原 Pi/DSH 后端再提交一次包含反馈的修订任务；Agent 继续使用当前 Studio 项目（原项目 ID 和世界会话），写代码、运行、保存、`scene_verify`，然后重新截图评价。默认 `AGENTSCAPE_VISUAL_MAX_REVISIONS=2`（最多 3 次视觉评价和 2 次源码修订，可配置 0–3）。
 - `AGENTSCAPE_VISUAL_REVIEW_MODE=on` 对编辑已有运行中代码世界的已完成任务也启用视觉评价；`off` 禁用。`auto` 只针对 Host 新建的代码世界，不对所有非视觉操作收费。
-- 截图、评分均绑定 `projectId`、`runningRevision`、`sceneRevision`，模型返回后会再次检查运行世界和修订号，避免对已经过期的图片宣称视觉完成。JPEG 只发送给选定的模型端点，不出现在 NDJSON 事件/运行日志中；事件只提供轮次、评分和修订摘要。
+- Host 新建代码世界的最终验收要求最后一次场景修改（包括撤销/重做）之后成功保存。`savedCheckpoint` 记录项目 ID、源码修订、独立 Runtime ID、场景修订和保存内容 SHA-256；缺失或与实时独立验收不一致时拒绝完成。它是本机保存证据，并不表示已发布到共享仓库。共享发布仍需用户明确操作。
+- 截图及评分绑定 `worldSessionId`、`projectId`、`runningRevision`、`runtimeId`、`sceneRevision`。模型调用之前必须与 Host 刚通过的世界验收一致，返回后再次检查；即使重跑相同源码、数字修订碰巧相同，也不能复用上一 Runtime 的评价。JPEG 只发送给选定的模型端点，不出现在 NDJSON 事件/运行日志中；事件只提供轮次、评分和修订摘要。
 - `visual.status=passed` 表示**模型对可见画面的主观评价通过**，不是客观视觉质量保证，也不代表物理和交互真实完成；后者仍由原有 Finalizer 独立验证。截图不可用、模型不支持图像、修订号变化或修订次数用尽时，任务返回 `incomplete`、`verified:false` 并注明原因，不会伪装成功。
 
 ```powershell

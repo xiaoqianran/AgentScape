@@ -29,9 +29,10 @@ export class StudioCodeProjects {
     Object.assign(this, { container, baseScene, baseWorld, store, open, onActivate, onShow, executionPolicy, repository });
     this.session = null; this.draft = null; this.revision = 0; this.runningRevision = null;
     this.requiresExplicitRun = false;
+    this.runtimeId = null;
     this.listeners = new Set(); this.busy = false; this.visible = false;
     this.pendingBatch = null; this.lastBatch = null; this.approval = null;
-    this.current = Object.freeze({ visible:false, active:false, busy:false, project:null, revision:0, runningRevision:null,
+    this.current = Object.freeze({ visible:false, active:false, busy:false, project:null, revision:0, runningRevision:null, runtimeId:null,
       approvalRequired:Boolean(executionPolicy?.requiresApproval), requiresExplicitRun:false, projects:[], sharedWorlds:[], sharedStatus:null, error:null });
   }
   subscribe = listener => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
@@ -45,7 +46,7 @@ export class StudioCodeProjects {
   emit(patch = {}) {
     this.current = Object.freeze({ ...this.current, visible:this.visible, active:Boolean(this.session), busy:this.busy,
       project:this.draft ? clone(this.draft) : null, revision:this.revision, runningRevision:this.runningRevision,
-      requiresExplicitRun:this.requiresExplicitRun,
+      requiresExplicitRun:this.requiresExplicitRun, runtimeId:this.runtimeId,
       approval:this.approval ? { revision:this.approval.revision, digest:this.approval.digest.slice(0,12) } : null,
       batchPreview:this.pendingBatch?.summary || null,
       undoBatch:this.lastBatch ? { revision:this.lastBatch.revision, ...this.lastBatch.counts } : null,
@@ -279,8 +280,9 @@ export class StudioCodeProjects {
       }
       previousFrameError?.();
       this.stopFrameError = nextFrameError;
+      this.runtimeId=crypto.randomUUID();
       this.emit();
-      return { status:'project-running', id:project.id, revision:this.revision, observation };
+      return { status:'project-running', id:project.id, revision:this.revision, runtimeId:this.runtimeId, observation };
     });
   }
   /** Capture a real running Three.js frame, bound to the current project revision. */
@@ -310,7 +312,7 @@ export class StudioCodeProjects {
       if(!imageBase64 || imageBase64.length>240000)throw fail('VISUAL_CAPTURE_TOO_LARGE');
       if(this.session!==session || this.runningRevision!==this.revision)
         throw fail('PROJECT_REVISION_CONFLICT');
-      return {status:'captured',projectId:this.draft.id,revision:this.revision,
+      return {status:'captured',projectId:this.draft.id,revision:this.revision,runtimeId:this.runtimeId,
         sceneRevision:session.scene.observe().revision,width,height,mime:'image/jpeg',imageBase64};
     } catch(error) {
       if(error?.code)throw error;
@@ -324,7 +326,7 @@ export class StudioCodeProjects {
       const result = await this.session.save();
       await this.persist(result.value);
       this.draft = result.value; this.emit();
-      return result;
+      return {...result,projectId:result.value.id,projectRevision:this.revision,runtimeId:this.runtimeId};
     });
   }
   async load(id) {
@@ -383,6 +385,7 @@ export class StudioCodeProjects {
         throw error;
       }
       this.runningRevision = null;
+      this.runtimeId=null;
       this.stopFrameError?.();
       this.stopFrameError = null;
     }

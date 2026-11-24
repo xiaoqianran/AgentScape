@@ -36,11 +36,20 @@ export function executionRecord({ name, callId, args, result, isError = false, d
   const reason = !allowed ? 'AGENT_TOOL_FORBIDDEN' : approvalRequired ? 'PROJECT_EXECUTION_REVIEW_REQUIRED' : isError ? 'TOOL_FAILED'
     : failedVerify ? 'SCENE_UNVERIFIED'
     : error ? 'TOOL_FAILED' : undefined;
+  // Save receipts bind persisted bytes to the exact live project and scene.
+  const saved=tool==='studio_project'&&input.operation==='save'&&payload.status==='succeeded'&&
+    typeof payload.projectId==='string'&&payload.value?.id===payload.projectId&&
+    typeof payload.runtimeId==='string'&&payload.runtimeId.length>0&&payload.runtimeId.length<=80&&
+    Number.isSafeInteger(payload.projectRevision)&&Number.isSafeInteger(payload.revision)&&
+    /^[a-f0-9]{64}$/.test(payload.value?.integrity||'')
+    ?{projectId:payload.projectId,runtimeId:payload.runtimeId,projectRevision:payload.projectRevision,
+      sceneRevision:payload.revision,digest:payload.value.integrity}:null;
   return {
     tool, toolCallId:String(callId || ''), executed:true,
     mutates:allowed && (changesWorld(tool,input) || ASSET_WRITES.has(tool)),
     ...(Number.isFinite(durationMs) ? {durationMs} : {}),
-    ...(tool === 'studio_project' && typeof input.operation === 'string' ? {operation:input.operation} : {}),
+    ...(['studio_project','scene_history'].includes(tool) && typeof input.operation === 'string' ? {operation:input.operation} : {}),
+    ...(saved&&!reason?{savedCheckpoint:saved}:{}),
     ...(tool === 'scene_add_model' && typeof input.model?.id === 'string' ? {targetId:input.model.id} : {}),
     ...(tool === 'scene_verify' && Array.isArray(input.criteria) ? {criteria:input.criteria} : {}),
     ...(Number.isSafeInteger(payload?.revision) ? {revision:payload.revision} : {}),

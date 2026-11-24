@@ -16,7 +16,7 @@ test('visual feedback drives real Studio MCP edit, render, capture and rerun',as
   let server,host;
   try {
     server=await startServer({tokens:[{identity:'visual-loop-e2e',token}],
-      root,port:0,dataRoot:path.join(root,'assets'),studioOrigins:['http://127.0.0.1:4178']});
+      root,port:0,dataRoot:path.join(root,'assets'),studioOrigins:[test.info().project.use.baseURL]});
     const configuration={baseUrl:'https://vision-mock.invalid/v1',apiKey:'mock-only',
       modelId:'mock-vision',visualModelId:'mock-vision',visualReviewMode:'auto',visualMaxRevisions:1,
       mcpUrl:'http://127.0.0.1:'+server.port+'/agent-mcp',mcpToken:token};
@@ -77,6 +77,13 @@ test('visual feedback drives real Studio MCP edit, render, capture and rerun',as
     const result=await response.json();
     expect(result).toMatchObject({taskStatus:'completed',verified:true,visual:{status:'passed'}});
     expect(result.visual.reviews.map(item=>item.score)).toEqual([4,9]);
+    const finalReview=result.visual.reviews.at(-1);
+    expect(result.savedCheckpoint).toMatchObject({projectId:result.world.projectId,
+      projectRevision:result.world.projectRevision,runtimeId:result.world.runtimeId,sceneRevision:result.world.sceneRevision});
+    expect(result.savedCheckpoint.digest).toMatch(/^[a-f0-9]{64}$/);
+    expect(finalReview).toMatchObject({projectId:result.world.projectId,
+      revision:result.world.projectRevision,runtimeId:result.world.runtimeId,sceneRevision:result.world.sceneRevision});
+    expect(result.visual.reviews[0].runtimeId).not.toBe(finalReview.runtimeId);
     expect(result.events.filter(event=>event.type==='visual.reviewed')).toHaveLength(2);
     expect(calls).toBe(2);expect(visionCalls).toBe(2);
     expect(screenshots[0]).not.toBe(screenshots[1]);
