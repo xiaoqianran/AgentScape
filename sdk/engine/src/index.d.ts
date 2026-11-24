@@ -273,3 +273,16 @@ export interface NativeOverlayCheckpoint {
 }
 export declare function createNativeOverlayCheckpoint(scene:NativeSceneHandle,storage:WorldStorage,heads:NativeOverlayHeadStore):NativeOverlayCheckpoint;
 export declare function openNativeOverlayCheckpoint(scene:NativeSceneHandle,storage:WorldStorage,heads:NativeOverlayHeadStore,options?:{restore?:boolean}):Promise<NativeOverlayCheckpoint>;
+
+/** Runtime-local path and identity. Re-observe after native tree changes. */
+export interface NativeObjectReference { nodePath: string; objectUuid: string }
+export interface NativeObservedObject extends NativeObjectReference { name: string; type: string; visible: boolean; childCount: number }
+export type NativeObserverView = {position:Vec3;target:Vec3;fov?:number} | {nodePath:string;objectUuid?:string;direction?:Vec3;fov?:number;padding?:number};
+export interface NativeSceneObserver {
+  inspect(options?:{nodePath?:string;objectUuid?:string;offset?:number;limit?:number;includeMaterials?:boolean;includeLights?:boolean;visibility?:boolean;view?:NativeObserverView}):{status:'inspected';node:NativeObservedObject;children:NativeObservedObject[];[key:string]:unknown};
+  search(options:{query?:string;objectType?:string;material?:string;visibleOnly?:boolean;includeInternal?:boolean;offset?:number;limit?:number}):{status:'searched';items:NativeObservedObject[];nextOffset:number|null;[key:string]:unknown};
+  inspectBatch(options:{nodePaths:string[];objectUuids?:string[];includeMaterials?:boolean;includeLights?:boolean;visibility?:boolean}):{status:'batch-inspected';results:Array<{nodePath:string;status:'inspected'|'error';code?:string;[key:string]:unknown}>;[key:string]:unknown};
+  suggestViews(options:{nodePath:string;objectUuid?:string;candidateLimit?:number;fov?:number;padding?:number;grid?:number;directions?:Vec3[]}):{status:'views-suggested';nodePath:string;objectUuid:string;best:{view:NativeObserverView;[key:string]:unknown}|null;[key:string]:unknown};
+  capture(options?:{maxWidth?:number;maxHeight?:number;view?:NativeObserverView;isolateNodePath?:string;isolateObjectUuid?:string}):{status:'captured';width:number;height:number;mime:'image/jpeg';imageBase64:string;[key:string]:unknown};
+}
+export declare function createSceneObserver(native:{scene:any;camera?:any;renderer?:any},options?:{renderCurrent?:()=>void}):NativeSceneObserver;

@@ -11,7 +11,7 @@ const vector=v=>v.toArray().map(n=>Number.isFinite(n)?Number(n.toPrecision(10)):
 const nameOf=o=>String(o.name||'').slice(0,120);
 const childPath=(path,index)=>path?path+'/'+index:String(index);
 
-export function resolveNode(scene,path){
+export function resolveNode(scene,path,objectUuid){
   if(typeof path!=='string'||path.length>256||! /^(?:(?:0|[1-9]\d*)(?:\/(?:0|[1-9]\d*))*)?$/.test(path))
     throw fail('NATIVE_INSPECT_PATH_INVALID');
   let node=scene, visible=scene.visible!==false;
@@ -20,6 +20,8 @@ export function resolveNode(scene,path){
     if(!Number.isSafeInteger(i)||!node.children[i])throw fail('NATIVE_INSPECT_NODE_NOT_FOUND');
     node=node.children[i];visible=visible&&node.visible!==false;
   }
+  // A child-index path is not an identity after native tree edits.
+  if(objectUuid!==undefined&&node.uuid!==objectUuid)throw fail('NATIVE_INSPECT_OBJECT_CONFLICT');
   return {node,visible};
 }
 
@@ -56,14 +58,14 @@ export function createInspectionCamera(original,{position,target,fov=45}={},aspe
 }
 
 /** Fit an independent camera to the measured AABB, including depth of every corner. */
-export function frameNativeView(native,{nodePath,direction=[1,.7,1],fov=45,padding=1.12}={},aspect){
+export function frameNativeView(native,{nodePath,objectUuid,direction=[1,.7,1],fov=45,padding=1.12}={},aspect){
   if(!Array.isArray(direction)||direction.length!==3||!direction.every(Number.isFinite)||
      !Number.isFinite(fov)||fov<10||fov>110||!Number.isFinite(padding)||padding<1.02||padding>2.5||
      !Number.isFinite(aspect)||aspect<=0)throw fail('VISUAL_VIEW_INVALID');
   const back=new Vector3(...direction);
   if(back.lengthSq()<1e-12||!Number.isFinite(back.lengthSq()))throw fail('VISUAL_VIEW_INVALID');
   back.normalize();
-  const measured=inspectNativeScene(native,{nodePath,limit:1});
+  const measured=inspectNativeScene(native,{nodePath,objectUuid,limit:1});
   if(!measured.boundsComplete)throw fail('VISUAL_FRAME_BOUNDS_INCOMPLETE');
   if(!measured.bounds)throw fail('VISUAL_FRAME_BOUNDS_EMPTY');
   const min=new Vector3(...measured.bounds.min),max=new Vector3(...measured.bounds.max);
@@ -77,11 +79,11 @@ export function frameNativeView(native,{nodePath,direction=[1,.7,1],fov=45,paddi
     distance=Math.max(distance,p.dot(back)+padding*Math.max(Math.abs(p.dot(right))/tanX,Math.abs(p.dot(up))/tanY));
   }
   distance+=Math.max(radius*.03,1e-4);
-  return {nodePath,direction:back.toArray(),padding,fov,position:center.clone().addScaledVector(back,distance).toArray(),target:center.toArray()};
+  return {nodePath,objectUuid:measured.node.objectUuid,direction:back.toArray(),padding,fov,position:center.clone().addScaledVector(back,distance).toArray(),target:center.toArray()};
 }
 
 /** Read current geometry without requiring semantic registration or advancing the simulation. */
-export function inspectNativeScene({scene,camera,renderer},{nodePath='',offset=0,limit=32,includeMaterials=false,includeLights=false,nodeBudget=MAX_NODES,vertexBudget=MAX_VERTICES,instanceBudget=MAX_INSTANCES,triangleBudget=MAX_TRIANGLES}={}){
+export function inspectNativeScene({scene,camera,renderer},{nodePath='',objectUuid,offset=0,limit=32,includeMaterials=false,includeLights=false,nodeBudget=MAX_NODES,vertexBudget=MAX_VERTICES,instanceBudget=MAX_INSTANCES,triangleBudget=MAX_TRIANGLES}={}){
   if(!scene?.isScene)throw fail('NATIVE_INSPECT_UNAVAILABLE');
   if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<1||limit>64||
      !Number.isSafeInteger(nodeBudget)||nodeBudget<1||nodeBudget>MAX_NODES||
@@ -89,7 +91,7 @@ export function inspectNativeScene({scene,camera,renderer},{nodePath='',offset=0
      !Number.isSafeInteger(instanceBudget)||instanceBudget<1||instanceBudget>MAX_INSTANCES||
      !Number.isSafeInteger(triangleBudget)||triangleBudget<1||triangleBudget>MAX_TRIANGLES)
     throw fail('NATIVE_INSPECT_PAGE_INVALID');
-  const {node,visible}=resolveNode(scene,nodePath);
+  const {node,visible}=resolveNode(scene,nodePath,objectUuid);
   const reasons=new Set(), cache=new WeakMap(), bounds=new Box3();
   const counts={nodes:0,vertices:0,meshes:0,visibleMeshes:0,instancedMeshes:0,instances:0,visibleInstances:0,
     otherRenderables:0,estimatedTriangles:0,estimatedLineSegments:0,estimatedPoints:0};
@@ -97,7 +99,7 @@ export function inspectNativeScene({scene,camera,renderer},{nodePath='',offset=0
   const materialInventory=includeMaterials?createMaterialInventory():null;
   const lightingInventory=includeLights?createLightingInventory():null;
   const localBox=new Box3(),matrix=new Matrix4(),instanceMatrix=new Matrix4();
-  const describe=(obj,path,shown)=>({nodePath:path,name:nameOf(obj),type:String(obj.type||'Object3D').slice(0,64),
+  const describe=(obj,path,shown)=>({nodePath:path,objectUuid:obj.uuid,name:nameOf(obj),type:String(obj.type||'Object3D').slice(0,64),
     visible:shown,childCount:obj.children.length,...(obj.isInstancedMesh?{instances:obj.count}:{})});
   const geometryBounds=geometry=>{
     if(cache.has(geometry))return cache.get(geometry);

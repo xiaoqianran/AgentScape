@@ -28,8 +28,8 @@ function walk(scene,target,visit,maxNodes=MAX_NODES,maxDepth=MAX_DEPTH){
 
 /** Temporary render-only layer mask. Preserve every original layer and light,
  * including mesh parents of selected descendants. Always restore on failure. */
-export function withNativeIsolation(scene,nodePath,render){
-  const {node}=resolveNode(scene,nodePath);
+export function withNativeIsolation(scene,nodePath,render,objectUuid){
+  const {node}=resolveNode(scene,nodePath,objectUuid);
   const changes=[];
   const complete=walk(scene,node,({object,inside})=>{
     if(!inside&&renderable(object)&&object.layers.mask!==0)changes.push([object,object.layers.mask]);
@@ -37,7 +37,7 @@ export function withNativeIsolation(scene,nodePath,render){
   if(!complete)throw fail('VISUAL_ISOLATION_BUDGET');
   try{
     for(const [object] of changes)object.layers.mask=0;
-    return render({nodePath,excludedRenderables:changes.length});
+    return render({nodePath,objectUuid:node.uuid,excludedRenderables:changes.length});
   }finally{
     for(const [object,mask] of changes)object.layers.mask=mask;
   }
@@ -66,15 +66,15 @@ const supported=o=>o.isMesh&&!o.isInstancedMesh&&!o.isSkinnedMesh&&!o.isBatchedM
 
 /** Geometric, opaque-mesh ray samples, NOT pixel coverage, transparency,
  * shader visibility or an acceptance verdict. No render/material mutation. */
-export function sampleNativeVisibility(native,{nodePath='',measured,maxNodes=MAX_NODES,maxDepth=MAX_DEPTH,maxTriangles=MAX_TRIANGLES,maxVertices=MAX_VERTICES,grid=GRID}={}){
+export function sampleNativeVisibility(native,{nodePath='',objectUuid,measured,maxNodes=MAX_NODES,maxDepth=MAX_DEPTH,maxTriangles=MAX_TRIANGLES,maxVertices=MAX_VERTICES,grid=GRID}={}){
   const {scene,camera,renderer}=native;
   if(!Number.isSafeInteger(grid)||grid<3||grid>GRID)throw fail('VISUAL_GRID_INVALID');
   const base={method:'opaque-mesh-ray-samples',grid,samples:0,targetHits:0,visibleHits:0,occludedHits:0,
     visibleFraction:null,blockers:[],limitations:[]};
   const unavailable=reason=>({...base,status:'not-sampled',limitations:[reason]});
   if(!camera?.isPerspectiveCamera&&!camera?.isOrthographicCamera)return unavailable('unsupported-camera');
-  const {node}=resolveNode(scene,nodePath);
-  measured??=inspectNativeScene(native,{nodePath,limit:1});
+  const {node}=resolveNode(scene,nodePath,objectUuid);
+  measured??=inspectNativeScene(native,{nodePath,objectUuid,limit:1});
   if(!measured.boundsComplete)return unavailable('incomplete-bounds');
   if(!measured.bounds)return unavailable('empty-bounds');
   if(measured.cameraCoverage==='outside')return unavailable('outside-frustum');
@@ -93,7 +93,7 @@ export function sampleNativeVisibility(native,{nodePath='',measured,maxNodes=MAX
     triangles+=Math.floor(elements/3);vertices+=object.geometry.attributes.position.count;
     if(vertices>maxVertices){limitations.add('vertex-budget');return false;}
     if(triangles>maxTriangles){limitations.add('triangle-budget');return false;}
-    (inside?targets:others).push(object);paths.set(object,{nodePath:path,name:String(object.name||'').slice(0,120)});
+    (inside?targets:others).push(object);paths.set(object,{nodePath:path,objectUuid:object.uuid,name:String(object.name||'').slice(0,120)});
   },maxNodes,maxDepth);
   if(!complete)limitations.add('traversal-budget');
   if(!targets.length||!complete)return {...base,status:'not-sampled',limitations:[...limitations,...(!targets.length?['no-supported-target-mesh']:[])]};

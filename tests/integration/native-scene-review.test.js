@@ -47,7 +47,7 @@ describe('native material and visibility diagnostics',()=>{
     target.add(child);target.layers.enable(4);wall.layers.enable(2);
     const originals=[target.layers.mask,child.layers.mask,wall.layers.mask,light.layers.mask];
     expect(()=>withNativeIsolation(scene,'0/0',evidence=>{
-      expect(evidence).toEqual({nodePath:'0/0',excludedRenderables:2});
+      expect(evidence).toEqual({nodePath:'0/0',objectUuid:child.uuid,excludedRenderables:2});
       expect([target.layers.mask,child.layers.mask,wall.layers.mask,light.layers.mask]).toEqual([0,originals[1],0,originals[3]]);
       throw Error('RENDER_FAILED');
     })).toThrow('RENDER_FAILED');

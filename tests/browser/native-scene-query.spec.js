@@ -31,6 +31,14 @@ test('Studio native scene search, batch inspection and isolated best-view previe
     }).toBe(true);
     await call('write',{create:true,name:'Native scene query',source:projectTemplate});
     await call('run',{expectedRevision:1,requestId:randomUUID()});
+    const search=await call('search',{expectedRevision:1,query:'Mesh',visibleOnly:true});
+    const ref=search.items[0];
+    expect(ref.objectUuid).toBeTruthy();
+    const request={expectedRevision:search.revision,expectedRuntimeId:search.runtimeId,expectedSceneRevision:search.sceneRevision,nodePath:ref.nodePath};
+    expect((await call('inspect',{...request,objectUuid:ref.objectUuid})).node.objectUuid).toBe(ref.objectUuid);
+    const stale=await client.callTool({name:'studio_project',arguments:{operation:'inspect',...request,objectUuid:randomUUID()}});
+    expect(stale.isError).toBeTruthy();
+    expect(JSON.stringify(stale.content)).toContain('NATIVE_INSPECT_OBJECT_CONFLICT');
     await page.getByRole('button',{name:'可视化',exact:true}).click();
     await page.getByLabel('原生对象搜索').fill('Mesh');
     await page.getByRole('button',{name:'搜索',exact:true}).click();

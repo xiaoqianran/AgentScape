@@ -7,9 +7,7 @@ import { projectFileEntries, compileCodeProjectModules } from '../../../applicat
 import { applyProjectChanges, summarizeProjectChanges, patchProjectText } from './StudioProjectChanges.js';
 import { projectExecutionFingerprint } from './ProjectExecutionPolicy.js';
 import { SharedWorldRepository } from './SharedWorldRepository.js';
-import { createInspectionCamera, frameNativeView, inspectNativeScene } from '../../../application/native-scene/NativeSceneInspection.js';
-import { sampleNativeVisibility, withNativeIsolation } from '../../../application/native-scene/NativeSceneReview.js';
-import { inspectNativeSceneBatch, searchNativeScene, suggestNativeViews } from '../../../application/native-scene/NativeSceneQuery.js';
+import { createSceneObserver } from '../../../application/native-scene/SceneObserver.js';
 
 const fail = code => Object.assign(new Error(code), { code });
 const clone = value => structuredClone(value);
@@ -298,48 +296,22 @@ export class StudioCodeProjects {
     if(expectedSceneRevision!==undefined&&this.session?.scene.observe({limit:1}).revision!==expectedSceneRevision)
       throw fail('NATIVE_INSPECT_SCENE_CONFLICT');
   }
-  /** Inspect actual native geometry and optional material/occlusion evidence. */
-  inspect({expectedRevision,expectedRuntimeId,expectedSceneRevision,nodePath='',offset=0,limit=32,includeMaterials=false,includeLights=false,visibility=false,view}={}) {
-    if(!this.session||!this.draft)throw fail('NATIVE_INSPECT_UNAVAILABLE');
-    this.requireRunningRevision(expectedRevision,expectedRuntimeId,expectedSceneRevision);
-    const session=this.session,native=session.scene.native;
-    const canvas=native.renderer?.domElement;
-    const aspect=canvas?.width&&canvas?.height?canvas.width/canvas.height:native.camera.aspect||1;
-    const resolvedView=view&&Object.hasOwn(view,'nodePath')?frameNativeView(native,view,aspect):view;
-    const observedNative=resolvedView?{...native,camera:createInspectionCamera(native.camera,resolvedView,aspect)}:native;
-    const evidence=inspectNativeScene(observedNative,{nodePath,offset,limit,includeMaterials,includeLights});
-    return {status:'inspected',projectId:this.draft.id,revision:this.revision,runtimeId:this.runtimeId,
-      sceneRevision:session.scene.observe({limit:1}).revision,...evidence,
-      ...(resolvedView?{view:resolvedView}:{}),
-      ...(visibility?{visibility:sampleNativeVisibility(observedNative,{nodePath,measured:evidence})}:{}),
-      ...(session.playback?{playback:session.playback.status()}: {})};
-  }
-  search({expectedRevision,expectedRuntimeId,expectedSceneRevision,query='',objectType='',material='',visibleOnly=false,includeInternal=false,offset=0,limit=32}={}) {
-    if(!this.session||!this.draft)throw fail('NATIVE_INSPECT_UNAVAILABLE');
+  /** One observer service for GUI and MCP, guarded by the live project revision. */
+  observeNative(method,{expectedRevision,expectedRuntimeId,expectedSceneRevision,...options}={}){
+    if(!this.session||!this.draft)throw fail(method==='capture'?'VISUAL_PROJECT_NOT_RUNNING':'NATIVE_INSPECT_UNAVAILABLE');
     this.requireRunningRevision(expectedRevision,expectedRuntimeId,expectedSceneRevision);
     const session=this.session,sceneRevision=session.scene.observe({limit:1}).revision;
-    const evidence=searchNativeScene(session.scene.native,{query,objectType,material,visibleOnly,includeInternal,offset,limit});
-    if(this.session!==session||session.scene.observe({limit:1}).revision!==sceneRevision)throw fail('NATIVE_INSPECT_SCENE_CONFLICT');
-    return {projectId:this.draft.id,revision:this.revision,runtimeId:this.runtimeId,sceneRevision,...evidence};
+    const observer=createSceneObserver(session.scene.native,{renderCurrent:()=>session.renderCurrent()});
+    const evidence=observer[method](options);
+    if(this.session!==session||this.runningRevision!==this.revision)throw fail('PROJECT_REVISION_CONFLICT');
+    if(session.scene.observe({limit:1}).revision!==sceneRevision)throw fail(method==='capture'?'SCENE_REVISION_CHANGED':'NATIVE_INSPECT_SCENE_CONFLICT');
+    return {projectId:this.draft.id,revision:this.revision,runtimeId:this.runtimeId,sceneRevision,...evidence,
+      ...((method==='inspect'||method==='capture')&&session.playback?{playback:session.playback.status()}: {})};
   }
-  inspectBatch({expectedRevision,expectedRuntimeId,expectedSceneRevision,nodePaths,includeMaterials=false,includeLights=false,visibility=false}={}) {
-    if(!this.session||!this.draft)throw fail('NATIVE_INSPECT_UNAVAILABLE');
-    this.requireRunningRevision(expectedRevision,expectedRuntimeId,expectedSceneRevision);
-    const session=this.session,sceneRevision=session.scene.observe({limit:1}).revision;
-    const evidence=inspectNativeSceneBatch(session.scene.native,{nodePaths,includeMaterials,includeLights,visibility});
-    if(this.session!==session||session.scene.observe({limit:1}).revision!==sceneRevision)throw fail('NATIVE_INSPECT_SCENE_CONFLICT');
-    return {projectId:this.draft.id,revision:this.revision,runtimeId:this.runtimeId,sceneRevision,...evidence};
-  }
-  suggestViews({expectedRevision,expectedRuntimeId,expectedSceneRevision,nodePath,candidateLimit=8,fov=45,padding=1.15,grid=5,directions}={}) {
-    if(!this.session||!this.draft)throw fail('NATIVE_INSPECT_UNAVAILABLE');
-    this.requireRunningRevision(expectedRevision,expectedRuntimeId,expectedSceneRevision);
-    const session=this.session,native=session.scene.native,canvas=native.renderer?.domElement;
-    const aspect=canvas?.width&&canvas?.height?canvas.width/canvas.height:native.camera.aspect||1;
-    const sceneRevision=session.scene.observe({limit:1}).revision;
-    const evidence=suggestNativeViews(native,{nodePath,candidateLimit,fov,padding,grid,directions},aspect);
-    if(this.session!==session||session.scene.observe({limit:1}).revision!==sceneRevision)throw fail('NATIVE_INSPECT_SCENE_CONFLICT');
-    return {projectId:this.draft.id,revision:this.revision,runtimeId:this.runtimeId,sceneRevision,...evidence};
-  }
+  inspect(options){return this.observeNative('inspect',options);}
+  search(options){return this.observeNative('search',options);}
+  inspectBatch(options){return this.observeNative('inspectBatch',options);}
+  suggestViews(options){return this.observeNative('suggestViews',options);}
   async timeline({expectedRevision,expectedRuntimeId,command='status',steps=1}={}) {
     if(!this.session||!this.draft||!this.session.playback)throw fail('PROJECT_PLAYBACK_UNAVAILABLE');
     this.requireRunningRevision(expectedRevision,expectedRuntimeId);
@@ -349,72 +321,7 @@ export class StudioCodeProjects {
     return {status:'playback',projectId:this.draft.id,revision:this.revision,runtimeId:this.runtimeId,
       sceneRevision:session.scene.observe({limit:1}).revision,...result};
   }
-  /** Capture a real running Three.js frame, bound to the current project revision. */
-  capture({expectedRevision,expectedRuntimeId,expectedSceneRevision,maxWidth=768,maxHeight=432,view,isolateNodePath}={}) {
-    if (!this.session || !this.draft) throw fail('VISUAL_PROJECT_NOT_RUNNING');
-    this.requireRunningRevision(expectedRevision,expectedRuntimeId,expectedSceneRevision);
-    if (!Number.isSafeInteger(maxWidth) || maxWidth < 128 || maxWidth > 1024 ||
-        !Number.isSafeInteger(maxHeight) || maxHeight < 128 || maxHeight > 1024)
-      throw fail('VISUAL_CAPTURE_DIMENSIONS_INVALID');
-    const session=this.session,native=session.scene.native,renderer=native?.renderer,canvas=renderer?.domElement;
-    if (!canvas || !canvas.width || !canvas.height || typeof document==='undefined')
-      throw fail('VISUAL_CANVAS_UNAVAILABLE');
-    const sceneRevision=session.scene.observe({limit:1}).revision;
-    const aspect=canvas.width/canvas.height;
-    const requestedView=view??(isolateNodePath!==undefined?{nodePath:isolateNodePath}:null);
-    const resolvedView=requestedView&&Object.hasOwn(requestedView,'nodePath')?frameNativeView(native,requestedView,aspect):requestedView;
-    const camera=resolvedView?createInspectionCamera(native.camera,resolvedView,aspect):null;
-    let previousTarget,previousFace,previousLevel,restore=false,isolation=null,shadowAutoUpdate,shadowNeedsUpdate;
-    try {
-      // Redraw without stepping. Detached views use direct WebGL rendering.
-      if(camera){
-        if(!renderer.isWebGLRenderer||typeof renderer.getRenderTarget!=='function')throw fail('VISUAL_VIEW_UNSUPPORTED');
-        previousTarget=renderer.getRenderTarget();previousFace=renderer.getActiveCubeFace();previousLevel=renderer.getActiveMipmapLevel();
-        restore=true;renderer.setRenderTarget(null);
-        if(isolateNodePath!==undefined){
-          shadowAutoUpdate=renderer.shadowMap.autoUpdate;shadowNeedsUpdate=renderer.shadowMap.needsUpdate;
-          withNativeIsolation(native.scene,isolateNodePath,evidence=>{
-            isolation=evidence;
-            renderer.shadowMap.needsUpdate=true;
-            // The canvas retains this isolated frame for the synchronous copy below.
-            // Layer masks are restored before returning from the isolation helper.
-            renderer.render(native.scene,camera);
-          });
-        }else renderer.render(native.scene,camera);
-      }else session.renderCurrent();
-      const ratio=Math.min(1,maxWidth/canvas.width,maxHeight/canvas.height);
-      const width=Math.max(1,Math.round(canvas.width*ratio));
-      const height=Math.max(1,Math.round(canvas.height*ratio));
-      const target=document.createElement('canvas');
-      target.width=width;target.height=height;
-      const context=target.getContext('2d');
-      if(!context)throw fail('VISUAL_CAPTURE_UNAVAILABLE');
-      context.drawImage(canvas,0,0,width,height);
-      const imageBase64=target.toDataURL('image/jpeg',0.72).split(',')[1];
-      if(!imageBase64 || imageBase64.length>240000)throw fail('VISUAL_CAPTURE_TOO_LARGE');
-      if(this.session!==session || this.runningRevision!==this.revision)
-        throw fail('PROJECT_REVISION_CONFLICT');
-      if(session.scene.observe({limit:1}).revision!==sceneRevision)throw fail('SCENE_REVISION_CHANGED');
-      return {status:'captured',projectId:this.draft.id,revision:this.revision,runtimeId:this.runtimeId,
-        sceneRevision,width,height,mime:'image/jpeg',imageBase64,
-        ...(camera?{view:{...resolvedView,position:[...resolvedView.position],target:[...resolvedView.target],fov:camera.fov},renderMode:'direct'}:{}),
-        ...(isolation?{isolation}:{}),...(session.playback?{playback:session.playback.status()}: {})};
-    } catch(error) {
-      if(error?.code)throw error;
-      throw fail('VISUAL_CAPTURE_FAILED');
-    } finally {
-      if(restore){
-        renderer.setRenderTarget(previousTarget,previousFace,previousLevel);
-        if(isolateNodePath!==undefined&&shadowAutoUpdate!==undefined)renderer.shadowMap.needsUpdate=true;
-        try{session.renderCurrent();}finally{
-          if(isolateNodePath!==undefined&&shadowAutoUpdate!==undefined){
-            renderer.shadowMap.autoUpdate=shadowAutoUpdate;
-            renderer.shadowMap.needsUpdate=shadowNeedsUpdate;
-          }
-        }
-      }
-    }
-  }
+  capture(options){return this.observeNative('capture',options);}
   async save() {
     return this.exclusive(async () => {
       if (!this.session) throw fail('RUN_PROJECT_FIRST');

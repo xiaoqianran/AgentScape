@@ -6,6 +6,7 @@ import { attachNativeScene } from '../../../application/native-scene/NativeScene
 import { openCodeProject } from '../../../application/native-scene/CodeProject.js';
 export { openCodeProject, parseCodeProject } from '../../../application/native-scene/CodeProject.js';
 export { attachNativeScene };
+export { createSceneObserver } from '../../../application/native-scene/SceneObserver.js';
 export { attach } from '../../typescript/src/core.js';
 export { observeNativeRenderer, listNativeScenes, subscribeNativeScenes } from '../../../application/native-scene/NativeRenderDiscovery.js';
 export { parseSceneProject } from '../../../application/scene/SceneProject.js';

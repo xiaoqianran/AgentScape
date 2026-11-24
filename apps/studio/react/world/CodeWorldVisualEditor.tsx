@@ -34,7 +34,7 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
   const [nativeQuery,setNativeQuery]=useState('');
   const [nativeResults,setNativeResults]=useState<any[]>([]);
   const [nativeMeta,setNativeMeta]=useState<any>(null);
-  const [nativePath,setNativePath]=useState('');
+  const [nativeUuid,setNativeUuid]=useState('');
   const [nativeBatch,setNativeBatch]=useState<any>(null);
   const [nativeViews,setNativeViews]=useState<any>(null);
   const [nativePreview,setNativePreview]=useState('');
@@ -45,6 +45,10 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
   const [hoverAxis,setHoverAxis]=useState('');
   const selectedObject=objects.find(entry=>entry.id===selected)||null;
   const session=controller?.session;
+  const nativeSelected=nativeResults.find(item=>item.objectUuid===nativeUuid);
+  useEffect(()=>{
+    setNativeResults([]);setNativeMeta(null);setNativeUuid('');setNativeBatch(null);setNativeViews(null);setNativePreview('');
+  },[controller,state.runtimeId]);
 
   const refresh=()=>{
     const active=controller?.session;
@@ -181,26 +185,32 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
   };
   const nativeRequest=()=>({expectedRevision:state.revision,expectedRuntimeId:state.runtimeId,
     expectedSceneRevision:controller.scene.observe({limit:1}).revision});
+  const boundNativeRequest=()=>{
+    if(!nativeMeta||nativeMeta.runtimeId!==state.runtimeId||nativeMeta.revision!==state.revision)
+      throw new Error('NATIVE_INSPECT_SCENE_CONFLICT');
+    return {expectedRevision:nativeMeta.revision,expectedRuntimeId:nativeMeta.runtimeId,expectedSceneRevision:nativeMeta.sceneRevision};
+  };
   const searchNative=(offset=0,append=false)=>execute(async()=>{
-    const result=controller.search({...nativeRequest(),query:nativeQuery,visibleOnly:true,offset,limit:32});
+    const result=controller.search({...append?boundNativeRequest():nativeRequest(),query:append?nativeMeta.query:nativeQuery,visibleOnly:true,offset,limit:32});
     setNativeResults(current=>append?[...current,...result.items]:result.items);
     setNativeMeta(result);
-    if(!append){setNativePath(result.items[0]?.nodePath||'');setNativeBatch(null);setNativeViews(null);setNativePreview('');}
+    if(!append){setNativeUuid(result.items[0]?.objectUuid||'');setNativeBatch(null);setNativeViews(null);setNativePreview('');}
     return result;
   },'已搜索原生 Three.js 对象');
   const inspectNativeBatch=()=>execute(async()=>{
     if(!nativeResults.length)throw new Error('请先搜索对象');
-    const paths=nativeResults.slice(0,8).map(item=>item.nodePath);
-    const result=controller.inspectBatch({...nativeRequest(),nodePaths:paths,includeMaterials:true,includeLights:true,visibility:paths.length<=4});
+    const targets=nativeResults.slice(0,8);
+    const result=controller.inspectBatch({...boundNativeRequest(),nodePaths:targets.map(item=>item.nodePath),objectUuids:targets.map(item=>item.objectUuid),includeMaterials:true,includeLights:true,visibility:targets.length<=4});
     setNativeBatch(result);return result;
   },'已批量观察搜索结果');
   const previewNative=()=>execute(async()=>{
-    if(!nativePath)throw new Error('请先选择一个原生对象');
-    const request=nativeRequest();
-    const views=controller.suggestViews({...request,nodePath:nativePath,candidateLimit:4,grid:3});
+    if(!nativeSelected)throw new Error('请先选择一个原生对象');
+    const request=boundNativeRequest();
+    const {nodePath,objectUuid}=nativeSelected;
+    const views=controller.suggestViews({...request,nodePath,objectUuid,candidateLimit:4,grid:3});
     setNativeViews(views);
     if(!views.best)throw new Error('当前对象无法获得可靠的候选视角');
-    const capture=controller.capture({...request,maxWidth:640,maxHeight:480,view:views.best.view,isolateNodePath:nativePath});
+    const capture=controller.capture({...request,maxWidth:640,maxHeight:480,view:views.best.view,isolateNodePath:nodePath,isolateObjectUuid:objectUuid});
     setNativePreview('data:image/jpeg;base64,'+capture.imageBase64);
     return views;
   },'已选择采样可见性最佳的机位并生成局部预览');
@@ -273,15 +283,15 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
         </div>
         {nativeMeta?<small>扫描 {nativeMeta.scannedNodes} 个节点 · 命中 {nativeMeta.totalMatches} 个 · {nativeMeta.truncated?'结果受扫描预算限制':'扫描完成'}</small>:null}
         {nativeResults.length?<div className="native-world-results">
-          {nativeResults.map(item=><button type="button" key={item.nodePath||'root'} className={nativePath===item.nodePath?'selected':''}
-            onClick={()=>{setNativePath(item.nodePath);setNativePreview('');setNativeViews(null);}} disabled={busy||state.busy}>
+          {nativeResults.map(item=><button type="button" key={item.objectUuid} className={nativeUuid===item.objectUuid?'selected':''}
+            onClick={()=>{setNativeUuid(item.objectUuid);setNativePreview('');setNativeViews(null);}} disabled={busy||state.busy}>
             <span>{item.name||'(未命名对象)'}</span><small>{item.type} · {item.nodePath||'root'} · {item.visible?'可见':'隐藏'}</small>
           </button>)}
         </div>:nativeMeta?<small>没有匹配对象</small>:null}
         <div className="code-world-visual-actions">
           <button type="button" disabled={busy||state.busy||!nativeMeta?.nextOffset} onClick={()=>void searchNative(nativeMeta.nextOffset,true)}>加载更多</button>
           <button type="button" disabled={busy||state.busy||!nativeResults.length} onClick={()=>void inspectNativeBatch()}>批量检查前 8 个</button>
-          <button type="button" disabled={busy||state.busy||!nativePath} onClick={()=>void previewNative()}>自动找最佳机位</button>
+          <button type="button" disabled={busy||state.busy||!nativeSelected} onClick={()=>void previewNative()}>自动找最佳机位</button>
         </div>
         {nativeViews?.best?<small>最佳采样可见率 {(nativeViews.best.visibility.visibleFraction*100).toFixed(1)}% · {nativeViews.candidates.length} 个候选机位</small>:null}
         {nativeBatch?<small>批量检查 {nativeBatch.count} 个对象 · {nativeBatch.totals.nodes} 个节点 · {nativeBatch.totals.estimatedTriangles.toLocaleString()} 个估算三角形</small>:null}

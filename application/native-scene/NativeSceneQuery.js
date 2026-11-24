@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { createInspectionCamera, frameNativeView, inspectNativeScene } from './NativeSceneInspection.js';
+import { createInspectionCamera, frameNativeView, inspectNativeScene, resolveNode } from './NativeSceneInspection.js';
 import { sampleNativeVisibility } from './NativeSceneReview.js';
 
 const MAX_SEARCH_NODES=8192,MAX_DEPTH=128;
@@ -37,7 +37,7 @@ export function searchNativeScene({scene},{query='',objectType='',material='',vi
           object.getWorldPosition(position);
           const geometry=object.geometry,vertices=geometry?.attributes?.position?.count??null;
           const elements=geometry?.index?.count??vertices;
-          items.push({nodePath:item.path,name:String(object.name||'').slice(0,120),
+          items.push({nodePath:item.path,objectUuid:object.uuid,name:String(object.name||'').slice(0,120),
             type:String(object.type||'Object3D').slice(0,64),visible:item.visible,
             childCount:object.children.length,renderable:Boolean(object.isMesh||object.isLine||object.isPoints||object.isSprite),
             worldPosition:[position.x,position.y,position.z].map(n=>Number.isFinite(n)?Number(n.toPrecision(8)):null),
@@ -61,20 +61,23 @@ export function searchNativeScene({scene},{query='',objectType='',material='',vi
 }
 
 /** Inspect a bounded set of known native paths in one synchronous scene snapshot. */
-export function inspectNativeSceneBatch(native,{nodePaths,includeMaterials=false,includeLights=false,visibility=false}={}){
+export function inspectNativeSceneBatch(native,{nodePaths,objectUuids,includeMaterials=false,includeLights=false,visibility=false}={}){
   if(!Array.isArray(nodePaths)||nodePaths.length<1||nodePaths.length>8||
      nodePaths.some(path=>typeof path!=='string'||path.length>256)||new Set(nodePaths).size!==nodePaths.length)
     throw fail('NATIVE_BATCH_PATHS_INVALID');
+  if(objectUuids!==undefined&&(!Array.isArray(objectUuids)||objectUuids.length!==nodePaths.length||
+    objectUuids.some(uuid=>typeof uuid!=='string'||!uuid||uuid.length>128)))
+    throw fail('NATIVE_BATCH_IDENTITIES_INVALID');
   if(visibility&&nodePaths.length>4)throw fail('NATIVE_BATCH_VISIBILITY_LIMIT');
   const results=[],totals={nodes:0,vertices:0,estimatedTriangles:0,instances:0};
   for(let index=0;index<nodePaths.length;index++){
-    const nodePath=nodePaths[index];
+    const nodePath=nodePaths[index],objectUuid=objectUuids?.[index];
     try{
-      const evidence=inspectNativeScene(native,{nodePath,limit:1,includeMaterials,includeLights,
+      const evidence=inspectNativeScene(native,{nodePath,objectUuid,limit:1,includeMaterials,includeLights,
         nodeBudget:1024,vertexBudget:187_500,instanceBudget:6250,triangleBudget:62_500});
       for(const key of Object.keys(totals))totals[key]+=evidence.counts[key]||0;
       const item={index,nodePath,status:'inspected',...evidence};
-      if(visibility)item.visibility=sampleNativeVisibility(native,{nodePath,measured:evidence,
+      if(visibility)item.visibility=sampleNativeVisibility(native,{nodePath,objectUuid,measured:evidence,
         maxNodes:4096,maxTriangles:50_000,maxVertices:187_500});
       results.push(item);
     }catch(error){results.push({index,nodePath,status:'error',code:error.code||'NATIVE_INSPECT_FAILED'});}
@@ -85,10 +88,11 @@ export function inspectNativeSceneBatch(native,{nodePaths,includeMaterials=false
 }
 
 /** Rank reproducible independent cameras using bounded opaque-mesh ray samples. */
-export function suggestNativeViews(native,{nodePath,candidateLimit=8,fov=45,padding=1.15,grid=5,directions}={},aspect){
+export function suggestNativeViews(native,{nodePath,objectUuid,candidateLimit=8,fov=45,padding=1.15,grid=5,directions}={},aspect){
   if(typeof nodePath!=='string'||nodePath.length>256||!Number.isSafeInteger(candidateLimit)||candidateLimit<2||candidateLimit>12||
      !Number.isFinite(fov)||fov<10||fov>110||!Number.isFinite(padding)||padding<1.02||padding>2.5||
      !Number.isFinite(aspect)||aspect<=0||!Number.isSafeInteger(grid)||grid<3||grid>7)throw fail('VISUAL_CANDIDATES_INVALID');
+  resolveNode(native.scene,nodePath,objectUuid);
   const defaults=Array.from({length:8},(_,i)=>{const a=i*Math.PI/4;return [Math.cos(a),.48,Math.sin(a)];})
     .concat([[1,1.35,1],[-1,1.35,1],[1,1.35,-1],[-1,1.35,-1]]);
   const selected=(directions??defaults).slice(0,candidateLimit);
@@ -98,11 +102,11 @@ export function suggestNativeViews(native,{nodePath,candidateLimit=8,fov=45,padd
   const candidates=[];
   for(let index=0;index<selected.length;index++){
     try{
-      const view=frameNativeView(native,{nodePath,direction:selected[index],fov,padding},aspect);
+      const view=frameNativeView(native,{nodePath,objectUuid,direction:selected[index],fov,padding},aspect);
       const camera=createInspectionCamera(native.camera,view,aspect);
       const candidateNative={...native,camera};
-      const measured=inspectNativeScene(candidateNative,{nodePath,limit:1});
-      const visibility=sampleNativeVisibility(candidateNative,{nodePath,measured,maxNodes:4096,maxTriangles:300_000,maxVertices:1_000_000,grid});
+      const measured=inspectNativeScene(candidateNative,{nodePath,objectUuid:view.objectUuid,limit:1});
+      const visibility=sampleNativeVisibility(candidateNative,{nodePath,objectUuid:view.objectUuid,measured,maxNodes:4096,maxTriangles:300_000,maxVertices:1_000_000,grid});
       const score=visibility.visibleFraction===null?null:
         Number((visibility.visibleFraction*100+visibility.targetHits/visibility.samples*.01-visibility.blockers.length*.25).toFixed(3));
       candidates.push({index,score,view,cameraCoverage:measured.cameraCoverage,visibility});
@@ -112,8 +116,8 @@ export function suggestNativeViews(native,{nodePath,candidateLimit=8,fov=45,padd
     (b.visibility?.visibleHits??0)-(a.visibility?.visibleHits??0)||
     (a.visibility?.occludedHits??Infinity)-(b.visibility?.occludedHits??Infinity)||a.index-b.index);
   const ranked=candidates.map((candidate,index)=>({...candidate,rank:index+1}));
-  return {status:'views-suggested',nodePath,best:ranked.find(candidate=>candidate.score!==null)||null,candidates:ranked,
+  return {status:'views-suggested',nodePath,objectUuid:resolveNode(native.scene,nodePath,objectUuid).node.uuid,best:ranked.find(candidate=>candidate.score!==null)||null,candidates:ranked,
     scoring:'visible opaque-mesh ray fraction; tie-break by more target hits and fewer sampled blockers',grid,
-    limitations:['49-point projected-AABB sampling, not pixel visibility','transparent, shader, skinned, instanced and custom-raycast meshes may be partial or unsupported',
+    limitations:['Projected-AABB ray sampling, not pixel visibility','transparent, shader, skinned, instanced and custom-raycast meshes may be partial or unsupported',
       'candidate cameras use direct rendering and do not include custom postprocessing']};
 }
