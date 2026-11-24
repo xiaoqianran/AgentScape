@@ -1,6 +1,6 @@
 {
   "name": "agentscape3d-engine",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "type": "module",
   "description": "Optional WorldRuntime, physics, assets, native scene and MCP integration for AgentScape",
   "license": "MIT",
