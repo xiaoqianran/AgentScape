@@ -160,7 +160,7 @@ Studio 不再要求每次编辑都先离线打包。代码世界保持 `agentsca
 
 AI 工具：`readStudioProject` 返回当前项目基本信息、入口源码预览、文件/资源清单和修订号，**不会把所有资源 base64 发给模型**。`readStudioFile({path,offset,limit})` 可分页阅读文件；`editStudioFile({action,path,newPath,content,oldText,newText,expectedRevision})` 进行文件级创建/写入/补丁/重命名/删除。`editStudioResource({action,path,mime,base64,expectedRevision})` 添加/删除资源。修改不会直接影响正在运行的实例，必须重新运行。文件操作仍受修订号保护，入口文件不可删除。
 
-MCP `studio_project` 对应新增操作 `file_read`、`file`、`resource`；`patch` 也可指定 `path`。完整文件仍只保存在 Studio 本机存储，不要求 MCP 客户端维护世界副本。读文件默认每页 65,536 字符，支持 `nextOffset` 分页。
+MCP `studio_files` 对应操作 `file_read`、`file`、`resource`；`patch` 也可指定 `path`。完整文件仍只保存在 Studio 本机存储，不要求 MCP 客户端维护世界副本。读文件默认每页 65,536 字符，支持 `nextOffset` 分页。
 
 ## Studio 多文件事务编辑与差异审阅（第三批）
 
@@ -172,7 +172,7 @@ AI 不再需要按文件分别提交并承担工程处于半修改状态的风�
 4. 通过 `applyStudioProjectBatch({previewId,expectedRevision})` 一次性发布所有改动（只调用一次底层项目保存、修订号只增加一次）。用户也可选择 `discardStudioProjectBatch({previewId})` 放弃，已有文件与运行实例保持不变。
 5. 应用后如需回滚，调用 `undoStudioProjectBatch({expectedRevision})` 或点击「撤销上一批修改」。撤销恢复批次前的代码/资源，保留此后保存的运行时状态；**撤销仅限当前会话最近一次批次，后续独立编辑会清空记录**。应用和撤销后都需重新运行代码世界才生效。
 
-MCP `studio_project` 新增 `preview_batch`、`apply_batch`、`discard_batch`、`undo_batch`，参数与 AI 工具等价。预览短期保存在当前 Studio 控制器，刷新页面会消失；存储失败不会发布部分变更，预览仍可重试。版本冲突、任何文件内容匹配失败、非法路径或缺失导入都不会覆盖草稿。多文件及资源批量导入也使用整批校验和一次保存。
+MCP `studio_files` 支持 `preview_batch`、`apply_batch`、`discard_batch`、`undo_batch`，参数与 AI 工具等价。预览短期保存在当前 Studio 控制器，刷新页面会消失；存储失败不会发布部分变更，预览仍可重试。版本冲突、任何文件内容匹配失败、非法路径或缺失导入都不会覆盖草稿。多文件及资源批量导入也使用整批校验和一次保存。
 
 这套本地控制器的 `expectedRevision` 不是跨多个浏览器标签页的数据库 CAS；跨标签并发编辑仍应避免，后续可单独升级存储并发控制。批量操作不提供任意 JS 的运行时副作用回滚，只保证草稿文件层面的原子提交。
 
@@ -188,7 +188,7 @@ MCP `studio_project` 新增 `preview_batch`、`apply_batch`、`discard_batch`、
 
 任务面板 AI 工具：readStudioProject 读取源码、修订号、API 指引与实时能力；writeStudioProject 创建或按 expectedRevision 写入完整草稿；patchStudioProject 使用唯一匹配的 oldText/newText/expectedRevision 精确增量修改（缺失、重复或版本冲突均不修改）；runStudioProject 运行；saveStudioProject 保存；openStudioProject 打开；closeStudioProject 保存并返回。AI 工具随活动世界刷新，与主画布共用实例。
 
-MCP 的 studio_project 支持 read/write/patch/file_read/file/resource/run/save/open/close。先 read，再根据文件清单选择 file_read 和 file 修改，最后 run；动态动作继续通过 scene_observe、scene_interact、scene_job 执行。scene_save 同时持久化活动代码项目到本机库。此工具仅作用于连接中的 Studio，受现有 MCP 传输预算约束；大资源作品可从工作台导入。Studio 能直接编辑并运行相对依赖的 JS/Shader/JSON；第三方 npm 包仍需预打包。
+MCP 的 studio_project 管理 read/create/create_world/open/run/save/close，studio_files 管理 write/patch/file_read/file/resource 和批量编辑。先 studio_project read，再根据文件清单用 studio_files file_read 或 file 修改，最后 studio_project run；动态动作继续通过 scene_observe、scene_interact、scene_job 执行。scene_save 同时持久化活动代码项目到本机库。此工具仅作用于连接中的 Studio，受现有 MCP 传输预算约束；大资源作品可从工作台导入。Studio 能直接编辑并运行相对依赖的 JS/Shader/JSON；第三方 npm 包仍需预打包。
 
 此路径执行可信完整 JavaScript；AI 需要已配置的模型网关。自动验收使用固定协议响应，验证真实工具执行，不代表在线模型成功率。
 

@@ -312,9 +312,9 @@ export class StudioCodeProjects {
   search(options){return this.observeNative('search',options);}
   inspectBatch(options){return this.observeNative('inspectBatch',options);}
   suggestViews(options){return this.observeNative('suggestViews',options);}
-  async timeline({expectedRevision,expectedRuntimeId,command='status',steps=1}={}) {
+  async timeline({expectedRevision,expectedRuntimeId,expectedSceneRevision,command='status',steps=1}={}) {
     if(!this.session||!this.draft||!this.session.playback)throw fail('PROJECT_PLAYBACK_UNAVAILABLE');
-    this.requireRunningRevision(expectedRevision,expectedRuntimeId);
+    this.requireRunningRevision(expectedRevision,expectedRuntimeId,expectedSceneRevision);
     const session=this.session;
     const result=command==='status'?session.playback.status():await this.exclusive(()=>session.playback.control({command,steps}));
     if(this.session!==session||this.runningRevision!==this.revision)throw fail('PROJECT_RUNTIME_CONFLICT');

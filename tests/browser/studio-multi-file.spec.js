@@ -36,8 +36,8 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${server.port}/mcp`),{
    requestInit:{headers:{Authorization:'Bearer '+token}}
   }));
-  const call=async(operation,args={})=>{
-   const response=await client.callTool({name:'studio_project',arguments:{operation,...args}});
+  const call=async(name,operation,args={})=>{
+   const response=await client.callTool({name,arguments:{...(operation?{operation}:{}),...args}});
    const value=JSON.parse(response.content[0].text);
    expect(response.isError,JSON.stringify(value)).toBeFalsy();
    return value;
@@ -49,17 +49,17 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
    catch{return false;}
   }).toBe(true);
 
-  await call('write',{create:true,name:'多文件Studio',source,requestId:randomUUID()});
-  await call('file',{action:'create',path:'lib/motion.js',content:helper,expectedRevision:1,requestId:randomUUID()});
-  await call('file',{action:'create',path:'shaders/pulse.glsl',content:'vec3 tint = vec3(1.0);',expectedRevision:2,requestId:randomUUID()});
+  await call('studio_project','create',{name:'多文件Studio',source,requestId:randomUUID()});
+  await call('studio_files','file',{action:'create',path:'lib/motion.js',content:helper,expectedRevision:1,requestId:randomUUID()});
+  await call('studio_files','file',{action:'create',path:'shaders/pulse.glsl',content:'vec3 tint = vec3(1.0);',expectedRevision:2,requestId:randomUUID()});
   await expect(page.getByLabel('项目文件列表')).toContainText('lib/motion.js');
   await expect(page.getByLabel('项目文件列表')).toContainText('shaders/pulse.glsl');
   await expect(page.getByRole('button',{name:'审阅后批准本版本'})).toHaveCount(0);
-  await call('run',{requestId:randomUUID()});
+  await call('studio_project','run',{requestId:randomUUID()});
   const canvas=page.locator('.studio-code-project-viewport canvas');
   await expect(canvas).toBeVisible();
   // The vision evaluator receives real pixels via the existing Studio MCP bridge.
-  const visual=await call('capture',{expectedRevision:3});
+  const visual=await call('scene_capture','capture',{expectedRevision:3});
   expect(visual).toMatchObject({status:'captured',revision:3,mime:'image/jpeg'});
   expect(visual.width).toBeGreaterThan(100);
   expect(visual.width).toBeLessThanOrEqual(768);
@@ -68,30 +68,30 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   expect(image.length).toBeGreaterThan(1000);
   const pixels=await sharp(image).stats();
   expect(Math.max(...pixels.channels.slice(0,3).map(channel=>channel.stdev))).toBeGreaterThan(2);
-  const inspected=await call('inspect',{expectedRevision:3,limit:64});
+  const inspected=await call('scene_query','inspect',{expectedRevision:3,limit:64});
   expect(inspected.status).toBe('inspected');
   expect(inspected.counts.meshes).toBeGreaterThan(0);
   // Choose a measured native subtree, not a guessed semantic entity ID.
   const child=inspected.children.find(item=>item.type==='Mesh');
-  const measured=child?await call('inspect',{expectedRevision:3,nodePath:child.nodePath}):inspected;
+  const measured=child?await call('scene_query','inspect',{expectedRevision:3,nodePath:child.nodePath}):inspected;
   expect(measured.boundsComplete).toBe(true);
-  const searched=await call('search',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,
+  const searched=await call('scene_query','search',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,
     expectedSceneRevision:measured.sceneRevision,query:'Mesh',visibleOnly:true,limit:8});
   expect(searched.items.some(item=>item.type==='Mesh')).toBe(true);
   const match=searched.items.find(item=>item.type==='Mesh');
-  const batch=await call('inspect_batch',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,
+  const batch=await call('scene_query','inspect_batch',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,
     expectedSceneRevision:searched.sceneRevision,nodePaths:[match.nodePath],includeMaterials:true,includeLights:true,visibility:true});
   expect(batch).toMatchObject({status:'batch-inspected',count:1});
   expect(batch.results[0].materials.items.length).toBeGreaterThan(0);
-  const suggestions=await call('suggest_views',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,
+  const suggestions=await call('scene_capture','suggest_views',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,
     expectedSceneRevision:batch.sceneRevision,nodePath:match.nodePath,candidateLimit:2,
     directions:[[1,.5,1],[-1,.5,1]]});
   expect(suggestions.best).toMatchObject({rank:1,view:{nodePath:match.nodePath}});
-  const staleSearch=await client.callTool({name:'studio_project',arguments:{operation:'search',expectedRevision:3,
+  const staleSearch=await client.callTool({name:'scene_query',arguments:{operation:'search',expectedRevision:3,
     expectedRuntimeId:inspected.runtimeId,expectedSceneRevision:batch.sceneRevision+1,query:'Mesh'}});
   expect(staleSearch.isError).toBe(true);
   expect(JSON.parse(staleSearch.content[0].text).code).toBe('NATIVE_INSPECT_SCENE_CONFLICT');
-  const focused=await client.callTool({name:'studio_project',arguments:{operation:'capture',expectedRevision:3,imageMode:'mcp',
+  const focused=await client.callTool({name:'scene_capture',arguments:{operation:'capture',expectedRevision:3,imageMode:'mcp',
     view:{nodePath:measured.node.nodePath,direction:[1,.65,1],padding:1.12}}});
   expect(focused.isError,focused.content[0].text).toBeFalsy();
   const meta=JSON.parse(focused.content[0].text);
@@ -99,32 +99,32 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   expect(meta).not.toHaveProperty('imageBase64');
   expect(focused.content[1]).toMatchObject({type:'image',mimeType:'image/jpeg'});
   expect(Buffer.from(focused.content[1].data,'base64').length).toBeGreaterThan(1000);
-  expect((await call('inspect',{expectedRevision:3})).camera).toEqual(inspected.camera);
-  const paused=await call('timeline',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,command:'pause'});
+  expect((await call('scene_query','inspect',{expectedRevision:3})).camera).toEqual(inspected.camera);
+  const paused=await call('scene_timeline',null,{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,command:'pause'});
   expect(paused.paused).toBe(true);
   await expect(page.getByRole('button',{name:'恢复世界时间',exact:true})).toBeEnabled();
-  const reviewed=await call('inspect',{expectedRevision:3,nodePath:measured.node.nodePath,includeMaterials:true,visibility:true});
+  const reviewed=await call('scene_query','inspect',{expectedRevision:3,nodePath:measured.node.nodePath,includeMaterials:true,visibility:true});
   expect(reviewed.materials.items.length).toBeGreaterThan(0);
   expect(reviewed.visibility.samples).toBeLessThanOrEqual(49);
-  const isolated=await call('capture',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,isolateNodePath:measured.node.nodePath});
+  const isolated=await call('scene_capture','capture',{expectedRevision:3,expectedRuntimeId:inspected.runtimeId,isolateNodePath:measured.node.nodePath});
   expect(isolated.isolation.nodePath).toBe(measured.node.nodePath);
   expect(isolated.playback.frames).toBe(paused.frames);
   expect(isolated.playback.simulation.tick).toBe(paused.simulation.tick);
-  const stepped=await call('timeline',{expectedRevision:3,command:'step',steps:60});
+  const stepped=await call('scene_timeline',null,{expectedRevision:3,command:'step',steps:60});
   expect(stepped.frames-paused.frames).toBe(60);
   expect(stepped.simulation.tick-paused.simulation.tick).toBe(60);
   expect(stepped.elapsedSeconds-paused.elapsedSeconds).toBeCloseTo(1,8);
   await page.getByRole('button',{name:'恢复世界时间',exact:true}).click();
   await expect(page.getByRole('button',{name:'暂停世界时间',exact:true})).toBeEnabled();
-  expect((await call('timeline',{expectedRevision:3,command:'status'})).paused).toBe(false);
-  const wrongRuntime=await client.callTool({name:'studio_project',arguments:{operation:'inspect',expectedRevision:3,expectedRuntimeId:randomUUID()}});
+  expect((await call('scene_timeline',null,{expectedRevision:3,command:'status'})).paused).toBe(false);
+  const wrongRuntime=await client.callTool({name:'scene_query',arguments:{operation:'inspect',expectedRevision:3,expectedRuntimeId:randomUUID()}});
   expect(wrongRuntime.isError).toBe(true);
   expect(JSON.parse(wrongRuntime.content[0].text).code).toBe('PROJECT_RUNTIME_CONFLICT');
-  const invalid=await client.callTool({name:'studio_project',arguments:{operation:'capture',expectedRevision:3,
+  const invalid=await client.callTool({name:'scene_capture',arguments:{operation:'capture',expectedRevision:3,
     view:{position:[1,2,3],target:[1,2,3]}}});
   expect(invalid.isError).toBe(true);
   expect(JSON.parse(invalid.content[0].text).code).toBe('VISUAL_VIEW_INVALID');
-  const staleCapture=await client.callTool({name:'studio_project',arguments:{operation:'capture',expectedRevision:1}});
+  const staleCapture=await client.callTool({name:'scene_capture',arguments:{operation:'capture',expectedRevision:1}});
   expect(staleCapture.isError).toBe(true);
   expect(JSON.parse(staleCapture.content[0].text).code).toBe('PROJECT_REVISION_CONFLICT');
   const first=await client.callTool({name:'scene_observe',arguments:{}});
@@ -136,10 +136,10 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   await page.getByLabel('文件内容 lib/motion.js').fill(helper.replace('motionRate = 1','motionRate = 2'));
   await page.getByRole('button',{name:'保存源码草稿',exact:true}).click();
   await expect(page.locator('.code-project-editor output').first()).toHaveText('源码草稿已保存');
-  const edited=await call('file_read',{path:'lib/motion.js'});
+  const edited=await call('studio_files','file_read',{path:'lib/motion.js'});
   expect(edited.revision).toBe(4);
   expect(edited.content).toContain('motionRate = 2');
-  const stale=await client.callTool({name:'studio_project',arguments:{operation:'file',
+  const stale=await client.callTool({name:'studio_files',arguments:{operation:'file',
     action:'patch',path:'lib/motion.js',oldText:'motionRate = 2',newText:'motionRate = 99',
     expectedRevision:1,requestId:randomUUID()}});
   expect(stale.isError).toBe(true);
@@ -162,7 +162,7 @@ test('Studio and MCP jointly edit native multi-file JS/GLSL projects and recover
   await expect(page.locator('.code-project-resources')).toContainText('note.txt');
   await page.getByRole('button',{name:'运行代码世界',exact:true}).click();
   await saveWorldAndWait(page);
-  const saved=await call('save');
+  const saved=await call('studio_project','save');
   expect(saved.value.files['lib/motion.js']).toContain('motionRate = 2');
   expect(saved.value.files['notes/readme.txt']).toBe('project notes');
   expect(saved.value.resources['note.txt'].mime).toBe('text/plain');

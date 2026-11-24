@@ -167,7 +167,7 @@ describe('shared Pi / DSH execution and Host admission',()=>{
   it('verifies a scoped project only after saving the matching running revision',async()=>{
     const project={id:'world_abc',worldSessionId:'world-session'};
     const edits=normalizeExecution('pi',[
-      tool('studio_project',{operation:'write'},{status:'project-draft-saved',revision:3}),
+      tool('studio_files',{operation:'write'},{status:'project-draft-saved',revision:3}),
       tool('studio_project',{operation:'run'},{status:'project-running',revision:3}),
       tool('studio_project',{operation:'save'},{status:'succeeded',projectId:project.id,projectRevision:3,runtimeId:'runtime-1',revision:5,value:{id:project.id,integrity:'a'.repeat(64)}})
     ]);

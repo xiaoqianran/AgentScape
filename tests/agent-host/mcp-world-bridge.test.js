@@ -46,11 +46,14 @@ describe('Pi/DSH shared restricted MCP boundary',()=>{
       const scoped=await connectStudioMcp({url:'http://127.0.0.1:'+app.port+'/agent-mcp',token,
         projectScope:worldSessionId+'/'+projectId});
       try {
-        expect(scoped.tools.map(tool=>tool.name).sort()).toEqual(['scene_observe','scene_verify','studio_project']);
+        expect(scoped.tools.map(tool=>tool.name).sort()).toEqual(['scene_capture','scene_observe','scene_query','scene_timeline','scene_verify','studio_files','studio_project']);
         const project=scoped.tools.find(tool=>tool.name==='studio_project');
         expect(project.parameters.properties.operation.enum).not.toContain('open');
-        await expect(project.execute('switch',{operation:'open',id:'other'})).rejects.toThrow('TASK_PROJECT_SWITCH_FORBIDDEN');
-        const pending=project.execute('write',{operation:'write',source:'new',expectedRevision:1});
+        await expect(project.execute('switch',{operation:'open',id:'other'})).rejects.toThrow('INVALID_TOOL_INPUT');
+        const files=scoped.tools.find(tool=>tool.name==='studio_files');
+        expect(files.parameters.properties).not.toHaveProperty('create');
+        await expect(files.execute('switch',{operation:'write',create:true,source:'new'})).rejects.toThrow('INVALID_TOOL_INPUT');
+        const pending=files.execute('write',{operation:'write',source:'new',expectedRevision:1});
         const {request}=await app.studioBridge.poll(worldSessionId,studioToken);
         expect(request.args).toMatchObject({operation:'write',expectedProjectId:projectId});
         app.studioBridge.reply(worldSessionId,studioToken,{requestId:request.requestId,error:{code:'TASK_PROJECT_CHANGED'}});

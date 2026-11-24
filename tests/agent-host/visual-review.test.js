@@ -12,14 +12,15 @@ function bridge({revision=2,active=true,sessionId=project.worldSessionId,imageRe
     calls.push(['connect',projectScope]);
     return {worldSessionId:sessionId,
       tools:[{name:'scene_observe',execute:async()=>({content:[{type:'text',
-        text:JSON.stringify({revision:sceneRevision})}]})},{name:'studio_project',execute:async(callId,args)=>{
+        text:JSON.stringify({revision:sceneRevision})}]})},...['studio_project','scene_capture'].map(name=>({name,execute:async(callId,args)=>{
+        expect(name).toBe(args.operation==='read'?'studio_project':'scene_capture');
         calls.push([args.operation,args]);
         const value=args.operation==='read'?
           {active,revision,runningRevision:revision,runtimeId,project:{id:project.id}}:
           {status:'captured',mime:'image/jpeg',projectId:project.id,revision:imageRevision,runtimeId,
             sceneRevision,width:640,height:360,imageBase64:jpegBase64};
         return {content:[{type:'text',text:JSON.stringify(value)}]};
-      }}],
+      }}))],
       close:async()=>{calls.push(['close']);}
     };
   };

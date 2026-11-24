@@ -28,7 +28,7 @@
 
 - 观察到的 Three.js Group 不是物理关节。几何结构分析不自动发放 open、pickup 等权限。
 - preview 不执行编译或物理测试，验证等级为 not-run。apply 返回 compiled-and-admitted，指编译与正式准入，不代表 Agent 已真实执行动作；后置验证仍调用 scene_interact、scene_job 和 scene_verify。
-- 三维代码资产的补丁仅能修正已有 definition 字段，不能通过该接口执行新 JS 代码。完整源码变动使用 studio_project 或原有受控资产构建入口。
+- 三维代码资产的补丁仅能修正已有 definition 字段，不能通过该接口执行新 JS 代码。完整源码变动使用 studio_files 或原有受控资产构建入口。
 - 私有 MCP 会话现在向 SceneFacade 传入已有 worker-wasm 安全执行器。显式禁用代码执行时仍返回 CODE_EXECUTION_DISABLED。
 - 同一资产的其他实例不会自动改变。替换当前实例可能重置关节/物理状态，动作仍需重新验证。
 - **已实现：可编辑原始定义通过 scene_save/scene_import 持久保存并恢复，包含源定义与 revision。项目版本还可显式发布到用户全局库。** scene_save/scene_import 同时恢复对象、资源、世界状态和可编辑声明；跨会话可按原 revision 继续修正，历史动作仍需重新验证。

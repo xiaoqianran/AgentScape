@@ -1,4 +1,5 @@
 import { changesWorld, STUDIO_TOOL_NAMES } from './McpWorldTools.js';
+import { STUDIO_PROJECT_TOOL_SET } from '../../application/agent/StudioProjectTools.js';
 
 // Reuse the actual server-side tool catalog; connection setup tools are read-only.
 const KNOWN_TOOLS = new Set([...STUDIO_TOOL_NAMES,'session_attach','studio_session_status']);
@@ -55,7 +56,8 @@ export function executionRecord({ name, callId, args, result, isError = false, d
     tool, toolCallId:String(callId || ''), executed:true,
     mutates:allowed && (changesWorld(tool,input) || ASSET_WRITES.has(tool)),
     ...(Number.isFinite(durationMs) ? {durationMs} : {}),
-    ...(['studio_project','scene_history'].includes(tool) && typeof input.operation === 'string' ? {operation:input.operation} : {}),
+    ...(tool==='scene_timeline'?{operation:input.command??'status'}:
+      ((STUDIO_PROJECT_TOOL_SET.has(tool)||tool==='scene_history')&&typeof input.operation==='string'?{operation:input.operation}:{})),
     ...(saved&&!reason?{savedCheckpoint:saved}:{}),
     ...(failedChecks.length?{failedChecks}:{}),
     ...(tool === 'scene_add_model' && typeof input.model?.id === 'string' ? {targetId:input.model.id} : {}),

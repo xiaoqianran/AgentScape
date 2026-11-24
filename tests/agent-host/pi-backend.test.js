@@ -15,13 +15,13 @@ it('accepts explicit Runtime evidence and rejects empty, partial and legacy-look
   evidence.checks=[checks[0],{...checks[1],verified:false}];
   expect(acceptedSceneChecks(result)).toEqual([]);
   expect(changesWorld('studio_project',{operation:'read'})).toBe(false);
-  expect(changesWorld('studio_project',{operation:'inspect'})).toBe(false);
-  expect(changesWorld('studio_project',{operation:'search'})).toBe(false);
-  expect(changesWorld('studio_project',{operation:'inspect_batch'})).toBe(false);
-  expect(changesWorld('studio_project',{operation:'suggest_views'})).toBe(false);
-  expect(changesWorld('studio_project',{operation:'timeline',command:'status'})).toBe(false);
-  expect(changesWorld('studio_project',{operation:'timeline',command:'pause'})).toBe(true);
-  expect(changesWorld('studio_project',{operation:'timeline',command:'step'})).toBe(true);
+  expect(changesWorld('scene_query',{operation:'inspect'})).toBe(false);
+  expect(changesWorld('scene_query',{operation:'search'})).toBe(false);
+  expect(changesWorld('scene_query',{operation:'inspect_batch'})).toBe(false);
+  expect(changesWorld('scene_capture',{operation:'suggest_views'})).toBe(false);
+  expect(changesWorld('scene_timeline',{command:'status'})).toBe(false);
+  expect(changesWorld('scene_timeline',{command:'pause'})).toBe(true);
+  expect(changesWorld('scene_timeline',{command:'step'})).toBe(true);
   expect(changesWorld('studio_project',{operation:'run'})).toBe(true);
   expect(changesWorld('studio_project',{operation:'save'})).toBe(false);
   expect(changesWorld('scene_history',{operation:'status'})).toBe(false);
@@ -37,7 +37,7 @@ describe('Pi SDK integration without remote model charges',()=>{
       requests.push(JSON.parse(body));
       const turn=requests.length;
       const delta=turn===1?{role:'assistant',reasoning_content:'truncated reasoning'}:
-        turn===2?{role:'assistant',tool_calls:[{index:0,id:'write_ok',type:'function',function:{name:'studio_project',arguments:JSON.stringify({operation:'write'})}}]}:
+        turn===2?{role:'assistant',tool_calls:[{index:0,id:'write_ok',type:'function',function:{name:'studio_files',arguments:JSON.stringify({operation:'write'})}}]}:
         {role:'assistant',content:'Complete'};
       res.writeHead(200,{'content-type':'text/event-stream'});
       const packet={id:'chat-'+turn,object:'chat.completion.chunk',created:1,model:'model'};
@@ -50,7 +50,7 @@ describe('Pi SDK integration without remote model charges',()=>{
     try{
       const result=await runPiAgent({prompt:'Create a world',projectScope:'session/project',configuration:{
         baseUrl:'http://127.0.0.1:'+upstream.address().port+'/v1',apiKey:'test',modelId:'model',disableThinking:true,streamUsage:true},
-        mcpConnector:async()=>({worldSessionId:'session',close:async()=>{},tools:[{name:'studio_project',label:'project',description:'Edit project',parameters:{type:'object',properties:{operation:{type:'string'}}},
+        mcpConnector:async()=>({worldSessionId:'session',close:async()=>{},tools:[{name:'studio_files',label:'files',description:'Edit project',parameters:{type:'object',properties:{operation:{type:'string'}}},
           execute:async(_id,args)=>{executed.push(args);return {content:[{type:'text',text:'{"status":"project-draft-saved"}'}]};}}]}),
         emit:event=>events.push(event)});
       expect(requests).toHaveLength(3);
@@ -110,7 +110,7 @@ describe('Pi tool turns and Runtime acceptance',()=>{
     const events=[];
     const parameters={type:'object',properties:{operation:{type:'string'},model:{type:'object'}}};
     const names={add:'scene_add_model',verify:'scene_verify',partial:'scene_verify',save:'studio_project',
-      edit:'studio_project',read:'studio_project',error:'scene_add_model'};
+      edit:'studio_files',read:'studio_project',error:'scene_add_model'};
     const upstream=http.createServer(async(req,res)=>{
       for await(const _chunk of req){}
       const turn=turns[index++];

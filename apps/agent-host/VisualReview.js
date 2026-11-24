@@ -42,12 +42,13 @@ export async function captureStudioVisual({configuration,project=null,expectedWo
     if((project?.worldSessionId||expectedWorld?.worldSessionId) && connection.worldSessionId!==(project?.worldSessionId||expectedWorld?.worldSessionId))
       throw fail('VISUAL_WORLD_SESSION_CHANGED');
     const studio=connection.tools.find(item=>item.name==='studio_project');
-    if(!studio)throw fail('VISUAL_STUDIO_UNAVAILABLE');
+    const capture=connection.tools.find(item=>item.name==='scene_capture');
+    if(!studio||!capture)throw fail('VISUAL_STUDIO_UNAVAILABLE');
     const read=parseTool(await studio.execute('visual-read-'+crypto.randomUUID(),{operation:'read'},signal));
     if(!read.active || !read.project?.id || read.revision!==read.runningRevision ||
         (project?.id && read.project.id!==project.id))throw fail('VISUAL_PROJECT_REVISION_CHANGED');
-    const image=parseTool(await studio.execute('visual-capture-'+crypto.randomUUID(),
-      {operation:'capture',expectedRevision:read.revision,maxWidth:768,maxHeight:432},signal));
+    const image=parseTool(await capture.execute('visual-capture-'+crypto.randomUUID(),
+      {operation:'capture',expectedRevision:read.revision,expectedRuntimeId:read.runtimeId,maxWidth:768,maxHeight:432},signal));
     if(image.status!=='captured'||image.mime!=='image/jpeg'||
        image.projectId!==read.project.id||image.revision!==read.revision||image.runtimeId!==read.runtimeId||
        typeof image.runtimeId!=='string'||!image.runtimeId||

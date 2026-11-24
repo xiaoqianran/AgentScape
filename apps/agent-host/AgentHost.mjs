@@ -160,7 +160,7 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
       if(project)emit({type:'project.created',projectId:project.id,revision:project.revision});
       const prompt=project ? [
         'The Host has prepared a dedicated draft for this task. Use studio_project read to obtain the starter and guide.',
-        'Write a complete runnable core via studio_project write with the current expectedRevision; use that same project. For substantial scenes, add focused source modules with studio_project file or patch and read the latest revision before every edit. Avoid a single oversized tool call.',
+        'Write a complete runnable core via studio_files write with the current expectedRevision; use that same project. Add focused source modules via studio_files file or patch. Run and save via studio_project; inspect native geometry via scene_query, capture real views via scene_capture. Read the latest revision before every edit. Avoid a single oversized tool call.',
         acceptanceMode==='strict'
           ? 'Use the starter and Runtime interfaces. Register the required entities, run the revision, save and verify all user-derived criteria via scene_verify.'
           : 'Use the starter and native Three.js APIs freely to implement the requested world. Semantic entity/action registration is optional; use it only if interaction is needed. Run the revision, save, and check observable state with scene_verify. Do not substitute a fixed object vocabulary for the user request.',

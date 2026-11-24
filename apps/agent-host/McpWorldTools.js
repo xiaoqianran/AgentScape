@@ -1,16 +1,14 @@
 import { McpClient, StreamableHttpTransport, toLlmContent } from '@earendil-works/pi-mcp';
 import { AGENT_STUDIO_MCP_TOOLS } from '../../application/agent/StudioMcpAllowlist.js';
+import { STUDIO_PROJECT_TOOLS, STUDIO_PROJECT_TOOL_SET, projectToolMutates } from '../../application/agent/StudioProjectTools.js';
 
 // Deliberately expose only audited Studio tools, never Shell or arbitrary authoring.
 export const STUDIO_TOOL_NAMES = AGENT_STUDIO_MCP_TOOLS.filter(name => !['session_attach','studio_session_status'].includes(name));
-const WORLD_TOOLS = new Set(['scene_observe','scene_verify','scene_add_model','scene_apply','scene_history','scene_interact','scene_job','scene_cancel','studio_project']);
+const WORLD_TOOLS = new Set(['scene_observe','scene_verify','scene_add_model','scene_apply','scene_history','scene_interact','scene_job','scene_cancel',...STUDIO_PROJECT_TOOLS]);
 
 
 export function changesWorld(name, args = {}) {
-  if (name === 'studio_project') {
-    if(args.operation==='timeline')return (args.command??'status')!=='status';
-    return !['read','file_read','inspect','search','inspect_batch','suggest_views','capture','save','preview_batch','discard_batch'].includes(args.operation);
-  }
+  if (STUDIO_PROJECT_TOOL_SET.has(name)) return projectToolMutates(name,args);
   if (name === 'scene_history') return ['undo','redo'].includes(args.operation);
   if (name === 'scene_add_model') return (args.mode || 'add') === 'add';
   return ['scene_apply','scene_interact','scene_cancel'].includes(name);

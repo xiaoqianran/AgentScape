@@ -18,8 +18,8 @@ test('Studio native scene search, batch inspection and isolated best-view previe
     await client.connect(new StreamableHTTPClientTransport(new URL('http://127.0.0.1:'+server.port+'/mcp'),{
       requestInit:{headers:{Authorization:'Bearer '+token}}
     }));
-    const call=async(operation,args={})=>{
-      const response=await client.callTool({name:'studio_project',arguments:{operation,...args}});
+    const call=async(name,operation,args={})=>{
+      const response=await client.callTool({name,arguments:{...(operation?{operation}:{}),...args}});
       const value=JSON.parse(response.content[0].text);
       expect(response.isError,JSON.stringify(value)).toBeFalsy();
       return value;
@@ -29,14 +29,14 @@ test('Studio native scene search, batch inspection and isolated best-view previe
     await expect.poll(async()=>{
       try{return !(await client.callTool({name:'session_attach',arguments:{}})).isError;}catch{return false;}
     }).toBe(true);
-    await call('write',{create:true,name:'Native scene query',source:projectTemplate});
-    await call('run',{expectedRevision:1,requestId:randomUUID()});
-    const search=await call('search',{expectedRevision:1,query:'Mesh',visibleOnly:true});
+    await call('studio_project','create',{name:'Native scene query',source:projectTemplate});
+    await call('studio_project','run',{expectedRevision:1,requestId:randomUUID()});
+    const search=await call('scene_query','search',{expectedRevision:1,query:'Mesh',visibleOnly:true});
     const ref=search.items[0];
     expect(ref.objectUuid).toBeTruthy();
     const request={expectedRevision:search.revision,expectedRuntimeId:search.runtimeId,expectedSceneRevision:search.sceneRevision,nodePath:ref.nodePath};
-    expect((await call('inspect',{...request,objectUuid:ref.objectUuid})).node.objectUuid).toBe(ref.objectUuid);
-    const stale=await client.callTool({name:'studio_project',arguments:{operation:'inspect',...request,objectUuid:randomUUID()}});
+    expect((await call('scene_query','inspect',{...request,objectUuid:ref.objectUuid})).node.objectUuid).toBe(ref.objectUuid);
+    const stale=await client.callTool({name:'scene_query',arguments:{operation:'inspect',...request,objectUuid:randomUUID()}});
     expect(stale.isError).toBeTruthy();
     expect(JSON.stringify(stale.content)).toContain('NATIVE_INSPECT_OBJECT_CONFLICT');
     await page.getByRole('button',{name:'可视化',exact:true}).click();

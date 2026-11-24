@@ -49,7 +49,7 @@ test('visual feedback drives real Studio MCP edit, render, capture and rerun',as
           'const material = new THREE.MeshNormalMaterial();',
           "const material = new THREE.MeshBasicMaterial({ color: '#ff3b3b' });");
         // Use exactly the Studio project from the Host; no new scene runtime.
-        const written=await execute('studio_project',{operation:'write',expectedRevision:current.revision,source});
+        const written=await execute('studio_files',{operation:'write',expectedRevision:current.revision,source});
         await execute('studio_project',{operation:'run',expectedRevision:written.revision});
         await execute('studio_project',{operation:'save'});
         await execute('scene_verify',{criteria:[{id:'valid-world',kind:'world-valid'}]});

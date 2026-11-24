@@ -20,7 +20,7 @@ test('Studio MCP creates a visible world; UI edits, fails safely, saves and reop
   await expect(page.locator('#runtime-status')).toHaveAttribute('data-state','ready',{timeout:60000});
   await expect.poll(async()=>{try{return (await call('session_attach')).connected;}catch{return false;}}).toBe(true);
   const guide=await call('studio_project',{operation:'read'});expect(guide.guide).toContain('createProject');
-  await call('studio_project',{operation:'write',create:true,source:projectTemplate,name:'MCP 自由世界',requestId:randomUUID()});
+  await call('studio_project',{operation:'create',source:projectTemplate,name:'MCP 自由世界',requestId:randomUUID()});
   await expect(page.getByLabel('世界源码')).toHaveValue(projectTemplate);
   // Default Studio deliberately permits MCP/Agent runs without human review.
   // Explicit requireProjectApproval is verified separately in code-project-approval.test.js.
@@ -37,12 +37,12 @@ test('Studio MCP creates a visible world; UI edits, fails safely, saves and reop
   await expect(page.locator('.code-project-actions')).toHaveCount(0);
   await page.locator('.utility-rail [data-dock-view="inspect"]').click();
   await expect(page.locator('.code-project-actions')).toContainText('"speed": 2');
-  const stale=await client.callTool({name:'studio_project',arguments:{
+  const stale=await client.callTool({name:'studio_files',arguments:{
     operation:'patch',oldText:'scene.add(sculpture);',newText:'scene.add(sculpture); // stale',expectedRevision:99,requestId:randomUUID()
   }});
   expect(stale.isError).toBe(true);
   expect(JSON.parse(stale.content[0].text).code).toBe('PROJECT_REVISION_CONFLICT');
-  const patched=await call('studio_project',{
+  const patched=await call('studio_files',{
     operation:'patch',oldText:'scene.add(sculpture);',
     newText:'scene.add(sculpture); // patched through MCP',expectedRevision:1,requestId:randomUUID()
   });

@@ -1,6 +1,6 @@
 # AgentScape Remote MCP v0.3
 
-自由代码项目可通过同一 Scene 工具发现并调用 `action:'custom'`、任意项目动作名和 JSON 参数；无验证器也允许执行，证据单列为未验证。现已新增统一 `action:'invoke'`：先 `scene_observe({target})` 读取 `capabilities`，再用 `scene_interact({interaction:{action:'invoke',target,name,actor?,partName?,args?}})` 调用已声明的资产关节、环境或代码项目动作。物理动作仍要求真实 Agent 和关节完成验证；保存重开不继承历史验证结果。代码、Shader、持续逻辑和作品迁移见 [Code Project](../../docs/modules/code-project.md)，示例入口 `/examples/code-project/`。源码由本地项目入口显式运行，MCP 不自动执行远端源码。`studio_project(operation=capture, expectedRevision=...)` 可以只读获取正在运行项目的真实 JPEG 帧，并返回项目/Scene 修订号；只有当前源码修订正在运行且 Canvas 可读取时才允许，截图本身不做审美评价。`studio_project` 的 `preview_batch` 可对最多 32 项文件/资源操作预览差异但不发布；`apply_batch` 使用 `previewId` 和 `expectedRevision` 原子持久化，`discard_batch` 放弃预览，`undo_batch` 在无后续编辑时撤销最近一批；预览仅在当前 Studio 会话内有效。
+自由代码项目可通过同一 Scene 工具发现并调用 `action:'custom'`、任意项目动作名和 JSON 参数；无验证器也允许执行，证据单列为未验证。现已新增统一 `action:'invoke'`：先 `scene_observe({target})` 读取 `capabilities`，再用 `scene_interact({interaction:{action:'invoke',target,name,actor?,partName?,args?}})` 调用已声明的资产关节、环境或代码项目动作。物理动作仍要求真实 Agent 和关节完成验证；保存重开不继承历史验证结果。代码、Shader、持续逻辑和作品迁移见 [Code Project](../../docs/modules/code-project.md)，示例入口 `/examples/code-project/`。源码由本地项目入口显式运行，MCP 不自动执行远端源码。`scene_capture(operation=capture, expectedRevision=...)` 可以只读获取正在运行项目的真实 JPEG 帧，并返回项目/Scene 修订号；只有当前源码修订正在运行且 Canvas 可读取时才允许，截图本身不做审美评价。`studio_files` 的 `preview_batch` 可对最多 32 项文件/资源操作预览差异但不发布；`apply_batch` 使用 `previewId` 和 `expectedRevision` 原子持久化，`discard_batch` 放弃预览，`undo_batch` 在无后续编辑时撤销最近一批；预览仅在当前 Studio 会话内有效。
 
 新增容器隔离的程序化资产构建/发布、不可变版本与文件存储、可信世界保存恢复。原有 33 个工具继续兼容；新增 4 个 Studio Live Bridge 配对/会话工具，使用同一个 `agentscape-world` 连接。契约、示例、隔离设施和保存边界见 [PROGRAMMATIC-ASSETS.md](./PROGRAMMATIC-ASSETS.md)。
 
@@ -158,3 +158,19 @@ Studio Live Bridge：调用 studio_pair_create 取得一次性配对码，然后
 本机 Studio MCP 自动连接默认开启：打开 Studio 后由浏览器自动注册当前世界，认证 MCP 客户端可省略 Scene 工具的 worldSessionId；手动配对仍可在高级设置中使用。见 [自动连接说明](../../docs/mcp-studio-auto-connect.md)。
 
 项目与全局资产：scene_save/scene_import 保存 Object Forge 可编辑声明和 revision；asset_publish_project 发布当前用户全局不可变版本；scene_object_definition 的 fork 从全局资产复制当前项目可编辑定义。详见 docs/modules/project-global-assets.md。
+
+## MCP 工具契约（分类版）
+
+普通 /mcp 与受限 /agent-mcp 使用同一组分类工具，通过原有 Studio Bridge project 方法转发；不新增世界实例或重复底层能力。
+
+| 工具 | 操作 |
+| --- | --- |
+| studio_project | read、create、create_world、open、run、save、close |
+| studio_files | write、patch、file_read、file、resource、preview_batch、apply_batch、discard_batch、undo_batch |
+| scene_query | search、inspect、inspect_batch |
+| scene_capture | capture、suggest_views |
+| scene_timeline | command=status/pause/resume/step（无需 operation） |
+
+迁移：此前 studio_project(operation=write,create=true) 改为 studio_project(operation=create)，保留 name/source/project；修改现有源码使用 studio_files(operation=write)，观察和截图改用对应分类工具。旧混合 operation 不再注册，不提供重复别名。运行后使用返回的 revision/runtimeId，观察结果提供 sceneRevision/objectUuid，后续请求绑定这些标识。所有实际运行场景的查询、截图和时间控制必须传 expectedRevision。
+
+受限项目模式只允许 studio_project read/run/save，studio_files 不接受 create；五类工具均由服务端绑定预定 worldSessionId 和 expectedProjectId。修改权限以实际 Zod 校验为准，不仅隐藏 Schema 字段。注册语义实体和动作仍使用 scene_observe / scene_interact，客观条件验收使用 scene_verify。截图不是验收结论。

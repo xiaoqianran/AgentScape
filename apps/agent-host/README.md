@@ -57,7 +57,7 @@ Pi / DSH 共用同一世界会话，通过 `worldSessionId` 标识，禁止并�
 **验收范围**：默认 world 模式仍复核当前 Studio 世界会话、项目运行修订、Agent 声明的 scene_verify 条件、变更实体存在性和 world-valid；未通过真实检查不能冒充成功。返回的 verification.scope 为 world-state，不代表用户语言中的全部要求或视觉质量已经验收。strict 模式额外要求 TaskSpec 条件，scope 为 task-criteria；视觉模型评价单独通过 `visual` 字段呈现，未通过时不宣称整个任务已完成。
 ### 默认视觉反馈与自动修订（Studio Code Project）
 
-- 对**新建代码世界**，默认 `AGENTSCAPE_VISUAL_REVIEW_MODE=auto`：Pi/DSH 写入、运行、保存并通过世界状态验收后，Host 通过 `studio_project(operation=capture)` 取得当前 Studio WebGL 真实帧（JPEG，最大 768×432，base64 上限 240000 字符）。不生成替代性示意图。
+- 对**新建代码世界**，默认 `AGENTSCAPE_VISUAL_REVIEW_MODE=auto`：Pi/DSH 写入、运行、保存并通过世界状态验收后，Host 通过 `scene_capture(operation=capture)` 取得当前 Studio WebGL 真实帧（JPEG，最大 768×432，base64 上限 240000 字符）。不生成替代性示意图。
 - Host 使用现有 OpenAI-compatible 模型端点发送截图和原始用户要求，对格式不合规或输出截断最多重试一次（同一已验证画面、总超时不延长），要求 JSON 形式返回 `accepted`、0–10 评分、可见问题及具体源码修订建议。默认沿用 `AGENTSCAPE_LLM_MODEL`；可用 `AGENTSCAPE_VISUAL_MODEL` 指定**具备图像输入能力**的模型；`AGENTSCAPE_VISUAL_TIMEOUT_MS` 缺省 30000。
 - 若视觉模型评价为不合格，Host 向原 Pi/DSH 后端再提交一次包含反馈的修订任务；Agent 继续使用当前 Studio 项目（原项目 ID 和世界会话），写代码、运行、保存、`scene_verify`，然后重新截图评价。默认 `AGENTSCAPE_VISUAL_MAX_REVISIONS=2`（最多 3 次视觉评价和 2 次源码修订，可配置 0–3）。
 - `AGENTSCAPE_VISUAL_REVIEW_MODE=on` 对编辑已有运行中代码世界的已完成任务也启用视觉评价；`off` 禁用。`auto` 只针对 Host 新建的代码世界，不对所有非视觉操作收费。

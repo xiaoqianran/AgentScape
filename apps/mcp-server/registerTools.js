@@ -7,6 +7,7 @@ import { assetAdmission } from '../../modules/asset/model/admission.js';
 import { sceneObjectIdSchema, sceneTransformSchema, sceneVector3Schema } from '../../application/scene/SceneProject.js';
 import { recipeSchema } from '../../modules/asset/model/AssetInputContracts.js';
 import { publicMcpError } from './errorDiagnostics.js';
+import { registerStudioProjectTools } from './StudioProjectToolContracts.js';
 const id=z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
 const targetId=z.string().min(1).max(256);
 const vec=z.array(z.number().finite().min(-100).max(100)).length(3);
@@ -26,7 +27,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
  const add=(name,description,shape,fn)=>agentOnly && !AGENT_STUDIO_MCP_SET.has(name) ? null : server.registerTool(name,{description,inputSchema:z.object(shape).strict()},async(a,extra)=>{
   try {
     const result=await fn(a,extra);
-    if(name==='studio_project'&&a.operation==='capture'&&a.imageMode==='mcp'&&result?.status==='captured'){
+    if(name==='scene_capture'&&a.operation==='capture'&&a.imageMode==='mcp'&&result?.status==='captured'){
       const {imageBase64,...metadata}=result;
       return {content:[{type:'text',text:JSON.stringify(metadata)},{type:'image',data:imageBase64,mimeType:metadata.mime}]};
     }
@@ -94,38 +95,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
    }
   }
  };
- add('studio_project','Create, edit, run, save and reopen complete trusted code worlds in the active Studio workbench. Use operation=create_world with id=world_ followed by exactly 32 lowercase hexadecimal digits. Use read to list projects; open takes id from projects[].id. run takes expectedRevision from open/write. save persists the active project. Read first for source, revision and createProject API guide. file/file_read edit named JavaScript and shader files, resource imports embedded binary resources. write saves a draft; patch applies a unique exact-fragment edit with expectedRevision; preview_batch stages up to 32 changes for diff review, apply_batch commits them atomically, discard_batch drops the preview, and undo_batch reverts the latest batch; run activates it; save persists live state and assets. Not a sandbox. operation=inspect with expectedRevision reads native Three.js geometry counts, world AABB and camera frustum coverage (approximate, not occlusion/physics evidence); nodePath is the child-index path from the root, empty for the scene; use returned children paths, offset and limit (1-64). operation=capture returns a real bounded JPEG frame from the running revision; imageMode=mcp returns native MCP image content for vision-capable clients, default base64. Optional view={position:[x,y,z],target:[x,y,z],fov:45} captures a detached perspective camera (direct WebGL render, no custom postprocessing or simulation step; main camera unchanged). Or use view={nodePath,direction:[x,y,z],fov:45,padding:1.12} to fit the selected native geometry from that direction; incomplete bounds are rejected. inspect supports includeMaterials=true (bounded PBR/texture metadata), includeLights=true (bounded Three.js light metadata; intensity is not lux), visibility=true (49 approximate opaque-mesh ray samples, optionally with view). search uses query/objectType/material filters and returns runtime-local nodePaths; internal Studio gizmo/outline nodes are excluded unless includeInternal=true. inspect_batch checks up to 8 paths in one call (visibility mode up to 4). suggest_views evaluates 2-12 detached candidate cameras using a configurable 3-7 ray grid and returns ranked reproducible views; no candidate is guaranteed unobstructed. capture supports isolateNodePath (temporary layer masks; not proof of full-scene visibility). timeline with command=status/pause/resume/step and expectedRevision controls current project updates and Runtime simulation; pause first, then step 1-120 fixed simulation ticks. Resume before scene_interact. Paths are runtime-local; pass expectedRuntimeId from inspect/run and objectUuid from search/inspect (objectUuids aligned with nodePaths for batch, view.objectUuid for framed views, isolateObjectUuid for isolation). A changed path is rejected instead of silently inspecting another object. These are not visual verdicts. Use scene_observe/interact for registered entities and dynamic actions.',{
-  ...sceneSession, operation:z.enum(['read','write','patch','file_read','file','resource','preview_batch','apply_batch','discard_batch','undo_batch','run','save','open','close','create_world','inspect','search','inspect_batch','suggest_views','timeline','capture']), requestId:z.uuid().optional(),
-  create:z.boolean().optional(), source:z.string().min(1).optional(), name:z.string().min(1).optional(),
-  oldText:z.string().min(1).optional(), newText:z.string().optional(),
-  action:z.enum(['create','write','patch','rename','delete','add']).optional(), path:z.string().min(1).max(180).optional(),
-  newPath:z.string().max(180).optional(), content:z.string().optional(), mime:z.string().optional(), base64:z.string().optional(),
-  offset:z.number().int().min(0).optional(), limit:z.number().int().min(1).max(65536).optional(),
-  maxWidth:z.number().int().min(128).max(1024).optional(), maxHeight:z.number().int().min(128).max(1024).optional(),
-  nodePath:z.string().max(256).optional(), objectUuid:z.string().min(1).max(128).optional(), objectUuids:z.array(z.string().min(1).max(128)).min(1).max(8).optional(), imageMode:z.enum(['base64','mcp']).optional(),
-  expectedRuntimeId:z.uuid().optional(), expectedSceneRevision:z.number().int().nonnegative().optional(),
-  includeMaterials:z.boolean().optional(), includeLights:z.boolean().optional(), visibility:z.boolean().optional(),
-  query:z.string().max(120).optional(), objectType:z.string().max(64).optional(), material:z.string().max(120).optional(),
-  visibleOnly:z.boolean().optional(), includeInternal:z.boolean().optional(), nodePaths:z.array(z.string().max(256)).min(1).max(8).optional(),
-  candidateLimit:z.number().int().min(2).max(12).optional(), grid:z.number().int().min(3).max(7).optional(), fov:z.number().min(10).max(110).optional(),
-  padding:z.number().min(1.02).max(2.5).optional(), directions:z.array(z.tuple([z.number().finite(),z.number().finite(),z.number().finite()])).min(2).max(12).optional(),
-  isolateNodePath:z.string().max(256).optional(), isolateObjectUuid:z.string().min(1).max(128).optional(), command:z.enum(['status','pause','resume','step']).optional(),
-  steps:z.number().int().min(1).max(120).optional(),
-  view:z.union([
-    z.object({position:z.tuple([z.number().finite(),z.number().finite(),z.number().finite()]),target:z.tuple([z.number().finite(),z.number().finite(),z.number().finite()]),fov:z.number().min(10).max(110).optional()}).strict(),
-    z.object({nodePath:z.string().max(256),objectUuid:z.string().min(1).max(128).optional(),direction:z.tuple([z.number().finite(),z.number().finite(),z.number().finite()]).optional(),position:z.tuple([z.number().finite(),z.number().finite(),z.number().finite()]).optional(),target:z.tuple([z.number().finite(),z.number().finite(),z.number().finite()]).optional(),fov:z.number().min(10).max(110).optional(),padding:z.number().min(1.02).max(2.5).optional()}).strict()
-  ]).optional(),
-  expectedRevision:z.number().int().nonnegative().optional(), id:z.string().describe('create_world: world_ plus 32 lowercase hex digits; open: existing project id').optional(), project:z.record(z.string(),z.unknown()).optional(),
-  previewId:z.uuid().optional(),
-  operations:z.array(z.object({kind:z.enum(['file','resource']),action:z.enum(['create','write','patch','rename','delete','add']),
-    path:z.string().min(1).max(180),newPath:z.string().max(180).optional(),
-    content:z.string().optional(),oldText:z.string().optional(),newText:z.string().optional(),
-    mime:z.string().optional(),base64:z.string().optional()}).strict()).min(1).max(32).optional()
- },(a,e)=>{
-  const {worldSessionId,requestId,...args}=a;
-  if(projectScope && (a.create || ['open','close','create_world'].includes(a.operation)))throw new Error('TASK_PROJECT_SWITCH_FORBIDDEN');
-  return sceneRun(a,'project',args,()=>{throw new Error('STUDIO_PROJECTS_UNAVAILABLE');},e);
- });
+ registerStudioProjectTools(add,(a,args,e)=>sceneRun(a,'project',args,()=>{throw new Error('STUDIO_PROJECTS_UNAVAILABLE');},e),{projectScope});
  const decodeModel=model=>{
   if(model?.asset?.kind!=='glb') return model;
   const source=z.object({kind:z.literal('glb'),name:z.string().min(1).max(128).optional(),bytesBase64:z.string().min(1).max(45*1024*1024),urdfBase64:z.string().min(1).max(2*1024*1024).optional(),review:z.record(z.string(),z.unknown()).optional()}).strict().parse(model.asset);
