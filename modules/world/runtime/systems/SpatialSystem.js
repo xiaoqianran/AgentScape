@@ -115,12 +115,49 @@ export class SpatialSystem {
   }
 
   overlapPairs({ margin = 0.01, snapshot = this.snapshot() } = {}) {
-    const ids = [...snapshot.keys()];
+    const entries = [...snapshot].map(([id, { box }], index) => ({ id, box, index }));
     const pairs = [];
-    for (let left = 0; left < ids.length; left++) {
-      for (let right = left + 1; right < ids.length; right++) {
-        if (boxesOverlap(snapshot.get(ids[left]).box, snapshot.get(ids[right]).box, margin)) pairs.push([ids[left], ids[right]]);
+    const bruteForce = () => {
+      for (let left = 0; left < entries.length; left++) {
+        for (let right = left + 1; right < entries.length; right++) {
+          if (boxesOverlap(entries[left].box, entries[right].box, margin)) pairs.push([entries[left].id, entries[right].id]);
+        }
       }
+      return pairs;
+    };
+    // Small scenes do not benefit from sorting. Keep the original predicate for
+    // all candidates, including touching/degenerate bounds and nonfinite input.
+    if (entries.length < 64) return bruteForce();
+    const axes = ['x', 'y', 'z'];
+    const ranges = axes.map(axis => {
+      let min = Infinity, max = -Infinity;
+      for (const { box } of entries) {
+        if (!Number.isFinite(box.min[axis]) || !Number.isFinite(box.max[axis])) return NaN;
+        min = Math.min(min, box.min[axis]);
+        max = Math.max(max, box.min[axis]);
+      }
+      return max - min;
+    });
+    if (ranges.some(range => !Number.isFinite(range))) return bruteForce();
+    const axis = axes[ranges.indexOf(Math.max(...ranges))];
+    // A densely overlapping axis cannot prune enough candidates to offset
+    // pair ordering and bucket allocation; use the cheap original path.
+    const averageExtent = entries.reduce((sum,{box}) => sum + Math.max(0,box.max[axis]-box.min[axis]),0)/entries.length;
+    if (averageExtent >= Math.max(...ranges)/2) return bruteForce();
+    const ordered = [...entries].sort((a,b) => a.box.min[axis] - b.box.min[axis] || a.index - b.index);
+    const buckets = Array.from({length:entries.length}, () => []);
+    for (let left = 0; left < ordered.length; left++) {
+      const a = ordered[left];
+      for (let right = left + 1; right < ordered.length; right++) {
+        const b = ordered[right];
+        // The un-inset interval is conservative for the exact overlap test.
+        if (b.box.min[axis] > a.box.max[axis]) break;
+        if (boxesOverlap(a.box,b.box,margin)) buckets[Math.min(a.index,b.index)].push(Math.max(a.index,b.index));
+      }
+    }
+    // Preserve the snapshot's original pair ordering for deterministic findings.
+    for (let left = 0; left < buckets.length; left++) {
+      for (const right of buckets[left].sort((a,b) => a-b)) pairs.push([entries[left].id,entries[right].id]);
     }
     return pairs;
   }

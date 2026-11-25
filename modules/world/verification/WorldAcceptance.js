@@ -1,3 +1,4 @@
+import { compileVisualLayout, evaluateVisualLayout } from './VisualLayoutAcceptance.js';
 import { compileAcceptanceFindings } from './Finding.js';
 import { getInteractionEvidence } from './InteractionEvidence.js';
 import { SemanticWorldView } from '../runtime/semantic/SemanticWorldView.js';
@@ -16,8 +17,10 @@ export function compileWorldAcceptance(criteria=[]){
     const id=clean(item.id),kind=clean(item.kind);
     if(!id||ids.has(id)) throw new TypeError(`Acceptance[${index}] requires unique id`); ids.add(id);
     if(!kind) throw new TypeError(`Acceptance[${index}] requires kind`);
-    if(!['world-valid','object-exists','state-equals','interaction-verified','relation-exists','no-unresolved'].includes(kind)) throw new TypeError(`Acceptance[${index}] unsupported kind: ${kind}`);
+    if(!['world-valid','visual-layout','object-exists','state-equals','interaction-verified','relation-exists','no-unresolved'].includes(kind)) throw new TypeError(`Acceptance[${index}] unsupported kind: ${kind}`);
     const check={id,kind};
+    if(kind==='visual-layout') Object.assign(check,compileVisualLayout(item));
+    else if(item.expectedOverlaps!==undefined||item.expectedFloating!==undefined) throw new TypeError('Visual layout declarations require kind visual-layout');
     if(['object-exists','state-equals','interaction-verified'].includes(kind)) check.targetId=clean(item.targetId);
     if(kind==='state-equals'){ check.stateKey=clean(item.stateKey); check.value=item.value; if(!check.targetId||!check.stateKey||!Object.prototype.hasOwnProperty.call(item,'value')||!scalar(item.value)) throw new TypeError(`Acceptance[${index}] state-equals requires targetId/stateKey/scalar value`); }
     if(['state-equals','interaction-verified'].includes(kind) && item.source != null) {
@@ -45,9 +48,12 @@ export function compileWorldAcceptance(criteria=[]){
 export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undefined,worldRevisionId=null,validationEvidence=null}={}){
   if(graph?.schema!==SCHEMA||graph.schemaVersion!==VERSION) throw new TypeError('Unsupported WorldAcceptance graph');
   const facts=runtime?.semantic || new SemanticWorldView(runtime);
+  let validation=validationEvidence, validationRead=validationEvidence!=null;
+  const readValidation=()=>{if(!validationRead){validationRead=true;validation=runtime?.validator?.run?.();}return validation;};
   const evidence=graph.checks.map(check=>{
+    if(check.kind==='visual-layout')return evaluateVisualLayout(runtime,check,readValidation());
     if(check.kind==='world-valid'){
-      const validation=validationEvidence || runtime?.validator?.run?.();
+      const validation=readValidation();
       return validation?.ok===true ? {id:check.id,kind:check.kind,verified:true,evidence:{validation:structuredClone(validation)}} : {id:check.id,kind:check.kind,verified:false,reason:'WORLD_VALIDATION_FAILED',evidence:validation?structuredClone(validation):null};
     }
     if(check.kind==='object-exists'){
