@@ -37,3 +37,33 @@ it('trusted-local accepts an asynchronous ESM factory in its dedicated Worker', 
     expect(result.document).toBeTruthy();
   } finally {runner.close();}
 });
+
+
+for (const mode of ['worker-wasm', 'trusted-local']) {
+  it(`${mode} serializes actual curve/extrude buffers and preserves shared geometry`, async () => {
+    const runner=createCodeExecutor({mode,authorized:true});
+    try {
+      const result=await runner.run({mode:'procedural',source:`export function createAsset(T) {
+        const root=new T.Group(), material=new T.MeshStandardMaterial();
+        const curve=new T.CatmullRomCurve3([new T.Vector3(0,0,0),new T.Vector3(1,1,0),new T.Vector3(2,0,0)]);
+        const tube=new T.TubeGeometry(curve,12,.1,6,false);
+        const shape=new T.Shape();shape.moveTo(0,0);shape.lineTo(1,0);shape.lineTo(0,1);shape.closePath();
+        const extrude=new T.ExtrudeGeometry(shape,{depth:.3,bevelEnabled:false});
+        const lathe=new T.LatheGeometry([new T.Vector2(.1,0),new T.Vector2(.4,.5),new T.Vector2(.1,1)],12);
+        tube.translate(3,0,0);
+        for(const g of [tube,tube,extrude,lathe])root.add(new T.Mesh(g,material));
+        return root;
+      }`});
+      const geometries=Object.values(result.document.geometries);
+      expect(geometries).toHaveLength(3);
+      for(const g of geometries) {
+        expect(g.type).toBe('BufferGeometry');
+        expect(g.json.data.attributes.position.array.length).toBeGreaterThan(0);
+        expect(g.json.parameters).toBeUndefined();
+      }
+      const tube=geometries.find(g=>g.json.data.attributes.position.array.length===13*7*3);
+      expect(tube.json.data.attributes.position.array[0]).toBeGreaterThan(2.8);
+      expect(tube.json.data.index.array.length).toBe(12*6*6);
+    } finally {runner.close();}
+  },30000);
+}

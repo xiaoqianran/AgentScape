@@ -15,14 +15,18 @@ export function execute(code, document) {
  return serialize(scene);
 }
 function serialize(scene) {
+ const buffers=new Map();
  scene.traverse(node=>{
   if (node!==scene && !['Mesh','Group','Object3D'].includes(node.type)) throw new Error('AUTHORING_NODE_UNSUPPORTED');
   if (node.animations?.length || node.onBeforeRender!==defaultBeforeRender || node.onAfterRender!==defaultAfterRender) throw new Error('AUTHORING_RUNTIME_CALLBACK_UNSUPPORTED');
   if (node.isMesh) {
    if (Array.isArray(node.material) || !['MeshBasicMaterial','MeshStandardMaterial','MeshPhysicalMaterial'].includes(node.material.type) || node.material.onBeforeCompile!==defaultCompile) throw new Error('AUTHORING_MATERIAL_UNSUPPORTED');
-   // Materialize real buffers before crossing the boundary; never trust allocation parameters.
-   delete node.geometry.parameters;
-   node.geometry.type='BufferGeometry';
+   // Use an actual base geometry: subclasses such as TubeGeometry and
+   // ExtrudeGeometry override toJSON and require their original parameters.
+   // Keep shared geometries shared; only materialized buffers cross the boundary.
+   const geometry=node.geometry;
+   if (!buffers.has(geometry)) buffers.set(geometry,new THREE.BufferGeometry().copy(geometry));
+   node.geometry=buffers.get(geometry);
   }
  });
  const output=exportAuthoringDocument(captureAuthoringState(scene));
