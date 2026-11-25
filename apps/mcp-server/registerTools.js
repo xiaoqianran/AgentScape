@@ -6,6 +6,7 @@ import { definitionSchema, proceduralContract } from '../../application/programm
 import { assetAdmission } from '../../modules/asset/model/admission.js';
 import { sceneObjectIdSchema, sceneTransformSchema, sceneVector3Schema } from '../../application/scene/SceneProject.js';
 import { recipeSchema } from '../../modules/asset/model/AssetInputContracts.js';
+import { createHeadlessGLTFLoader } from './HeadlessGLTFLoader.js';
 import { publicMcpError } from './errorDiagnostics.js';
 import { registerStudioProjectTools } from './StudioProjectToolContracts.js';
 const id=z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
@@ -208,7 +209,21 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
     return s.forge.apply(s.host.world,s.host.scene,a.objectId,a.expectedRevision,a.previewId,{executor:s.host.executor});
   },e);
  });
- add('scene_import','Import a previously exported scene_save project bundle into the active Scene. Validates embedded hashes, assets and environment in a staging world; historical interaction evidence is not reused.',{...sceneSession,requestId:z.uuid(),bundle:z.record(z.string(),z.unknown())},(a,e)=>{
+ add('scene_import','Import an inline scene_save bundle or an uploaded .asworld fileId (private offline session). Validates assets and environment before commit.',{...sceneSession,requestId:z.uuid(),bundle:z.record(z.string(),z.unknown()).optional(),fileId:z.string().regex(/^file_[a-f0-9-]{36}$/).optional()},(a,e)=>{
+  if((a.bundle===undefined)===(a.fileId===undefined))throw new Error('INVALID_ARGUMENTS');
+  if(a.fileId){
+   if(projectScope||!a.worldSessionId||studioBridge?.isStudioSession(a.worldSessionId)||!manager.transfers)throw new Error('WORLD_FILE_OFFLINE_ONLY');
+   return manager.run(owner,a.worldSessionId,async(s,signal)=>{
+    const lease=manager.transfers.lease(owner,a.fileId);let staging;
+    try{
+     staging=await manager.transfers.worldStorage();
+     const result=await s.host.scene.importWorld(staging.storage,lease.source(),{signal,gltfLoader:createHeadlessGLTFLoader()});
+     const previous=s.archiveStorage;s.archiveStorage=staging;staging=null;s.forge.clear();
+     await previous?.dispose();
+     return result;
+    }finally{lease.release();await staging?.dispose();}
+   },{signal:e?.signal,requestId:a.requestId,fingerprint:JSON.stringify(['importWorld',a.fileId])});
+  }
   if(Buffer.byteLength(JSON.stringify(a.bundle))>manager.maxExportBytes)throw new Error('IMPORT_LIMIT');
   return sceneRun(a,'importProject',{bundle:a.bundle},async s=>{
     const result=await s.host.scene.importProject(a.bundle);
@@ -216,14 +231,26 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
     return {...result,value:{status:result.value.status,objects:result.value.objects,editableRestored:result.value.editable?.length||0}};
   },e);
  });
- add('scene_save','Export a complete portable project with bounded embedded dependencies.',sceneSession,(a,e)=>sceneRun(a,'save',{},async s=>{
-  const result=await s.host.scene.save({editable:s.forge.export(s.host.world),readResource:async url=>{
-   const prefix='data:model/gltf-binary;base64,';
-   if(!url?.startsWith(prefix)) throw new Error('RESOURCE_UNAVAILABLE');
-   return new Uint8Array(Buffer.from(url.slice(prefix.length),'base64'));
-  }});
-  if(Buffer.byteLength(JSON.stringify(result))>manager.maxExportBytes) throw new Error('EXPORT_LIMIT');
-  return result;
- },e));
+ add('scene_save','Export a small inline project bundle or a streamed .asworld file (format: world-file, private offline session). Download via GET /files/:id/content.',{...sceneSession,format:z.enum(['inline','world-file']).default('inline')},(a,e)=>{
+  if(a.format==='world-file'){
+   if(projectScope||!a.worldSessionId||studioBridge?.isStudioSession(a.worldSessionId)||!manager.transfers)throw new Error('WORLD_FILE_OFFLINE_ONLY');
+   return manager.run(owner,a.worldSessionId,async(s,signal)=>{
+    const staging=await manager.transfers.worldStorage();
+    try{
+     const {file,result}=await manager.transfers.createFile(owner,writer=>s.host.scene.exportWorld(staging.storage,writer,{signal}),signal);
+     return {...result,value:{fileId:file.id,bytes:file.bytes,sha256:file.sha256,root:result.value}};
+    }finally{await staging.dispose();}
+   },{signal:e?.signal});
+  }
+  return sceneRun(a,'save',{},async s=>{
+   const result=await s.host.scene.save({editable:s.forge.export(s.host.world),readResource:async url=>{
+    const prefix='data:model/gltf-binary;base64,';
+    if(!url?.startsWith(prefix)) throw new Error('RESOURCE_UNAVAILABLE');
+    return new Uint8Array(Buffer.from(url.slice(prefix.length),'base64'));
+   }});
+   if(Buffer.byteLength(JSON.stringify(result))>manager.maxExportBytes) throw new Error('EXPORT_LIMIT');
+   return result;
+  },e);
+ });
  add('scene_set_style','Select a declarative StylePack. Headless worlds report deferred rendering.',{...sceneSession,style:z.union([z.string().max(128),z.record(z.string(),z.unknown())]),fallback:z.enum(['reject','declared']).default('reject')},(a,e)=>sceneRun(a,'setStyle',{style:a.style,fallback:a.fallback},s=>s.host.scene.setStyle(a.style,{fallback:a.fallback}),e));
 }

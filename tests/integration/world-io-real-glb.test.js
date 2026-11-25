@@ -9,7 +9,7 @@ import { createMonumentHall } from '../../modules/world/content/monumentHall.js'
 import { createHeadlessGLTFLoader } from '../../apps/mcp-server/HeadlessGLTFLoader.js';
 import { installHeadlessAssetIO } from '../../apps/mcp-server/HeadlessAssetIO.js';
 import { WorldStorage } from '../../application/scene/WorldStorage.js';
-import { WorldDiskStorage } from '../../apps/server/WorldDiskStorage.js';
+import { WorldDiskStorage } from '../../apps/shared/node/WorldDiskStorage.js';
 import { EnvironmentPlugins } from '../../application/scene/WorldDocument.js';
 
 it('round-trips real GLB bytes, runtime entities and environment through a world archive', async () => {

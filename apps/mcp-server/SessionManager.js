@@ -3,7 +3,8 @@ import { mkdir, writeFile, readFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { HeadlessWorldHost } from './HeadlessWorldHost.js';
 import { SceneObjectForge } from '../../application/object-forge/SceneObjectForge.js';
-export const DEFAULT_MAX_EXPORT_BYTES=4*1024*1024;
+import { INLINE_WORLD_BYTES } from './TransferLimits.js';
+export const DEFAULT_MAX_EXPORT_BYTES=INLINE_WORLD_BYTES;
 export class SessionManager {
  constructor({root,maxSessions=4,ttlMs=900000,maxExportBytes=DEFAULT_MAX_EXPORT_BYTES,hostOptions={},repository=null}={}) {
   this.root=path.resolve(root); this.maxSessions=maxSessions; this.ttlMs=ttlMs; this.maxExportBytes=maxExportBytes; this.hostOptions=hostOptions; this.sessions=new Map(); this.pending=0;
@@ -75,7 +76,7 @@ export class SessionManager {
   finally {await rm(temporary,{force:true});}
   return {state:'exported',fileName,bytes:Buffer.byteLength(json),scope:'authoring-source-and-document-only',draft};
  }
- async close(owner,id) { const s=this.get(owner,id); s.closing=true; s.active?.controller.abort(); try { await s.active?.promise.catch(()=>{}); s.host.close(); } finally { this.sessions.delete(id); } return {worldSessionId:id,state:'closed'}; }
+ async close(owner,id) { const s=this.get(owner,id); s.closing=true; s.active?.controller.abort(); try { await s.active?.promise.catch(()=>{}); s.host.close(); } finally { this.sessions.delete(id); await s.archiveStorage?.dispose(); } return {worldSessionId:id,state:'closed'}; }
  async reap() { for(const s of this.sessions.values()) if(s.host.closed || (!s.active && !s.host.world.mutationOwner && Date.now()-s.lastUsed>=this.ttlMs)) await this.close(s.owner,s.id); }
  async dispose() { this.disposed=true; clearInterval(this.timer); await Promise.all([...this.sessions.values()].map(s=>this.close(s.owner,s.id))); }
 }

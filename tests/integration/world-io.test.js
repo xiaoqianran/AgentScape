@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { createSession } from '../../application/createSession.js';
 import { createMonumentHall } from '../../modules/world/content/monumentHall.js';
 import { WorldStorage } from '../../application/scene/WorldStorage.js';
-import { WorldDiskStorage } from '../../apps/server/WorldDiskStorage.js';
+import { WorldDiskStorage } from '../../apps/shared/node/WorldDiskStorage.js';
 import { EnvironmentPlugins } from '../../application/scene/WorldDocument.js';
 import { exportWorld, prepareWorld } from '../../application/scene/WorldIO.js';
 

@@ -5,7 +5,7 @@ import { createHeadlessGLTFLoader } from './runtime/apps/mcp-server/HeadlessGLTF
 import { createAssetModule } from './runtime/modules/asset/AssetModule.js';
 export * from './index.js';
 export { createCodeExecutor };
-export { WorldDiskStorage } from './runtime/apps/server/WorldDiskStorage.js';
+export { WorldDiskStorage } from './runtime/apps/shared/node/WorldDiskStorage.js';
 export async function openCodeProject(options = {}) {
   installHeadlessAssetIO();
   return BrowserAgentScape.openProject({ ...options,

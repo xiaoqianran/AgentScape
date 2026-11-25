@@ -118,7 +118,7 @@ async function buildEngine() {
   await bundleFile(new URL('src/core.js', corePackage), new URL('core.js', dist));
   const runtime = new URL('runtime/', dist);
   await mkdir(runtime);
-  for (const directory of ['application', 'modules', 'foundation', 'apps/mcp-server', 'apps/server', 'public/assets']) {
+  for (const directory of ['application', 'modules', 'foundation', 'apps/mcp-server', 'apps/server', 'apps/shared/node', 'public/assets']) {
     await cp(new URL(directory, root), new URL(directory, runtime), { recursive: true });
   }
   await copyFile(new URL('package-lock.json', root), new URL('package-lock.json', runtime));

@@ -4,7 +4,7 @@ import { createReadStream } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { WorldStorage, WORLD_BLOCK_BYTES } from '../../application/scene/WorldStorage.js';
-import { WorldDiskStorage } from '../../apps/server/WorldDiskStorage.js';
+import { WorldDiskStorage } from '../../apps/shared/node/WorldDiskStorage.js';
 import { exportWorldArchive, importWorldArchive } from '../../application/scene/WorldArchive.js';
 
 it('streams a >64 MiB resource through disk, deduplicates, closes and restores without whole-file reads', async () => {

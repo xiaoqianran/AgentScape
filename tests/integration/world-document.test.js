@@ -6,7 +6,7 @@ import { openScene } from '../../application/scene/SceneFacade.js';
 import { createSession } from '../../application/createSession.js';
 import { createMonumentHall } from '../../modules/world/content/monumentHall.js';
 import { WorldStorage } from '../../application/scene/WorldStorage.js';
-import { WorldDiskStorage } from '../../apps/server/WorldDiskStorage.js';
+import { WorldDiskStorage } from '../../apps/shared/node/WorldDiskStorage.js';
 import { writeWorldDocument, inspectWorldDocument, EnvironmentPlugins } from '../../application/scene/WorldDocument.js';
 
 it('stores runtime entities as immutable pages and requires an explicitly registered environment', async () => {

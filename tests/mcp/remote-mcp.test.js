@@ -17,7 +17,7 @@ describe('Remote MCP real HTTP and physics',()=>{
   try {
    expect((await fetch(url,{method:'POST',body:'{}'})).status).toBe(401);
    expect((await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`,Origin:'https://evil.example'},body:'{}'})).status).toBe(403);
-   expect((await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:'x'.repeat(65537)})).status).toBe(413);
+   expect((await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:'x'.repeat(10*1024*1024+1)})).status).toBe(413);
    await client.connect(new StreamableHTTPClientTransport(url,{requestInit:{headers:{Authorization:`Bearer ${token}`}}}));
    await bob.connect(new StreamableHTTPClientTransport(url,{requestInit:{headers:{Authorization:`Bearer ${other}`}}}));
    const discovered = (await client.listTools()).tools;

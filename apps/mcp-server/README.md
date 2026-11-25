@@ -32,7 +32,7 @@ Scene 工具为 `scene_thermal`（Asset Forge 材料实验查询、热功率和�
 
 注意：Headless MCP 没有渲染画布。调用 `scene_set_style` 成功后，返回的 `status=deferred`、`rendered=false`、`applied=null` 表示 StylePack 已记录到场景配置，**不表示实际画面已经切换或视觉渲染通过验收**。请在 Studio 或带图形渲染器的 SDK 客户端另行验证视觉效果；不要把无渲染器时的 deferred 状态误报为已应用。
 
-`scene_import` 接受此前 `scene_save` 导出的完整 `bundle`，在当前私有世界或已连接 Studio 中导入，复用 Scene 的隔离校验、资源哈希和失败回滚；场景包受 4 MiB 配额约束，HTTP 导入额外允许 4 KiB JSON-RPC 封装。仅导入世界资产与状态，不恢复历史动作已验证证据。`world_save/world_restore` 仍只接受内置资产与同身份已发布的不可变资产；临时 `scene_add_model` 编译资产须使用 `scene_save/scene_import` 完成跨会话恢复。
+`scene_import` 接受此前 `scene_save` 导出的完整 `bundle`，在当前私有世界或已连接 Studio 中导入，复用 Scene 的隔离校验、资源哈希和失败回滚；内联场景包受 8 MiB 配额约束，完整 MCP 消息受 10 MiB 上限约束。仅导入世界资产与状态，不恢复历史动作已验证证据。`world_save/world_restore` 仍只接受内置资产与同身份已发布的不可变资产；临时 `scene_add_model` 编译资产须使用 `scene_save/scene_import` 完成跨会话恢复。
 
 `scene_save` 返回有资源字节和锁定哈希的完整项目包，仍受服务端导出配额限制。旧 world_export 的 JSON-only 语义保留。新版资产引用 `asset://sha256/<版本摘要>` 可以引用同一身份已发布的 pa_ 资产；未发布或其他身份的资产不能借此接入世界。
 
@@ -119,7 +119,7 @@ MCP Transport 使用无状态 HTTP；没有 MCP 协议会话 ID，worldSessionId
 
 默认最多4个世界，空闲15分钟回收；每世界64个对象、256次动作；单动作最多12000个 1/60 秒模拟步和30秒墙钟时间。每12步让出事件循环。取消/超时重复终止 Runtime interaction/locomotion，并给予最多240步清理；无法收敛则关闭该 Host，禁止继续动作。
 
-普通 HTTP 请求体最多64 KiB；仅完整 MCP 端点的单个 scene_import 请求允许场景包配额加 4 KiB 封装，每身份每分钟120次请求；Host 白名单默认 localhost/127.0.0.1，Origin 默认全部拒绝（无 Origin 的非浏览器客户端可用）。headers 10秒、request 35秒超时。快照最多4 MiB，临时文件 JSON 复核后原子 rename；客户端不能指定路径。快照是 SceneSerializer JSON，不包含完整 GLB/纹理作品包。
+两个 MCP 端点完整 HTTP 请求及响应默认最多 10 MiB，每身份每分钟 600 次请求；Host 白名单默认 localhost/127.0.0.1，Origin 默认全部拒绝（无 Origin 的非浏览器客户端可用）。headers 10 秒、request 120 秒接收超时（不是工具执行时限）。快照最多 8 MiB，临时文件 JSON 复核后原子 rename；客户端不能指定路径。快照是 SceneSerializer JSON，不包含完整 GLB/纹理作品包。
 
 对象和动作预算限制会话增长；当前 Node.js 同进程承载多个 Runtime，不提供每会话操作系统级硬内存隔离。需要硬内存限制时应采用受限进程/容器部署，不应将本版宣传为任意用户公网沙箱。
 
@@ -180,3 +180,25 @@ Studio Live Bridge：调用 studio_pair_create 取得一次性配对码，然后
 `scene_navigation({actor,position})` is a read-only live route query with provisional, actor-eligible registered articulation recovery candidates. Native numerical joints use hypothetical collider poses at declared limits and bounded external sweep checks; managed open diagnosis retains its obstacle-suppression assumption. No solver state or history is changed. Use the returned `recommendation.interaction` only for an authorized goal with `scene_interact`, await `scene_job`, then query `scene_navigation` again. A predicted path is not evidence of real passage. Native/mixed ON and SUPPORTS criteria are verified from current geometry, actual supporting contacts and motion rather than a past placement receipt.
 
 Serial native barriers can now return a provisional `recommendation.progress` of kind `partial-route-progress` even while `counterfactual.reachable` is false. This is measured advancement of the same partial route, not destination reachability. Native candidates also require a real current-world joint approach preflight. Execute one verified interaction, then re-query; do not batch hypothetical recoveries or assume eventual completion. Complete-route unlocks have priority. The progress heuristic is bounded and does not search arbitrary joint combinations.
+
+
+## 大型资源传输（OpenAI 风格）
+
+独立 HTTP 接口使用相同 Bearer 身份、Host/Origin 检查及速率限制。不把二进制编码成 MCP JSON。以下接口为 AgentScape 自有协议，并非 OpenAI Uploads API 的线缆兼容实现。
+
+| HTTP | 输入 / 输出 |
+| --- | --- |
+| POST /uploads | JSON {bytes, sha256?} → upload ID |
+| GET /uploads/:id | 当前接收字节数、分片及过期时间 |
+| POST /uploads/:id/parts | 原始二进制请求体 → part ID、字节数、SHA-256 |
+| POST /uploads/:id/complete | JSON {partIds: [...]}（按目标文件顺序）→ file ID |
+| POST /uploads/:id/cancel | 取消并释放暂存空间 |
+| GET /files/:id | 文件元信息 |
+| GET /files/:id/content | 流式下载，Content-Length 与 X-Content-SHA256 |
+| DELETE /files/:id | 删除未被使用的文件 |
+
+默认每文件 8,000,000,000 字节、每分片 64,000,000 字节、上传有效期 1 小时、最多 1024 分片。服务级暂存与世界块共享 24 GB 磁盘配额，最多 128 个文件/上传和 4 个并发传输。单个上传串行写入分片，完成时按指定顺序逐块重新校验，无需拼接整份文件。通过 startServer 的 security、managerOptions、transferOptions 可调整默认值。已完成文件仅在当前服务进程有效，正常关闭清理暂存；尚不支持重启恢复、跨进程共享或自动清理崩溃遗留目录。
+
+私有离线世界可调用 `scene_save({worldSessionId, format: "world-file"})` 获取 fileId、bytes、sha256，再通过 HTTP 下载 .asworld；`scene_import({worldSessionId, requestId, fileId})` 通过已有 WorldArchive/WorldStorage 校验并事务提交。导入后的资源块保留到世界替换或关闭，不受上传文件删除影响。使用每次操作独立的磁盘块存储；不接受依赖外部未提供资源块的 linked 包。Studio 桥接不支持此文件模式，原 inline 模式仍保留。.asworld 保存世界数据而非 Object Forge 编辑声明，后者使用 inline 包。资产解码预算和世界激活预算保持独立，不承诺单个 8 GB GLB 可加载。
+
+验证：`npx vitest run tests/mcp/world-transfer.test.js tests/mcp/http-security.test.js`；可选本机压力测试 `node dev/scripts/benchmark-mcp-transfer.mjs`（最大 1 GiB 暂存，完成后删除测试数据）。

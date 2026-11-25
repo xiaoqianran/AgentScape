@@ -23,19 +23,20 @@ it('fails safely on port conflicts, rate limits and never reloads stale data',as
 });
 
 
-it('keeps oversized requests restricted to one authenticated scene_import envelope',async()=>{
+it('enforces a uniform 10 MiB envelope for both MCP endpoints',async()=>{
  const token=randomBytes(32).toString('hex');
- const root=await mkdtemp(path.join(tmpdir(),'mcp-import-limit-'));
+ const root=await mkdtemp(path.join(tmpdir(),'mcp-message-limit-'));
  const app=await startServer({root,tokens:[{identity:'test',token}],port:0});
  const url='http://127.0.0.1:'+app.port;
  const headers={Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json, text/event-stream'};
- const envelope=(name,size)=>({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:{bundle:{padding:'x'.repeat(size)}}}});
- const post=(route,body,extra={})=>fetch(url+route,{method:'POST',headers:{...headers,...extra},body:JSON.stringify(body)});
+ const body=JSON.stringify({jsonrpc:'2.0',id:1,method:'ping',params:{padding:'x'.repeat(8*1024*1024)}});
+ const post=(route,body,extra={})=>fetch(url+route,{method:'POST',headers:{...headers,...extra},body});
  try {
-  expect((await post('/mcp',envelope('scene_observe',70000))).status).toBe(413);
-  expect((await post('/mcp',[envelope('scene_import',70000)])).status).toBe(413);
-  expect((await post('/agent-mcp',envelope('scene_import',70000))).status).toBe(413);
-  expect((await post('/mcp',envelope('scene_import',70000),{Authorization:'Bearer invalid'})).status).toBe(401);
-  expect((await post('/mcp',envelope('scene_import',4*1024*1024+4096))).status).toBe(413);
+  for(const route of ['/mcp','/agent-mcp']){
+   expect((await post(route,body)).status).not.toBe(413);
+   expect((await post(route,'x'.repeat(10*1024*1024+1))).status).toBe(413);
+   expect((await post(route,body,{Authorization:'Bearer invalid'})).status).toBe(401);
+  }
+  expect(app.http.requestTimeout).toBe(120000);
  }finally{await app.close();await rm(root,{recursive:true,force:true});}
 });

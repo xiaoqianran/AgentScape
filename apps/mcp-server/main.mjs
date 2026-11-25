@@ -3,11 +3,14 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import { toWebRequest } from '@modelcontextprotocol/node';
-import { SessionManager, DEFAULT_MAX_EXPORT_BYTES } from './SessionManager.js';
+import { SessionManager } from './SessionManager.js';
 import { StudioLiveBridge } from './StudioLiveBridge.js';
 import { handleStudioBridgeHttp } from './StudioBridgeHttp.js';
 import { registerTools } from './registerTools.js';
 import { handleRestrictedAgentMcp } from './AgentMcpCompat.js';
+import { TransferStore } from './TransferStore.js';
+import { handleTransferHttp } from './TransferHttp.js';
+import { MCP_MESSAGE_BYTES } from './TransferLimits.js';
 import { createSecurity } from './security.js';
 import { FileAssetRepository } from './FileAssetRepository.js';
 import { createCodeExecutor } from './CodeExecutor.js';
@@ -15,19 +18,24 @@ import { ProgrammaticAssets } from './ProgrammaticAssets.js';
 import { ProgrammaticAssetBuilder } from '../../application/programmatic-assets/ProgrammaticAssetBuilder.js';
 import { createHeadlessGLTFLoader } from './HeadlessGLTFLoader.js';
 import { installHeadlessAssetIO } from './HeadlessAssetIO.js';
-export async function startServer({tokens,port=39015,root=path.resolve('.mcp-sessions'),dataRoot=path.resolve('.mcp-assets'),security={},managerOptions={},buildRunner=null,studioOrigins,codeExecution={mode:'worker-wasm'}}={}) {
+export async function startServer({tokens,port=39015,root=path.resolve('.mcp-sessions'),dataRoot=path.resolve('.mcp-assets'),security={},transferOptions={},managerOptions={},buildRunner=null,studioOrigins,codeExecution={mode:'worker-wasm'}}={}) {
  installHeadlessAssetIO();
  const repository=new FileAssetRepository(dataRoot);
  const runner=buildRunner || createCodeExecutor({...codeExecution,configPath:path.join(dataRoot,'sandbox.json')});
  const assets=new ProgrammaticAssets({repository,runner,builder:new ProgrammaticAssetBuilder({runner,gltfLoader:createHeadlessGLTFLoader()})});
- const authorize=createSecurity(tokens,{maxImportBody:(managerOptions.maxExportBytes ?? DEFAULT_MAX_EXPORT_BYTES)+4096,...security});
+ const authorize=createSecurity(tokens,security);
+ const transfers=await new TransferStore(root,transferOptions).initialize();
  const manager=new SessionManager({root,repository,hostOptions:{codeExecution,sandboxConfig:path.join(dataRoot,'sandbox.json')},...managerOptions});
+ manager.transfers=transfers;
  const studioBridge=new StudioLiveBridge();
- const connections=new Set();
+ const responseLimit=security.maxBody ?? MCP_MESSAGE_BYTES;
+ const connections=new Set();let closing=false;
  const http=createServer(async(req,res)=>{
   let server;
   try {
+   if(closing){res.writeHead(503,{Connection:"close"}).end();return;}
    if(await handleStudioBridgeHttp(req,res,studioBridge,{...(studioOrigins?{origins:studioOrigins}:{})}))return;
+   if(await handleTransferHttp(req,res,authorize,transfers))return;
    if(req.url!=='/mcp' && req.url!=='/agent-mcp') {res.writeHead(404).end();return;}
    const {owner,body}=await authorize(req);
    if(req.url==='/agent-mcp'){
@@ -35,6 +43,7 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
      const answer=await handleRestrictedAgentMcp({body,owner,manager,assets,studioBridge,scope:req.headers['x-agentscape-project']});
      if(answer.body===null){res.writeHead(answer.status).end();return;}
      const payload=JSON.stringify(answer.body);
+     if(Buffer.byteLength(payload)>responseLimit)throw Object.assign(new Error('RESPONSE_LIMIT'),{status:413});
      res.writeHead(answer.status,{'content-type':'application/json; charset=utf-8','content-length':Buffer.byteLength(payload)}).end(payload);
      return;
    }
@@ -48,8 +57,10 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
    });
    res.on('close',()=>{connections.delete(server);handler.close().catch(()=>{});});
    const response=await handler.fetch(await toWebRequest(req,body),{parsedBody:body});
+   const payload=Buffer.from(await response.arrayBuffer());
+   if(payload.length>responseLimit)throw Object.assign(new Error('RESPONSE_LIMIT'),{status:413});
    res.writeHead(response.status,Object.fromEntries(response.headers));
-   res.end(Buffer.from(await response.arrayBuffer()));
+   res.end(payload);
   } catch(e) {
    if(!res.headersSent){
     const headers=e.status===429&&Number.isSafeInteger(e.retryAfter)?{'Retry-After':String(e.retryAfter)}:{};
@@ -57,10 +68,10 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
    }
   }
  });
- http.requestTimeout=35000; http.headersTimeout=10000;
+ http.requestTimeout=120000; http.headersTimeout=10000;
  try {await new Promise((resolve,reject)=>{http.once('error',reject);http.listen(port,'127.0.0.1',resolve);});}
- catch(e){await manager.dispose();throw e;}
- return {http,manager,assets,studioBridge,port:http.address().port,async close(){studioBridge.dispose();await assets.close();await manager.dispose();await Promise.all([...connections].map(s=>s.close()));await new Promise(r=>http.close(r));}};
+ catch(e){await manager.dispose();await transfers.close();throw e;}
+ return {http,manager,assets,studioBridge,transfers,port:http.address().port,async close(){closing=true;studioBridge.dispose();await assets.close();await manager.dispose();await Promise.all([...connections].map(s=>s.close()));await new Promise(r=>http.close(r));await transfers.close();}};
 }
 if(process.argv[1] && import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href) {
  // Deliberately do not load dotenv or the Studio configuration.

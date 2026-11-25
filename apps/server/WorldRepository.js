@@ -2,7 +2,7 @@ import { mkdir, lstat, readdir, open, rename, unlink, link } from 'node:fs/promi
 import { constants } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { WorldDiskStorage } from './WorldDiskStorage.js';
+import { WorldDiskStorage } from '../shared/node/WorldDiskStorage.js';
 import { WorldStorage, WORLD_BLOCK_BYTES, hashBytes, checkHash } from '../../application/scene/WorldStorage.js';
 import { parseCodeProject } from '../../application/native-scene/CodeProject.js';
 import { parseAuthoringDocument } from '../../application/world-authoring/AuthoringDocument.js';

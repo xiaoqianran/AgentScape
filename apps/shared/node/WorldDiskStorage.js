@@ -2,7 +2,7 @@ import { mkdir, open, lstat, rename, unlink } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { checkHash, hashBytes, WORLD_BLOCK_BYTES, worldStorageError } from '../../application/scene/WorldStorage.js';
+import { checkHash, hashBytes, WORLD_BLOCK_BYTES, worldStorageError } from '../../../application/scene/WorldStorage.js';
 
 /** Flat, content-addressed directory. No paths from imported files ever reach the filesystem. */
 export class WorldDiskStorage {
