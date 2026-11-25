@@ -221,3 +221,23 @@ Serial native barriers can now return a provisional `recommendation.progress` of
 私有离线世界可调用 `scene_save({worldSessionId, format: "world-file"})` 获取 fileId、bytes、sha256，再通过 HTTP 下载 .asworld；`scene_import({worldSessionId, requestId, fileId})` 通过已有 WorldArchive/WorldStorage 校验并事务提交。导入后的资源块保留到世界替换或关闭，不受上传文件删除影响。使用每次操作独立的磁盘块存储；不接受依赖外部未提供资源块的 linked 包。Studio 桥接不支持此文件模式，原 inline 模式仍保留。.asworld 保存世界数据而非 Object Forge 编辑声明，后者使用 inline 包。资产解码预算和世界激活预算保持独立，不承诺单个 8 GB GLB 可加载。
 
 验证：`npx vitest run tests/mcp/world-transfer.test.js tests/mcp/http-security.test.js`；可选本机压力测试 `node dev/scripts/benchmark-mcp-transfer.mjs`（最大 1 GiB 暂存，完成后删除测试数据）。
+
+### 离线视觉场景导出（GLB）
+
+`scene_export_glb` 是独立的静态视觉导出，不改变 `scene_save` 的存档与恢复语义。
+指定私有离线世界 ID，可选择活动对象 ID（默认全部活动托管对象）、透视相机及最多 16 个平行光、点光源或聚光灯。例如：
+
+```json
+{
+  "worldSessionId": "当前私有离线世界 UUID",
+  "options": {
+    "objectIds": ["floor", "table"],
+    "camera": {"position":[8,5,10],"target":[0,1,0],"fov":45,"aspect":1.7777778},
+    "lights":[{"type":"directional","position":[3,8,4],"target":[0,0,0],"intensity":3}]
+  }
+}
+```
+
+返回 `fileId`、`bytes`、`sha256`、对象/材质/纹理统计和限制说明；使用原有 `GET /files/:id/content` 下载并在不需要后 DELETE 文件。GLB 使用 glTF Y-up 坐标，包含世界变换、PBR 材质及受支持纹理，镜头和光源为导出时的独立配置，不修改或持久化到当前世界。未导出内置环境、仿真、交互、编辑器状态、动画；暂不支持蒙皮、合批网格、自定义 Shader 或非受支持的纹理。非 PBR 材质可能有损，渲染器的阴影、后处理与环境照明也不属于 GLB。完整 AgentScape 恢复仍使用 `scene_save`。
+
+Recipe 的 `material` 支持可选 `clearcoat`、`clearcoatRoughness`、`transmission`、`ior`、`emissiveIntensity`，使用 glTF 标准材质扩展，不改变旧 Recipe 的默认值。

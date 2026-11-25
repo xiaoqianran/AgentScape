@@ -17,8 +17,8 @@ it('serves modern per-request discovery and tools without a legacy handshake', a
    const result=JSON.parse(body.startsWith('event:')||body.startsWith('data:')?body.split('\n').find(line=>line.startsWith('data:')).slice(5):body);
    expect(result.error).toBeUndefined();
    if(method==='tools/list'){
-     expect(result.result.tools).toHaveLength(49);
-     expect(result.result.tools).toEqual(expect.arrayContaining([expect.objectContaining({name:'scene_navigation',inputSchema:expect.objectContaining({required:expect.arrayContaining(['actor','position'])})})]));
+     expect(result.result.tools).toHaveLength(50);
+     expect(result.result.tools).toEqual(expect.arrayContaining([expect.objectContaining({name:'scene_export_glb'}),expect.objectContaining({name:'scene_navigation',inputSchema:expect.objectContaining({required:expect.arrayContaining(['actor','position'])})})]));
    }
   }
  } finally { await app.close(); }

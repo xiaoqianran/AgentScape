@@ -160,15 +160,28 @@ class HeadlessOffscreenCanvas {
 
 // Installs the canvas shim only when the host has no real canvas/image APIs,
 // and returns a restore function (null when nothing was changed).
+const installations = new WeakMap();
 export function installHeadlessImageSupport(scope = globalThis) {
-  if (typeof scope.OffscreenCanvas !== 'undefined' && typeof scope.ImageData !== 'undefined') return null;
-  const previous = { OffscreenCanvas:scope.OffscreenCanvas, ImageData:scope.ImageData };
-  if (typeof scope.OffscreenCanvas === 'undefined') scope.OffscreenCanvas = HeadlessOffscreenCanvas;
-  if (typeof scope.ImageData === 'undefined') scope.ImageData = HeadlessImageData;
+  let installation = installations.get(scope);
+  if (!installation) {
+    if (typeof scope.OffscreenCanvas !== 'undefined' && typeof scope.ImageData !== 'undefined') return null;
+    const previous = { OffscreenCanvas:scope.OffscreenCanvas, ImageData:scope.ImageData };
+    if (typeof scope.OffscreenCanvas === 'undefined') scope.OffscreenCanvas = HeadlessOffscreenCanvas;
+    if (typeof scope.ImageData === 'undefined') scope.ImageData = HeadlessImageData;
+    installation = { previous, count:0 };
+    installations.set(scope, installation);
+  }
+  installation.count++;
+  let released = false;
   return () => {
+    if (released) return;
+    released = true;
+    if (--installation.count !== 0) return;
+    const { previous } = installation;
     if (previous.OffscreenCanvas === undefined) delete scope.OffscreenCanvas;
     else scope.OffscreenCanvas = previous.OffscreenCanvas;
     if (previous.ImageData === undefined) delete scope.ImageData;
     else scope.ImageData = previous.ImageData;
+    installations.delete(scope);
   };
 }

@@ -1,4 +1,5 @@
 import { Document } from '@gltf-transform/core';
+import { KHRMaterialsClearcoat, KHRMaterialsTransmission, KHRMaterialsIOR, KHRMaterialsEmissiveStrength } from '@gltf-transform/extensions';
 import { BoxGeometry, SphereGeometry, CylinderGeometry, Color, Vector3, Quaternion } from 'three';
 import { createAssetGLTFIO } from './compiler/gltfIO.js';
 import { recipeSchema } from '../model/AssetInputContracts.js';
@@ -44,6 +45,23 @@ export async function compileRecipeGeometry(input) {
       if (opacity < 1) material.setAlphaMode('BLEND');
       if (part.material?.emissive) material.setEmissiveFactor(new Color(part.material.emissive).toArray());
       if (part.material?.doubleSided) material.setDoubleSided(true);
+      const surface=part.material;
+      if(surface?.clearcoat!==undefined||surface?.clearcoatRoughness!==undefined){
+        const ext=document.createExtension(KHRMaterialsClearcoat);
+        material.setExtension(ext.extensionName,ext.createClearcoat().setClearcoatFactor(surface.clearcoat??0).setClearcoatRoughnessFactor(surface.clearcoatRoughness??0));
+      }
+      if(surface?.transmission!==undefined){
+        const ext=document.createExtension(KHRMaterialsTransmission);
+        material.setExtension(ext.extensionName,ext.createTransmission().setTransmissionFactor(surface.transmission));
+      }
+      if(surface?.ior!==undefined){
+        const ext=document.createExtension(KHRMaterialsIOR);
+        material.setExtension(ext.extensionName,ext.createIOR().setIOR(surface.ior));
+      }
+      if(surface?.emissiveIntensity!==undefined){
+        const ext=document.createExtension(KHRMaterialsEmissiveStrength);
+        material.setExtension(ext.extensionName,ext.createEmissiveStrength().setEmissiveStrength(surface.emissiveIntensity));
+      }
       primitive.setMaterial(material);
       node.setMesh(document.createMesh(part.id).addPrimitive(primitive));
     } finally { geometry.dispose(); }

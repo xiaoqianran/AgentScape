@@ -21,10 +21,10 @@ describe('Remote MCP real HTTP and physics',()=>{
    await client.connect(new StreamableHTTPClientTransport(url,{requestInit:{headers:{Authorization:`Bearer ${token}`}}}));
    await bob.connect(new StreamableHTTPClientTransport(url,{requestInit:{headers:{Authorization:`Bearer ${other}`}}}));
    const discovered = (await client.listTools()).tools;
-   expect(discovered).toHaveLength(49);
+   expect(discovered).toHaveLength(50);
    expect(discovered.filter(tool => !tool.name.startsWith('scene_'))).toHaveLength(32);
-   expect(discovered.map(tool=>tool.name)).toEqual(expect.arrayContaining(['session_create','action_execute','world_observe','world_save','world_restore','scene_apply','scene_history','scene_import','scene_interact','scene_job','scene_thermal','studio_project','studio_files','scene_query','scene_capture','scene_timeline','scene_navigation']));
-   expect(new Set(discovered.map(tool=>tool.name)).size).toBe(49);
+   expect(discovered.map(tool=>tool.name)).toEqual(expect.arrayContaining(['session_create','action_execute','world_observe','world_save','world_restore','scene_apply','scene_history','scene_import','scene_interact','scene_job','scene_thermal','studio_project','studio_files','scene_query','scene_capture','scene_timeline','scene_navigation','scene_export_glb']));
+   expect(new Set(discovered.map(tool=>tool.name)).size).toBe(50);
    const a=await call(client,'session_create'),b=await call(bob,'session_create');
    const args={worldSessionId:a.worldSessionId};
    expect(a.worldSessionId).toBeTruthy();

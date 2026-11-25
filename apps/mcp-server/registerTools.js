@@ -8,6 +8,7 @@ import { sceneObjectIdSchema, sceneTransformSchema, sceneVector3Schema } from '.
 import { recipeSchema } from '../../modules/asset/model/AssetInputContracts.js';
 import { createHeadlessGLTFLoader } from './HeadlessGLTFLoader.js';
 import { publicMcpError } from './errorDiagnostics.js';
+import { exportSceneGLB, sceneGLBOptions } from '../../application/world-authoring/SceneGLBExport.js';
 import { registerStudioProjectTools } from './StudioProjectToolContracts.js';
 const id=z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
 const targetId=z.string().min(1).max(256);
@@ -253,6 +254,18 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
    if(Buffer.byteLength(JSON.stringify(result))>manager.maxExportBytes) throw new Error('EXPORT_LIMIT');
    return result;
   },e);
+ });
+ add('scene_export_glb','Export active managed visual entities as a static Y-up GLB, with optional perspective camera and punctual lights. Private offline sessions only. Does not replace scene_save or mutate the world. Download via GET /files/:id/content.',{
+  ...session,options:sceneGLBOptions.optional()
+ },(a,e)=>{
+  if(projectScope||studioBridge?.isStudioSession(a.worldSessionId)||!manager.transfers)throw new Error('WORLD_FILE_OFFLINE_ONLY');
+  return manager.run(owner,a.worldSessionId,async(s,signal)=>{
+   const {file,result}=await manager.transfers.createFile(owner,async writer=>{
+    const {bytes,summary}=await exportSceneGLB(s.host.world,a.options);
+    await writer.write(bytes);return summary;
+   },signal);
+   return {...result,fileId:file.id,bytes:file.bytes,sha256:file.sha256};
+  },{signal:e?.signal});
  });
  add('scene_set_style','Select a declarative StylePack. Headless worlds report deferred rendering.',{...sceneSession,style:z.union([z.string().max(128),z.record(z.string(),z.unknown())]),fallback:z.enum(['reject','declared']).default('reject')},(a,e)=>sceneRun(a,'setStyle',{style:a.style,fallback:a.fallback},s=>s.host.scene.setStyle(a.style,{fallback:a.fallback}),e));
 }

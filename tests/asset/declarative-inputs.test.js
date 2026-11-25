@@ -95,3 +95,21 @@ it('exports transparent and emissive recipe materials without changing opaque de
   expect(()=>recipeSchema.parse(input)).toThrow();
  }
 });
+
+it('compiles and loads physical recipe surface extensions through the actual asset pipeline',async()=>{
+  installHeadlessAssetIO();
+  const input=recipe();
+  input.parts[0].material={color:'#c2ddee',clearcoat:.8,clearcoatRoughness:.15,transmission:.7,ior:1.45,emissive:'#111111',emissiveIntensity:3};
+  const {bytes}=await compileRecipeGeometry(input);
+  const gltf=await createAssetGLTFIO().readBinary(bytes);
+  expect(gltf.getRoot().listMaterials()[0].getExtension('KHR_materials_clearcoat').getClearcoatFactor()).toBe(.8);
+  const module=assets();
+  const imported=await module.importRecipe(input);
+  // The compiler output must preserve physical properties, not just accept recipe input.
+  const scene=await createHeadlessGLTFLoader().loadBytes(bytes);
+  let surface;
+  scene.traverse(node=>{if(node.isMesh)surface=node.material;});
+  expect(surface).toMatchObject({isMeshPhysicalMaterial:true,clearcoat:.8,clearcoatRoughness:.15,transmission:.7,ior:1.45,emissiveIntensity:3});
+  expect(imported.manifest.capabilityLevel).toBe('visual');
+  expect(()=>recipeSchema.parse({...input,parts:[{...input.parts[0],material:{transmission:1.1}}]})).toThrow();
+});
