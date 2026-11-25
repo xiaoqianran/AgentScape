@@ -75,9 +75,9 @@ export function bindSceneControls({
     world.rendering?.setCreativeView(enabled);
     emit();
   };
-  const captureStill=async(longEdge)=>{
+  const captureStill=async(longEdge,{managedOnly=false}={})=>{
     assertWorldIdle();
-    const result=await world.rendering.captureStill(longEdge);
+    const result=await world.rendering.captureStill(longEdge,{excludedRoot:managedOnly?world.environment?.root:undefined});
     downloadBlob('agentscape-'+result.width+'x'+result.height+'.png',result.blob);
     return '已导出 '+result.width+' × '+result.height+' PNG';
   };

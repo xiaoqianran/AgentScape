@@ -30,6 +30,7 @@ function Draft({controls,source,sourceKey,creativeView,editing,selection,lightin
   const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const [error,setError]=useState(false);
   const [lightType,setLightType]=useState('directional');
+  const [managedOnly,setManagedOnly]=useState(false);
   const camera=draft.camera;
   const changeCamera=patch=>setDraft(value=>({...value,camera:{...value.camera,...patch}}));
   const changeLight=(index,patch)=>setDraft(value=>({...value,lights:value.lights.map((light,i)=>i===index?{...light,...patch}:light)}));
@@ -79,12 +80,12 @@ function Draft({controls,source,sourceKey,creativeView,editing,selection,lightin
     </fieldset>
     {!editing?<small>进入编辑模式后可修改场景表现。</small>:null}
     <div className="presentation-buttons"><button type="button" disabled={!dirty||busy} onClick={()=>setDraft(structuredClone(source||empty))}>重置草稿</button><button type="button" disabled={!dirty||busy||!editing} onClick={()=>run(()=>controls.setPresentation(draft,sourceKey))}>应用场景表现</button></div>
-    <section><h4>输出</h4><div className="presentation-buttons">
-      <button type="button" disabled={busy} onClick={()=>run(()=>controls.captureStill(1920))}>PNG 1920</button>
-      <button type="button" disabled={busy} onClick={()=>run(()=>controls.captureStill(3840))}>PNG 3840</button>
+    <section><h4>输出</h4><label className="presentation-field">仅托管对象<input type="checkbox" checked={managedOnly} onChange={e=>setManagedOnly(e.target.checked)}/></label><div className="presentation-buttons">
+      <button type="button" disabled={busy} onClick={()=>run(()=>controls.captureStill(1920,{managedOnly}))}>PNG 1920</button>
+      <button type="button" disabled={busy} onClick={()=>run(()=>controls.captureStill(3840,{managedOnly}))}>PNG 3840</button>
       <button type="button" disabled={busy} onClick={()=>run(()=>controls.exportGLB())}>导出场景 GLB</button>
       {selection?.source==='runtime'?<button type="button" disabled={busy} onClick={()=>run(()=>controls.exportGLB([selection.id]))}>导出选中 GLB</button>:null}
-    </div><small>使用已应用设置。PNG 为原生光栅静帧；GLB 为静态托管对象、相机及灯光，不包含物理、HDRI 或环境建筑。</small></section>
+    </div><small>使用已应用设置。PNG 为原生光栅静帧；仅托管对象模式隐藏世界自带建筑与装饰，保留环境光设置。GLB 为静态托管对象、相机及灯光，不包含物理、HDRI 或环境建筑。</small></section>
     {busy?<p role="status">处理中…</p>:null}
     {message?<p role={error?'alert':'status'}>{message}</p>:null}
   </div>;

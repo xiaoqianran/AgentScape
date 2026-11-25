@@ -322,7 +322,7 @@ export class RenderingSystem {
     return this.creativeView;
   }
 
-  async captureStill(longEdge=1920){
+  async captureStill(longEdge=1920,{excludedRoot}={}){
     const version=this.lightingVersion;
     await this.environmentTask;
     if(version!==this.lightingVersion)throw new Error("STILL_LIGHTING_CHANGED");
@@ -332,7 +332,7 @@ export class RenderingSystem {
     if([...this.authoringScenes.values()].includes('replace')||[...this.authoringScenes].some(([scene,mode])=>mode==='overlay'&&scene.children.length))
       throw new Error('STILL_AUTHORING_SCENE_UNSUPPORTED');
     return captureStill({scene:this.scene,camera:this.creativeCamera||this.camera,
-      decoration:this.decorationRoot,exposure:this.renderer.toneMappingExposure,longEdge});
+      decoration:this.decorationRoot,excludedRoot,exposure:this.renderer.toneMappingExposure,longEdge});
   }
 
   async loadEnvironmentTexture(ibl, version) {
