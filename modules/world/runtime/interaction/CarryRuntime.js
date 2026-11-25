@@ -3,8 +3,9 @@ import { Errors } from '../../errors.js';
 import { inferCarryCapability } from './CarryCapability.js';
 
 export class CarryRuntime {
-  constructor({ store, physics, spatial, events, assertSupports }) {
+  constructor({ store, entities=null, physics, spatial, events, assertSupports }) {
     this.store = store;
+    this.entities=entities;
     this.physics = physics;
     this.spatial = spatial;
     this.events = events;
@@ -28,7 +29,11 @@ export class CarryRuntime {
     return false;
   }
 
-  isHeld(id) { return Boolean(this.store.has(id) && this.store.get(id).state?.heldBy); }
+  record(id){return this.store.has?.(id)!==false?this.store.get(id):this.spatial.nativeRecord?.(id);}
+  heldState(id){return (this.store.has(id)?this.store.get(id):this.entities?.get(id))?.state?.heldBy||null;}
+  bounds(id){return this.spatial.interactionBounds?.(id)||this.spatial.getBounds(id);}
+  isHeld(id) { return Boolean(this.heldState(id)); }
+  hasNativeHeld(){return [...this.agentHeld.values()].some(id=>this.entities?.get(id)?.source==='native');}
 
   heldByAgent(actorId) { return this.agentHeld.get(actorId) || null; }
 
@@ -41,7 +46,7 @@ export class CarryRuntime {
   }
 
   carryStandOff(actorId, heldId, anchor = this.holdAnchor(actorId)) {
-    const colliders = this.store.get(heldId).manifest.physics?.colliders || [];
+    const colliders = this.record(heldId).manifest.physics?.colliders || [];
     const radius = Math.max(0, ...colliders.map((collider) =>
       (collider.shape === 'box' ? Math.hypot(collider.halfExtents[0],collider.halfExtents[2]) : Number(collider.radius) || 0)
       + Math.hypot(collider.translation?.[0] || 0,collider.translation?.[2] || 0)));
@@ -87,7 +92,14 @@ export class CarryRuntime {
 
   assertAgentCarryable(actorId, targetId) {
     this.holdAnchor(actorId);
-    const target = this.store.get(targetId);
+    const target = this.record(targetId);
+    if(!target)throw Errors.carryUnavailable(actorId,targetId,'OBJECT_NOT_FOUND');
+    if(target.source==='native'){
+      if(target.manifest.physics.carryable!==true)throw Errors.carryUnavailable(actorId,targetId,'NATIVE_CARRY_NOT_ENABLED');
+      const body=this.physics.manipulationBody(targetId);
+      if(!body.registered||!body.colliderCount||(!target.state.heldBy&&body.body!=='dynamic'))
+        throw Errors.carryUnavailable(actorId,targetId,'TARGET_PHYSICS_UNAVAILABLE');
+    }
     const assessment = inferCarryCapability(target.manifest, { scale:target.physicsScale ?? target.object?.scale?.x ?? 1,
       allowProvisional:target.state?.authoringPromotion?.usage === 'movable' });
     if (!assessment.eligible) throw Errors.carryUnavailable(actorId, targetId, assessment.reason);
@@ -107,9 +119,8 @@ export class CarryRuntime {
   }
 
   releaseHeld(id, reason = null, {silent=false} = {}) {
-    if (!this.store.has(id)) return { released:false, heldBy:null };
-    const record = this.store.get(id);
-    const heldBy = record.state?.heldBy;
+    const record = this.store.has(id)?this.store.get(id):this.entities?.get(id);
+    const heldBy = record?.state?.heldBy;
     if (!heldBy) return { released:false, heldBy:null };
     if (heldBy.kind === 'human' && this.humanHeldId === id) this.humanHeldId = null;
     if (heldBy.kind === 'agent' && this.agentHeld.get(heldBy.id) === id) this.agentHeld.delete(heldBy.id);
@@ -120,6 +131,7 @@ export class CarryRuntime {
   }
 
   rebuildHeldOwnership() {
+    for(const id of this.agentHeld.values())if(this.entities?.get(id)?.source==='native')this.releaseHeld(id,'HISTORY_RESTORE');
     this.humanHeldId = null;
     this.agentHeld.clear();
     for (const [id, record] of this.store.list()) {
@@ -146,7 +158,7 @@ export class CarryRuntime {
     const originalPosition=this.physics.getPosition(targetId);
     const originalRotation=this.physics.getRotation(targetId);
     if (!originalPosition || !originalRotation) return {clear:false,reason:'CARRY_BODY_UNAVAILABLE',phases:[]};
-    const size=this.spatial.getBounds(targetId).size;
+    const size=this.bounds(targetId).size;
     const liftY=originalPosition[1]+Math.max(.12,Math.min(.28,(size[1] || .32)*.55));
     const phases=[];
     const rollback=(reason)=>{
@@ -181,7 +193,7 @@ export class CarryRuntime {
     const rotation=this.physics.getRotation(heldId);
     if (!originalPosition || !rotation) return {clear:false,reason:'HELD_BODY_UNAVAILABLE',transfer:[]};
     const point=Array.isArray(release) ? release : release.toArray();
-    const size=this.spatial.getBounds(heldId).size;
+    const size=this.bounds(heldId).size;
     const liftY=Math.max(originalPosition[1],point[1]+size[1]+.08);
     const transferPoints=[
       [originalPosition[0],liftY,originalPosition[2]],
@@ -204,8 +216,9 @@ export class CarryRuntime {
   carryStatus(actorId) {
     const id = this.heldByAgent(actorId);
     if (!id) return { status:'empty', actorId };
-    const record = this.store.get(id);
-    return { status:'held', actorId, targetId:id, heldBy:structuredClone(record.state.heldBy), position:this.physics.getPosition(id), attachment:'kinematic-anchor', graspVerified:false };
+    const heldBy=this.heldState(id);
+    if(!heldBy)return {status:'empty',actorId};
+    return { status:'held', actorId, targetId:id, heldBy:structuredClone(heldBy), position:this.physics.getPosition(id), attachment:'kinematic-anchor', graspVerified:false };
   }
 
   update() {
@@ -214,8 +227,17 @@ export class CarryRuntime {
       this.physics.setHeldTarget(this.humanHeldId, this.humanHeldTarget);
     }
     for (const [actorId, targetId] of this.agentHeld) {
-      if (!this.store.has(actorId) || !this.store.has(targetId)) continue;
+      const native=this.entities?.get(targetId)?.source==='native';
+      if (!this.store.has(actorId) || !this.record(targetId)){
+        if(native)this.releaseHeld(targetId,'NATIVE_CARRY_TARGET_REMOVED');
+        continue;
+      }
       const pose = this.physics.anchorPose(actorId, this.holdAnchor(actorId));
+      if(native&&(!pose||!this.physics.checkBodyMotion(targetId,pose.position,pose.rotation,{excludeIds:[actorId]}).clear)){
+        // A code-driven actor transform can invalidate the attachment. Never
+        // move the carried body through an obstacle to repair it silently.
+        this.releaseHeld(targetId,'NATIVE_CARRY_ANCHOR_BLOCKED');continue;
+      }
       if (pose) this.physics.setHeldTarget(targetId, pose.position, pose.rotation);
     }
   }

@@ -57,7 +57,7 @@ export async function exportRuntimeState(world, { name = 'Untitled World', readR
 }
 
 /** Restore into a newly created code-project Runtime, retaining its native environment. */
-export async function restoreRuntimeState(world, { snapshot, assets }) {
+export async function restoreRuntimeState(world, { snapshot, assets }, {deferNativePhysics=false}={}) {
   world.serializer.validate(snapshot);
   if (snapshot.assets.length || snapshot.metadata?.environment !== world.environment.id || !Array.isArray(assets)) throw new Error('PROJECT_SNAPSHOT_MISMATCH');
   const ids = new Set(), prepared = []; let total = 0;
@@ -69,6 +69,7 @@ export async function restoreRuntimeState(world, { snapshot, assets }) {
     assertEmbeddedGLB(bytes); prepared.push({ ...item, bytes });
   }
   for (const item of prepared) await world.assetModule.importPackageAsset(item);
+  if(deferNativePhysics){const {nativePhysics,...managed}=snapshot;await world.restore(managed);return nativePhysics;}
   await world.restore(snapshot);
 }
 

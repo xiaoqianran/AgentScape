@@ -10,6 +10,7 @@ import { NavigationSystem } from './systems/NavigationSystem.js';
 import { RecastNavigationBackend } from '../../navigation/RecastNavigationBackend.js';
 import { LocomotionSystem } from './systems/LocomotionSystem.js';
 import { SceneSerializer } from './SceneSerializer.js';
+import { nativePhysicsBindings,prepareNativePhysics } from './NativePhysicsSnapshot.js';
 import { CommandHistory } from './CommandHistory.js';
 import { SceneGraph } from './graph/SceneGraph.js';
 import { PolicyEngine } from '../../../foundation/PolicyEngine.js';
@@ -134,7 +135,7 @@ export class WorldRuntime {
       this.events.emit('runtime.init.phase',{stage:'renderer-ready'});
       if (this.rendering.renderer) this.assetModule.configureRenderer?.(this.rendering.renderer);
     }
-    this.spatial = new SpatialSystem({ store: this.store });
+    this.spatial = new SpatialSystem({ store:this.store,entities:this.entities,physics:this.physics });
     this.sceneGraph = new SceneGraph({ store: this.store, spatial: this.spatial, events: this.events });
     this.history = new CommandHistory({
       apply: (scene) => this.restoreSnapshot(scene),
@@ -183,13 +184,15 @@ export class WorldRuntime {
   createEnvironmentSystems() {
     const environmentNavConfig = this.environment?.navigation || this.environment?.navigationConfig || {};
     this.navigation = new NavigationSystem({
-      store:this.store,physics:this.physics,environmentRoots:[this.environment.navigationRoot || this.environment.root],
+      store:this.store,physics:this.physics,environmentRoots:this.environment.navigationColliders!=null?[]:[this.environment.navigationRoot || this.environment.root],
+      nativeEnvironmentColliders:this.environment.navigationColliders??null,
       backend:this.navigationBackendFactory(),
       config: environmentNavConfig
     });
-    this.locomotion = new LocomotionSystem({ store:this.store, physics:this.physics, navigation:this.navigation, events:this.events });
+    this.locomotion = new LocomotionSystem({ store:this.store, physics:this.physics, navigation:this.navigation, events:this.events,
+      nativeHeldBy:actor=>{const id=this.interactions?.heldByAgent(actor);return this.entities.get(id)?.source==='native'?id:null;} });
     this.interactions = new InteractionSystem({
-      store:this.store,physics:this.physics,spatial:this.spatial,navigation:this.navigation,locomotion:this.locomotion,events:this.events,
+      store:this.store,entities:this.entities,physics:this.physics,spatial:this.spatial,navigation:this.navigation,locomotion:this.locomotion,events:this.events,
       onObjectTransform:(id,reason)=>this.invalidateNavigationForObject(id,reason)
     });
     return this.navigation;
@@ -217,6 +220,7 @@ export class WorldRuntime {
       throw error;
     }
     const previous=this.environment || null;
+    if(!this.restoring&&previous!==environment&&nativePhysicsBindings(this).size)throw Object.assign(new Error('NATIVE_PHYSICS_ENVIRONMENT_REPLACE_UNSUPPORTED'),{code:'NATIVE_PHYSICS_ENVIRONMENT_REPLACE_UNSUPPORTED'});
     if (previous===environment) return {status:'environment-ready',environmentId:environment.id || null,previousEnvironmentId:previous?.id || null,reused:true};
     this.teardownEnvironmentSystems('ENVIRONMENT_REPLACED');
     if (previous?.root?.parent===this.scene) this.scene.remove(previous.root);
@@ -410,7 +414,7 @@ export class WorldRuntime {
   }
 
   snapshot() {
-    const scene = this.serialize({ name: 'History Snapshot', includeRelations: false });
+    const scene = this.serialize({ name: 'History Snapshot', includeRelations: false, nativeIdentity:true });
     delete scene.metadata.savedAt;
     return scene;
   }
@@ -514,6 +518,9 @@ export class WorldRuntime {
     this.serializer.validate(snapshot);
     return this.exclusiveMutation('world:commit', async () => {
       const previous = this.snapshot(), oldAssets = this.assetModule, oldEnvironment = this.environment;
+      if(previous.nativePhysics&&environment.id!==oldEnvironment.id)throw Object.assign(new Error('NATIVE_PHYSICS_ENVIRONMENT_MISMATCH'),{code:'NATIVE_PHYSICS_ENVIRONMENT_MISMATCH'});
+      if(previous.nativePhysics&&!snapshot.nativePhysics)snapshot={...snapshot,nativePhysics:previous.nativePhysics};
+      if(snapshot.nativePhysics)prepareNativePhysics(this,snapshot.nativePhysics,snapshot.objects);
       const authority = captureWorldAuthority(this), physics = this.physics.captureState();
       const running = this.simulation.running;
       this.simulation.pause(); this.restoring = true; this.ruleRuntime.suspendEvents();

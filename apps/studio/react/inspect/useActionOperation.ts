@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import type { EditorCommandsLike } from './InspectorTypes';
-export function useActionOperation(commands:EditorCommandsLike,actor:string|null,target:string) {
+import type { ActionCommandsLike } from './InspectorTypes';
+export function useActionOperation(commands:ActionCommandsLike,actor:string|null,target:string) {
   // useSyncExternalStore treats subscribe identity as an effect dependency.
   const subscribe = useCallback(
     (listener:()=>void) => commands.subscribeActions?.(listener) || (()=>{}),

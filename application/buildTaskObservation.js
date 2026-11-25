@@ -12,7 +12,7 @@ const relevantIds = (actor, lastMutation, unresolved = []) => {
   return [...ids];
 };
 
-const recoveryHints = (focusMutation) => {
+const recoveryHints = (focusMutation, sceneNavigation = false) => {
   const outcome = focusMutation?.outcome;
   if (!outcome || ['verified','accepted'].includes(outcome.state)) return [];
   const reason = outcome.reason || outcome.status || outcome.state;
@@ -30,7 +30,7 @@ const recoveryHints = (focusMutation) => {
     return [{ action:'report-unverified-or-retry-place', purpose:'Relevant support relations are already embedded when available; do not claim success without a new verified place outcome.', status:'provisional', basedOn:reason }];
   }
   if (String(reason).includes('PATH') || String(reason).includes('NAVIGATION')) {
-    return [hint('suggestNavigationActions','Request provisional action-aware navigation diagnosis, then re-query the real path after any world change.')];
+    return [...(sceneNavigation?[hint('diagnoseSceneNavigation','Use the current actor and observed destination to check registered joint alternatives without moving anything.')]:[]),hint('suggestNavigationActions','Request provisional action-aware navigation diagnosis, then re-query the real path after any world change.')];
   }
   return [{ purpose:'Re-observe the failed semantic step before any dependent mutation.', status:'provisional', basedOn:reason }];
 };
@@ -62,7 +62,7 @@ export function buildTaskObservation(runtime, {
       ...(edge.meta?.distance != null ? {distance:round(edge.meta.distance)} : {}),
       ...(edge.meta?.surfaceId ? {surfaceId:edge.meta.surfaceId} : {})
     })),
-    recoveryHints:recoveryHints(focusMutation)
+    recoveryHints:recoveryHints(focusMutation,Boolean(runtime.skills?.get?.('diagnoseSceneNavigation')))
   };
 
   const actorState=view.actor(actor);

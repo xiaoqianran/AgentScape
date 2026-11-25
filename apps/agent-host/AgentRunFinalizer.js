@@ -1,7 +1,8 @@
+import { createHash } from 'node:crypto';
 import { connectStudioMcp } from './McpWorldTools.js';
 import { requiredTaskCriteria } from './TaskSpec.js';
 import { compileWorldAcceptance } from '../../modules/world/verification/WorldAcceptance.js';
-import { buildTaskEvidence, collectSceneChecks, nativeObservation, pendingSceneRecords } from '../../application/agent/TaskEvidence.js';
+import { buildTaskEvidence, collectSceneChecks, nativeObservation, pendingSceneRecords, observationFrame, matchesObservationFrame, matchesWorldBinding } from '../../application/agent/TaskEvidence.js';
 
 const code = value => typeof value === 'string' && /^[A-Z_]{3,80}$/.test(value) ? value : 'FINAL_VERIFICATION_UNAVAILABLE';
 
@@ -38,7 +39,7 @@ async function invoke(connection,name,args,signal) {
 
 /** The Host, not either model SDK, owns the final task admission decision. */
 export async function finalizeRun({output={},project=null,configuration,signal,expectedWorldSessionId=null,taskSpec=null,
-  deferVisualReview=false,mcpConnector=connectStudioMcp}={}) {
+  deferVisualReview=false,onVisualCapture=()=>{},mcpConnector=connectStudioMcp}={}) {
   const execution = Array.isArray(output.execution) ? output.execution : [];
   const mutations = execution.filter(entry=>entry.mutates && entry.outcome?.state!=='failed');
   const unresolved = unresolvedOperations(execution);
@@ -54,7 +55,7 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
   const visualRequired=Boolean(taskSpec?.visual?.required||deferVisualReview);
   const pending=requiredTaskCriteria(taskSpec);
   if((project||mutations.length)&&!pending.some(check=>check.kind==='world-valid'))pending.push({id:'host-world-valid',kind:'world-valid'});
-  let records=pendingSceneRecords(pending),bound=false,worldReady=false,native=null;
+  let records=pendingSceneRecords(pending),bound=false,worldReady=false,native=null,snapshot=null;
   const currentWorld=()=>({worldSessionId,projectId,projectRevision,sceneRevision,runtimeId});
   const projectScope = project ? project.worldSessionId+'/'+project.id : undefined;
   const format=()=>({
@@ -68,7 +69,7 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
     ...(projectId?{projectId}:{}),
     world:currentWorld(),
     evidence:buildTaskEvidence({world:currentWorld(),scope,records,bound,native,visualRequired:visualRequired&&status!=='no-mutation',worldReady,reason,
-      persistenceRequired:Boolean(project),savedCheckpoint,taskSpecStatus:taskSpec?.status,readOnly:status==='no-mutation'}),
+      persistenceRequired:Boolean(project),savedCheckpoint,taskSpecStatus:taskSpec?.status,readOnly:status==='no-mutation',snapshot}),
     ...(savedCheckpoint?{savedCheckpoint}:{}),
     verification:{scope,
       status:worldReady?'verified':'unverified',reason:status==='completed'?null:reason,
@@ -134,6 +135,16 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
       }
     }
     const before=await invoke(connection,'scene_observe',{limit:1},signal);
+    // Existing code worlds also need sampled evidence, even without visual review.
+    if(!projectId&&before.projectBinding){
+      const active=before.projectBinding;
+      if(typeof active.projectId!=='string'||!active.projectId||
+          !Number.isSafeInteger(active.projectRevision)||active.projectRevision!==active.runningRevision||
+          typeof active.runtimeId!=='string'||!active.runtimeId){
+        reason='TASK_PROJECT_CHANGED';return format();
+      }
+      projectId=active.projectId;projectRevision=active.projectRevision;runtimeId=active.runtimeId;
+    }
     // User requirements win if an Agent tries to reuse a task-* id with weaker checks.
     const required=requiredTaskCriteria(taskSpec);
     let criteria=[...required,...verificationCall.criteria.filter(check=>
@@ -149,16 +160,20 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
     if(criteria.length>32){reason='FINAL_CRITERIA_LIMIT';return format();}
     criteria=compileWorldAcceptance(criteria).checks;
     records=pendingSceneRecords(criteria);
-    const verified=await invoke(connection,'scene_verify',{criteria},signal);
+    const verified=await invoke(connection,'scene_verify',{criteria,...(projectId?{snapshot:visualRequired?'visual':'inspect'}:{})},signal);
     sceneRevision=verified.revision ?? null;
     const evaluation=collectSceneChecks(verified,criteria,{allowScopedExtras:Boolean(project)});
     checks=evaluation.checks;records=evaluation.records;
-    if(projectId&&Number.isSafeInteger(sceneRevision)&&before.revision===sceneRevision){
-      try{
-        const value=await invoke(connection,'scene_query',{operation:'inspect',expectedRevision:projectRevision,
-          expectedRuntimeId:runtimeId,expectedSceneRevision:sceneRevision,limit:1},signal);
-        native=nativeObservation({...value,worldSessionId},currentWorld());
-      }catch(error){native={status:'unavailable',reason:code(error?.code)};}
+    if(projectId){
+      snapshot=observationFrame(verified.snapshot);
+      if(!snapshot){reason='PROJECT_SNAPSHOT_MISSING';return format();}
+      if(!matchesWorldBinding({...verified.snapshot,worldSessionId},currentWorld())){
+        reason='PROJECT_SNAPSHOT_BINDING_MISMATCH';return format();
+      }
+      const value=verified.snapshot.native;
+      native=matchesObservationFrame(value,snapshot)
+        ? nativeObservation({...value,worldSessionId},currentWorld())
+        : {status:'unavailable',reason:verified.snapshot.nativeError?code(verified.snapshot.nativeError):'NATIVE_EVIDENCE_FRAME_MISMATCH'};
     }
     const after=await invoke(connection,'scene_observe',{limit:1},signal);
     if(!Number.isSafeInteger(sceneRevision) || before.revision!==sceneRevision ||
@@ -174,7 +189,22 @@ export async function finalizeRun({output={},project=null,configuration,signal,e
     bound=true;
     if(!evaluation.accepted){reason='SCENE_VERIFICATION_FAILED';return format();}
     worldReady=true;
-    if(visualRequired){status=deferVisualReview?'awaiting-visual':'incomplete';reason='VISUAL_REVIEW_PENDING';return format();}
+    if(visualRequired){
+      if(projectId){
+        const image={...verified.snapshot.image,worldSessionId};
+        if(!matchesWorldBinding(image,currentWorld())||!matchesObservationFrame(image,snapshot)){
+          reason=verified.snapshot.imageError?code(verified.snapshot.imageError):'VISUAL_SNAPSHOT_UNAVAILABLE';
+          return format();
+        }
+        if(typeof image.imageBase64!=='string'||image.imageBase64.length<16||image.imageBase64.length>240000){
+          reason='VISUAL_SNAPSHOT_UNAVAILABLE';return format();
+        }
+        snapshot.imageDigest=createHash('sha256').update(Buffer.from(image.imageBase64,'base64')).digest('hex');
+        // Pass pixels only to the in-memory review pipeline, never to the run result.
+        onVisualCapture(image);
+      }
+      status=deferVisualReview?'awaiting-visual':'incomplete';reason='VISUAL_REVIEW_PENDING';return format();
+    }
     status='completed';reason=null;
   } catch(error) {
     reason=signal?.aborted?'RUN_CANCELLED':code(error?.code);

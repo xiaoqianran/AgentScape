@@ -162,3 +162,25 @@
 .shell[data-page="world"] .code-project-editor .code-source-label { color:var(--studio-text); }
 .shell[data-page="world"] .code-world-visual .code-world-gizmo-tools button[aria-pressed="true"] { background:var(--studio-accent-soft); color:var(--studio-accent); border-color:var(--studio-accent); }
 .shell[data-page="world"] .code-project-editor :is(input,select,textarea) { border-radius:8px; }
+
+/* Shared physical inspector: flat, compact and readable within the Studio rail. */
+.code-project-actions h3 {margin:0 0 14px;font-size:16px;}
+.code-project-actions h4 {margin:0 0 8px;font-size:13px;font-weight:600;}
+.code-project-actions section {padding:12px 0;margin:0;}
+.code-project-actions .code-world-target select,.code-world-nav-vector input {
+  width:100%;min-width:0;box-sizing:border-box;color:inherit;background:var(--bg-panel);
+  border:1px solid var(--studio-border-strong);border-radius:6px;padding:7px;
+}
+.code-world-target-header {display:grid;gap:4px;margin:12px 0 4px;}
+.code-world-target-header small,.code-world-section-title span,.code-world-joint small {opacity:.72;font-size:11px;overflow-wrap:anywhere;}
+.code-world-section-title {display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.code-world-physics dl {display:grid;grid-template-columns:74px minmax(0,1fr);gap:6px 10px;margin:6px 0 12px;font-size:12px;}
+.code-world-physics dt {opacity:.7;}
+.code-world-physics dd {margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+.code-world-joint {display:grid;gap:4px;padding:9px 0;border-top:1px solid var(--studio-border-strong);font-size:12px;}
+.code-world-nav-vector {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+.code-world-route-preview {display:grid;gap:4px;padding:8px 0;font-size:12px;}
+.code-world-route-preview svg {width:100%;max-height:132px;border:1px solid var(--studio-border-strong);border-radius:6px;}
+.code-world-route-preview small {opacity:.8;}
+.code-project-actions .affordance-panel {padding:0;}
+.code-project-actions .affordance-panel select,.code-project-actions .affordance-panel input {max-width:100%;min-width:0;}

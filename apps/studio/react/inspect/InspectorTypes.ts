@@ -15,11 +15,13 @@ export type InspectorAffordanceAction = {
   canApproach?:boolean;
   reason?:string|null;
   partName?:string;
+  source?:string;
+  verification?:string;
   parameters:Record<string,{type?:string;enum?:string[];limits?:number[];maxLength?:number;[key:string]:unknown}>;
 };
 
 export type InspectorAffordances = {
-  source:'asset'|'environment';
+  source:'asset'|'environment'|'project'|'native-physics'|'composite';
   label:string;
   evidenceKind:string;
   physicsVerified:boolean;
@@ -93,15 +95,18 @@ export type InspectorProjectionLike = {
 };
 
 export type ActionOperation = {operationId:number;actor:string|null;targetId:string;action:string;status:string;feedback:string;error:string};
-export type EditorCommandsLike = {
+export type ActionCommandsLike = {
   executeLegacy?:(target:string)=>Promise<unknown>;
   subscribeActions?:(listener:()=>void)=>()=>void;
   actionSnapshot?:(actor:string|null,target:string)=>ActionOperation|null;
   isActionPending?:(target:string)=>boolean;
+  cancelAffordance?:(target:string)=>unknown;
   listActors?:()=>{agents:Array<{id:string}>;selected:string|null};
   selectActor?:(actor:string)=>unknown;
+  executeAffordance?:(input:{actor:string;target:string;action:string;name?:string;source?:string;args?:Record<string,unknown>;partName?:string;surfaceId?:string})=>Promise<{verification?:{status:string};value?:{physicsVerified?:boolean;evidenceKind?:string;status?:string;reason?:string}}>;
+};
+export type EditorCommandsLike = ActionCommandsLike & {
   runtimeAction:(action:string,id:string,args?:Record<string,unknown>)=>Promise<unknown>;
-  executeAffordance?:(input:{actor:string;target:string;action:string;args?:Record<string,unknown>;partName?:string;surfaceId?:string})=>Promise<{verification?:{status:string};value?:{physicsVerified?:boolean;evidenceKind?:string;status?:string;reason?:string}}>;
   scaleRuntime:(id:string,scale:number)=>Promise<unknown>;
   renameAuthoringNode:(id:string,name:string)=>Promise<unknown>;
   transformAuthoringNode:(id:string,transform:{position?:number[];scale?:number[]})=>Promise<unknown>;

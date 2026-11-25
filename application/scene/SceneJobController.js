@@ -1,4 +1,4 @@
-import { recordInteractionEvidence } from '../../modules/world/verification/InteractionEvidence.js';
+import { recordInteractionEvidence,clearInteractionEvidenceForTarget } from '../../modules/world/verification/InteractionEvidence.js';
 import { sceneError, sceneInteractionSchema, diagnostic } from './SceneContracts.js';
 import { resolveCapability } from './CapabilityResolver.js';
 import { legacyPhysicalRequest } from './SceneInteractionAdapters.js';
@@ -66,6 +66,15 @@ export function createSceneJobController(world, { tools, assertIdle, assertOpen,
       : args.action === 'place' ? ['approachAndPlace', { actorId:args.actor, supportId:args.target, surfaceId:args.surfaceId }]
       : ['approachAndInteract', { actorId:args.actor, targetId:args.target, action:args.action, partName:args.partName }];
     const physical = physicalActions.has(args.action);
+    const nativePhysical=physical&&world.entities?.get(args.target)?.source==='native';
+    const heldId=world.interactions?.heldByAgent?.(args.actor);
+    const nativeTarget=world.entities?.get(args.target)?.source==='native';
+    const nativeHeld=world.entities?.get(heldId)?.source==='native';
+    const nativeCarry=(args.action==='pickup'&&nativeTarget)||
+      (args.action==='place'&&(nativeTarget||nativeHeld))||
+      (['navigate','drop'].includes(args.action)&&nativeHeld);
+    if(args.action==='drop'&&!nativeCarry)throw sceneError('ACTION_UNSUPPORTED');
+    if(nativeCarry)return startNativeCarry(args,heldId);
 
     return startJob({
       immediate: true, // Keep legacy tools.call synchronous for existing integrations.
@@ -75,7 +84,13 @@ export function createSceneJobController(world, { tools, assertIdle, assertOpen,
           world.commands.executeAffordance({
             targetId:args.target, actorId:args.actor, action:args.action, args:args.args || {}
           }, { approach:true }))
-        : physical ? world.mutate('scene:' + args.action, async () => {
+        : nativePhysical ? nativeMutation('scene:native-physics:'+args.action,async()=>{
+          clearInteractionEvidenceForTarget(world,args.target,{source:'native-physics',capability:args.action,partName:args.args?.part});
+          const value=await world.interactions.manipulate(args.actor,args.target,args.action,args.args);
+          if(!job.cancelled&&value.verified)recordInteractionEvidence(world,{targetId:args.target,
+            capability:args.action.toUpperCase(),verified:true,source:'native-physics',commandId:job.id,result:value,partName:args.args?.part});
+          return {...value,source:'native-physics'};
+        }) : physical ? world.mutate('scene:' + args.action, async () => {
           const value = await world.interactions.manipulate(args.actor, args.target, args.action, args.args);
           recordInteractionEvidence(world, {
             targetId:args.target, capability:args.action.toUpperCase(), verified:value.verified,
@@ -89,13 +104,70 @@ export function createSceneJobController(world, { tools, assertIdle, assertOpen,
           ? { state:value.verified === true ? 'verified' : activated ? 'unverified' : 'failed', verified:value.verified === true, physicsVerified:false }
           : worldAction
           ? { state:value.status === 'world-action-completed' && value.verified === true ? 'verified' : 'failed', verified:value.status === 'world-action-completed' && value.verified === true, physicsVerified:false }
-          : physical ? { state:value.verified ? 'verified' : 'failed', verified:value.verified === true }
+          : physical ? { state:!job.cancelled&&value.verified ? 'verified' : 'failed', verified:!job.cancelled&&value.verified === true,
+            ...(nativePhysical?{physicsVerified:!job.cancelled&&value.physicsVerified===true}:{}) }
           : tools.executionPolicy(skill, value).outcome;
         return {
           status:outcome.verified || activated ? 'succeeded' : 'failed',
           verification:{ status:!job.cancelled && outcome.verified ? 'verified' : 'unverified', evidence:value },
           outcome
         };
+      }
+    });
+  }
+
+  async function nativeMutation(label,execute){
+    const before=world.history.undoStack.at(-1);
+    try{
+      const value=await world.mutate(label,execute);
+      const recorded=world.history.undoStack.at(-1)!==before;
+      return {...value,historyRecorded:recorded};
+    }finally{
+      if(world.history.undoStack.at(-1)===before)onProjectAction();
+    }
+  }
+
+  function startNativeCarry(args,heldId){
+    const {actor,target,action}=args;
+    const receiptTarget=action==='navigate'?heldId:target;
+    const receiptCapability=action==='navigate'?'CARRY':action.toUpperCase();
+    return startJob({
+      execute:job=>nativeMutation('scene:native-carry:'+action,async()=>{
+        clearInteractionEvidenceForTarget(world,receiptTarget,{source:'native-physics',capability:receiptCapability});
+        if(job.cancelled)return {status:'cancelled',verified:false};
+        let value,verified=false,physicsVerified=false;
+          if(action==='pickup'){
+            value=await world.interactions.approachAndPickup(actor,target);
+            verified=value.status==='held'&&world.interactions.heldByAgent(actor)===target&&world.physics.manipulationBody(target).body==='kinematic';
+          }else if(action==='navigate'){
+            value=await world.locomotion.navigate(actor,args.position);
+            const carry=world.interactions.carryStatus(actor);
+            const anchor=world.physics.anchorPose(actor,world.interactions.holdAnchor(actor));
+            const position=world.physics.getPosition(heldId);
+            const anchorError=anchor&&position?Math.hypot(...position.map((n,i)=>n-anchor.position[i])):null;
+            verified=value.status==='arrived'&&carry.targetId===heldId&&anchorError!=null&&anchorError<=.12;
+            value={...value,actorId:actor,heldId,carry,anchorError,evidenceKind:'kinematic-anchor'};
+          }else if(action==='place'){
+            value=await world.interactions.approachAndPlace(actor,target,{surfaceId:args.surfaceId});
+            verified=value.status==='placed'&&value.settled===true&&value.supportVerified===true&&value.support?.contactVerified===true;
+            physicsVerified=verified;
+          }else if(action==='drop'){
+            if(heldId!==target)throw sceneError('NOT_HOLDING_OBJECT');
+            value=await world.interactions.dropHeld(actor);
+            verified=value.status==='dropped'&&value.released===true&&value.settled===true;
+            physicsVerified=verified;
+          }
+          verified=verified&&!job.cancelled;physicsVerified=physicsVerified&&verified;
+          const evidenceKind=action==='place'?'solver-contact+spatial-geometry':action==='drop'?'dynamic-settle':'kinematic-anchor';
+          const result={...value,evidenceKind,verified,physicsVerified,graspVerified:false,source:'native-physics'};
+          if(verified)recordInteractionEvidence(world,{targetId:receiptTarget,capability:receiptCapability,
+            verified,source:'native-physics',commandId:job.id,result});
+          return result;
+      }),
+      settle:(value,job)=>{
+        const verified=!job.cancelled&&value.verified===true;
+        return {status:verified?'succeeded':'failed',verification:{status:verified?'verified':'unverified',evidence:value},
+          outcome:{state:verified?'verified':'failed',verified,physicsVerified:verified&&value.physicsVerified===true}};
       }
     });
   }
@@ -126,6 +198,10 @@ export function createSceneJobController(world, { tools, assertIdle, assertOpen,
   function startPhysicalCapability(request, capability) {
     const { target, name, actor, args = {} } = request;
     if (!actor) throw sceneError('ACTOR_REQUIRED');
+    if(capability.source==='native-physics'){
+      if(capability.partName&&args.part&&args.part!==capability.partName)throw sceneError('ACTION_PART_MISMATCH');
+      return controller.interact(legacyPhysicalRequest({...request,partName:capability.partName||request.partName}));
+    }
     const record = world.store.get(target);
     // Contract membership, not the verb, identifies a physically articulated
     // action. This includes open/close and previously unknown semantic verbs.

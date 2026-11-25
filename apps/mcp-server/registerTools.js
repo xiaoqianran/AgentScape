@@ -126,7 +126,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
    return s.host.execute(a.skill,args,signal);
   },{requestId:a.requestId,fingerprint:JSON.stringify([a.skill,args]),signal:e.signal});
  });
- const check=z.object({id,kind:z.enum(['world-valid','object-exists','state-equals','interaction-verified','relation-exists','no-unresolved']),targetId:targetId.optional(),stateKey:id.optional(),value:z.union([z.string().max(200),z.number().finite(),z.boolean(),z.null()]).optional(),capability:id.optional(),source:z.string().min(1).max(64).optional(),subject:targetId.optional(),predicate:z.enum(['ON','NEAR','INSIDE','CONTAINS','SUPPORTS']).optional(),object:targetId.optional(),objectAnyOf:z.array(targetId).min(1).max(32).optional(),surfaceId:id.optional()}).strict();
+ const check=z.object({id,kind:z.enum(['world-valid','object-exists','state-equals','interaction-verified','relation-exists','no-unresolved']),targetId:targetId.optional(),stateKey:id.optional(),value:z.union([z.string().max(200),z.number().finite(),z.boolean(),z.null()]).optional(),capability:id.optional(),partName:id.optional(),source:z.string().min(1).max(64).optional(),subject:targetId.optional(),predicate:z.enum(['ON','NEAR','INSIDE','CONTAINS','SUPPORTS']).optional(),object:targetId.optional(),objectAnyOf:z.array(targetId).min(1).max(32).optional(),surfaceId:id.optional()}).strict();
  add('world_verify','Verify caller-supplied criteria using Runtime evidence. With no criteria, runs the original cabinet/cup preset.',{...session,criteria:z.array(check).min(1).max(32).optional()},(a,e)=>{if(a.criteria) compileWorldAcceptance(a.criteria); return run(a,s=>s.host.verify(a.criteria),e);});
  add('world_export','Atomically save and return SceneSerializer JSON; assets are not bundled.',session,(a,e)=>run(a,s=>manager.export(s),e));
  add('world_save','Save an owned world and immutable published asset dependencies for recovery after service restart.',session,(a,e)=>run(a,s=>manager.save(owner,s),e));
@@ -137,6 +137,9 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
   const query={actor:a.actor,...(a.limit!=null?{limit:a.limit,offset:a.offset||0}:{})};
   return sceneRun(a,'observe',{target:a.target,...query},s=>a.target?s.host.scene.inspect(a.target,{actor:a.actor}):s.host.scene.observe(query),e);
  });
+ add('scene_navigation','Read-only live route and actor-eligible provisional articulation recovery. Partial-route-progress may advance a blocked route without making the destination reachable. Hypothetical target-pose routing does not move the actor or joint. After executing a justified recommended interaction, query again before navigating.',{
+  ...sceneSession,actor:id,position:vec
+ },(a,e)=>sceneRun(a,'navigation',{actor:a.actor,position:a.position},s=>s.host.scene.diagnoseNavigation({actor:a.actor,position:a.position}),e));
  add('scene_thermal','Read or run real thermal simulation in the active Scene: list entities, inspect per-part temperatures, get measured time-series, set heat power or advance up to 10 seconds of WorldRuntime. Write operations require requestId; thermal simulation is a declared model, not real-world proof.',{
   ...sceneSession,
   operation:z.enum(['list','inspect','series','setPower','run']),
@@ -150,7 +153,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
   return sceneRun(a,'thermal',args,s=>s.host.scene.thermalExperiment(args),e);
  });
  add('scene_apply','Apply structured scene edits with revision protection and explicit partial results.',{...sceneSession,requestId:z.uuid(),expectedRevision:z.number().int().nonnegative().optional(),operations:z.array(z.record(z.string(),z.unknown())).min(1).max(32)},(a,e)=>sceneRun(a,'apply',{requestId:a.requestId,expectedRevision:a.expectedRevision,operations:a.operations},async s=>{await attachSceneAssets(s,a.operations.map(op=>op.type==='add'?op.model?.asset:op.asset));return s.host.scene.apply({expectedRevision:a.expectedRevision,operations:a.operations});},e));
- add('scene_history','Read or undo/redo the shared Scene history. One timeline for Studio GUI changes, native Three.js registered properties and managed Scene edits. Supply the current scene_observe revision for mutations to reject stale requests.',{
+ add('scene_history','Read or undo/redo the shared Scene history. One timeline for Studio GUI changes, native Three.js registered properties, native physics interactions and managed Scene edits. Supply the current scene_observe revision for mutations to reject stale requests.',{
   ...sceneSession,operation:z.enum(['status','undo','redo']).default('status'),
   expectedRevision:z.number().int().nonnegative().optional(),requestId:z.uuid().optional()
  },(a,e)=>{
@@ -163,7 +166,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
  add('scene_job','Read task completion and physical verification separately.',job,(a,e)=>sceneRun(a,'job',{jobId:a.jobId},s=>s.host.scene.getJob(a.jobId),e));
  add('scene_cancel','Request task cancellation and query until terminal.',job,(a,e)=>sceneRun(a,'cancel',{jobId:a.jobId},s=>s.host.scene.cancelJob(a.jobId),e));
  const sceneCheck=check.extend({kind:z.enum(['world-valid','object-exists','state-equals','interaction-verified','relation-exists'])});
- add('scene_verify','Evaluate observable scene postconditions. Only verified results count. Agent execution-log checks such as no-unresolved belong to the Host, not the Scene; use world-valid for scene validity.',{...sceneSession,criteria:z.array(sceneCheck).min(1).max(32)},(a,e)=>sceneRun(a,'verify',{criteria:a.criteria},s=>s.host.scene.verify(a.criteria),e));
+ add('scene_verify','Evaluate observable scene postconditions. Optional snapshot=inspect or visual samples native evidence at the same code-world frame (visual includes JPEG). Snapshot is not continuous proof. Agent execution-log checks belong to the Host.',{...sceneSession,criteria:z.array(sceneCheck).min(1).max(32),snapshot:z.enum(['inspect','visual']).optional()},(a,e)=>sceneRun(a,'verify',{criteria:a.criteria,...(a.snapshot?{snapshot:a.snapshot}:{})},s=>{if(a.snapshot)throw new Error('PROJECT_SNAPSHOT_UNAVAILABLE');return s.host.scene.verify(a.criteria);},e));
  add('scene_add_model','Add a recipe using model={id,asset:{schema:"agentscape.asset-recipe",schemaVersion:1,id,parts:[{id,geometry:{type:"box",size:[1,1,1]}}]},position:[0,0,0]}. Analyze GLB/URDF with mode=prepare; mode=screen runs bounded, isolated Rapier tests of source-bound kinematic candidates (model.proposalId and optional model.hypothesisIds), never grants actions; mode=add imports reviewed assets. GLB uses bytesBase64.',{
   ...sceneSession,requestId:z.uuid(),mode:z.enum(['prepare','screen','add']).default('add'),model:z.object({
     id:sceneObjectIdSchema.optional(),position:sceneVector3Schema.optional(),transform:sceneTransformSchema.optional(),

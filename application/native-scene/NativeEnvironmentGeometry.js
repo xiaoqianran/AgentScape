@@ -13,20 +13,39 @@ const MAX_VERTICES = 200_000;
 export function extractNativeStaticColliders(scene, { staticMeshes = [], walkableMesh = null } = {}) {
   if (!Array.isArray(staticMeshes) || staticMeshes.length > MAX_MESHES)
     throw fail('NATIVE_STATIC_MESH_LIMIT');
-  const meshes = [...staticMeshes];
-  if (walkableMesh != null && !meshes.includes(walkableMesh)) meshes.push(walkableMesh);
-  if (meshes.length > MAX_MESHES || new Set(meshes).size !== meshes.length)
+  const roots = [...staticMeshes];
+  if (walkableMesh != null && !roots.includes(walkableMesh)) roots.push(walkableMesh);
+  if (roots.length > MAX_MESHES || new Set(roots).size !== roots.length)
     throw fail('NATIVE_STATIC_MESH_LIMIT');
+  const meshes=[],seen=new Set();
+  let nodes=0;
+  for(const root of roots){
+    if(!root?.isObject3D||root===scene)throw fail('NATIVE_STATIC_MESH_UNSUPPORTED');
+    let parent=root;
+    while(parent&&parent!==scene)parent=parent.parent;
+    if(parent!==scene)throw fail('NATIVE_STATIC_MESH_NOT_IN_SCENE');
+    root.traverse(node=>{
+      if(++nodes>8192)throw fail('NATIVE_STATIC_NODE_LIMIT');
+      if(!node.isMesh)return;
+      if(seen.has(node)||meshes.length>=MAX_MESHES)throw fail('NATIVE_STATIC_MESH_LIMIT');
+      seen.add(node);meshes.push(node);
+    });
+  }
   scene.updateMatrixWorld(true);
   const colliders = [];
   let triangles = 0, vertexCount = 0;
   for (const mesh of meshes) {
-    if (!mesh?.isMesh || mesh.isSkinnedMesh || mesh.isInstancedMesh ||
+    if (!mesh?.isMesh || mesh.isSkinnedMesh || mesh.isInstancedMesh || mesh.isBatchedMesh ||
         mesh.morphTargetInfluences?.length || mesh.userData?.agentscapeDynamic)
       throw fail('NATIVE_STATIC_MESH_UNSUPPORTED');
     let parent = mesh;
-    while (parent && parent !== scene) parent = parent.parent;
+    while (parent && parent !== scene) {
+      if(parent.userData?.agentscapeDynamic)throw fail('NATIVE_STATIC_MESH_UNSUPPORTED');
+      parent = parent.parent;
+    }
     if (parent !== scene) throw fail('NATIVE_STATIC_MESH_NOT_IN_SCENE');
+    const determinant=mesh.matrixWorld.determinant();
+    if(!Number.isFinite(determinant)||determinant===0)throw fail('NATIVE_STATIC_GEOMETRY_INVALID');
     const attribute = mesh.geometry?.getAttribute('position');
     const index = mesh.geometry?.getIndex();
     if (!attribute || attribute.itemSize !== 3 || !Number.isSafeInteger(attribute.count) ||
@@ -55,6 +74,10 @@ export function extractNativeStaticColliders(scene, { staticMeshes = [], walkabl
       if (!Number.isSafeInteger(vertex) || vertex < 0 || vertex >= attribute.count)
         throw fail('NATIVE_STATIC_GEOMETRY_INVALID');
       indices[i] = vertex;
+    }
+    // Mirroring reverses triangle winding; preserve outward normals.
+    if(determinant<0)for(let i=0;i<indices.length;i+=3){
+      const index=indices[i+1];indices[i+1]=indices[i+2];indices[i+2]=index;
     }
     colliders.push({ shape: 'trimesh', vertices, indices });
   }

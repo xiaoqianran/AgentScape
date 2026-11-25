@@ -1,4 +1,6 @@
 // A read-only semantic projection. State and geometry remain owned by their providers.
+import { inspectNativePhysics } from './NativePhysicsState.js';
+import { nativePhysicalTarget,nativeSupportContacts } from '../interaction/NativePhysicalTarget.js';
 const spatialPredicates = new Set(['ON', 'NEAR', 'INSIDE', 'CONTAINS', 'SUPPORTS']);
 
 function recordFor(runtime, id) {
@@ -8,6 +10,24 @@ function recordFor(runtime, id) {
 }
 
 function unknown(base, reason) { return { ...base, status:'unknown', reason }; }
+
+/** Mixed/native ON uses current solver contact, not a historical place receipt. */
+function physicalSupportFact(runtime,subject,target,surfaceId){
+  const nativeSubject=nativePhysicalTarget(runtime.entities,runtime.physics,subject);
+  const nativeTarget=nativePhysicalTarget(runtime.entities,runtime.physics,target);
+  const a=nativeSubject||recordFor(runtime,subject),b=nativeTarget||recordFor(runtime,target);
+  if(!a||!b||a.active===false||b.active===false||!runtime.physics?.getPosition(subject)||!runtime.physics?.getPosition(target))
+    return {truth:'unknown',reason:'SUPPORT_PHYSICS_UNAVAILABLE'};
+  if(a.state?.heldBy)return {truth:'false',reason:'OBJECT_HELD'};
+  if(!runtime.physics.hasCapability?.('scene-query'))return {truth:'unknown',reason:'SUPPORT_PHYSICS_UNAVAILABLE'};
+  const geometry=runtime.spatial.supportGeometry(subject,target,{surfaceId,tolerance:.03});
+  if(!geometry.supported)return {truth:'false',reason:geometry.reason||'SUPPORT_GEOMETRY_MISMATCH'};
+  const contacts=nativeSupportContacts(runtime.physics,subject,target);
+  const motion=runtime.physics.getMotion(subject);
+  if(!motion||!Number.isFinite(motion.linearSpeed)||!Number.isFinite(motion.angularSpeed))return {truth:'unknown',reason:'SUPPORT_MOTION_UNAVAILABLE'};
+  if(!contacts.length||motion.linearSpeed>.04||motion.angularSpeed>.12)return {truth:'false',reason:!contacts.length?'SUPPORT_CONTACT_MISSING':'SUPPORT_MOVING'};
+  return {truth:'true',source:'physics-support',evidenceKind:'solver-contact+spatial-geometry',evidence:{geometry,contacts:contacts.slice(0,4),motion}};
+}
 
 export class SemanticWorldView {
   constructor(runtime) { this.runtime = runtime; }
@@ -22,7 +42,7 @@ export class SemanticWorldView {
     if (project && runtime.projectCapabilities.attachmentOf?.(id) === 'runtime') {
       return { exists:false, source:'none', reason:'PROJECT_ATTACHMENT_TARGET_MISSING' };
     }
-    if (project) return { exists:true, source:'project' };
+    if (project) return { exists:true, source:'project',...(inspectNativePhysics(runtime,id)?{providers:['project','native-physics']}:{}) };
     return { exists:false, source:'none', reason:'OBJECT_NOT_FOUND' };
   }
 
@@ -46,6 +66,7 @@ export class SemanticWorldView {
     if (runtime?.projectCapabilities?.has?.(targetId)) {
       readers.push(['project', () => runtime.projectCapabilities.readState(targetId)]);
     }
+    if (inspectNativePhysics(runtime,targetId)) readers.push(['native-physics',()=>inspectNativePhysics(runtime,targetId)?.state]);
     if (runtime?.thermal?.has?.(targetId)) readers.push(['simulation',()=>runtime.thermal.readState(targetId)]);
     const selected = readers.filter(([provider]) => source == null || provider === source);
     if (!selected.length) return unknown(base, 'STATE_PROVIDER_UNAVAILABLE');
@@ -78,6 +99,12 @@ export class SemanticWorldView {
     try {
       graph.update?.();
       for (const target of targets) {
+        if(['ON','SUPPORTS'].includes(predicate)&&[subject,target].some(id=>this.runtime?.entities?.get?.(id)?.source==='native')){
+          const fact=physicalSupportFact(this.runtime,predicate==='ON'?subject:target,predicate==='ON'?target:subject,surfaceId);
+          if(fact.truth==='true'||!objectAnyOf)return {...base,source:'physics-support',...fact};
+          if(fact.truth==='unknown')unobservable=true;
+          continue;
+        }
         const edges = graph.list({ subject, predicate, object:target });
         const matching = edges.find(edge => !surfaceId || edge.meta?.surfaceId === surfaceId);
         if (matching) {

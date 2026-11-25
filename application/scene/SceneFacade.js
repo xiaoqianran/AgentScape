@@ -8,6 +8,7 @@ import { SCENE_LEGACY_SKILLS } from './SceneSkillNames.js';
 import * as z from 'zod/v4';
 import { WorldRuntime } from '../../modules/world/runtime/WorldRuntime.js';
 import { RenderingSystem } from '../../modules/world/runtime/systems/RenderingSystem.js';
+import { navigationRecoveryCandidate } from '../../modules/world/runtime/systems/NavigationSystem.js';
 import { findEnvironment } from '../../modules/world/content/environments.js';
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { assetManifests } from '../../modules/asset/registry/manifests/index.js';
@@ -25,7 +26,7 @@ export { sceneError, sceneAgentModelSchema, sceneInteractionSchema } from './Sce
 export { SCENE_LEGACY_SKILLS } from './SceneSkillNames.js';
 
 const services = new WeakMap();
-const facadeSkills = ['verifyScene', 'observeScene', 'interactScene', 'planSceneTask'];
+const facadeSkills = ['verifyScene', 'observeScene', 'interactScene', 'planSceneTask','diagnoseSceneNavigation'];
 
 /** One application service per existing Runtime. No entity or asset cache. */
 export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled World', codeExecutor = null, codeGLTFLoader = undefined, lifecycle = null, nativeEditables = null } = {}) {
@@ -41,13 +42,14 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
   const persistence = createScenePersistence(world, { name, styles, assertIdle, exclusive, result });
   const withListingCapabilities = (listing, actor) => ({ ...listing,
     entities:listing.entities.map(entry => {
-      const combined = world.store.has(entry.id) && world.projectCapabilities.has(entry.id)
+      const combined = (world.store.has(entry.id) || world.entities?.get(entry.id)?.source==='native') && world.projectCapabilities.has(entry.id)
         ? inspectCapabilities(world, entry.id, {actor}) : null;
       return { ...entry, capabilities:combined?.capabilities || describeCapabilities(entry),
         ...(combined?.providers ? {
           providers:combined.providers, state:combined.state,
           stateProviders:combined.stateProviders, stateConflicts:combined.stateConflicts
         } : {}),
+        ...(combined?.physics?{physics:combined.physics,actions:combined.actions}:{}),
         ...(world.thermal.has(entry.id) ? {simulation:world.thermal.inspect(entry.id)} : {}) };
     }) });
   const facade = {
@@ -64,6 +66,47 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       assertIdle();id.parse(actor);
       if(!facade.actors().agents.some(agent=>agent.id===actor))throw sceneError('ACTOR_NOT_AGENT');
       selectedActor=actor;world.events.emit('scene.actor.selected',{actor});return facade.actors();
+    },
+    async previewNavigation(input) {
+      const {actor,position}=z.object({actor:id,position:z.tuple([z.number().finite(),z.number().finite(),z.number().finite()])}).strict().parse(input);
+      return exclusive(async()=>{
+        if(!facade.actors().agents.some(agent=>agent.id===actor))throw sceneError('ACTOR_NOT_AGENT');
+        const start=world.physics.getPosition(actor);
+        if(!start)throw sceneError('ACTOR_PHYSICS_UNAVAILABLE');
+        return world.navigation.findPath(start,position);
+      });
+    },
+    async diagnoseNavigation(input){
+      const {actor,position}=z.object({actor:id,position:z.tuple([z.number().finite(),z.number().finite(),z.number().finite()])}).strict().parse(input);
+      return exclusive(async()=>{
+        if(!facade.actors().agents.some(agent=>agent.id===actor))throw sceneError('ACTOR_NOT_AGENT');
+        const start=world.physics.getPosition(actor);
+        if(!start)throw sceneError('ACTOR_PHYSICS_UNAVAILABLE');
+        const diagnosis=await world.navigation.suggestActions(start,position);
+        const candidates=[];
+        for(const candidate of diagnosis.candidates){
+          const source=candidate.source||'asset';
+          const capability=inspectCapabilities(world,candidate.objectId,{actor})?.capabilities.find(c=>
+            c.name===candidate.action&&c.partName===candidate.partName&&c.source===source);
+          let actorEligibility={eligible:Boolean(capability&&(capability.available===true||capability.canApproach)),
+            reason:capability?.reason||(!capability?'ACTION_UNSUPPORTED':null),approachChecked:false};
+          if(source==='native-physics'&&actorEligibility.eligible&&navigationRecoveryCandidate(candidate)){
+            const pose=await world.interactions.previewNativeJointApproach(actor,candidate.objectId,candidate.action,candidate.partName);
+            actorEligibility={eligible:Boolean(pose),reason:pose?null:'NO_INTERACTION_POSE',approachChecked:true,
+              ...(pose?{pose:{position:pose.position,routeCost:pose.routeCost}}:{})};
+          }
+          candidates.push({...candidate,actorEligibility});
+        }
+        const chosen=candidates.find(c=>navigationRecoveryCandidate(c)&&c.actorEligibility.eligible);
+        const interaction=chosen?{action:'invoke',actor,target:chosen.objectId,source:chosen.source||'asset',name:chosen.action,
+          partName:chosen.partName,args:chosen.source==='native-physics'?{target:chosen.target}:{}}:null;
+        return {...diagnosis,actor,position,candidates,status:chosen?'action-candidate':diagnosis.status==='action-candidate'?'blocked':diagnosis.status,
+          recommendation:interaction?{interaction,provisional:true,then:{actor,position},
+            ...(chosen.counterfactual.progress?{progress:chosen.counterfactual.progress}:{}),
+            instruction:chosen.counterfactual.progress
+              ?'This action may extend the reachable route, but the destination remains blocked. Execute only for the authorized goal; verify the actual joint action, re-observe and diagnose again.'
+              :'Execute the discovered action for the authorized task goal; re-observe and re-query the real route after execution.'}:null};
+      });
     },
     inspect(target, options = {}) {
       assertOpen(); z.string().min(1).max(256).parse(target);
@@ -216,6 +259,8 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
   // Agent planning uses these same observations, jobs and verifier, with no shadow scene.
   world.skills?.register({name:'observeScene',description:'Observe all live objects, spatial relations and affordances from the shared Scene API. Use actor for reach checks; canApproach is a planning hint, not current availability.',permissions:['world.read','physics.read'],required:[],properties:{actor:{type:'string'}},
     handler:({actor},execution)=>facade.observe({actor:actor || execution.context.actor || undefined})});
+  world.skills?.register({name:'diagnoseSceneNavigation',description:'Read-only navigation diagnosis from the current actor solver pose to a known world position. For a blocked route, test registered joint target poses against current geometry and return an actor-eligible provisional interaction, if any. A partial-route-progress recommendation advances toward the destination but does not claim the complete route is reachable. Use interactScene with the current unsatisfied goalId to execute it, then diagnose again; a hypothetical route never verifies a real action.',permissions:['world.read','spatial.read','physics.read'],required:['actor','position'],
+    properties:{actor:{type:'string'},position:{type:'array',items:{type:'number'},minItems:3,maxItems:3}},handler:input=>facade.diagnoseNavigation(input)});
   world.skills?.register({name:'interactScene',description:'Execute one discovered Scene interaction and await its verified Job result. For goal-driven tasks declare planSceneTask first and supply goalId. Environment actions automatically approach a reachable unoccluded pose.',permissions:['world.write','physics.read','spatial.read'],required:['interaction'],properties:{interaction:z.toJSONSchema(sceneInteractionSchema),goalId:{type:'string'}},mutates:true,manualMutation:true,batchable:false,
     handler:async({interaction},execution)=>{
       if(execution.context.signal?.aborted)throw sceneError('TASK_CANCELLED');

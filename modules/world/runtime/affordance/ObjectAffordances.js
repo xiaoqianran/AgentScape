@@ -1,6 +1,8 @@
 import { compileInteractionContract } from '../interaction/InteractionContract.js';
 import { assetAdmission } from '../../../asset/model/admission.js';
 import { inferCarryCapability } from '../interaction/CarryCapability.js';
+import { nativeCarryRecord } from '../interaction/NativePhysicalTarget.js';
+import { rigidBodyActions,manipulationParameters } from '../interaction/ManipulationActions.js';
 
 const blocked = reason => ({ available: false, reason });
 const reasonOf = error => error.details?.reason || error.code || 'CAPABILITY_CHECK_FAILED';
@@ -46,11 +48,13 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
     add('pickup', {}, { execution: 'interaction',
       capabilitySource:manifest.actions?.includes('pickup') ? 'declared' : 'physical-inference',
       graspVerified:false, ...check });
+    if(actorId&&runtime.interactions?.heldByAgent?.(actorId)===id)add('drop',{}, {execution:'interaction',available:true,reason:null,graspVerified:false});
   }
   if (manifest.surfaces?.length) {
     const held = actorId && runtime.interactions?.heldByAgent?.(actorId);
+    const heldRecord=held?(runtime.store.has(held)?runtime.store.get(held):nativeCarryRecord(runtime.entities,runtime.physics,held)):null;
     add('place', { surfaceId: { type: 'string', enum: manifest.surfaces.map(surface => surface.id), required: false } }, {
-      execution: 'interaction', ...(!actorId ? {} : !held ? blocked('NOT_HOLDING_OBJECT') : !runtime.interactions.supports(runtime.store.get(held), 'place') ? blocked('ACTION_UNSUPPORTED') : {})
+      execution: 'interaction', ...(!actorId ? {} : !held ? blocked('NOT_HOLDING_OBJECT') : !heldRecord||!runtime.interactions.supports(heldRecord, 'place') ? blocked('ACTION_UNSUPPORTED') : {})
     });
   }
   for (const contract of compileInteractionContract(manifest).contracts) {
@@ -84,10 +88,9 @@ export function inspectObjectAffordances(runtime, id, actorId = null) {
     });
   }
   if (manifest.physics?.colliders?.length) {
-    for (const action of ['push', 'drag', 'rotate']) {
+    for (const action of rigidBodyActions) {
       const capability = runtime.interactions?.manipulationCapability?.(id, action) || blocked('EXECUTOR_UNAVAILABLE');
-      const parameters = action === 'rotate' ? { axis:{type:'array',length:3,nonzero:true,required:true}, angle:{type:'number',minimum:-Math.PI,maximum:Math.PI,unit:'radian',required:true}, maxTorque:{type:'number',minimum:0,exclusiveMinimum:true,maximum:1000,default:100,unit:'newton-meter'} }
-        : { direction:{type:'array',length:3,nonzero:true,horizontal:true,required:true}, distance:{type:'number',minimum:0,exclusiveMinimum:true,maximum:5,unit:'meter',required:true}, maxForce:{type:'number',minimum:0,exclusiveMinimum:true,maximum:1000,default:100,unit:'newton'} };
+      const parameters=manipulationParameters(action);
       add(action, parameters, { execution:'interaction', ...(!capability.available ? capability : {}),
         ...(actorId && runtime.interactions?.heldByAgent?.(actorId) ? blocked('HANDS_FULL') : {}) });
     }

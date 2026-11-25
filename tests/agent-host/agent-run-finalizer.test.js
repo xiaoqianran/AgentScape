@@ -24,28 +24,36 @@ const normalizeDsh=()=>{
   }
   return normalizeExecution('dsh',events);
 };
-function fixture({revision=5,after=revision,verification='verified',projectState=null,transformChecks=checks=>checks}={}){
+function fixture({revision=5,after=revision,verification='verified',projectState=null,transformChecks=checks=>checks,snapshotFrame=12,imageFrame=snapshotFrame,omitSnapshot=false,observeProject=null}={}){
   const invoked=[],projectRead=[];
   const connection=async ({projectScope})=>({
     worldSessionId:'world-session',
-    tools:['scene_verify','scene_observe','studio_project','scene_query'].map(name=>({
+    tools:['scene_verify','scene_observe','studio_project'].map(name=>({
       name,execute:async(_id,args)=>{
         invoked.push({name,args,projectScope});
         if(name==='scene_observe'){
           const count=invoked.filter(item=>item.name==='scene_observe').length;
-          return result({schema:'agentscape.scene-object-page',revision:count===1?revision:after});
+          return result({schema:'agentscape.scene-object-page',revision:count===1?revision:after,...(observeProject?{projectBinding:observeProject}:{})});
         }
         if(name==='studio_project'){
           projectRead.push(args);
           return result(projectState || {active:true,revision:3,runningRevision:3,runtimeId:'runtime-1',project:{id:'world_abc'},observation:{project:{entities:[{id:'tree'}]}}});
         }
-        if(name==='scene_query')return result({status:'inspected',projectId:projectState?.project?.id||'world_abc',
-          revision:3,runtimeId:'runtime-1',sceneRevision:revision,node:{nodePath:''},counts:{nodes:2,meshes:1},boundsComplete:true});
         const checks=transformChecks(args.criteria.map(check=>({...check,verified:verification==='verified'})));
-        return result(verification==='verified' ? accepted(checks,revision) : {
+        const value=verification==='verified' ? accepted(checks,revision) : {
           schema:'agentscape.scene-result',operation:'verify',status:'succeeded',revision,
           verification:{status:'unverified',evidence:{status:'world-incomplete',checks}}
-        });
+        };
+        if(args.snapshot&&!omitSnapshot){
+          const binding={projectId:projectState?.project?.id||'world_abc',
+            revision:projectState?.revision??3,runtimeId:projectState?.runtimeId||'runtime-1',sceneRevision:revision};
+          const playback={frames:snapshotFrame,simulation:{tick:8}};
+          value.snapshot={...binding,projectRevision:binding.revision,frame:snapshotFrame,tick:8,native:{...binding,status:'inspected',
+            node:{nodePath:''},counts:{nodes:2,meshes:1},boundsComplete:true,playback}};
+          if(args.snapshot==='visual')value.snapshot.image={...binding,status:'captured',mime:'image/jpeg',
+            width:640,height:360,imageBase64:'a'.repeat(20),playback:{...playback,frames:imageFrame}};
+        }
+        return result(value);
       }
     })),
     close:async()=>{}
@@ -85,6 +93,15 @@ describe('shared Pi / DSH execution and Host admission',()=>{
     const {output,mock}=await finish('pi',normalizePi(),{},{finishReason:'length'});
     expect(output.verification.reason).toBe('MODEL_OUTPUT_TRUNCATED');
     expect(mock.invoked).toHaveLength(0);
+  });
+  it('samples an existing code world even when no new project or visual review was requested',async()=>{
+    const observeProject={projectId:'world_abc',projectRevision:3,runningRevision:3,runtimeId:'runtime-1'};
+    const {output,mock}=await finish('pi',normalizePi(),{observeProject});
+    expect(output).toMatchObject({taskStatus:'completed',world:{projectId:'world_abc',runtimeId:'runtime-1'},
+      evidence:{snapshot:{frame:12,tick:8},persistence:{required:false}}});
+    expect(mock.invoked.find(call=>call.name==='scene_verify').args.snapshot).toBe('inspect');
+    const stale=await finish('pi',normalizePi(),{observeProject:{...observeProject,runningRevision:2}});
+    expect(stale.output.verification.reason).toBe('TASK_PROJECT_CHANGED');
   });
   it('rejects stale verification when a mutation followed scene_verify',async()=>{
     const execution=[...normalizePi(),...normalizeExecution('pi',[tool('studio_project',{operation:'run'},{status:'project-running'})])];
@@ -194,6 +211,18 @@ describe('shared Pi / DSH execution and Host admission',()=>{
       mcpConnector:fixture(options).connection,deferVisualReview:true});
     expect(pending).toMatchObject({taskStatus:'awaiting-visual',verified:false,verification:{status:'verified'},
       evidence:{worldStatus:'verified',dimensions:{visual:{required:true,status:'pending'}}}});
+    expect(pending.evidence.snapshot).toMatchObject({frame:12,tick:8,scope:'sampled-runtime-state',imageDigest:expect.stringMatching(/^[a-f0-9]{64}$/)});
+    const wrongFrame=await finalizeRun({output:{backend:'pi',execution:[...edits,...proof]},project,configuration:config,
+      mcpConnector:fixture({...options,imageFrame:13}).connection,deferVisualReview:true});
+    expect(wrongFrame).toMatchObject({taskStatus:'incomplete',verified:false,verification:{reason:'VISUAL_SNAPSHOT_UNAVAILABLE'}});
+    const missingFrame=await finalizeRun({output:{backend:'pi',execution:[...edits,...proof]},project,configuration:config,
+      mcpConnector:fixture({...options,omitSnapshot:true}).connection});
+    expect(missingFrame.verification.reason).toBe('PROJECT_SNAPSHOT_MISSING');
+    const images=[];
+    const sampled=await finalizeRun({output:{backend:'pi',execution:[...edits,...proof]},project,configuration:config,
+      mcpConnector:fixture(options).connection,deferVisualReview:true,onVisualCapture:image=>images.push(image)});
+    expect(images).toHaveLength(1);
+    expect(JSON.stringify(sampled)).not.toContain('imageBase64');
     // A free-form THREE.Scene can be visually rich without registerEntity() calls.
     const emptyRegistry=fixture({projectState:{...options.projectState,observation:{project:{entities:[]}}}});
     const noSemantics=await finalizeRun({output:{backend:'pi',execution:[...edits,...normalizeExecution('pi',[

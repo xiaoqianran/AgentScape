@@ -1,5 +1,6 @@
 import { openCodeProject, parseCodeProject } from '../../../application/native-scene/CodeProject.js';
 import { AgentTools } from '../../../application/AgentTools.js';
+import { EditorCommandQueue } from '../editor/EditorCommandQueue.js';
 import { SCENE_LEGACY_SKILLS } from '../../../application/scene/SceneFacade.js';
 import { AuthoringWorldStore } from '../persistence/AuthoringWorldStore.js';
 import { projectTemplate, projectGuide } from './projectTemplate.js';
@@ -40,9 +41,30 @@ export class StudioCodeProjects {
   snapshot = () => this.current;
   get scene() { return this.session?.scene || this.baseScene; }
   get world() { return this.session?.world || this.baseWorld; }
+  /** One GUI operation owner per running world, independent of mounted panels. */
+  get interactionCommands() {
+    const session=this.session;
+    if(!session)return null;
+    if(this.sceneCommands?.session!==session){
+      this.releaseInteractionCommands();
+      const commands=new EditorCommandQueue({tools:this.activeTools,scene:session.scene,
+        onCommitted:()=>session.world.events.emit('studio.scene.action.changed')});
+      const stop=session.world.events.on('scene.restored',()=>commands.actions.clearCompleted());
+      this.sceneCommands={session,commands,stop};
+    }
+    return this.sceneCommands.commands;
+  }
+  releaseInteractionCommands() {
+    this.sceneCommands?.stop?.();
+    this.sceneCommands?.commands.actions.reset();
+    this.sceneCommands=null;
+  }
   visualObject(id) {
-    return this.session?.scene.native?.editables?.getObject(id)
-      || this.session?.world.store.get(id)?.object || null;
+    const session=this.session;
+    if(!session)return null;
+    return session.scene.native?.editables?.getObject(id)
+      || (session.world.store.has(id)?session.world.store.get(id).object:null)
+      || session.world.entities?.get(id)?.object || null;
   }
   emit(patch = {}) {
     this.current = Object.freeze({ ...this.current, visible:this.visible, active:Boolean(this.session), busy:this.busy,
@@ -280,11 +302,13 @@ export class StudioCodeProjects {
         try { next.close(); } catch { /* 保留首次错误 */ }
         throw error;
       }
+      this.releaseInteractionCommands();
       previousFrameError?.();
       this.stopFrameError = nextFrameError;
       this.runtimeId=crypto.randomUUID();
       this.emit();
-      return { status:'project-running', id:project.id, revision:this.revision, runtimeId:this.runtimeId, observation };
+      return { status:'project-running', id:project.id, revision:this.revision, runtimeId:this.runtimeId, observation,
+        ...(next.nativeRestore?{nativeRestore:next.nativeRestore}:{}) };
     });
   }
   /** Guard live runtime paths and prevent using a stale path after rerunning the same draft. */
@@ -308,8 +332,46 @@ export class StudioCodeProjects {
     return {projectId:this.draft.id,revision:this.revision,runtimeId:this.runtimeId,sceneRevision,...evidence,
       ...((method==='inspect'||method==='capture')&&session.playback?{playback:session.playback.status()}: {})};
   }
+  /** Verify and sample one synchronous host frame; never pause or step the simulation. */
+  verifySnapshot(criteria,mode){
+    const session=this.session;
+    if(!session?.playback||!this.draft)throw fail('PROJECT_SNAPSHOT_UNAVAILABLE');
+    this.requireRunningRevision(this.revision,this.runtimeId);
+    const expectedRevision=this.revision,expectedRuntimeId=this.runtimeId;
+    const expectedSceneRevision=session.scene.observe({limit:1}).revision;
+    const frame=session.playback.status();
+    const result=session.scene.verify(criteria);
+    const options={expectedRevision,expectedRuntimeId,expectedSceneRevision};
+    const snapshot={projectId:this.draft.id,projectRevision:expectedRevision,runtimeId:expectedRuntimeId,
+      sceneRevision:expectedSceneRevision,frame:frame.frames,tick:frame.simulation.tick};
+    try{snapshot.native=this.inspect({...options,limit:1});}
+    catch(error){snapshot.nativeError=error.code||'NATIVE_INSPECT_UNAVAILABLE';}
+    if(mode==='visual'&&result.verification?.status==='verified'){
+      try{snapshot.image=this.capture({...options,maxWidth:768,maxHeight:432});}
+      catch(error){snapshot.imageError=error.code||'VISUAL_CAPTURE_UNAVAILABLE';}
+    }
+    this.requireRunningRevision(expectedRevision,expectedRuntimeId,expectedSceneRevision);
+    const after=session.playback.status();
+    if(this.session!==session||result.revision!==expectedSceneRevision||
+        after.frames!==snapshot.frame||after.simulation.tick!==snapshot.tick)
+      throw fail('PROJECT_SNAPSHOT_CHANGED');
+    return {...result,snapshot};
+  }
+  /** Retry the entire sample, never attach a later frame to earlier checks. */
+  async verifySnapshotWhenReady(criteria,mode){
+    const revision=this.revision,runtimeId=this.runtimeId;
+    const sceneRevision=this.session?.scene.observe({limit:1}).revision;
+    const deadline=performance.now()+2000;
+    for(;;){
+      this.requireRunningRevision(revision,runtimeId,sceneRevision);
+      const result=this.verifySnapshot(criteria,mode);
+      if(result.snapshot.imageError!=='VISUAL_CANVAS_NOT_READY'||performance.now()>=deadline)return result;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }
+  }
   inspect(options){return this.observeNative('inspect',options);}
   search(options){return this.observeNative('search',options);}
+  physicsCandidate(options){return this.observeNative('physicsCandidate',options);}
   inspectBatch(options){return this.observeNative('inspectBatch',options);}
   suggestViews(options){return this.observeNative('suggestViews',options);}
   async timeline({expectedRevision,expectedRuntimeId,expectedSceneRevision,command='status',steps=1}={}) {
@@ -400,6 +462,7 @@ export class StudioCodeProjects {
         try { this.onActivate(previous); } catch { /* 保留首次错误 */ }
         throw error;
       }
+      this.releaseInteractionCommands();
       this.runningRevision = null;
       this.runtimeId=null;
       this.stopFrameError?.();
@@ -409,7 +472,7 @@ export class StudioCodeProjects {
     this.visible = false; this.emit();
     return { status:'project-closed' };
   }
-  dispose() { this.stopFrameError?.(); this.session?.close(); this.listeners.clear(); this.pendingBatch=null; this.lastBatch=null; }
+  dispose() { this.releaseInteractionCommands();this.stopFrameError?.(); this.session?.close(); this.listeners.clear(); this.pendingBatch=null; this.lastBatch=null; }
   wrapTools(base) {
     const controller = this;
     const definitions = [

@@ -92,6 +92,7 @@ export const PHYSICS_API_EXCLUDED = Object.freeze({
   captureArticulationPose:'SceneSerializer-owned articulation snapshot, not a user physics command',
   restoreArticulationPose:'SceneSerializer-owned pose restoration requires matching scene lifetime',
   manipulationBody:'InteractionSystem-owned solver body and collider metadata for capability checks',
+  manipulationBounds:'Solver-space bounds for registered root colliders used by interaction and placement',
   constructor:'Lab host lifecycle',
   init:'Lab host lifecycle (backend + world creation)',
   dispose:'Lab host lifecycle',
@@ -476,6 +477,12 @@ const definitions = [
     description:'【关节与铰接】按给定关节坐标求算部件各 collider 的世界位姿（假设位姿，不改世界）。',
     parameters:obj({ id:ID, partName:PART, coordinate:NUM }, ['id','coordinate']),
     invoke:(ctx, a) => physicsOf(ctx).articulationColliderPoses(a.id, a.partName || 'door', a.coordinate)
+  },
+  {
+    name:'physics.nativeNavigationJointPose', group:'反事实证据', readOnly:true,
+    description:'【反事实证据】读取原生关节假设目标下的导航障碍姿态，不修改世界。',
+    parameters:obj({ id:ID, partName:PART, target:NUM }, ['id','partName','target']),
+    invoke:(ctx, a) => physicsOf(ctx).nativeNavigationJointPose(a.id, a.partName, a.target)
   },
 
   // ---------------------------------------------------------------- 反事实证据

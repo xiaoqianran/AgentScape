@@ -20,13 +20,12 @@ function fromTransform(entry:VisualObject) {
 }
 const fallback={position:['0','0','0'],rotation:['0','0','0'],scale:['1','1','1'],visible:true};
 
-export function CodeWorldVisualEditor({controller}:{controller:any}){
+export function CodeWorldVisualEditor({controller,selected,onSelect:setSelected}:{controller:any;selected:string;onSelect:(id:string)=>void}){
   const state:any=useSyncExternalStore(controller?.subscribe || emptyCodeSubscribe,
     controller?.snapshot || emptyCodeSnapshot,controller?.snapshot || emptyCodeSnapshot);
   const [objects,setObjects]=useState<VisualObject[]>([]);
   const [missing,setMissing]=useState<string[]>([]);
   const [history,setHistory]=useState({undo:0,redo:0,canUndo:false,canRedo:false});
-  const [selected,setSelected]=useState('');
   const [fields,setFields]=useState(fallback);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
@@ -65,7 +64,14 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
         scale:[record.transform.scale,record.transform.scale,record.transform.scale]
       }
     }));
-    setObjects([...native,...managed]);
+    const existing=new Set([...native,...managed].map(item=>item.id));
+    const physical:VisualObject[]=(view.project?.entities||[]).filter((entry:any)=>entry.physics&&!existing.has(entry.id)).flatMap((entry:any)=>{
+      const object=controller.visualObject(entry.id);
+      return object?[{id:entry.id,label:entry.label||entry.id,source:'code',properties:[],transform:{
+        position:object.position.toArray(),quaternion:object.quaternion.toArray(),scale:object.scale.toArray(),visible:object.visible
+      }}]:[];
+    });
+    setObjects([...native,...managed,...physical]);
     setMissing(view.nativeEditables?.unresolved || []);
     setHistory(view.history || {undo:0,redo:0,canUndo:false,canRedo:false});
     setRevision(value=>value+1);
@@ -76,7 +82,7 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
     refresh();
     const world=controller?.session?.world;
     if(!world?.events?.on)return;
-    const unsubscribe=['native.edit.changed','native.edit.registered','native.edit.unregistered','history.changed','history.recorded','history.applied','scene.restored']
+    const unsubscribe=['native.edit.changed','native.edit.registered','native.edit.unregistered','entity.registered','entity.removed','entity.phase-changed','history.changed','history.recorded','history.applied','scene.restored']
       .map(event=>world.events.on(event,refresh));
     return ()=>unsubscribe.forEach(stop=>stop?.());
   },[controller,session,state.runningRevision,state.active]);
@@ -133,7 +139,7 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
 
   useEffect(()=>{
     const selectedObject=objects.find(item=>item.id===selected)||null;
-    gizmoRef.current?.select(selectedObject);
+    gizmoRef.current?.select(selectedObject?.properties.length?selectedObject:null);
   },[session,selected,objects]);
 
   useEffect(()=>{
@@ -321,8 +327,8 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
           {label}
         </button>)}
       </div>
-      <small data-gizmo-status={session&&selectedObject?'active':'inactive'}>
-        {selectedObject?'拖动场景中的三轴控件预览，松开鼠标提交一次；Esc 取消。':'先选中场景对象以显示三轴控件。'}
+      <small data-gizmo-status={session&&selectedObject?.properties.length?'active':'inactive'}>
+        {selectedObject?.properties.length?'拖动场景中的三轴控件预览，松开鼠标提交一次；Esc 取消。':'先选中场景对象以显示三轴控件。'}
         {hoverAxis?' · 当前轴：'+hoverAxis:''}
       </small>
       <label>场景对象
@@ -349,7 +355,7 @@ export function CodeWorldVisualEditor({controller}:{controller:any}){
           <input type="checkbox" checked={fields.visible} disabled={busy}
             onChange={event=>setFields(current=>({...current,visible:event.target.checked}))}/>显示对象
         </label>:null}
-        <button disabled={busy||state.busy} type="button" onClick={()=>void applyChanges()}>应用变换</button>
+        <button disabled={busy||state.busy||!selectedObject.properties.length} type="button" onClick={()=>void applyChanges()}>应用变换</button>
         {selectedObject.source==='editor'?<button disabled={busy||state.busy} type="button" onClick={()=>void remove()}>删除编辑层物体</button>:null}
       </div>:null}
       {missing.length?<p role="alert">代码对象已变更，以下编辑记录暂时无法匹配：{missing.join('、')}</p>:null}

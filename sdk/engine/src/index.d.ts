@@ -1,6 +1,7 @@
 export { attach } from './core.js';
 export type { SemanticWorld, SemanticScene, SemanticObject3D, SemanticTarget, SemanticAction, SemanticDefinition, SemanticEntity, SemanticEvent, SemanticPlugin } from './core.js';
 export type Vec3 = [number, number, number];
+export type NavigationRecoveryProgress={kind:'partial-route-progress';endpointBefore:Vec3;endpointAfter:Vec3;remainingBefore:number;remainingAfter:number;gain:number;minimumGain:number};
 export type Quaternion = [number, number, number, number];
 export type CapabilityLevel = 'visual' | 'physical' | 'interactive';
 export interface CodeExecutionOptions { mode: 'disabled' | 'worker-wasm' | 'trusted-local' | 'os-isolated'; authorized?: boolean; remote?: boolean; wallTimeoutMs?: number; timeoutMs?: number; memoryBytes?: number; configPath?: string }
@@ -47,7 +48,7 @@ export interface AffordanceAction {
   contract?: { id: string; capability: string; action: string; target: { entityId: string; partName: string }; preconditions: unknown[]; effects: unknown[]; stateTransition: Record<string, unknown>; verifierTarget: Record<string, unknown> };
 }
 export interface SemanticCapability {
-  id:string; target:string; name:string; action:'invoke'; source:'asset'|'environment'|'project';
+  id:string; target:string; name:string; action:'invoke'; source:'asset'|'environment'|'project'|'native-physics';
   executor:'query'|'editor'|'interaction'|'world-action'|'project-action';
   description:string; parameters:Record<string,unknown>; available:boolean|null;
   partName?:string; reason?:string; canApproach?:boolean; verification:string;
@@ -68,7 +69,7 @@ export type PhysicalInteraction = { action: 'push' | 'drag'; actor: string; targ
   | { action: 'rotate'; actor: string; target: string; args: { axis: Vec3; angle: number; maxTorque?: number } }
   | { action: 'slide'; actor: string; target: string; args: { part: string } & ({ target: number; distance?: never } | { distance: number; target?: never }) }
   | { action: 'rotateJoint'; actor: string; target: string; args: { part: string } & ({ target: number; angle?: never } | { angle: number; target?: never }) };
-export type Interaction = { action: 'invoke'; target: string; name: string; actor?: string; partName?: string; source?:'asset'|'environment'|'project'; args?: Record<string, unknown> } | { action: 'custom'; target: string; name: string; args?: Record<string, unknown>; actor?: string } | PhysicalInteraction | { action: 'navigate'; actor: string; position: Vec3 } | { action: 'pickup'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string }
+export type Interaction = { action: 'invoke'; target: string; name: string; actor?: string; partName?: string; source?:'asset'|'environment'|'project'|'native-physics'; args?: Record<string, unknown> } | { action: 'custom'; target: string; name: string; args?: Record<string, unknown>; actor?: string } | PhysicalInteraction | { action: 'navigate'; actor: string; position: Vec3 } | { action: 'pickup' | 'drop'; actor: string; target: string } | { action: 'place'; actor: string; target: string; surfaceId?: string } | { action: 'open' | 'close'; actor: string; target: string; partName?: string }
   | { action: 'turn_on' | 'turn_off' | 'pull_out' | 'return'; actor: string; target: string }
   | { action: 'write'; actor: string; target: string; args: { text: string } };
 export interface SceneHandle {
@@ -76,6 +77,8 @@ export interface SceneHandle {
   registerAction(definition: ProjectActionDefinition): () => void;
   registerStateMachine(definition: ProjectStateMachineDefinition): ProjectStateMachineHandle;
   actors():{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
+  previewNavigation(input:{actor:string;position:Vec3}):Promise<{reachable:boolean;reason?:string|null;path:Vec3[];cost:number|null;buildVersion?:number}>;
+  diagnoseNavigation(input:{actor:string;position:Vec3}):Promise<{status:string;actor:string;position:Vec3;current:{reachable:boolean;reason?:string|null;path:Vec3[]};candidates:Array<{objectId:string;partName:string;source?:string;action:string;target?:number;eligibility:{eligible:boolean;reason?:string};actorEligibility:{eligible:boolean;reason?:string|null;approachChecked?:boolean;pose?:{position:Vec3;routeCost:number|null}};counterfactual:{provisional:true;assumption:string;reachable:boolean;finalDistance?:number|null;progress?:NavigationRecoveryProgress}}>;recommendation:{interaction:Interaction;provisional:true;then:{actor:string;position:Vec3};progress?:NavigationRecoveryProgress;instruction:string}|null}>;
   selectActor(actor:string):{agents:Array<{id:string;position:Vec3|null}>;selected:string|null};
   prepareAsset(input:Omit<GLBInput,'review'>):Promise<CapabilityProposal>;
   /** Temporary Rapier tests of source-bound hypotheses; never authorizes actions. */
@@ -104,6 +107,7 @@ export interface SceneHandle {
 export interface NativeSceneOptions {
   scene: any; camera: any; renderer: any; three?: any; name?: string;
   environmentId?: string; colliders?: Record<string, unknown>[]; navigationRoot?: any;
+  /** Static mesh or group roots; share collision triangles with native navigation. */
   staticMeshes?: any[]; walkableMesh?: any; hostProjectId?: string; hostRevision?: string;
   assetModule?: any; audioListener?: any; audioThree?: any; autoStart?: boolean; codeExecutor?: any; codeGLTFLoader?: any; assetBaseUrl?: string | null;
   onAttach?: (context: NativeSceneAttachContext) => void | Promise<void>;
@@ -137,19 +141,30 @@ export interface NativeSceneAttachContext {
   native: NativeSceneNative;
   three: any;
 }
+export type NativeCollider = { shape:'box'; halfExtents:Vec3; translation?:Vec3; rotation?:[number,number,number,number] } | { shape:'capsule'|'cylinder'; radius:number; halfHeight:number; translation?:Vec3; rotation?:[number,number,number,number] };
+export interface NativeArticulationPart {
+  node:string; parent?:'$root';
+  physics:{body:'dynamic';mass:number;friction?:number;colliders:NativeCollider[]};
+  joint:{type:'revolute'|'prismatic';axis:Vec3;limits:[number,number];parentAnchor?:Vec3;childAnchor?:Vec3;motor?:{stiffness:number;damping:number}};
+}
 export interface NativeSceneComponentInput {
   id: string; object: any; parent?: any;
   semantic?: { label?: string; description?: string; read?: () => Record<string, unknown>; capabilities?: string[] } | null;
   audio?: boolean; audioOptions?: { refDistance?: number; rolloffFactor?: number };
-  physics?: { body: 'fixed' | 'dynamic' | 'kinematic'; mass?: number; friction?: number; carryable?: boolean;
-    colliders: Array<{ shape: 'box'; halfExtents: Vec3; translation?: Vec3; rotation?: [number, number, number, number] } |
+  surfaces?:Array<{id:string;localPosition:Vec3;size:[number,number]}>;
+  physics?: { body: 'fixed' | 'dynamic' | 'kinematic'; mass?: number; friction?: number; carryable?: boolean; manipulable?: boolean;
+    lockTranslation?:[boolean,boolean,boolean];lockRotation?:[boolean,boolean,boolean];
+    colliders: 'mesh-bounds' | Array<{ shape: 'box'; halfExtents: Vec3; translation?: Vec3; rotation?: [number, number, number, number] } |
       { shape: 'capsule' | 'cylinder'; radius: number; halfHeight: number; translation?: Vec3; rotation?: [number, number, number, number] }> } | null;
+  /** Explicit, independent dynamic links of a fixed, bound root (max 16). */
+  parts?:Record<string,NativeArticulationPart>;
   actions?: Array<Omit<ProjectActionDefinition, 'target'>>;
 }
 export interface NativeSceneNative {
   scene: any; camera: any; renderer: any; root: any; audio: NativeAudioRuntime | null;
   addComponent(input: NativeSceneComponentInput): NativeSceneComponent;
   bindComponent(input: NativeSceneComponentInput): NativeSceneComponent;
+  analyzePhysics(object: any): {status:'physics-candidate';objectUuid:string;colliderSource:'mesh-bounds';colliders:Array<{shape:'box';halfExtents:Vec3;translation:Vec3;rotation:[number,number,number,number]}>;meshCount:number;vertexCount:number;physicsVerified:false;limitations:string[]};
 }
 export interface NativeOverlayPrepared {
   summary: unknown;
@@ -166,7 +181,7 @@ export interface NativeSceneHandle extends SceneHandle {
 export interface NativeSceneSession {
   scene: NativeSceneHandle & { native: NativeSceneNative;
     capabilities: { mode: 'native-scene'; threeRevision: string; sourceConversion: false;
-      ownsRenderer: false; nativeProjectSave: false; nativeOverlayPersistence: boolean; environmentColliders: number; navigationRegistered: boolean; audio: boolean } };
+      ownsRenderer: false; nativeProjectSave: false; nativeOverlayPersistence: boolean; environmentColliders: number; navigationRegistered: boolean; navigationSource:'explicit-proxy'|'physics-colliders'; audio: boolean } };
   world: any;
   close(): void;
 }
@@ -214,9 +229,19 @@ export interface ProjectStateMachineHandle {
 export interface CodeProjectMachineSnapshot {
   schema:'agentscape.project-machine-state';schemaVersion:1;entities:Record<string,Record<string,MachineValue>>;
 }
+export interface NativeJointObservation {
+  partName:string;node:string;parent:'$root';type:'revolute'|'prismatic';axis:Vec3;limits:[number,number];coordinate:number|null;motorTarget:number|null;moving:boolean;
+}
+export interface NativePhysicsObservation {
+  joints:NativeJointObservation[];
+  source:'native-physics';colliderSource:'declared'|'mesh-bounds';transformAuthority:'host'|'physics';
+  state:{registered:boolean;manipulable:boolean;carryable:boolean;held:boolean;heldById:string|null;body:'fixed'|'dynamic'|'kinematic'|null;mass:number|null;colliderCount:number;positionX?:number;positionY?:number;positionZ?:number;linearSpeed?:number;angularSpeed?:number;sleeping?:boolean};
+  position:Vec3|null;rotation:[number,number,number,number]|null;surfaces:Array<{id:string;localPosition:Vec3;size:[number,number]}>;physicsVerified:false;
+}
 export interface ProjectEntityObservation {
+  physics?:NativePhysicsObservation;
   schema:'agentscape.project-entity';schemaVersion:1;source:'project';id:string;label:string;description:string;state:Record<string,unknown>;physicsVerified:false;
-  actions:Array<{action:'custom';name:string;description:string;parameters:Record<string,unknown>;execution:'project-action';available:boolean;verification:'project-defined'|'unverified'}>;
+  actions:Array<{action:'custom';name:string;description:string;parameters:Record<string,unknown>;execution:'project-action';available:boolean;verification:'project-defined'|'unverified'}|{action:'push'|'drag'|'rotate'|'pickup'|'place'|'drop'|'slide'|'rotateJoint';source:'native-physics';partName?:string;execution:'interaction';parameters:Record<string,unknown>;available:boolean|null;reason?:string|null;verification:'rigid-body-force'|'rigid-body-torque'|'kinematic-anchor'|'dynamic-settle'|'solver-contact+spatial-geometry'|'joint-motor';graspVerified:false}>;
   capabilities?:SemanticCapability[];attachedTo?:'runtime';providers?:string[];stateProviders?:Record<string,Record<string,unknown>>;stateConflicts?:string[];
 }
 export interface CodeProject {
@@ -224,7 +249,11 @@ export interface CodeProject {
   resources?:Record<string,{mime:string;base64:string}>;state?:unknown;runtime?:unknown;
   machines?:CodeProjectMachineSnapshot;integrity?:string;
 }
+export interface NativePhysicsRestoreReport {
+  restored:number;skipped:Array<{id:string;reason:'BINDING_CHANGED_OR_MISSING'|'NEW_BINDING'}>;
+}
 export interface CodeProjectSession {
+  nativeRestore:NativePhysicsRestoreReport|null;
   scene:SceneHandle & {native:NativeSceneSession['scene']['native'];capabilities:Record<string,unknown>};world:any;
   frame(timestamp:number):void;save():Promise<SceneResult<CodeProject>>;close():void;
 }

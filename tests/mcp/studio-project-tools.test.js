@@ -37,6 +37,8 @@ describe('five narrow Studio MCP tool contracts',()=>{
     expect(bridge.call.mock.lastCall[3]).toEqual({operation:'patch',expectedRevision:2,oldText:'a',newText:'b'});
     await call('scene_query',{operation:'inspect',expectedRevision:2,nodePath:'0',objectUuid:'uuid'});
     expect(bridge.call.mock.lastCall[3]).toEqual({operation:'inspect',expectedRevision:2,nodePath:'0',objectUuid:'uuid'});
+    await call('scene_query',{operation:'physics_candidate',expectedRevision:2,nodePath:'0',objectUuid:'uuid'});
+    expect(bridge.call.mock.lastCall[3]).toEqual({operation:'physics_candidate',expectedRevision:2,nodePath:'0',objectUuid:'uuid'});
     const capture=await call('scene_capture',{operation:'capture',expectedRevision:2,imageMode:'mcp'});
     expect(capture.content).toEqual([{type:'text',text:JSON.stringify({status:'captured',mime:'image/jpeg'})},{type:'image',data:'YWJj',mimeType:'image/jpeg'}]);
     await call('scene_timeline',{command:'pause',expectedRevision:2});

@@ -8,18 +8,20 @@ import { CarryRuntime } from '../interaction/CarryRuntime.js';
 import { RecoveryRuntime } from '../interaction/RecoveryRuntime.js';
 import { assetAdmission } from '../../../asset/model/admission.js';
 import { inferCarryCapability, isCarryOperation } from '../interaction/CarryCapability.js';
+import { nativePhysicalTarget,nativeSupportContacts } from '../interaction/NativePhysicalTarget.js';
 
 export { DEFAULT_INTERACTION_DISTANCE };
 export class InteractionSystem {
-  constructor({ store, physics, spatial, navigation = null, locomotion = null, events, onObjectTransform = null }) {
+  constructor({ store, entities=null, physics, spatial, navigation = null, locomotion = null, events, onObjectTransform = null }) {
     this.store = store;
+    this.entities = entities;
     this.physics = physics;
     this.spatial = spatial;
     this.navigation = navigation;
     this.locomotion = locomotion;
     this.events = events;
     this.onObjectTransform = typeof onObjectTransform === 'function' ? onObjectTransform : null;
-    this.carry = new CarryRuntime({ store, physics, spatial, events, assertSupports:(...args)=>this.assertSupports(...args) });
+    this.carry = new CarryRuntime({ store, entities, physics, spatial, events, assertSupports:(...args)=>this.assertSupports(...args) });
     this.articulationRuntime = new ArticulationRuntime({ store, physics, events, assertSupports:(...args)=>this.assertSupports(...args) });
     this.articulationTasks = this.articulationRuntime.tasks;
     this.articulationResults = this.articulationRuntime.results;
@@ -29,7 +31,9 @@ export class InteractionSystem {
     this.settleTasks = this.settleRuntime.tasks;
     this.approach = new InteractionApproach({
       store, physics, spatial, navigation, locomotion,
-      actionSweepBounds: (...args) => this.actionSweepBounds(...args)
+      actionSweepBounds: (...args) => this.actionSweepBounds(...args),
+      targetBounds:id=>this.manipulationTargetBounds(id),
+      targetAimPoints:id=>nativePhysicalTarget(this.entities,this.physics,id)?this.physics.manipulationBody(id,undefined,{contacts:true}).contactCandidates.map(c=>c.center):null
     });
     this.recovery = new RecoveryRuntime({
       store, physics, spatial, navigation, locomotion,
@@ -136,9 +140,9 @@ export class InteractionSystem {
           ? this.dropSettleResult(settle,null,{settled:false,reason:'OBJECT_REMOVED'})
           : {status:'place-unverified',reason:'OBJECT_REMOVED',supportVerified:false,settled:false,elapsed:Number(settle.elapsed.toFixed(3))});
     }
-    if (this.store.has(id) && this.store.get(id).state?.heldBy) this.releaseHeld(id, 'OBJECT_REMOVED',{silent});
+    if (this.carry.isHeld(id)) this.releaseHeld(id, 'OBJECT_REMOVED',{silent});
     const carried = this.carry.agentHeld.get(id);
-    if (carried && this.store.has(carried)) this.releaseHeld(carried, 'OWNER_REMOVED',{silent});
+    if (carried && this.carry.isHeld(carried)) this.releaseHeld(carried, 'OWNER_REMOVED',{silent});
   }
 
   cancelPending(reason = 'RUNTIME_DISPOSED') {
@@ -172,6 +176,12 @@ export class InteractionSystem {
   interactionContracts(record) { return compileInteractionContract(record.manifest); }
 
   assertSupports(id, action) {
+    if(isCarryOperation(action)&&this.entities?.get?.(id)?.source==='native'){
+      const record=this.spatial.nativeRecord?.(id);
+      if(!record||record.manifest.physics.carryable!==true||!inferCarryCapability(record.manifest).eligible)
+        throw Errors.actionUnsupported(id,action);
+      return record;
+    }
     const record = this.store.get(id);
     if (record.manifest.source?.kind==='compiled' && this.interactionContracts(record).contracts.some(contract => contract.action === action) && assetAdmission(record.manifest).layers.runtime.status!=='ready') throw Errors.interactionUnavailable(null,id,'RUNTIME_VERIFICATION_REQUIRED');
     if (!this.supports(record, action)) throw Errors.actionUnsupported(id, action);
@@ -187,6 +197,7 @@ export class InteractionSystem {
   }
 
   pickup(id,{silent=false}={}) {
+    if(!this.store.has(id))throw Errors.actionUnsupported(id,'pickup');
     const record = this.assertSupports(id, 'pickup');
     if (record.state?.heldBy?.kind === 'agent') throw Errors.carryUnavailable('human', id, 'OBJECT_ALREADY_HELD', { heldBy:record.state.heldBy });
     if (this.carry.humanHeldId && this.carry.humanHeldId !== id) this.drop(this.carry.humanHeldId,{silent});
@@ -197,9 +208,10 @@ export class InteractionSystem {
     return { status:'held', id, heldBy:{kind:'human'} };
   }
 
-  drop(id = this.carry.humanHeldId,{silent=false}={}) { if (!id) return false; this.assertSupports(id, 'drop'); return this.releaseHeld(id,null,{silent}); }
+  drop(id = this.carry.humanHeldId,{silent=false}={}) { if (!id) return false; if(!this.store.has(id))throw Errors.actionUnsupported(id,'drop'); this.assertSupports(id, 'drop'); return this.releaseHeld(id,null,{silent}); }
 
   place(id, targetId, options = {}) {
+    if(!this.store.has(id))throw Errors.actionUnsupported(id,'place');
     const {silent=false,...placementOptions}=options;
     this.assertSupports(id, 'place');
     const target = this.store.get(targetId);
@@ -306,20 +318,26 @@ export class InteractionSystem {
 
   pickupSupportIds(targetId) {
     const supports=[];
-    for (const [id,record] of this.store.list()) {
+    const records=[...this.store.list()];
+    for(const entity of this.entities?.list({source:'native',capability:'physics'})||[]){
+      const record=this.spatial.nativeRecord?.(entity.id);
+      if(record?.manifest.surfaces.length)records.push([entity.id,record]);
+    }
+    for (const [id,record] of records) {
       if (id===targetId || !record.manifest.surfaces?.length) continue;
       const status=this.spatial.supportGeometry(targetId,id);
-      if (status.supported) supports.push(id);
+      const native=record.source==='native'||this.entities?.get(targetId)?.source==='native';
+      if (status.supported&&(!native||nativeSupportContacts(this.physics,targetId,id).length)) supports.push(id);
     }
     return supports.sort();
   }
 
   pickupStanceBounds(targetId,supportIds) {
-    const target=this.spatial.getBounds(targetId);
+    const target=this.manipulationTargetBounds(targetId);
     if (!supportIds.length) return target;
     const min=[...target.min],max=[...target.max];
     for (const id of supportIds) {
-      const support=this.spatial.getBounds(id);
+      const support=this.manipulationTargetBounds(id);
       for (let axis=0;axis<3;axis++) {
         if (Number.isFinite(support.min[axis])) min[axis]=Math.min(min[axis],support.min[axis]);
         if (Number.isFinite(support.max[axis])) max[axis]=Math.max(max[axis],support.max[axis]);
@@ -331,7 +349,7 @@ export class InteractionSystem {
   async findPickupPlan(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE } = {}) {
     this.assertAgentCarryable(actorId,targetId);
     if (!this.locomotion) throw Errors.carryUnavailable(actorId,targetId,'LOCOMOTION_UNAVAILABLE');
-    const targetCenter=this.spatial.getBounds(targetId).center;
+    const targetCenter=this.manipulationTargetBounds(targetId).center;
     const supportIds=this.pickupSupportIds(targetId);
     const stanceBounds=this.pickupStanceBounds(targetId,supportIds);
     const anchor=this.holdAnchor(actorId);
@@ -360,18 +378,27 @@ export class InteractionSystem {
     if (target.state?.heldBy?.kind === 'agent' && target.state.heldBy.id === actorId) {
       return { status:'held',actorId,targetId,attachment:'kinematic-anchor',graspVerified:false,alreadyHeld:true };
     }
+    const epoch=this.manipulationEpoch;
+    const native=this.entities?.get(targetId)?.source==='native';
+    const identity=this.entities?.get(targetId);
+    const valid=()=>epoch===this.manipulationEpoch&&(!native||nativePhysicalTarget(this.entities,this.physics,targetId)===identity);
+    const cancelled=()=>({status:'pickup-blocked',reason:'ACTION_CANCELLED_OR_TARGET_REMOVED',actorId,targetId,held:false});
     const plan=await this.findPickupPlan(actorId,targetId,{maxDistance});
+    if(!valid())return cancelled();
     const pose=plan.pose;
     const locomotion=await this.navigateToPose(actorId,pose,{speed});
     if (locomotion && locomotion.status!=='arrived') return {status:'pickup-blocked',reason:'APPROACH_FAILED',actorId,targetId,pose,locomotion,held:false};
+    if(!valid())return cancelled();
     const arrivalCorrection=await this.correctToPose(actorId,pose,{speed});
     if (arrivalCorrection && arrivalCorrection.status!=='arrived') return {
       status:'pickup-blocked',reason:'APPROACH_CORRECTION_FAILED',actorId,targetId,pose,locomotion,arrivalCorrection,held:false
     };
+    if(!valid())return cancelled();
+    this.assertAgentCarryable(actorId,targetId);
     const reach=this.interactionStatus(actorId,targetId,{maxDistance});
     if (!reach.interactable) return {status:'pickup-blocked',reason:reach.inRange?'LINE_OF_SIGHT_BLOCKED':'OUT_OF_RANGE',actorId,targetId,pose,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),reach,held:false};
     const actorPosition=this.physics.getPosition(actorId);
-    const targetCenter=this.spatial.getBounds(targetId).center;
+    const targetCenter=this.manipulationTargetBounds(targetId).center;
     const dx=targetCenter[0]-actorPosition[0], dz=targetCenter[2]-actorPosition[2];
     const facingYaw=Math.hypot(dx,dz)<1e-8 ? plan.facingYaw : Math.atan2(-dx,-dz);
     this.physics.setCharacterYaw(actorId,facingYaw);
@@ -422,7 +449,7 @@ export class InteractionSystem {
   syncSettleRuntime() {
     this.settleRuntime.physics = this.physics;
     this.settleRuntime.spatial = this.spatial;
-    this.settleRuntime.carry = { heldByAgent:(...args)=>this.heldByAgent(...args) };
+    this.settleRuntime.carry = this.carry;
     this.settleRuntime.articulation = { actionSweepBounds:(...args)=>this.actionSweepBounds(...args) };
   }
 
@@ -449,10 +476,16 @@ export class InteractionSystem {
       requires:'approachAndPickup', stillHeld:false
     };
     this.assertSupports(heldId, 'place');
-    const target = this.store.get(targetId);
+    const target = this.spatial.interactionRecord?.(targetId)||this.store.get(targetId);
     if (!target.manifest.surfaces?.length) throw Errors.placeUnavailable(actorId, targetId, 'TARGET_HAS_NO_SURFACE');
     if (!this.locomotion) throw Errors.placeUnavailable(actorId, targetId, 'LOCOMOTION_UNAVAILABLE');
 
+    const epoch=this.manipulationEpoch;
+    const heldIdentity=this.entities?.get(heldId),supportIdentity=this.entities?.get(targetId);
+    const valid=()=>epoch===this.manipulationEpoch&&this.heldByAgent(actorId)===heldId&&
+      (heldIdentity?.source!=='native'||nativePhysicalTarget(this.entities,this.physics,heldId)===heldIdentity)&&
+      (supportIdentity?.source!=='native'||nativePhysicalTarget(this.entities,this.physics,targetId)===supportIdentity);
+    const cancelled=()=>({status:'place-blocked',reason:'ACTION_CANCELLED_OR_TARGET_REMOVED',actorId,targetId,heldId,stillHeld:this.heldByAgent(actorId)===heldId});
     let release = this.spatial.findFreeSpace(heldId,targetId,{surfaceId,clearance,ignore:[actorId]});
     if (!release) throw Errors.placeUnavailable(actorId,targetId,'NO_FREE_SURFACE_SPACE',{heldId,surfaceId});
     const anchor = this.holdAnchor(actorId);
@@ -467,16 +500,19 @@ export class InteractionSystem {
       ignoreIds:[heldId],standOff:this.carryStandOff(actorId,heldId),candidateFilter:canReachRelease,
       aimPoint:releasePoint,allowClearEndpoint:true
     });
+    if(!valid())return cancelled();
     if (!pose) throw Errors.placeUnavailable(actorId,targetId,'NO_INTERACTION_POSE',{heldId});
 
     const locomotion = await this.navigateToPose(actorId,pose,{speed});
     if (locomotion && locomotion.status !== 'arrived') return { status:'place-blocked', reason:'APPROACH_FAILED', actorId,targetId,heldId,pose,locomotion,stillHeld:true };
+    if(!valid())return cancelled();
     const arrivalCorrection=await this.correctToPose(actorId,pose,{speed});
     if (arrivalCorrection && arrivalCorrection.status!=='arrived') return {
       status:'place-blocked',reason:'APPROACH_CORRECTION_FAILED',actorId,targetId,heldId,
       pose,locomotion,arrivalCorrection,stillHeld:true
     };
 
+    if(!valid())return cancelled();
     release = this.spatial.findFreeSpace(heldId,targetId,{surfaceId,clearance,ignore:[actorId]});
     if (!release) return { status:'place-blocked', reason:'NO_FREE_SURFACE_SPACE_AFTER_APPROACH', actorId,targetId,heldId,locomotion,...(arrivalCorrection?{arrivalCorrection}:{}),stillHeld:true };
     const reach = this.interactionStatus(actorId,targetId,{ignoreIds:[heldId],aimPoint:release.toArray(),allowClearEndpoint:true});
@@ -549,13 +585,34 @@ export class InteractionSystem {
 
   carryStatus(...args) { return this.carry.carryStatus(...args); }
 
+  /** The native registry and PhysicsSystem remain the owners; no shadow ObjectStore record. */
+  nativeManipulationTarget(id) {
+    const entity=nativePhysicalTarget(this.entities,this.physics,id);
+    return entity?.metadata.manipulable===true&&entity.transformAuthority==='physics'?entity:null;
+  }
+
+  manipulationTarget(id) {
+    if(this.store.has(id))return this.store.get(id);
+    const native=nativePhysicalTarget(this.entities,this.physics,id);
+    return native?.manifest?.nativeArticulation===true?native:this.nativeManipulationTarget(id);
+  }
+
+  manipulationTargetBounds(id) {
+    if(this.store.has?.(id)!==false)return this.spatial.getBounds(id);
+    const bounds=nativePhysicalTarget(this.entities,this.physics,id)?this.physics.manipulationBounds(id):null;
+    if(!bounds)throw Errors.interactionUnavailable(null,id,'TARGET_PHYSICS_UNAVAILABLE');
+    return bounds;
+  }
+
   manipulationCapability(targetId, action, partName = null) {
     const no = reason => ({ available:false, reason });
     if (!['push','drag','rotate','slide','rotateJoint'].includes(action)) return no('ACTION_UNSUPPORTED');
-    if (!this.store.has(targetId)) return no('OBJECT_NOT_FOUND');
+    const record=this.manipulationTarget(targetId);
+    if(!record)return no(this.entities?.get(targetId)?.source==='native'?'NATIVE_MANIPULATION_NOT_ENABLED':'OBJECT_NOT_FOUND');
+    const native=record.source==='native'&&!this.store.has(targetId);
+    if(native&&['slide','rotateJoint'].includes(action)&&record.manifest?.nativeArticulation!==true)return no('NATIVE_JOINT_UNSUPPORTED');
     if (!this.physics.hasCapability('rigid-body') || !this.physics.hasCapability('collision') || !this.physics.hasCapability('scene-query')) return no('PHYSICS_CAPABILITY_UNAVAILABLE');
-    const record = this.store.get(targetId);
-    if(record.manifest.source?.kind==='compiled' && assetAdmission(record.manifest).layers.runtime.status!=='ready') return no('RUNTIME_VERIFICATION_REQUIRED');
+    if(record.manifest?.source?.kind==='compiled' && assetAdmission(record.manifest).layers.runtime.status!=='ready') return no('RUNTIME_VERIFICATION_REQUIRED');
     if (this.isHeld(targetId)) return no('OBJECT_ALREADY_HELD');
     if (this.physicalTasks.has(targetId) || [...this.articulationTasks.values()].some(task => task.id === targetId)) return no('ACTION_IN_PROGRESS');
     const jointAction = ['slide','rotateJoint'].includes(action);
@@ -568,8 +625,22 @@ export class InteractionSystem {
       const joint = record.manifest.parts?.[partName]?.joint;
       if (!body.joint || !this.physics.hasCapability('joints')) return no('PHYSICAL_JOINT_UNAVAILABLE');
       if (joint?.type !== (action === 'slide' ? 'prismatic' : 'revolute')) return no('JOINT_TYPE_MISMATCH');
-    } else if (Object.keys(record.manifest.parts || {}).length) return no('ARTICULATED_TARGET_UNSUPPORTED');
+    } else if (Object.keys(record.manifest?.parts || {}).length) return no('ARTICULATED_TARGET_UNSUPPORTED');
     return { available:true };
+  }
+
+  #jointAimOptions(targetId,partName,nativeJoint){
+    const aimPoint=partName?this.physics.manipulationBody(targetId,partName,{contacts:true}).contactCandidates[0]?.center:null;
+    return {aimPoint,...(nativeJoint?{aimPart:partName}:{})};
+  }
+
+  /** Read-only approach preflight uses the exact same joint aim and stance as execution. */
+  async previewNativeJointApproach(actorId,targetId,action,partName){
+    if(!this.store.has(actorId)||this.store.get(actorId).manifest.type!=='agent'||this.heldByAgent(actorId))return null;
+    const record=this.manipulationTarget(targetId);
+    if(record?.source!=='native'||!this.manipulationCapability(targetId,action,partName).available)return null;
+    return this.findInteractionPose(actorId,targetId,{...this.#jointAimOptions(targetId,partName,true),
+      stanceBounds:this.physics.manipulationBounds(targetId,partName)});
   }
 
   /** Contact proxy within the existing Agent reach model; no pose or velocity assignment. */
@@ -581,29 +652,36 @@ export class InteractionSystem {
     const capability = this.manipulationCapability(targetId, action, args.part);
     if (!capability.available) return blocked(capability.reason);
     const epoch = this.manipulationEpoch;
+    const targetRecord=this.manipulationTarget(targetId);
+    const bodyEntry=this.physics.entries.get(targetId);
+    const currentTarget=()=>this.manipulationTarget(targetId)===targetRecord&&this.physics.entries.get(targetId)===bodyEntry;
     const linear = ['push','drag'].includes(action);
     const direction = linear ? new THREE.Vector3(...args.direction).normalize() : null;
     const validSide = position => {
       if (!linear) return true;
-      const center = this.spatial.getBounds(targetId).center;
+      const center = this.manipulationTargetBounds(targetId).center;
       const side = (center[0]-position[0])*direction.x + (center[2]-position[2])*direction.z;
       return action === 'push' ? side > .05 : side < -.05;
     };
-    const jointAim = () => args.part ? this.physics.manipulationBody(targetId,args.part,{contacts:true}).contactCandidates[0]?.center : null;
-    const pose = await this.findInteractionPose(actorId, targetId, { candidateFilter:validSide, aimPoint:jointAim() });
+    const nativeJoint=targetRecord.source==='native'&&['slide','rotateJoint'].includes(action);
+    const aimOptions=()=>this.#jointAimOptions(targetId,args.part,nativeJoint);
+    const pose = await this.findInteractionPose(actorId, targetId, { candidateFilter:validSide,...aimOptions(),
+      ...(nativeJoint?{stanceBounds:this.physics.manipulationBounds(targetId,args.part)}:{}) });
     if (epoch !== this.manipulationEpoch) return blocked('ACTION_CANCELLED');
+    if(!currentTarget())return blocked('OBJECT_REMOVED');
     if (!pose) return blocked('NO_INTERACTION_POSE');
     const approach = await this.navigateToPose(actorId, pose, {});
     if (epoch !== this.manipulationEpoch) return blocked('ACTION_CANCELLED');
     if (approach && approach.status !== 'arrived') return blocked('APPROACH_FAILED');
     const accessReason = () => {
-      if (!this.store.has(actorId) || !this.store.has(targetId)) return 'OBJECT_REMOVED';
+      if (!this.store.has(actorId) || !currentTarget()) return 'OBJECT_REMOVED';
+      if(this.physics.manipulationBody(targetId,args.part||undefined).body!=='dynamic')return 'TARGET_NOT_DYNAMIC';
       if (this.isHeld(targetId)) return 'OBJECT_ALREADY_HELD';
       if (this.heldByAgent(actorId)) return 'HANDS_FULL';
       if (!this.physics.getPosition(actorId)) return 'ACTOR_PHYSICS_UNAVAILABLE';
       const contacts = this.physics.articulationContacts(targetId, args.part || '$root');
       if (contacts.some(contact => contact.minDistance < -.03)) return 'COLLISION_PENETRATION';
-      const reach = this.interactionStatus(actorId, targetId, {aimPoint:jointAim()});
+      const reach = this.interactionStatus(actorId, targetId, aimOptions());
       return !reach.interactable ? reach.inRange ? 'OCCLUDED' : 'OUT_OF_REACH' : null;
     };
     const unavailable = accessReason();
@@ -616,7 +694,7 @@ export class InteractionSystem {
       // Only real solver joints were admitted above; transform-pose fallback is forbidden.
       if (!this.physics.setArticulationTarget(targetId, args.part, target)) return blocked('JOINT_MOTOR_UNAVAILABLE');
       // Old semantic labels must not survive an arbitrary numeric joint command.
-      const record = this.store.get(targetId);
+      const record = targetRecord;
       if (record.state.parts) delete record.state.parts[args.part];
       if (record.state.partTargets) delete record.state.partTargets[args.part];
       const pending = this.waitForArticulationCompletion(targetId, args.part, action, target, { timeout:8 });
@@ -630,13 +708,12 @@ export class InteractionSystem {
     }
     if (linear && !validSide(this.physics.getPosition(actorId))) return blocked('CONTACT_DIRECTION_UNREACHABLE');
     return new Promise(resolve => {
-      const record = this.store.get(targetId);
-      const task = { actorId, targetId, action, args, direction, accessReason, resolve,
-        initialPosition:new THREE.Vector3(...this.physics.getPosition(targetId)), initialRotation:record.object.quaternion.clone(),
+      const task = { actorId, targetId, action, args, direction, accessReason, resolve,currentTarget,
+        initialPosition:new THREE.Vector3(...this.physics.getPosition(targetId)), initialRotation:new THREE.Quaternion(...this.physics.getRotation(targetId)),
         axis:action === 'rotate' ? new THREE.Vector3(...args.axis).normalize() : null,
         mass:this.physics.manipulationBody(targetId).mass || 1, elapsed:0, stable:0, appliedSteps:0, maxEffort:0,
         samples:[], progress:0, error:linear ? args.distance : Math.abs(args.angle) };
-      const size = this.spatial.getBounds(targetId).size;
+      const size = this.manipulationTargetBounds(targetId).size;
       task.inertia = task.mass*(size[0]**2+size[1]**2+size[2]**2)/18;
       task.timer = setTimeout(() => this.finishPhysicalTask(task, 'SIMULATION_NOT_ADVANCING'), 12000);
       task.timer.unref?.();
@@ -656,7 +733,7 @@ export class InteractionSystem {
       progress:task.progress, error:task.error, elapsed:task.elapsed, appliedSteps:task.appliedSteps,
       maxEffort:task.maxEffort, contactPoint:task.contactPoint || null, contactEvidence };
     report.initialRotation = task.initialRotation.toArray();
-    report.finalRotation = this.store.has(task.targetId) ? this.store.get(task.targetId).object.quaternion.toArray() : null;
+    report.finalRotation = task.currentTarget?.() ? this.physics.getRotation(task.targetId) : null;
     report.graspVerified = false;
     this.notifyObjectTransform(task.targetId, 'interaction.physical');
     this.events.emit('interaction', report); task.resolve(report);
@@ -672,7 +749,8 @@ export class InteractionSystem {
       const rotate = task.action === 'rotate';
       let effort, applied, speed, deviated;
       if (rotate) {
-        const rotation = this.store.get(task.targetId).object.quaternion.clone().multiply(task.initialRotation.clone().invert()).normalize();
+        const currentRotation=new THREE.Quaternion(...this.physics.getRotation(task.targetId));
+        const rotation = currentRotation.clone().multiply(task.initialRotation.clone().invert()).normalize();
         task.progress = 2*Math.atan2(rotation.x*task.axis.x + rotation.y*task.axis.y + rotation.z*task.axis.z, rotation.w);
         task.progress = Math.atan2(Math.sin(task.progress), Math.cos(task.progress));
         task.error = Math.atan2(Math.sin(task.args.angle-task.progress), Math.cos(task.args.angle-task.progress));
@@ -681,7 +759,7 @@ export class InteractionSystem {
         const desired = Math.abs(task.error) < .05 ? 0 : THREE.MathUtils.clamp(task.error*2, -.6, .6);
         effort = THREE.MathUtils.clamp(task.inertia*(desired-velocity.dot(task.axis))*8, -task.args.maxTorque, task.args.maxTorque);
         const expected = new THREE.Quaternion().setFromAxisAngle(task.axis, task.progress).multiply(task.initialRotation);
-        deviated = position.distanceTo(task.initialPosition) > .15 || expected.angleTo(this.store.get(task.targetId).object.quaternion) > .15;
+        deviated = position.distanceTo(task.initialPosition) > .15 || expected.angleTo(currentRotation) > .15;
         applied = () => this.physics.applyTorque(task.targetId, task.axis.clone().multiplyScalar(effort).toArray());
       } else {
         const delta = position.clone().sub(task.initialPosition);

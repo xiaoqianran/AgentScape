@@ -15,7 +15,10 @@ export function taskEvidenceDetail(evidence){
   const label=value=>EVIDENCE_STATUS_LABELS[value?.status]||'未知';
   const scope=evidence.coverage==='user-derived-checks'?'用户需求条件':evidence.coverage==='read-only'?'只读查询':
     evidence.coverage==='unresolved-user-requirements'?'需求未解析':'选定后置条件（非全部需求证明）';
-  return [scope,'结构：'+label(evidence.dimensions?.structure),'行为：'+label(evidence.dimensions?.behavior),
+  const sample=evidence.snapshot;
+  const frame=Number.isSafeInteger(sample?.frame)&&Number.isSafeInteger(sample?.tick)
+    ? ['采样帧 '+sample.frame+' / Tick '+sample.tick+'（非持续状态证明）']:[];
+  return [scope,...frame,'结构：'+label(evidence.dimensions?.structure),'行为：'+label(evidence.dimensions?.behavior),
     '视觉：'+label(evidence.dimensions?.visual),'保存：'+label(evidence.persistence)].join(' · ');
 }
 

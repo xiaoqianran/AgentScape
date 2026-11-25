@@ -6,13 +6,15 @@ export const INTERACTION_APPROACH_MARGIN = 0.18;
 export const ACTION_INTERACTION_CORRECTION_TOLERANCE = 0.05;
 
 export class InteractionApproach {
-  constructor({ store, physics, spatial, navigation = null, locomotion = null, actionSweepBounds }) {
+  constructor({ store, physics, spatial, navigation = null, locomotion = null, actionSweepBounds, targetBounds, targetAimPoints }) {
     this.store = store;
     this.physics = physics;
     this.spatial = spatial;
     this.navigation = navigation;
     this.locomotion = locomotion;
     this.resolveActionSweep = actionSweepBounds;
+    this.targetBounds=targetBounds||((id)=>this.spatial.getBounds(id));
+    this.targetAimPoints=targetAimPoints||(()=>null);
   }
 
   setNavigation(navigation) { this.navigation = navigation; }
@@ -49,16 +51,25 @@ export class InteractionApproach {
     };
   }
 
-  interactionStatusAt(actorId, targetId, position, { maxDistance = DEFAULT_INTERACTION_DISTANCE, ignoreIds = [], aimPoint = null, allowClearEndpoint = false } = {}) {
+  interactionStatusAt(actorId, targetId, position, { maxDistance = DEFAULT_INTERACTION_DISTANCE, ignoreIds = [], aimPoint = null, aimPart = null, allowClearEndpoint = false } = {}) {
     const metrics = this.actorMetrics(actorId);
-    const bounds = this.spatial.getBounds(targetId);
+    const bounds = this.targetBounds(targetId);
     const dx = Math.max(bounds.min[0] - position[0], 0, position[0] - bounds.max[0]);
     const dz = Math.max(bounds.min[2] - position[2], 0, position[2] - bounds.max[2]);
-    const distance = Math.hypot(dx, dz);
+    let distance = Math.hypot(dx, dz);
     const eye = [position[0], position[1] + metrics.eyeHeight, position[2]];
-    const aim = aimPoint ? [...aimPoint] : [...bounds.center];
-    const hit = this.physics.raycast(eye, aim, { excludeId:actorId, excludeIds:ignoreIds });
-    const visible = hit?.id === targetId || (allowClearEndpoint && !hit);
+    // A compound body's center may be empty; use actual collider hit points.
+    const nativePoints=this.targetAimPoints(targetId);
+    const candidates=aimPoint?[aimPoint]:nativePoints?.length?nativePoints:[bounds.center];
+    const ranked=[...candidates].sort((a,b)=>Math.hypot(...a.map((n,i)=>n-eye[i]))-Math.hypot(...b.map((n,i)=>n-eye[i])));
+    let aim=[...ranked[0]],hit=null,visible=false;
+    for(const point of ranked){
+      aim=[...point];hit=this.physics.raycast(eye,aim,{excludeId:actorId,excludeIds:ignoreIds});
+      visible=(hit?.id===targetId&&(!aimPart||hit.part===aimPart))||(allowClearEndpoint&&!hit);
+      if(visible)break;
+    }
+    if(nativePoints&&visible&&hit?.point)
+      distance=Math.hypot(hit.point[0]-position[0],hit.point[2]-position[2]);
     return {
       actorId,
       targetId,
@@ -78,22 +89,23 @@ export class InteractionApproach {
     return this.interactionStatusAt(actorId, targetId, position, options);
   }
 
-  async findInteractionPose(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE, clearance = 0.12, action = null, partName = null, ignoreIds = [], standOff = 0, stanceBounds = null, candidateFilter = null, aimPoint = null, allowClearEndpoint = false } = {}) {
+  async findInteractionPose(actorId, targetId, { maxDistance = DEFAULT_INTERACTION_DISTANCE, clearance = 0.12, action = null, partName = null, ignoreIds = [], standOff = 0, stanceBounds = null, candidateFilter = null, aimPoint = null, aimPart = null, allowClearEndpoint = false } = {}) {
     if (!this.navigation) throw Errors.interactionUnavailable(actorId, targetId, 'NAVIGATION_UNAVAILABLE');
     const current = this.physics.getPosition(actorId);
     if (!current) throw Errors.interactionUnavailable(actorId, targetId, 'ACTOR_PHYSICS_UNAVAILABLE');
     const sweep = action ? this.actionSweepBounds(targetId, action, partName) : null;
     if (action && !sweep.checked) throw Errors.interactionUnavailable(actorId, targetId, 'ACTION_SWEEP_UNAVAILABLE', { sweep:{ checked:false, reason:sweep.reason, partName:sweep.partName } });
     const clearOfSweep = (position) => !sweep || !sweep.box.intersectsBox(this.actorBoxAt(actorId, position));
-    const now = this.interactionStatusAt(actorId, targetId, current, { maxDistance, ignoreIds, aimPoint, allowClearEndpoint });
+    const now = this.interactionStatusAt(actorId, targetId, current, { maxDistance, ignoreIds, aimPoint, aimPart, allowClearEndpoint });
     if (now.interactable && clearOfSweep(current) && (!candidateFilter || candidateFilter(current))) return { status:'current-pose', position:[...current], routeCost:0, distance:now.distance, lineOfSight:now.lineOfSight, ...(sweep ? { actionSweep:{checked:true,clear:true,partName:sweep.partName} } : {}) };
 
     const metrics = this.actorMetrics(actorId);
-    const bounds = stanceBounds || this.spatial.getBounds(targetId);
+    const bounds = stanceBounds || this.targetBounds(targetId);
     const offset = Math.max(metrics.radius,standOff) + clearance;
     const [cx,,cz] = bounds.center;
-    const y = current[1];
-    const candidates = [
+    // The target may be on another connected floor. Prefer the current
+    // elevation, then try bounded target-derived heights if no pose is found.
+    const candidatesAt = y => [
       [bounds.min[0] - offset, y, cz], [bounds.max[0] + offset, y, cz],
       [cx, y, bounds.min[2] - offset], [cx, y, bounds.max[2] + offset],
       [bounds.min[0] - offset, y, bounds.min[2] - offset],
@@ -103,13 +115,18 @@ export class InteractionApproach {
     ];
 
     const valid = [];
-    for (const candidate of candidates) {
-      const route = await this.navigation.findPath(current, candidate);
-      if (!route.reachable || !route.end?.snapped) continue;
-      const position = route.end.snapped;
-      const status = this.interactionStatusAt(actorId, targetId, position, { maxDistance, ignoreIds, aimPoint, allowClearEndpoint });
-      if (!status.interactable || !clearOfSweep(position) || (candidateFilter && !candidateFilter(position))) continue;
-      valid.push({ status:'approach-pose', position, routeCost:route.cost, distance:status.distance, waypointCount:route.path.length, lineOfSight:status.lineOfSight, ...(sweep ? { actionSweep:{checked:true,clear:true,partName:sweep.partName} } : {}) });
+    const heights=[current[1],bounds.min[1],bounds.min[1]-Math.min(.9,metrics.eyeHeight*.6)]
+      .filter((height,i,all)=>Number.isFinite(height)&&all.slice(0,i).every(previous=>Math.abs(height-previous)>.1));
+    for (const height of heights) {
+      for (const candidate of candidatesAt(height)) {
+        const route = await this.navigation.findPath(current, candidate);
+        if (!route.reachable || !route.end?.snapped) continue;
+        const position = route.end.snapped;
+        const status = this.interactionStatusAt(actorId, targetId, position, { maxDistance, ignoreIds, aimPoint, aimPart, allowClearEndpoint });
+        if (!status.interactable || !clearOfSweep(position) || (candidateFilter && !candidateFilter(position))) continue;
+        valid.push({ status:'approach-pose', position, routeCost:route.cost, distance:status.distance, waypointCount:route.path.length, lineOfSight:status.lineOfSight, ...(sweep ? { actionSweep:{checked:true,clear:true,partName:sweep.partName} } : {}) });
+      }
+      if(valid.length)break;
     }
     valid.sort((a, b) => (a.routeCost ?? Infinity) - (b.routeCost ?? Infinity));
     return valid[0] || null;

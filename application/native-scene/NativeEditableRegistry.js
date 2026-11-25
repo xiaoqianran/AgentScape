@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { sceneObjectIdSchema } from '../scene/SceneProject.js';
 import { nativeEditableChangesSchema, nativeEditableSnapshotSchema } from '../scene/NativeEditableContracts.js';
+import { overlapsNativeObject } from './NativePhysicsGeometry.js';
 
 const fail = code => Object.assign(new Error(code), {code});
 const PROPERTIES=['position','quaternion','scale','visible'];
+const compatible=(body,root,object,properties)=>!overlapsNativeObject(root,object)||
+  properties.every(prop=>prop==='visible'||(body==='kinematic'&&root===object&&['position','quaternion'].includes(prop)));
 const read = object => ({
   position:object.position.toArray(),quaternion:object.quaternion.toArray(),
   scale:object.scale.toArray(),visible:object.visible
@@ -23,6 +26,10 @@ const apply = (object,changes) => {
  */
 export class NativeEditableRegistry {
   constructor(scene,world) {this.scene=scene;this.world=world;this.records=new Map();this.overrides=new Map();}
+  assertPhysicsCompatible(object,body){
+    for(const record of this.records.values())if(!compatible(body,object,record.object,record.properties))
+      throw fail('NATIVE_EDIT_PHYSICS_AUTHORITY_CONFLICT');
+  }
   register({id,object,label=id,properties=PROPERTIES}={}) {
     if(!sceneObjectIdSchema.safeParse(id).success)throw fail('NATIVE_EDIT_ID_INVALID');
     if(!(object instanceof THREE.Object3D)||!object.isObject3D)throw fail('NATIVE_EDIT_OBJECT_INVALID');
@@ -36,6 +43,11 @@ export class NativeEditableRegistry {
     if(typeof label!=='string'||!label.length||label.length>128)throw fail('NATIVE_EDIT_LABEL_INVALID');
     if(!Array.isArray(properties)||!properties.length||new Set(properties).size!==properties.length
       ||properties.some(prop=>!PROPERTIES.includes(prop)))throw fail('NATIVE_EDIT_PROPERTIES_INVALID');
+    for(const entity of this.world.entities.list({source:'native'})){
+      const root=this.world.entities.get(entity.id)?.object;
+      const body=this.world.physics.entries.get(entity.id)?.rootSpec?.body;
+      if(body&&root&&!compatible(body,root,object,properties))throw fail('NATIVE_EDIT_PHYSICS_AUTHORITY_CONFLICT');
+    }
     const record={id,label,object,properties:Object.freeze([...properties])};
     const pending=this.overrides.get(id);
     if(pending){

@@ -8,6 +8,7 @@ const withArgs = request => ({ ...common(request), args: { ...request.args } });
 
 const legacyAdapters = new Map([
   ['pickup', common],
+  ['drop', common],
   ['place', request => ({
     ...common(request),
     ...(request.args.surfaceId != null ? { surfaceId: request.args.surfaceId } : {})

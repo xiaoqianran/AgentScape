@@ -36,6 +36,22 @@ describe('real Studio frame and multimodal review contract',()=>{
     expect(calls[0][1]).toBe(project.worldSessionId+'/'+project.id);
     expect(calls[2][1]).toMatchObject({expectedRevision:2,maxWidth:768,maxHeight:432});
   });
+  it('uses the exact pre-verified image and rejects a different frame before model invocation',async()=>{
+    const calls=[],snapshot={frame:12,tick:8};
+    const expectedWorld={worldSessionId:project.worldSessionId,projectId:project.id,projectRevision:2,runtimeId:'runtime-1',sceneRevision:7};
+    const capturedImage={...expectedWorld,revision:2,status:'captured',mime:'image/jpeg',
+      width:640,height:360,imageBase64:jpegBase64,playback:{frames:12,simulation:{tick:8}}};
+    const request=vi.fn(async()=>({ok:true,text:async()=>JSON.stringify({choices:[{message:{content:JSON.stringify({accepted:true,score:9,issues:[],advice:''})}}]})}));
+    const options={prompt:'tree',configuration,project,expectedWorld,snapshot,mcpConnector:bridge({calls}),request};
+    await expect(reviewStudioVisual({...options,capturedImage:{...capturedImage,playback:{frames:13,simulation:{tick:8}}}})).rejects.toThrow('VISUAL_VERIFIED_WORLD_CHANGED');
+    expect(request).not.toHaveBeenCalled();
+    await expect(reviewStudioVisual({...options,capturedImage,snapshot:{...snapshot,imageDigest:'b'.repeat(64)}})).rejects.toThrow('VISUAL_VERIFIED_WORLD_CHANGED');
+    expect(request).not.toHaveBeenCalled();
+    const review=await reviewStudioVisual({...options,capturedImage});
+    expect(review).toMatchObject({frame:12,tick:8,status:'passed'});
+    expect(calls.some(([operation])=>operation==='capture')).toBe(false);
+    expect(request).toHaveBeenCalledOnce();
+  });
   it('never sends a 1px frame to the vision model',async()=>{
     const request=vi.fn();
     await expect(reviewStudioVisual({prompt:'tree',configuration,project,
@@ -147,6 +163,13 @@ describe('Pi/DSH independent visual revision loop',()=>{
         return {status:'passed',score:10,issues:[],advice:'',worldSessionId:world.worldSessionId,projectId:world.projectId,revision:2,runtimeId:'runtime-2',sceneRevision:7};
       }});
     expect(result).toMatchObject({taskStatus:'incomplete',verified:false,visual:{status:'unavailable',reason:'VISUAL_VERIFIED_WORLD_CHANGED'}});
+  });
+  it('rejects different animation frames with identical document and scene revisions',async()=>{
+    const initial=pending();
+    initial.evidence.snapshot={frame:10,tick:4,scope:'sampled-runtime-state'};
+    const output=await iterateVisualProject({initial,review:async({world})=>verdict(world,
+      {status:'passed',score:10,issues:[],advice:'',frame:11,tick:4})});
+    expect(output).toMatchObject({taskStatus:'incomplete',verified:false,visual:{reason:'VISUAL_VERIFIED_WORLD_CHANGED'}});
   });
   it('caps revisions and never claims success from a rejected visual image',async()=>{
     let edits=0;

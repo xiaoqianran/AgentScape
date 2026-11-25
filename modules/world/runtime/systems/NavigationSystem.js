@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {nativeColliderNavigationInputs,nativeFixedNavigationInputs,validateNativeNavigationInputs} from '../NativeNavigationGeometry.js';
 const DEFAULT_CONFIG = Object.freeze({
   agentRadius: 0.3,
   agentHeight: 1.7,
@@ -43,6 +44,24 @@ const obstacleDistanceXZ = (position, descriptor) => {
   return Math.hypot(outsideX, outsideZ);
 };
 
+// Compare the same projected endpoints. A longer path alone is not progress:
+// the hypothetical route must advance materially toward the original goal.
+function partialRouteProgress(current,route,minimumGain){
+  if(current.reason!=='PARTIAL_PATH'||route.reason!=='PARTIAL_PATH'||
+    !current.path.length||!route.path.length||!current.start?.snapped||!route.start?.snapped||
+    !current.end?.snapped||!route.end?.snapped)return null;
+  const delta=(a,b)=>distance(point(a),point(b));
+  if(delta(current.start.snapped,route.start.snapped)>.1||delta(current.end.snapped,route.end.snapped)>.1)return null;
+  const before=current.path.at(-1),after=route.path.at(-1),goal=current.end.snapped;
+  const remainingBefore=delta(before,goal),remainingAfter=delta(after,goal),gain=remainingBefore-remainingAfter;
+  if(!Number.isFinite(gain)||gain<minimumGain||delta(before,after)<minimumGain)return null;
+  return {kind:'partial-route-progress',endpointBefore:[...before],endpointAfter:[...after],
+    remainingBefore:round(remainingBefore),remainingAfter:round(remainingAfter),gain:round(gain),minimumGain:round(minimumGain)};
+}
+export const navigationRecoveryCandidate=c=>Boolean(c.eligibility.eligible&&!c.alreadyRequested&&
+  (c.counterfactual.reachable||c.counterfactual.progress?.kind==='partial-route-progress'));
+const routePriority=c=>c.counterfactual.reachable?2:c.counterfactual.progress?1:0;
+
 const articulationEligibility = (record, partName, action) => {
   const part = record?.manifest?.parts?.[partName];
   if (!part?.actions?.includes(action) || !Number.isFinite(part.targets?.[action]) || !part.physics || !part.joint) {
@@ -61,11 +80,12 @@ const articulationEligibility = (record, partName, action) => {
 };
 
 export class NavigationSystem {
-  constructor({ store, physics = null, environmentRoots = [], config = {}, backend } = {}) {
+  constructor({ store, physics = null, environmentRoots = [], nativeEnvironmentColliders = null, config = {}, backend } = {}) {
     if (!backend) throw new TypeError('NavigationSystem requires a navigation backend');
     this.store = store;
     this.physics = physics;
     this.environmentRoots = [...environmentRoots];
+    this.nativeEnvironmentColliders=nativeEnvironmentColliders;
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.backend = backend;
     this.obstacles = new Map();
@@ -185,14 +205,26 @@ export class NavigationSystem {
     const revision=this.revision;
     const startedAt=Date.now();
     const {meshes,skipped}=this.collectStaticMeshes();
-    if(!meshes.length){
+    let inputs,nativeInputCount=0;
+    try{
+      const budget={triangles:0,vertices:0,colliders:0};
+      const nativeInputs=[...nativeColliderNavigationInputs(this.nativeEnvironmentColliders||[],undefined,budget),...nativeFixedNavigationInputs(this.physics,budget)];
+      nativeInputCount=nativeInputs.length;
+      inputs=[...geometryInputs(meshes),...nativeInputs];
+      if(this.nativeEnvironmentColliders!==null||nativeInputCount)validateNativeNavigationInputs(inputs);
+    }catch(error){
+      this.backend.clear?.();this.obstacles.clear();
+      this.lastBuild={success:false,code:error.code||'NATIVE_NAVIGATION_GEOMETRY_INVALID',meshCount:meshes.length,skipped,at:new Date().toISOString()};
+      return this.lastBuild;
+    }
+    if(!inputs.length){
       this.backend.clear?.();
       this.obstacles.clear();
       this.lastBuild={success:false,code:'NAVMESH_EMPTY',meshCount:0,skipped,at:new Date().toISOString()};
       return this.lastBuild;
     }
 
-    const result=await this.backend.build(geometryInputs(meshes),this.config);
+    const result=await this.backend.build(inputs,this.config);
     if(this.disposed||revision!==this.revision){
       this.backend.clear?.();
       this.obstacles.clear();
@@ -204,7 +236,7 @@ export class NavigationSystem {
         success:false,
         code:result?.code||'NAVMESH_BUILD_FAILED',
         ...(result?.error?{error:result.error}:{}),
-        meshCount:meshes.length,skipped,at:new Date().toISOString()
+        meshCount:meshes.length+nativeInputCount,...(nativeInputCount?{nativeColliderCount:nativeInputCount}:{}),skipped,at:new Date().toISOString()
       };
       return this.lastBuild;
     }
@@ -215,7 +247,8 @@ export class NavigationSystem {
     this.lastBuild={
       success:true,
       buildVersion:this.buildVersion,
-      meshCount:meshes.length,
+      meshCount:meshes.length+nativeInputCount,
+      ...(nativeInputCount?{nativeColliderCount:nativeInputCount}:{}),
       skipped,
       durationMs:Date.now()-startedAt,
       at:new Date().toISOString()
@@ -277,8 +310,8 @@ export class NavigationSystem {
     return {x:horizontal,y:Math.max(this.config.agentHeight,maxSnapDistance),z:horizontal};
   }
 
-  queryReadyPath(start,end,{maxSnapDistance,endTolerance,scope,build,dynamicObstacles,suppressedObstacleIds=[]}) {
-    const raw=this.backend.queryPath(start,end,{halfExtents:this.queryHalfExtents(maxSnapDistance),suppressedObstacleIds});
+  queryReadyPath(start,end,{maxSnapDistance,endTolerance,scope,build,dynamicObstacles,suppressedObstacleIds=[],replacementObstacles=null}) {
+    const raw=this.backend.queryPath(start,end,{halfExtents:this.queryHalfExtents(maxSnapDistance),suppressedObstacleIds,...(replacementObstacles?{replacementObstacles}:{})});
     if(!raw?.success){
       return {reachable:false,scope,reason:raw?.code||'NAVIGATION_QUERY_FAILED',sameIsland:null,path:[],cost:null,buildVersion:build?.buildVersion||this.buildVersion,dynamicObstacles};
     }
@@ -328,12 +361,15 @@ export class NavigationSystem {
   actionableObstacleGroups() {
     const groups = new Map();
     for (const [obstacleId, descriptor] of this.obstacles) {
-      if (!descriptor?.objectId || !descriptor?.part || descriptor.part === '$root' || !this.store?.has?.(descriptor.objectId)) continue;
-      const record = this.store.get(descriptor.objectId);
-      const part = record.manifest.parts?.[descriptor.part];
-      if (!part?.actions?.includes('open') || !Number.isFinite(part.targets?.open)) continue;
+      if (!descriptor?.objectId || !descriptor?.part || descriptor.part === '$root') continue;
+      const record=this.store?.has?.(descriptor.objectId)?this.store.get(descriptor.objectId):null;
+      const nativeEntry=this.physics?.entries?.get(descriptor.objectId);
+      const nativePart=nativeEntry?.nativeArticulation?nativeEntry.parts.get(descriptor.part):null;
+      const part=record?.manifest.parts?.[descriptor.part];
+      if(!nativePart&&(!part?.actions?.includes('open')||!Number.isFinite(part.targets?.open)))continue;
+      if(nativePart&&!this.backend.hasCapability?.('obstacle-replacement'))continue;
       const key = `${descriptor.objectId}:${descriptor.part}`;
-      if (!groups.has(key)) groups.set(key, { objectId:descriptor.objectId, partName:descriptor.part, record, obstacleIds:[], descriptors:[] });
+      if (!groups.has(key)) groups.set(key, { objectId:descriptor.objectId, partName:descriptor.part, record, nativePart, obstacleIds:[], descriptors:[] });
       const group = groups.get(key);
       group.obstacleIds.push(obstacleId);
       group.descriptors.push(descriptor);
@@ -355,6 +391,49 @@ export class NavigationSystem {
     };
   }
 
+  nativeJointCandidates(group,start,end,options,current){
+    const state=this.physics.getArticulationState(group.objectId,group.partName);
+    if(!state?.limits)return [];
+    const action=state.jointType==='prismatic'?'slide':'rotateJoint';
+    const candidates=[];
+    for(const target of state.limits){
+      if(this.dirty)break;
+      if(Math.abs(target-state.coordinate)<=state.tolerance*1.5)continue;
+      const base={objectId:group.objectId,partName:group.partName,source:'native-physics',action,target,
+        currentCoordinate:round(state.coordinate),obstacleIds:[...group.obstacleIds],distanceToPartialEndpoint:round(group.distance)};
+      const rejected=(reason,counterfactual={})=>({...base,eligibility:{eligible:false,reason},alreadyRequested:false,
+        counterfactual:{provisional:true,assumption:'joint-target-pose',reachable:false,...counterfactual}});
+      const pose=this.physics.nativeNavigationJointPose(group.objectId,group.partName,target);
+      if(!pose.checked||pose.descriptors.length!==group.obstacleIds.length||
+        pose.descriptors.some(item=>!group.obstacleIds.includes(item.id))){
+        candidates.push(rejected(pose.reason||'NATIVE_NAVIGATION_OBSTACLE_COVERAGE_INCOMPLETE'));continue;
+      }
+      let route;
+      try{
+        route=this.queryReadyPath(start,end,{...options,scope:'counterfactual',build:this.lastBuild,
+          replacementObstacles:pose.descriptors,dynamicObstacles:{assumption:'joint-target-pose',provisional:true}});
+      }catch(error){
+        const restored=this.reconcileDynamicObstacles();
+        if(!restored.success)this.invalidate('counterfactual-restore-failed');
+        candidates.push(rejected(error.message));continue;
+      }
+      const progress=route.reachable?null:partialRouteProgress(current,route,Math.max(.5,2*this.config.agentRadius,2*options.endTolerance));
+      const counterfactual={provisional:true,assumption:'joint-target-pose',reachable:route.reachable,reason:route.reason,
+        cost:route.cost,waypointCount:route.path.length,finalDistance:route.finalDistance??null,
+        ...(progress?{progress}:{})};
+      if(!route.reachable&&!progress){candidates.push(rejected('TARGET_POSE_DOES_NOT_UNLOCK_ROUTE',counterfactual));continue;}
+      const sweep=this.physics.articulationWorldCounterfactual(group.objectId,group.partName,target);
+      const eligible=sweep.checked&&sweep.actionIntroducesNoCollision===true;
+      candidates.push({...base,eligibility:{eligible:Boolean(eligible),status:eligible?'declared-numeric-joint':'ineligible',
+        ...(!eligible?{reason:sweep.reason||'JOINT_SWEEP_INTRODUCES_COLLISION'}:{})},
+        alreadyRequested:false,counterfactual,
+        sweep:{checked:sweep.checked,samples:sweep.samples,actionIntroducesNoCollision:sweep.actionIntroducesNoCollision,
+          blockers:sweep.actionEnvelope?.introducedBlockers?.slice(0,8)||[]}});
+    }
+    return candidates.sort((a,b)=>Number(b.eligibility.eligible)-Number(a.eligibility.eligible)||
+      Math.abs(a.target-state.coordinate)-Math.abs(b.target-state.coordinate));
+  }
+
   async suggestActions(start, end, { maxSnapDistance = this.config.maxSnapDistance, maxCandidates = 6 } = {}) {
     const endTolerance = this.config.endTolerance;
     const current = await this.findPath(start, end, { maxSnapDistance, endTolerance });
@@ -369,6 +448,11 @@ export class NavigationSystem {
 
     const candidates = [];
     for (const group of groups) {
+      if(this.dirty)break;
+      if(group.nativePart){
+        candidates.push(...this.nativeJointCandidates(group,start,end,{maxSnapDistance,endTolerance},current));
+        continue;
+      }
       const eligibility = articulationEligibility(group.record, group.partName, 'open');
       const requested = group.record.state?.partTargets?.[group.partName] === 'open' || group.record.state?.parts?.[group.partName] === 'open';
       let counterfactual;
@@ -403,14 +487,22 @@ export class NavigationSystem {
       });
     }
 
-    const recommended = candidates.find((candidate) => candidate.eligibility.eligible && !candidate.alreadyRequested && candidate.counterfactual.reachable) || null;
+    if(this.dirty)return {status:'unresolved',current,candidates:[],recommendation:null,reason:'NAVIGATION_COUNTERFACTUAL_RESTORE_FAILED'};
+    // Full unlocks outrank partial progress; among partials prefer the larger
+    // measured gain. Stable ties retain the existing nearest-obstacle ordering.
+    candidates.sort((a,b)=>Number(navigationRecoveryCandidate(b))-Number(navigationRecoveryCandidate(a))||
+      routePriority(b)-routePriority(a)||(b.counterfactual.progress?.gain||0)-(a.counterfactual.progress?.gain||0));
+    const recommended = candidates.find(navigationRecoveryCandidate) || null;
     const waiting = !recommended && candidates.find((candidate) => candidate.alreadyRequested && candidate.counterfactual.reachable);
     return {
       status:recommended ? 'action-candidate' : waiting ? 'waiting-for-world-update' : 'blocked',
       current,
       candidates,
       recommendation:recommended ? {
-        call:{ name:'open', args:{ id:recommended.objectId, partName:recommended.partName } },
+        ...(recommended.source==='native-physics'?{interaction:{action:'invoke',target:recommended.objectId,source:'native-physics',
+          name:recommended.action,partName:recommended.partName,args:{target:recommended.target}}}:
+          {call:{ name:'open', args:{ id:recommended.objectId, partName:recommended.partName } }}),
+        ...(recommended.counterfactual.progress?{progress:recommended.counterfactual.progress}:{}),
         then:{ name:'findPath', args:{ start:[...start], end:[...end] }, condition:'after-world-state-changes' },
         provisional:true
       } : null

@@ -4,7 +4,7 @@ import { STUDIO_PROJECT_TOOLS, STUDIO_PROJECT_TOOL_SET, projectToolMutates } fro
 
 // Deliberately expose only audited Studio tools, never Shell or arbitrary authoring.
 export const STUDIO_TOOL_NAMES = AGENT_STUDIO_MCP_TOOLS.filter(name => !['session_attach','studio_session_status'].includes(name));
-const WORLD_TOOLS = new Set(['scene_observe','scene_verify','scene_add_model','scene_apply','scene_history','scene_interact','scene_job','scene_cancel',...STUDIO_PROJECT_TOOLS]);
+const WORLD_TOOLS = new Set(['scene_observe','scene_verify','scene_navigation','scene_add_model','scene_apply','scene_history','scene_interact','scene_job','scene_cancel',...STUDIO_PROJECT_TOOLS]);
 
 
 export function changesWorld(name, args = {}) {

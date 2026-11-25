@@ -6,6 +6,7 @@ import { exportRuntimeState, restoreRuntimeState } from '../scene/ScenePackage.j
 import { assetDigest, canonicalAssetJson } from '../../modules/asset/model/AssetInputContracts.js';
 import { projectJson } from '../../modules/world/runtime/ProjectCapabilities.js';
 import { compileCodeProjectModules, validateCodeFiles } from './CodeProjectModules.js';
+import { prepareNativePhysics,applyNativePhysics } from '../../modules/world/runtime/NativePhysicsSnapshot.js';
 
 const fail = code => Object.assign(new Error(code), { code });
 const schema = z.object({
@@ -20,6 +21,7 @@ const schema = z.object({
   integrity: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).strict();
 const digest = value => assetDigest(new TextEncoder().encode(canonicalAssetJson(value)));
+const sourceDigest=project=>digest({source:project.source,entry:project.entry||null,files:project.files||{},resources:project.resources});
 
 /** Parse and inspect without running any source. Budgets are host configuration. */
 export async function parseCodeProject(input, { maxBytes = 64 * 1024 * 1024 } = {}) {
@@ -72,12 +74,19 @@ export async function openCodeProject({ project: input, container = null, author
     if (instance.update != null && typeof instance.update !== 'function') throw fail('CODE_PROJECT_UPDATE_INVALID');
     session = await attachNativeScene({ scene: instance.scene, camera: instance.camera, renderer: instance.renderer,
       environmentId: `code-project:${project.id}`, name: project.name,
-      colliders: instance.colliders, navigationRoot: instance.navigationRoot, autoStart: false, assetBaseUrl, assetModule });
-    if (project.runtime) await restoreRuntimeState(session.world, project.runtime);
+      colliders: instance.colliders, navigationRoot: instance.navigationRoot, staticMeshes:instance.staticMeshes,
+      walkableMesh:instance.walkableMesh, autoStart: false, assetBaseUrl, assetModule });
+    const nativePhysics=project.runtime?await restoreRuntimeState(session.world,project.runtime,{deferNativePhysics:true}):null;
     await instance.setup?.({ scene: session.scene, world: session.world, signal: controller.signal });
     if (project.state !== undefined) await instance.restore?.(projectJson(project.state));
     if (project.machines) session.world.projectCapabilities.restoreStateMachines(project.machines);
     if (project.edits) session.scene.restoreNativeEdits(project.edits);
+    let nativeRestore=null;
+    if(nativePhysics){
+      const compatible=Boolean(project.runtime.nativeSourceHash&&project.runtime.nativeSourceHash!==await sourceDigest(project));
+      const prepared=prepareNativePhysics(session.world,nativePhysics,session.world.serializer.serialize(session.world).objects,{compatible});
+      nativeRestore=applyNativePhysics(session.world,prepared);
+    }
     const baseFrame = session.scene.frame;
     // Redraw without advancing animation, physics or lastTime.
     const renderCurrent = (timestamp=lastTime??0,dt=0) => {
@@ -156,6 +165,7 @@ export async function openCodeProject({ project: input, container = null, author
         const state = projectJson(await instance.serialize?.() ?? null);
         const machines = session.world.projectCapabilities.exportStateMachines();
         const runtime = await exportRuntimeState(session.world, { name: project.name });
+        if(runtime.snapshot.nativePhysics)runtime.nativeSourceHash=await sourceDigest(project);
         const edits = session.scene.exportNativeEdits();
         const payload = { schema: project.schema, schemaVersion: 1, id: project.id, name: project.name,
           source: project.source, ...(project.entry ? { entry:project.entry, files:project.files || {} } : {}),
@@ -177,7 +187,7 @@ export async function openCodeProject({ project: input, container = null, author
       capabilities: Object.freeze({ ...session.scene.capabilities, codeProject: true, nativeProjectSave: true }) });
     if (mount) container.appendChild(mount);
     if (autoStart && typeof requestAnimationFrame === 'function') frameId = requestAnimationFrame(tick);
-    return { ...session, frame, renderCurrent, playback, save, close };
+    return { ...session, frame, renderCurrent, playback, save, close, nativeRestore };
   } catch (error) {
     controller.abort();
     try { session?.close(); } finally { try { instance?.dispose?.(); } finally { release(); } }

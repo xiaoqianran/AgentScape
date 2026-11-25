@@ -2,6 +2,7 @@ import { uniformScaleValue } from './ObjectTransform.js';
 import { thermalStateSchema,validateThermalStateForProfile } from '../../../foundation/simulation/SimulationProfile.js';
 import { compileRuleGraph } from './behavior/RuleGraph.js';
 import { captureWorldAuthority, restoreWorldAuthority } from './WorldAuthority.js';
+import { captureNativePhysics,validateNativePhysics,prepareNativePhysics,applyNativePhysics } from './NativePhysicsSnapshot.js';
 
 export const SCENE_SCHEMA = 'agentscape.scene';
 export const SCENE_VERSION = 1;
@@ -22,7 +23,7 @@ export class SceneSerializer {
     }
   }
 
-  serialize(runtime, { name = 'Untitled World', includeRelations = true, includeObjects = true } = {}) {
+  serialize(runtime, { name = 'Untitled World', includeRelations = true, includeObjects = true, nativeIdentity=false } = {}) {
     if (includeRelations) runtime.sceneGraph?.update?.();
     const objects = includeObjects ? Array.from(this.objects(runtime)) : [];
     const usedAssets = new Set(objects.map(object => object.assetId));
@@ -31,6 +32,7 @@ export class SceneSerializer {
 
     const worldRevision=runtime.currentWorldRevision ? clone(runtime.currentWorldRevision) : null;
     const acceptanceEvidence=runtime.lastAcceptanceBundle ? clone(runtime.lastAcceptanceBundle) : null;
+    const nativePhysics=captureNativePhysics(runtime,{identity:nativeIdentity});
     const cameraState=runtime.rendering?.cameraState?.() || null;
     const stylePack=runtime.rendering?.serializeStyle?.() || null;
     return {
@@ -47,6 +49,7 @@ export class SceneSerializer {
       },
       assets,
       objects,
+      ...(nativePhysics?{nativePhysics}:{}),
       configuration: {
         behaviorBundle: runtime.currentBehaviorBundle ? clone(runtime.currentBehaviorBundle) : null,
         physicsRequirements: runtime.currentPhysicsRequirements ? clone(runtime.currentPhysicsRequirements) : null
@@ -130,6 +133,7 @@ export class SceneSerializer {
         heldOwners.add(ownerKey);
       }
     }
+    if(scene.nativePhysics!=null)validateNativePhysics(scene.nativePhysics,scene.objects);
     return scene;
   }
 
@@ -153,6 +157,9 @@ export class SceneSerializer {
       }
     }
     if(scene.metadata?.environmentState)runtime.environment?.validateSnapshot?.(scene.metadata.environmentState);
+    // Legacy snapshots preserve existing native bindings rather than dropping them.
+    const nativePhysics=scene.nativePhysics??captureNativePhysics(runtime,{identity:true});
+    if(nativePhysics){prepareNativePhysics(runtime,nativePhysics,scene.objects);scene.nativePhysics=nativePhysics;}
 
     // 预检已通过，从这里开始才会破坏当前世界。失败时恢复加载前的场景，而不是留下半个世界。
     const previous = typeof runtime.snapshot === 'function' ? runtime.snapshot() : null;
@@ -189,6 +196,8 @@ export class SceneSerializer {
 
   // 破坏性应用。调用方必须保证 scene 已经 validate 并通过全部预检。
   async applyScene(runtime, scene) {
+    const nativePhysics=scene.nativePhysics??captureNativePhysics(runtime,{identity:true});
+    const preparedNative=nativePhysics?prepareNativePhysics(runtime,nativePhysics,scene.objects):null;
     runtime.affordances?.cancel('SCENE_RESTORE');
 
     if (typeof runtime.physics?.resetWorld === 'function') {
@@ -226,6 +235,7 @@ export class SceneSerializer {
         }
       }
       runtime.interactions?.rebuildHeldOwnership?.();
+      if(preparedNative)applyNativePhysics(runtime,preparedNative);
       runtime.sceneGraph.changed();
     });
 

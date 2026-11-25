@@ -36,6 +36,21 @@ test('Studio MCP creates a visible world; UI edits, fails safely, saves and reop
   const observed=await call('scene_observe');expect(observed.project.entities[0].actions[0].name).toBe('setSpeed');
   const job=await call('scene_interact',{requestId:randomUUID(),interaction:{action:'custom',target:'sculpture',name:'setSpeed',args:{speed:2}}});
   await expect.poll(async()=>(await call('scene_job',{jobId:job.id})).status).toBe('succeeded');
+  const criteria=[{id:'valid',kind:'world-valid'},
+    {id:'sculpture-exists',kind:'object-exists',targetId:'sculpture'},
+    {id:'speed',kind:'state-equals',targetId:'sculpture',stateKey:'speed',value:2}];
+  const proof=await call('scene_verify',{criteria,snapshot:'visual'});
+  expect(proof.verification.status).toBe('verified');
+  expect(proof.snapshot).toMatchObject({runtimeId:running.runtimeId,projectRevision:running.revision,
+    sceneRevision:proof.revision,frame:expect.any(Number),tick:expect.any(Number)});
+  expect(proof.snapshot.native.playback).toMatchObject({frames:proof.snapshot.frame,simulation:{tick:proof.snapshot.tick}});
+  expect(proof.snapshot.image.playback).toMatchObject({frames:proof.snapshot.frame,simulation:{tick:proof.snapshot.tick}});
+  const sampled=await sharp(Buffer.from(proof.snapshot.image.imageBase64,'base64')).metadata();
+  expect(sampled).toMatchObject({width:proof.snapshot.image.width,height:proof.snapshot.image.height});
+  await expect.poll(async()=>(await call('scene_timeline',{expectedRevision:running.revision,expectedRuntimeId:running.runtimeId,command:'status'})).frames).toBeGreaterThan(proof.snapshot.frame);
+  const negative=await call('scene_verify',{criteria:[{...criteria[2],value:99}],snapshot:'visual'});
+  expect(negative.verification.status).toBe('unverified');
+  expect(negative.snapshot.image).toBeUndefined();
   await expect(page.locator('.code-project-actions')).toContainText('"speed": 2');
   await page.getByRole('button',{name:'关闭上下文面板',exact:true}).click();
   await expect(page.locator('.code-project-actions')).toHaveCount(0);

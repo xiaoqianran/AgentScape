@@ -1,5 +1,6 @@
 import { ActionController } from './ActionController.js';
 export class EditorCommandQueue {
+  /** @param {{tools?:{call:(name:string,args:any)=>any},scene?:any,authoring?:any,legacyAction?:any,onCommitted?:(command:any,result:any)=>void,log?:(message:string,kind?:string)=>void}} [options] */
   constructor({
     tools,
     scene = null,
@@ -17,6 +18,7 @@ export class EditorCommandQueue {
     this.log = log;
     this.tail = Promise.resolve();
     this.actions = new ActionController({log});
+    this.activeSceneJobs=new Map();
     this.listeners = new Set();
     this.state = {
       pending:0,
@@ -87,18 +89,33 @@ export class EditorCommandQueue {
   subscribeActions(listener) {return this.actions.subscribe(listener);}
   actionSnapshot(actor,target) {return this.actions.snapshot(actor,target);}
   isActionPending(target) {return this.actions.isPending(target);}
+  cancelAffordance(target) {
+    const job=this.activeSceneJobs.get(target);
+    return job?this.scene.cancelJob(job):null;
+  }
+  executeNavigation({actor,position}) {
+    if(!actor)throw new TypeError('Navigation requires an actor');
+    return this.executeSceneAction({actor,target:actor,action:'navigate',position},{actor,action:'navigate',position});
+  }
   executeAffordance(interaction) {
     if (!this.scene?.interact || !this.scene?.waitJob) throw new Error('SCENE_INTERACTION_UNAVAILABLE');
     if (!interaction?.actor || !interaction?.target || !interaction?.action) throw new TypeError('Interaction requires actor, target and action');
+    return this.executeSceneAction(interaction,interaction);
+  }
+  executeSceneAction(interaction,request) {
     const source=this.scene.inspect?.(interaction.target)?.source === 'environment' ? 'environment' : 'runtime';
     return this.actions.execute(interaction,(isCurrent)=>this.enqueue(
       { type:'scene-interaction', source, id:interaction.target, action:interaction.action },
       async () => {
         if(!isCurrent())throw new Error('世界已切换');
-        const job=this.scene.interact(interaction);
-        const completed=await this.scene.waitJob(job.id);
+        const job=this.scene.interact(request);
+        this.activeSceneJobs.set(interaction.target,job.id);
+        let completed;
+        try { completed=await this.scene.waitJob(job.id); }
+        finally { if(this.activeSceneJobs.get(interaction.target)===job.id)this.activeSceneJobs.delete(interaction.target); }
         if(!isCurrent())throw new Error('世界已切换');
         const result=completed.result;
+        if(completed.status==='cancelled')throw Object.assign(new Error('已取消执行'),{code:'SCENE_ACTION_CANCELLED',result});
         if (completed.status !== 'succeeded' || result?.verification?.status !== 'verified') {
           const reason=result?.value?.reason || result?.diagnostics?.[0]?.code || result?.value?.status || completed.status;
           throw Object.assign(new Error(`交互未验证：${reason}`), { code:'SCENE_INTERACTION_UNVERIFIED', result });

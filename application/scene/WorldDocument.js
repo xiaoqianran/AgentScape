@@ -15,10 +15,13 @@ async function writeLocked(runtime, storage, { name, signal, includeCamera, incl
   if (!includeCamera) delete header.camera;
   if (!includeStyle && header.metadata) delete header.metadata.stylePack;
   if (!includeEnvironmentState && header.metadata) delete header.metadata.environmentState;
+  // Sample managed anchors in the same synchronous turn as native bodies.
+  // Keep the original streaming path for worlds without native physics.
+  const capturedEntities=header.nativePhysics?Array.from(runtime.serializer.objects(runtime)):null;
   const assets = new Set();
   async function* entities() {
     let ordinal = 0;
-    for (const entity of runtime.serializer.objects(runtime)) {
+    for (const entity of capturedEntities||runtime.serializer.objects(runtime)) {
       assets.add(entity.assetId);
       yield { ...entity, ordinal: ordinal++ };
     }

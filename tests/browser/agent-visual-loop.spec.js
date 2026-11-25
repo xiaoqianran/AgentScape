@@ -81,6 +81,10 @@ test('visual feedback drives real Studio MCP edit, render, capture and rerun',as
       dimensions:{structure:{status:'verified',native:{status:'observed'}},behavior:{status:'not-required'},
         visual:{status:'assessed-pass',reviews:[{current:false},{current:true}]}}});
     expect(result.evidence.binding).toEqual(result.world);
+    expect(result.evidence.snapshot).toMatchObject({scope:'sampled-runtime-state',frame:expect.any(Number),tick:expect.any(Number)});
+    expect(result.evidence.dimensions.structure.native).toMatchObject({frame:result.evidence.snapshot.frame,tick:result.evidence.snapshot.tick});
+    expect(result.visual.reviews.at(-1)).toMatchObject({frame:result.evidence.snapshot.frame,tick:result.evidence.snapshot.tick,imageDigest:result.evidence.snapshot.imageDigest});
+    expect(JSON.stringify(result)).not.toContain('imageBase64');
     expect(result.evidence.dimensions.visual.reviews.at(-1).imageDigest).toMatch(/^[a-f0-9]{64}$/);
     const finalReview=result.visual.reviews.at(-1);
     expect(result.savedCheckpoint).toMatchObject({projectId:result.world.projectId,

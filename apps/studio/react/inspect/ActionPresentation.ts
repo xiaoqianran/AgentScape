@@ -1,5 +1,5 @@
 export const LABELS:Record<string,string>={
-  pickup:'拿取',place:'放置',open:'打开',close:'关闭',push:'推动',drag:'拖动',
+  drop:'释放',pickup:'拿取',place:'放置',open:'打开',close:'关闭',push:'推动',drag:'拖动',
   rotate:'旋转刚体',slide:'滑动关节',rotateJoint:'旋转关节',
   turn_on:'开启',turn_off:'关闭',pull_out:'抽出',return:'放回',write:'修改文字'
 };

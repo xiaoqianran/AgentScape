@@ -55,7 +55,7 @@ function nativePlugins(environment) {
       id: 'native-scene',
       root: new THREE.Group(),
       colliders: structuredClone(environment.colliders),
-      ...(environment.navigationRoot ? { navigationRoot: environment.navigationRoot } : {}),
+      ...(environment.navigationRoot ? { navigationRoot: environment.navigationRoot } : {navigationColliders:structuredClone(environment.navigationColliders??environment.colliders)}),
       dispose() {}
     })
   });

@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { AffordanceActionPanel } from '../inspect/AffordanceActionPanel';
+import { CodeWorldNavigation } from './CodeWorldNavigation';
 import { StudioIcon } from '../shared/StudioIcon';
 import './CodeProjectWorkbench.css';
 import { formFieldsForAction, initialActionFieldValues, actionArgumentsFromFields } from './ProjectActionArguments.js';
@@ -249,7 +251,7 @@ export function CodeProjectEditor({ controller }: { controller:any }) {
   </div>;
 }
 
-function ProjectAction({ controller, entity, action, refresh }:any) {
+function ProjectAction({ controller, entity, action, refresh, disabled }:any) {
   const fields = formFieldsForAction(action.parameters);
   const [values, setValues] = useState<Record<string,string>>(() => initialActionFieldValues(fields || []));
   const [rawArgs, setRawArgs] = useState('{}');
@@ -258,19 +260,21 @@ function ProjectAction({ controller, entity, action, refresh }:any) {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [jobId, setJobId] = useState<string|null>(null);
+  const activeScene=useRef<any>(null);
   const invoke = async () => {
     setBusy(true); setResult(''); setStatus('正在执行');
     try {
       const args = fields && !advanced ? actionArgumentsFromFields(fields,values) : JSON.parse(rawArgs);
-      const api = controller.scene;
-      const job = api.interact({action:'invoke',target:entity.id,name:action.name,source:'project',args});
+      const api = controller.session.scene;
+      activeScene.current=api;
+      const job = api.interact({action:'invoke',target:entity.id,name:action.name,source:action.source,partName:action.partName,args});
       setJobId(job.id);
       const terminal = await api.waitJob(job.id);
       setResult(JSON.stringify(terminal.result,null,2));
       setStatus(terminal.status==='succeeded'
         ? terminal.result?.verification?.status==='verified' ? '已验证' : '已执行（未验证）'
         : terminal.status==='cancelled' ? '已取消' : '执行失败');
-      refresh();
+      if(controller.session?.scene===api)refresh();
     } catch(error) {
       setStatus('执行失败'); setResult(error instanceof Error ? error.message : String(error));
     } finally { setBusy(false); setJobId(null); }
@@ -304,9 +308,9 @@ function ProjectAction({ controller, entity, action, refresh }:any) {
         }
         setAdvanced(!advanced);
       }}>{advanced?'返回参数表单':'高级 JSON'}</button> : <small>复杂参数请使用 JSON</small>}
-      <button type="button" disabled={busy || !action.available} onClick={()=>void invoke()}>执行 {action.name}</button>
+      <button type="button" disabled={busy || disabled || !action.available} onClick={()=>void invoke()}>执行 {action.name}</button>
       {jobId ? <button type="button" onClick={()=>{
-        try { controller.scene.cancelJob(jobId); setStatus('正在取消'); }
+        try { activeScene.current?.cancelJob(jobId); setStatus('正在取消'); }
         catch(error) { setResult(error instanceof Error ? error.message : String(error)); }
       }}>取消执行</button> : null}
     </div>
@@ -315,25 +319,139 @@ function ProjectAction({ controller, entity, action, refresh }:any) {
   </details>;
 }
 
-export function CodeProjectActions({ controller }: {controller:any}) {
-  const [entities,setEntities] = useState<any[]>([]);
-  const [error,setError] = useState('');
-  const refresh = () => {
-    try { setEntities(controller.session?.world.projectCapabilities.list().entities || []);setError(''); }
-    catch(cause) { setError(String(cause)); }
+type TargetSummary={id:string;label:string;source:string};
+const targetSummaries=(view:any):TargetSummary[]=>{
+  const entries=new Map<string,TargetSummary>();
+  for(const item of view.project?.entities||[])entries.set(item.id,{id:item.id,label:item.label||item.id,source:item.physics?'原生物理':'项目'});
+  for(const item of view.objects||[])entries.set(item.id,{id:item.id,label:item.label||item.id,source:'托管资产'});
+  for(const item of view.nativeEditables?.objects||[])if(!entries.has(item.id))entries.set(item.id,{id:item.id,label:item.label||item.id,source:'可编辑对象'});
+  return [...entries.values()];
+};
+const positionText=(position:any)=>Array.isArray(position)?position.map((n:number)=>Number(n.toFixed(3))).join(', '):'—';
+function PhysicsSummary({inspection}:{inspection:any}){
+  const physics=inspection?.physics;
+  if(!physics)return null;
+  const state=physics.state||physics;
+  const body=physics.currentBody||state.body||'—';
+  const position=physics.position||inspection.position;
+  return <section className="code-world-physics" aria-label="实时物理状态">
+    <div className="code-world-section-title"><h4>实时物理状态</h4><span>{state.registered?'已注册':'未注册'}</span></div>
+    <dl>
+      <dt>刚体</dt><dd>{body}</dd>
+      <dt>质量</dt><dd>{state.mass==null?'—':Number(state.mass.toFixed(3))+' kg'}</dd>
+      <dt>碰撞体</dt><dd>{state.colliderCount??0}</dd>
+      <dt>世界位置</dt><dd>{positionText(position)}</dd>
+      {state.heldById?<><dt>持有者</dt><dd>{state.heldById}</dd></>:null}
+    </dl>
+    {(physics.joints||[]).map((joint:any)=><div key={joint.partName} className="code-world-joint">
+      <strong>{joint.partName} <small>{joint.type==='revolute'?'旋转':'滑动'}</small></strong>
+      <div>当前位置 <b>{joint.coordinate==null?'—':Number(joint.coordinate.toFixed(3))}</b> {joint.type==='revolute'?'rad':'m'}</div>
+      <small>限位 {joint.limits?.join(' ～ ')} · 马达目标 {joint.motorTarget==null?'—':Number(joint.motorTarget.toFixed(3))}</small>
+    </div>)}
+    <small>来自真实物理状态；观察本身不构成动作成功证明。</small>
+  </section>;
+}
+
+export function CodeProjectActions({controller,selected,onSelect}:{controller:any;selected:string;onSelect:(id:string)=>void}){
+  const state:any=useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
+  const session=controller.session;
+  const [targets,setTargets]=useState<TargetSummary[]>([]);
+  const [inspection,setInspection]=useState<any>(null);
+  const [actors,setActors]=useState<{agents:{id:string}[];selected:string|null}>({agents:[],selected:null});
+  const [history,setHistory]=useState({canUndo:false,canRedo:false,undo:0,redo:0});
+  const [error,setError]=useState('');
+  const [historyBusy,setHistoryBusy]=useState(false);
+  const [historyFeedback,setHistoryFeedback]=useState('');
+  const commands=controller.interactionCommands;
+  const target=targets.find(item=>item.id===selected)||null;
+  const actor=actors.selected;
+  const refresh=()=>{
+    if(!session||controller.session!==session)return;
+    try{
+      const view=session.scene.observe();
+      setTargets(targetSummaries(view));setActors(view.actors);setHistory(view.history);setError('');
+    }catch(cause){setError(cause instanceof Error?cause.message:String(cause));}
   };
   useEffect(()=>{
-    const session=controller.session;
+    setTargets([]);setInspection(null);setActors({agents:[],selected:null});setHistory({canUndo:false,canRedo:false,undo:0,redo:0});setHistoryFeedback('');
+    if(!session)return;
     refresh();
-    const events=session?.world?.events;
-    if (!events?.on) return;
-    return subscribeSceneRefresh(events,['project.action.completed','project.machine.changed'],refresh);
-  },[controller,controller.session]);
-  return <div className="code-project-actions"><h3>世界对象与动态动作</h3>
-    {!entities.length ? <p>运行项目后，注册的对象和动作会显示在这里。</p> : null}
-    {entities.map(entity=><section key={entity.id}><h4>{entity.label} <small>{entity.id}</small></h4>
-      <pre>{JSON.stringify(entity.state,null,2)}</pre>
-      {entity.actions.map((action:any)=><ProjectAction key={action.name+':'+JSON.stringify(action.parameters)} {...{controller,entity,action,refresh}} />)}
-    </section>)}{error ? <p role="alert">{error}</p> : null}
+    const stop=subscribeSceneRefresh(session.world.events,[
+      'entity.registered','entity.removed','entity.phase-changed','object.spawned','object.removed',
+      'native.edit.registered','native.edit.unregistered','project.action.completed','project.machine.changed',
+      'scene.actor.selected','history.changed','scene.restored','locomotion.arrived','locomotion.blocked','studio.scene.action.changed'
+    ],refresh);
+    return stop;
+  },[session,commands]);
+  useEffect(()=>{
+    if(targets.length&&!targets.some(item=>item.id===selected))onSelect(targets[0].id);
+  },[targets,selected,onSelect]);
+  useEffect(()=>{
+    setInspection(null);
+    if(!session||!selected)return;
+    let active=true;
+    const sample=()=>{
+      if(!active||controller.session!==session)return;
+      try{setInspection(session.scene.inspect(selected,actor?{actor}:{}));}
+      catch{setInspection(null);}
+    };
+    sample();
+    // Only the selected entity is sampled, not the complete project graph.
+    const timer=setInterval(sample,500);
+    return ()=>{active=false;clearInterval(timer);};
+  },[session,selected,actor,targets]);
+  const queueState=useSyncExternalStore(useMemo(()=>commands?(listener:()=>void)=>commands.subscribe(listener):emptyCodeSubscribe,[commands]),
+    useMemo(()=>commands?()=>commands.state:()=>null,[commands]),()=>null);
+  const anyBusy=Boolean(state.busy||historyBusy||queueState?.pending);
+  const actionsDisabled=Boolean(state.playback?.paused);
+  const performHistory=async(operation:'undo'|'redo')=>{
+    if(!session||anyBusy)return;
+    setHistoryBusy(true);setError('');setHistoryFeedback('');
+    try{
+      const result=await session.scene.history({operation,expectedRevision:session.scene.observe({limit:1}).revision});
+      setHistoryFeedback(result.value?.applied?(operation==='undo'?'已撤销':'已重做'):'无可用历史记录');refresh();
+    }catch(cause){setError(cause instanceof Error?cause.message:String(cause));}
+    finally{setHistoryBusy(false);}
+  };
+  const current=inspection?.id===target?.id?inspection:null;
+  const capabilities=current?.capabilities||[];
+  const physical=capabilities.filter((c:any)=>['interaction','world-action'].includes(c.executor)).map((c:any)=>({
+    action:c.name,source:c.source,execution:c.executor,partName:c.partName,available:c.available,canApproach:c.canApproach,reason:c.reason,verification:c.verification,parameters:c.parameters
+  }));
+  const custom=capabilities.filter((c:any)=>c.executor==='project-action');
+  return <div className="code-project-actions" aria-label="代码世界物理检查器">
+    <h3>对象与交互</h3>
+    {!session||!commands?<p>运行项目后，注册的对象和动作会显示在这里。</p>:<>
+      <label className="code-world-target">场景对象
+        <select aria-label="交互对象" value={selected} disabled={anyBusy} onChange={event=>onSelect(event.target.value)}>
+          <option value="">请选择对象</option>
+          {targets.map(item=><option key={item.id} value={item.id}>{item.label} · {item.source}</option>)}
+        </select>
+      </label>
+      {target?<div className="code-world-target-header"><strong>{target.label}</strong><small>{target.id} · {target.source}</small></div>:null}
+      {current?<PhysicsSummary inspection={current}/>:null}
+      {actionsDisabled?<p className="affordance-reason" role="note">模拟已暂停，恢复世界时间后才能执行物理操作。</p>:null}
+      <section aria-label="物理交互" className="code-world-physical-actions">
+        <h4>物理交互</h4>
+        <AffordanceActionPanel key={selected} targetId={selected||'$none'} actor={actor}
+          affordances={current?{source:current.physics?.source==='native-physics'?'native-physics':current.source,label:current.label||selected,
+            evidenceKind:current.evidenceKind||'unverified',physicsVerified:false,actions:physical}:null}
+          commands={commands} log={()=>{}} disabled={actionsDisabled||(anyBusy&&!commands.isActionPending(selected))}/>
+      </section>
+      <CodeWorldNavigation session={session} actor={actor} commands={commands} refresh={refresh} disabled={actionsDisabled||(anyBusy&&!commands.isActionPending(actor||''))}/>
+      <section className="code-world-history" aria-label="共享历史">
+        <h4>共享历史</h4>
+        <div className="code-project-action-buttons">
+          <button type="button" aria-label="撤销最近操作" disabled={anyBusy||!history.canUndo} onClick={()=>void performHistory('undo')}>撤销 · {history.undo}</button>
+          <button type="button" aria-label="重做最近操作" disabled={anyBusy||!history.canRedo} onClick={()=>void performHistory('redo')}>重做 · {history.redo}</button>
+        </div>
+        {historyFeedback?<output role="status">{historyFeedback}</output>:null}
+      </section>
+      {custom.length?<section><h4>项目自定义动作</h4>
+        {custom.map((action:any)=><ProjectAction key={action.id+':'+JSON.stringify(action.parameters)} controller={controller} entity={target} action={action} refresh={refresh} disabled={anyBusy||actionsDisabled}/>)}
+      </section>:null}
+      {current?<details open={!current.physics}><summary>实时状态</summary><pre>{JSON.stringify(current.state,null,2)}</pre></details>:target?<p className="muted-copy">当前对象未注册可执行能力。</p>:null}
+    </>}
+    {error?<p role="alert">{error}</p>:null}
   </div>;
 }

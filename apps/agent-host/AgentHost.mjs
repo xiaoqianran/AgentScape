@@ -184,13 +184,17 @@ export function createAgentHost({config=getConfig(process.env),host='127.0.0.1',
         }
         return result;
       };
-      const verify=backendOutput=>finalize({output:{...backendOutput,backend:input.backend},project,
-        configuration:config,signal:controller.signal,expectedWorldSessionId,taskSpec,
-        deferVisualReview:shouldReview});
+      let capturedImage=null;
+      const verify=backendOutput=>{
+        capturedImage=null;
+        return finalize({output:{...backendOutput,backend:input.backend},project,
+          configuration:config,signal:controller.signal,expectedWorldSessionId,taskSpec,
+          deferVisualReview:shouldReview,onVisualCapture:image=>{capturedImage=image;}});
+      };
       let output=await verify(await runBackend(fullPrompt));
       if(shouldReview && output.taskStatus==='awaiting-visual') {
         output=await iterateVisualProject({prompt:input.prompt,initial:output,
-          review:({world})=>reviewVisual({prompt:input.prompt,project,expectedWorld:world,configuration:config,signal:controller.signal}),
+          review:({world,snapshot})=>reviewVisual({prompt:input.prompt,project,expectedWorld:world,snapshot,capturedImage,configuration:config,signal:controller.signal}),
           revise:({prompt})=>runBackend(prompt),verify,maxRevisions:visualMaxRevisions,
           signal:controller.signal,emit});
       }

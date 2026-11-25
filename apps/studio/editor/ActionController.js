@@ -25,6 +25,11 @@ export class ActionController {
     this.emit();
   }
 
+  clearCompleted() {
+    for(const [key,state] of this.states)if(state.status!=='running')this.states.delete(key);
+    this.emit();
+  }
+
   // Reset presentation ownership, not the underlying Runtime job. Its late result is ignored.
   reset() {
     this.epoch++;
@@ -72,6 +77,10 @@ export class ActionController {
     }, error => {
       const message = error instanceof Error ? error.message : String(error);
       if (isCurrent()) {
+        if(error?.code==='SCENE_ACTION_CANCELLED'){
+          this.publish(key,{...operation,status:'cancelled',feedback:message});
+          return Promise.reject(error);
+        }
         this.publish(key, { ...operation, status: 'failed', error: message });
         this.log(input.target + '：' + message, 'error');
       }

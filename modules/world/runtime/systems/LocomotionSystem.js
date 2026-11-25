@@ -4,6 +4,7 @@ const finiteVec3 = (value) => Array.isArray(value) && value.length === 3 && valu
 const round = (value) => Number(value.toFixed(4));
 const roundVec3 = (value) => value.map(round);
 const horizontalDistance = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]);
+const goalReached=(position,goal,tolerance)=>horizontalDistance(position,goal)<=tolerance&&Math.abs(position[1]-goal[1])<=.42;
 const yawFromQuat = ([x, y, z, w]) => Math.atan2(2 * (w * y + x * z), 1 - 2 * (y * y + z * z));
 const angleDelta = (from, to) => Math.atan2(Math.sin(to - from), Math.cos(to - from));
 const remainingDistance = (task, current) => {
@@ -13,11 +14,13 @@ const remainingDistance = (task, current) => {
 };
 
 export class LocomotionSystem {
-  constructor({ store, physics, navigation, events = null } = {}) {
+  constructor({ store, physics, navigation, events = null, nativeHeldBy=null } = {}) {
     this.store = store;
     this.physics = physics;
     this.navigation = navigation;
     this.events = events;
+    this.nativeHeldBy=nativeHeldBy;
+    this.navigationEpoch=0;
     this.tasks = new Map();
   }
 
@@ -39,15 +42,18 @@ export class LocomotionSystem {
     const start = this.physics.getPosition(id);
     if (!start) throw new Error(`Physics body not available: ${id}`);
 
+    const epoch=this.navigationEpoch;
     const route = await this.navigation.findPath(start, target);
+    if(epoch!==this.navigationEpoch)return {status:'cancelled',id,target:[...target],reason:'ACTION_CANCELLED'};
     if (!route.reachable) return { status:'unreachable', id, target:[...target], reason:route.reason || 'NO_PATH', route };
 
     const path = route.path;
-    if (path.length <= 1 || horizontalDistance(start, target) <= stop) {
+    if (goalReached(start,route.end?.snapped||target,stop)) {
       record.state.navigation = { status:'arrived', target:[...target], speed };
       return { status:'arrived', id, target:[...target], position:roundVec3(start), route };
     }
 
+    if(path.length<=1)return {status:'unreachable',id,target:[...target],reason:'END_POSITION_NOT_REACHED',route};
     record.state.navigation = { status:'moving', target:[...target], speed, step:1, pathCost:route.cost };
     this.events?.emit('locomotion.started', { id, target:[...target], pathCost:route.cost, waypoints:path.length });
 
@@ -105,7 +111,7 @@ export class LocomotionSystem {
     }
 
     const remaining = remainingDistance(task, current);
-    if (remaining <= task.stop) {
+    if (remaining <= task.stop && goalReached(current,task.path.at(-1),task.stop)) {
       this.finish(task, 'arrived', { position:current });
       return;
     }
@@ -120,16 +126,19 @@ export class LocomotionSystem {
       return;
     }
 
-    const brakeSpeed = Math.sqrt(2 * task.accel * Math.max(0, remaining - task.stop));
+    const brakeSpeed = Math.sqrt(2 * task.accel * Math.max(0, remaining - (Math.abs(current[1]-task.path.at(-1)[1])<=.42?task.stop:0)));
     const targetSpeed = Math.min(task.speed, brakeSpeed);
     const delta = task.accel * dt;
     task.v = targetSpeed > task.v ? Math.min(targetSpeed, task.v + delta) : Math.max(targetSpeed, task.v - delta);
     const horizontalStep = Math.min(distance, task.v * dt);
     const carried = this.store.list().filter(([,record]) => record.state?.heldBy?.kind === 'agent' && record.state.heldBy.id === task.id);
+    const nativeHeld=this.nativeHeldBy?.(task.id);
+    if(nativeHeld)carried.push([nativeHeld,null]);
+    const priorRotation=nativeHeld?this.physics.getRotation(task.id):null;
     this.steer(task, dx, dz, dt, carried.length > 0);
     task.vy = Math.max(-8, task.vy - 9.81 * dt);
     const desired = [dx / distance * horizontalStep, task.vy * dt, dz / distance * horizontalStep];
-    const movement = this.applyMove(task, desired, current, carried);
+    const movement = this.applyMove(task, desired, current, carried,priorRotation);
     if (!movement) return;
     if (movement.grounded) task.vy = -0.5;
 
@@ -170,9 +179,10 @@ export class LocomotionSystem {
     this.physics.faceCharacter(task.id, [-Math.sin(nextYaw), 0, -Math.cos(nextYaw)]);
   }
 
-  applyMove(task, desired, current, carried) {
+  applyMove(task, desired, current, carried,priorRotation=null) {
     const movement = this.physics.moveCharacter(task.id, desired, { ignoreIds:carried.map(([id]) => id) });
     if (!movement.success) {
+      if(priorRotation)this.physics.setCharacterYaw(task.id,yawFromQuat(priorRotation));
       this.finish(task, 'blocked', { reason:movement.code, position:current });
       return null;
     }
@@ -183,6 +193,7 @@ export class LocomotionSystem {
       const pose = this.physics.anchorPose(task.id, anchor, { next:true });
       const clearance = pose && this.physics.checkBodyMotion(carriedId, pose.position, pose.rotation, { excludeIds:[task.id] });
       if (!pose || !clearance?.clear) {
+        if(priorRotation)this.physics.setCharacterYaw(task.id,yawFromQuat(priorRotation));
         this.finish(task, 'blocked', { reason:'CARRIED_OBJECT_BLOCKED', position:current, carry:{id:carriedId, clearance:clearance || null} });
         return null;
       }
@@ -264,6 +275,7 @@ export class LocomotionSystem {
   }
 
   cancelAll(reason = 'RUNTIME_DISPOSED') {
+    this.navigationEpoch++;
     for (const id of [...this.tasks.keys()]) this.cancel(id, reason);
   }
 }

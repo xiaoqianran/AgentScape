@@ -173,4 +173,10 @@ Studio Live Bridge：调用 studio_pair_create 取得一次性配对码，然后
 
 迁移：此前 studio_project(operation=write,create=true) 改为 studio_project(operation=create)，保留 name/source/project；修改现有源码使用 studio_files(operation=write)，观察和截图改用对应分类工具。旧混合 operation 不再注册，不提供重复别名。运行后使用返回的 revision/runtimeId，观察结果提供 sceneRevision/objectUuid，后续请求绑定这些标识。所有实际运行场景的查询、截图和时间控制必须传 expectedRevision。
 
-受限项目模式只允许 studio_project read/run/save，studio_files 不接受 create；五类工具均由服务端绑定预定 worldSessionId 和 expectedProjectId。修改权限以实际 Zod 校验为准，不仅隐藏 Schema 字段。注册语义实体和动作仍使用 scene_observe / scene_interact，客观条件验收使用 scene_verify。截图不是验收结论。
+受限项目模式只允许 studio_project read/run/save，studio_files 不接受 create；五类工具均由服务端绑定预定 worldSessionId 和 expectedProjectId。修改权限以实际 Zod 校验为准，不仅隐藏 Schema 字段。注册语义实体和动作仍使用 scene_observe / scene_interact，客观条件验收使用 scene_verify。截图不是验收结论。Code Project 的 scene_verify 可选 snapshot=inspect 或 visual：在同一次同步采样中返回后置条件、原生根节点观察及可选 JPEG，并附 projectId/projectRevision/runtimeId/sceneRevision/frame/tick；非代码世界不支持此选项。Canvas 暂未就绪时重试整组采样，不混合不同帧。普通 scene_verify 契约不变。
+
+### Scene navigation diagnosis
+
+`scene_navigation({actor,position})` is a read-only live route query with provisional, actor-eligible registered articulation recovery candidates. Native numerical joints use hypothetical collider poses at declared limits and bounded external sweep checks; managed open diagnosis retains its obstacle-suppression assumption. No solver state or history is changed. Use the returned `recommendation.interaction` only for an authorized goal with `scene_interact`, await `scene_job`, then query `scene_navigation` again. A predicted path is not evidence of real passage. Native/mixed ON and SUPPORTS criteria are verified from current geometry, actual supporting contacts and motion rather than a past placement receipt.
+
+Serial native barriers can now return a provisional `recommendation.progress` of kind `partial-route-progress` even while `counterfactual.reachable` is false. This is measured advancement of the same partial route, not destination reachability. Native candidates also require a real current-world joint approach preflight. Execute one verified interaction, then re-query; do not batch hypothetical recoveries or assume eventual completion. Complete-route unlocks have priority. The progress heuristic is bounded and does not search arbitrary joint combinations.

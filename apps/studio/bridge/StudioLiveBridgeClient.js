@@ -193,6 +193,7 @@ export class StudioLiveBridgeClient {
       if (operation === 'run') return this.codeProjects.run(input);
       if (operation === 'inspect') return this.codeProjects.inspect(input);
       if (operation === 'search') return this.codeProjects.search(input);
+      if (operation === 'physics_candidate') return this.codeProjects.physicsCandidate(input);
       if (operation === 'inspect_batch') return this.codeProjects.inspectBatch(input);
       if (operation === 'suggest_views') return this.codeProjects.suggestViews(input);
       if (operation === 'timeline') return this.codeProjects.timeline(input);
@@ -204,9 +205,17 @@ export class StudioLiveBridgeClient {
     }
     if (this.codeProjects?.busy) throw failure('PROJECT_BUSY');
     switch(method){
-      case 'observe':return args.target?this.scene.inspect(args.target,{actor:args.actor}):this.scene.observe({
-        actor:args.actor,...(args.limit!=null?{limit:args.limit,offset:args.offset||0}:{})
-      });
+      case 'observe':{
+        if(args.target)return this.scene.inspect(args.target,{actor:args.actor});
+        const result=this.scene.observe({actor:args.actor,...(args.limit!=null?{limit:args.limit,offset:args.offset||0}:{})});
+        const project=this.codeProjects;
+        if(args.limit!=null&&project?.session?.scene===this.scene&&project.draft){
+          return {...result,projectBinding:{projectId:project.draft.id,projectRevision:project.revision,
+            runningRevision:project.runningRevision,runtimeId:project.runtimeId}};
+        }
+        return result;
+      }
+      case 'navigation':return this.scene.diagnoseNavigation({actor:args.actor,position:args.position});
       case 'apply':return this.scene.apply({requestId:args.requestId,expectedRevision:args.expectedRevision,operations:args.operations});
       case 'history':return this.scene.history(args);
       case 'interact':
@@ -215,7 +224,12 @@ export class StudioLiveBridgeClient {
       case 'job':return this.scene.getJob(args.jobId);
       case 'cancel':return this.scene.cancelJob(args.jobId);
       case 'verify': {
-        if (!expectedProjectId) return this.scene.verify(args.criteria);
+        const verify=criteria=>{
+          if(!args.snapshot)return this.scene.verify(criteria);
+          if(this.codeProjects?.session?.scene!==this.scene)throw failure('PROJECT_SNAPSHOT_UNAVAILABLE');
+          return this.codeProjects.verifySnapshotWhenReady(criteria,args.snapshot);
+        };
+        if (!expectedProjectId) return verify(args.criteria);
         const existing = new Set(args.criteria.filter(check=>check.kind==='object-exists').map(check=>check.targetId));
         const ids = new Set(args.criteria.map(check=>check.id));
         const additional = [];
@@ -227,7 +241,7 @@ export class StudioLiveBridgeClient {
           ids.add(id);
           additional.push({id,kind:'object-exists',targetId:entity.id});
         }
-        return this.scene.verify([...args.criteria,...additional]);
+        return verify([...args.criteria,...additional]);
       }
       case 'thermal':return this.scene.thermalExperiment(args);
       case 'addModel':{

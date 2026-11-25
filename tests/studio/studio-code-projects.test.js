@@ -42,6 +42,36 @@ describe('Studio complete code project ownership',()=>{
   await expect(controller.captureWhenReady({expectedRevision:1,expectedRuntimeId:'second-runtime'})).resolves.toMatchObject({width:640,height:360});
   expect(capture).toHaveBeenCalledTimes(2);
  });
+ it('retries an entire verification snapshot and pins the edit revision and runtime',async()=>{
+  const f=await fixture();
+  try{
+   await f.controller.write({create:true,project});await runProject(f.controller);
+   const c=f.controller,criteria=[{id:'valid',kind:'world-valid'}];
+   const verify=vi.spyOn(c,'verifySnapshot').mockReturnValueOnce({snapshot:{frame:1,tick:0,imageError:'VISUAL_CANVAS_NOT_READY'}})
+    .mockReturnValueOnce({snapshot:{frame:2,tick:1,image:{status:'captured'}}});
+   expect(await c.verifySnapshotWhenReady(criteria,'visual')).toMatchObject({snapshot:{frame:2,tick:1}});
+   expect(verify).toHaveBeenCalledTimes(2);
+   verify.mockReset().mockImplementation(()=>{c.runtimeId='changed';return {snapshot:{imageError:'VISUAL_CANVAS_NOT_READY'}};});
+   await expect(c.verifySnapshotWhenReady(criteria,'visual')).rejects.toThrow('PROJECT_RUNTIME_CONFLICT');
+  }finally{f.close();}
+ });
+ it('samples one host frame without stepping playback and refuses a frame advance during verification',async()=>{
+  const f=await fixture();
+  try {
+   await f.controller.write({create:true,project});await runProject(f.controller);
+   const c=f.controller,session=c.session;
+   session.frame(100);
+   const before=session.playback.status();
+   const criteria=[{id:'valid',kind:'world-valid'}];
+   const verified=c.verifySnapshot(criteria,'inspect');
+   expect(verified.snapshot).toMatchObject({frame:before.frames,tick:before.simulation.tick,native:{status:'inspected'}});
+   expect(session.playback.status()).toEqual(before);
+   const inspect=c.inspect.bind(c);
+   const spy=vi.spyOn(c,'inspect').mockImplementation(options=>{session.frame(200);return inspect(options);});
+   expect(()=>c.verifySnapshot(criteria,'inspect')).toThrow('PROJECT_SNAPSHOT_CHANGED');
+   spy.mockRestore();
+  } finally {f.close();}
+ });
  it('creates a distinct draft once and resumes it after reconnect without discarding edits',async()=>{
   const f=await fixture();let other;
   try {

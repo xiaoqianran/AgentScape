@@ -147,6 +147,8 @@ export function WorldEditorWorkspace({
   const commandInputRef=useRef<HTMLInputElement|null>(null);
   const [codeMode,setCodeMode]=useState<'code'|'visual'>('code');
   const [wideEditor,setWideEditor]=useState(false);
+  const [codeSelection,setCodeSelection]=useState('');
+  useEffect(()=>setCodeSelection(''),[projectState.runtimeId]);
 
   const commitLayoutChange = (change:()=>void) => {
     flushSync(change);
@@ -173,7 +175,7 @@ export function WorldEditorWorkspace({
             <div className="code-world-source-host" hidden={codeMode!=='code'}>
               <CodeProjectEditor controller={projects} />
             </div>
-            {codeMode==='visual' ? <CodeWorldVisualEditor controller={projects} /> : null}
+            {codeMode==='visual' ? <CodeWorldVisualEditor controller={projects} selected={codeSelection} onSelect={setCodeSelection} /> : null}
           </> : content ? <SceneExplorerView {...content.sceneExplorer} /> : null}
         </aside>
         {projectState.visible ? <div className="editor-toolbar code-world-toolbar"><strong>{projectState.project?.name || '完整代码项目'}</strong><span>{projectState.active ? (projectState.revision===projectState.runningRevision?'实时预览':'源码已更新 · 运行后预览') : '运行项目以预览世界'}</span></div> : <SceneToolbar bridgeState={bridgeState} />}
@@ -191,7 +193,7 @@ export function WorldEditorWorkspace({
           {contextView==='task' ? <div className="world-task-content">
             {active && bridgeState.agent ? <><TaskPanelView controller={bridgeState.agent.taskPanel} /><CommandBar taskPanel={bridgeState.agent.taskPanel} inputRef={commandInputRef} draft={bridgeState.commandDraft} /></> : <p role="status">任务面板启动中…</p>}
           </div> : <section className="inspector">
-            {active && contextOpen && projectState.visible ? <CodeProjectActions controller={projects} /> : active && contextOpen && content ? <ObjectInspectorView key={selection?.source+':'+selection?.id} {...content.inspector} /> : null}
+            {active && contextOpen && projectState.visible ? <CodeProjectActions key={projectState.runtimeId||'idle'} controller={projects} selected={codeSelection} onSelect={setCodeSelection} /> : active && contextOpen && content ? <ObjectInspectorView key={selection?.source+':'+selection?.id} {...content.inspector} /> : null}
           </section>}
         </aside>
         <div className="editor-statusbar"><span>{projectState.active ? projectState.project?.name : presentation.title}</span><span>{projectState.active ? '完整代码项目 · 动态动作可由 AI 调用' : selection ? '已选中 '+selection.id : '点击画布或左侧列表选择对象'}</span></div>

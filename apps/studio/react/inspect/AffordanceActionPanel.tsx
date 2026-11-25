@@ -2,13 +2,13 @@ import { LABELS, REASONS } from './ActionPresentation';
 import { useActionOperation } from './useActionOperation';
 import { useEffect, useState } from 'react';
 import { guardAsync } from '../shared/guardAsync';
-import type { EditorCommandsLike, InspectorAffordanceAction, InspectorAffordances } from './InspectorTypes';
+import type { ActionCommandsLike, InspectorAffordanceAction, InspectorAffordances } from './InspectorTypes';
 
 const DIRECTION:Record<string,[number,number,number]>={
   'x+':[1,0,0],'x-':[-1,0,0],'z+':[0,0,1],'z-':[0,0,-1]
 };
-const key=(action:InspectorAffordanceAction)=>action.action+':'+(action.partName || '');
-const knownActions=new Set(['pickup','place','open','close','push','drag','rotate','slide','rotateJoint','turn_on','turn_off','pull_out','return','write']);
+const key=(action:InspectorAffordanceAction)=>action.action+':'+(action.partName || '')+(action.source?':'+action.source:'');
+const knownActions=new Set(['pickup','drop','place','open','close','push','drag','rotate','slide','rotateJoint','turn_on','turn_off','pull_out','return','write']);
 const numeric=(value:string,label:string)=>{
   const number=Number(value);
   if(!value.trim() || !Number.isFinite(number))throw new Error(label+'必须是有限数字');
@@ -19,7 +19,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
   targetId:string;
   actor:string|null;
   affordances:InspectorAffordances|null;
-  commands:EditorCommandsLike;
+  commands:ActionCommandsLike;
   log:(message:string,kind?:string)=>void;
   disabled?:boolean;
 }) {
@@ -37,6 +37,12 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
   const selectedKey=selected ? key(selected) : '';
 
   useEffect(()=>{setChosen('');setError('');},[targetId,actor]);
+  useEffect(()=>{
+    const limits=selected?.parameters?.target?.limits;
+    if(Array.isArray(limits)&&limits.length===2&&limits.every(Number.isFinite))
+      setJointTarget(String(Number(((limits[0]+limits[1])/2).toFixed(4))));
+    setSurfaceId(selected?.parameters?.surfaceId?.enum?.[0]||'');
+  },[targetId,selectedKey]);
 
   const select=(value:string)=>{
     setChosen(value);setError('');
@@ -51,7 +57,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
     if(!selected || !actor || (selected.available!==true && !selected.canApproach) || !commands.executeAffordance || running || disabled)return;
     setError('');
     try {
-      const interaction:{actor:string;target:string;action:string;name?:string;args?:Record<string,unknown>;partName?:string;surfaceId?:string}={
+      const interaction:{actor:string;target:string;action:string;name?:string;source?:string;args?:Record<string,unknown>;partName?:string;surfaceId?:string}={
         actor,target:targetId,action:selected.action
       };
       if(selected.action==='push' || selected.action==='drag') {
@@ -79,6 +85,15 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
         interaction.action='invoke';interaction.name=selected.action;
         interaction.args={};
       }
+      if(selected.source){
+        // Source and part identity must be preserved for composite entities.
+        // The Scene capability resolver, not the GUI, decides the executor.
+        const args={...interaction.args,...(interaction.surfaceId?{surfaceId:interaction.surfaceId}:{})};
+        delete interaction.surfaceId;
+        interaction.action='invoke';interaction.name=selected.action;
+        interaction.source=selected.source;interaction.args=args;
+        if(selected.partName)interaction.partName=selected.partName;
+      }
       // Completion belongs to the shared controller, never to this mounted target's local state.
       guardAsync('执行交互', () => commands.executeAffordance?.(interaction));
     } catch(cause) {
@@ -98,7 +113,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
       <label htmlFor="affordance-choice">交互动作</label>
       <select id="affordance-choice" value={selectedKey} disabled={running || disabled} onChange={event=>select(event.target.value)}>
         {actions.map(item=><option key={key(item)} value={key(item)}>
-          {LABELS[item.action] || item.action}{item.partName ? ' · '+item.partName : ''}{item.available===true ? '' : item.canApproach?' · 自动接近':' · 不可用'}
+          {LABELS[item.action] || item.action}{item.source==='native-physics' ? ' · 原生' : ''}{item.partName ? ' · '+item.partName : ''}{item.available===true ? '' : item.canApproach?' · 自动接近':' · 不可用'}
         </option>)}
       </select>
       {selected?.available!==true ? <p className="affordance-reason" role="note">
@@ -135,6 +150,7 @@ export function AffordanceActionPanel({targetId,actor,affordances,commands,log,d
       <button id="execute-affordance" type="button" disabled={running || disabled || !actor || (selected?.available!==true && !selected?.canApproach) || !commands.executeAffordance} onClick={()=>void execute()}>
         {running ? '执行与验证中…' : '执行 '+(LABELS[selected?.action || ''] || selected?.action)}
       </button>
+      {running&&commands.cancelAffordance?<button type="button" onClick={()=>{try{commands.cancelAffordance?.(targetId);}catch(cause){setError(String(cause));}}}>取消执行</button>:null}
     </> : <p className="muted-copy">当前对象没有已注册的具身交互或环境操作。可继续使用独立的编辑器变换功能。</p>}
     {error || operationError ? <p className="affordance-reason" role="alert">{error || operationError}</p> : null}
     {feedback ? <p className="affordance-feedback" role="status">{feedback}</p> : null}

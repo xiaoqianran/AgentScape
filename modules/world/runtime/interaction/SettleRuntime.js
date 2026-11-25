@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Errors } from '../../errors.js';
+import { nativeSupportContacts } from './NativePhysicalTarget.js';
 
 export class SettleRuntime {
   constructor({ store, physics, spatial, events, carry, articulation }) {
@@ -14,7 +15,9 @@ export class SettleRuntime {
 
   wait(objectId, { kind='place', targetId=null, surfaceId=null, actorId=null, partName=null, action=null, timeout=4, stableDuration=.35, linearSpeed=.04, angularSpeed=.12 } = {}) {
     if (this.tasks.has(objectId)) throw Errors.placeUnavailable(actorId || 'runtime', targetId || objectId, 'SETTLE_ALREADY_ACTIVE', { objectId });
-    return new Promise((resolve) => this.tasks.set(objectId, { kind, objectId, targetId, surfaceId, actorId, partName, action, timeout, stableDuration, linearSpeed, angularSpeed, elapsed:0, stable:0, resolve }));
+    const nativeObject=this.spatial.nativeRecord?.(objectId)?.object||null;
+    const nativeSupport=targetId?this.spatial.nativeRecord?.(targetId)?.object||null:null;
+    return new Promise((resolve) => this.tasks.set(objectId, { kind, objectId, targetId, surfaceId, actorId, partName, action, timeout, stableDuration, linearSpeed, angularSpeed, elapsed:0, stable:0, resolve,nativeObject,nativeSupport }));
   }
 
   waitForPlacement(objectId, targetId, surfaceId, { timeout = 4, stableDuration = 0.35, linearSpeed = 0.04, angularSpeed = 0.12 } = {}) {
@@ -26,7 +29,18 @@ export class SettleRuntime {
   }
 
   placementResult(task,motion,{settled,reason=null}={}) {
+    if((task.nativeObject&&this.spatial.nativeRecord?.(task.objectId)?.object!==task.nativeObject)||
+       (task.nativeSupport&&this.spatial.nativeRecord?.(task.targetId)?.object!==task.nativeSupport))
+      return {status:'place-failed',reason:'OBJECT_REMOVED',supportVerified:false,settled:false,elapsed:Number(task.elapsed.toFixed(3)),motion};
     const support=this.spatial.supportGeometry(task.objectId,task.targetId,{surfaceId:task.surfaceId});
+    const native=Boolean(task.nativeObject||task.nativeSupport);
+    if(native){
+      const contacts=nativeSupportContacts(this.physics,task.objectId,task.targetId);
+      support.geometrySupported=support.supported;
+      support.supported=support.supported&&contacts.length>0;
+      support.contactVerified=contacts.length>0;support.contacts=contacts;
+      support.evidence='solver-contact+spatial-geometry';
+    }
     if (!settled) return {
       status:'place-unverified',reason:reason || 'SETTLE_TIMEOUT',supportVerified:false,support,settled:false,
       elapsed:Number(task.elapsed.toFixed(3)),motion
@@ -38,7 +52,7 @@ export class SettleRuntime {
   }
 
   dropResult(task,motion,{settled,reason=null}={}) {
-    const held=this.store.has(task.objectId) ? this.store.get(task.objectId).state?.heldBy : null;
+    const held=this.carry.heldState?.(task.objectId)??(this.store.has(task.objectId)?this.store.get(task.objectId).state?.heldBy:null);
     const released=!held && this.carry.heldByAgent(task.actorId)!==task.objectId;
     const position=this.physics.getPosition(task.objectId);
     if (!settled) return {

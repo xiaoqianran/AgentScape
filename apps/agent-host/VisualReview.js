@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { connectStudioMcp } from './McpWorldTools.js';
-import { matchesWorldBinding, withVisualTaskEvidence } from '../../application/agent/TaskEvidence.js';
+import { matchesWorldBinding, withVisualTaskEvidence, matchesObservationFrame } from '../../application/agent/TaskEvidence.js';
 
 import { isUsableVisualCaptureSize } from '../../application/native-scene/VisualCapturePolicy.js';
 
@@ -32,6 +32,21 @@ function parseReview(text) {
   return {status,score:review.score,issues:review.issues,advice:review.advice};
 }
 
+function validateCapture(image,expectedWorld,snapshot=null){
+  if(image?.status!=='captured'||image.mime!=='image/jpeg'||
+     typeof image.runtimeId!=='string'||!image.runtimeId||
+     !Number.isSafeInteger(image.sceneRevision)||
+     !isUsableVisualCaptureSize(image.width,image.height)||image.width>768||image.height>432||
+     typeof image.imageBase64!=='string'||image.imageBase64.length<16||
+     image.imageBase64.length>240000||
+     !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(image.imageBase64))
+    throw fail('VISUAL_CAPTURE_RESPONSE_INVALID');
+  if(!matchesEvidence(image,expectedWorld)||!matchesObservationFrame(image,snapshot)||
+      (snapshot?.imageDigest&&createHash('sha256').update(Buffer.from(image.imageBase64,'base64')).digest('hex')!==snapshot.imageDigest))
+    throw fail('VISUAL_VERIFIED_WORLD_CHANGED');
+  return image;
+}
+
 /** Read one real Studio frame. The user image is never included in agent execution logs. */
 export async function captureStudioVisual({configuration,project=null,expectedWorld=null,signal,mcpConnector=connectStudioMcp}={}) {
   const projectScope=project?.worldSessionId && project?.id?
@@ -48,16 +63,10 @@ export async function captureStudioVisual({configuration,project=null,expectedWo
         (project?.id && read.project.id!==project.id))throw fail('VISUAL_PROJECT_REVISION_CHANGED');
     const image=parseTool(await capture.execute('visual-capture-'+crypto.randomUUID(),
       {operation:'capture',expectedRevision:read.revision,expectedRuntimeId:read.runtimeId,maxWidth:768,maxHeight:432},signal));
-    if(image.status!=='captured'||image.mime!=='image/jpeg'||
-       image.projectId!==read.project.id||image.revision!==read.revision||image.runtimeId!==read.runtimeId||
-       typeof image.runtimeId!=='string'||!image.runtimeId||
-       !Number.isSafeInteger(image.sceneRevision)||
-       !isUsableVisualCaptureSize(image.width,image.height)||image.width>768||image.height>432||
-       typeof image.imageBase64!=='string'||image.imageBase64.length<16||
-       image.imageBase64.length>240000||
-       !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(image.imageBase64))
-      throw fail('VISUAL_CAPTURE_RESPONSE_INVALID');
     const evidence={...image,worldSessionId:connection.worldSessionId};
+    if(image.projectId!==read.project.id||image.revision!==read.revision||image.runtimeId!==read.runtimeId)
+      throw fail('VISUAL_CAPTURE_RESPONSE_INVALID');
+    validateCapture(evidence);
     if(!matchesEvidence(evidence,expectedWorld))throw fail('VISUAL_VERIFIED_WORLD_CHANGED');
     return evidence;
   } finally {await connection.close();}
@@ -94,8 +103,9 @@ const SYSTEM_PROMPT=[
 
 /** One visual evaluation with at most one format retry on the same current image. */
 export async function reviewStudioVisual({prompt,configuration,project,expectedWorld=null,signal,
-  mcpConnector=connectStudioMcp,request=fetch}={}) {
-  const image=await captureStudioVisual({configuration,project,expectedWorld,signal,mcpConnector});
+  mcpConnector=connectStudioMcp,request=fetch,snapshot=null,capturedImage=null}={}) {
+  const image=snapshot?validateCapture(capturedImage,expectedWorld,snapshot):
+    await captureStudioVisual({configuration,project,expectedWorld,signal,mcpConnector});
   const base=String(configuration.visualBaseUrl || configuration.baseUrl || '').replace(/\/+$/,'');
   const model=configuration.visualModelId || configuration.modelId;
   if(!base || !configuration.apiKey || !model)throw fail('VISUAL_MODEL_UNCONFIGURED');
@@ -177,8 +187,8 @@ export async function iterateVisualProject({prompt,initial,review,revise,verify,
     if(!ready(result))break;
     let verdict;
     try {
-      verdict=await review({attempt,signal,world:result.world});
-      if(!matchesEvidence(verdict,result.world))throw fail('VISUAL_VERIFIED_WORLD_CHANGED');
+      verdict=await review({attempt,signal,world:result.world,snapshot:result.evidence?.snapshot});
+      if(!matchesEvidence(verdict,result.world)||!matchesObservationFrame(verdict,result.evidence?.snapshot))throw fail('VISUAL_VERIFIED_WORLD_CHANGED');
     }
     catch(error){
       if(signal?.aborted)throw error;

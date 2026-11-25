@@ -25,7 +25,7 @@ const recastConfig=(semantic,tuning)=>({
 
 export class RecastNavigationBackend extends NavigationBackend {
   constructor(tuning={}){
-    super('recast-detour',{capabilities:['static-routing','route-query','dynamic-obstacles','obstacle-suppression','debug-geometry']});
+    super('recast-detour',{capabilities:['static-routing','route-query','dynamic-obstacles','obstacle-suppression','obstacle-replacement','debug-geometry']});
     this.tuning={...DEFAULT_RECAST_TUNING,...tuning};
     this.navMesh=null;
     this.tileCache=null;
@@ -203,7 +203,23 @@ export class RecastNavigationBackend extends NavigationBackend {
     };
   }
 
-  queryPath(start,end,{halfExtents,suppressedObstacleIds=[]}={}){
+  queryPath(start,end,{halfExtents,suppressedObstacleIds=[],replacementObstacles=null}={}){
+    if(replacementObstacles){
+      // Hypotheses replace only existing obstacle identities. The entire operation
+      // is synchronous and restores the actual descriptors even on query failure.
+      const before=[...this.obstacles.values()].map(({descriptor})=>structuredClone(descriptor));
+      const replacements=new Map(replacementObstacles.map(item=>[item.id,item]));
+      if(suppressedObstacleIds.length||!replacements.size||replacements.size!==replacementObstacles.length||
+        [...replacements.keys()].some(id=>!this.obstacles.has(id)))throw new Error('NAVIGATION_COUNTERFACTUAL_INVALID_REPLACEMENT');
+      try{
+        const hypothetical=this.syncObstacles(before.map(item=>replacements.get(item.id)||item));
+        if(!hypothetical.success)throw new Error(hypothetical.code);
+        return this.rawRoute(start,end,halfExtents);
+      }finally{
+        const restored=this.syncObstacles(before);
+        if(!restored.success)throw new Error('NAVIGATION_COUNTERFACTUAL_RESTORE_FAILED');
+      }
+    }
     if(!suppressedObstacleIds.length) return this.rawRoute(start,end,halfExtents);
     const removed=[];
     let restorationError=null;

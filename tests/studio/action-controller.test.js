@@ -26,3 +26,28 @@ it('isolates completion from a previous world even when the new world reuses tar
  release({status:'succeeded',result:{verification:{status:'verified'}}});await rejected;
  expect(queue.actionSnapshot('agent','cup')).toBeNull();expect(queue.isActionPending('cup')).toBe(false);
 });
+
+
+it('cancels the exact navigation job, preserves the original request and does not report verification',async()=>{
+  const {scene,release,queue}=harness();scene.cancelJob=vi.fn(()=>({id:'job',status:'running',cancellationRequested:true}));
+  const pending=queue.executeNavigation({actor:'agent',position:[1,2,3]});
+  const rejected=expect(pending).rejects.toMatchObject({code:'SCENE_ACTION_CANCELLED'});
+  await Promise.resolve();await Promise.resolve();
+  expect(scene.interact).toHaveBeenCalledWith({action:'navigate',actor:'agent',position:[1,2,3]});
+  expect(queue.cancelAffordance('agent')).toMatchObject({cancellationRequested:true});
+  expect(scene.cancelJob).toHaveBeenCalledWith('job');
+  release({status:'cancelled',result:{verification:{status:'unverified'}}});await rejected;
+  expect(queue.actionSnapshot('agent','agent')).toMatchObject({status:'cancelled',error:''});
+  expect(queue.isActionPending('agent')).toBe(false);
+});
+
+it('clears completed evidence on a restore without abandoning an active job',async()=>{
+  const {scene,release,queue}=harness();
+  const pending=queue.executeAffordance({actor:'agent',target:'cup',action:'invoke',source:'native-physics',name:'pickup',args:{}});
+  queue.actions.clearCompleted();expect(queue.isActionPending('cup')).toBe(true);
+  await Promise.resolve();await Promise.resolve();
+  expect(scene.interact).toHaveBeenCalledWith({actor:'agent',target:'cup',action:'invoke',source:'native-physics',name:'pickup',args:{}});
+  release({status:'succeeded',result:{verification:{status:'verified'}}});await pending;
+  expect(queue.actionSnapshot('agent','cup').status).toBe('succeeded');
+  queue.actions.clearCompleted();expect(queue.actionSnapshot('agent','cup')).toBeNull();
+});

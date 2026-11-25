@@ -1,4 +1,5 @@
 import { sceneError } from './SceneContracts.js';
+import { inspectNativePhysics,nativeManipulationActions } from '../../modules/world/runtime/semantic/NativePhysicsState.js';
 
 /**
  * Read-only capability projection for assets, environment contracts and
@@ -12,7 +13,7 @@ export function describeCapabilities(inspection) {
       target: inspection.id,
       name,
       action: 'invoke',
-      source: inspection.source,
+      source: action.source || inspection.source,
       executor: action.execution,
       ...(action.partName ? { partName: action.partName } : {}),
       ...(action.capabilitySource ? { capabilitySource: action.capabilitySource } : {}),
@@ -35,7 +36,17 @@ export function inspectCapabilities(world, target, { actor } = {}) {
   if (!physical && !project) return null;
   if (!physical || !project) {
     const inspection = physical || project;
-    return { ...inspection, capabilities:describeCapabilities(inspection),
+    const nativePhysics=inspectNativePhysics(world,target);
+    const nativeActions=nativePhysics?nativeManipulationActions(world,target,actor):[];
+    const capabilities=[...describeCapabilities(inspection),
+      ...describeCapabilities({id:target,source:'native-physics',actions:nativeActions})];
+    const ids=new Map();
+    for(const entry of capabilities)ids.set(entry.id,(ids.get(entry.id)||0)+1);
+    return { ...inspection, actions:[...(inspection.actions||[]),...nativeActions],
+      capabilities:capabilities.map(entry=>ids.get(entry.id)>1?{...entry,id:entry.id+':'+entry.source}:entry),
+      ...(nativePhysics?{physics:nativePhysics,providers:['project','native-physics'],
+        stateProviders:{project:structuredClone(inspection.state||{}),'native-physics':nativePhysics.state},
+        stateConflicts:Object.keys(inspection.state||{}).filter(key=>Object.hasOwn(nativePhysics.state,key))}:{}),
       ...(world.thermal?.inspect?.(target)?{simulation:world.thermal.inspect(target)}:{}) };
   }
 

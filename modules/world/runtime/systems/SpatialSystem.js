@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { nativeCarryRecord } from '../interaction/NativePhysicalTarget.js';
 import {
   boxesOverlap,
   objectWorldPosition,
@@ -9,14 +10,38 @@ import {
 const roundVec = (vector) => vector.toArray().map((value) => Number(value.toFixed(3)));
 
 export class SpatialSystem {
-  constructor({ store }) {
+  constructor({ store, entities=null, physics=null }) {
     this.store = store;
+    this.entities=entities;this.physics=physics;
     this.raycaster = new THREE.Raycaster();
   }
 
   snapshot() {
     const snapshot = new Map();
     for (const [id, record] of this.store.entries()) if (record.active !== false) snapshot.set(id, spatialSnapshotEntry(id, record.object));
+    return snapshot;
+  }
+
+  nativeRecord(id){return nativeCarryRecord(this.entities,this.physics,id);}
+  interactionRecord(id){return this.store.has(id)?this.store.get(id):this.nativeRecord(id);}
+  interactionBounds(id){
+    if(this.store.has(id))return this.getBounds(id);
+    const bounds=this.nativeRecord(id)?this.physics.manipulationBounds(id):null;
+    if(!bounds)throw Object.assign(new Error('TARGET_PHYSICS_UNAVAILABLE'),{code:'TARGET_PHYSICS_UNAVAILABLE'});
+    return bounds;
+  }
+  interactionPosition(id){
+    return this.nativeRecord(id)?new THREE.Vector3(...this.physics.getPosition(id)):objectWorldPosition(this.store.get(id).object);
+  }
+  placementSnapshot(subjectId,targetId){
+    const snapshot=this.snapshot();
+    if(!this.nativeRecord(subjectId)&&!this.nativeRecord(targetId))return snapshot;
+    for(const entity of this.entities?.list({source:'native',capability:'physics'})||[]){
+      const bounds=this.nativeRecord(entity.id)?this.physics.manipulationBounds(entity.id):null;
+      if(!bounds)continue;
+      const box=new THREE.Box3(new THREE.Vector3(...bounds.min),new THREE.Vector3(...bounds.max));
+      snapshot.set(entity.id,{id:entity.id,bounds,box,center:box.getCenter(new THREE.Vector3()),size:box.getSize(new THREE.Vector3())});
+    }
     return snapshot;
   }
 
@@ -101,6 +126,14 @@ export class SpatialSystem {
   }
 
   getSupportSurface(targetId, surfaceId, snapshot = null) {
+    const native=this.nativeRecord(targetId);
+    if(native){
+      if(this.physics.manipulationBody(targetId).body!=='fixed')return null;
+      const rotation=this.physics.getRotation(targetId),position=this.physics.getPosition(targetId);
+      if(!rotation||!position||1-Math.abs(rotation[3])>1e-6)return null;
+      const surface=surfaceId?native.manifest.surfaces.find(item=>item.id===surfaceId):native.manifest.surfaces[0];
+      return surface?{targetId,id:surface.id,center:new THREE.Vector3(...position).add(new THREE.Vector3(...surface.localPosition)),size:[...surface.size]}:null;
+    }
     const record = this.store.get(targetId);
     if (!snapshot?.has(targetId)) record.object.updateWorldMatrix(true, true);
     const surface = surfaceId
@@ -216,7 +249,7 @@ export class SpatialSystem {
   }
 
   supportGeometry(subjectId, targetId, { surfaceId = null, tolerance = 0.12, snapshot = null } = {}) {
-    const localSnapshot = snapshot || this.snapshot();
+    const localSnapshot = snapshot || this.placementSnapshot(subjectId,targetId);
     const subject = localSnapshot.get(subjectId);
     if (!subject) return { supported: false, reason: 'SUBJECT_MISSING', evidence: 'spatial-geometry' };
     const surface = this.getSupportSurface(targetId, surfaceId, localSnapshot);
@@ -242,13 +275,14 @@ export class SpatialSystem {
   }
 
   findFreeSpace(objectId, targetId, { surfaceId, clearance = 0.03, grid = 5, ignore = [] } = {}) {
-    const objectRecord = this.store.get(objectId);
-    const snapshot = this.snapshot();
+    const native=Boolean(this.nativeRecord(objectId)||this.nativeRecord(targetId));
+    const snapshot = this.placementSnapshot(objectId,targetId);
     const surface = this.getSupportSurface(targetId, surfaceId, snapshot);
     if (!surface) return null;
 
     const entry = snapshot.get(objectId);
-    const currentRoot = objectWorldPosition(objectRecord.object);
+    if(!entry)return null;
+    const currentRoot = this.interactionPosition(objectId);
     const { box: bounds, size } = entry;
     const halfX = size.x / 2 + clearance;
     const halfZ = size.z / 2 + clearance;
@@ -277,6 +311,7 @@ export class SpatialSystem {
       const candidateSnapshot = new Map(snapshot);
       candidateSnapshot.set(objectId, spatialEntryAtRootPosition(entry, currentRoot, candidate));
       const overlaps = this.overlappingIds(objectId, { ignore: [targetId, ...ignore], margin: clearance / 2, snapshot: candidateSnapshot });
+      if (native&&!this.physics.checkBodyPose(objectId,candidate.toArray(),this.physics.getRotation(objectId),{excludeIds:ignore}).clear)continue;
       if (!overlaps.length) return candidate;
     }
     return null;

@@ -86,3 +86,20 @@ it('creates real collision and a verified navigable native floor without manual 
     floor.geometry.dispose();floor.material.dispose();
   }
 },30000);
+
+
+it('preserves triangle orientation for mirrored group roots and refuses dynamic or overlapping roots',()=>{
+  const scene=new THREE.Scene(),group=new THREE.Group(),floor=mesh();
+  floor.position.y=-.1;group.scale.x=-1;group.add(floor);scene.add(group);
+  const [collider]=extractNativeStaticColliders(scene,{staticMeshes:[group]});
+  const normals=collider.indices.filter((_,i)=>i%3===0).map((_,i)=>{
+    const [a,b,c]=collider.indices.slice(i*3,i*3+3).map(n=>new THREE.Vector3().fromArray(collider.vertices,n*3));
+    return b.clone().sub(a).cross(c.clone().sub(a));
+  });
+  expect(normals.some(n=>n.y>0)).toBe(true);
+  // The first mirrored triangle uses reversed source winding.
+  expect(collider.indices.slice(0,3)).toEqual([floor.geometry.index.getX(0),floor.geometry.index.getX(2),floor.geometry.index.getX(1)]);
+  expect(()=>extractNativeStaticColliders(scene,{staticMeshes:[group,floor]})).toThrow('NATIVE_STATIC_MESH_LIMIT');
+  group.userData.agentscapeDynamic=true;
+  expect(()=>extractNativeStaticColliders(scene,{staticMeshes:[group]})).toThrow('NATIVE_STATIC_MESH_UNSUPPORTED');
+});

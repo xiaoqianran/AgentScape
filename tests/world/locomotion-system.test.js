@@ -194,3 +194,12 @@ describe('LocomotionSystem', () => {
     await pending;
   });
 });
+
+
+it('does not skip a routed upper floor at the same horizontal coordinates',async()=>{
+  const route={reachable:true,path:[[0,0,0],[2,0,0],[2,3,0],[0,3,0]],end:{snapped:[0,3,0]},cost:7};
+  const {system}=createHarness({route});
+  const moving=system.navigate('agent',[0,3,0]);await settle();
+  expect(system.status('agent')).toMatchObject({status:'moving',step:1});
+  system.cancel('agent');await expect(moving).resolves.toMatchObject({status:'cancelled'});
+});

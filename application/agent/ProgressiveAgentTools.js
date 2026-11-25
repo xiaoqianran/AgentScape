@@ -3,7 +3,7 @@
  * Discovery changes LLM visibility, not Runtime permissions or capabilities.
  */
 const INITIAL_TOOLS = Object.freeze([
-  'listObjects', 'observeScene', 'verifyScene', 'planSceneTask', 'interactScene',
+  'listObjects', 'observeScene', 'verifyScene', 'planSceneTask', 'interactScene', 'diagnoseSceneNavigation',
   'searchAssets', 'generateAsset', 'addSceneModel',
   'approachAndInteract', 'approachAndPickup', 'approachAndPlace',
   'navigateTo', 'listInteractablesNearMe',

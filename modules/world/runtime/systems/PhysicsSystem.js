@@ -39,6 +39,37 @@ const convexAabb = (vertices, position, rotation) => {
   return { position:min.clone().add(max).multiplyScalar(0.5).toArray(), halfExtents:max.clone().sub(min).multiplyScalar(0.5).toArray() };
 };
 
+const navigationObstacleDescriptor=(objectId,partName,i,{shape,position,rotation})=>{
+  const id=`${objectId}:${partName}:${i}`;
+  if(shape.kind==='box') {
+    const exact=upright(rotation);
+    return ({
+      id,objectId,part:partName,collider:i,shape:'box',sourceShape:'box',quality:exact?'exact-yaw':'conservative-aabb',
+      position:array3(position),
+      halfExtents:exact?array3(shape.halfExtents):boxAabbHalfExtents(shape.halfExtents,rotation),
+      angle:exact?yaw(rotation):0
+    });
+  } else if(shape.kind==='cylinder') {
+    if(upright(rotation)) {
+      return ({id,objectId,part:partName,collider:i,shape:'cylinder',sourceShape:'cylinder',quality:'exact-upright',position:[position.x,position.y-shape.halfHeight,position.z],radius:shape.radius,height:shape.halfHeight*2});
+    } else {
+      return ({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'cylinder',quality:'conservative-aabb',position:array3(position),halfExtents:cylinderAabbHalfExtents(shape.radius,shape.halfHeight,rotation),angle:0});
+    }
+  } else if(shape.kind==='capsule') {
+    const extentY=shape.halfHeight+shape.radius;
+    if(upright(rotation)) {
+      return ({id,objectId,part:partName,collider:i,shape:'cylinder',sourceShape:'capsule',quality:'conservative-upright',position:[position.x,position.y-extentY,position.z],radius:shape.radius,height:extentY*2});
+    } else {
+      return ({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'capsule',quality:'conservative-aabb',position:array3(position),halfExtents:capsuleAabbHalfExtents(shape.radius,shape.halfHeight,rotation),angle:0});
+    }
+  } else if(shape.kind==='convexHull' && shape.vertices?.length) {
+    const box=convexAabb(shape.vertices,new THREE.Vector3(position.x,position.y,position.z),rotation);
+    return ({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'convexHull',quality:'conservative-aabb',...box,angle:0});
+  } else {
+    return null;
+  }
+};
+
 export class PhysicsSystem {
   constructor({ backend } = {}) {
     if (!backend) throw new TypeError('PhysicsSystem requires a physics backend');
@@ -373,7 +404,7 @@ export class PhysicsSystem {
       this.backend.setBodyDynamics(body,manifest.physics || {});
       if(manifest.physics?.ccd != null) this.backend.setBodyCcd(body,manifest.physics.ccd);
 
-      const entry = { body, root: object, rootSpec:manifest.physics || {}, parts: new Map(), lastPosition: worldPos.clone(), lastRotation: worldRot.clone() };
+      const entry = { body, root: object, rootSpec:manifest.physics || {}, nativeNavigation:manifest.nativeNavigation===true, nativeArticulation:manifest.nativeArticulation===true, parts: new Map(), lastPosition: worldPos.clone(), lastRotation: worldRot.clone() };
       const bodies = new Map([[ROOT_PART, body]]);
       for (const [partName, part] of orderParts(manifest.parts || {})) {
         if (!part.physics || !part.joint) continue;
@@ -856,6 +887,30 @@ export class PhysicsSystem {
     return this.backend.bodyMotion(body);
   }
 
+  /** Solver-space bounds for registered native or managed root colliders. */
+  manipulationBounds(id,partName=ROOT_PART) {
+    const entry=this.entries.get(id),body=partName===ROOT_PART?entry?.body:entry?.parts.get(partName)?.body;
+    if(!body)return null;
+    const bounds=new THREE.Box3();
+    for(const collider of this.backend.colliders(body)){
+      const {shape,position,rotation}=this.backend.colliderSnapshot(collider);
+      let half,center=array3(position);
+      if(shape.kind==='box')half=boxAabbHalfExtents(shape.halfExtents,rotation);
+      else if(shape.kind==='cylinder')half=cylinderAabbHalfExtents(shape.radius,shape.halfHeight,rotation);
+      else if(shape.kind==='capsule')half=capsuleAabbHalfExtents(shape.radius,shape.halfHeight,rotation);
+      else if(shape.kind==='convexHull'&&shape.vertices?.length){
+        const box=convexAabb(shape.vertices,new THREE.Vector3(...center),rotation);
+        center=box.position;half=box.halfExtents;
+      }else return null;
+      if(![...center,...half].every(Number.isFinite))return null;
+      bounds.expandByPoint(new THREE.Vector3(...center.map((n,i)=>n-half[i])));
+      bounds.expandByPoint(new THREE.Vector3(...center.map((n,i)=>n+half[i])));
+    }
+    if(bounds.isEmpty())return null;
+    return {id,min:bounds.min.toArray(),max:bounds.max.toArray(),
+      center:bounds.getCenter(new THREE.Vector3()).toArray(),size:bounds.getSize(new THREE.Vector3()).toArray()};
+  }
+
   manipulationBody(id, partName = ROOT_PART, { contacts = false } = {}) {
     const entry = this.entries.get(id);
     const part = partName === ROOT_PART ? null : entry?.parts.get(partName);
@@ -976,6 +1031,7 @@ export class PhysicsSystem {
     const nodeParentWorldRotation = new THREE.Quaternion();
     parentFrame.getWorldQuaternion(parentWorldRotation);
     part.node.parent.getWorldQuaternion(nodeParentWorldRotation);
+    if(entry.nativeArticulation)return this.#nativeArticulationCoordinate(entry,part,{id,partName,target});
     const axis = new THREE.Vector3(...(part.spec.joint.axis || [1,0,0])).normalize()
       .applyQuaternion(parentWorldRotation)
       .applyQuaternion(nodeParentWorldRotation.invert())
@@ -1003,6 +1059,27 @@ export class PhysicsSystem {
     };
   }
 
+  /** Native links retain a direct rigid parent. Read solver poses, not a prior render frame. */
+  #nativeArticulationCoordinate(entry,part,{id,partName,target}){
+    const parent=part.parentName===ROOT_PART?entry.body:entry.parts.get(part.parentName)?.body;
+    const parentPose=this.backend.bodyPose(parent),childPose=this.backend.bodyPose(part.body);
+    if(!parentPose||!childPose)return null;
+    const inverse=new THREE.Quaternion(...parentPose.rotation).invert();
+    const axis=new THREE.Vector3(...part.spec.joint.axis).normalize();
+    const localPosition=new THREE.Vector3(...childPose.position).sub(new THREE.Vector3(...parentPose.position)).applyQuaternion(inverse);
+    const localRotation=inverse.multiply(new THREE.Quaternion(...childPose.rotation));
+    const type=part.spec.joint.type;
+    const delta=localRotation.multiply(part.restLocalRotation.clone().invert()).normalize();
+    const wrap=n=>Math.atan2(Math.sin(n),Math.cos(n));
+    const coordinate=type==='prismatic'?localPosition.sub(part.restLocalPosition).dot(axis):
+      wrap(2*Math.atan2(delta.x*axis.x+delta.y*axis.y+delta.z*axis.z,delta.w));
+    if(!Number.isFinite(coordinate))return null;
+    return {id,partName,jointType:type,coordinate,target:Number.isFinite(target)?target:null,
+      error:Number.isFinite(target)?Math.abs(type==='revolute'?wrap(coordinate-target):coordinate-target):null,
+      tolerance:type==='prismatic'?.03:.08,limits:[...part.spec.joint.limits],
+      localAxis:axis.toArray(),coordinateReference:'rest-zero-pose'};
+  }
+
   articulationColliderPoses(id, partName, coordinate) {
     if (!this.backend.hasCapability('collision')) return {checked:false,reason:'PHYSICS_CAPABILITY_UNAVAILABLE',capability:'collision',id,partName,coordinate};
     const entry=this.entries.get(id);
@@ -1013,7 +1090,12 @@ export class PhysicsSystem {
     const childAnchor=new THREE.Vector3(...(part.spec.joint.childAnchor || [0,0,0]));
     const parentRotation=new THREE.Quaternion();
     part.node.parent.updateWorldMatrix(true,false);
-    part.node.parent.getWorldQuaternion(parentRotation);
+    if(entry.nativeArticulation){
+      const parent=part.parentName===ROOT_PART?entry.body:entry.parts.get(part.parentName)?.body;
+      const parentPose=this.backend.bodyPose(parent);
+      if(!parentPose)return {checked:false,reason:'JOINT_AXIS_UNAVAILABLE',id,partName,coordinate};
+      parentRotation.fromArray(parentPose.rotation);
+    }else part.node.parent.getWorldQuaternion(parentRotation);
     const worldAxis=new THREE.Vector3(...state.localAxis).applyQuaternion(parentRotation).normalize();
     if (!Number.isFinite(worldAxis.lengthSq()) || worldAxis.lengthSq()<.99) return {checked:false,reason:'JOINT_AXIS_UNAVAILABLE',id,partName,coordinate};
 
@@ -1409,6 +1491,19 @@ export class PhysicsSystem {
     return true;
   }
 
+  /** Read-only hypothetical collider descriptors, not a solver mutation. */
+  nativeNavigationJointPose(id,partName,target){
+    const entry=this.entries.get(id),part=entry?.parts.get(partName);
+    const limits=part?.spec.joint?.limits;
+    if(!entry?.nativeArticulation||!limits||!Number.isFinite(target)||target<limits[0]||target>limits[1])
+      return {checked:false,reason:'NATIVE_NAVIGATION_JOINT_UNAVAILABLE'};
+    const pose=this.articulationColliderPoses(id,partName,target);
+    if(!pose.checked)return pose;
+    const descriptors=pose.colliders.map(c=>navigationObstacleDescriptor(id,partName,c.index,c));
+    if(!descriptors.length||descriptors.some(c=>!c))return {checked:false,reason:'NATIVE_NAVIGATION_COLLIDER_UNSUPPORTED'};
+    return {checked:true,currentCoordinate:pose.currentCoordinate,descriptors};
+  }
+
   getNavigationObstacles() {
     if (!this.backend.hasCapability('collision')) return {items:[],skipped:[{reason:'physics-capability-unavailable',capability:'collision'}]};
     this.backend.syncSceneQueries(this.world);
@@ -1419,34 +1514,9 @@ export class PhysicsSystem {
       for(const [i,collider] of this.backend.colliders(body).entries()) {
         const snapshot=this.backend.colliderSnapshot(collider);
         const {shape,position,rotation}=snapshot;
-        const id=`${objectId}:${partName}:${i}`;
-        if(shape.kind==='box') {
-          const exact=upright(rotation);
-          items.push({
-            id,objectId,part:partName,collider:i,shape:'box',sourceShape:'box',quality:exact?'exact-yaw':'conservative-aabb',
-            position:array3(position),
-            halfExtents:exact?array3(shape.halfExtents):boxAabbHalfExtents(shape.halfExtents,rotation),
-            angle:exact?yaw(rotation):0
-          });
-        } else if(shape.kind==='cylinder') {
-          if(upright(rotation)) {
-            items.push({id,objectId,part:partName,collider:i,shape:'cylinder',sourceShape:'cylinder',quality:'exact-upright',position:[position.x,position.y-shape.halfHeight,position.z],radius:shape.radius,height:shape.halfHeight*2});
-          } else {
-            items.push({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'cylinder',quality:'conservative-aabb',position:array3(position),halfExtents:cylinderAabbHalfExtents(shape.radius,shape.halfHeight,rotation),angle:0});
-          }
-        } else if(shape.kind==='capsule') {
-          const extentY=shape.halfHeight+shape.radius;
-          if(upright(rotation)) {
-            items.push({id,objectId,part:partName,collider:i,shape:'cylinder',sourceShape:'capsule',quality:'conservative-upright',position:[position.x,position.y-extentY,position.z],radius:shape.radius,height:extentY*2});
-          } else {
-            items.push({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'capsule',quality:'conservative-aabb',position:array3(position),halfExtents:capsuleAabbHalfExtents(shape.radius,shape.halfHeight,rotation),angle:0});
-          }
-        } else if(shape.kind==='convexHull' && shape.vertices?.length) {
-          const box=convexAabb(shape.vertices,new THREE.Vector3(position.x,position.y,position.z),rotation);
-          items.push({id,objectId,part:partName,collider:i,shape:'box',sourceShape:'convexHull',quality:'conservative-aabb',...box,angle:0});
-        } else {
-          skipped.push({id,objectId,part:partName,collider:i,reason:'unsupported-shape',shapeType:shape.kind});
-        }
+        const descriptor=navigationObstacleDescriptor(objectId,partName,i,{shape,position,rotation});
+        if(descriptor)items.push(descriptor);
+        else skipped.push({id:objectId+':'+partName+':'+i,objectId,part:partName,collider:i,reason:'unsupported-shape',shapeType:shape.kind});
       }
     };
 

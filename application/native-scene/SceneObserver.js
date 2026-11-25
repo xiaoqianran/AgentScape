@@ -85,7 +85,13 @@ export function createSceneObserver(native,{renderCurrent}={}){
       }
     }
   }
-  return Object.freeze({inspect,search:options=>searchNativeScene(native,options),
+  const physicsCandidate=({nodePath,objectUuid}={})=>{
+    if(typeof nodePath!=='string'||!nodePath||!objectUuid)throw fail('NATIVE_PHYSICS_CANDIDATE_ID_REQUIRED');
+    if(!native.analyzePhysics)throw fail('NATIVE_PHYSICS_CANDIDATE_UNAVAILABLE');
+    const {node}=resolveNode(native.scene,nodePath,objectUuid);
+    return {...native.analyzePhysics(node),nodePath};
+  };
+  return Object.freeze({inspect,physicsCandidate,search:options=>searchNativeScene(native,options),
     inspectBatch:options=>inspectNativeSceneBatch(native,options),
     suggestViews:options=>suggestNativeViews(native,options,aspect()),capture});
 }

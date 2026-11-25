@@ -1,6 +1,7 @@
 import { compileAcceptanceFindings } from './Finding.js';
 import { getInteractionEvidence } from './InteractionEvidence.js';
 import { SemanticWorldView } from '../runtime/semantic/SemanticWorldView.js';
+import { nativePhysicalTarget } from '../runtime/interaction/NativePhysicalTarget.js';
 
 const SCHEMA='agentscape.world-acceptance';
 const VERSION=1;
@@ -23,7 +24,7 @@ export function compileWorldAcceptance(criteria=[]){
       check.source=clean(item.source);
       if(!check.source) throw new TypeError(`Acceptance[${index}] source must be non-empty`);
     }
-    if(kind==='interaction-verified'){ check.capability=clean(item.capability).toUpperCase(); if(!check.targetId||!check.capability) throw new TypeError(`Acceptance[${index}] interaction-verified requires targetId/capability`); }
+    if(kind==='interaction-verified'){ if(clean(item.partName))check.partName=clean(item.partName); check.capability=clean(item.capability).toUpperCase(); if(!check.targetId||!check.capability) throw new TypeError(`Acceptance[${index}] interaction-verified requires targetId/capability`); }
     if(kind==='relation-exists'){
       check.subject=clean(item.subject); check.predicate=clean(item.predicate).toUpperCase(); check.object=clean(item.object);
       if(item.objectAnyOf!=null) {
@@ -63,19 +64,30 @@ export function evaluateWorldAcceptance(runtime,graph,{unresolvedMutations=undef
     }
     if(check.kind==='interaction-verified'){
       const projectAction=runtime?.projectCapabilities?.hasAction?.(check.targetId,check.capability.toLowerCase());
-      const physicalAction=projectAction && runtime?.affordances?.inspect?.(check.targetId)?.actions?.some(action =>
-        action.action?.toUpperCase() === check.capability && ['interaction','world-action'].includes(action.execution));
+      const native=nativePhysicalTarget(runtime?.entities,runtime?.physics,check.targetId);
+      const nativeAction=Boolean(native&&(
+        (native.metadata.manipulable&&['PUSH','DRAG','ROTATE'].includes(check.capability))||
+        (native.metadata.carryable&&['PICKUP','DROP','CARRY'].includes(check.capability))||
+        (native.metadata.surfaces?.length&&check.capability==='PLACE')||
+        Object.entries(native.manifest?.parts||{}).some(([name,part])=>(!check.partName||check.partName===name)&&
+          (part.joint.type==='prismatic'?check.capability==='SLIDE':check.capability==='ROTATEJOINT'))));
+      const nativeReceiptTarget=nativeAction||(check.capability==='PLACE'&&runtime?.store?.has?.(check.targetId));
+      const physicalAction=projectAction && (nativeAction||runtime?.affordances?.inspect?.(check.targetId)?.actions?.some(action =>
+        action.action?.toUpperCase() === check.capability && ['interaction','world-action'].includes(action.execution)));
       if(!check.source && projectAction && physicalAction) {
         return {id:check.id,kind:check.kind,verified:false,targetId:check.targetId,
-          expected:check.capability,reason:'INTERACTION_SOURCE_REQUIRED'};
+          expected:check.capability,...(check.partName?{partName:check.partName}:{}),reason:'INTERACTION_SOURCE_REQUIRED'};
       }
       const evidenceSource=check.source==='asset'?'physical-articulation'
         :check.source==='project'?'project-defined':check.source || null;
-      const evidence=getInteractionEvidence(runtime,check.targetId,check.capability,
-        {worldRevisionId,...(evidenceSource?{source:evidenceSource}:{})});
+      let evidence=evidenceSource==='native-physics'&&!nativeReceiptTarget?null:
+        getInteractionEvidence(runtime,check.targetId,check.capability,
+          {worldRevisionId,...(evidenceSource?{source:evidenceSource}:{}),...(check.partName?{partName:check.partName}:{})});
+      if(evidence?.source==='native-physics'&&!nativeReceiptTarget)evidence=null;
+      if(evidence?.source==='native-physics'&&evidence.result?.heldId&&!runtime?.store?.has?.(evidence.result.heldId)&&!nativePhysicalTarget(runtime?.entities,runtime?.physics,evidence.result.heldId))evidence=null;
       const verified=Boolean(evidence);
       return {id:check.id,kind:check.kind,verified,targetId:check.targetId,expected:check.capability,
-        ...(check.source?{source:check.source}:{}),...(evidence?{evidence}:{reason:'INTERACTION_NOT_VERIFIED'})};
+        ...(check.partName?{partName:check.partName}:{}),...(check.source?{source:check.source}:{}),...(evidence?{evidence}:{reason:'INTERACTION_NOT_VERIFIED'})};
     }
     if(check.kind==='relation-exists'){
       const fact=facts.relation(check);
