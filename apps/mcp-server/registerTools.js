@@ -229,7 +229,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
   }
   if(Buffer.byteLength(JSON.stringify(a.bundle))>manager.maxExportBytes)throw new Error('IMPORT_LIMIT');
   return sceneRun(a,'importProject',{bundle:a.bundle},async s=>{
-    const result=await s.host.scene.importProject(a.bundle);
+    const result=await s.host.scene.importProject(a.bundle,{gltfLoader:createHeadlessGLTFLoader()});
     s.forge.restore(s.host.world,result.value.editable||[]);
     return {...result,value:{status:result.value.status,objects:result.value.objects,editableRestored:result.value.editable?.length||0}};
   },e);

@@ -2,6 +2,7 @@ import { Document } from '@gltf-transform/core';
 import { KHRMaterialsClearcoat, KHRMaterialsTransmission, KHRMaterialsIOR, KHRMaterialsEmissiveStrength } from '@gltf-transform/extensions';
 import { BoxGeometry, SphereGeometry, CylinderGeometry, Color, Vector3, Quaternion } from 'three';
 import { createAssetGLTFIO } from './compiler/gltfIO.js';
+import { attachProceduralTexture } from './ProceduralTexture.js';
 import { recipeSchema } from '../model/AssetInputContracts.js';
 
 function createPartGeometry(spec) {
@@ -24,7 +25,7 @@ export async function compileRecipeGeometry(input) {
   const recipe = recipeSchema.parse(input);
   const document = new Document(), buffer = document.createBuffer();
   const scene = document.createScene('Recipe'); document.getRoot().setDefaultScene(scene);
-  const nodes = new Map();
+  const nodes = new Map(), textures=new Map();
   for (const part of recipe.parts) {
     const node = document.createNode(part.id).setTranslation(part.position).setRotation(part.quaternion).setScale([part.scale, part.scale, part.scale]);
     nodes.set(part.id, node);
@@ -62,6 +63,7 @@ export async function compileRecipeGeometry(input) {
         const ext=document.createExtension(KHRMaterialsEmissiveStrength);
         material.setExtension(ext.extensionName,ext.createEmissiveStrength().setEmissiveStrength(surface.emissiveIntensity));
       }
+      if(surface?.texture)attachProceduralTexture(document,material,surface.texture,textures);
       primitive.setMaterial(material);
       node.setMesh(document.createMesh(part.id).addPrimitive(primitive));
     } finally { geometry.dispose(); }

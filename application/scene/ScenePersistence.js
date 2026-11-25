@@ -40,10 +40,10 @@ export function createScenePersistence(world, { name, styles, assertIdle, exclus
       });
     },
     async setStyle(input, options = {}) { return exclusive(async () => result('setStyle', await styles.set(input, options))); },
-    async importProject(input) {
+    async importProject(input, { gltfLoader } = {}) {
       return exclusive(async () => {
         const { importScenePackageInto } = await import('./ScenePackage.js');
-        return result('importProject', await importScenePackageInto(world, input, { getStyle: () => styles.export(), applyStyle: pack => pack ? styles.set(pack) : styles.clear() }));
+        return result('importProject', await importScenePackageInto(world, input, { gltfLoader, getStyle: () => styles.export(), applyStyle: pack => pack ? styles.set(pack) : styles.clear() }));
       });
     },
   };

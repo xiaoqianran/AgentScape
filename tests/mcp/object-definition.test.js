@@ -65,3 +65,50 @@ it('edits one object draft by field, rejects invalid changes and preserves other
     await call('session_close',base);
   }finally{await client.close().catch(()=>{});await app.close();await rm(root,{recursive:true,force:true});}
 },90000);
+
+it('adds a procedural material to one Recipe instance and exports embedded color and normal maps',async()=>{
+  const root=await mkdtemp(path.join(tmpdir(),'agentscape-material-forge-'));
+  const token=randomBytes(32).toString('hex');
+  const app=await startServer({tokens:[{identity:'material-forge',token}],port:0,root});
+  const client=new Client({name:'material-forge',version:'1'});
+  const origin='http://127.0.0.1:'+app.port,headers={Authorization:'Bearer '+token};
+  const call=async(name,args={},error=false)=>{
+    const response=await client.callTool({name,arguments:args});
+    const value=JSON.parse(response.content[0].text);
+    expect(!!response.isError,JSON.stringify(value)).toBe(error);
+    return value;
+  };
+  try{
+    await client.connect(new StreamableHTTPClientTransport(new URL(origin+'/mcp'),{requestInit:{headers}}));
+    const base={worldSessionId:(await call('session_create')).worldSessionId};
+    const initial=await call('scene_observe',base);
+    await call('scene_apply',{...base,requestId:randomUUID(),operations:initial.objects.map(o=>({type:'remove',id:o.id}))});
+    const asset={schema:'agentscape.asset-recipe',schemaVersion:1,id:'material/board',parts:[{id:'body',geometry:{type:'box',size:[1,.15,1]}}]};
+    for(const [id,x] of [['board_a',0],['board_b',2]])await call('scene_add_model',{...base,requestId:randomUUID(),model:{id,asset,position:[x,1,0]}});
+    const before=await call('scene_object_definition',{...base,operation:'inspect',objectId:'board_b'});
+    const material={color:'#ffffff',roughness:.7,texture:{pattern:'wood',seed:42,resolution:64}};
+    const preview=await call('scene_object_definition',{...base,operation:'preview',objectId:'board_a',expectedRevision:1,requestId:randomUUID(),changes:[{path:'/parts/@body/material',value:material}]});
+    expect(preview.changes[0].previous).toBeNull();
+    const applied=await call('scene_object_definition',{...base,operation:'apply',objectId:'board_a',expectedRevision:1,previewId:preview.previewId,requestId:randomUUID()});
+    expect(applied).toMatchObject({status:'object-patch-applied',revision:2});
+    expect((await call('scene_object_definition',{...base,operation:'inspect',objectId:'board_a'})).definition.parts[0].material).toMatchObject(material);
+    expect((await call('scene_object_definition',{...base,operation:'inspect',objectId:'board_b'})).assetId).toBe(before.assetId);
+    const file=await call('scene_export_glb',{...base,options:{objectIds:['board_a','board_b']}});
+    const response=await fetch(origin+'/files/'+file.fileId+'/content',{headers});
+    expect(response.status).toBe(200);
+    const bytes=Buffer.from(await response.arrayBuffer());
+    const gltf=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)));
+    expect(gltf.images).toHaveLength(2);
+    expect(gltf.materials.filter(m=>m.pbrMetallicRoughness.baseColorTexture)).toHaveLength(1);
+    expect(gltf.materials.filter(m=>m.normalTexture)).toHaveLength(1);
+    const save=(await call('scene_save',base)).value;
+    const next={worldSessionId:(await call('session_create')).worldSessionId};
+    await call('scene_import',{...next,requestId:randomUUID(),bundle:save});
+    const recovered=await call('scene_object_definition',{...next,operation:'inspect',objectId:'board_a'});
+    expect(recovered.definition.parts[0].material).toMatchObject(material);
+    const restored=await call('scene_export_glb',{...next,options:{objectIds:['board_a','board_b']}});
+    expect(restored.sha256).toBe(file.sha256);
+    await call('session_close',next);
+    await call('session_close',base);
+  }finally{await client.close().catch(()=>{});await app.close();await rm(root,{recursive:true,force:true});}
+},90000);

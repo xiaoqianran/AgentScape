@@ -30,9 +30,14 @@ function changeAt(document, { path, value }) {
     }
   }
   const key=segments.at(-1);
-  if (!cursor || typeof cursor!=='object' || !Object.hasOwn(cursor,key))
+  // The entire optional Recipe material may be added or replaced. Other
+  // paths still require an existing field; the complete recipe is revalidated.
+  const optionalRecipeMaterial=document.schema==='agentscape.asset-recipe'
+    && segments.length===3 && segments[0]==='parts' && key==='material'
+    && document.parts.includes(cursor) && Boolean(cursor.geometry);
+  if (!cursor || typeof cursor!=='object' || (!Object.hasOwn(cursor,key)&&!optionalRecipeMaterial))
     throw fail('OBJECT_PATCH_PATH_NOT_FOUND');
-  const previous=clone(cursor[key]);
+  const previous=clone(cursor[key]??null);
   cursor[key]=clone(value);
   return {path,previous,next:clone(value)};
 }

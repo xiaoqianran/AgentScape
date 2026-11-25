@@ -239,7 +239,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
     importWorld: (storage, source, options) => persistence.importWorld(storage, source, options),
     restoreSnapshot: (snapshot, options) => persistence.restoreSnapshot(snapshot, options),
     setStyle: (input, options) => persistence.setStyle(input, options),
-    importProject: input => persistence.importProject(input),
+    importProject: (input, options) => persistence.importProject(input, options),
     frame(timestamp) { assertOpen(); jobController.cancelPending(); world.simulation.pump(timestamp); world.rendering?.render(timestamp); },
     step() { assertOpen(); jobController.cancelPending(); return world.simulation.step(); },
     close() {

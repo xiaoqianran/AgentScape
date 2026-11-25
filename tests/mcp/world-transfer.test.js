@@ -27,7 +27,7 @@ it('streams a real world archive through HTTP, imports it, rejects foreign files
   const a={worldSessionId:(await call('session_create')).worldSessionId};
   const initial=await call('scene_observe',a);
   await call('scene_apply',{...a,requestId:randomUUID(),operations:initial.objects.map(o=>({type:'remove',id:o.id}))});
-  await call('scene_add_model',{...a,requestId:randomUUID(),model:{id:'world_box',position:[0,0,0],asset:{schema:'agentscape.asset-recipe',schemaVersion:1,id:'test/worldbox',parts:[{id:'box',geometry:{type:'box',size:[1,1,1]},position:[0,.5,0],material:{color:'#aabbcc',clearcoat:.8,clearcoatRoughness:.2,transmission:.3,ior:1.4,emissive:'#333333',emissiveIntensity:2}}]}}});
+  await call('scene_add_model',{...a,requestId:randomUUID(),model:{id:'world_box',position:[0,0,0],asset:{schema:'agentscape.asset-recipe',schemaVersion:1,id:'test/worldbox',parts:[{id:'box',geometry:{type:'box',size:[1,1,1]},position:[0,.5,0],material:{color:'#aabbcc',clearcoat:.8,clearcoatRoughness:.2,transmission:.3,ior:1.4,emissive:'#333333',emissiveIntensity:2,texture:{pattern:'stone',seed:21,resolution:64}}}]}}});
   const presentation={camera:{name:'Product camera',position:[3,2,4],target:[0,0,0]},lights:[{type:'point',name:'Product key',position:[0,3,0],intensity:20}]};
   const set=await call('scene_apply',{...a,requestId:randomUUID(),operations:[{type:'setPresentation',presentation}]});
   expect(set.status).toBe('succeeded');
@@ -49,6 +49,9 @@ it('streams a real world archive through HTTP, imports it, rejects foreign files
   expect(hash(visualBytes)).toBe(visual.sha256);
   const gltf=JSON.parse(visualBytes.subarray(20,20+visualBytes.readUInt32LE(12)));
   expect(gltf.cameras).toHaveLength(1);
+  expect(gltf.images).toHaveLength(2);
+  expect(gltf.materials[0].pbrMetallicRoughness.baseColorTexture).toBeDefined();
+  expect(gltf.materials[0].normalTexture).toBeDefined();
   expect(gltf.materials[0].extensions).toMatchObject({KHR_materials_clearcoat:{clearcoatFactor:.8},KHR_materials_transmission:{transmissionFactor:.3},KHR_materials_ior:{ior:1.4},KHR_materials_emissive_strength:{emissiveStrength:2}});
   expect(gltf.extensions.KHR_lights_punctual.lights).toHaveLength(1);
   expect((await request('/files/'+visual.fileId+'/content','GET',undefined,foreign)).status).toBe(404);
@@ -67,7 +70,8 @@ it('streams a real world archive through HTTP, imports it, rejects foreign files
   expect((await call('scene_observe',b)).objects.map(o=>o.id)).toEqual(['world_box']);
   expect((await call('scene_observe',b)).presentation).toEqual(savedPresentation);
   const restoredVisual=await call('scene_export_glb',b);
-  expect(restoredVisual).toMatchObject({cameras:1,lights:1});
+  expect(restoredVisual).toMatchObject({cameras:1,lights:1,textures:2});
+  expect(restoredVisual.sha256).toBe(visual.sha256);
   const restoredBytes=Buffer.from(await (await request('/files/'+restoredVisual.fileId+'/content')).arrayBuffer());
   const restoredGltf=JSON.parse(restoredBytes.subarray(20,20+restoredBytes.readUInt32LE(12)));
   expect(restoredGltf.cameras).toEqual(gltf.cameras);

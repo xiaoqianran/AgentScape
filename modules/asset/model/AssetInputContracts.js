@@ -1,3 +1,4 @@
+import { proceduralTextureSchema, MAX_PROCEDURAL_TEXTURE_PIXELS } from './ProceduralTextureContract.js';
 import * as z from 'zod/v4';
 
 export const threeCodeInputSchema = z.object({ kind:z.literal('three-code'), source:z.string().min(1).max(32768), definition:z.record(z.string(),z.unknown()).optional() }).strict();
@@ -42,7 +43,7 @@ export const recipeSchema = z.object({
     material: z.object({ color: z.string().regex(/^#[a-fA-F0-9]{6}$/).default('#aaaaaa'), roughness: z.number().min(0).max(1).default(0.7), metalness: z.number().min(0).max(1).default(0), opacity: z.number().min(0).max(1).optional(), emissive: z.string().regex(/^#[a-fA-F0-9]{6}$/).optional(), doubleSided: z.boolean().optional(),
       clearcoat: z.number().min(0).max(1).optional(), clearcoatRoughness: z.number().min(0).max(1).optional(),
       transmission: z.number().min(0).max(1).optional(), ior: z.number().min(1).max(2.5).optional(),
-      emissiveIntensity: z.number().min(0).max(100).optional() }).strict().optional()
+      emissiveIntensity: z.number().min(0).max(100).optional(), texture:proceduralTextureSchema.optional() }).strict().optional()
   }).strict()).min(1).max(64),
   capabilities: z.object({ level: z.enum(['visual', 'physical', 'interactive']), physics: assetPhysicsSchema.optional(),
     actions: z.array(z.enum(['move', 'pickup', 'place'])).max(3).default([]),
@@ -59,6 +60,16 @@ export const recipeSchema = z.object({
       seen.add(parent); parent = parts.get(parent).parent;
     }
   }
+  const textures=new Map();
+  for(const part of recipe.parts){
+    if(part.material?.texture){
+      if(!part.geometry)issue('A procedural texture requires geometry');
+      const texture=part.material.texture;
+      textures.set(JSON.stringify(texture),texture.resolution**2);
+    }
+  }
+  if([...textures.values()].reduce((total,pixels)=>total+pixels,0)>MAX_PROCEDURAL_TEXTURE_PIXELS)
+    issue('Procedural texture pixel budget exceeded');
   const c = recipe.capabilities;
   if (c.level === 'visual' && (c.physics || c.actions.length || c.surfaces.length)) issue('Visual cannot declare physical behavior');
   if (c.level !== 'visual' && !c.physics) issue('Physical capabilities require explicit physics');

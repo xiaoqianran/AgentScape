@@ -52,3 +52,16 @@ World Object
 `AssetModule` 是 composition root，拥有 `AssetRegistry`、`AssetLoader`、persistence stores 与 Asset 生产配置。重型几何服务仍在 `services/asset-compiler`。
 
 验证：`npm run test:asset`、`npm run assets:validate`、`npm run architecture:validate`。
+
+### Recipe 程序化纹理
+
+`parts[].material.texture` 是有界的声明式 UV 纹理，不接受任意 Shader、URL 或外部文件。
+支持 `wood`、`stone`、`fabric`、`brushed-metal`，例如：
+
+```json
+{"color":"#ffffff","roughness":0.75,"metalness":0,
+ "texture":{"pattern":"wood","seed":42,"resolution":128,"frequency":1,
+ "contrast":0.7,"normalStrength":0.25,"darkColor":"#775030","lightColor":"#cba06e"}}
+```
+
+生成的 Base Color PNG 与可选切线空间 Normal PNG 嵌入 GLB，支持现有资产编译器与标准 glTF 读取器；`normalStrength:0` 关闭法线图。`color` 仍是乘色因子，使用白色保留纹理原色。金属感、透明度等仍由现有 PBR 参数声明，不自动从纹理预设推导。分辨率仅允许 64、128、256；单个 Recipe 的唯一纹理声明累计最多 262144 像素（每组最多两张图）。相同规范化声明在一次编译内复用图片。纹理随已编译资产持久化，恢复时无需重新生成；这是近似程序纹理，不是实测材料或真实位移。

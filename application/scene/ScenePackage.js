@@ -132,10 +132,10 @@ export async function openScenePackage(input, { container = null, assetModule = 
 }
 
 /** Validate in an isolated session, then reuse Runtime's own transactional restore. */
-export async function importScenePackageInto(world, input, { applyStyle, getStyle } = {}) {
+export async function importScenePackageInto(world, input, { applyStyle, getStyle, gltfLoader } = {}) {
   const bundle = schema.parse(structuredClone(typeof input === 'string' ? JSON.parse(input) : input));
   const ids = new Set(bundle.assets.map(asset => asset.id));
-  const assets = createAssetModule({ volatile: true, manifests: Object.fromEntries(Object.entries(assetManifests).filter(([id]) => !ids.has(id))), manifestStore: null, libraryStore: null });
+  const assets = createAssetModule({ volatile: true, manifests: Object.fromEntries(Object.entries(assetManifests).filter(([id]) => !ids.has(id))), manifestStore: null, libraryStore: null, gltfLoader });
   if (world.rendering?.renderer) assets.configureRenderer(world.rendering.renderer);
   let staged;
   try {

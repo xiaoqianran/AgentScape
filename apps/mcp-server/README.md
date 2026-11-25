@@ -245,3 +245,10 @@ Recipe 的 `material` 支持可选 `clearcoat`、`clearcoatRoughness`、`transmi
 持久化相机与灯光：通过 `scene_apply` 的操作
 `{"type":"setPresentation","presentation":{"camera":{"position":[8,5,10],"target":[0,1,0]},"lights":[{"type":"point","position":[0,4,0],"intensity":30}]}}`
 一次替换整个创作灯光/镜头组；传入空对象清除。该组是实际 Three.js 对象，独立于视口控制与内置环境灯光，支持统一撤销/重做，随世界 JSON、inline bundle 和 .asworld 保存及恢复。`scene_observe` 返回 presentation；未指定导出参数时 `scene_export_glb` 复用保存的配置；显式 `camera:null` 或 `lights:[]` 仅在该次导出中禁用对应项，不修改世界。
+
+### 程序化纹理与单实例材质编辑
+
+Recipe 的 `parts[].material.texture` 支持 wood、stone、fabric、brushed-metal，详见 `modules/asset/README.md`。
+对已登记 Recipe 的对象，可调用 `scene_object_definition` 的 inspect → preview → apply，preview 的 changes 示例：
+`[{"path":"/parts/@body/material","value":{"color":"#ffffff","roughness":0.7,"texture":{"pattern":"wood","seed":42}}}]`。
+即使该部件原先未声明 material，也可设置完整材质。完整声明重新校验、编译并替换当前实例；不修改其他使用同一资产版本的对象。inline 项目包保留可编辑声明及纹理资源；.asworld 保存已编译纹理与世界状态（不含 Object Forge 编辑声明）。
