@@ -1,12 +1,30 @@
 import { Document } from '@gltf-transform/core';
 import { KHRMaterialsClearcoat, KHRMaterialsTransmission, KHRMaterialsIOR, KHRMaterialsEmissiveStrength } from '@gltf-transform/extensions';
-import { BoxGeometry, SphereGeometry, CylinderGeometry, Color, Vector3, Quaternion } from 'three';
+import { BoxGeometry, SphereGeometry, CylinderGeometry, Shape, Path, ExtrudeGeometry, Color, Vector3, Quaternion } from 'three';
 import { createAssetGLTFIO } from './compiler/gltfIO.js';
 import { attachProceduralTexture } from './ProceduralTexture.js';
 import { recipeSchema } from '../model/AssetInputContracts.js';
 
 function createPartGeometry(spec) {
   if (spec.type === 'box') return new BoxGeometry(...spec.size);
+  if (spec.type === 'perforated-box') {
+    const [width,height,depth]=spec.size;
+    const shape=new Shape();
+    shape.moveTo(-width/2,-depth/2);
+    shape.lineTo(width/2,-depth/2);
+    shape.lineTo(width/2,depth/2);
+    shape.lineTo(-width/2,depth/2);
+    shape.closePath();
+    for(const {center:[x,z],radius} of spec.holes){
+      const hole=new Path();
+      hole.absarc(x,-z,radius,0,2*Math.PI,true);
+      shape.holes.push(hole);
+    }
+    // Extrusion provides both caps and actual interior walls, not a decal
+    // or transparent spot. Rotate local extrusion Z onto the plate's Y axis.
+    return new ExtrudeGeometry(shape,{depth:height,bevelEnabled:false,steps:1,curveSegments:12})
+      .rotateX(-Math.PI/2).translate(0,-height/2,0);
+  }
   if (spec.type === 'sphere') return new SphereGeometry(spec.radius, 16, 12);
   if (spec.type === 'ellipsoid') return new SphereGeometry(1, 20, 14).scale(...spec.radii);
   if (spec.type === 'cylinder') return new CylinderGeometry(spec.radius, spec.radius, spec.height, 16);

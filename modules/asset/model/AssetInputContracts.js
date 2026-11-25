@@ -9,6 +9,26 @@ const size = z.number().finite().positive().max(100);
 const vector = z.tuple([number, number, number]);
 const sizes = z.tuple([size, size, size]);
 const nonnegativeSize = z.number().finite().min(0).max(100);
+// Round through-holes along local Y, centered on the XZ face.
+const MAX_RECIPE_HOLES=256;
+const holeSchema=z.object({center:z.tuple([number,number]),radius:z.number().finite().min(.001).max(50)}).strict();
+const perforatedBox=z.object({
+  type:z.literal('perforated-box'),size:sizes,holes:z.array(holeSchema).min(1).max(128)
+}).strict().superRefine(({size:[width,height,depth],holes},ctx)=>{
+  const clearance=1e-4;
+  const issue=(message,index)=>ctx.addIssue({code:'custom',path:['holes',index],message});
+  if(height<clearance)ctx.addIssue({code:'custom',path:['size',1],message:'Plate thickness too small'});
+  for(let i=0;i<holes.length;i++){
+    const {center:[x,z],radius}=holes[i];
+    if(Math.abs(x)+radius+clearance>width/2||Math.abs(z)+radius+clearance>depth/2)
+      issue('Through-hole must lie inside the plate with positive clearance',i);
+    for(let j=0;j<i;j++){
+      const other=holes[j];
+      if(Math.hypot(x-other.center[0],z-other.center[1])<radius+other.radius+clearance)
+        issue('Through-holes must not overlap or touch',i);
+    }
+  }
+});
 const id = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
 export const packagePath = z.string().max(240).refine(value => value.startsWith('./') && value.slice(2).split('/').every(p => /^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(p) && !p.endsWith('.') && !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p)));
 const boxCollider = z.object({ shape: z.literal('box'), halfExtents: sizes, translation: vector.default(() => [0, 0, 0]) }).strict();
@@ -31,6 +51,7 @@ export const recipeSchema = z.object({
   id: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]*(\/[A-Za-z][A-Za-z0-9_-]*)?$/).max(100),
   parts: z.array(z.object({ id, parent: id.optional(), geometry: z.discriminatedUnion('type', [
     z.object({ type: z.literal('box'), size: sizes }).strict(),
+    perforatedBox,
     z.object({ type: z.literal('sphere'), radius: size }).strict(),
     z.object({ type: z.literal('ellipsoid'), radii: sizes }).strict(),
     z.object({ type: z.literal('cylinder'), radius: size, height: size }).strict(),
@@ -60,6 +81,8 @@ export const recipeSchema = z.object({
       seen.add(parent); parent = parts.get(parent).parent;
     }
   }
+  if(recipe.parts.reduce((total,part)=>total+(part.geometry?.type==='perforated-box'?part.geometry.holes.length:0),0)>MAX_RECIPE_HOLES)
+    issue('Recipe through-hole budget exceeded');
   const textures=new Map();
   for(const part of recipe.parts){
     if(part.material?.texture){

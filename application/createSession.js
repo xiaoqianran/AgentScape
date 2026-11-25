@@ -60,7 +60,7 @@ export function createSession(container, {
   if (promotion) registerAuthoringSkills((name, options, handler) => world.skills.register({ name, ...options, handler }), promotion);
   if (authoring) registerCodeSkills((name, options, handler) => world.skills.register({ name, ...options, handler }), authoring);
   const scene = createSceneFacade(world, { codeExecutor, codeGLTFLoader });
-  world.skills.register({ name:'addSceneModel', description:'通过 Scene API 添加已有 AssetRef 或低多边形声明式 Asset Recipe（最多64个部件，支持 box/sphere/ellipsoid/cylinder/tapered-cylinder/segment）。适合简单物体和占位；复杂自然造型、繁密树叶和动画请使用 Studio 代码项目。Recipe 不执行 JavaScript，物理/交互能力需显式声明。返回添加、准入和验证三个独立结果。', permissions:['world.write','asset.write'], required:['model'], properties:{model:z.toJSONSchema(sceneAgentModelSchema)}, mutates:true, manualMutation:true, batchable:false,
+  world.skills.register({ name:'addSceneModel', description:'通过 Scene API 添加已有 AssetRef 或低多边形声明式 Asset Recipe（最多64个部件，支持 box/perforated-box/sphere/ellipsoid/cylinder/tapered-cylinder/segment；perforated-box 用局部 XZ 孔中心与半径生成贯穿 Y 的实体孔）。适合简单物体和占位；复杂自然造型、繁密树叶和动画请使用 Studio 代码项目。Recipe 不执行 JavaScript，物理/交互能力需显式声明。返回添加、准入和验证三个独立结果。', permissions:['world.write','asset.write'], required:['model'], properties:{model:z.toJSONSchema(sceneAgentModelSchema)}, mutates:true, manualMutation:true, batchable:false,
     handler:({model})=>scene.addModel(sceneAgentModelSchema.parse(model)) });
   return { world, generation, authoring, promotion, scene };
 }

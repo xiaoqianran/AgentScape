@@ -254,3 +254,12 @@ Recipe 的 `parts[].material.texture` 支持 wood、stone、fabric、brushed-met
 即使该部件原先未声明 material，也可设置完整材质。完整声明重新校验、编译并替换当前实例；不修改其他使用同一资产版本的对象。inline 项目包保留可编辑声明及纹理资源；.asworld 保存已编译纹理与世界状态（不含 Object Forge 编辑声明）。
 
 创作场景表现还支持 `environment:{"preset":"interior","intensity":1.4,"background":true}`（预设 `interior|courtyard|street|none`，`null` 或缺省继承世界基础光照）以及各灯光的可选 `castShadow`。通过同一 `setPresentation` 操作、历史及世界包保存；Studio 负责实际 HDRI 渲染，离线会话只保存设置。GLB 不嵌入 HDRI 或阴影设置；浏览器 Studio 复用共享导出核心。预设仅指向应用自带 HDR 文件，不接受任意网络 URL。
+
+
+Recipe 增加真实穿孔板几何（不使用黑色贴片或透明材质伪装孔洞）：
+
+```json
+{"type":"perforated-box","size":[2.65,0.075,1.05],"holes":[{"center":[-0.5,0.2],"radius":0.018},{"center":[0.5,-0.2],"radius":0.018}]}
+```
+
+尺寸沿局部 X/Y/Z，孔中心沿 X/Z，沿 Y 贯穿；可借助部件 quaternion 旋转为垂直面板。圆孔有真实内壁，边缘与孔间必须保留正间距（至少 0.0001 m），半径最小 0.001 m，每部件最多 128 孔，每 Recipe 最多 256 孔。圆周为有界多边形近似。此为视觉几何，不自动生成开孔碰撞体；physical/interactive 仍须独立声明、验证碰撞体和能力。
