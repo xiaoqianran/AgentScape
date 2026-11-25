@@ -604,7 +604,7 @@ export class WorldRuntime {
     else if (state.door === 'closed') this.interactions.setArticulationAction(id, 'close');
   }
 
-  remove(id,{silent=false}={}) {
+  remove(id,{silent=false,replacing=false}={}) {
     const record = this.store.get(id);
     this.events.emit('object.removing', { id });
     this.locomotion?.cancel(id, 'OBJECT_REMOVED');
@@ -618,7 +618,7 @@ export class WorldRuntime {
     this.entities?.unregister(id, { reason:'object-removed' });
     clearInteractionEvidenceForTarget(this,id);
     this.sceneGraph?.removeObject(id); this.sceneGraph?.changed();
-    if(!silent) this.events.emit('object.removed', { id, assetId: record.assetId });
+    if(!silent) this.events.emit('object.removed', { id, assetId: record.assetId, ...(replacing?{replacing:true}:{}) });
     return true;
   }
 

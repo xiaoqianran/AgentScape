@@ -1,17 +1,11 @@
 import { encodePngRgba } from '../../../foundation/PngRgba.js';
-import { proceduralTextureSchema } from '../model/ProceduralTextureContract.js';
+import { proceduralTextureSchema, PROCEDURAL_TEXTURE_PALETTES } from '../model/ProceduralTextureContract.js';
 
 const TAU=2*Math.PI;
 const clamp=v=>Math.max(0,Math.min(1,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 const smooth=t=>t*t*(3-2*t);
 const wrap=(n,p)=>(n%p+p)%p;
-const palettes={
-  wood:['#775030','#cba06e'],
-  stone:['#65686a','#b8b7b1'],
-  fabric:['#77716c','#c4beb5'],
-  'brushed-metal':['#80868d','#d2d6d9']
-};
 const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
 
 function hash(x,y,seed){
@@ -48,7 +42,7 @@ function samplePattern({pattern,seed,frequency:f},u,v){
 /** Pure, bounded, reproducible UV texture generation. No renderer or network. */
 export function generateProceduralTexture(input){
   const spec=proceduralTextureSchema.parse(input),size=spec.resolution;
-  const palette=palettes[spec.pattern];
+  const palette=PROCEDURAL_TEXTURE_PALETTES[spec.pattern];
   const dark=rgb(spec.darkColor??palette[0]),light=rgb(spec.lightColor??palette[1]);
   const height=new Float32Array(size*size);
   const base=new Uint8Array(size*size*4);

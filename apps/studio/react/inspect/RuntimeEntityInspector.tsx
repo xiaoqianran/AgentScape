@@ -2,6 +2,7 @@ import { useStudioStore } from '../state/studioStore';
 import { assetDisplayName } from '../shared/ResourcePresentation';
 import { useEffect, useState } from 'react';
 import type { EditorCommandsLike, InspectorRelation, RuntimeInspectorModel } from './InspectorTypes';
+import { RecipeMaterialEditor } from './RecipeMaterialEditor';
 import { AffordanceActionPanel } from './AffordanceActionPanel';
 
 const RELATION_LABELS: Record<string,string> = {
@@ -14,12 +15,18 @@ export function RuntimeEntityInspector({
   model,
   relations,
   commands,
-  log
+  log,
+  materialController,
+  materialOpened=false,
+  setMaterialOpened=()=>{}
 }: {
   model:RuntimeInspectorModel;
   relations:InspectorRelation[];
   commands:EditorCommandsLike;
   log:(text:string,kind?:string)=>void;
+  materialController?:any;
+  materialOpened?:boolean;
+  setMaterialOpened?:(opened:boolean)=>void;
 }) {
   const [scaleInput,setScaleInput]=useState(String(model.transform.scale));
   const editing=useStudioStore(state=>state.editor.interactionMode==='edit');
@@ -86,6 +93,8 @@ export function RuntimeEntityInspector({
             <small>位置与旋转可在画布中拖动调整；缩放会同步物理尺寸。</small>
           </div>
         </section>
+
+        {materialController ? <RecipeMaterialEditor key={model.id} controller={materialController} id={model.id} editing={editing} log={log} opened={materialOpened} setOpened={setMaterialOpened} /> : null}
 
         <section className="inspect-section">
           <h3>空间关系</h3>

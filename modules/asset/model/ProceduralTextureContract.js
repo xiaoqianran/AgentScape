@@ -15,3 +15,10 @@ export const proceduralTextureSchema=z.object({
 // Shared textures are counted once per recipe. The compiler embeds one color
 // map and at most one normal map per declaration.
 export const MAX_PROCEDURAL_TEXTURE_PIXELS=262144;
+
+export const PROCEDURAL_TEXTURE_PALETTES=Object.freeze({
+  wood:Object.freeze(['#775030','#cba06e']),
+  stone:Object.freeze(['#65686a','#b8b7b1']),
+  fabric:Object.freeze(['#77716c','#c4beb5']),
+  'brushed-metal':Object.freeze(['#80868d','#d2d6d9'])
+});

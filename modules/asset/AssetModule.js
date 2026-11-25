@@ -1,3 +1,5 @@
+import { compileRecipeGeometry } from './production/AssetRecipe.js';
+import { GltfAssetLoader } from './loading/GltfAssetLoader.js';
 import { AssetCatalog } from './registry/AssetCatalog.js';
 import { AssetRegistry } from './registry/AssetRegistry.js';
 import { AssetLoader } from './loading/AssetLoader.js';
@@ -10,6 +12,17 @@ import { LocalAssetLibraryStore } from './persistence/LocalAssetLibraryStore.js'
 import { assetAdmission } from './model/admission.js';
 import { mechanicalDraftSchema, mechanicalDraftToAssetRecipe, mechanicalDraftToManifest } from './model/MechanicalAssetDraft.js';
 import { recipeSchema, canonicalAssetJson, assetDigest, assertEmbeddedGLB, interactionReviewSchema } from './model/AssetInputContracts.js';
+
+/** Detached visual sample, owned and disposed by the caller. No registry or world writes. */
+export async function createRecipeMaterialSample(material){
+  const {bytes}=await compileRecipeGeometry({
+    schema:'agentscape.asset-recipe',schemaVersion:1,id:'preview/material',
+    parts:[{id:'sample',geometry:{type:'sphere',radius:1},material}]
+  });
+  const loader=new GltfAssetLoader();
+  try{return await loader.loadBytes(bytes);}
+  finally{loader.dispose();}
+}
 
 export async function verifyAndUpdateAssetArticulation(assets,assetId,options) {
  const report=await assets.verifyArticulation(assetId,options);

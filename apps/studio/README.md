@@ -139,3 +139,7 @@ World / Asset / Generation internals
 
 
 完整代码项目已接入主工作台。世界页面点击「代码世界」，可编辑、运行、发现动态动作、保存和重开。任务面板 AI 和 MCP 操作同一运行实例。详见 [操作说明](../../docs/modules/code-project.md#studio-主工作台)。
+
+### Recipe 材质编辑
+
+普通世界中，由 Studio/MCP 登记的 Recipe 实例支持对象属性 → 材质。展开后可在独立材质球中预览基础 PBR、高级 PBR 和程序化纹理，编辑模式下应用到选定部件。预览通过 AssetModule 的真实 Recipe 编译入口生成，不进入世界、不会修改共享资产。应用复用 Object Forge 的版本校验、预览/应用和单实例替换；MCP 修改后面板同步。未登记源定义的内置模型、任意导入 GLB 和原生代码世界不显示此编辑器；它们需要各自的源定义编辑入口。

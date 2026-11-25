@@ -162,6 +162,34 @@ export class StudioLiveBridgeClient {
       throw error;
     }
   }
+  // UI and MCP share the same session-scoped Forge and revision checks.
+  recipeMaterial(id){
+    try{
+      const entry=this.objectForge.get(this.world,id);
+      if(entry.definition.schema!=='agentscape.asset-recipe')return null;
+      const parts=entry.definition.parts.filter(part=>part.geometry).map(part=>({
+        id:part.id,material:structuredClone(part.material||{color:'#aaaaaa',roughness:.7,metalness:0})
+      }));
+      return parts.length?{assetId:entry.assetId,revision:entry.revision,parts}:null;
+    }catch(error){
+      if(error.code==='OBJECT_DEFINITION_UNAVAILABLE')return null;
+      throw error;
+    }
+  }
+  async applyRecipeMaterial({id,assetId,revision,partId,material}){
+    const world=this.world,scene=this.scene;
+    const entry=this.objectForge.get(world,id);
+    if(entry.assetId!==assetId||entry.revision!==revision)throw failure('OBJECT_REVISION_CONFLICT');
+    if(entry.definition.schema!=='agentscape.asset-recipe'||!entry.definition.parts.some(part=>part.id===partId&&part.geometry))
+      throw failure('OBJECT_MATERIAL_PART_UNAVAILABLE');
+    const preview=this.objectForge.preview(world,id,revision,[{path:'/parts/@'+partId+'/material',value:material}]);
+    return this.applyObjectDefinition(world,scene,id,revision,preview.previewId);
+  }
+  async applyObjectDefinition(world,scene,id,revision,previewId){
+    const result=await this.objectForge.apply(world,scene,id,revision,previewId);
+    this.emit({});
+    return result;
+  }
   async execute(request){
     const {method,args={}}=request;
     const { expectedProjectId, ...inputArgs } = args;
@@ -256,19 +284,20 @@ export class StudioLiveBridgeClient {
           proposalId:model.proposalId,hypothesisIds:model.hypothesisIds});
         const added=await this.scene.addModel(model);
         if(added.status==='succeeded' && model.asset && typeof model.asset==='object' && this.world.store?.has(model.id))
-          this.objectForge.record(model.id,model.asset,this.world.store.get(model.id).assetId,this.world);
+          {this.objectForge.record(model.id,model.asset,this.world.store.get(model.id).assetId,this.world);this.emit({});}
         return added;
       }
       case 'objectDefinition':{
         const forge=this.objectForge;
         if(args.operation==='inspect')return forge.inspect(this.world,args.objectId);
         if(args.operation==='preview')return forge.preview(this.world,args.objectId,args.expectedRevision,args.changes);
-        if(args.operation==='apply')return forge.apply(this.world,this.scene,args.objectId,args.expectedRevision,args.previewId);
+        if(args.operation==='apply')return this.applyObjectDefinition(this.world,this.scene,args.objectId,args.expectedRevision,args.previewId);
         throw failure('STUDIO_METHOD_FORBIDDEN');
       }
       case 'importProject':{
         const imported=await this.scene.importProject(args.bundle);
         this.objectForge.restore(this.world,imported.value.editable||[]);
+        this.emit({});
         return {...imported,value:{...imported.value,editableRestored:imported.value.editable?.length||0,editable:undefined}};
       }
       case 'setStyle':return this.scene.setStyle(args.style,{fallback:args.fallback});

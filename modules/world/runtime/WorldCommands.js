@@ -52,7 +52,7 @@ export class WorldCommands {
       const sameCollision=samePhysicalGeometry(manifest,record.manifest);
       const check=sameCollision || manifest.capabilityLevel==='visual'?{checked:true,clear:true}:this.runtime.physics.checkManifestPose(physicsManifestForUniformScale(manifest,pose.scale),pose.position,{quaternion:pose.quaternion,excludeIds:[id]});
       if(!check.checked||!check.clear)throw Object.assign(new Error('New asset does not fit at the current pose'),{code:'ASSET_UPGRADE_PLACEMENT_BLOCKED'});
-      this.remove(id);await this.spawn(assetId,pose);
+      this.remove(id,{replacing:true});await this.spawn(assetId,pose);
       const navigation=await this.runtime.navigation.ensureCurrent();
       if(!navigation.success || (manifest.capabilityLevel!=='visual' && !this.runtime.physics.getPosition(id)))throw Object.assign(new Error('New entity failed runtime registration'),{code:'ASSET_UPGRADE_FAILED'});
       return {status:'asset-instance-updated',id,assetId,previousAssetId,stateReset:true};

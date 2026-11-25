@@ -148,6 +148,7 @@ export class SceneObjectForge {
   }
   preview(world,id,expectedRevision,changes){
     const e=this.get(world,id);
+    if(e.applying)throw fail('OBJECT_PATCH_BUSY');
     if(expectedRevision!==e.revision) throw fail('OBJECT_REVISION_CONFLICT');
     if(!Array.isArray(changes)||!changes.length||changes.length>8
       || JSON.stringify(changes).length>32768)throw fail('OBJECT_PATCH_LIMIT');
@@ -160,36 +161,44 @@ export class SceneObjectForge {
   }
   async apply(world,scene,id,expectedRevision,previewId,{executor}={}){
     const e=this.get(world,id);
+    if(e.applying)throw fail('OBJECT_PATCH_BUSY');
     if(expectedRevision!==e.revision)throw fail('OBJECT_REVISION_CONFLICT');
     const pending=e.preview;
     if(!pending||pending.previewId!==previewId||pending.revision!==e.revision)
       throw fail('OBJECT_PATCH_PREVIEW_NOT_FOUND');
     e.preview=null;
-    const next=pending.definition,module=world.assetModule;
-    const level=module.getManifest(e.assetId).capabilityLevel||'physical';
-    let assetId,admission,replaced;
-    if(next.kind==='three-code'){
-      const prepared=await prepareThreeCodeAsset(module,executor,next,{
-        gltfLoader:module.loader.gltfLoader
-      });
-      assetId=prepared.manifest.id;
-      admission=prepared.validation;
-      replaced=await prepared.install(()=>scene.replaceAsset({id,asset:prepared.asset,level}));
-    }else{
-      // Mechanical drafts must pass their articulation verifier before any instance swap.
-      const imported=next.schema==='agentscape.mechanical-draft'
-        ? await module.importMechanicalDraft(next) : await module.importRecipe(next);
-      assetId=imported.manifest.id;
-      admission=imported.admission;
-      replaced=await scene.replaceAsset({id,asset:'asset://sha256/'+assetId.replace(/^asset_/,''),level});
-    }
-    e.definition=clone(next);
-    e.assetId=assetId;
-    e.revision++;
-    return {status:'object-patch-applied',id,revision:e.revision,
-      assetId,changes:pending.changes,
-      verification:{status:'compiled-and-admitted',admission,
-        runtimeActionVerification:'not-run'},replace:replaced.status};
+    e.applying=true;
+    try{
+      const next=pending.definition,module=world.assetModule;
+      const level=module.getManifest(e.assetId).capabilityLevel||'physical';
+      let assetId,admission,replaced;
+      if(next.kind==='three-code'){
+        const prepared=await prepareThreeCodeAsset(module,executor,next,{
+          gltfLoader:module.loader.gltfLoader
+        });
+        assetId=prepared.manifest.id;
+        admission=prepared.validation;
+        if(this.get(world,id)!==e)throw fail('OBJECT_REVISION_CONFLICT');
+        replaced=await prepared.install(()=>scene.replaceAsset({id,asset:prepared.asset,level}));
+      }else{
+        // Mechanical drafts must pass their articulation verifier before any instance swap.
+        const imported=next.schema==='agentscape.mechanical-draft'
+          ? await module.importMechanicalDraft(next) : await module.importRecipe(next);
+        assetId=imported.manifest.id;
+        admission=imported.admission;
+        if(this.get(world,id)!==e)throw fail('OBJECT_REVISION_CONFLICT');
+        replaced=await scene.replaceAsset({id,asset:'asset://sha256/'+assetId.replace(/^asset_/,''),level});
+      }
+      if(replaced.status!=='succeeded'||world.store.get(id)?.assetId!==assetId)
+        throw fail(replaced.diagnostics?.[0]?.code||'OBJECT_PATCH_REPLACE_FAILED');
+      e.definition=clone(next);
+      e.assetId=assetId;
+      e.revision++;
+      return {status:'object-patch-applied',id,revision:e.revision,
+        assetId,changes:pending.changes,
+        verification:{status:'compiled-and-admitted',admission,
+          runtimeActionVerification:'not-run'},replace:replaced.status};
+    }finally{e.applying=false;}
   }
 
   /** Export editable source only for objects still bound to their original immutable asset. */

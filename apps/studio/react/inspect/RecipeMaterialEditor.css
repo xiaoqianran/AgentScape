@@ -1,0 +1,17 @@
+.recipe-material-editor>summary,.material-advanced>summary{cursor:pointer;font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.recipe-material-editor>summary span,.recipe-material-preview span,.recipe-material-editor small{font-size:11px;font-weight:400;opacity:.74}
+.recipe-material-editor fieldset{border:0;margin:10px 0;padding:0;min-width:0;display:grid;gap:10px}
+.recipe-material-preview{margin-top:10px;overflow:hidden;border-radius:8px;background:radial-gradient(ellipse at 45% 40%,#8593a24a,#293c4b18);text-align:center}
+.recipe-material-preview canvas{display:block;width:100%;height:164px}
+.recipe-material-preview span{display:block;padding:4px 5px 8px}
+.material-field{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px}
+.material-field select,.material-field input[type=number]{width:58%;min-width:0}
+.material-field input[type=color]{width:42px;height:26px;padding:2px;cursor:pointer}
+.material-range{display:grid;gap:3px;font-size:12px}
+.material-range span{display:flex;justify-content:space-between;gap:8px}
+.material-range output{font-variant-numeric:tabular-nums;opacity:.8}
+.material-range input{width:100%;margin:0;min-height:14px}
+.material-texture-fields,.material-advanced[open]{display:grid;gap:9px;padding:9px;border:1px solid var(--border-subtle,#80808035);border-radius:6px}
+.material-advanced[open]>summary{margin-bottom:5px}
+.material-actions{display:flex;gap:8px;margin:10px 0 4px}
+.material-actions button{flex:1;padding:6px;font-size:12px}

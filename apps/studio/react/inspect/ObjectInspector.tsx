@@ -16,13 +16,15 @@ type InspectorProps = {
   projection:InspectorProjectionLike;
   commands:EditorCommandsLike;
   log:(text:string,kind?:string)=>void;
+  materialController?:any;
 };
 
-export function ObjectInspectorView({ projection, commands, log }: InspectorProps) {
+export function ObjectInspectorView({ projection, commands, log, materialController }: InspectorProps) {
   const selection=useStudioStore(state=>state.editor.selection);
   const revision=useStudioStore(state=>state.editor.revision);
   const model=projection.project(selection);
   const [relations,setRelations]=useState<InspectorRelation[]>([]);
+  const [materialOpened,setMaterialOpened]=useState(false);
 
   useEffect(()=>{
     if (selection?.source !== 'runtime') {
@@ -33,7 +35,7 @@ export function ObjectInspectorView({ projection, commands, log }: InspectorProp
   },[projection,revision,selection?.id,selection?.source]);
 
   if (model.source === 'runtime' && model.kind === 'entity') {
-    return <RuntimeEntityInspector model={model as RuntimeInspectorModel} relations={relations} commands={commands} log={log} />;
+    return <RuntimeEntityInspector model={model as RuntimeInspectorModel} relations={relations} commands={commands} log={log} materialController={materialController} materialOpened={materialOpened} setMaterialOpened={setMaterialOpened} />;
   }
 
   if (model.source === 'environment' && model.kind === 'environment' && 'affordances' in model && model.affordances?.source === 'environment' && model.id) {

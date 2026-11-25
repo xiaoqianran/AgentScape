@@ -8,7 +8,7 @@ function editorFixture(){
   editor.getSelection=()=>selection;
   editor.setSelection=value=>{selection=value;};
   const object={};
-  editor.runtime={store:{get:()=>({object})},events:{emit:vi.fn()},mutate:vi.fn()};
+  editor.runtime={store:{get:()=>({object}),has:()=>true},events:{emit:vi.fn()},mutate:vi.fn()};
   editor.transform={attach:vi.fn(),detach:vi.fn(),setMode:vi.fn(),dragging:false};
   editor.box={setFromObject:vi.fn(),visible:false};
   return {editor,object};
@@ -48,4 +48,14 @@ it('environment and authoring selections share events but cannot acquire runtime
  editor.selectSelection({source:'authoring',id:'wall'});
  expect(editor.runtime.events.emit).toHaveBeenLastCalledWith('editor.selection',{id:null,selection:{source:'authoring',id:'wall'}});
  editor.select(null);expect(editor.selection).toBeNull();expect(editor.box.visible).toBe(false);
+});
+
+it('rebinds the selected gizmo to the replacement mesh without clearing selection',()=>{
+ const {editor,object}=editorFixture();editor.setInteractionMode('edit');editor.select('cup');
+ editor.suspendSelectionBinding();
+ expect(editor.selectedId).toBe('cup');expect(editor.box.visible).toBe(false);
+ const replacement={};editor.runtime.store.get=()=>({object:replacement});
+ editor.rebindSelection();
+ expect(editor.selectedId).toBe('cup');expect(editor.box.visible).toBe(true);
+ expect(editor.transform.attach).toHaveBeenLastCalledWith(replacement);
 });

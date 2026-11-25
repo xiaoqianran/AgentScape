@@ -122,13 +122,13 @@ export class EditorController {
 
   select(id) {return this.selectSelection(id ? {source:'runtime',id} : null);}
 
-  selectSelection(next) {
+  selectSelection(next, { rebind=false } = {}) {
     if(next && !['runtime','environment','authoring'].includes(next.source))throw new TypeError('Unknown selection source');
-    if(sameSelection(next,this.selection))return;
+    if(!rebind&&sameSelection(next,this.selection))return;
     this.transform.detach();this.box.visible=false;
-    this.setSelection(next);
+    if(!rebind)this.setSelection(next);
     let object=null;
-    if(next?.source==='runtime')object=this.runtime.store.get(next.id)?.object;
+    if(next?.source==='runtime'&&this.runtime.store.has(next.id))object=this.runtime.store.get(next.id)?.object;
     if(next?.source==='environment')object=this.runtime.environment?.interactions?.find(item=>(item.contractId || item.id)===next.id)?.object;
     if(next?.source==='authoring')this.getAuthoringRoot?.()?.traverse(node=>{if(getAuthoringObjectId(node)===next.id)object=node;});
     if(object) {
@@ -138,13 +138,22 @@ export class EditorController {
     this.runtime.events.emit('editor.selection',{id:next?.source==='runtime'?next.id:null,selection:next});
   }
 
+  suspendSelectionBinding() {
+    this.transform.detach();
+    this.box.visible=false;
+  }
+
+  rebindSelection() {
+    this.selectSelection(this.selection,{rebind:true});
+  }
+
   setInteractionMode(mode) {
     if (!['explore','edit'].includes(mode)) return false;
     if (this.transform.dragging) this.transform.pointerUp({button:0});
     this.interactionMode=mode;
     this.transform.detach();
     this.transform.enabled=mode==='edit';
-    if (mode==='edit' && this.selectedId) this.transform.attach(this.runtime.store.get(this.selectedId).object);
+    if (mode==='edit' && this.selectedId && this.runtime.store.has(this.selectedId)) this.transform.attach(this.runtime.store.get(this.selectedId).object);
     return true;
   }
 

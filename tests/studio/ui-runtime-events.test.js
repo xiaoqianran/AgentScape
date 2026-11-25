@@ -8,7 +8,7 @@ function fixture({ selectedId = 'cup_01', existing = ['cup_01'] } = {}) {
     events: { on: (name, handler) => { handlers.set(name, handler); return unsubscribe; } },
     queries: { hasObject: (id) => existing.includes(id) }
   };
-  const editor = { selectedId, select: vi.fn((id) => { editor.selectedId = id; }) };
+  const editor = { selectedId, suspendSelectionBinding:vi.fn(), rebindSelection:vi.fn(), select: vi.fn((id) => { editor.selectedId = id; }) };
   const inspector = { render: vi.fn() };
   const taskPanel = { log: vi.fn(), observeAgentTool: vi.fn(), observeAgentSequence: vi.fn() };
   const ui = { setView: vi.fn(), setRuntimeStatus: vi.fn(), setRuntimeRecoveryAction: vi.fn() };
@@ -116,4 +116,16 @@ describe('UI runtime event lifecycle', () => {
     f.binding.dispose();
     expect(f.unsubscribe).toHaveBeenCalledTimes(subscriptionCount);
   });
+});
+
+it('keeps selection through asset replacement and binds the new object on spawn',()=>{
+ const f=fixture();
+ f.handlers.get('object.removed')({id:'cup_01',replacing:true});
+ expect(f.editor.selectedId).toBe('cup_01');
+ expect(f.editor.suspendSelectionBinding).toHaveBeenCalledOnce();
+ expect(f.editor.select).not.toHaveBeenCalled();
+ f.handlers.get('object.spawned')({id:'cup_01'});
+ expect(f.editor.rebindSelection).toHaveBeenCalledOnce();
+ f.handlers.get('scene.restored')({});
+ expect(f.editor.rebindSelection).toHaveBeenCalledTimes(2);
 });

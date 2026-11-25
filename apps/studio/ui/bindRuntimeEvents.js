@@ -40,9 +40,22 @@ export function bindRuntimeEvents({ world, editor, inspector, taskPanel, ui, aut
 
   });
   listen('editor.transform',({ id })=>inspector.render(id));
-  listen('object.removed',({ id })=>{
+  listen('object.removed',({ id,replacing })=>{
+    if(replacing){
+      if(editor.selectedId===id)editor.suspendSelectionBinding();
+      return;
+    }
     if (editor.selectedId === id) editor.select(null);
     log(`已删除：${id}`,'tool');
+  });
+  listen('object.spawned',({id})=>{
+    if(editor.selectedId===id)editor.rebindSelection();
+  });
+  listen('scene.restored',()=>{
+    if(editor.selectedId){
+      if(world.queries.hasObject(editor.selectedId))editor.rebindSelection();
+      else editor.select(null);
+    }
   });
   listen('object.duplicated',({ sourceId, id })=>log(`已复制：${sourceId} → ${id}`,'tool'));
   listen('history.recorded',({ label })=>log(`历史记录：${label}`,'history'));
