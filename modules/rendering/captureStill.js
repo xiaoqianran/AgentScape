@@ -3,7 +3,7 @@ import * as THREE from 'three';
 /** A bounded raster still rendered in an isolated WebGL context, not a
  * viewport screenshot. The scene's authoritative camera and shadow maps stay
  * owned by the live renderer. This is not a path tracer. */
-export async function captureStill({scene,camera,decoration,exposure=1,longEdge=1920}){
+export async function captureStill({scene,camera,decoration,excludedRoot,exposure=1,longEdge=1920}){
   if(![1920,3840].includes(longEdge)||!camera?.isPerspectiveCamera)throw new Error('STILL_OPTIONS_INVALID');
   const aspect=camera.aspect;
   if(!Number.isFinite(aspect)||aspect<=0||aspect>10)throw new Error('STILL_CAMERA_ASPECT_INVALID');
@@ -21,11 +21,13 @@ export async function captureStill({scene,camera,decoration,exposure=1,longEdge=
   const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
   const shot=camera.clone();shot.aspect=width/height;shot.updateProjectionMatrix();
   const visible=decoration?.visible;
+  const excludedVisible=excludedRoot?.visible;
   let restoreNeeded=false;
   const restore=()=>{
     if(!restoreNeeded)return;
     restoreNeeded=false;
     if(decoration)decoration.visible=visible;
+    if(excludedRoot)excludedRoot.visible=excludedVisible;
     for(const [light,shadow] of shadows){if(light.shadow!==shadow)light.shadow.dispose();light.shadow=shadow;}
   };
   try{
@@ -36,6 +38,7 @@ export async function captureStill({scene,camera,decoration,exposure=1,longEdge=
     if(width>renderer.capabilities.maxTextureSize||height>renderer.capabilities.maxTextureSize)throw new Error('STILL_GPU_LIMIT');
     restoreNeeded=true;
     if(decoration)decoration.visible=false;
+    if(excludedRoot)excludedRoot.visible=false;
     for(const [light,shadow] of shadows){
       light.shadow=shadow.clone();
       if(light.castShadow){const size=light.isPointLight?Math.min(512,shadowSize):shadowSize;light.shadow.mapSize.set(size,size);}
