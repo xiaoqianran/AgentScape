@@ -19,6 +19,13 @@ it('isolates Three.js code, interrupts loops, rejects ambient access and unsuppo
   const forged=structuredClone(authoring.export());
   forged.geometries[Object.keys(forged.geometries)[0]]={type:'SphereGeometry',parameters:{widthSegments:1e9}};
   expect(()=>validateRemoteAuthoringDocument(forged)).toThrow('AUTHORING_DOCUMENT_UNSUPPORTED');
+  for (const [name,itemSize,length] of [['uv',2,2],['normal',3,3],['tangent',3,72]]) {
+   const invalid=structuredClone(baseline);
+   const attributes=Object.values(invalid.geometries)[0].json.data.attributes;
+   attributes[name]={type:'Float32Array',itemSize,array:Array(length).fill(0)};
+   expect(()=>validateRemoteAuthoringDocument(invalid)).toThrow('AUTHORING_DOCUMENT_UNSUPPORTED');
+  }
+  expect(validateRemoteAuthoringDocument(structuredClone(baseline))).toEqual(baseline);
   const oversizedGroup=structuredClone(baseline);
   Object.values(oversizedGroup.geometries)[0].json.data.groups=[{start:0,count:1e12,materialIndex:0}];
   expect(()=>validateRemoteAuthoringDocument(oversizedGroup)).toThrow();

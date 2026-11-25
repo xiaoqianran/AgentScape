@@ -32,6 +32,16 @@ export function validateRemoteAuthoringDocument(document) {
   }
   const count=data.attributes.position.array.length/3;
   if (data.attributes.position.itemSize !== 3 || !Number.isInteger(count)) fail();
+  // GLTF vertex attributes must describe the same number of vertices.
+  // Reject incomplete UV/normal buffers at the sandbox boundary, before
+  // malformed geometry can enter asset compilation and scene export.
+  for (const [name,attribute] of Object.entries(data.attributes)) {
+   if (attribute.array.length !== count * attribute.itemSize) fail();
+   if ((name==='normal'&&attribute.itemSize!==3) ||
+       ((name==='uv'||/^uv[1-3]$/.test(name))&&attribute.itemSize!==2) ||
+       (name==='tangent'&&attribute.itemSize!==4)) fail();
+  }
+
   if (data.attributes.position.array.some(v=>Math.abs(v)>100)) fail();
   vertices+=count;
   if (data.index) {
