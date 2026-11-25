@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import { toWebRequest } from '@modelcontextprotocol/node';
-import { SessionManager } from './SessionManager.js';
+import { SessionManager, DEFAULT_MAX_EXPORT_BYTES } from './SessionManager.js';
 import { StudioLiveBridge } from './StudioLiveBridge.js';
 import { handleStudioBridgeHttp } from './StudioBridgeHttp.js';
 import { registerTools } from './registerTools.js';
@@ -20,7 +20,8 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
  const repository=new FileAssetRepository(dataRoot);
  const runner=buildRunner || createCodeExecutor({...codeExecution,configPath:path.join(dataRoot,'sandbox.json')});
  const assets=new ProgrammaticAssets({repository,runner,builder:new ProgrammaticAssetBuilder({runner,gltfLoader:createHeadlessGLTFLoader()})});
- const authorize=createSecurity(tokens,security); const manager=new SessionManager({root,repository,hostOptions:{codeExecution,sandboxConfig:path.join(dataRoot,'sandbox.json')},...managerOptions});
+ const authorize=createSecurity(tokens,{maxImportBody:(managerOptions.maxExportBytes ?? DEFAULT_MAX_EXPORT_BYTES)+4096,...security});
+ const manager=new SessionManager({root,repository,hostOptions:{codeExecution,sandboxConfig:path.join(dataRoot,'sandbox.json')},...managerOptions});
  const studioBridge=new StudioLiveBridge();
  const connections=new Set();
  const http=createServer(async(req,res)=>{

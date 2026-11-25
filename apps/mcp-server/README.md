@@ -32,7 +32,7 @@ Scene 工具为 `scene_thermal`（Asset Forge 材料实验查询、热功率和�
 
 注意：Headless MCP 没有渲染画布。调用 `scene_set_style` 成功后，返回的 `status=deferred`、`rendered=false`、`applied=null` 表示 StylePack 已记录到场景配置，**不表示实际画面已经切换或视觉渲染通过验收**。请在 Studio 或带图形渲染器的 SDK 客户端另行验证视觉效果；不要把无渲染器时的 deferred 状态误报为已应用。
 
-`scene_import` 接受此前 `scene_save` 导出的完整 `bundle`，在当前私有世界或已连接 Studio 中导入，复用 Scene 的隔离校验、资源哈希和失败回滚；MCP 单次请求受 4 MiB 配额约束。仅导入世界资产与状态，不恢复历史动作已验证证据。`world_save/world_restore` 仍只接受内置资产与同身份已发布的不可变资产；临时 `scene_add_model` 编译资产须使用 `scene_save/scene_import` 完成跨会话恢复。
+`scene_import` 接受此前 `scene_save` 导出的完整 `bundle`，在当前私有世界或已连接 Studio 中导入，复用 Scene 的隔离校验、资源哈希和失败回滚；场景包受 4 MiB 配额约束，HTTP 导入额外允许 4 KiB JSON-RPC 封装。仅导入世界资产与状态，不恢复历史动作已验证证据。`world_save/world_restore` 仍只接受内置资产与同身份已发布的不可变资产；临时 `scene_add_model` 编译资产须使用 `scene_save/scene_import` 完成跨会话恢复。
 
 `scene_save` 返回有资源字节和锁定哈希的完整项目包，仍受服务端导出配额限制。旧 world_export 的 JSON-only 语义保留。新版资产引用 `asset://sha256/<版本摘要>` 可以引用同一身份已发布的 pa_ 资产；未发布或其他身份的资产不能借此接入世界。
 
@@ -119,7 +119,7 @@ MCP Transport 使用无状态 HTTP；没有 MCP 协议会话 ID，worldSessionId
 
 默认最多4个世界，空闲15分钟回收；每世界64个对象、256次动作；单动作最多12000个 1/60 秒模拟步和30秒墙钟时间。每12步让出事件循环。取消/超时重复终止 Runtime interaction/locomotion，并给予最多240步清理；无法收敛则关闭该 Host，禁止继续动作。
 
-HTTP 请求体最多64 KiB，每身份每分钟120次请求；Host 白名单默认 localhost/127.0.0.1，Origin 默认全部拒绝（无 Origin 的非浏览器客户端可用）。headers 10秒、request 35秒超时。快照最多4 MiB，临时文件 JSON 复核后原子 rename；客户端不能指定路径。快照是 SceneSerializer JSON，不包含完整 GLB/纹理作品包。
+普通 HTTP 请求体最多64 KiB；仅完整 MCP 端点的单个 scene_import 请求允许场景包配额加 4 KiB 封装，每身份每分钟120次请求；Host 白名单默认 localhost/127.0.0.1，Origin 默认全部拒绝（无 Origin 的非浏览器客户端可用）。headers 10秒、request 35秒超时。快照最多4 MiB，临时文件 JSON 复核后原子 rename；客户端不能指定路径。快照是 SceneSerializer JSON，不包含完整 GLB/纹理作品包。
 
 对象和动作预算限制会话增长；当前 Node.js 同进程承载多个 Runtime，不提供每会话操作系统级硬内存隔离。需要硬内存限制时应采用受限进程/容器部署，不应将本版宣传为任意用户公网沙箱。
 

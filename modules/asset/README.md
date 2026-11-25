@@ -2,7 +2,7 @@
 
 ## v2 声明式输入
 
-`importRecipe(json)` 接收严格的 Asset Recipe v1：最多 64 个节点、4 层分组、box/sphere/cylinder、有限变换和标准材质。默认只请求 Visual；Physical/Interactive 必须显式声明物理与行为，声明经过现有 AssetCompiler 和 admission，不替代真实动作验证。复杂关节和高级源码继续走既有隔离构建入口。
+`importRecipe(json)` 接收严格的 Asset Recipe v1：最多 64 个节点、4 层分组、box/sphere/cylinder、有限变换和标准材质（color、roughness、metalness，可选 opacity、emissive、doubleSided）。默认只请求 Visual；Physical/Interactive 必须显式声明物理与行为，声明经过现有 AssetCompiler 和 admission，不替代真实动作验证。复杂关节和高级源码继续走既有隔离构建入口。
 
 `importGLB({bytes, level:'visual'})` 在加载前检查自包含 GLB，拒绝外部资源 URI、过多节点和非法层级，再执行现有编译器的几何与资源预算检查。该路径不依赖 Docker。请求 Physical 时明确拒绝，不推断碰撞或降级。Visual Manifest 无 physics/actions，WorldRuntime 不为其创建物理实体。
 

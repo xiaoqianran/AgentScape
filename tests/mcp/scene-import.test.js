@@ -25,9 +25,10 @@ it('round-trips local school assets via MCP scene_save and scene_import', async 
     const a={worldSessionId:first.worldSessionId};
     const model = {id:'school_playground',level:'visual',position:[8,0,0],
       asset:{schema:'agentscape.asset-recipe',schemaVersion:1,id:'school/test_field',
-        parts:[{id:'ground',geometry:{type:'box',size:[6,.1,8]},position:[0,.05,0]}]}};
+        parts:[{id:'ground',geometry:{type:'box',size:[6,.1,8]},position:[0,.05,0]},...Array.from({length:12},(_,i)=>({id:'ball_'+i,geometry:{type:'sphere',radius:.15+i*.01},position:[i*.35-2,.5,0]}))]}};
     await call('scene_add_model',{...a,requestId:randomUUID(),model});
     const saved=await call('scene_save',a);
+    expect(Buffer.byteLength(JSON.stringify(saved.value))).toBeGreaterThan(65536);
     expect(saved.value.schema).toBe('agentscape.project-bundle');
     expect(saved.value.assets.some(asset => asset.id.startsWith('asset_'))).toBe(true);
     const second=await call('session_create');

@@ -125,6 +125,39 @@ export class SpatialSystem {
     return pairs;
   }
 
+  // A root AABB is only a broad-phase candidate. For visual-only groups, disjoint
+  // conservative mesh AABBs can disprove it; unsupported geometry stays unknown.
+  // Do not use this as proof of contact or to bypass physical-body validation.
+  visualOverlapDisproved(id, otherId, cache = new Map()) {
+    const meshBounds = key => {
+      if (cache.has(key)) return cache.get(key);
+      const record = this.store.has(key) ? this.store.get(key) : null;
+      const boxes = [];
+      let complete = record?.manifest?.capabilityLevel === 'visual';
+      if (complete) {
+        record.object.updateWorldMatrix(true, true);
+        record.object.traverse(node => {
+          if (!complete) return;
+          if (node.isLine || node.isPoints || node.isSprite) { complete = false; return; }
+          if (!node.isMesh) return;
+          if (boxes.length >= 256 || node.isInstancedMesh || node.isSkinnedMesh || node.isBatchedMesh || node.geometry?.morphAttributes?.position?.length || !node.geometry?.getAttribute('position')) {
+            complete = false; return;
+          }
+          if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
+          const box = node.geometry.boundingBox?.clone().applyMatrix4(node.matrixWorld);
+          if (!box || box.isEmpty() || ![...box.min.toArray(), ...box.max.toArray()].every(Number.isFinite)) { complete = false; return; }
+          boxes.push(box);
+        });
+      }
+      const result = complete && boxes.length ? boxes : null;
+      cache.set(key, result);
+      return result;
+    };
+    const left = meshBounds(id), right = meshBounds(otherId);
+    if (!left || !right || left.length * right.length > 16384) return false;
+    return !left.some(a => right.some(b => boxesOverlap(a,b)));
+  }
+
   getSupportSurface(targetId, surfaceId, snapshot = null) {
     const native=this.nativeRecord(targetId);
     if(native){

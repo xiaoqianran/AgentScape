@@ -22,10 +22,12 @@ export class WorldValidator {
 
     const relations = this.runtime.sceneGraph.list();
     const relationKeys = new Set(relations.map((edge) => `${edge.subject}|${edge.predicate}|${edge.object}`));
+    const visualBoundsCache = new Map();
     for (const [object, other] of this.runtime.spatial.overlapPairs({ margin: 0.015, snapshot })) {
       const expectedCarryOverlap = this.runtime.interactions.heldByAgent?.(object) === other
         || this.runtime.interactions.heldByAgent?.(other) === object;
       if (expectedCarryOverlap) continue;
+      if (this.runtime.spatial.visualOverlapDisproved?.(object,other,visualBoundsCache)) continue;
       const contained = relationKeys.has(`${object}|INSIDE|${other}`)
         ? { subject:object,target:other }
         : relationKeys.has(`${other}|INSIDE|${object}`)

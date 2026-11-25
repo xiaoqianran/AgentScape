@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createAssetModule } from '../../modules/asset/AssetModule.js';
 import { recipeSchema, assetPackageSchema, assertEmbeddedGLB } from '../../modules/asset/model/AssetInputContracts.js';
+import { createAssetGLTFIO } from '../../modules/asset/production/compiler/gltfIO.js';
 import { compileRecipeGeometry } from '../../modules/asset/production/AssetRecipe.js';
 import { createHeadlessGLTFLoader } from '../../apps/mcp-server/HeadlessGLTFLoader.js';
 import { installHeadlessAssetIO } from '../../apps/mcp-server/HeadlessAssetIO.js';
@@ -72,4 +73,25 @@ describe('declarative asset inputs', () => {
     for (const input of cases) expect(() => recipeSchema.parse(input)).toThrow();
     expect(() => assetPackageSchema.parse({ schema: 'agentscape.asset-package', schemaVersion: 1, id: 'box', version: '1.0.0', entry: { kind: 'glb', path: './../escape' }, level: 'visual' })).toThrow();
   });
+});
+
+
+it('exports transparent and emissive recipe materials without changing opaque defaults',async()=>{
+ const input=recipe();
+ input.parts[0].material={color:'#aabbcc',opacity:.25,emissive:'#00ff00',doubleSided:true};
+ input.parts.push({id:'opaque',geometry:{type:'box',size:[1,1,1]}});
+ const {bytes}=await compileRecipeGeometry(input);
+ const doc=await createAssetGLTFIO().readBinary(bytes);
+ const [glass,opaque]=doc.getRoot().listMaterials();
+ expect(glass.getAlphaMode()).toBe('BLEND');
+ expect(glass.getBaseColorFactor()[3]).toBeCloseTo(.25);
+ expect(glass.getEmissiveFactor()).toEqual([0,1,0]);
+ expect(glass.getDoubleSided()).toBe(true);
+ expect(opaque.getAlphaMode()).toBe('OPAQUE');
+ expect(opaque.getBaseColorFactor()[3]).toBe(1);
+ expect(opaque.getEmissiveFactor()).toEqual([0,0,0]);
+ for(const material of [{opacity:1.1},{opacity:-.01},{emissive:'green'},{doubleSided:'yes'}]){
+  input.parts[0].material=material;
+  expect(()=>recipeSchema.parse(input)).toThrow();
+ }
 });

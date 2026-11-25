@@ -3,8 +3,9 @@ import { mkdir, writeFile, readFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { HeadlessWorldHost } from './HeadlessWorldHost.js';
 import { SceneObjectForge } from '../../application/object-forge/SceneObjectForge.js';
+export const DEFAULT_MAX_EXPORT_BYTES=4*1024*1024;
 export class SessionManager {
- constructor({root,maxSessions=4,ttlMs=900000,maxExportBytes=4194304,hostOptions={},repository=null}={}) {
+ constructor({root,maxSessions=4,ttlMs=900000,maxExportBytes=DEFAULT_MAX_EXPORT_BYTES,hostOptions={},repository=null}={}) {
   this.root=path.resolve(root); this.maxSessions=maxSessions; this.ttlMs=ttlMs; this.maxExportBytes=maxExportBytes; this.hostOptions=hostOptions; this.sessions=new Map(); this.pending=0;
   this.timer=setInterval(()=>this.reap().catch(()=>{}),Math.min(ttlMs,30000)); this.timer.unref();
   this.repository=repository;this.restoreRequests=new Map();

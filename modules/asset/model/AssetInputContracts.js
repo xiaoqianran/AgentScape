@@ -39,7 +39,7 @@ export const recipeSchema = z.object({
   ]).optional(), position: vector.default(() => [0, 0, 0]),
     quaternion: z.tuple([number, number, number, number]).refine(q => Math.abs(Math.hypot(...q) - 1) < 0.0001).default(() => [0, 0, 0, 1]),
     scale: z.number().min(0.05).max(20).default(1),
-    material: z.object({ color: z.string().regex(/^#[a-fA-F0-9]{6}$/).default('#aaaaaa'), roughness: z.number().min(0).max(1).default(0.7), metalness: z.number().min(0).max(1).default(0) }).strict().optional()
+    material: z.object({ color: z.string().regex(/^#[a-fA-F0-9]{6}$/).default('#aaaaaa'), roughness: z.number().min(0).max(1).default(0.7), metalness: z.number().min(0).max(1).default(0), opacity: z.number().min(0).max(1).optional(), emissive: z.string().regex(/^#[a-fA-F0-9]{6}$/).optional(), doubleSided: z.boolean().optional() }).strict().optional()
   }).strict()).min(1).max(64),
   capabilities: z.object({ level: z.enum(['visual', 'physical', 'interactive']), physics: assetPhysicsSchema.optional(),
     actions: z.array(z.enum(['move', 'pickup', 'place'])).max(3).default([]),

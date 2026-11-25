@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
+import { WorldValidator } from '../../modules/world/verification/WorldValidator.js';
 import { SpatialSystem } from '../../modules/world/runtime/systems/SpatialSystem.js';
 
 function boxObject(size, position = [0,0,0]) {
@@ -154,4 +155,27 @@ it('searches receptacle placement candidates without mutating the object',()=>{
   const candidate=spatial.findFreeSpaceInside('item','cabinet',{receptacleId:'interior',poseClear:()=>({checked:true,clear:true})});
   expect(candidate).not.toBeNull();
   expect(item.position.toArray()).toEqual(before);
+});
+
+
+it('disproves empty space in visual groups without suppressing mesh intersections or physical candidates',()=>{
+ const store=new ObjectStore(),group=new THREE.Group();
+ group.add(boxObject([.5,1,1],[-2,.5,0]),boxObject([.5,1,1],[2,.5,0]));
+ const object=boxObject([.5,1,1],[0,.5,0]);
+ const visual={capabilityLevel:'visual',actions:[]};
+ store.add('frame',{id:'frame',object:group,manifest:visual});
+ store.add('center',{id:'center',object,manifest:{...visual}});
+ const spatial=new SpatialSystem({store});
+ const runtime={spatial,store,sceneGraph:{update:()=>[],list:()=>[]},interactions:{isHeld:()=>false}};
+ const validate=()=>new WorldValidator(runtime).run();
+ expect(spatial.overlapPairs()).toEqual([['frame','center']]);
+ expect(validate().hard).toEqual([]);
+ object.position.x=2;
+ expect(validate().hard).toEqual(expect.arrayContaining([expect.objectContaining({code:'P_OVERLAP'})]));
+ object.position.x=0;
+ store.get('center').manifest.capabilityLevel='physical';
+ expect(validate().hard).toEqual(expect.arrayContaining([expect.objectContaining({code:'P_OVERLAP'})]));
+ store.get('center').manifest.capabilityLevel='visual';
+ group.add(new THREE.InstancedMesh(new THREE.BoxGeometry(.5,1,1),new THREE.MeshBasicMaterial(),1));
+ expect(spatial.visualOverlapDisproved('frame','center')).toBe(false);
 });

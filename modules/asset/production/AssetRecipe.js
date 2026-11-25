@@ -38,7 +38,13 @@ export async function compileRecipeGeometry(input) {
       }
       if (geometry.index) primitive.setIndices(document.createAccessor().setType('SCALAR').setArray(geometry.index.array.slice()).setBuffer(buffer));
       const color = new Color(part.material?.color || '#aaaaaa');
-      primitive.setMaterial(document.createMaterial().setBaseColorFactor([color.r, color.g, color.b, 1]).setRoughnessFactor(part.material?.roughness ?? 0.7).setMetallicFactor(part.material?.metalness ?? 0));
+      const opacity = part.material?.opacity ?? 1;
+      const material = document.createMaterial().setBaseColorFactor([color.r, color.g, color.b, opacity])
+        .setRoughnessFactor(part.material?.roughness ?? 0.7).setMetallicFactor(part.material?.metalness ?? 0);
+      if (opacity < 1) material.setAlphaMode('BLEND');
+      if (part.material?.emissive) material.setEmissiveFactor(new Color(part.material.emissive).toArray());
+      if (part.material?.doubleSided) material.setDoubleSided(true);
+      primitive.setMaterial(material);
       node.setMesh(document.createMesh(part.id).addPrimitive(primitive));
     } finally { geometry.dispose(); }
   }
