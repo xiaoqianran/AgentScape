@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { captureStill } from '../../../rendering/captureStill.js';
 import { createRenderer } from '../../../rendering/createRenderer.js';
 import { RendererProbe } from '../../../rendering/RendererProbe.js';
 import { WebGpuPostFxPipeline } from '../../../rendering/WebGpuPostFxPipeline.js';
 import { loadGaussianSplatVisual } from '../../../rendering/loadGaussianSplatVisual.js';
 import { applyGeneratedWorldObjectTransform } from '../../generated/GeneratedWorldCoordinates.js';
+import { PRESENTATION_HDRI_PRESETS } from '../ScenePresentation.js';
 import { resolveStylePack } from '../../../rendering/style/StylePack.js';
 
 export class RenderingSystem {
@@ -67,6 +69,12 @@ export class RenderingSystem {
     this.probe = null;
     this.environmentTexture = null;
     this.environmentVersion = 0;
+    this.lightingVersion = 0;
+    this.baseLighting = null;
+    this.presentationLighting = null;
+    this.lightingStatus = "none";
+    this.creativeCamera = null;
+    this.creativeView = false;
     this.environmentTask = Promise.resolve(false);
     this.postFx = null;
     this.generatedVisual = null;
@@ -204,10 +212,8 @@ export class RenderingSystem {
     if (Array.isArray(camera.target)) this.controls.target.fromArray(camera.target);
     this.controls.update();
 
-    const ibl = rendering.ibl;
-    this.environmentTask = ibl?.url
-      ? this.loadEnvironmentTexture(ibl, version)
-      : Promise.resolve(false);
+    this.baseLighting={ibl:rendering.ibl,background};
+    this.refreshEnvironmentLighting();
     this.visualTask = environment.generated?.visual
       ? this.loadGeneratedVisual(environment, version)
       : Promise.resolve(false);
@@ -278,10 +284,61 @@ export class RenderingSystem {
     this.generatedVisualState = { status:'none', format:null, splatCount:0 };
   }
 
+  setPresentation(state,camera) {
+    this.creativeCamera=camera;
+    this.previewCamera=camera?.clone()??null;
+    if(!camera)this.creativeView=false;
+    const next=state?.environment??null;
+    if(JSON.stringify(next)!==JSON.stringify(this.presentationLighting)){
+      this.presentationLighting=next;
+      if(this.renderer&&this.baseLighting)this.refreshEnvironmentLighting();
+    }
+  }
+
+  refreshEnvironmentLighting(){
+    const version=++this.lightingVersion;
+    this.releaseEnvironmentTexture();
+    const base=this.baseLighting||{};
+    this.scene.background=new THREE.Color(base.background??0x080b10);
+    this.scene.backgroundIntensity=1;
+    this.scene.environmentIntensity=1;
+    const selected=this.presentationLighting;
+    const ibl=selected?(selected.preset==='none'?null:{
+      url:PRESENTATION_HDRI_PRESETS[selected.preset],intensity:selected.intensity,
+      background:selected.background
+    }):base.ibl;
+    this.setLightingStatus(ibl?.url?'loading':'none');
+    this.environmentTask=ibl?.url?this.loadEnvironmentTexture(ibl,version):Promise.resolve(false);
+    return this.environmentTask;
+  }
+
+  setLightingStatus(status){
+    this.lightingStatus=status;
+    this.events?.emit?.('renderer.environment-status',{status});
+  }
+
+  setCreativeView(enabled){
+    this.creativeView=Boolean(enabled&&this.creativeCamera);
+    return this.creativeView;
+  }
+
+  async captureStill(longEdge=1920){
+    const version=this.lightingVersion;
+    await this.environmentTask;
+    if(version!==this.lightingVersion)throw new Error("STILL_LIGHTING_CHANGED");
+    if(this.lightingStatus==="failed"&&this.presentationLighting)throw new Error("STILL_HDRI_LOAD_FAILED");
+    if(!this.renderer)throw new Error('RENDERER_UNAVAILABLE');
+    if(this.generatedVisual)throw new Error('STILL_GENERATED_VISUAL_UNSUPPORTED');
+    if([...this.authoringScenes.values()].includes('replace')||[...this.authoringScenes].some(([scene,mode])=>mode==='overlay'&&scene.children.length))
+      throw new Error('STILL_AUTHORING_SCENE_UNSUPPORTED');
+    return captureStill({scene:this.scene,camera:this.creativeCamera||this.camera,
+      decoration:this.decorationRoot,exposure:this.renderer.toneMappingExposure,longEdge});
+  }
+
   async loadEnvironmentTexture(ibl, version) {
     try {
       const texture = await this.environmentLoader.loadAsync(ibl.url);
-      if (version !== this.environmentVersion || !this.renderer) {
+      if (version !== this.lightingVersion || !this.renderer) {
         texture.dispose?.();
         return false;
       }
@@ -293,9 +350,11 @@ export class RenderingSystem {
         this.scene.background = texture;
         if (Number.isFinite(ibl.backgroundIntensity)) this.scene.backgroundIntensity = ibl.backgroundIntensity;
       }
+      this.setLightingStatus("ready");
       return true;
     } catch (error) {
-      if (version === this.environmentVersion && this.renderer) {
+      if (version === this.lightingVersion && this.renderer) {
+        this.setLightingStatus('failed');
         this.events?.emit?.('renderer.environment-error', {
           url: ibl.url,
           message: error instanceof Error ? error.message : String(error)
@@ -347,6 +406,16 @@ export class RenderingSystem {
 
   render(timestamp = performance.now()) {
     const started=performance.now();
+    if(this.creativeView&&this.creativeCamera){
+      // Never write the saved camera aspect or the navigation camera pose.
+      const camera=this.previewCamera;
+      if(camera.aspect!==this.camera.aspect){camera.aspect=this.camera.aspect;camera.updateProjectionMatrix();}
+      const visible=this.decorationRoot.visible;this.decorationRoot.visible=false;
+      try{this.renderer.render(this.scene,camera);}
+      finally{this.decorationRoot.visible=visible;}
+      this.probe?.afterRender(timestamp,performance.now()-started);
+      return;
+    }
     const entries = [...this.authoringScenes.entries()];
     const overlays = entries.filter(([scene, mode]) => mode === 'overlay' && scene.children.length > 0);
     const replacement = entries.findLast?.(([, mode]) => mode === 'replace')
@@ -429,6 +498,7 @@ export class RenderingSystem {
     this.resizeObserver?.disconnect?.();
     this.resizeObserver = null;
     this.environmentVersion += 1;
+    this.lightingVersion += 1;
     this.releaseEnvironmentTexture();
     this.releaseGeneratedVisual();
     this.postFx?.dispose?.();

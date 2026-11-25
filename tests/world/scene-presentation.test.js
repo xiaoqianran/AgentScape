@@ -37,3 +37,18 @@ it('validates presentation before an imported snapshot can mutate its world',()=
   expect(()=>serializer.validate({...base,presentation:{camera:{position:[0,0,0],target:[0,0,0]}}})).toThrow('SCENE_EXPORT_DIRECTION_INVALID');
   expect(()=>serializer.validate({...base,presentation:{lights:[{type:'point',position:[0,0,0],intensity:-1}]}})).toThrow();
 });
+
+it('persists HDRI-only settings and shadow flags independently of the object rig',()=>{
+  const scene=new THREE.Scene(),changes=[];
+  const rig=new ScenePresentation(scene,(state,camera)=>changes.push({state,camera}));
+  expect(rig.replace({environment:{preset:'interior',intensity:1.4,background:true}})).toEqual({camera:null,lights:[],environment:{preset:'interior',intensity:1.4,background:true}});
+  expect(scene.children).toHaveLength(0);
+  const saved=rig.snapshot();
+  expect(()=>rig.replace({environment:{preset:'https://untrusted.example/test.hdr'}})).toThrow();
+  expect(rig.snapshot()).toEqual(saved);
+  rig.replace({...saved,lights:[{type:'point',position:[0,2,0],intensity:20,castShadow:true}]});
+  expect(scene.getObjectByName('point').castShadow).toBe(true);
+  expect(changes).toHaveLength(2);
+  rig.replace({});
+  expect(rig.snapshot()).toBeNull();
+});

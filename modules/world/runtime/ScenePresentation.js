@@ -4,7 +4,7 @@ import * as z from 'zod/v4';
 const vector=z.tuple([z.number().finite().min(-100000).max(100000),z.number().finite().min(-100000).max(100000),z.number().finite().min(-100000).max(100000)]);
 const name=z.string().trim().min(1).max(100);
 const color=z.string().regex(/^#[a-fA-F0-9]{6}$/);
-const lightBase={name:name.optional(),color:color.default('#ffffff'),intensity:z.number().finite().min(0).max(100000),position:vector};
+const lightBase={name:name.optional(),color:color.default('#ffffff'),intensity:z.number().finite().min(0).max(100000),position:vector,castShadow:z.boolean().optional()};
 const directed={target:vector};
 const lightSchema=z.discriminatedUnion('type',[
   z.object({...lightBase,...directed,type:z.literal('directional')}).strict(),
@@ -17,9 +17,20 @@ export const presentationCameraSchema=z.object({
   aspect:z.number().positive().max(10).default(16/9),near:z.number().positive().default(.1),far:z.number().positive().default(1000)
 }).strict();
 export const presentationLightsSchema=z.array(lightSchema).max(16);
+export const PRESENTATION_HDRI_PRESETS=Object.freeze({
+  interior:'/assets/monument-hall/solitude_interior_1k.hdr',
+  courtyard:'/assets/ruined-courtyard/courtyard_1k.hdr',
+  street:'/assets/grand-urban-block/urban_street_01_1k.hdr'
+});
+export const presentationEnvironmentSchema=z.object({
+  preset:z.enum(['interior','courtyard','street','none']),
+  intensity:z.number().finite().min(0).max(5).default(1),
+  background:z.boolean().default(false)
+}).strict();
 export const scenePresentationSchema=z.object({
   camera:presentationCameraSchema.nullable().default(null),
-  lights:presentationLightsSchema.default([])
+  lights:presentationLightsSchema.default([]),
+  environment:presentationEnvironmentSchema.nullable().optional()
 }).strict();
 
 const fail=code=>Object.assign(new Error(code),{code});
@@ -55,6 +66,8 @@ export function buildPresentationGroup(input){
       l.type==='point'?new THREE.PointLight(l.color,l.intensity,l.distance,2):
       new THREE.SpotLight(l.color,l.intensity,l.distance,l.angle,l.penumbra,2);
     light.name=l.name??l.type;light.position.fromArray(l.position);
+    light.castShadow=l.castShadow===true;
+    if(light.castShadow)light.shadow.mapSize.set(1024,1024);
     if(l.target)aim(light,l.target);
     root.add(light);
   }
@@ -66,17 +79,23 @@ export function buildPresentationGroup(input){
 export class ScenePresentation {
   #state=null;
   #root=null;
-  constructor(scene){this.scene=scene;}
+  constructor(scene,onChange=()=>{}){this.scene=scene;this.onChange=onChange;}
+  get camera(){return this.#root?.children.find(node=>node.isCamera)??null;}
   snapshot(){return this.#state?structuredClone(this.#state):null;}
   replace(input={}){
     const {state,root}=buildPresentationGroup(input);
-    this.#root?.removeFromParent();
+    this.releaseRoot();
     this.#root=root.children.length?root:null;
-    this.#state=this.#root?state:null;
+    this.#state=this.#root||state.environment?state:null;
     if(this.#root)this.scene.add(this.#root);
+    this.onChange(this.snapshot(),this.camera);
     return this.snapshot();
   }
+  releaseRoot(){
+    this.#root?.traverse(node=>{if(node.isLight)node.shadow?.dispose?.();});
+    this.#root?.removeFromParent();
+  }
   dispose(){
-    this.#root?.removeFromParent();this.#root=null;this.#state=null;
+    this.releaseRoot();this.#root=null;this.#state=null;
   }
 }

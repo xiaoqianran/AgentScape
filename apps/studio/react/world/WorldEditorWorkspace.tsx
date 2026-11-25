@@ -1,3 +1,4 @@
+import { ScenePresentationEditor, CreativeViewOverlay } from './ScenePresentationEditor';
 import { SelectionActionDock } from './SelectionActionDock';
 import { StudioMcpConnection } from './StudioMcpConnection';
 import { StudioIcon } from '../shared/StudioIcon';
@@ -61,11 +62,12 @@ function ConnectedSceneToolbar({ controls, authoring }: { controls:any; authorin
       <button id="undo" title="撤销 (Ctrl+Z)" aria-label="撤销" type="button" disabled={exploring || !state.history?.canUndo} onClick={()=>guardAsync('撤销', () => controls.undo())}><StudioIcon name="undo" /></button>
       <button id="redo" title="重做 (Ctrl+Shift+Z)" aria-label="重做" type="button" disabled={exploring || !state.history?.canRedo} onClick={()=>guardAsync('重做', () => controls.redo())}><StudioIcon name="redo" /></button>
       <span className="toolbar-divider" />
-      <button disabled={exploring} data-mode="translate" className={state.mode === 'translate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('translate')}><StudioIcon name="move" size={16} />移动 <kbd>W</kbd></button>
-      <button disabled={exploring} data-mode="rotate" className={state.mode === 'rotate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('rotate')}><StudioIcon name="rotate" size={16} />旋转 <kbd>E</kbd></button>
+      <button disabled={exploring || state.creativeView} data-mode="translate" className={state.mode === 'translate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('translate')}><StudioIcon name="move" size={16} />移动 <kbd>W</kbd></button>
+      <button disabled={exploring || state.creativeView} data-mode="rotate" className={state.mode === 'rotate' ? 'active' : ''} type="button" onClick={()=>controls.setMode('rotate')}><StudioIcon name="rotate" size={16} />旋转 <kbd>E</kbd></button>
       <span className="toolbar-divider" />
-      <button id="duplicate" disabled={exploring || selection?.source!=='runtime'} type="button" onClick={()=>guardAsync('复制对象', () => controls.duplicate())}>复制</button>
-      <button id="delete" className="danger" disabled={exploring || selection?.source!=='runtime'} type="button" onClick={()=>guardAsync('删除对象', () => controls.deleteSelected())}>删除</button>
+      <button id="duplicate" disabled={exploring || state.creativeView || selection?.source!=='runtime'} type="button" onClick={()=>guardAsync('复制对象', () => controls.duplicate())}>复制</button>
+      <button id="delete" className="danger" disabled={exploring || state.creativeView || selection?.source!=='runtime'} type="button" onClick={()=>guardAsync('删除对象', () => controls.deleteSelected())}>删除</button>
+      <ScenePresentationEditor controls={controls} state={state} />
       <details className="toolbar-more scene-menu">
         <summary>保存与文件 <span aria-hidden="true">⌄</span></summary>
         <div className="toolbar-menu">
@@ -180,6 +182,7 @@ export function WorldEditorWorkspace({
         </aside>
         {projectState.visible ? <div className="editor-toolbar code-world-toolbar"><strong>{projectState.project?.name || '完整代码项目'}</strong><span>{projectState.active ? (projectState.revision===projectState.runningRevision?'实时预览':'源码已更新 · 运行后预览') : '运行项目以预览世界'}</span></div> : <SceneToolbar bridgeState={bridgeState} />}
         <div id="viewport" className="viewport">
+          {active && bridgeState.sceneControls && !projectState.visible ? <CreativeViewOverlay controls={bridgeState.sceneControls}/> : null}
           {active && content && !projectState.active ? <SelectionActionDock {...content.inspector} openInspect={()=>commitLayoutChange(()=>openView('inspect'))} /> : null}
 
         </div>

@@ -65,10 +65,10 @@ export interface ObjectAffordances {
 }
 export interface AffordanceListing { schema: string; total: number; entities: ObjectAffordances[] }
 export interface PresentationCamera {name?:string;position:Vec3;target:Vec3;fov?:number;aspect?:number;near?:number;far?:number}
-export type PresentationLight = {name?:string;color?:string;intensity:number;position:Vec3} & (
+export type PresentationLight = {name?:string;color?:string;intensity:number;position:Vec3;castShadow?:boolean} & (
   {type:'directional';target:Vec3} | {type:'point';distance?:number} |
   {type:'spot';target:Vec3;distance?:number;angle?:number;penumbra?:number});
-export interface ScenePresentation {camera?:PresentationCamera|null;lights?:PresentationLight[]}
+export interface ScenePresentation {camera?:PresentationCamera|null;lights?:PresentationLight[];environment?:{preset:'interior'|'courtyard'|'street'|'none';intensity?:number;background?:boolean}|null}
 export type Edit = { type: 'add'; model: Omit<ModelInput, 'asset'> & { asset: string } } | { type: 'setTransform'; id: string; transform: Transform } | { type: 'remove'; id: string } | { type: 'replaceAsset'; id: string; asset: string; level?: CapabilityLevel } | {type:'setPresentation';presentation:ScenePresentation};
 export type PhysicalInteraction = { action: 'push' | 'drag'; actor: string; target: string; args: { direction: Vec3; distance: number; maxForce?: number } }
   | { action: 'rotate'; actor: string; target: string; args: { axis: Vec3; angle: number; maxTorque?: number } }

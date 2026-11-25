@@ -1,0 +1,113 @@
+import {test,expect,waitForRuntimeReady} from './fixtures.js';
+import {randomBytes,randomUUID} from 'node:crypto';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {Client,StreamableHTTPClientTransport} from '@modelcontextprotocol/client';
+import {startServer} from '../../apps/mcp-server/main.mjs';
+import sharp from 'sharp';
+
+test('Studio shares saved camera, lights and HDRI with MCP, switches views and downloads real PNG and GLB',async({page},testInfo)=>{
+  test.setTimeout(240000);
+  const root=await mkdtemp(path.join(tmpdir(),'agentscape-presentation-ui-'));
+  const token=randomBytes(32).toString('hex');
+  const port=Number(process.env.AGENTSCAPE_TEST_PORT||4178);
+  const app=await startServer({tokens:[{identity:'owner',token}],port:0,root,dataRoot:path.join(root,'assets'),
+    studioOrigins:['http://127.0.0.1:'+port,'http://localhost:'+port]});
+  const client=new Client({name:'studio-presentation-ui-test',version:'1'});
+  const call=async(name,args={})=>{
+    const response=await client.callTool({name,arguments:args});
+    const value=JSON.parse(response.content[0].text);
+    expect(response.isError,JSON.stringify(value)).toBeFalsy();
+    return value;
+  };
+  try{
+    await client.connect(new StreamableHTTPClientTransport(new URL('http://127.0.0.1:'+app.port+'/mcp'),{requestInit:{headers:{Authorization:'Bearer '+token}}}));
+    await page.goto('/studio/?page=world&world=industrial-cabinet-lab&renderer=webgl&mcpPort='+app.port+'&renderScale=.5');
+    await waitForRuntimeReady(page);
+    await expect(page.locator('.studio-mcp-connection')).toHaveAttribute('data-bridge-state','connected',{timeout:30000});
+    const recipe={schema:'agentscape.asset-recipe',schemaVersion:1,id:'ui/scene-presentation-board',
+      parts:[{id:'board',geometry:{type:'box',size:[1,.15,1]},material:{color:'#ffffff',texture:{pattern:'wood',seed:12}}}]};
+    await call('scene_add_model',{requestId:randomUUID(),model:{id:'shot_board',asset:recipe,level:'visual',position:[0,1,0]}});
+    await call('scene_add_model',{requestId:randomUUID(),model:{id:'shot_board_b',asset:recipe,level:'visual',position:[2,1,0]}});
+    await page.getByRole('button',{name:'编辑',exact:true}).click();
+    const menu=page.locator('.presentation-menu');
+    await menu.locator(':scope > summary').click();
+    await menu.getByRole('button',{name:'从自由视角创建 / 更新'}).click();
+    await menu.getByLabel('相机名称').fill('Test Shot');
+    await menu.getByLabel('视场角').fill('42');
+    await menu.getByLabel('相机位置 X',{exact:true}).fill('5');
+    await menu.getByLabel('相机位置 Y',{exact:true}).fill('4');
+    await menu.getByLabel('相机位置 Z',{exact:true}).fill('5');
+    for(const axis of ['X','Y','Z'])await menu.getByLabel('相机目标 '+axis,{exact:true}).fill(axis==='Y'?'1':'0');
+    await menu.getByRole('button',{name:'添加灯光'}).click();
+    await menu.getByLabel('灯光强度 1').fill('3');
+    await menu.getByLabel('投射阴影').first().check();
+    await menu.getByLabel('新增灯光类型').selectOption('point');
+    await menu.getByRole('button',{name:'添加灯光'}).click();
+    await menu.getByLabel('新增灯光类型').selectOption('spot');
+    await menu.getByRole('button',{name:'添加灯光'}).click();
+    await menu.getByLabel('HDRI 环境预设').selectOption('interior');
+    await menu.getByLabel('环境光强度').fill('1.4');
+    await menu.getByRole('button',{name:'应用场景表现'}).click();
+    await expect(menu.locator('[data-hdri-status]')).toHaveAttribute('data-hdri-status','ready',{timeout:45000});
+    const observe=()=>call('scene_observe');
+    const result=await observe();
+    const saved=result.presentation??result.value?.presentation;
+    expect(saved).toMatchObject({camera:{name:'Test Shot',position:[5,4,5],target:[0,1,0],fov:42},lights:[{type:'directional',intensity:3,castShadow:true},{type:'point'},{type:'spot'}],environment:{preset:'interior',intensity:1.4}});
+    await menu.getByRole('button',{name:'创作相机',exact:true}).click();
+    await expect(page.locator('.creative-view-shield')).toBeVisible();
+    await page.getByRole('button',{name:'退出创作相机'}).click();
+    await expect(page.locator('.creative-view-shield')).toHaveCount(0);
+    const set=await call('scene_apply',{requestId:randomUUID(),operations:[{type:'setPresentation',presentation:{...saved,camera:{...saved.camera,fov:35}}}]});
+    expect(set.status).toBe('succeeded');
+    await expect(menu.getByLabel('视场角')).toHaveValue('35');
+    await page.locator('#undo').click();
+    await expect(menu.getByLabel('视场角')).toHaveValue('42',{timeout:45000});
+    // Download and inspect a real native raster still.
+    const pngWait=page.waitForEvent('download',{timeout:90000});
+    await menu.getByRole('button',{name:'PNG 1920',exact:true}).click();
+    const png=await pngWait;
+    const pngBytes=await readFile(await png.path());
+    const raster=await sharp(pngBytes).metadata();
+    expect(raster).toMatchObject({format:'png',width:1920,height:1080});
+    const stats=await sharp(pngBytes).stats();
+    expect(stats.channels[0].stdev).toBeGreaterThan(5);
+    await testInfo.attach('native-still',{body:pngBytes,contentType:'image/png'});
+    const largeWait=page.waitForEvent('download',{timeout:90000});
+    await menu.getByRole('button',{name:'PNG 3840',exact:true}).click();
+    const large=await largeWait;
+    const largeBytes=await readFile(await large.path());
+    expect(await sharp(largeBytes).metadata()).toMatchObject({format:'png',width:3840,height:2160});
+    expect((await sharp(largeBytes).stats()).channels[0].stdev).toBeGreaterThan(5);
+    await testInfo.attach('native-still-4k',{body:largeBytes,contentType:'image/png'});
+    // The same shared GLB exporter is called from the selected-object UI.
+    await page.locator('[data-object-id="shot_board"]').click();
+    if(!(await menu.evaluate(node=>node.open)))await menu.locator(':scope > summary').click();
+    const glbWait=page.waitForEvent('download',{timeout:45000});
+    await menu.getByRole('button',{name:'导出选中 GLB'}).click();
+    const glb=await glbWait;
+    const bytes=await readFile(await glb.path());
+    expect(bytes.toString('ascii',0,4)).toBe('glTF');
+    const json=JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)));
+    expect(json.cameras).toHaveLength(1);
+    expect(json.extensions.KHR_lights_punctual.lights).toHaveLength(3);
+    expect(json.images).toHaveLength(2);
+    expect(json.nodes.some(node=>node.name==='shot_board')).toBe(true);
+    await testInfo.attach('scene-glb',{body:bytes,contentType:'model/gltf-binary'});
+    const wholeWait=page.waitForEvent('download',{timeout:45000});
+    await menu.getByRole('button',{name:'导出场景 GLB',exact:true}).click();
+    const whole=await wholeWait;
+    const wholeBytes=await readFile(await whole.path());
+    const wholeJSON=JSON.parse(wholeBytes.toString('utf8',20,20+wholeBytes.readUInt32LE(12)));
+    expect(wholeJSON.nodes.some(node=>node.name==='shot_board')).toBe(true);
+    expect(wholeJSON.nodes.some(node=>node.name==='shot_board_b')).toBe(true);
+    expect(wholeJSON.cameras).toHaveLength(1);
+    expect(wholeJSON.extensions.KHR_lights_punctual.lights).toHaveLength(3);
+    await testInfo.attach('whole-scene-glb',{body:wholeBytes,contentType:'model/gltf-binary'});
+    const final=await observe();
+    expect(final.presentation??final.value?.presentation).toMatchObject({camera:{fov:42},environment:{preset:'interior'}});
+  }finally{
+    await page.close().catch(()=>{});await client.close().catch(()=>{});await app.close();await rm(root,{recursive:true,force:true});
+  }
+});

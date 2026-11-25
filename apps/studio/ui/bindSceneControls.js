@@ -1,5 +1,6 @@
 import { bootstrapWorld } from '../../../modules/agent/bootstrapWorld.js';
 import { createSceneFacade } from '../../../application/scene/SceneFacade.js';
+import { exportSceneGLB } from '../../../application/world-authoring/SceneGLBExport.js';
 import { exportWorldFile, importWorldFile } from './WorldFileUI.js';
 
 export function bindSceneControls({
@@ -31,7 +32,7 @@ export function bindSceneControls({
   let fileStatus='';
   let history=world.history.status();
 
-  const snapshot=()=>Object.freeze({ mode, history, resetWorldArmed, resetBusy, fileStatus });
+  const snapshot=()=>Object.freeze({ mode, history, resetWorldArmed, resetBusy, fileStatus, presentation:world.presentation?.snapshot()??null, creativeView:Boolean(world.rendering?.creativeView),lightingStatus:world.rendering?.lightingStatus??"none" });
   let viewSnapshot=snapshot();
   const emit=()=>{
     viewSnapshot=snapshot();
@@ -49,6 +50,43 @@ export function bindSceneControls({
   };
   const stopHistory=world.events.on('history.changed',updateHistoryButtons);
   if (typeof stopHistory === 'function') disposers.push(stopHistory);
+
+  const stopPresentation=world.events.on('scene.presentation.changed',emit);
+  if(typeof stopPresentation==='function')disposers.push(stopPresentation);
+  const stopLighting=world.events.on('renderer.environment-status',emit);
+  if(typeof stopLighting==='function')disposers.push(stopLighting);
+
+  const setPresentation=async(presentation,expected)=>{
+    if(editor.interactionMode!=='edit')throw new Error('EDIT_MODE_REQUIRED');
+    assertWorldIdle();
+    if(JSON.stringify(world.presentation?.snapshot()??null)!==expected)throw new Error('REVISION_CONFLICT');
+    const result=await sceneFacade.apply({operations:[{type:'setPresentation',presentation}]});
+    if(result.status!=='succeeded')throw new Error(result.diagnostics?.[0]?.message||'PRESENTATION_EDIT_FAILED');
+    emit();
+    return result;
+  };
+  const cameraFromView=()=>{
+    const pose=world.rendering?.cameraState?.();
+    const camera=world.rendering?.viewport?.()?.camera;
+    if(!pose||!camera)throw new Error('CAMERA_UNAVAILABLE');
+    return {...pose,name:'Camera',fov:camera.fov,aspect:16/9,near:camera.near,far:camera.far};
+  };
+  const setCreativeView=enabled=>{
+    world.rendering?.setCreativeView(enabled);
+    emit();
+  };
+  const captureStill=async(longEdge)=>{
+    assertWorldIdle();
+    const result=await world.rendering.captureStill(longEdge);
+    downloadBlob('agentscape-'+result.width+'x'+result.height+'.png',result.blob);
+    return '已导出 '+result.width+' × '+result.height+' PNG';
+  };
+  const exportGLB=async(objectIds)=>{
+    assertWorldIdle();
+    const {bytes,summary}=await exportSceneGLB(world,objectIds?{objectIds}:{});
+    downloadBlob('agentscape-scene.glb',new Blob([bytes],{type:'model/gltf-binary'}));
+    return '已导出 '+summary.meshes+' 个网格 · '+summary.cameras+' 相机 · '+summary.lights+' 灯光。'+summary.warnings.join(' ');
+  };
 
   const setMode=(next)=>{
     if (editor.interactionMode === 'explore') return;
@@ -204,7 +242,7 @@ export function bindSceneControls({
   const remove=()=>editor.deleteSelected()?.catch?.((error)=>log(`错误：${error.message}`,'error'));
 
   const onKeyDown=(event)=>{
-    if (editor.interactionMode === 'explore' || event.defaultPrevented || event.target?.isContentEditable) return;
+    if (world.rendering?.creativeView || editor.interactionMode === 'explore' || event.defaultPrevented || event.target?.isContentEditable) return;
     if (event.target?.matches?.('input, textarea, select')) return;
     const command=event.ctrlKey || event.metaKey;
     if (command && event.key.toLowerCase() === 'z') {
@@ -228,6 +266,7 @@ export function bindSceneControls({
     subscribe,
     snapshot:getSnapshot,
     setMode,
+    setPresentation,cameraFromView,setCreativeView,captureStill,exportGLB,
     resetWorld,
     saveScene,
     loadScene,
@@ -256,4 +295,10 @@ function downloadJson(filename,value) {
   anchor.download=filename;
   anchor.click();
   setTimeout(()=>URL.revokeObjectURL(url),0);
+}
+
+function downloadBlob(filename,blob){
+  const url=URL.createObjectURL(blob);
+  const anchor=document.createElement('a');anchor.href=url;anchor.download=filename;anchor.click();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
 }

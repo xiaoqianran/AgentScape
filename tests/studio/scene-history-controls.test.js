@@ -13,12 +13,12 @@ function fixture({ undo = async () => {}, redo = async () => {}, worldSession = 
     removeEventListener:removeWindowListener
   });
   const log = vi.fn();
-  const stopHistory = vi.fn();
+  const stopHistory = vi.fn(),stopPresentation=vi.fn(),stopLighting=vi.fn();
   const select = vi.fn();
   const binding = bindSceneControls({
     world: {
       mutationOwner,
-      events:{ on:()=>stopHistory },
+      events:{ on:name=>name==='history.changed'?stopHistory:name==='scene.presentation.changed'?stopPresentation:stopLighting },
       history:{ status:()=>({canUndo:true,canRedo:true}), undo:vi.fn(undo), redo:vi.fn(redo), clear:vi.fn() },
       clearObjects:async()=>{}, serialize:()=>({schemaVersion:1,objects:[]}), restore:async()=>{},
       queries:{listObjects:()=>[]}
@@ -29,7 +29,7 @@ function fixture({ undo = async () => {}, redo = async () => {}, worldSession = 
     tools:{}, environmentDefinition:{ id:'monument-hall', bootstrap:{} },
     log, setTaskState:vi.fn()
   });
-  return { keydown, log, binding, stopHistory, removeWindowListener, select };
+  return { keydown, log, binding, stopHistory, stopPresentation,stopLighting,removeWindowListener, select };
 }
 
 const press = (handler, { key = 'z', shiftKey = false } = {}) => handler({ preventDefault(){}, ctrlKey:true, shiftKey, key, target:{ matches:() => false } });
@@ -69,6 +69,8 @@ describe('Studio history controls', () => {
     expect(f.keydown).toHaveLength(1);
     f.binding.dispose();
     expect(f.stopHistory).toHaveBeenCalledOnce();
+    expect(f.stopPresentation).toHaveBeenCalledOnce();
+    expect(f.stopLighting).toHaveBeenCalledOnce();
     expect(f.removeWindowListener).toHaveBeenCalledWith('keydown',expect.any(Function));
     expect(f.keydown).toHaveLength(0);
   });

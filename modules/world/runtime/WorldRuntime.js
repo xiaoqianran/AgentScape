@@ -96,7 +96,10 @@ export class WorldRuntime {
     this.physicsFactory = physicsFactory;
     this.navigationBackendFactory = navigationBackendFactory;
     this.scene = new THREE.Scene();
-    this.presentation = new ScenePresentation(this.scene);
+    this.presentation = new ScenePresentation(this.scene,(state,camera)=>{
+      this.rendering?.setPresentation?.(state,camera);
+      this.events.emit('scene.presentation.changed',{presentation:state});
+    });
     this.rendering = null;
     this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.entities = new EntityCapabilityRegistry({ events:this.events }); this.physics = physicsFactory(); this.navigation = null;
     this.projectCapabilities = new ProjectCapabilities(this);

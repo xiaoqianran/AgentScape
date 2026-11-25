@@ -252,3 +252,5 @@ Recipe 的 `parts[].material.texture` 支持 wood、stone、fabric、brushed-met
 对已登记 Recipe 的对象，可调用 `scene_object_definition` 的 inspect → preview → apply，preview 的 changes 示例：
 `[{"path":"/parts/@body/material","value":{"color":"#ffffff","roughness":0.7,"texture":{"pattern":"wood","seed":42}}}]`。
 即使该部件原先未声明 material，也可设置完整材质。完整声明重新校验、编译并替换当前实例；不修改其他使用同一资产版本的对象。inline 项目包保留可编辑声明及纹理资源；.asworld 保存已编译纹理与世界状态（不含 Object Forge 编辑声明）。
+
+创作场景表现还支持 `environment:{"preset":"interior","intensity":1.4,"background":true}`（预设 `interior|courtyard|street|none`，`null` 或缺省继承世界基础光照）以及各灯光的可选 `castShadow`。通过同一 `setPresentation` 操作、历史及世界包保存；Studio 负责实际 HDRI 渲染，离线会话只保存设置。GLB 不嵌入 HDRI 或阴影设置；浏览器 Studio 复用共享导出核心。预设仅指向应用自带 HDR 文件，不接受任意网络 URL。

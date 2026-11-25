@@ -528,3 +528,56 @@ describe('RenderingSystem', () => {
     expect(() => rendering.addDecoration(entity)).toThrowError(/World Entity/);
   });
 });
+
+it('switches to an independent creative camera and restores the navigation view without changing either pose',async()=>{
+  const h=createHarness(),scene=new THREE.Scene();
+  const rendering=new RenderingSystem({container:h.container,scene,rendererFactory:h.rendererFactory,controlsFactory:h.controlsFactory});
+  await rendering.init();
+  rendering.camera.position.set(9,8,7);
+  const creative=new THREE.PerspectiveCamera(38,16/9,.1,200);
+  creative.position.set(4,3,2);
+  const decoration=new THREE.Group();rendering.addDecoration(decoration);
+  rendering.setPresentation({camera:{},lights:[]},creative);
+  expect(rendering.setCreativeView(true)).toBe(true);
+  h.renderer.render.mockImplementationOnce((renderedScene,camera)=>{
+    expect(renderedScene).toBe(scene);
+    expect(camera).not.toBe(creative);
+    expect(camera.position.toArray()).toEqual([4,3,2]);
+    expect(camera.aspect).toBe(2);
+    expect(rendering.decorationRoot.visible).toBe(false);
+  });
+  rendering.render();
+  expect(creative.aspect).toBe(16/9);
+  expect(rendering.camera.position.toArray()).toEqual([9,8,7]);
+  expect(rendering.decorationRoot.visible).toBe(true);
+  rendering.setPresentation(null,null);
+  expect(rendering.creativeView).toBe(false);
+  rendering.render();
+  expect(h.renderer.render).toHaveBeenLastCalledWith(scene,rendering.camera);
+  rendering.dispose();
+});
+
+it('reuses the environment loader for a saved HDRI override and ignores stale requests',async()=>{
+  const h=createHarness(),scene=new THREE.Scene();
+  const pending=[];
+  const environmentLoader={loadAsync:vi.fn(url=>new Promise(resolve=>pending.push({url,resolve})))};
+  const rendering=new RenderingSystem({container:h.container,scene,rendererFactory:h.rendererFactory,controlsFactory:h.controlsFactory,environmentLoader});
+  await rendering.init();
+  rendering.applyEnvironment({rendering:{background:0x123456,ibl:{url:'base.hdr',intensity:.8}}});
+  rendering.setPresentation({environment:{preset:'courtyard',intensity:2,background:true}},null);
+  const active=new THREE.Texture();active.dispose=vi.fn();
+  const obsolete=new THREE.Texture();obsolete.dispose=vi.fn();
+  expect(pending[1].url).toContain('courtyard_1k.hdr');
+  pending[1].resolve(active);await rendering.environmentTask;
+  pending[0].resolve(obsolete);await Promise.resolve();
+  expect(obsolete.dispose).toHaveBeenCalledOnce();
+  expect(scene.environment).toBe(active);expect(scene.background).toBe(active);expect(scene.environmentIntensity).toBe(2);
+  rendering.setPresentation({environment:{preset:'none',intensity:1,background:false}},null);
+  expect(active.dispose).toHaveBeenCalledOnce();expect(scene.environment).toBeNull();
+  expect(scene.background.getHex()).toBe(0x123456);
+  rendering.setPresentation(null,null);
+  expect(pending[2].url).toBe('base.hdr');
+  const restored=new THREE.Texture();pending[2].resolve(restored);await rendering.environmentTask;
+  expect(scene.environmentIntensity).toBe(.8);
+  rendering.dispose();
+});

@@ -28,7 +28,7 @@ it('streams a real world archive through HTTP, imports it, rejects foreign files
   const initial=await call('scene_observe',a);
   await call('scene_apply',{...a,requestId:randomUUID(),operations:initial.objects.map(o=>({type:'remove',id:o.id}))});
   await call('scene_add_model',{...a,requestId:randomUUID(),model:{id:'world_box',position:[0,0,0],asset:{schema:'agentscape.asset-recipe',schemaVersion:1,id:'test/worldbox',parts:[{id:'box',geometry:{type:'box',size:[1,1,1]},position:[0,.5,0],material:{color:'#aabbcc',clearcoat:.8,clearcoatRoughness:.2,transmission:.3,ior:1.4,emissive:'#333333',emissiveIntensity:2,texture:{pattern:'stone',seed:21,resolution:64}}}]}}});
-  const presentation={camera:{name:'Product camera',position:[3,2,4],target:[0,0,0]},lights:[{type:'point',name:'Product key',position:[0,3,0],intensity:20}]};
+  const presentation={camera:{name:'Product camera',position:[3,2,4],target:[0,0,0]},lights:[{type:'point',name:'Product key',position:[0,3,0],intensity:20,castShadow:true}],environment:{preset:'courtyard',intensity:1.6,background:true}};
   const set=await call('scene_apply',{...a,requestId:randomUUID(),operations:[{type:'setPresentation',presentation}]});
   expect(set.status).toBe('succeeded');
   const savedPresentation=(await call('scene_observe',a)).presentation;
@@ -42,6 +42,7 @@ it('streams a real world archive through HTTP, imports it, rejects foreign files
   expect((await call('scene_observe',a)).presentation).toEqual(savedPresentation);
   const visual=await call('scene_export_glb',a);
   expect(visual).toMatchObject({format:'glb',objectIds:['world_box'],cameras:1,lights:1});
+  expect(visual.warnings).toContain('HDRI environment lighting is not embedded in glTF.');
   const visualResponse=await request('/files/'+visual.fileId+'/content');
   expect(visualResponse.status).toBe(200);
   const visualBytes=Buffer.from(await visualResponse.arrayBuffer());

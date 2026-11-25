@@ -24,7 +24,9 @@ export async function exportSceneGLB(world,input={}){
   const ids=options.objectIds??Array.from(world.store.entries(),([id,record])=>record.active===false?null:id).filter(Boolean);
   if(!ids.length||ids.length>128||new Set(ids).size!==ids.length)throw fail('SCENE_EXPORT_SELECTION_INVALID');
   const scene=new THREE.Scene();
-  const warnings=new Set();let nodes=0,vertices=0,meshes=0,pixels=0;
+  const warnings=new Set();
+  if(stored.environment)warnings.add('HDRI environment lighting is not embedded in glTF.');
+  let nodes=0,vertices=0,meshes=0,pixels=0;
   const materials=new Set(),textures=new Set(),geometries=new Set();
   function copy(node){
     if(node.visible===false||node.userData?.agentscapeInternal===true||node.userData?.editorOverlay===true)return null;
@@ -45,9 +47,13 @@ export async function exportSceneGLB(world,input={}){
       for(const texture of Object.values(material)){
         if(!texture?.isTexture||textures.has(texture))continue;
         textures.add(texture);
-        if(!texture.isDataTexture||texture.format!==THREE.RGBAFormat||texture.type!==THREE.UnsignedByteType||
-          !Number.isSafeInteger(texture.image?.width)||!Number.isSafeInteger(texture.image?.height)||
-          texture.image.width*texture.image.height>65536)throw fail('SCENE_EXPORT_TEXTURE_UNSUPPORTED');
+        const image=texture.image;
+        const browserImage=typeof document!=='undefined'&&
+          [globalThis.HTMLImageElement,globalThis.ImageBitmap,globalThis.HTMLCanvasElement,globalThis.OffscreenCanvas]
+            .some(Type=>typeof Type==='function'&&image instanceof Type);
+        const rgba=texture.isDataTexture&&texture.format===THREE.RGBAFormat&&texture.type===THREE.UnsignedByteType;
+        if((!rgba&&!browserImage)||!Number.isSafeInteger(image?.width)||!Number.isSafeInteger(image?.height)||
+          image.width<=0||image.height<=0||image.width*image.height>(browserImage?1048576:65536))throw fail('SCENE_EXPORT_TEXTURE_UNSUPPORTED');
         pixels+=texture.image.width*texture.image.height;
         if(pixels>4000000)throw fail('SCENE_EXPORT_LIMIT');
       }
