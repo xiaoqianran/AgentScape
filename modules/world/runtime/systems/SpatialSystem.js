@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { visualComponentBounds } from '../spatial/VisualMeshBounds.js';
 import { nativeCarryRecord } from '../interaction/NativePhysicalTarget.js';
 import {
   boxesOverlap,
@@ -170,6 +171,7 @@ export class SpatialSystem {
       if (cache.has(key)) return cache.get(key);
       const record = this.store.has(key) ? this.store.get(key) : null;
       const boxes = [];
+      let vertexBudget=100000,indexBudget=300000;
       let complete = record?.manifest?.capabilityLevel === 'visual';
       if (complete) {
         record.object.updateWorldMatrix(true, true);
@@ -183,7 +185,14 @@ export class SpatialSystem {
           if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
           const box = node.geometry.boundingBox?.clone().applyMatrix4(node.matrixWorld);
           if (!box || box.isEmpty() || ![...box.min.toArray(), ...box.max.toArray()].every(Number.isFinite)) { complete = false; return; }
-          boxes.push(box);
+          const vertices=node.geometry.getAttribute('position').count,indices=node.geometry.getIndex()?.count;
+          let components=null;
+          if(indices!==undefined&&vertices<=vertexBudget&&indices<=indexBudget){
+            vertexBudget-=vertices;indexBudget-=indices;
+            components=visualComponentBounds(node.geometry,node.matrixWorld,256-boxes.length);
+          }
+          if(components)boxes.push(...components);
+          else boxes.push(box);
         });
       }
       const result = complete && boxes.length ? boxes : null;

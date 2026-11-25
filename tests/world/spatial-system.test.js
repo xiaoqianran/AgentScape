@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { describe, expect, it, vi } from 'vitest';
 import { ObjectStore } from '../../modules/world/runtime/ObjectStore.js';
 import { WorldValidator } from '../../modules/world/verification/WorldValidator.js';
@@ -178,4 +179,23 @@ it('disproves empty space in visual groups without suppressing mesh intersection
  store.get('center').manifest.capabilityLevel='visual';
  group.add(new THREE.InstancedMesh(new THREE.BoxGeometry(.5,1,1),new THREE.MeshBasicMaterial(),1));
  expect(spatial.visualOverlapDisproved('frame','center')).toBe(false);
+});
+
+
+it('refines disconnected material-batched indexed solids without splitting normal seams',()=>{
+ const store=new ObjectStore(),visual={capabilityLevel:'visual',actions:[]};
+ const left=new THREE.BoxGeometry(.5,1,1).translate(-2,.5,0);
+ const right=new THREE.BoxGeometry(.5,1,1).translate(2,.5,0);
+ const merged=new THREE.Mesh(mergeGeometries([left,right]),new THREE.MeshBasicMaterial());
+ const probe=boxObject([.2,.2,.2],[0,.5,0]);
+ store.add('batch',{id:'batch',object:merged,manifest:{...visual}});
+ store.add('probe',{id:'probe',object:probe,manifest:{...visual}});
+ const spatial=new SpatialSystem({store});
+ expect(spatial.overlapPairs()).toEqual([['batch','probe']]);
+ expect(spatial.visualOverlapDisproved('batch','probe')).toBe(true);
+ probe.position.x=2;
+ expect(spatial.visualOverlapDisproved('batch','probe')).toBe(false);
+ probe.position.x=0;
+ store.get('probe').manifest.capabilityLevel='physical';
+ expect(spatial.visualOverlapDisproved('batch','probe')).toBe(false);
 });
