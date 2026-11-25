@@ -10,6 +10,7 @@ import { NavigationSystem } from './systems/NavigationSystem.js';
 import { RecastNavigationBackend } from '../../navigation/RecastNavigationBackend.js';
 import { LocomotionSystem } from './systems/LocomotionSystem.js';
 import { SceneSerializer } from './SceneSerializer.js';
+import { ScenePresentation } from './ScenePresentation.js';
 import { nativePhysicsBindings,prepareNativePhysics } from './NativePhysicsSnapshot.js';
 import { CommandHistory } from './CommandHistory.js';
 import { SceneGraph } from './graph/SceneGraph.js';
@@ -95,6 +96,7 @@ export class WorldRuntime {
     this.physicsFactory = physicsFactory;
     this.navigationBackendFactory = navigationBackendFactory;
     this.scene = new THREE.Scene();
+    this.presentation = new ScenePresentation(this.scene);
     this.rendering = null;
     this.ruleRuntime = new RuleRuntime(this); this.serializer = new SceneSerializer(); this.store = new ObjectStore(); this.entities = new EntityCapabilityRegistry({ events:this.events }); this.physics = physicsFactory(); this.navigation = null;
     this.projectCapabilities = new ProjectCapabilities(this);
@@ -664,6 +666,7 @@ export class WorldRuntime {
     this.locomotion = null;
     this.environment?.dispose();
     this.environment = null;
+    this.presentation?.dispose();
     disposeObject3D(this.scene);
     this.navigation?.dispose();
     this.navigation = null;

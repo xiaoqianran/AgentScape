@@ -134,7 +134,7 @@ export function createSceneFacade(world, { ownsWorld = false, name = 'Untitled W
       world.sceneGraph.update();
       const native = world.queries?.listEnvironmentInteractables?.({actorId:actor,radius:20});
       return { schema: 'agentscape.scene-observation', schemaVersion: 1, revision: lifecycle.getRevision(),
-        style: styles.export(), actors:facade.actors(), affordances: withListingCapabilities(world.affordances.list({ actorId: actor, limit: 100 }), actor),
+        style: styles.export(), presentation:world.presentation?.snapshot()||null, actors:facade.actors(), affordances: withListingCapabilities(world.affordances.list({ actorId: actor, limit: 100 }), actor),
         project: withListingCapabilities(world.projectCapabilities.list({ actor }), actor),
         ...(nativeEditables ? {nativeEditables:nativeEditables.list()} : {}),
         history:world.history.status(),

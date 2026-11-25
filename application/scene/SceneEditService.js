@@ -56,6 +56,7 @@ export function createSceneEditService(world, { exclusive, assertOpen, assertIdl
     }
     const snapshotOptions = batchSnapshots?.options() || undefined;
     const value = await world.mutate(`scene:${op.type}`, async () => {
+      if(op.type==='setPresentation')return world.presentation.replace(op.presentation);
       if (op.type === 'add') {
         if (world.store.has(op.model.id) || world.projectCapabilities.has(op.model.id)) throw sceneError('DUPLICATE_ID');
         const key = resolveAssetId(op.model.asset, op.model.level);

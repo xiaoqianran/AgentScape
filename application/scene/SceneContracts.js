@@ -1,4 +1,5 @@
 import * as z from 'zod/v4';
+import { scenePresentationSchema } from '../../modules/world/runtime/ScenePresentation.js';
 import { nativeEditableChangesSchema } from './NativeEditableContracts.js';
 import { recipeSchema } from '../../modules/asset/model/AssetInputContracts.js';
 import { mechanicalDraftSchema } from '../../modules/asset/model/MechanicalAssetDraft.js';
@@ -14,6 +15,7 @@ export const operations = z.discriminatedUnion('type', [
   z.object({ type: z.literal('setTransform'), id, transform: sceneTransformSchema }).strict(),
   z.object({ type: z.literal('remove'), id }).strict(),
   z.object({ type: z.literal('replaceAsset'), id, asset: ref, level }).strict(),
+  z.object({ type: z.literal('setPresentation'), presentation:scenePresentationSchema }).strict(),
   z.object({ type: z.literal('editNative'), id, changes:nativeEditableChangesSchema }).strict()
 ]);
 export const applySchema = z.object({ requestId: z.union([id,z.uuid()]).optional(), expectedRevision: z.number().int().nonnegative().optional(), operations: z.array(operations).min(1).max(32) }).strict();

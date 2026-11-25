@@ -1,3 +1,4 @@
+import { parseScenePresentation } from './ScenePresentation.js';
 import { uniformScaleValue } from './ObjectTransform.js';
 import { thermalStateSchema,validateThermalStateForProfile } from '../../../foundation/simulation/SimulationProfile.js';
 import { compileRuleGraph } from './behavior/RuleGraph.js';
@@ -34,6 +35,7 @@ export class SceneSerializer {
     const acceptanceEvidence=runtime.lastAcceptanceBundle ? clone(runtime.lastAcceptanceBundle) : null;
     const nativePhysics=captureNativePhysics(runtime,{identity:nativeIdentity});
     const cameraState=runtime.rendering?.cameraState?.() || null;
+    const presentation=runtime.presentation?.snapshot() || null;
     const stylePack=runtime.rendering?.serializeStyle?.() || null;
     return {
       schema: SCENE_SCHEMA,
@@ -56,7 +58,8 @@ export class SceneSerializer {
       },
       ...(includeRelations ? { relations:runtime.sceneGraph?.list?.() || [] } : {}),
       ...(acceptanceEvidence?{verification:{acceptanceEvidence}}:{}),
-      ...(cameraState?{camera:cameraState}:{})
+      ...(cameraState?{camera:cameraState}:{}),
+      ...(presentation?{presentation}:{})
     };
   }
 
@@ -67,6 +70,7 @@ export class SceneSerializer {
     if (!Array.isArray(scene.objects)) throw new Error('Scene objects must be an array');
     if (!Array.isArray(scene.assets)) throw new Error('Scene assets must be an array');
     if (scene.camera != null && (!isFiniteVec(scene.camera.position,3) || !isFiniteVec(scene.camera.target,3))) throw new Error('Scene camera requires finite position and target');
+    if (scene.presentation != null) parseScenePresentation(scene.presentation);
     if (scene.relations != null && !Array.isArray(scene.relations)) throw new Error('Scene relations must be an array');
     const worldRevision=scene.metadata?.worldRevision;
     if (worldRevision != null) {
@@ -242,6 +246,7 @@ export class SceneSerializer {
     if(scene.metadata?.environmentState) runtime.environment?.restore?.(scene.metadata.environmentState);
     runtime.navigation?.invalidate?.('scene-restored');
     if (scene.camera) runtime.rendering?.applyCameraState?.(scene.camera);
+    runtime.presentation?.replace(scene.presentation??{});
     await runtime.rendering?.restoreStyle?.(scene.metadata?.stylePack || null);
     runtime.currentWorldRevision=scene.metadata?.worldRevision ? clone(scene.metadata.worldRevision) : null;
     runtime.restoredAcceptanceEvidence=scene.verification?.acceptanceEvidence ? clone(scene.verification.acceptanceEvidence) : null;

@@ -154,7 +154,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
   const args=Object.fromEntries(Object.entries(a).filter(([key,value])=>!['worldSessionId','requestId'].includes(key)&&value!==undefined));
   return sceneRun(a,'thermal',args,s=>s.host.scene.thermalExperiment(args),e);
  });
- add('scene_apply','Apply structured scene edits with revision protection and explicit partial results.',{...sceneSession,requestId:z.uuid(),expectedRevision:z.number().int().nonnegative().optional(),operations:z.array(z.record(z.string(),z.unknown())).min(1).max(32)},(a,e)=>sceneRun(a,'apply',{requestId:a.requestId,expectedRevision:a.expectedRevision,operations:a.operations},async s=>{await attachSceneAssets(s,a.operations.map(op=>op.type==='add'?op.model?.asset:op.asset));return s.host.scene.apply({expectedRevision:a.expectedRevision,operations:a.operations});},e));
+ add('scene_apply','Apply structured scene edits with revision protection and explicit partial results. Use type=setPresentation with presentation={camera,lights} to replace the saved creative camera and punctual lights; an empty presentation clears the rig.',{...sceneSession,requestId:z.uuid(),expectedRevision:z.number().int().nonnegative().optional(),operations:z.array(z.record(z.string(),z.unknown())).min(1).max(32)},(a,e)=>sceneRun(a,'apply',{requestId:a.requestId,expectedRevision:a.expectedRevision,operations:a.operations},async s=>{await attachSceneAssets(s,a.operations.map(op=>op.type==='add'?op.model?.asset:op.asset));return s.host.scene.apply({expectedRevision:a.expectedRevision,operations:a.operations});},e));
  add('scene_history','Read or undo/redo the shared Scene history. One timeline for Studio GUI changes, native Three.js registered properties, native physics interactions and managed Scene edits. Supply the current scene_observe revision for mutations to reject stale requests.',{
   ...sceneSession,operation:z.enum(['status','undo','redo']).default('status'),
   expectedRevision:z.number().int().nonnegative().optional(),requestId:z.uuid().optional()
@@ -255,7 +255,7 @@ export function registerTools(server,manager,owner,assets,studioBridge=null,{age
    return result;
   },e);
  });
- add('scene_export_glb','Export active managed visual entities as a static Y-up GLB, with optional perspective camera and punctual lights. Private offline sessions only. Does not replace scene_save or mutate the world. Download via GET /files/:id/content.',{
+ add('scene_export_glb','Export active managed visual entities as a static Y-up GLB, with saved perspective camera and punctual lights unless explicitly overridden in options. Private offline sessions only. Does not replace scene_save or mutate the world. Download via GET /files/:id/content.',{
   ...session,options:sceneGLBOptions.optional()
  },(a,e)=>{
   if(projectScope||studioBridge?.isStudioSession(a.worldSessionId)||!manager.transfers)throw new Error('WORLD_FILE_OFFLINE_ONLY');

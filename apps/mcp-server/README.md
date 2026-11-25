@@ -241,3 +241,7 @@ Serial native barriers can now return a provisional `recommendation.progress` of
 返回 `fileId`、`bytes`、`sha256`、对象/材质/纹理统计和限制说明；使用原有 `GET /files/:id/content` 下载并在不需要后 DELETE 文件。GLB 使用 glTF Y-up 坐标，包含世界变换、PBR 材质及受支持纹理，镜头和光源为导出时的独立配置，不修改或持久化到当前世界。未导出内置环境、仿真、交互、编辑器状态、动画；暂不支持蒙皮、合批网格、自定义 Shader 或非受支持的纹理。非 PBR 材质可能有损，渲染器的阴影、后处理与环境照明也不属于 GLB。完整 AgentScape 恢复仍使用 `scene_save`。
 
 Recipe 的 `material` 支持可选 `clearcoat`、`clearcoatRoughness`、`transmission`、`ior`、`emissiveIntensity`，使用 glTF 标准材质扩展，不改变旧 Recipe 的默认值。
+
+持久化相机与灯光：通过 `scene_apply` 的操作
+`{"type":"setPresentation","presentation":{"camera":{"position":[8,5,10],"target":[0,1,0]},"lights":[{"type":"point","position":[0,4,0],"intensity":30}]}}`
+一次替换整个创作灯光/镜头组；传入空对象清除。该组是实际 Three.js 对象，独立于视口控制与内置环境灯光，支持统一撤销/重做，随世界 JSON、inline bundle 和 .asworld 保存及恢复。`scene_observe` 返回 presentation；未指定导出参数时 `scene_export_glb` 复用保存的配置；显式 `camera:null` 或 `lights:[]` 仅在该次导出中禁用对应项，不修改世界。

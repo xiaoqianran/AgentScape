@@ -64,7 +64,12 @@ export interface ObjectAffordances {
   evidenceKind: string; physicsVerified: false; pending: boolean;
 }
 export interface AffordanceListing { schema: string; total: number; entities: ObjectAffordances[] }
-export type Edit = { type: 'add'; model: Omit<ModelInput, 'asset'> & { asset: string } } | { type: 'setTransform'; id: string; transform: Transform } | { type: 'remove'; id: string } | { type: 'replaceAsset'; id: string; asset: string; level?: CapabilityLevel };
+export interface PresentationCamera {name?:string;position:Vec3;target:Vec3;fov?:number;aspect?:number;near?:number;far?:number}
+export type PresentationLight = {name?:string;color?:string;intensity:number;position:Vec3} & (
+  {type:'directional';target:Vec3} | {type:'point';distance?:number} |
+  {type:'spot';target:Vec3;distance?:number;angle?:number;penumbra?:number});
+export interface ScenePresentation {camera?:PresentationCamera|null;lights?:PresentationLight[]}
+export type Edit = { type: 'add'; model: Omit<ModelInput, 'asset'> & { asset: string } } | { type: 'setTransform'; id: string; transform: Transform } | { type: 'remove'; id: string } | { type: 'replaceAsset'; id: string; asset: string; level?: CapabilityLevel } | {type:'setPresentation';presentation:ScenePresentation};
 export type PhysicalInteraction = { action: 'push' | 'drag'; actor: string; target: string; args: { direction: Vec3; distance: number; maxForce?: number } }
   | { action: 'rotate'; actor: string; target: string; args: { axis: Vec3; angle: number; maxTorque?: number } }
   | { action: 'slide'; actor: string; target: string; args: { part: string } & ({ target: number; distance?: never } | { distance: number; target?: never }) }
@@ -86,7 +91,7 @@ export interface SceneHandle {
   inspect(target: string, options?: { actor?: string }): ObjectAffordances | ProjectEntityObservation;
   /** Object-only page in live insertion order. Restart after mutations; no global graph work. */
   observe(options: { actor?: string; offset?: number; limit: number }): { schema: 'agentscape.scene-object-page'; schemaVersion: 1; revision: number; total: number; offset: number; nextOffset: number | null; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }> };
-  observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; actors: ReturnType<SceneHandle['actors']>; style: Record<string, unknown> | null; affordances: AffordanceListing; project: { total: number; entities: ProjectEntityObservation[] }; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };
+  observe(options?: { actor?: string }): { schema: string; schemaVersion: 1; revision: number; actors: ReturnType<SceneHandle['actors']>; style: Record<string, unknown> | null; presentation:ScenePresentation|null; affordances: AffordanceListing; project: { total: number; entities: ProjectEntityObservation[] }; objects: Array<{ id: string; type: string; asset: string; position: Vec3; state: Record<string, unknown>; transform: Transform; physicsRegistered: boolean }>; relations: unknown[] };
   addModel(input: ModelInput, options?:{signal?:AbortSignal}): Promise<SceneResult>;
   setTransform(input: { id: string; transform: Transform }): Promise<SceneResult>;
   remove(input: { id: string }): Promise<SceneResult>;
