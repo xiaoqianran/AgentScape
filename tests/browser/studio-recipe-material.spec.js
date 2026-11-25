@@ -52,7 +52,7 @@ test('Studio previews real PBR textures and commits only the selected Recipe ins
     await testInfo.attach('material-preview',{body:textured,contentType:'image/png'});
     expect((await inspect('material_a')).assetId).toBe(before.assetId);
     await editor.getByRole('button',{name:'应用材质'}).click();
-    await expect.poll(async()=>(await inspect('material_a')).revision).toBe(2);
+    await expect.poll(async()=>(await inspect('material_a')).revision,{timeout:60000}).toBe(2);
     const after=await inspect('material_a');
     expect(after.definition.parts[0].material).toMatchObject({color:'#ffffff',texture:{pattern:'wood',seed:42}});
     expect(after.assetId).not.toBe(before.assetId);

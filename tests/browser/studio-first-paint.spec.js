@@ -19,15 +19,19 @@ test('Studio first paint is dark even before React and JavaScript load',async({b
   } finally {await context.close();}
 });
 
-test('Studio retains dark background across entry, reload and runtime startup',async({page})=>{
+// The world page intentionally uses the Sage Garden light editorial palette
+// (see studio-tokens.css and studio-editorial-theme.spec.js); the dark
+// contract above only covers the pre-JavaScript first paint.
+const light='rgb(248, 247, 244)';
+
+test('Studio world page keeps its editorial background across entry, reload and runtime startup',async({page})=>{
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   for(let i=0;i<2;i++){
     await page.goto(studio,{waitUntil:'domcontentloaded'});
-    await expect(page.locator('html')).toHaveCSS('background-color',dark);
-    await expect(page.locator('body')).toHaveCSS('background-color',dark);
-    await expect(page.locator('#app')).toHaveCSS('background-color',dark);
     await expect(page.locator('#runtime-status')).toHaveAttribute('data-state','ready',{timeout:60000});
-    await expect(page.locator('html')).toHaveCSS('background-color',dark);
+    await expect(page.locator('html')).toHaveCSS('background-color',light);
+    await expect(page.locator('html')).toHaveCSS('color-scheme','light');
+    await expect(page.locator('.shell')).toHaveCSS('background-color',light);
   }
   expect(errors).toEqual([]);
 });

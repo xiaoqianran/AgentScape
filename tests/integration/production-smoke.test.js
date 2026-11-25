@@ -2,7 +2,7 @@ import {it,expect} from 'vitest';
 import {runProductionSmoke} from '../../dev/check-production-smoke.mjs';
 
 const titles=new Map([
-  ['/','AgentScape'],['/studio/','AgentScape'],['/home/','AgentScape Home'],
+  ['/','AgentScape Home'],['/studio/','AgentScape'],['/home/','AgentScape Home'],
   ['/starter/','AgentScape · First world'],['/observatory/','AgentScape Observatory'],
   ['/examples/code-project/','自由代码世界 · AgentScape'],
   ['/examples/native-scene/','原生 Three.js · AgentScape'],

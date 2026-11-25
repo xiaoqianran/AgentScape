@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 const ROUTES = Object.freeze([
-  ['/', 'AgentScape'],
+  ['/', 'AgentScape Home'],
   ['/studio/', 'AgentScape'],
   ['/home/', 'AgentScape Home'],
   ['/starter/', 'AgentScape · First world'],

@@ -8,7 +8,7 @@ const workflow = read('.github/workflows/production-smoke.yml');
 const smokeScript = read('dev/check-production-smoke.mjs');
 
 const entries = [
-  ['/', 'index.html', '<title>AgentScape</title>'],
+  ['/', 'apps/spline-home/index.html', '<title>AgentScape Home</title>'],
   ['/studio/', 'index.html', '<title>AgentScape</title>'],
   ['/home/', 'apps/spline-home/index.html', '<title>AgentScape Home</title>'],
   ['/starter/', 'apps/starter/index.html', '<title>AgentScape · First world</title>'],
