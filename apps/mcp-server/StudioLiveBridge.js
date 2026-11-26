@@ -12,7 +12,12 @@ const equal = (left, right) => typeof left === 'string' && typeof right === 'str
  * Browser pairing requires a human-delivered one-time capability (not the MCP Bearer token).
  */
 export class StudioLiveBridge {
-  constructor({now=()=>Date.now(),pairTtlMs=120000,heartbeatMs=30000,rpcTimeoutMs=30000}={}) {
+  // Timing budget: this bridge is loopback-only and the Studio page is the
+  // single source of truth. A busy page main thread (software-rendered GLB
+  // compiles measured above 30s) must not expire a live session, and one
+  // legitimate Studio operation may run longer than 30s; dead-tab detection
+  // stays bounded by the same 60s heartbeat.
+  constructor({now=()=>Date.now(),pairTtlMs=120000,heartbeatMs=60000,rpcTimeoutMs=60000}={}) {
     this.now=now;
     this.pairTtlMs=pairTtlMs;
     this.heartbeatMs=heartbeatMs;

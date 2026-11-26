@@ -18,7 +18,7 @@ import { ProgrammaticAssets } from './ProgrammaticAssets.js';
 import { ProgrammaticAssetBuilder } from '../../application/programmatic-assets/ProgrammaticAssetBuilder.js';
 import { createHeadlessGLTFLoader } from './HeadlessGLTFLoader.js';
 import { installHeadlessAssetIO } from './HeadlessAssetIO.js';
-export async function startServer({tokens,port=39015,root=path.resolve('.mcp-sessions'),dataRoot=path.resolve('.mcp-assets'),security={},transferOptions={},managerOptions={},buildRunner=null,studioOrigins,codeExecution={mode:'worker-wasm'}}={}) {
+export async function startServer({tokens,port=39015,root=path.resolve('.mcp-sessions'),dataRoot=path.resolve('.mcp-assets'),security={},transferOptions={},managerOptions={},studioBridgeOptions={},buildRunner=null,studioOrigins,codeExecution={mode:'worker-wasm'}}={}) {
  installHeadlessAssetIO();
  const repository=new FileAssetRepository(dataRoot);
  const runner=buildRunner || createCodeExecutor({...codeExecution,configPath:path.join(dataRoot,'sandbox.json')});
@@ -27,7 +27,7 @@ export async function startServer({tokens,port=39015,root=path.resolve('.mcp-ses
  const transfers=await new TransferStore(root,transferOptions).initialize();
  const manager=new SessionManager({root,repository,hostOptions:{codeExecution,sandboxConfig:path.join(dataRoot,'sandbox.json')},...managerOptions});
  manager.transfers=transfers;
- const studioBridge=new StudioLiveBridge();
+ const studioBridge=new StudioLiveBridge(studioBridgeOptions);
  const responseLimit=security.maxBody ?? MCP_MESSAGE_BYTES;
  const connections=new Set();let closing=false;
  const http=createServer(async(req,res)=>{

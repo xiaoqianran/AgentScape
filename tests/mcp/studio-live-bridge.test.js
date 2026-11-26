@@ -39,6 +39,21 @@ describe('Studio Live Bridge through real MCP HTTP',()=>{
       await expect(broker.call('alice',pair.worldSessionId,'observe',{}, {requestId:'idempotent-task'})).rejects.toMatchObject({code:'STUDIO_TIMEOUT'});
     }finally{broker.dispose();}
   });
+  it('defaults bridge timing to a 60s budget and accepts timing options through startServer',async()=>{
+    const broker=new StudioLiveBridge();
+    expect(broker.heartbeatMs).toBe(60000);
+    expect(broker.rpcTimeoutMs).toBe(60000);
+    broker.dispose();
+    const root=await mkdtemp(path.join(tmpdir(),'agentscape-studio-bridge-options-'));
+    const app=await startServer({tokens:[{identity:'local',token:randomToken()}],port:0,root,
+      dataRoot:path.join(root,'assets'),studioBridgeOptions:{rpcTimeoutMs:4321,heartbeatMs:2345}});
+    try{
+      expect(app.studioBridge.rpcTimeoutMs).toBe(4321);
+      expect(app.studioBridge.heartbeatMs).toBe(2345);
+    }finally{
+      await app.close();await rm(root,{recursive:true,force:true});
+    }
+  });
   it('requires human pairing, enforces ownership, forwards Scene calls and revokes on world switch',async()=>{
     const root=await mkdtemp(path.join(tmpdir(),'agentscape-studio-bridge-'));
     const tokens=[{identity:'alice',token:randomToken()},{identity:'bob',token:randomToken()}];
