@@ -87,3 +87,23 @@ describe('suzhou garden entrance region (CONTENT-015)', () => {
     } finally { session.scene.close(); world.dispose(); }
   }, 120000);
 });
+
+it('starts default Studio human view on the supported entrance plaza instead of the aerial target',async()=>{
+ const {HumanViewController,HUMAN_EYE_HEIGHT}=await import('../../apps/studio/ui/HumanViewController.js');
+ const THREE=await import('three');const session=await gardenSession();const world=session.world;
+ const camera=new THREE.PerspectiveCamera();camera.position.fromArray(world.environment.camera.position);
+ const controls={target:new THREE.Vector3(...world.environment.camera.target),enabled:true};camera.lookAt(controls.target);
+ world.rendering={viewport:()=>({camera,controls,element:{addEventListener(){},removeEventListener(){}}}),
+  cameraState:()=>({position:camera.position.toArray(),target:controls.target.toArray()}),
+  applyCameraState:state=>{camera.position.fromArray(state.position);controls.target.fromArray(state.target);camera.lookAt(controls.target);}};
+ const controller=new HumanViewController({world,windowTarget:null});
+ try{
+  expect(controller.setMode('first')).toBe(true);
+  expect(controller.position.x).toBe(0);expect(controller.position.z).toBe(108);
+  for(let i=0;i<180;i++)controller.update(i*16.7);
+  expect(camera.position.y).toBeGreaterThan(HUMAN_EYE_HEIGHT);expect(camera.position.y).toBeLessThan(3);
+  expect(controller.position.z).toBe(108);
+  controller.setMode('orbit');expect(controller.setMode('first')).toBe(true);
+  expect(controller.position.z).toBe(108);
+ }finally{controller.dispose();world.rendering=null;session.scene.close();world.dispose();}
+},60000);

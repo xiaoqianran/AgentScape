@@ -74,6 +74,8 @@ export class HumanViewController {
     this.look = null;
     this.lastFrameTime = null;
     this.verticalVelocity = 0;
+    this.initialSpawn = true;
+    this.lastGroundedPosition = null;
     this.yaw = 0;
     this.pitch = -0.08;
     this.position = new THREE.Vector3();
@@ -164,8 +166,12 @@ export class HumanViewController {
       this.avatar.group.visible = false;
     } else {
       if (previous === 'orbit') {
-        this.orbitState = this.world.rendering.cameraState?.() || this.orbitState;
-        this.placeFromView();
+        const nextOrbit = this.world.rendering.cameraState?.() || this.orbitState;
+        const resume = Boolean(this.lastGroundedPosition && this.orbitState && nextOrbit &&
+          ['position','target'].every(key => nextOrbit[key]?.length === 3 &&
+            nextOrbit[key].every((value,index)=>Math.abs(value-this.orbitState[key][index])<1e-4)));
+        this.orbitState = nextOrbit;
+        if (!this.placeFromView(resume)) return false;
       }
       this.controls.enabled = false;
       this.avatar.group.visible = mode === 'third';
@@ -176,27 +182,42 @@ export class HumanViewController {
     return true;
   }
 
-  // Entering a human view starts where the orbit camera was looking, then snaps to the ground.
-  placeFromView() {
+  // Prefer an authored initial spawn; resume an unchanged orbit view at the last safe pose.
+  placeFromView(resume = false) {
     const euler = new THREE.Euler().setFromQuaternion(this.camera.quaternion, 'YXZ');
     this.yaw = euler.y;
     this.pitch = THREE.MathUtils.clamp(euler.x, -MAX_PITCH, MAX_PITCH);
     const target = this.controls?.target;
-    const [x, z, y] = this.resolveSpawn(target?.x ?? this.camera.position.x, target?.z ?? this.camera.position.z);
+    const start = resume ? {position:this.lastGroundedPosition.toArray()} :
+      this.initialSpawn ? this.world.environment?.humanSpawn : null;
+    const spawn = this.resolveSpawn(target?.x ?? this.camera.position.x, target?.z ?? this.camera.position.z, start);
+    if (!spawn) return false;
+    const [x, z, y] = spawn;
     this.position.set(x, y, z);
+    this.lastGroundedPosition = this.position.clone();
+    this.initialSpawn = false;
+    if (start && x === start.position[0] && z === start.position[2] && Array.isArray(start.target)) {
+      const direction = new THREE.Vector3(...start.target).sub(this.position).sub(new THREE.Vector3(0,HUMAN_EYE_HEIGHT,0));
+      this.yaw = Math.atan2(-direction.x,-direction.z);
+      this.pitch = THREE.MathUtils.clamp(Math.atan2(direction.y,Math.hypot(direction.x,direction.z)),-MAX_PITCH,MAX_PITCH);
+    }
     this.verticalVelocity = 0;
     this.applyCamera();
+    return true;
   }
 
-  resolveSpawn(x, z) {
+  resolveSpawn(x, z, start = null) {
     const groundY = this.world.environment?.layout?.groundY ?? 0;
     // The look-at target may sit against a wall, so the wider spawn probe decides first.
-    for (const [cx, cz] of [[x, z], [this.camera.position.x, this.camera.position.z], [0, 0]]) {
-      const ground = this.groundHeight(cx, cz, groundY);
-      const y = ground ?? groundY;
-      if (this.clear(cx, cz, y + FEET_CLEARANCE, SPAWN_QUERY_MANIFEST)) return [cx, cz, y];
+    const candidates = [[x,z,groundY],[this.camera.position.x,this.camera.position.z,groundY],[0,0,groundY]];
+    if (Array.isArray(start?.position) && start.position.length === 3 && start.position.every(Number.isFinite)) {
+      candidates.unshift([start.position[0],start.position[2],start.position[1]]);
     }
-    return [0, 0, groundY];
+    for (const [cx, cz, fromY] of candidates) {
+      const ground = this.groundHeight(cx, cz, fromY);
+      if (ground !== null && this.clear(cx, cz, ground + FEET_CLEARANCE, SPAWN_QUERY_MANIFEST)) return [cx, cz, ground];
+    }
+    return null;
   }
 
   clear(x, z, y, manifest = this.manifest) {
@@ -257,8 +278,14 @@ export class HumanViewController {
     if (ground !== null && this.position.y + this.verticalVelocity * dt <= ground + STEP_HEIGHT) {
       this.position.y = ground;
       this.verticalVelocity = 0;
+      this.lastGroundedPosition = this.position.clone();
     } else {
-      this.position.y = Math.max(-18, this.position.y + this.verticalVelocity * dt);
+      this.position.y += this.verticalVelocity * dt;
+      if (this.lastGroundedPosition && this.position.y < this.lastGroundedPosition.y - 3) {
+        this.position.copy(this.lastGroundedPosition);
+        this.verticalVelocity = 0;
+        this.keys.clear();
+      }
     }
   }
 
@@ -310,6 +337,8 @@ export class HumanViewController {
     this.keys.clear();
     this.verticalVelocity = 0;
     this.lastFrameTime = null;
+    this.initialSpawn = true;
+    this.lastGroundedPosition = null;
     this.controls.enabled = true;
     this.avatar.group.visible = false;
     this.mode = 'orbit';

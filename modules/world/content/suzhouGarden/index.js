@@ -110,6 +110,7 @@ export function createSuzhouGardenEnvironment({renderer=null,quality='low'}={}) 
     id:SUZHOU_ID,root,floor:surface.mesh,navigationRoot,colliders:[surface.collider,...SUZHOU_ENTRANCE_STRUCTURES.map((item)=>item.collider)],
     layout:{bounds:{min:[-150,-140],max:[150,160]},groundY:0,margin:2},
     camera:{position:POIS[0].pos,target:POIS[0].target,far:3200},
+    humanSpawn:{position:[0,0,108],target:[0,1.62,72]},
     rendering:{background:0x91a9c3,exposure:1.08,fog:root.fog},
     navigation:{agentRadius:0.3,agentHeight:1.7,maxSlope:45,maxClimb:0.4},
     views:POIS.map(item=>({id:item.id,label:item.name,position:item.pos,target:item.target})),

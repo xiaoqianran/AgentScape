@@ -255,3 +255,17 @@ describe('HumanViewController', () => {
     }
   }, 20000);
 });
+
+it('does not enter human view if none of the spawn candidates has actual ground',()=>{
+ const h=harness();h.physics.raycast.mockReturnValue(null);
+ const controller=new HumanViewController({world:h.world,windowTarget:h.windowTarget});
+ expect(controller.setMode('first')).toBe(false);expect(controller.mode).toBe('orbit');expect(h.controls.enabled).toBe(true);controller.dispose();
+});
+it('recovers to the last supported pose after falling off a finite floor',()=>{
+ const h=harness();const controller=new HumanViewController({world:h.world,windowTarget:h.windowTarget});
+ controller.setMode('first');controller.update(0);controller.update(16.7);const safe=controller.position.clone();
+ h.physics.raycast.mockImplementation((origin,target)=>origin[0]===safe.x?{point:[target[0],safe.y,target[2]]}:null);
+ controller.position.x=100;
+ for(let i=2;i<180;i++)controller.update(i*16.7);
+ expect(controller.position.toArray()).toEqual(safe.toArray());expect(controller.verticalVelocity).toBe(0);controller.dispose();
+});
