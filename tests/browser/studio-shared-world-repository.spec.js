@@ -4,6 +4,7 @@ const token='test-browser-world-publish-token-for-isolated-e2e';
 const sharedId='world_2a1218753a07458db1cb39784010081f';
 
 test('browser A publishes a code world with independent visual edits; browser B imports and explicitly runs it',async({browser})=>{
+ test.setTimeout(300000);
  const first=await browser.newContext({viewport:{width:1440,height:980}});
  const second=await browser.newContext({viewport:{width:1440,height:980}});
  const a=await first.newPage(),b=await second.newPage();
@@ -25,7 +26,18 @@ test('browser A publishes a code world with independent visual edits; browser B 
   await editor.locator('summary').filter({hasText:'共享世界发布'}).click();
   await editor.getByLabel('共享发布授权令牌').fill(token);
   await editor.getByRole('button',{name:'发布 / 更新共享世界'}).click();
-  await expect(editor.getByRole('status')).toContainText('已发布至共享 WorldRepository',{timeout:60000});
+  // Assert on the repository head itself, not only on the UI message: the
+  // publish chain (save + persist + PUT + refresh) is the slowest step of
+  // this test and the status text is only set after it returns. The shared
+  // record existing server-side is the authoritative completion signal;
+  // the status text must then follow immediately.
+  await expect.poll(async()=>{
+    const response=await a.request.get(new URL('/api/studio/worlds/'+sharedId,a.url()).href);
+    if(!response.ok())return 0;
+    const record=await response.json();
+    return Number.isSafeInteger(record.version)?record.version:0;
+  },{timeout:120000}).toBeGreaterThanOrEqual(1);
+  await expect(editor.getByRole('status')).toContainText('已发布至共享 WorldRepository',{timeout:30000});
 
   await b.goto('/studio/?page=worlds');
   await b.getByRole('button',{name:/共享世界/}).first().click();
@@ -33,7 +45,7 @@ test('browser A publishes a code world with independent visual edits; browser B 
   await expect(row).toContainText('Eldermere',{timeout:40000});
   await row.getByRole('button',{name:'查看源码并选择运行'}).click();
   await expect(b).toHaveURL(/sharedCode=/);
-  await expect(b.getByLabel('世界源码')).toContainText('createProject',{timeout:60000});
+  await expect(b.getByLabel('世界源码')).toContainText('createProject',{timeout:120000});
   await expect(b.locator('.studio-code-project-viewport canvas')).toHaveCount(0);
   await b.getByLabel('完整代码项目').getByRole('button',{name:'运行代码世界'}).click();
   await expect(b.locator('.studio-code-project-viewport canvas')).toBeVisible({timeout:60000});

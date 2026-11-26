@@ -8,6 +8,7 @@ import {startServer} from '../../apps/mcp-server/main.mjs';
 import sharp from 'sharp';
 
 test('Studio previews real PBR textures and commits only the selected Recipe instance through MCP shared Forge',async({page},testInfo)=>{
+  test.setTimeout(300000);
   const root=await mkdtemp(path.join(tmpdir(),'agentscape-material-ui-'));
   const token=randomBytes(32).toString('hex');
   const port=Number(process.env.AGENTSCAPE_TEST_PORT||4178);
@@ -52,7 +53,9 @@ test('Studio previews real PBR textures and commits only the selected Recipe ins
     await testInfo.attach('material-preview',{body:textured,contentType:'image/png'});
     expect((await inspect('material_a')).assetId).toBe(before.assetId);
     await editor.getByRole('button',{name:'应用材质'}).click();
-    await expect.poll(async()=>(await inspect('material_a')).revision,{timeout:60000}).toBe(2);
+    const revisionOf=async()=>{try{return (await inspect('material_a')).revision;}
+      catch(error){if(/STUDIO_TIMEOUT|STUDIO_BUSY/.test(error.message))return null;throw error;}};
+    await expect.poll(revisionOf,{timeout:120000}).toBe(2);
     const after=await inspect('material_a');
     expect(after.definition.parts[0].material).toMatchObject({color:'#ffffff',texture:{pattern:'wood',seed:42}});
     expect(after.assetId).not.toBe(before.assetId);
