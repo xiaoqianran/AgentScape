@@ -34,3 +34,19 @@ test('world-first worlds enter a human view and restore the preferred one', asyn
   await expect(panel).toHaveCount(0);
   await expect(page.getByRole('button', { name: '只读', exact: true })).toBeVisible();
 });
+
+test('default Studio garden opens in human view and stays in the editor',async({page})=>{
+  await page.goto('/');
+  await page.getByRole('link',{name:/Open Studio/}).click();
+  await expect(page.locator('[data-product-page="worlds"]')).toBeVisible();
+  await page.locator('[data-world-card="suzhou-garden"] .world-card-open').click();
+  await waitForRuntimeReady(page);
+  await expect(page).toHaveURL(/world=suzhou-garden/);
+  await expect(page.locator('.human-views').getByRole('button',{name:'第一人称',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('#viewport canvas')).toBeVisible();
+  await page.getByRole('button',{name:'编辑',exact:true}).click();
+  await expect(page.locator('.human-views').getByRole('button',{name:'轨道',exact:true})).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('button',{name:'探索',exact:true}).click();
+  await expect(page.locator('.human-views').getByRole('button',{name:'第一人称',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page).toHaveURL(/world=suzhou-garden/);
+});
