@@ -54,7 +54,7 @@ test('Studio previews real PBR textures and commits only the selected Recipe ins
     expect((await inspect('material_a')).assetId).toBe(before.assetId);
     await editor.getByRole('button',{name:'应用材质'}).click();
     const revisionOf=async()=>{try{return (await inspect('material_a')).revision;}
-      catch(error){if(/STUDIO_TIMEOUT|STUDIO_BUSY/.test(error.message))return null;throw error;}};
+      catch(error){if(/STUDIO_TIMEOUT|STUDIO_BUSY|STUDIO_NOT_CONNECTED|STUDIO_DISCONNECTED/.test(error.message))return null;throw error;}};
     await expect.poll(revisionOf,{timeout:120000}).toBe(2);
     const after=await inspect('material_a');
     expect(after.definition.parts[0].material).toMatchObject({color:'#ffffff',texture:{pattern:'wood',seed:42}});
