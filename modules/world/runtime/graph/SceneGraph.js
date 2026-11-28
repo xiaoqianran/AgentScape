@@ -30,11 +30,10 @@ const sameValue = (left, right) => {
 
 const sameEdges = (left, right) => {
   if (left.size !== right.size) return false;
-  const iterator = right.entries();
   for (const [key, edge] of left) {
-    const next = iterator.next().value;
-    if (!next || key !== next[0]) return false;
-    const other = next[1];
+    const other = right.get(key);
+    if (!other) return false;
+    if (edge === other) continue;
     if (edge.subject !== other.subject || edge.predicate !== other.predicate || edge.object !== other.object) return false;
     const a = edge.meta || {}, b = other.meta || {};
     const aKeys = Object.keys(a), bKeys = Object.keys(b);
@@ -49,6 +48,8 @@ export class SceneGraph {
     this.spatial = spatial;
     this.events = events;
     this.edges = new Map();
+    this.nearCenters = new Map();
+    this.nearPairs = new Map();
     this.environmentFacts = [];
     this.batchDepth = 0;
     this.dirty = true;
@@ -64,7 +65,7 @@ export class SceneGraph {
 
   delete(subject, predicate, object) { return this.edges.delete(this.key(subject, predicate, object)); }
   clear() { this.edges.clear(); }
-  reset() { this.edges.clear(); this.environmentFacts = []; this.dirty = false; this.batchDepth = 0; }
+  reset() { this.nearCenters.clear(); this.nearPairs.clear(); this.edges.clear(); this.environmentFacts = []; this.dirty = false; this.batchDepth = 0; }
 
 
   setEnvironmentSemantics(environmentId, value = null) {
@@ -182,19 +183,51 @@ export class SceneGraph {
 
     const candidates = new Set();
     const nearDistances = new Map();
-    for (let i = 0; i < records.length; i++) {
-      const [id] = records[i], a = spatialSnapshot.get(id);
-      // Keep the single pairwise distance pass used for NEAR semantics. The
-      // spatial index below limits the much more expensive geometry checks.
-      for (let j = i + 1; j < records.length; j++) {
-        const [otherId] = records[j], b = spatialSnapshot.get(otherId);
+    const centers = new Map();
+    const moved = new Set();
+    for (const [id] of records) {
+      const center = spatialSnapshot.get(id).center;
+      const previousCenter = this.nearCenters.get(id);
+      if (!previousCenter?.equals(center)) moved.add(id);
+      centers.set(id, moved.has(id) ? center.clone() : previousCenter);
+    }
+    for (const [pair, distance] of this.nearPairs) {
+      const [left, right] = pair.split('\0');
+      if (centers.has(left) && centers.has(right) && !moved.has(left) && !moved.has(right)) {
+        nearDistances.set(pair, distance);
+      }
+    }
+    for (const id of moved) {
+      const a = spatialSnapshot.get(id);
+      const { x, y, z } = a.center;
+      const neighbors = new Set();
+      for (const dx of [-2, 0, 2]) for (const dy of [-2, 0, 2]) for (const dz of [-2, 0, 2]) {
+        const bucket = relationGrid.get(cellKey(x + dx, y + dy, z + dz));
+        if (bucket) for (const otherId of bucket) {
+          if (!moved.has(otherId) || id < otherId) neighbors.add(otherId);
+        }
+      }
+      for (const otherId of neighbors) {
+        const b = spatialSnapshot.get(otherId);
         const distance = a.center.distanceTo(b.center);
         if (distance <= 2) {
-          const pair = `${id}\0${otherId}`;
-          candidates.add(pair);
+          const pair = id < otherId ? `${id}\0${otherId}` : `${otherId}\0${id}`;
           nearDistances.set(pair, distance);
         }
       }
+    }
+    for (const [pair, distance] of nearDistances) {
+      const [left, right] = pair.split('\0');
+      const meta = { distance: Number(distance.toFixed(3)) };
+      for (const [subject, object] of [[left, right], [right, left]]) {
+        const key = this.key(subject, 'NEAR', object);
+        const existing = previous.get(key);
+        if (existing && sameValue(existing.meta, meta)) this.edges.set(key, existing);
+        else this.set(subject, 'NEAR', object, meta);
+      }
+    }
+    for (const [id] of records) {
+      const a = spatialSnapshot.get(id);
       const seenTargets = new Set();
       const box = a.box;
       const minX = Math.floor((box.min.x - 0.12) / cellSize), maxX = Math.floor((box.max.x + 0.12) / cellSize);
@@ -214,16 +247,12 @@ export class SceneGraph {
     for (const pair of candidates) {
       const [id, otherId] = pair.split('\0');
       const a = spatialSnapshot.get(id), b = spatialSnapshot.get(otherId);
-      const nearDistance = nearDistances.get(pair);
-      if (nearDistance !== undefined) {
-        const meta = { distance: Number(nearDistance.toFixed(3)) };
-        this.set(id, 'NEAR', otherId, meta);
-        this.set(otherId, 'NEAR', id, meta);
-      }
       deriveDirected(id, a, otherId, b);
       deriveDirected(otherId, b, id, a);
     }
 
+    this.nearCenters = centers;
+    this.nearPairs = nearDistances;
     this.dirty = false;
     if (!sameEdges(previous, this.edges)) this.events?.emit('sceneGraph.updated', { edges: this.edges.size });
   }
